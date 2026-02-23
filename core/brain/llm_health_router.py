@@ -1,3 +1,19 @@
+"""
+core/brain/llm_health_router.py
+────────────────────────────────
+Replacement for IntelligentLLMRouter.
+
+Fixes:
+  - Zero-token / whitespace-only responses treated as failure, not success
+  - Primary endpoint failure triggers genuine fallback to local Ollama
+  - Per-endpoint health tracking with circuit breaker pattern
+  - Response validation before acceptance
+  - Structured logging that distinguishes real success from empty success
+
+Drop-in: replace the existing router instantiation in orchestrator_boot.py
+with HealthAwareLLMRouter.
+"""
+
 from __future__ import annotations
 
 import asyncio

@@ -1,3 +1,21 @@
+"""
+core/session_guardian.py
+─────────────────────────
+Manages session health and prevents the cascade failures that kill long
+conversations. This is the missing layer between the orchestrator and
+the subsystems.
+
+What it does:
+  1. Tracks per-session health metrics
+  2. Gates expensive operations (consolidation, evolution, RL) on system health
+  3. Detects when the LLM response pipeline has gone silent and recovers it
+  4. Prevents the reply_queue race condition by tagging responses with session IDs
+  5. Provides a clean "safe mode" that disables non-essential subsystems
+
+Install: instantiate in orchestrator_boot.py after the orchestrator is created,
+call guardian.attach(orchestrator). Then call guardian.start() in the run loop.
+"""
+
 from __future__ import annotations
 
 import asyncio

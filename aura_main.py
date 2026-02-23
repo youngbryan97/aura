@@ -83,7 +83,7 @@ def kill_port(port: int, pattern: str = "aura"):
 
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
-            for conn in proc.connections(kind='inet'):
+            for conn in proc.net_connections(kind='inet'):
                 if conn.laddr.port == port:
                     cmd_str = " ".join(proc.cmdline() or []).lower()
                     if pattern in cmd_str or pattern in proc.name().lower():

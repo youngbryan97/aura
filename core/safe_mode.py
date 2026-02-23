@@ -1,3 +1,22 @@
+"""
+core/safe_mode.py
+──────────────────
+Safe mode configuration and orchestrator patches.
+
+Provides two things:
+  1. SAFE_MODE_CONFIG — a config overlay that disables non-essential
+     subsystems so you can get a stable LLM ↔ voice ↔ chat loop running
+     before re-enabling advanced features one at a time.
+
+  2. apply_orchestrator_patches() — monkey-patches the existing orchestrator
+     with the fixes from the code review without requiring a full rewrite.
+     Apply these at boot after orchestrator creation.
+
+Usage in aura_main.py or orchestrator_boot.py:
+    from core.safe_mode import apply_orchestrator_patches, SAFE_MODE_CONFIG
+    apply_orchestrator_patches(orchestrator, safe_mode=True)
+"""
+
 from __future__ import annotations
 
 import asyncio

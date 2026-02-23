@@ -1,3 +1,25 @@
+"""
+core/tagged_reply_queue.py
+───────────────────────────
+Replaces the bare asyncio.Queue used for replies in the orchestrator.
+
+The problem it solves:
+  The original orchestrator uses a single reply_queue for both user responses
+  and autonomous thought responses. The race condition:
+
+  1. User sends message
+  2. Orchestrator cancels autonomous thought
+  3. Autonomous thought had already queued its response
+  4. Orchestrator clears the queue before processing
+  5. Autonomous thought's finally block queues AGAIN after the clear
+  6. User's response arrives but is consumed by code waiting for the wrong type
+  7. User waits 240 seconds until timeout
+
+This queue tags every entry with an origin and session_id.
+get_for_origin() only returns responses matching the requested origin,
+discarding anything else. No more cross-contamination.
+"""
+
 from __future__ import annotations
 
 import asyncio
