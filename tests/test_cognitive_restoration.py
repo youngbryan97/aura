@@ -1,10 +1,13 @@
+################################################################################
+
 
 import sys
+import pytest
 import os
 import asyncio
 import json
 import logging
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -13,11 +16,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Test")
 
+@pytest.mark.asyncio
 async def test_native_chat_personality_injection():
     logger.info("Testing NativeChatSkill personality injection...")
     
     # Mock dependencies
-    from skills.native_chat import NativeChatSkill
+    from core.skills.native_chat import NativeChatSkill
     from core.brain.cognitive_engine import CognitiveEngine, ThinkingMode
     
     # Mock Brain
@@ -48,11 +52,11 @@ async def test_native_chat_personality_injection():
     skill = NativeChatSkill()
     skill.context = context
     
-    # Patch skills.native_chat.brain
-    import skills.native_chat
+    # Patch core.skills.native_chat.brain
+    import core.skills.native_chat
     # Use AsyncMock for think
     mock_brain.think = AsyncMock(return_value=MagicMock(content="Hello", confidence=1.0))
-    skills.native_chat.brain = mock_brain
+    core.skills.native_chat.brain = mock_brain
     
     # Execute
     params = {"message": "Hello Aura!"}
@@ -83,10 +87,11 @@ async def test_native_chat_personality_injection():
     except Exception as e:
         logger.error(f"❌ NativeChat execution failed: {e}")
 
+@pytest.mark.asyncio
 async def test_cognitive_engine_prompt_injection():
     logger.info("\nTesting CognitiveEngine prompt injection...")
     
-    from core.brain.cognitive_engine import CognitiveEngine, ThinkingMode, RobustOllamaClient
+    from core.brain.cognitive_engine import CognitiveEngine, ThinkingMode
     
     engine = CognitiveEngine()
     # Mock client
@@ -108,6 +113,12 @@ async def test_cognitive_engine_prompt_injection():
     # But since we mocked `engine.client`, and `asyncio.to_thread` runs that method, it should be fine.
     
     # We need to spy on `engine.client.generate_json` to see the prompt
+    
+    # Mock state repository
+    engine.state_repository = MagicMock()
+    mock_state = MagicMock()
+    mock_state.derive.return_value = mock_state
+    engine.state_repository.get_current = AsyncMock(return_value=mock_state)
     
     await engine.think(objective="Say hi", context=context, mode=ThinkingMode.CREATIVE)
     
@@ -131,3 +142,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+##

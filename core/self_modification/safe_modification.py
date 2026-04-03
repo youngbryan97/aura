@@ -47,6 +47,25 @@ class ModificationRecord:
         }
 
 
+@dataclass
+class LogicTransplant:
+    """Represents a multi-block architectural shift."""
+    target_file: str
+    explanation: str
+    chunks: List[Dict[str, str]]  # List of {"original": "...", "fixed": "..."}
+    risk_level: int = 5
+    lines_changed: int = 0
+    
+    def to_dict(self):
+        return {
+            "target_file": self.target_file,
+            "explanation": self.explanation,
+            "chunks": self.chunks,
+            "risk_level": self.risk_level,
+            "lines_changed": self.lines_changed
+        }
+
+
 class GitIntegration:
     """Git version control integration for safe self-modification.
     """
@@ -79,19 +98,35 @@ class GitIntegration:
 
     @staticmethod
     def _validate_path(file_path: str) -> str:
-        """C-04 FIX: Validate and sanitize file paths to prevent shell injection.
-        Ensures path contains no shell metacharacters, traversal, or injection.
-        """
+        """Issue 73/74: Validate and sanitize file paths (Link traversal & Unicode)."""
         import re
+        # Block non-ASCII (Unicode path check - Issue 74)
+        if not all(ord(c) < 128 for c in file_path):
+            raise ValueError(f"Unicode characters not allowed in file paths: {file_path!r}")
+            
         # Block shell metacharacters
         if re.search(r'[;&|`$(){}\[\]<>!\\\n\r]', file_path):
             raise ValueError(f"Path contains shell metacharacters: {file_path!r}")
-        # Block path traversal
+            
+        # Block path traversal (Issue 73)
         if '..' in file_path:
             raise ValueError(f"Path traversal detected: {file_path!r}")
+            
+        # Link traversal check (Issue 73)
+        try:
+            full_path = os.path.realpath(file_path)
+            cwd_path = os.path.realpath(os.getcwd())
+            if not full_path.startswith(cwd_path):
+                raise ValueError(f"Path escaped project root via symlink: {file_path!r}")
+        except Exception as e:
+            if isinstance(e, ValueError): raise
+            # If path doesn't exist yet, we can't realpath it fully, but we checked ..
+            logger.debug("Path validation exception (likely non-existent): %s", e)
+
         # Block absolute paths outside the repo
         if file_path.startswith('/'):
             raise ValueError(f"Absolute paths not allowed: {file_path!r}")
+            
         # Must be a Python file or known config
         if not file_path.endswith(('.py', '.toml', '.yaml', '.yml', '.json', '.cfg')):
             raise ValueError(f"Unsupported file type: {file_path!r}")
@@ -110,11 +145,32 @@ class GitIntegration:
     async def _check_git_available(self) -> bool:
         """Check if git is installed and repo exists (Async)"""
         return await asyncio.to_thread(self._check_git_available_sync)
+
+    async def is_worktree_dirty(self) -> bool:
+        """Return True when the repository has any local changes."""
+        if not self.git_available:
+            return False
+        try:
+            result = await asyncio.to_thread(
+                subprocess.run,
+                ["git", "status", "--porcelain"],
+                cwd=self.repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return bool(result.stdout.strip())
+        except Exception as e:
+            logger.debug("Dirty worktree check failed: %s", e)
+            return True
     
     async def create_branch(self, branch_name: str) -> bool:
         """Create and checkout a new branch for testing fix (Async)."""
         if not self.git_available:
             logger.warning("Git not available, skipping branch creation")
+            return False
+        if await self.is_worktree_dirty():
+            logger.info("Git worktree is dirty; skipping branch creation for safe autonomous fix flow.")
             return False
         
         try:
@@ -409,11 +465,14 @@ class SafeSelfModification:
         self.boot_validator = GhostBootValidator(self.code_base)
 
         if modification_log is None:
-            from core.config import config
             self.modification_log = config.paths.data_dir / "modifications.jsonl"
         else:
             self.modification_log = Path(modification_log)
         self.modification_log.parent.mkdir(parents=True, exist_ok=True)
+
+        # Staging Directory for Mutation Quarantine
+        self.staging_dir = config.paths.data_dir / "mutation_staging"
+        self.staging_dir.mkdir(parents=True, exist_ok=True)
 
         # Statistics
         self.stats = {
@@ -437,6 +496,36 @@ class SafeSelfModification:
         return any(normalized.startswith(prefix) or f"/{prefix}" in normalized
                    for prefix in config.modification.allowed_paths)
 
+    @staticmethod
+    def is_protected_path(file_path: str) -> bool:
+        """Check if a file path is inside a constitutionally protected area."""
+        normalized = str(file_path).replace("\\", "/").lstrip("./")
+        for prefix in config.modification.protected_paths:
+            protected = str(prefix).replace("\\", "/").lstrip("./")
+            if normalized == protected or normalized.startswith(protected.rstrip("/") + "/"):
+                return True
+        return False
+
+    def _resolve_target_path(self, file_path: str | Path) -> Path:
+        target = Path(file_path)
+        if not target.is_absolute():
+            target = self.code_base / target
+        resolved = target.resolve()
+        code_root = self.code_base.resolve()
+        staging_root = self.staging_dir.resolve()
+        try:
+            resolved.relative_to(code_root)
+        except ValueError:
+            try:
+                resolved.relative_to(staging_root)
+            except ValueError as exc:
+                raise ValueError(f"Target path escaped code base: {file_path}") from exc
+        return resolved
+
+    def _relative_target_path(self, file_path: str | Path) -> str:
+        resolved = self._resolve_target_path(file_path)
+        return resolved.relative_to(self.code_base.resolve()).as_posix()
+
     def validate_proposal(self, fix) -> Tuple[bool, str]:
         """Gate a modification proposal before it reaches apply_fix.
 
@@ -446,10 +535,38 @@ class SafeSelfModification:
         if not fix.target_file:
             return False, "No target file specified"
 
+        try:
+            normalized_target = self._relative_target_path(fix.target_file)
+        except Exception as exc:
+            self.stats["blocked_by_policy"] += 1
+            return False, f"Target path resolution failed: {exc}"
+
         # 1. Path Allowlist Check
-        if not self.is_allowed_path(fix.target_file):
-            self.stats["blocked_by_policy"] += 1 # Added this line to match original logic
-            return False, f"Path '{fix.target_file}' is not in the allowed modification list."
+        if not self.is_allowed_path(normalized_target):
+            self.stats["blocked_by_policy"] += 1
+            return False, f"Path '{normalized_target}' is not in the allowed modification list."
+
+        # 1b. Constitutional protected-path check
+        if self.is_protected_path(normalized_target):
+            self.stats["blocked_by_policy"] += 1
+            return False, f"Path '{normalized_target}' is constitutionally protected from autonomous modification."
+
+        # [Phase 14.3] Sepsis Loop Detection (Issue 77)
+        try:
+            from core.container import ServiceContainer
+            tm_desc = ServiceContainer()._services.get("terminal_monitor")
+            if tm_desc and tm_desc.instance and getattr(tm_desc.instance, "_sepsis_mode", False):
+                logger.warning("🚫 Modification blocked: System is in Sepsis Mode (error spike)")
+                return False, "Sepsis Loop Detected: Error rate too high"
+                
+            # Check custom sepsis registry if exists
+            sepsis_file = config.paths.data_dir / "sepsis_registry.json"
+            if sepsis_file.exists():
+                sepsis_data = json.loads(sepsis_file.read_text())
+                if fix.target_file in sepsis_data.get("banned_files", []):
+                    return False, f"File {fix.target_file} is barred due to previous sepsis"
+        except Exception as e:
+            logger.debug("Sepsis check failed (non-blocking): %s", e)
 
         # 2. Risk Evaluation
         risk = getattr(fix, "risk_level", 1)
@@ -529,19 +646,31 @@ class SafeSelfModification:
             self._emit_proposal_event(fix, "BLOCKED", reason)
             return False, f"Blocked: {reason}"
 
+        if isinstance(fix, LogicTransplant):
+             logger.info("🧬 Initiating Logic Transplantation for %s", fix.target_file)
+        else:
+             logger.info("Applying fix to %s:%d", fix.target_file, getattr(fix, "target_line", 0))
+
         self._emit_proposal_event(fix, "APPROVED", "Passed all safety gates")
-        logger.info("Applying fix to %s:%d", fix.target_file, fix.target_line)
 
         self.stats["total_attempts"] += 1
 
         # Safety Protocol Stages
         
-        # Stage 1: Create backup
-        backup_id = await asyncio.to_thread(self.backup.create_backup, fix.target_file)
+        # Stage 1: Create backup, snapshot & Stage in Quarantine (v52)
+        target_path = self._resolve_target_path(fix.target_file)
+        target_rel = target_path.relative_to(self.code_base.resolve()).as_posix()
+        backup_id = await asyncio.to_thread(lambda: self.backup.create_backup(str(target_path)))
         if not backup_id:
             return False, "Backup creation failed"
+            
+        # Issue 76: Rollback Hash (Capture before change)
+        pre_mod_hash = self._file_hash(target_path)
         
-        logger.info("✓ Stage 1: Backup created (%s)", backup_id)
+        # Create Quarantine Staging File
+        staging_file = self.staging_dir / target_path.name
+        shutil.copy2(target_path, staging_file)
+        logger.info("🛡️ [QUARANTINE] Staged %s for validation", target_rel)
         
         # Stage 2: Create git branch (if available)
         branch_name = f"autofix-{int(time.time())}"
@@ -552,25 +681,34 @@ class SafeSelfModification:
         else:
             logger.info("  Stage 2: No git branch (git unavailable)")
         
-        # Stage 3: Apply the fix
+        # Stage 3: Apply the fix to QUARANTINE first (v52)
         try:
-            success = await self._apply_code_change(fix)
-            if not success:
-                await self._rollback(backup_id, branch_name if branch_created else None)
-                return False, "Code modification failed"
+            # v52: We apply to the STAGING file first
+            real_target_file = fix.target_file
+            fix.target_file = str(staging_file) # Redirect apply to staging
             
-            logger.info("✓ Stage 3: Code modified")
+            if isinstance(fix, LogicTransplant):
+                success = await self._apply_logic_transplant(fix)
+            else:
+                success = await self._apply_code_change(fix)
+                
+            fix.target_file = real_target_file # Restore real path
+            
+            if not success:
+                return False, "Staged code modification failed"
+            
+            logger.info("✓ Stage 3: Staged modification applied to quarantine")
             
         except Exception as e:
             logger.error("Code modification exception: %s", e)
-            await self._rollback(backup_id, branch_name if branch_created else None)
+            await self._rollback(backup_id, branch_name if branch_created else None, expected_hash=pre_mod_hash)
             return False, f"Modification exception: {e}"
         
         # Stage 4: Commit changes
         commit_hash = None
         if branch_created:
             commit_message = f"Autonomous fix: {fix.explanation}"
-            commit_hash = await self.git.commit_changes(fix.target_file, commit_message)
+            commit_hash = await self.git.commit_changes(target_rel, commit_message)
             if commit_hash:
                 logger.info("✓ Stage 4: Changes committed (%s)", commit_hash[:8])
             else:
@@ -583,26 +721,33 @@ class SafeSelfModification:
         
         # v6.2: Core Boot Integrity Check (Ghost Boot)
         ghost_boot_passed = True
-        if "core/" in fix.target_file:
-            logger.info("👻 Critical path change detected. Initiating Ghost Boot...")
-            # We need the sandbox path from the tester, but SafeSelfModification 
-            # as written applies to real file first then rolls back.
-            # So we ghost-boot the REAL root in its current state.
-            ghost_boot_passed, ghost_msg = await self.boot_validator.validate_boot(self.code_base)
+        if target_rel.startswith("core/"):
+            logger.info("👻 Critical path change detected. Initiating Ghost Boot in Quarantine...")
+            # Validate the STAGING file's effect on boot
+            # Note: This is a simplified validation; a full Ghost Boot would need
+            # to swap the file in a temporary root, which we approximate here.
+            ghost_boot_passed, ghost_msg = await self.boot_validator.validate_boot(self.code_base, overlay_file=(target_rel, str(staging_file)))
             if not ghost_boot_passed:
-                logger.error("✗ Ghost Boot FAILED: %s", ghost_msg)
+                logger.error("✗ Ghost Boot FAILED in Quarantine: %s", ghost_msg)
 
         tests_passed = test_results.get("success", False) and full_suite_passed and ghost_boot_passed
         
-        if not full_suite_passed:
-             logger.error("Full test suite failed after modification")
-        
         if not tests_passed:
-            logger.error("✗ Stage 5: System Verification failed")
-            await self._rollback(backup_id, branch_name if branch_created else None)
-            return False, "Post-application verification failed"
+            logger.error("✗ Stage 5: Quarantine Verification failed (Sepsis check - Issue 77)")
+            if not ghost_boot_passed:
+                self._mark_sepsis(fix.target_file)
+            # We don't need to 'rollback' the real file because we never touched it!
+            # But we should clean up the staging/branch
+            if branch_created:
+                await self.git.checkout_main()
+                await self.git.delete_branch(branch_name)
+            return False, "Quarantine verification failed"
         
-        logger.info("✓ Stage 5: System Verification passed")
+        # PROMOTE FROM QUARANTINE TO REAL FILE
+        logger.info("🚀 [PROMOTION] Quarantine passed. Applying to primary repository.")
+        shutil.copy2(staging_file, target_path)
+        
+        logger.info("✓ Stage 5: System Verification passed & Promoted")
         
         # Stage 6: Merge to main (if using git)
         if branch_created:
@@ -628,6 +773,7 @@ class SafeSelfModification:
             commit_hash=commit_hash,
             test_results=test_results
         )
+        record.file_path = target_rel
         self._log_modification(record)
         
         logger.info("✅ Successfully applied autonomous fix to %s", fix.target_file)
@@ -635,7 +781,7 @@ class SafeSelfModification:
     
     async def _apply_code_change(self, fix) -> bool:
         """Actually modify the file using robust line-based patching (Async)."""
-        file_path = self.code_base / fix.target_file
+        file_path = self._resolve_target_path(fix.target_file)
         
         try:
             # Read original
@@ -690,6 +836,50 @@ class SafeSelfModification:
         except Exception as e:
             logger.error("Patching failed for %s: %s", fix.target_file, e)
             return False
+            
+    async def _apply_logic_transplant(self, transplant: LogicTransplant) -> bool:
+        """Applies a multi-block logic transplant atomically (Async)."""
+        file_path = self._resolve_target_path(transplant.target_file)
+        
+        try:
+            # Read original
+            with open(file_path, 'r') as f:
+                content = f.read()
+            
+            modified_content = content
+            for chunk in transplant.chunks:
+                original = chunk["original"]
+                fixed = chunk["fixed"]
+                
+                if modified_content.count(original) > 1:
+                    logger.warning("Duplicate blocks detected in %s, replace(1) logic may be ambiguous.", transplant.target_file)
+                
+                modified_content = modified_content.replace(original, fixed, 1)
+            
+            # Validate syntax
+            import ast
+            try:
+                ast.parse(modified_content)
+            except SyntaxError as e:
+                logger.error("Transplant caused syntax error: %s", e)
+                return False
+                
+            # Atomic write
+            import tempfile
+            fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(file_path), suffix='.py.tmp')
+            try:
+                with os.fdopen(fd, 'w') as f:
+                    f.write(modified_content)
+                os.replace(tmp_path, file_path)
+            except Exception:
+                if os.path.exists(tmp_path): os.remove(tmp_path)
+                raise
+                
+            return True
+            
+        except Exception as e:
+            logger.error("Logic transplant failed for %s: %s", transplant.target_file, e)
+            return False
     
     async def _rollback(self, backup_id: str, branch_name: Optional[str],
                   expected_hash: Optional[str] = None):
@@ -724,6 +914,25 @@ class SafeSelfModification:
             await self.git.checkout_main()
             await self.git.delete_branch(branch_name)
             logger.info("✓ Cleaned up git branch")
+
+    def _mark_sepsis(self, file_path: str):
+        """Mark a file as 'sepsis' to prevent future modifications (Issue 77)."""
+        try:
+            sepsis_file = config.paths.data_dir / "sepsis_registry.json"
+            sepsis_data = {}
+            if sepsis_file.exists():
+                sepsis_data = json.loads(sepsis_file.read_text())
+            
+            banned = sepsis_data.get("banned_files", [])
+            if file_path not in banned:
+                banned.append(file_path)
+            sepsis_data["banned_files"] = banned
+            sepsis_data["last_sepsis_event"] = time.time()
+            
+            sepsis_file.write_text(json.dumps(sepsis_data, indent=2))
+            logger.error("💀 FILE %s MARKED AS SEPSIS (Cause: Boot Failure)", file_path)
+        except Exception as e:
+            logger.error("Failed to mark sepsis: %s", e)
     
     def _log_modification(self, record: ModificationRecord):
         """Log modification attempt"""
@@ -801,4 +1010,3 @@ class SafeSelfModification:
         except Exception as e:
             logger.error("Static validation failed: %s", e)
             return False
-

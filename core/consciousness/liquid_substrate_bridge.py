@@ -35,7 +35,7 @@ def encode_message_to_stimulus(text: str, neuron_count: int = 512) -> np.ndarray
 def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
     """Wire LiquidSubstrate into the orchestrator lifecycle."""
     from core.container import ServiceContainer
-    substrate = ServiceContainer.get("liquid_substrate")
+    substrate = ServiceContainer.get("liquid_substrate", default=None)
 
     if substrate is None:
         logger.warning("LiquidSubstrate not in ServiceContainer — bridge skipped.")
@@ -60,7 +60,8 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
 
     def get_substrate_affect() -> Dict[str, float]:
         try:
-            summary = substrate.get_state_summary()
+            # Fix: get_state_summary is async — use sync get_substrate_affect instead
+            summary = substrate.get_substrate_affect()
             return {
                 "valence":    float(np.tanh(summary.get("valence", 0.0))),
                 "arousal":    float((summary.get("arousal", 0.0) + 1.0) / 2.0),

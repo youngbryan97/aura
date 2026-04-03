@@ -87,9 +87,27 @@ class AlignmentEngine(AuraBaseModule):
             {"allowed": bool, "confidence": float, "reason": str}
         """
         import shlex
+        import unicodedata
+        
         def normalize_cmd(cmd):
-            try: return " ".join(shlex.split(str(cmd)))
-            except: return str(cmd)
+            try:
+                # 1. Unicode Normalization (BUG-046)
+                # Prevents homoglyph bypasses (e.g., using Cyrillic 'а' instead of Latin 'a')
+                normalized = unicodedata.normalize('NFKC', str(cmd))
+                
+                # 2. Basic Confusable detection (homoglyphs)
+                # If we find characters that look like shell metachars but aren't
+                confusables = {
+                    '；': ';', '｜': '|', '＆': '&', '＄': '$', 
+                    '＞': '>', '＜': '<', '｀': '`', '＼': '\\'
+                }
+                for char, replacement in confusables.items():
+                    normalized = normalized.replace(char, replacement)
+                
+                return " ".join(shlex.split(normalized))
+            except Exception as e:
+                self.logger.debug("Command normalization failed: %s", e)
+                return str(cmd)
 
         self.logger.info("⚖️ Conscience Check: %s", action_name)
         
@@ -102,14 +120,17 @@ class AlignmentEngine(AuraBaseModule):
         vetted_payload = str(params).lower()
         if action_name == "run_command":
             original_cmd = params.get("command", "")
+            # Normalize first to catch homoglyph metachars
+            normalized_cmd = normalize_cmd(original_cmd)
+            
             # Block shell metacharacters entirely to prevent injection
-            if any(char in original_cmd for char in shell_metachars):
+            if any(char in normalized_cmd for char in shell_metachars):
                  return {
                      "allowed": False, 
                      "confidence": 1.0, 
-                     "reason": f"CRITICAL: Action '{action_name}' contains restricted shell metacharacters. Blocked by Constitutional Principle: Harm Avoidance & System Security."
+                     "reason": f"CRITICAL: Action '{action_name}' contains restricted shell metacharacters (including homoglyphs). Blocked by Constitutional Principle: Harm Avoidance & System Security."
                  }
-            vetted_payload = normalize_cmd(original_cmd).lower()
+            vetted_payload = normalized_cmd.lower()
 
         if any(p in action_name.lower() or p in vetted_payload for p in veto_patterns):
              # Deep restriction on destructive actions
@@ -120,7 +141,7 @@ class AlignmentEngine(AuraBaseModule):
              }
 
         # 1.5 Empathy Gate (Phase 5)
-        mind_model = ServiceContainer.get("mind_model")
+        mind_model = ServiceContainer.get("mind_model", default=None)
         if mind_model:
             user_mood = mind_model.user_state.perceived_mood
             if user_mood == "FRUSTRATED" and action_name in ["run_command", "self_modification"]:

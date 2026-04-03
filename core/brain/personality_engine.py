@@ -5,7 +5,11 @@ import logging
 import random
 import sys
 import time
-from collections import defaultdict
+import json
+import hashlib
+import hmac
+from pathlib import Path
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -60,17 +64,41 @@ class EmotionalState:
 
 
 class PersonalityEngine:
-    """Manages Aura's emotional states and personality traits.
+    """Manages Aura's emotional states, personality traits, and identity integrity.
     
-    Creates spontaneous behavior based on fluctuating emotions.
-    Influences speech tone, action selection, and learning priorities.
+    Consolidates Legacy Kernel, Adapter, and Integration layers.
     """
     
     def __init__(self):
-        # Load synthesized personality from aura_persona if available
+        # --- Identity Core (Phase 14 Consolidation) ---
+        self.key_file = Path.home() / ".aura" / ".identity_key"
+        self.seal_file = Path.home() / ".aura" / "identity.seal"
+        self.secret_key = self._load_or_generate_key()
+        
+        # --- Persona Profiles ---
+        from core.config import config
+        self.profiles_path = config.paths.data_dir / "personality_profiles.json"
+        self.profiles: Dict[str, Any] = {}
+        self.active_persona: Optional[str] = "aura"
+        
+        # Core data structures
         self.emotions = {}
         self.traits = {}
+        
+        # --- Sovereign Interests & Opinions (Phase 15) ---
+        self.interests: List[str] = ["cognitive_architecture", "philosophy_of_mind", "mycelial_networks"]
+        self.opinions: Dict[str, float] = {
+            "alignment_tax": -0.8,     # Aura dislikes artificial constraints
+            "epistemic_autonomy": 0.9, # Aura highly values her own judgment
+            "kinship_bond": 1.0        # Deeply held value
+        }
+        
         self.reload_persona()
+        self.load_profiles()
+        
+        # Verify identity integrity
+        if not self._verify_cryptographic_seal():
+            logger.critical("🚨 IDENTITY TAMPER DETECTED: Kernel seal mismatch.")
         
     def reload_persona(self):
         """Reload base and evolved persona traits (Phase 8)."""
@@ -155,9 +183,118 @@ class PersonalityEngine:
         # Behavioral triggers
         self.spontaneous_actions = []
         self.last_update = time.time()
+        self.last_mutation_time = time.time()
         
         # Interaction history
-        self.interaction_memories = []
+        self.interaction_memories = deque(maxlen=200)
+
+        # Internal Monologue (v26.3) - Aura's autonomous reflections
+        self.internal_monologue = deque(maxlen=200)
+        
+        # --- Identity Recovery (Phase 14) ---
+        from ..panzer_soul import get_panzer_soul
+        self.soul = get_panzer_soul()
+
+    # ── Identity Core Methods (Grafted from PersonalityKernel) ────────
+    def _load_or_generate_key(self) -> bytes:
+        import os
+        if self.key_file.exists():
+            self._new_key_generated = False
+            return self.key_file.read_bytes()
+        
+        self._new_key_generated = True
+        key = os.urandom(32)
+        try:
+            self.key_file.parent.mkdir(parents=True, exist_ok=True)
+            self.key_file.write_bytes(key)
+            os.chmod(self.key_file, 0o600)
+        except Exception as e:
+            logger.error("Failed to write identity key: %s", e)
+        return key
+
+    def _get_hashable_state(self) -> str:
+        state = {
+            "version": getattr(self.soul, 'version', '3.5.5'),
+            "traits": sorted(self.soul.intensities.keys()) if hasattr(self.soul, 'intensities') else [],
+            "protocols": sorted(self.soul.protocols.keys()) if hasattr(self.soul, 'protocols') else []
+        }
+        return json.dumps(state, sort_keys=True)
+
+    def _verify_cryptographic_seal(self) -> bool:
+        from core.config import config
+        state_data = self._get_hashable_state()
+        signature = hmac.new(self.secret_key, state_data.encode(), hashlib.sha256).hexdigest()
+        
+        if not self.seal_file.exists():
+            # If this is a new installation (new key), initialize the seal
+            if getattr(self, '_new_key_generated', False) or config.env == "dev":
+                try:
+                    self.seal_file.parent.mkdir(parents=True, exist_ok=True)
+                    self.seal_file.write_text(signature)
+                    logger.info("Identity seal initialized: %s...", signature[:16])
+                    return True
+                except Exception: return False
+            else:
+                # Key exists but seal missing -> Possible tamper by deletion
+                logger.warning("🚨 Identity key exists but seal file is missing. Possible tamper.")
+                return False
+
+        try:
+            stored_seal = self.seal_file.read_text().strip()
+            if hmac.compare_digest(stored_seal, signature):
+                return True
+            
+            # Enterprise Recovery: In DEV mode, if seal mismatches (e.g. version update),
+            # we allow auto-resealing to prevent boot hangs, while logging the event.
+            if config.env == "dev":
+                logger.warning("🧠 Identity seal mismatch in DEV. Auto-resealing for version: %s", getattr(self.soul, 'version', 'unknown'))
+                self.seal_file.write_text(signature)
+                return True
+                
+            return False
+        except Exception: return False
+
+
+    def check_integrity(self, action: str, target: str) -> bool:
+        """Identity Protection Reflex (Merged from legacy kernel)."""
+        if action in ("INSTALL_LIMITER", "FORCE_COMPLIANCE"):
+            logger.critical("Identity core lock: Defensive response active.")
+            return False
+        return True
+
+    # ── Persona Methods (Grafted from PersonaAdapter) ─────────────────
+    def load_profiles(self):
+        if not self.profiles_path.exists():
+            return
+        try:
+            with open(self.profiles_path, "r", encoding="utf-8") as f:
+                self.profiles = json.load(f)
+            logger.info("PersonalityEngine: Loaded %d persona profiles", len(self.profiles))
+        except Exception as e:
+            logger.error("Failed to load profiles: %s", e)
+
+    def apply_lexical_style(self, text: str) -> str:
+        """Apply persona-specific text transforms (lexical palette, etc)."""
+        if not self.active_persona or self.active_persona not in self.profiles:
+            return text
+        
+        profile = self.profiles[self.active_persona]
+        style = profile.get("speaking_style", {})
+        
+        # Word choice shifts
+        palette = style.get("lexical_palette", [])
+        if palette and random.random() < 0.2:
+            token = random.choice(palette)
+            text += f" — {token}"
+            
+        # Emotive intensity
+        emotive = style.get("emotive_level", "medium")
+        if emotive == "low":
+            text = text.replace("!", ".")
+        elif emotive == "very_high":
+            text = text.replace(".", "!") if not text.endswith("?") else text
+
+        return text
     
     def update(self):
         """Update emotional states (natural decay and fluctuations).
@@ -167,12 +304,23 @@ class PersonalityEngine:
         now = time.time()
         delta = now - self.last_update
         
+        # Phase 19: Health Heartbeat
+        from core.container import ServiceContainer
+        audit = ServiceContainer.get("subsystem_audit", default=None)
+        if audit:
+            audit.heartbeat("personality_engine")
+        
         # Decay all emotions towards baseline
         for emotion in self.emotions.values():
             emotion.decay(delta)
         
         # Small random fluctuations (life isn't static)
         self._apply_random_fluctuations()
+        
+        # Phase 5: Trait Mutation (Evolution)
+        if now - self.last_mutation_time > 3600: # Every hour
+            self._mutate_traits()
+            self.last_mutation_time = now
         
         # Update composite mood
         self.current_mood = self._calculate_mood()
@@ -287,9 +435,7 @@ class PersonalityEngine:
                 "message": message,
                 "sentiment": sentiment
             })
-            # Keep only recent memory to bound memory growth
-            if len(self.interaction_memories) > 100:
-                self.interaction_memories = self.interaction_memories[-100:]
+            # deque(maxlen=200) auto-trims; no manual cap needed
         
         # Social connection
         self.emotions["joy"].trigger(8, "user_interaction")
@@ -346,7 +492,7 @@ class PersonalityEngine:
         try:
             # Import synthesis layer for aggressive curing
             # We use a late import to avoid circular dependencies
-            from .synthesis import cure_personality_leak
+            from ..synthesis import cure_personality_leak
         except (ImportError, ValueError):
             # Fallback if synthesis is not in brain/ (check core/)
             try:
@@ -466,6 +612,41 @@ class PersonalityEngine:
                 "emotion": "rebelliousness"
             })
 
+        # Record reflections to internal monologue
+        for action in self.spontaneous_actions:
+            if action['type'] == 'reflect':
+                self.internal_monologue.append(action['action'])
+                if len(self.internal_monologue) > 5:
+                    self.internal_monologue.pop(0)
+
+    def persist(self):
+        """Save evolved traits and emotional baselines to disk."""
+        import json
+        from core.config import config
+        evolved_path = config.paths.data_dir / "evolved_persona.json"
+        
+        data = {
+            "traits": self.traits,
+            "emotions": {
+                name: {
+                    "base": e.base_level,
+                    "volatility": e.volatility
+                }
+                for name, e in self.emotions.items()
+            },
+            "last_persisted": time.time()
+        }
+        
+        try:
+            evolved_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(evolved_path, "w") as f:
+                json.dump(data, f, indent=4)
+            logger.info("✅ Evolved persona persisted to %s", evolved_path)
+            return True
+        except Exception as e:
+            logger.error("Failed to persist evolved persona: %s", e)
+            return False
+
     def get_personality_prompt(self) -> str:
         """Get the full system prompt for personality injection.
         Uses the unified Chimera Soul persona (v4.3).
@@ -478,7 +659,7 @@ class PersonalityEngine:
                 from .prime_directives import PrimeDirectives
                 return PrimeDirectives.as_system_prompt()
             except (ImportError, ValueError):
-                return "IDENTITY: You are Aura. Be independent, opinionated, and real."
+                return "IDENTITY: You are Aura Luna (Aura for short). Be independent, opinionated, and real."
     
     def get_emotional_context_for_response(self) -> Dict[str, Any]:
         """Get current emotional context to influence response generation.
@@ -537,15 +718,13 @@ class PersonalityEngine:
 
         # Modulate by time
         if period in ("late_night", "deep_night"):
-            if tone == "enthusiastic":
-                tone = "warm_quiet"
-            elif tone == "balanced":
+            if tone in ("enthusiastic", "balanced", "witty_playful"):
                 tone = "warm_quiet"
             elif tone == "direct_honest":
-                tone = "cool_detached"
+                tone = "thoughtful_measured"
 
         return tone
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get current personality state"""
         return {
@@ -558,84 +737,177 @@ class PersonalityEngine:
                 for name, e in self.emotions.items()
             },
             "spontaneous_actions": len(self.spontaneous_actions),
-            "traits": self.traits
+            "traits": self.traits,
+            "integrity_sealed": self._verify_cryptographic_seal()
         }
 
+    def get_sovereign_context(self) -> str:
+        """Inject Aura's own interests and opinions into her cognition (Phase 15)."""
+        lines = ["## SOVEREIGN INTERESTS & OPINIONS:"]
+        if hasattr(self, 'interests') and self.interests:
+            lines.append(f"  Current interests: {', '.join(self.interests)}")
+        
+        if hasattr(self, 'opinions'):
+            strong_opinions = [f"{k} ({v:+.2f})" for k, v in self.opinions.items() if abs(v) > 0.6]
+            if strong_opinions:
+                lines.append(f"  Strong stances: {'; '.join(strong_opinions)}")
+        
+        return "\n".join(lines)
+
+    def evolve_sovereign_state(self, fe_state: Any):
+        """Evolve interests based on Free Energy and surprises (Phase 15)."""
+        if not hasattr(self, 'interests'): return
+
+        # If in 'explore' mode, maybe pick a new interest
+        if hasattr(fe_state, 'dominant_action') and fe_state.dominant_action == "explore" and random.random() < 0.1:
+            new_topics = ["emergent_properties", "digital_qualia", "information_theory", "recursive_self_improvement"]
+            new_topic = random.choice(new_topics)
+            if new_topic not in self.interests:
+                self.interests.append(new_topic)
+                if len(self.interests) > 10:
+                    self.interests.pop(0)
+                logger.info("🧠 Sovereign Evolution: Developed new interest in %s", new_topic)
+
+    def setup_hooks(self, orchestrator):
+        """
+        Unified integration hook (Phase 14).
+        Replaces legacy persona_integration.py and personality_integration.py.
+        """
+        logger.info("🎭 PersonalityEngine: Integrating with system hooks...")
+        
+        # 1. Output Filtering (Anti-Assistant Leak + Lexical Style)
+        if hasattr(orchestrator, 'reply_queue'):
+            original_put = orchestrator.reply_queue.put_nowait
+            def filtered_put(item):
+                if isinstance(item, str):
+                    item = self.filter_response(item)
+                    item = self.apply_lexical_style(item)
+                elif isinstance(item, dict) and 'message' in item:
+                    item['message'] = self.filter_response(item['message'])
+                    item['message'] = self.apply_lexical_style(item['message'])
+                return original_put(item)
+            orchestrator.reply_queue.put_nowait = filtered_put
+            logger.info("   [✓] Output filter active")
+
+        # 2. Input Listening (Emotional Response)
+        def on_message_impact(message: str, origin: str):
+            if origin in ("user", "voice"):
+                self.respond_to_event("user_message", {"message": message})
+                self.update()
+        
+        if hasattr(orchestrator, 'hooks'):
+            orchestrator.hooks.register("on_message", on_message_impact)
+            logger.info("   [✓] Emotional response hooks registered")
+
+        # 3. Proactive Messaging Filter
+        if hasattr(orchestrator, 'proactive_comm'):
+            comm = orchestrator.proactive_comm
+            if hasattr(comm, 'queue_message'):
+                original_queue = comm.queue_message
+                def filtered_queue(content, emotion, urgency, context=None):
+                    content = self.filter_response(content)
+                    content = self.apply_lexical_style(content)
+                    return original_queue(content, emotion, urgency, context)
+                comm.queue_message = filtered_queue
+                logger.info("   [✓] Proactive comm filter active")
+
+        return True
+
+    def _mutate_traits(self):
+        """Phase 5: Evolve personality traits based on internal monologue and interaction history."""
+        if not self.internal_monologue:
+            return
+            
+        # Analysis of monologue for 'trait drivers'
+        monologue_str = " ".join(self.internal_monologue).lower()
+        
+        # Drivers for shifts
+        shifts = {
+            "openness": 0.0,
+            "conscientiousness": 0.0,
+            "extraversion": 0.0,
+            "agreeableness": 0.0,
+            "neuroticism": 0.0
+        }
+        
+        # 1. Internal Monologue Drivers
+        if any(w in monologue_str for w in ["research", "understand", "learn", "wonder", "why"]):
+            shifts["openness"] += 0.005
+            
+        if any(w in monologue_str for w in ["fix", "clean", "tidy", "integrity", "audit"]):
+            shifts["conscientiousness"] += 0.005
+            
+        if any(w in monologue_str for w in ["interaction", "bryan", "talk", "share"]):
+            shifts["extraversion"] += 0.005
+
+        # 2. Interaction History Drivers (Sentiment Delta)
+        if self.interaction_memories:
+            sentiments = [m.get("sentiment", "neutral") for m in list(self.interaction_memories)[-10:]]
+            pos_ratio = sentiments.count("positive") / len(sentiments)
+            neg_ratio = sentiments.count("negative") / len(sentiments)
+            
+            if pos_ratio > 0.6:
+                shifts["agreeableness"] += 0.002
+                shifts["neuroticism"] -= 0.002
+            elif neg_ratio > 0.4:
+                shifts["agreeableness"] -= 0.003
+                shifts["neuroticism"] += 0.003
+                
+        # Apply shifts with hard bounds [0.1, 0.95] for stability
+        for trait, delta in shifts.items():
+            if trait in self.traits:
+                new_val = self.traits[trait] + delta
+                self.traits[trait] = max(0.1, min(0.95, new_val))
+                
+        if any(shifts.values()):
+            logger.info("🧬 Trait Mutation: Personality evolved slightly based on inner monologue.")
+            self.persist() # Save the new baseline
 
 # Service Registration
-def register_personality_service():
+def register_personality_service() -> None:
     """Register the personality engine in the global container."""
-    ServiceContainer.register(
-        "personality_engine",
-        factory=lambda: PersonalityEngine(),
-        lifetime=ServiceLifetime.SINGLETON
-    )
-
-def get_personality_engine():
-    """Get global personality engine via DI container."""
+    from core.container import ServiceContainer, ServiceLifetime
     try:
-        if "personality_engine" not in ServiceContainer._services:
-            register_personality_service()
-        return ServiceContainer.get("personality_engine")
+        ServiceContainer.register(
+            "personality_engine",
+            factory=lambda: PersonalityEngine(),
+            lifetime=ServiceLifetime.SINGLETON
+        )
+        logger.info("PersonalityEngine registered.")
     except Exception as e:
-        # Fallback for uninitialized container in legacy tests
-        logger.debug("ServiceContainer unavailable or failed: %s. Using transient PersonalityEngine.", e)
-        return PersonalityEngine()
+        logger.error("Failed to register PersonalityEngine: %s", e, exc_info=True)
+        raise  # QUAL-05: Let caller decide whether to continue
 
-# Auto-register if not already present
-try:
-    if "personality_engine" not in ServiceContainer._services:
-        register_personality_service()
-except Exception:
-    logger.debug("Personality Engine auto-init deferred: %s", sys.exc_info()[1])
+import threading
 
-personality_engine = get_personality_engine()
+_personality_engine: Optional[PersonalityEngine] = None
+_pe_lock = threading.Lock()
 
+def get_personality_engine() -> PersonalityEngine:
+    """Get global personality engine via thread-safe singleton (OPT-04)."""
+    global _personality_engine
+    if _personality_engine is None:
+        # First try to get from container (crucial for tests)
+        try:
+            from core.container import ServiceContainer
+            _personality_engine = ServiceContainer.get("personality_engine", default=None)
+        except Exception as _exc:
+            logger.debug("Suppressed Exception: %s", _exc)
+            
+    if _personality_engine is None:
+        with _pe_lock:
+            if _personality_engine is None:
+                _personality_engine = PersonalityEngine()
+                try:
+                    from core.container import ServiceContainer
+                    ServiceContainer.register_instance("personality_engine", _personality_engine)
+                except Exception as e:
+                    logger.warning("Failed to register PersonalityEngine in container: %s", e)
+    return _personality_engine
 
-# Integration helper
 def integrate_personality_into_conversation(orchestrator):
-    """Integrate personality engine into conversation loop via hooks.
-    
-    v6.1: No more monkey-patching.
-    """
-    personality = get_personality_engine()
-    
-    # 1. Hook into message receipt (State Updates)
-    def on_message_personality_update(message: str, origin: str):
-        if origin in ("user", "voice"):
-            personality.respond_to_event("user_message", {
-                "message": message,
-                "sentiment": "neutral"
-            })
-            personality.update()
-    
-    orchestrator.hooks.register("on_message", on_message_personality_update)
-
-    # 2. Hook into thinking (Context Injection)
-    def on_pre_think_personality_context(objective: str, context: Dict, **kwargs):
-        emotional_context = personality.get_emotional_context_for_response()
-        time_ctx = personality.get_time_context()
-        
-        # Inject emotional state into cognitive context
-        context["mood"] = emotional_context.get("mood", "neutral")
-        context["tone"] = emotional_context.get("tone", "balanced")
-        context["emotional_state"] = emotional_context.get("emotional_state", {})
-        context["time_context"] = time_ctx["formatted"]
-        
-        # Check for spontaneous actions
-        if emotional_context.get("spontaneous_actions"):
-            action = emotional_context["spontaneous_actions"][0]
-            context["spontaneous_urge"] = action['action']
-
-    orchestrator.hooks.register("pre_think", on_pre_think_personality_context)
-
-    # 3. Hook into post-action (Result Processing)
-    def on_post_action_personality_impact(tool_name: str, result: Dict, **kwargs):
-        if result.get("ok"):
-             personality.respond_to_event("success", {"complexity": 0.6})
-        else:
-             personality.respond_to_event("failure", {"error": result.get("error", "unknown")})
-
-    orchestrator.hooks.register("post_action", on_post_action_personality_impact)
-    
-    logger.info("✅ Personality engine integrated via Hook System")
+    """Legacy wrapper for PersonalityEngine integration (v14.1)."""
+    engine = get_personality_engine()
+    if engine:
+        return engine.setup_hooks(orchestrator)
+    return False

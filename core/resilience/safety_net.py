@@ -1,9 +1,9 @@
-# core/safety_net.py
 import datetime
 import logging
 import sys
 import traceback
 from pathlib import Path
+from core.config import config
 
 logger = logging.getLogger("SafetyNet")
 
@@ -19,7 +19,7 @@ def panic_handler(exc_type, exc_value, exc_traceback):
     logger.critical("🔥 UNHANDLED EXCEPTION. SYSTEM CRITICAL.", exc_info=(exc_type, exc_value, exc_traceback))
     
     # 2. Write a Post-Mortem Report (for you to debug later)
-    crash_dir = Path("data/crashes")
+    crash_dir = config.paths.data_dir / "crashes"
     try:
         crash_dir.mkdir(parents=True, exist_ok=True)
         

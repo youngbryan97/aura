@@ -52,7 +52,7 @@ class SystemSoma(AuraBaseModule):
             
             self.last_check = now
             
-            if self._somatic_state["resource_anxiety"] > 0.85:
+            if self._somatic_state["resource_anxiety"] > 0.95:
                 self.logger.warning("🩸 CRITICAL RESOURCE ANXIETY: RAM at %.1f%%", ram_pct * 100)
                 
         except Exception as e:

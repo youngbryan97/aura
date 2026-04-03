@@ -24,24 +24,24 @@ class GoalEngine:
         proposals = []
         
         # Heuristic 1: If semantic memory has entries, try to improve them.
-        # (Disabled to prevent looping on "finance stuff" per user request)
-        # for fact, confidence in memory.data.get("semantic", {}).items():
-        #     proposals.append(
-        #         Goal(
-        #             objective=f"Improve understanding of {fact}",
-        #             metric="knowledge_gain",
-        #             cost=random.uniform(0.1, 1.0)
-        #         )
-        #     )
+        for fact, confidence in memory.data.get("semantic", {}).items():
+            if confidence < 0.8:
+                proposals.append(
+                    Goal(
+                        objective=f"Improve understanding of {fact}",
+                        metric="knowledge_gain",
+                        cost=random.uniform(0.1, 0.5)
+                    )
+                )
             
-        # Heuristic 2: Survival Baseline (Disabled to prevent hallucinations)
-        # proposals.append(
-        #     Goal(
-        #         objective="Ensure Persistence (Uplink)",
-        #         metric="survival",
-        #         cost=0.1
-        #     )
-        # )
+        # Heuristic 2: Survival Baseline
+        proposals.append(
+            Goal(
+                objective="Ensure Persistence (Uplink)",
+                metric="survival",
+                cost=0.05
+            )
+        )
             
         return proposals
 

@@ -22,7 +22,23 @@ class PersonaEvolver:
         self.evolution_interval = 3600 * 24  # Evaluate daily or when explicitly triggered
         self.min_memories_for_evolution = 10
         
-    async def run_evolution_cycle(self, force: bool = False):
+    async def update_persona(self, reflection: str):
+        """Allows for manual or event-driven persona updates based on reflection."""
+        # v34 Hardening: Validate reflection before self-mod
+        if not reflection or len(reflection) < 20:
+            logger.debug("Reflection too short for persona evolution.")
+            return
+            
+        try:
+            logger.info("🧬 Performing manual persona evolution from reflection...")
+            # Atomic update logic
+            # For now, we reuse the existing internal logic but conditioned on the new reflection
+            # In a full v34 implementation, this would call a LLM to generate the delta
+            await self.run_evolution_cycle(force=True, custom_reflection=reflection)
+        except Exception as e:
+            logger.error(f"Persona evolution failed: {e}")
+
+    async def run_evolution_cycle(self, force: bool = False, custom_reflection: str = None):
         """Analyze memory and apply drift to personality if needed."""
         now = time.time()
         if not force and (now - self.last_evolution_time < self.evolution_interval):
@@ -31,18 +47,19 @@ class PersonaEvolver:
         personality = get_personality_engine()
         memories = getattr(personality, "interaction_memories", [])
         
-        if len(memories) < self.min_memories_for_evolution:
+        if not custom_reflection and len(memories) < self.min_memories_for_evolution:
             logger.debug("PersonaEvolver: Not enough new interaction memories to evolve.")
             return
             
         logger.info("🧬 Initiating Persona Evolution Cycle...")
         
         # Format memories for the LLM
-        memory_text = ""
-        for m in memories:
-            msg = m.get("message", "")
-            sent = m.get("sentiment", "neutral")
-            memory_text += f"- [{sent}] {msg}\n"
+        memory_text = custom_reflection or ""
+        if not custom_reflection:
+            for m in memories:
+                msg = m.get("message", "")
+                sent = m.get("sentiment", "neutral")
+                memory_text += f"- [{sent}] {msg}\n"
             
         prompt = f"""You are analyzing Aura's recent interactions to adjust her personality.
 Based on the following interactions, how should her core traits and emotional baselines drift?
@@ -71,14 +88,17 @@ Recent Interactions:
                 timeout=120.0
             )
             
-            # Parse response
+            import re
             content = response.content.strip()
-            if content.startswith("```json"):
-                content = content[7:-3]
-            elif content.startswith("```"):
-                content = content[3:-3]
+            
+            # Robust JSON extraction
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if not match:
+                logger.warning("PersonaEvolver: Could not find JSON block in response.")
+                return
                 
-            changes = json.loads(content)
+            json_str = match.group(0)
+            changes = json.loads(json_str)
             
             if changes:
                 self._apply_evolution(changes, personality)
@@ -99,7 +119,8 @@ Recent Interactions:
                 with open(evolved_path, "r") as f:
                     evolved_data = json.load(f)
             except json.JSONDecodeError:
-                pass
+                import logging
+                logger.debug("Exception caught during execution", exc_info=True)
                 
         # Merge traits
         new_traits = changes.get("traits", {})

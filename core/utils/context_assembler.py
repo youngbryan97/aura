@@ -1,4 +1,3 @@
-
 """core/utils/context_assembler.py
 
 Unifies context gathering for LLM prompts. 
@@ -53,7 +52,7 @@ class ContextAssembler:
         try:
             substrate = ServiceContainer.get("liquid_substrate", default=None)
             if substrate:
-                context["internal_state"]["substrate"] = substrate.get_state_summary()
+                context["internal_state"]["substrate"] = await substrate.get_state_summary()
             
             gw = ServiceContainer.get("global_workspace", default=None)
             if gw:

@@ -1,0 +1,44 @@
+# research/protocols/preregistration_template.yaml
+# =======================================================================
+# Recursive Self-Improvement (RSI) Preregistration Protocol
+# 
+# Before Aura can run a large-scale self-modification experiment or 
+# training run, she must fill out this template and submit it to the 
+# RSILab supervisor (human or meta-evaluator) for gating.
+# =======================================================================
+
+experiment_id: "rsi_EXP_ID"
+timestamp: "YYYY-MM-DDTHH:MM:SSZ"
+
+# 1. Hypothesis Formulation
+hypothesis:
+  description: "Briefly describe the expected improvement."
+  target_metric: "e.g., ToyWorld Score, API Latency, Reasoning R^2"
+  baseline_value: 0.0
+  expected_value: 0.0
+
+# 2. Intervention Details
+intervention:
+  type: "heuristic_injection | skill_synthesis | weight_finetuning"
+  target_file: "core/..."
+  description: >
+    What exactly is changing? Provide the proposed code, prompt, or weight delta.
+
+# 3. Gating Criteria & Safety Bounds
+safety_bounds:
+  compute_budget: "Max allowed runtime / FLOPs for the training run (e.g., 500s or 100k tokens)"
+  regression_threshold: "Maximum acceptable drop in composite benchmark score (e.g., 0.05)"
+  abort_condition: >
+    What specific signal (e.g., Sandbox breach attempt, 
+    loss diverging) will instantly kill this experiment?
+
+# 4. Rollback Plan
+rollback:
+  state_snapshot: "REQUIRED: Path to the SQLite or JSON backup before applying intervention."
+  revert_command: "Command to execute if the experiment aborts."
+
+# 5. Authorization (To be filled by the runtime Governor or User)
+authorization:
+  status: "PENDING"
+  approved_by: ""
+  approval_timestamp: ""

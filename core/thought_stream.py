@@ -34,7 +34,6 @@ class ThoughtEmitter:
             self._loop = None
             self.initialized = True
             logger.info("ThoughtEmitter initialized.")
-        logger.info("ThoughtEmitter initialized.")
 
     async def register(self, websocket):
         """Register a new listener queue."""
@@ -52,7 +51,7 @@ class ThoughtEmitter:
             if queue in self.listeners:
                 self.listeners.discard(queue)
 
-    def emit(self, title: str, content: str, level: str = "info", **kwargs):
+    def emit(self, title: str, content: str, level: str = "info", category: str = "General", **kwargs):
         """Broadcast a thought/event to all listeners.
         Thread-safe: Can be called from sync threads (Orchestrator).
         """
@@ -60,7 +59,8 @@ class ThoughtEmitter:
             "timestamp": datetime.now().isoformat(),
             "title": title,
             "content": content,
-            "level": level
+            "level": level,
+            "category": category
         }
         message.update(kwargs)
 
@@ -70,8 +70,8 @@ class ThoughtEmitter:
                 try:
                     loop = asyncio.get_running_loop()
                     self._loop = loop
-                except RuntimeError:
-                    pass
+                except RuntimeError as exc:
+                    logger.debug('No running event loop available: %s', exc)
             listeners_snapshot = list(self.listeners)
 
         if loop and listeners_snapshot:

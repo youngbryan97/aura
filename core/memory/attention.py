@@ -37,7 +37,7 @@ class AttentionSummarizer:
         while self.running:
             try:
                 await asyncio.sleep(self.compression_interval)
-                workspace = ServiceContainer.get("global_workspace")
+                workspace = ServiceContainer.get("global_workspace", default=None)
                 if not workspace or len(workspace.history) < self.history_trigger:
                     continue
 
@@ -49,7 +49,7 @@ class AttentionSummarizer:
                 
                 if seed_thought:
                     # 3. Store in BeliefGraph as a "Latent Seed"
-                    graph = ServiceContainer.get("belief_graph")
+                    graph = ServiceContainer.get("belief_graph", default=None)
                     if graph:
                         graph.update_belief(
                             source="Aura_Core",
@@ -72,7 +72,7 @@ class AttentionSummarizer:
         brain = self.orchestrator.cognitive_engine
         if not brain: return None
         
-        narrative = "\n".join([f"- [{i.source}] {json.dumps(i.payload)[:200]}" for i in items])
+        narrative = "\n".join([f"- [{i.winner.source}] {i.winner.content[:200]}" for i in items])
         prompt = (
             "Summarize the following sequence of internal system events and user interactions into a single, "
             "high-density 'Latent Seed Thought' that captures the core essence, goals, and outcomes. "

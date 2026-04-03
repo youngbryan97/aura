@@ -1,4 +1,3 @@
-
 import logging
 
 from ..brain.cognitive_engine import CognitiveEngine

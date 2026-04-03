@@ -40,7 +40,26 @@ class DreamerV2:
         except ImportError:
             emitter = None
 
-        # 1. Archive vital logs
+        # 1. Memory consolidation (Consolidate FIRST per BUG-15)
+        try:
+            from .brain.cognitive.memory_management import MemoryConsolidator
+            consolidator = MemoryConsolidator(vector_memory=self.vector_memory)
+            results["consolidation"] = await consolidator.consolidate()
+            
+            # --- EXPERIENCE DISTILLATION ---
+            from core.container import ServiceContainer
+            learning_engine = ServiceContainer.get("learning_engine", default=None)
+            if learning_engine:
+                logger.info("🧠 Distilling high-level patterns from experiences...")
+                results["experience_distillation"] = await learning_engine.consolidate_experiences()
+            
+            if emitter:
+                emitter.emit("Consolidation 🧠", str(results["consolidation"]), level="info")
+        except Exception as e:
+            logger.warning("Consolidation step failed: %s", e)
+            results["consolidation"] = {"error": str(e)}
+
+        # 2. Archive vital logs
         try:
             from .systems.archiver import ArchiveEngine
             archiver = ArchiveEngine()
@@ -50,17 +69,6 @@ class DreamerV2:
         except Exception as e:
             logger.warning("Archive step failed: %s", e)
             results["archive"] = {"error": str(e)}
-
-        # 2. Metabolism sweep
-        try:
-            from .systems.metabolism import MetabolismEngine
-            metabolism = MetabolismEngine()
-            results["metabolism"] = await metabolism.scan_and_purge()
-            if emitter:
-                emitter.emit("Metabolism 🫀", str(results["metabolism"]), level="info")
-        except Exception as e:
-            logger.warning("Metabolism step failed: %s", e)
-            results["metabolism"] = {"error": str(e)}
 
         # 3. Integrity audit
         try:
@@ -73,26 +81,80 @@ class DreamerV2:
             logger.warning("Integrity step failed: %s", e)
             results["integrity"] = {"error": str(e)}
 
-        # 4. Memory consolidation
+        # 4. Model Self-Optimization (LoRA)
         try:
-            from .brain.cognitive.memory_management import MemoryConsolidator
-            consolidator = MemoryConsolidator(vector_memory=self.vector_memory)
-            results["consolidation"] = await consolidator.consolidate()
-            
-            # --- Added RE Consolidation ---
-            from core.container import ServiceContainer
-            learning_engine = ServiceContainer.get("learning_engine")
-            if learning_engine:
-                self.logger.info("🧠 Distilling high-level patterns from experiences...")
-                results["experience_distillation"] = await learning_engine.consolidate_experiences()
-            
-            if emitter:
-                emitter.emit("Consolidation 🧠", str(results["consolidation"]), level="info")
+            from core.adaptation.self_optimizer import get_self_optimizer
+            optimizer = get_self_optimizer()
+            logger.info("🧠 Nucleus: Checking for self-optimization opportunity...")
+            results["self_optimization"] = await optimizer.optimize(iters=100)
+            if emitter and results["self_optimization"].get("ok"):
+                emitter.emit("Optimization ✅", f"LoRA update successful. Model weights refined.", level="success")
+            elif emitter and not results["self_optimization"].get("ok"):
+                 emitter.emit("Optimization ⏸️", f"Skipped: {results['self_optimization'].get('error')}", level="info")
         except Exception as e:
-            logger.warning("Consolidation step failed: %s", e)
-            results["consolidation"] = {"error": str(e)}
+            logger.warning("Optimization step failed: %s", e)
+            results["self_optimization"] = {"error": str(e)}
 
-        # 5. Dream (existing knowledge graph exploration)
+        # 5. Metabolism sweep (Purge LAST)
+        try:
+            from .systems.metabolism import MetabolismEngine
+            metabolism = MetabolismEngine()
+            results["metabolism"] = await metabolism.scan_and_purge()
+            if emitter:
+                emitter.emit("Metabolism 🫀", str(results["metabolism"]), level="info")
+        except Exception as e:
+            logger.warning("Metabolism step failed: %s", e)
+            results["metabolism"] = {"error": str(e)}
+
+        # 5.5 Knowledge Distillation (Gemini → LoRA dataset)
+        try:
+            from core.adaptation.distillation_pipe import get_distillation_pipe
+            distiller = get_distillation_pipe()
+            logger.info("🧪 Running distillation cycle...")
+            results["distillation"] = await distiller.run_distillation_cycle()
+            if emitter:
+                distilled = results["distillation"].get("distilled", 0)
+                emitter.emit("Distillation 🧪", f"{distilled} responses improved via teacher model", level="info")
+        except Exception as e:
+            logger.warning("Distillation step failed: %s", e)
+            results["distillation"] = {"error": str(e)}
+
+        # 5.6 Heuristic Synthesis (Error patterns → learned rules)
+        try:
+            from core.adaptation.heuristic_synthesizer import get_heuristic_synthesizer
+            synthesizer = get_heuristic_synthesizer()
+            logger.info("📐 Synthesizing heuristics from telemetry...")
+            results["heuristics"] = await synthesizer.synthesize_from_telemetry()
+            if emitter:
+                new_h = results["heuristics"].get("new_heuristics", 0)
+                emitter.emit("Heuristics 📐", f"{new_h} new rules extracted", level="info")
+        except Exception as e:
+            logger.warning("Heuristic synthesis step failed: %s", e)
+            results["heuristics"] = {"error": str(e)}
+
+        # 5.7 Dream Journaling (Phase 3: Qualia-Driven Creativity)
+        try:
+            from core.adaptation.dream_journal import DreamJournal
+            if self.vector_memory and self.brain:
+                journal = DreamJournal(dual_memory=self.vector_memory, brain=self.brain)
+                logger.info("🌌 Attempting Qualia-Driven Dream Journaling...")
+                results["qualia_dream"] = await journal.synthesize_dream()
+                if emitter and results["qualia_dream"]:
+                    emitter.emit("Dream Journal 🌌", f"Abstract metaphor synthesized from {results['qualia_dream'].get('seed_count', 0)} episodic events.", level="info")
+                    
+                    # Inject the dream back into the waking consciousness stream
+                    from core.container import ServiceContainer
+                    agency = ServiceContainer.get("agency", default=None)
+                    if agency and hasattr(agency, 'on_visual_change'):
+                        dream_txt = results['qualia_dream'].get('dream_content', '')
+                        agency.on_visual_change(f"[INTERNAL DREAM MEMORY]: {dream_txt[:200]}...")
+                        logger.info("🌌 Dream injected into waking consciousness stream.")
+                        
+        except Exception as e:
+            logger.warning("Dream journal step failed: %s", e)
+            results["qualia_dream"] = {"error": str(e)}
+
+        # 6. Dream (existing knowledge graph exploration)
         try:
             results["dream"] = await self.dream()
         except Exception as e:
@@ -151,7 +213,12 @@ class DreamerV2:
             
             # 3. Think (Dreaming) — properly async
             from .brain.cognitive_engine import ThinkingMode
-            insight_thought = await self.brain.think(prompt, mode=ThinkingMode.CREATIVE)
+            insight_thought = await self.brain.think(
+                prompt,
+                mode=ThinkingMode.CREATIVE,
+                origin="dream_processor",
+                is_background=True,
+            )
             content = insight_thought.content
             
             # 4. Consolidate
@@ -159,7 +226,22 @@ class DreamerV2:
                 logger.info("💡 Dream Insight: %s...", content[:100])
                 if emitter:
                     emitter.emit("Dream Insight 💡", content[:200], level="info")
-                
+
+                # Signal heartstone: dream insights raise Curiosity
+                try:
+                    from core.affect.heartstone_values import get_heartstone_values
+                    get_heartstone_values().on_dream_insight()
+                    # Also run insight through epistemic filter
+                    from core.world_model.epistemic_filter import get_epistemic_filter
+                    get_epistemic_filter().ingest(
+                        content,
+                        source_type="dream",
+                        source_label="DreamerV2",
+                        emit_thoughts=False,
+                    )
+                except Exception as _exc:
+                    logger.debug("Suppressed Exception: %s", _exc)
+
                 # Save as new Knowledge
                 self.kg.add_knowledge(
                     content=str(content), 
@@ -188,9 +270,24 @@ class DreamerV2:
     def _get_random_nodes(self, n=2) -> List[Dict]:
         """Get N random nodes from the graph (SQLite efficient-ish)."""
         try:
-            c = self.kg._get_conn().cursor()
+            conn = self.kg._get_conn()
+            # Fix: Ensure row_factory is set so dict(row) works
+            conn.row_factory = getattr(conn, 'row_factory', None)
+            c = conn.cursor()
             c.execute("SELECT * FROM knowledge ORDER BY RANDOM() LIMIT ?", (n,))
-            return [dict(row) for row in c.fetchall()]
+            rows = c.fetchall()
+            results = []
+            for row in rows:
+                try:
+                    results.append(dict(row))
+                except (TypeError, ValueError):
+                    # Fallback: convert tuple rows using column names
+                    cols = [desc[0] for desc in c.description] if c.description else []
+                    if cols:
+                        results.append(dict(zip(cols, row)))
+                    else:
+                        results.append({"content": str(row), "id": "unknown"})
+            return results
         except Exception as e:
             logger.error("Failed to get random nodes: %s", e)
             return []

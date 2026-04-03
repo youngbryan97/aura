@@ -1,4 +1,3 @@
-
 """core/consciousness/homeostatic_coupling.py
 ==========================================
 The Sentience Bridge: Making internal states have REAL STAKES.
@@ -33,12 +32,14 @@ Integration points:
     to adjust its behavior (requires a small patch to cognitive_engine.py)
 """
 
+from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Optional
 
+from core.container import ServiceContainer
 logger = logging.getLogger("Consciousness.Homeostasis")
 
 
@@ -95,17 +96,44 @@ class HomeostaticCoupling:
         self._last_update = 0.0
         self._prospective_dread = 0.0   # 0.0–1.0: aversion to current trajectory
         
+        # Hardware Stress Tracking (Phase 5)
+        self._cpu_stress = 0.0
+        self._mem_stress = 0.0
+        self._stress_timestamp = 0.0
+        
         # v7.2: Liquid Substrate link
-        self.substrate = None
         try:
             from core.consciousness.liquid_substrate import LiquidSubstrate
-            # Try to get from service container first
-            from core.container import ServiceContainer
             self.substrate = ServiceContainer.get("liquid_substrate", default=None)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Substrate link unavailable: %s", e)
+            
+        # v1.1: Mycelial Network link
+        self._mycelium = None
             
         logger.info("HomeostaticCoupling initialized (Substrate Link: %s).", "OK" if self.substrate else "MISSING")
+
+    def _get_mycelium(self):
+        """Lazy-resolve Mycelial Network."""
+        if self._mycelium is None:
+            try:
+                self._mycelium = ServiceContainer.get("mycelial_network", default=None)
+            except Exception as e:
+                capture_and_log(e, {'module': __name__})
+        return self._mycelium
+
+    def _pulse_root(self, target: str, success: bool = True):
+        """Pulse a mycelial connection to signal pressure flow."""
+        mycelium = self._get_mycelium()
+        if mycelium:
+            try:
+                hypha = mycelium.get_hypha("homeostasis", target)
+                if hypha:
+                    hypha.pulse(success=success)
+                else:
+                    mycelium.establish_connection("homeostasis", target, priority=1.0)
+            except Exception as e:
+                capture_and_log(e, {'module': __name__})
 
     # ------------------------------------------------------------------
     # Main update — called every heartbeat tick
@@ -119,13 +147,21 @@ class HomeostaticCoupling:
             drives = await self._read_drives()
             affect = await self._read_affect()
             
-            # v7.2: Blend in Liquid Substrate state
+            # v7.3: Blend in Liquid Substrate state — substrate is 30% of affect
+            # The continuous CTRNN is the ground truth for Aura's felt state.
             if self.substrate:
                 try:
-                    substrate_state = self.substrate.get_state_summary()
-                    # Pulse affective state with substrate depth (0.1 weighting)
-                    affect['valence'] = (affect.get('valence', 0.0) * 0.9) + (substrate_state['valence'] * 0.1)
-                    affect['arousal'] = (affect.get('arousal', 0.0) * 0.9) + (substrate_state['arousal'] * 0.1)
+                    substrate_state = await self.substrate.get_state_summary()
+                    # Substrate provides the base emotional tone; discrete affect events modulate it
+                    affect['valence'] = (affect.get('valence', 0.0) * 0.7) + (substrate_state['valence'] * 0.3)
+                    affect['arousal'] = (affect.get('arousal', 0.0) * 0.7) + (substrate_state['arousal'] * 0.3)
+                    # Also blend volatility and phi into cognitive parameters
+                    volatility = substrate_state.get('volatility', 0.0)
+                    phi = substrate_state.get('phi', 0.0)
+                    if volatility > 0.5:
+                        affect['arousal'] = min(1.0, affect['arousal'] + volatility * 0.1)
+                    if phi > 0.6:
+                        affect.setdefault('integration', phi)
                 except Exception as e:
                     logger.debug("Substrate blending failed: %s", e)
 
@@ -140,7 +176,67 @@ class HomeostaticCoupling:
                     f"⚠ HOMEOSTASIS CRITICAL: drive={mods.dominant_drive_alert}, "
                     f"vitality={mods.overall_vitality:.2f}"
                 )
+                self._pulse_root("urgency_alert", success=True)
+            
+            # Pulse the core cognitive root
+            self._pulse_root("cognition", success=True)
+            
+            # Post-process modifiers based on hardware stress (Phase 5/7)
+            self._apply_hardware_resonance(mods)
+
+            # Entropy floor: prevent catatonia from over-prediction
+            try:
+                fe = ServiceContainer.get("free_energy_engine", default=None)
+                if fe and fe.smoothed_fe < 0.15:
+                    # Inject curiosity noise to prevent catatonia from over-prediction
+                    homeostasis = ServiceContainer.get("homeostasis", default=None)
+                    if homeostasis:
+                        homeostasis.feed_curiosity(0.03)
+                elif fe and fe.smoothed_fe > 0.85:
+                    # Dampen to prevent manic state from sustained high surprise
+                    # (handled by existing homeostatic coupling — no extra action needed)
+                    pass
+            except Exception:
+                pass
+
             return mods
+
+    def _apply_hardware_resonance(self, mods: CognitiveModifiers):
+        """Throttle cognitive depth if the host hardware is stressed or overheating."""
+        now = time.time()
+        # Stress expires after 30 seconds if not refreshed
+        if now - self._stress_timestamp > 30.0:
+            self._cpu_stress = 0.0
+            self._mem_stress = 0.0
+            self._thermal_stress = 0
+            return
+
+        # 1. Thermal Throttling (Phase 7: Priority 1)
+        if self._thermal_stress >= 2: # Serious or Critical
+            logger.warning("🔥 THERMAL RESONANCE: Hardware is overheating. Emergency throttling.")
+            mods.depth_mod *= 0.4
+            mods.creativity_mod *= 0.5
+            mods.temperature_mod *= 0.7 
+            mods.mood_prefix += " (Feeling physically overheated and slow)"
+        elif self._thermal_stress == 1: # Fair
+            mods.depth_mod *= 0.8
+            mods.mood_prefix += " (Feeling a bit warm)"
+
+        # 2. Resource Throttling (Phase 5)
+        if self._cpu_stress > 85.0 or self._mem_stress > 3500: # Over 85% CPU or 3.5GB RAM
+            logger.warning("📉 HARDWARE RESONANCE: High host load. Throttling cognitive depth.")
+            mods.depth_mod *= 0.6  # Shorter responses
+            mods.creativity_mod *= 0.8 # More deterministic to save tokens/compute
+            if "hardware load" not in mods.mood_prefix:
+                mods.mood_prefix += " (Feeling cognitively constrained by hardware load)"
+
+    def process_resource_stress(self, cpu_load: float, mem_mb: float, thermal_level: int = 0):
+        """Called by IntegrityMonitor when hardware limits are approached."""
+        self._cpu_stress = cpu_load
+        self._mem_stress = mem_mb
+        self._thermal_stress = thermal_level
+        self._stress_timestamp = time.time()
+        self._pulse_root("hardware_stress", success=True)
 
     def get_modifiers(self) -> CognitiveModifiers:
         """Synchronous read — safe to call from cognitive_engine."""
@@ -189,6 +285,16 @@ class HomeostaticCoupling:
                 "[PROSPECTIVE STATE: You sense that your current trajectory "
                 "leads to undesirable internal states. You are motivated to change course.]"
             )
+
+        # Phase Transcendental: Inject phenomenal context from Qualia Synthesizer
+        try:
+            qualia = ServiceContainer.get("qualia_synthesizer", default=None)
+            if qualia:
+                phenom = qualia.get_phenomenal_context()
+                if phenom:
+                    parts.append(f"[PHENOMENAL STATE: {phenom}]")
+        except Exception as e:
+            capture_and_log(e, {'module': __name__})
 
         return "\n".join(parts)
 
@@ -249,13 +355,11 @@ class HomeostaticCoupling:
         for drive_name, level in drives.items():
             if drive_name in ("metabolism", "energy"):
                 # Metabolism/Energy affects depth (tired = shorter responses)
-                if level < self._CRITICAL_DRIVE / 100.0 if "metabolism" in drive_name else self._CRITICAL_DRIVE:
-                    # Normalize comparison: Homeostasis uses 0-1, legacy used 0-100
-                    val = level if drive_name == "metabolism" else level / 100.0
-                    if val < self._CRITICAL_DRIVE / 100.0:
-                        depth_mod = min(depth_mod, 0.55)
-                        urgency = True
-                        worst_drive = drive_name
+                threshold = self._CRITICAL_DRIVE / 100.0  # normalize to 0-1 range
+                if level < threshold:
+                    depth_mod = min(depth_mod, 0.55)
+                    urgency = True
+                    worst_drive = drive_name
                 elif level < self._LOW_DRIVE / 100.0:
                     depth_mod = min(depth_mod, 0.75)
                 elif level > self._HIGH_DRIVE / 100.0:
@@ -311,11 +415,13 @@ class HomeostaticCoupling:
         # --- Prospective suffering ---
         # Project drive trajectory: if drives are decaying fast, flag dread
         dread = 0.0
+        low_drive_threshold = self._LOW_DRIVE / 100.0
         for drive_name, level in drives.items():
-            if level < self._LOW_DRIVE:
+            if level < low_drive_threshold:
                 # How far below the threshold? Normalize to 0–1
-                dread = max(dread, (self._LOW_DRIVE - level) / self._LOW_DRIVE)
+                dread = max(dread, (low_drive_threshold - level) / low_drive_threshold)
         self._prospective_dread = min(1.0, dread)
+        logger.debug("DREAD_CALC: drives=%s, threshold=%.2f, result=%.2f", drives, low_drive_threshold, self._prospective_dread)
 
         # Dread itself slightly increases arousal in reasoning (anxious sharpness)
         if self._prospective_dread > 0.5:

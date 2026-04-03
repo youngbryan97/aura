@@ -61,7 +61,7 @@ class MindModel(AuraBaseModule):
 
     def update_projection(self, interaction_summary: str, current_mood: str):
         """Updates the internal model of the user based on recent interactions."""
-        # This is where 'Intent Projection' logic lives. 
+        # This is where 'Intent Projection' logic lives.
         # In a full cognitive cycle, the LLM provides this summary.
         self.user_state.perceived_mood = current_mood
         self.user_state.last_updated = time.time()

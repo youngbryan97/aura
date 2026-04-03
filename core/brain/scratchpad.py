@@ -29,7 +29,7 @@ class ScratchpadEngine(AuraBaseModule):
         @self.error_boundary
         async def _think_wrapped():
             if not self.cognitive_engine:
-                self.cognitive_engine = ServiceContainer.get("cognitive_engine")
+                self.cognitive_engine = ServiceContainer.get("cognitive_engine", default=None)
             
             if not self.cognitive_engine:
                 return "Cognitive engine unavailable for scratchpad."

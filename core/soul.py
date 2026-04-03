@@ -1,4 +1,4 @@
-
+from core.utils.exceptions import capture_and_log
 import logging
 import random
 import time
@@ -23,7 +23,11 @@ class Soul:
         self.orchestrator = orchestrator
         self.last_chat_time = time.time()
         self.last_error_time = 0
-        self.drives: Dict[str, Drive] = {}
+        self.drives: Dict[str, Drive] = {
+            "curiosity": Drive("curiosity", 0.1, "Explore new topics or satisfy queue."),
+            "connection": Drive("connection", 0.0, "Reach out to the user."),
+            "competence": Drive("competence", 0.0, "Run diagnostics or self-repair.")
+        }
         
     def update_state(self, event_type: str, data: Any = None):
         """Update internal state based on events."""
@@ -38,9 +42,20 @@ class Soul:
     def get_dominant_drive(self) -> Drive:
         """Calculate and return the most urgent drive."""
         # 1. CURIOSITY DRIVE
-        # Driven by Boredom (Silence) + World Model Surprise (Not tracked here but could be)
+        # Driven by Boredom (Silence) + World Model Surprise (Self-Prediction Error)
         boredom = getattr(self.orchestrator, "boredom", 0.0) 
-        curiosity_score = max(0.1, boredom) # Minimum curiosity always exists
+        
+        # Pull surprise signal from Self-Prediction Loop
+        surprise_boost = 0.0
+        try:
+            from core.container import ServiceContainer
+            spl = ServiceContainer.get("self_prediction", default=None)
+            if spl and hasattr(spl, "get_surprise_signal"):
+                surprise_boost = spl.get_surprise_signal() * 0.5 # Boost curiosity by 50% of surprise
+        except Exception as e:
+            capture_and_log(e, {'module': __name__})
+
+        curiosity_score = max(0.1, boredom + surprise_boost)
         
         # 2. CONNECTION DRIVE (Loneliness)
         # Driven by time since last user interaction
@@ -59,9 +74,9 @@ class Soul:
             
         # Create Drives
         drives = [
-            Drive("Curiosity", curiosity_score, "Explore new topics or satisfy queue."),
-            Drive("Connection", connection_score, "Reach out to the user."),
-            Drive("Competence", competence_score, "Run diagnostics or self-repair.")
+            Drive("curiosity", curiosity_score, "Explore new topics or satisfy queue."),
+            Drive("connection", connection_score, "Reach out to the user."),
+            Drive("competence", competence_score, "Run diagnostics or self-repair.")
         ]
         
         # Sort
@@ -78,7 +93,7 @@ class Soul:
         """Execute logic to satisfy a drive."""
         logger.info("✨ SOUL: Attempting to satisfy %s...", drive.name)
         
-        if drive.name == "Curiosity":
+        if drive.name == "curiosity":
             # Trigger Curiosity Engine
             if hasattr(self.orchestrator, 'curiosity') and self.orchestrator.curiosity:
                 # Add a high-priority interest based on current time or state
@@ -86,15 +101,27 @@ class Soul:
                 topic = random.choice(topics)
                 self.orchestrator.curiosity.add_curiosity(topic, "Soul-driven exploration", priority=0.9)
                 
-        elif drive.name == "Connection":
-            # Proactive Message
-            # Trigger Volition to consider a connection impulse immediately
-            if hasattr(self.orchestrator, 'volition') and self.orchestrator.volition:
-                # We can't force Volition to speak, but we can reset its cooldown for connection
-                self.orchestrator.volition.last_speak_time = 0
-                logger.info("✨ SOUL: Signaled Volition to prioritize connection.")
+        elif drive.name == "connection":
+            # Proactive Message -> Spatial Empathy Routing
+            try:
+                from core.container import ServiceContainer
+                workspace = ServiceContainer.get("global_workspace", default=None)
+                if workspace:
+                    logger.info("✨ SOUL: Publishing spatial empathy request to Global Workspace.")
+                    from core.consciousness.global_workspace import CognitiveCandidate
+                    await workspace.submit(CognitiveCandidate(
+                        priority=0.8,
+                        source="Soul::connectionDrive",
+                        content='{"intent": "seek_connection", "action": "read_ambient_screen", "reason": "connection drive urgently high. Seeking context to initiate conversation."}'
+                    ))
+                elif hasattr(self.orchestrator, 'volition') and self.orchestrator.volition:
+                    # Fallback if Workspace is offline
+                    self.orchestrator.volition.last_speak_time = 0
+                    logger.info("✨ SOUL: Signaled Volition to prioritize connection (fallback).")
+            except Exception as e:
+                logger.error("✨ SOUL: Error satisfying connection drive: %s", e)
             
-        elif drive.name == "Competence":
+        elif drive.name == "competence":
             # Run Self-Diagnosis
             if hasattr(self.orchestrator, 'execute_tool'):
                 logger.info("✨ SOUL: Triggering system health check.")
@@ -103,5 +130,4 @@ class Soul:
                     await self.orchestrator.execute_tool("system_health", {})
                 except Exception:
                     # Fallback log if tool doesn't exist
-                    logger.info("✨ SOUL: Competence drive signaled — system analysis recommended.")
-
+                    logger.info("✨ SOUL: competence drive signaled — system analysis recommended.")

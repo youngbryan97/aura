@@ -19,7 +19,7 @@ class SystemGovernor:
 
     def can_think_deeply(self) -> bool:
         """Safety Check: Returns False if Aura's OWN process is overloaded.
-        Uses per-process CPU (not system-wide) so Ollama won't cause false throttles.
+        Uses per-process CPU (not system-wide) to avoid interference from system tasks.
         Caches results for 5s to avoid blocking the event loop.
         """
         now = time.time()

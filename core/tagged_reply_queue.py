@@ -1,41 +1,69 @@
 """
-core/tagged_reply_queue.py
-───────────────────────────
-Replaces the bare asyncio.Queue used for replies in the orchestrator.
+Request-scoped reply delivery for Aura.
 
-The problem it solves:
-  The original orchestrator uses a single reply_queue for both user responses
-  and autonomous thought responses. The race condition:
-
-  1. User sends message
-  2. Orchestrator cancels autonomous thought
-  3. Autonomous thought had already queued its response
-  4. Orchestrator clears the queue before processing
-  5. Autonomous thought's finally block queues AGAIN after the clear
-  6. User's response arrives but is consumed by code waiting for the wrong type
-  7. User waits 240 seconds until timeout
-
-This queue tags every entry with an origin and session_id.
-get_for_origin() only returns responses matching the requested origin,
-discarding anything else. No more cross-contamination.
+This replaces the old "shared reply queue + global flush" pattern with a queue
+that preserves reply ownership across overlapping user, voice, and autonomous
+flows. It remains compatible with the plain queue interface most of Aura uses.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import time
 import uuid
+from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Deque, Optional
+
+from core.utils.queues import LoopAgnosticQueue
 
 logger = logging.getLogger("Aura.TaggedReplyQueue")
+
+_reply_origin_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "aura_reply_origin",
+    default="",
+)
+_reply_session_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "aura_reply_session_id",
+    default="",
+)
+
+
+def current_reply_origin(default: str = "system") -> str:
+    """Return the current request-scoped reply origin."""
+    return str(_reply_origin_var.get() or default)
+
+
+def current_reply_session_id(default: str = "") -> str:
+    """Return the current request-scoped reply session id."""
+    return str(_reply_session_id_var.get() or default)
+
+
+@contextmanager
+def reply_delivery_scope(origin: str, session_id: str = ""):
+    """Scope reply emissions to a specific logical request.
+
+    ContextVars propagate across awaits and newly created asyncio tasks, which
+    lets late output still find the correct waiting caller.
+    """
+    resolved_origin = str(origin or "system")
+    resolved_session_id = str(session_id or uuid.uuid4())[:12]
+    origin_token = _reply_origin_var.set(resolved_origin)
+    session_token = _reply_session_id_var.set(resolved_session_id)
+    try:
+        yield resolved_session_id
+    finally:
+        _reply_origin_var.reset(origin_token)
+        _reply_session_id_var.reset(session_token)
 
 
 @dataclass
 class TaggedReply:
-    content: str
-    origin: str                    # "user", "voice", "autonomous", "admin"
+    content: Any
+    origin: str
     session_id: str = ""
     timestamp: float = field(default_factory=time.time)
     request_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
@@ -49,59 +77,148 @@ class TaggedReply:
 
 
 class TaggedReplyQueue:
-    """
-    A reply queue where entries are tagged by origin.
-    Consumers can wait for replies from a specific origin,
-    and stale replies from other origins are automatically discarded.
-    """
+    """Compatibility queue with tagged delivery semantics."""
 
-    MAX_SIZE = 50
     STALE_AFTER_SECONDS = 30.0
 
-    def __init__(self):
-        self._queue: asyncio.Queue = asyncio.Queue(maxsize=self.MAX_SIZE)
+    def __init__(self, maxsize: int = 50):
+        self.maxsize = maxsize
+        self._queue = LoopAgnosticQueue(maxsize=maxsize)
+        self._deferred: Deque[TaggedReply] = deque()
         self._lock = asyncio.Lock()
-        logger.debug("TaggedReplyQueue initialized")
+        logger.debug("TaggedReplyQueue initialized (maxsize=%d)", maxsize)
 
-    async def put(self, content: str, origin: str, session_id: str = ""):
-        """Put a tagged reply into the queue."""
-        reply = TaggedReply(content=content, origin=origin, session_id=session_id)
+    def _coerce_reply(
+        self,
+        content: Any,
+        origin: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> TaggedReply:
+        if isinstance(content, TaggedReply):
+            return content
+        return TaggedReply(
+            content=content,
+            origin=str(origin or current_reply_origin("system") or "system"),
+            session_id=str(
+                session_id if session_id is not None else current_reply_session_id("")
+            ),
+        )
+
+    def _is_stale(self, reply: TaggedReply) -> bool:
+        return (time.time() - reply.timestamp) > self.STALE_AFTER_SECONDS
+
+    def _prune_deferred(self) -> int:
+        kept: Deque[TaggedReply] = deque()
+        pruned = 0
+        while self._deferred:
+            reply = self._deferred.popleft()
+            if self._is_stale(reply):
+                pruned += 1
+                continue
+            kept.append(reply)
+        self._deferred = kept
+        return pruned
+
+    def _pop_deferred_match(
+        self,
+        origin: Optional[str] = None,
+        session_id: str = "",
+    ) -> Optional[TaggedReply]:
+        if not self._deferred:
+            return None
+
+        found: Optional[TaggedReply] = None
+        kept: Deque[TaggedReply] = deque()
+        while self._deferred:
+            reply = self._deferred.popleft()
+            if self._is_stale(reply):
+                continue
+            if found is None and (origin is None or reply.is_for(origin, session_id)):
+                found = reply
+                continue
+            kept.append(reply)
+        self._deferred = kept
+        return found
+
+    async def put(
+        self,
+        content: Any,
+        origin: Optional[str] = None,
+        session_id: str = "",
+    ):
+        reply = self._coerce_reply(content, origin=origin, session_id=session_id)
         try:
-            self._queue.put_nowait(reply)
-            logger.debug("Queued reply (origin=%s, id=%s)", origin, reply.request_id)
+            await self._queue.put(reply)
         except asyncio.QueueFull:
-            # Drop the oldest entry and retry
             try:
-                dropped = self._queue.get_nowait()
-                logger.debug("Queue full — dropped reply (origin=%s)", dropped.origin)
+                dropped = self._coerce_reply(self._queue.get_nowait())
+                logger.warning(
+                    "Reply queue full; dropped oldest reply (origin=%s, session=%s)",
+                    dropped.origin,
+                    dropped.session_id or "-",
+                )
                 self._queue.put_nowait(reply)
             except Exception as exc:
-                logger.warning("Could not queue reply: %s", exc)
+                logger.warning("Could not enqueue tagged reply: %s", exc)
 
-    def put_nowait(self, content: str, origin: str, session_id: str = ""):
-        """Synchronous put — for use in non-async contexts."""
-        reply = TaggedReply(content=content, origin=origin, session_id=session_id)
+    def put_nowait(
+        self,
+        content: Any,
+        origin: Optional[str] = None,
+        session_id: str = "",
+    ):
+        reply = self._coerce_reply(content, origin=origin, session_id=session_id)
         try:
             self._queue.put_nowait(reply)
         except asyncio.QueueFull:
-            pass
+            try:
+                dropped = self._coerce_reply(self._queue.get_nowait())
+                logger.warning(
+                    "Reply queue full (nowait); dropped oldest reply (origin=%s, session=%s)",
+                    dropped.origin,
+                    dropped.session_id or "-",
+                )
+                self._queue.put_nowait(reply)
+            except Exception as exc:
+                logger.warning("Could not enqueue tagged reply without waiting: %s", exc)
+
+    async def get(self) -> Any:
+        async with self._lock:
+            deferred = self._pop_deferred_match()
+        if deferred is not None:
+            return deferred.content
+        item = await self._queue.get()
+        return self._coerce_reply(item).content
+
+    def get_nowait(self) -> Any:
+        deferred = self._pop_deferred_match()
+        if deferred is not None:
+            return deferred.content
+        item = self._queue.get_nowait()
+        return self._coerce_reply(item).content
+
+    def empty(self) -> bool:
+        self._prune_deferred()
+        return not self._deferred and self._queue.empty()
+
+    def qsize(self) -> int:
+        self._prune_deferred()
+        return self._queue.qsize() + len(self._deferred)
 
     async def get_for_origin(
         self,
         origin: str,
         session_id: str = "",
         timeout: float = 120.0,
-    ) -> Optional[str]:
-        """
-        Wait for and return the next reply for the given origin.
-        Discards replies for other origins (putting them back is not
-        possible with asyncio.Queue, so we discard and wait for the
-        right one to arrive).
-
-        Returns None on timeout.
-        """
+    ) -> Optional[Any]:
         deadline = time.time() + timeout
-        discarded_count = 0
+        deferred_count = 0
+
+        async with self._lock:
+            self._prune_deferred()
+            deferred = self._pop_deferred_match(origin, session_id)
+        if deferred is not None:
+            return deferred.content
 
         while time.time() < deadline:
             remaining = deadline - time.time()
@@ -109,76 +226,78 @@ class TaggedReplyQueue:
                 break
 
             try:
-                reply = await asyncio.wait_for(
-                    self._queue.get(), timeout=min(remaining, 2.0)
+                item = await asyncio.wait_for(
+                    self._queue.get(),
+                    timeout=min(remaining, 2.0),
                 )
             except asyncio.TimeoutError:
                 continue
 
-            # Check staleness
-            age = time.time() - reply.timestamp
-            if age > self.STALE_AFTER_SECONDS:
-                logger.debug(
-                    "Discarding stale reply (age=%.1fs, origin=%s)",
-                    age, reply.origin
-                )
-                discarded_count += 1
+            reply = self._coerce_reply(item)
+            if self._is_stale(reply):
                 continue
 
-            # Check if this reply is for us
             if reply.is_for(origin, session_id):
-                if discarded_count:
+                if deferred_count:
                     logger.debug(
-                        "Found reply for %s after discarding %d others",
-                        origin, discarded_count
+                        "Found reply for %s/%s after deferring %d others",
+                        origin,
+                        session_id or "-",
+                        deferred_count,
                     )
                 return reply.content
-            else:
-                # Not for us — discard it
-                # NOTE: In a more complex system you'd re-queue it.
-                # But since autonomous thoughts getting discarded is
-                # EXACTLY WHAT WE WANT when the user is waiting, this is correct.
-                logger.debug(
-                    "Discarding reply for wrong origin (got=%s, want=%s)",
-                    reply.origin, origin
-                )
-                discarded_count += 1
+
+            async with self._lock:
+                self._deferred.append(reply)
+                self._prune_deferred()
+            deferred_count += 1
 
         logger.warning(
-            "get_for_origin(%s) timed out after %.0fs (discarded=%d)",
-            origin, timeout, discarded_count
+            "Timed out waiting for reply origin=%s session=%s after %.0fs",
+            origin,
+            session_id or "-",
+            timeout,
         )
         return None
 
-    async def flush_origin(self, origin: str):
-        """Discard all queued replies for a specific origin."""
+    async def flush_origin(self, origin: str) -> None:
         flushed = 0
-        remaining = []
+        kept: list[TaggedReply] = []
 
-        # Drain everything
+        async with self._lock:
+            while self._deferred:
+                reply = self._deferred.popleft()
+                if reply.origin == origin:
+                    flushed += 1
+                else:
+                    kept.append(reply)
+            self._deferred.extend(kept)
+
+        retained: list[TaggedReply] = []
         while not self._queue.empty():
             try:
-                item = self._queue.get_nowait()
-                if item.origin != origin:
-                    remaining.append(item)
-                else:
-                    flushed += 1
+                reply = self._coerce_reply(self._queue.get_nowait())
             except asyncio.QueueEmpty:
                 break
+            if reply.origin == origin:
+                flushed += 1
+            else:
+                retained.append(reply)
 
-        # Re-queue non-matching items
-        for item in remaining:
+        for reply in retained:
             try:
-                self._queue.put_nowait(item)
+                self._queue.put_nowait(reply)
             except asyncio.QueueFull:
                 break
 
         if flushed:
             logger.debug("Flushed %d replies for origin=%s", flushed, origin)
 
-    async def flush_all(self):
-        """Discard everything in the queue."""
+    async def flush_all(self) -> None:
         count = 0
+        async with self._lock:
+            count += len(self._deferred)
+            self._deferred.clear()
         while not self._queue.empty():
             try:
                 self._queue.get_nowait()
@@ -186,10 +305,22 @@ class TaggedReplyQueue:
             except asyncio.QueueEmpty:
                 break
         if count:
-            logger.debug("Flushed %d replies from queue", count)
+            logger.debug("Flushed %d replies", count)
+
+    def task_done(self):
+        try:
+            self._queue.task_done()
+        except Exception as _exc:
+            logger.debug("Suppressed Exception: %s", _exc)
+
+    def qsize(self) -> int:
+        return len(self._deferred) + self._queue.qsize()
 
     def size(self) -> int:
-        return self._queue.qsize()
+        return self.qsize()
 
     def empty(self) -> bool:
-        return self._queue.empty()
+        return not self._deferred and self._queue.empty()
+
+    def full(self) -> bool:
+        return self._queue.full()

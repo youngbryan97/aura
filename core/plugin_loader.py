@@ -21,19 +21,40 @@ class PluginManager:
         self.loaded_plugins: Dict[str, Any] = {}
 
     def validate_plugin(self, file_path: str) -> bool:
-        """Static analysis of plugin code before loading.
-        Rejects usage of 'eval', 'exec', 'subprocess' in plugins.
+        """Static analysis of plugin code before loading using AST.
+        Rejects usage of 'eval', 'exec', and dangerous 'subprocess' patterns.
         """
+        import ast
         try:
             with open(file_path, 'r') as f:
                 content = f.read()
-                if "import subprocess" in content or "exec(" in content or "eval(" in content:
-                    logger.warning("Plugin %s rejected due to unsafe patterns.", file_path)
-                    return False
+                tree = ast.parse(content)
+            
+            unsafe_calls = {'eval', 'exec', '__import__', 'getattr', 'setattr', 'delattr', 'compile', 'input'}
+            unsafe_imports = {'subprocess', 'ctypes', 'os.system', 'os.popen', 'shutil', 'pty'}
+            
+            for node in ast.walk(tree):
+                # Check for unsafe function calls
+                if isinstance(node, ast.Call):
+                    if isinstance(node.func, ast.Name) and node.func.id in unsafe_calls:
+                        logger.warning("Plugin %s rejected: unsafe call %s detected.", file_path, node.func.id)
+                        return False
+                # Check for dangerous attributes (e.g., .__subclasses__, .__globals__)
+                if isinstance(node, ast.Attribute):
+                    if node.attr.startswith("__") and node.attr.endswith("__"):
+                        logger.warning("Plugin %s rejected: dunder attribute access %s detected.", file_path, node.attr)
+                        return False
+                # Check for dangerous imports
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    for alias in getattr(node, 'names', []):
+                        if any(u in alias.name for u in unsafe_imports):
+                            logger.warning("Plugin %s rejected: unsafe import %s detected.", file_path, alias.name)
+                            return False
+                            
+            return True
         except Exception as e:
             logger.error("Validation failed for %s: %s", file_path, e)
             return False
-        return True
 
     def load_plugin(self, plugin_name: str) -> bool:
         """Dynamically loads a module from the plugins directory.

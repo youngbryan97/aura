@@ -128,15 +128,23 @@ class LocalSandbox(Sandbox):
                 stdout="", stderr=str(e), exit_code=-1, duration=duration
             )
 
+    def _safe_path(self, path: str) -> Path:
+        """Enforce strict path resolution to prevent directory traversal."""
+        # v51: Sandbox Hardening
+        p = (self.work_path / path).resolve()
+        if not str(p).startswith(str(self.work_path.resolve())):
+            raise PermissionError(f"Attempted directory traversal: {path}")
+        return p
+
     def read_file(self, path: str) -> str:
         """Read a file from the sandbox."""
-        full_path = self.work_path / path
+        full_path = self._safe_path(path)
         if not full_path.exists():
             raise FileNotFoundError(f"File not found in sandbox: {path}")
         return full_path.read_text(encoding="utf-8")
 
     def write_file(self, path: str, content: str):
         """Write a file to the sandbox."""
-        full_path = self.work_path / path
+        full_path = self._safe_path(path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(content, encoding="utf-8")

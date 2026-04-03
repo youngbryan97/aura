@@ -1,9 +1,8 @@
-
 import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict, List, Optional, Set
+from typing import List
 
 logger = logging.getLogger("System.Degradation")
 
@@ -35,10 +34,16 @@ class DegradationManager:
     Replacing binary success/failure with graceful fallback.
     """
     
+    # Number of consecutive healthy checks required before auto-recovery
+    RECOVERY_THRESHOLD = 5
+    # Failures within this window (seconds) count toward current state evaluation
+    FAILURE_WINDOW = 300  # 5 minutes
+
     def __init__(self):
         self.current_state = SystemState.HEALTHY
         self.failure_history: List[FailureEvent] = []
-        self.active_alerts: Set[str] = set()
+        self.consecutive_healthy_checks = 0
+        self.degraded = False  # Flag other subsystems can inspect
         self.capabilities = {
             "cognition": True,
             "memory_write": True,
@@ -85,10 +90,13 @@ class DegradationManager:
         """Apply capability locks based on state."""
         if state == SystemState.HEALTHY:
             self.capabilities = {k: True for k in self.capabilities}
+            self.degraded = False
             
         elif state == SystemState.DEGRADED:
-            # Keep core, disable high-risk optional tools if needed
-            pass 
+            # Keep core running but disable complex planning and flag degradation
+            self.capabilities["complex_planning"] = False
+            self.degraded = True
+            logger.warning("⚠️ DEGRADED MODE: Disabling complex planning. Subsystems should check 'degraded' flag.")
             
         elif state == SystemState.SAFE_MODE:
             self.capabilities["complex_planning"] = False
@@ -104,11 +112,75 @@ class DegradationManager:
         """Check if action is allowed in current state."""
         return self.capabilities.get(action_type, False)
 
+    def check_health(self):
+        """Periodic health check — call this on every tick/cycle.
+
+        If the system is in a degraded or critical state, evaluate whether
+        the triggering conditions have cleared.  After RECOVERY_THRESHOLD
+        consecutive healthy checks the state is upgraded one level toward
+        HEALTHY.
+        """
+        if self.current_state == SystemState.HEALTHY:
+            self.consecutive_healthy_checks = 0
+            return
+
+        # States above CRITICAL (EMERGENCY) require manual intervention
+        if self.current_state == SystemState.EMERGENCY:
+            self.consecutive_healthy_checks = 0
+            return
+
+        # Check recent failures within the sliding window
+        now = time.time()
+        recent_failures = [
+            f for f in self.failure_history
+            if now - f.timestamp < self.FAILURE_WINDOW
+        ]
+
+        if recent_failures:
+            # Conditions have NOT cleared — reset recovery counter
+            self.consecutive_healthy_checks = 0
+            return
+
+        # No recent failures — increment recovery counter
+        self.consecutive_healthy_checks += 1
+        logger.info(
+            "Health check passed (%d/%d) in state %s",
+            self.consecutive_healthy_checks,
+            self.RECOVERY_THRESHOLD,
+            self.current_state.name,
+        )
+
+        if self.consecutive_healthy_checks >= self.RECOVERY_THRESHOLD:
+            self._auto_recover()
+
+    def _auto_recover(self):
+        """Step the system one level closer to HEALTHY."""
+        self.consecutive_healthy_checks = 0
+
+        recovery_path = {
+            SystemState.CRITICAL: SystemState.SAFE_MODE,
+            SystemState.SAFE_MODE: SystemState.DEGRADED,
+            SystemState.DEGRADED: SystemState.HEALTHY,
+        }
+
+        next_state = recovery_path.get(self.current_state)
+        if next_state is None:
+            return
+
+        logger.info(
+            "Auto-recovery: %s -> %s after %d consecutive healthy checks",
+            self.current_state.name,
+            next_state.name,
+            self.RECOVERY_THRESHOLD,
+        )
+        self.current_state = next_state
+        self._enforce_policy(next_state)
+
     def recover(self, component: str = "all"):
-        """Attempt to recover state."""
-        logger.info("Attempting recovery for %s...", component)
-        # Reset Logic would go here
-        self.current_state = SystemState.HEALTHY # Simplified for now
+        """Force-recover state (manual / programmatic trigger)."""
+        logger.info("Manual recovery requested for %s...", component)
+        self.consecutive_healthy_checks = 0
+        self.current_state = SystemState.HEALTHY
         self._enforce_policy(SystemState.HEALTHY)
 
 # Global Instance

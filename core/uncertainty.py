@@ -1,4 +1,3 @@
-
 """core/uncertainty.py — Aura Genuine Uncertainty & Failure State Engine
 =====================================================================
 Gives Aura the ability to NOT know something — and to represent that
@@ -201,7 +200,7 @@ class ConfidenceEstimator:
         "current", "today", "right now", "this year"
     }
     
-    # Domains where Aura can have higher confidence  
+    # Domains where Aura can have higher confidence
     CONFIDENT_DOMAINS = {
         "mathematics", "logic", "definition", "how to", "history before 2023",
         "science", "physics", "chemistry", "programming", "code"
@@ -522,6 +521,11 @@ class EpistemicHumilityEngine:
         
         return False, ""
     
+    def apply_epistemic_humility(self, query: str, response: str) -> str:
+        """Convenience wrapper for the full assessment and wrapping cycle."""
+        profile = self.assess(query, response)
+        return self.wrap_response(response, profile)
+
     def introspect(self) -> Dict[str, Any]:
         """Return calibration report and current uncertainty patterns."""
         return {

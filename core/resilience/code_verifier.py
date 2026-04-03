@@ -1,9 +1,7 @@
-
 import ast
 import logging
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,12 +12,19 @@ logger = logging.getLogger("Aura.Verifier")
 # Dangerous AST node types that indicate potentially harmful code
 _DANGEROUS_IMPORTS = frozenset({
     "subprocess", "shutil", "ctypes", "multiprocessing",
-    "signal", "resource", "pty", "fcntl",
+    "signal", "resource", "pty", "fcntl", "os", "sys", "importlib", "builtins",
 })
 
 _DANGEROUS_CALLS = frozenset({
     "exec", "eval", "compile", "__import__", "globals", "locals",
-    "getattr", "setattr", "delattr", "open",
+    "getattr", "setattr", "delattr", "open", "input", "breakpoint",
+})
+
+_BANNED_ATTRS = frozenset({
+    "__class__", "__subclasses__", "__mro__", "__globals__", 
+    "__subclasshook__", "__init__", "__func__", "__self__", "__dict__",
+    "system", "popen", "execl", "execv", "execvp", "call", "run",
+    "check_output", "check_call", "Popen"
 })
 
 
@@ -76,8 +81,15 @@ class CodeVerifier:
                     name = func.attr
                 if name and name in _DANGEROUS_CALLS:
                     warnings.append(f"Calls dangerous function: {name}()")
-            # Check for os.system / os.popen patterns
+                if name and name in _BANNED_ATTRS:
+                    warnings.append(f"Calls banned attribute/method: {name}")
+
+            # Check for banned attribute access (M-04 / BUG-048)
             elif isinstance(node, ast.Attribute):
+                if node.attr in _BANNED_ATTRS:
+                    warnings.append(f"Forbidden attribute access: {node.attr}")
+                
+                # Check for os.path / os.system etc through attributes
                 if isinstance(node.value, ast.Name) and node.value.id == "os":
                     if node.attr in ("system", "popen", "execl", "execv", "execvp"):
                         warnings.append(f"Calls os.{node.attr}()")
@@ -127,7 +139,8 @@ class CodeVerifier:
             if result.returncode == 0 and "OK" in result.stdout:
                 return True
             else:
-                logger.warning("Verification Import Failed: %s", result.stderr[:500])
+                stderr_sample = result.stderr[:500] if result.stderr else "No stderr"
+                logger.warning("Verification Import Failed: %s", stderr_sample)
                 return False
 
         except subprocess.TimeoutExpired:

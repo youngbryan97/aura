@@ -4,8 +4,16 @@ import os
 import shutil
 from typing import Any, Dict, List
 
-from core.brain.cognitive_patch import CognitivePatchStrategy
-from core.patch_library import AVAILABLE_PATCHES, PipInstallPatch
+try:
+    from core.brain.cognitive_patch import CognitivePatchStrategy
+except ImportError:
+    CognitivePatchStrategy = None  # type: ignore
+
+try:
+    from core.patch_library import AVAILABLE_PATCHES, PipInstallPatch
+except ImportError:
+    AVAILABLE_PATCHES = []  # type: ignore
+    PipInstallPatch = None  # type: ignore
 
 logger = logging.getLogger("Kernel.Optimizer")
 

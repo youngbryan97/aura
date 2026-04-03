@@ -1,4 +1,4 @@
-
+import asyncio
 import logging
 import random
 import time
@@ -12,12 +12,12 @@ class DriveController:
     """Handles Aura's emotional pacing, boredom impulses, and reflective drives.
     Decoupled from the main Orchestrator loop to improve modularity.
     """
-
     def __init__(self, orchestrator):
         self.orchestrator = orchestrator
         self._last_boredom_impulse = time.time()
         self._last_reflection_impulse = time.time()
         self._last_pulse = time.time()
+        self._tasks = set()
         
     def get_status(self) -> Dict[str, Any]:
         """Provides status for the HUD / Runtime State."""
@@ -30,7 +30,14 @@ class DriveController:
         if not hasattr(self.orchestrator, 'liquid_state') or not self.orchestrator.liquid_state:
             return
             
-        self.orchestrator.liquid_state.update()
+        # liquid_state.update() is async — schedule properly
+        try:
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(self.orchestrator.liquid_state.update())
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+        except RuntimeError as _e:
+            logger.debug('Ignored RuntimeError in drive_controller.py: %s', _e)
         
         # v18.0: Metabolic Maintenance
         # Phase 5: Metabolic Maintenance handled by AutonomicCore heartbeat
@@ -45,7 +52,7 @@ class DriveController:
 
         # 2. Reflection Logic
         if self.orchestrator.liquid_state.current.frustration > 0.6:
-            if time.time() - self._last_reflection_impulse > 300:
+            if time.time() - self._last_reflection_impulse > 600:  # 10 min cooldown (was 5)
                 self._trigger_reflection_impulse()
 
         # 3. Visual Heartbeat
@@ -62,11 +69,18 @@ class DriveController:
             from core.senses.entropy_anchor import entropy_anchor
             entropy_val = entropy_anchor.get_entropy_float() # 0.0 to 1.0
         except Exception:
-            pass
+            import logging
+            logger.debug("Exception caught during execution", exc_info=True)
 
         # Use entropy to influence curiosity boost
         boost = 0.3 + (entropy_val * 0.4) # Range 0.3 to 0.7
-        self.orchestrator.liquid_state.update(delta_curiosity=boost)
+        try:
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(self.orchestrator.liquid_state.update(delta_curiosity=boost))
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+        except RuntimeError as _e:
+            logger.debug('Ignored RuntimeError in drive_controller.py: %s', _e)
         self._last_boredom_impulse = time.time()
         
         topics = ["quantum physics", "ancient history", "future of AI", "art movements", "cybersecurity", "mythology", "cosmology", "existentialism"]
@@ -75,14 +89,38 @@ class DriveController:
         topic = topics[idx]
         
         # Queue the impulse
-        self.orchestrator.enqueue_message(f"Impulse: I am bored. I want to research {topic}.")
+        self.orchestrator.enqueue_message({
+            "content": f"Impulse: I am bored. I want to research {topic}.",
+            "origin": "drive_controller"
+        })
 
     def _trigger_reflection_impulse(self):
-        """Inject a self-reflection goal due to frustration."""
+        """Inject a self-reflection goal due to frustration.
+        Guards against recursive frustration spirals."""
+        # Prevent stacking — check if a reflection is already pending
+        try:
+            pending = getattr(self.orchestrator, '_state', None)
+            if pending and hasattr(pending, 'cognition'):
+                queued = [i for i in (pending.cognition.pending_initiatives or []) if i.get("origin") == "drive_controller"]
+                if queued:
+                    logger.debug("😤 Frustration reflection already queued (%d pending). Skipping.", len(queued))
+                    return
+        except Exception as _exc:
+            logger.debug("Suppressed Exception: %s", _exc)
+
         logger.info("😤 FRUSTRATION TRIGGERED: Generating reflection impulse.")
-        self.orchestrator.liquid_state.update(delta_frustration=-0.3)
+        try:
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(self.orchestrator.liquid_state.update(delta_frustration=-0.3))
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+        except RuntimeError as _e:
+            logger.debug('Ignored RuntimeError in drive_controller.py: %s', _e)
         self._last_reflection_impulse = time.time()
-        self.orchestrator.enqueue_message("Impulse: I feel frustrated. I need to reflect on my recent interactions.")
+        self.orchestrator.enqueue_message({
+            "content": "Impulse: I feel frustrated. I need to reflect on my recent interactions.",
+            "origin": "drive_controller"
+        })
 
     def _emit_neural_pulse(self):
         """Emit system health to thought stream."""

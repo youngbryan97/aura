@@ -15,6 +15,11 @@ class LLMProvider(ABC):
         """Generate a structured JSON response from the LLM."""
         pass
 
+    @abstractmethod
+    async def generate_stream(self, prompt: str, system_prompt: Optional[str] = None, model: Optional[str] = None, **kwargs):
+        """Generate a stream of ChatStreamEvent objects."""
+        pass
+
     def check_health(self) -> bool:
         """Check if the provider is available and working."""
         return True

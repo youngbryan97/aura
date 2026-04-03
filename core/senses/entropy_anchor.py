@@ -17,7 +17,7 @@ class PhysicalEntropyAnchor:
 
     def get_raw_bytes(self, num_bytes: int = 4) -> bytes:
         """Read raw entropy directly from the OS hardware pool."""
-        # On macOS/Linux, os.urandom provides entropy from /dev/urandom, 
+        # On macOS/Linux, os.urandom provides entropy from /dev/urandom,
         # which is seeded by hardware/environmental noise.
         return os.urandom(num_bytes)
         

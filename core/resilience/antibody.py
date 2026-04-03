@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 logger = logging.getLogger("Core.Antibody")
 
@@ -92,4 +92,3 @@ class Antibody:
                 logger.warning("🛡️ Antibody Alert: %s", a)
 
         return {"alerts": alerts, "clean": len(alerts) == 0}
-

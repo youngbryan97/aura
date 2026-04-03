@@ -138,6 +138,107 @@ class SelfModel:
 
     async def update_belief(self, key: str, value: Any, note: Optional[str] = None):
         """Update a belief and create a snapshot."""
+        try:
+            from core.constitution import get_constitutional_core
+
+            reviewed = get_constitutional_core().belief_authority.review_update(
+                "self_model",
+                key,
+                value,
+                note=note,
+            )
+            key = reviewed.key
+            value = reviewed.value
+            if note:
+                note = f"{note} | {reviewed.reason}"
+            else:
+                note = reviewed.reason
+        except Exception as exc:
+            logger.debug("BeliefAuthority review skipped: %s", exc)
+
+        constitutional_runtime_live = False
+        try:
+            from core.container import ServiceContainer
+            from core.executive.executive_core import (
+                ActionType,
+                DecisionOutcome,
+                Intent,
+                IntentSource,
+                get_executive_core,
+            )
+
+            constitutional_runtime_live = (
+                ServiceContainer.has("executive_core")
+                or ServiceContainer.has("aura_kernel")
+                or ServiceContainer.has("kernel_interface")
+                or bool(getattr(ServiceContainer, "_registration_locked", False))
+            )
+            if constitutional_runtime_live:
+                intent = Intent(
+                    source=IntentSource.SYSTEM,
+                    goal=f"self_model_belief:{key}",
+                    action_type=ActionType.UPDATE_BELIEF,
+                    payload={"key": key, "value": value, "note": note},
+                    priority=0.7,
+                    requires_memory_commit=True,
+                )
+                record = get_executive_core().request_approval_sync(intent)
+                if record.outcome not in (DecisionOutcome.APPROVED, DecisionOutcome.DEGRADED):
+                    try:
+                        from core.health.degraded_events import record_degraded_event
+
+                        record_degraded_event(
+                            "self_model",
+                            "belief_update_blocked",
+                            detail=str(key),
+                            severity="warning",
+                            classification="background_degraded",
+                            context={"reason": record.reason},
+                        )
+                    except Exception as degraded_exc:
+                        logger.debug("Self-model degraded-event logging failed: %s", degraded_exc)
+
+                    snap = SelfSnapshot(
+                        id=str(uuid4()),
+                        ts=time.time(),
+                        summary=f"blocked update {key}",
+                        beliefs={},
+                        confidence=0.0,
+                        revision_note=record.reason,
+                    )
+                    async with self._lock:
+                        self.snapshots[snap.id] = snap
+                    return snap
+        except Exception as exc:
+            if constitutional_runtime_live:
+                try:
+                    from core.health.degraded_events import record_degraded_event
+
+                    record_degraded_event(
+                        "self_model",
+                        "belief_update_gate_failed",
+                        detail=str(key),
+                        severity="warning",
+                        classification="background_degraded",
+                        context={"error": type(exc).__name__},
+                        exc=exc,
+                    )
+                except Exception as degraded_exc:
+                    logger.debug("Self-model degraded-event logging failed: %s", degraded_exc)
+
+                snap = SelfSnapshot(
+                    id=str(uuid4()),
+                    ts=time.time(),
+                    summary=f"blocked update {key}",
+                    beliefs={},
+                    confidence=0.0,
+                    revision_note="executive_gate_failed",
+                )
+                async with self._lock:
+                    self.snapshots[snap.id] = snap
+                return snap
+            logger.debug("Executive belief gate skipped: %s", exc)
+
         async with self._lock:
             self.beliefs[key] = value
             snap = SelfSnapshot(

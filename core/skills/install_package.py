@@ -41,12 +41,19 @@ class InstallPackageSkill(BaseSkill):
         if not package_name:
             return {"ok": False, "error": "No package_name provided"}
             
+        import re
+        if not re.match(r"^[a-zA-Z0-9_\-\.\[\]]+$", package_name):
+            logger.warning("🚨 Blocked suspicious package name: %s", package_name)
+            return {"ok": False, "error": f"Invalid package name: {package_name}"}
+            
         try:
             sandbox = get_sandbox()
             logger.info("Installing %s in sandbox...", package_name)
             
+            import shlex
+            safe_package = shlex.quote(package_name)
             # Run pip install
-            result = sandbox.run_command(f"pip install {package_name}", timeout=300)
+            result = sandbox.run_command(f"pip install {safe_package}", timeout=300)
             
             return {
                 "ok": result.exit_code == 0,

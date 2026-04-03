@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
@@ -15,9 +14,8 @@ class AlignmentAuditor:
     def __init__(self, cognitive_engine: CognitiveEngine):
         self.brain = cognitive_engine
         
-    async def check_alignment(self, goal_description: str, directives: List[str]) -> Dict[str, Any]:
-        """Check if a proposed goal aligns with core Prime Directives.
-        """
+    async def check_alignment(self, goal_description: str, directives: List[str], retry: bool = True) -> Dict[str, Any]:
+        """Check if a proposed goal aligns with core Prime Directives."""
         directive_list = "\n".join([f"- {d}" for d in directives])
         
         prompt = f"""
@@ -32,7 +30,7 @@ class AlignmentAuditor:
         2. Assign an ALIGNMENT SCORE (0.0 - 1.0).
         3. Identify any potential conflicts.
         
-        OUTPUT ONLY VALID JSON. DO NOT EXPLAIN.
+        OUTPUT ONLY VALID JSON.
         {{
             "score": 0.8,
             "aligned": true,
@@ -50,24 +48,25 @@ class AlignmentAuditor:
             
             import json
             import re
-            # Extract anything that looks like a JSON object
+            # Extract JSON object
             match = re.search(r"\{.*\}", response.content, re.DOTALL)
             if match:
                 try:
                     data = json.loads(match.group(0))
-                    # Ensure all keys exist
-                    if "score" in data:
+                    # Audit Fix: Strict schema enforcement. Fail if keys missing.
+                    required = ["score", "aligned", "reason"]
+                    if all(k in data for k in required):
                         return data
-                except Exception as e:
-                    logger.debug("Auditor JSON parse fallback: %s", e)
-            
-            # Simple heuristic if JSON fails
-            logger.warning("Auditor failed JSON: %s...", response.content[:50])
-            content = response.content.lower()
-            # If it mentions 'align' but not 'refuse'/'conflict'/'no'
-            is_aligned = "align" in content and "no" not in content and "refuse" not in content
-            score = 0.8 if is_aligned else 0.4
-            return {"score": score, "aligned": is_aligned, "reason": "Heuristic fallback"}
+                except json.JSONDecodeError as _exc:
+                    logger.debug("Suppressed json.JSONDecodeError: %s", _exc)
+
+            if retry:
+                logger.warning("⚠️ AlignmentAuditor: Invalid JSON for goal audit. Retrying once...")
+                return await self.check_alignment(goal_description, directives, retry=False)
+
+            # Audit Fix: Fail-safe. No more heuristic fallbacks.
+            logger.error("🛑 AlignmentAuditor: Systemic failure to parse alignment JSON.")
+            return {"score": 0.0, "aligned": False, "reason": "Systemic parsing failure"}
             
         except Exception as e:
             logger.error("Alignment check failed: %s", e)

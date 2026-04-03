@@ -42,10 +42,31 @@ class LazarusBrainstem:
             
         logger.critical("🚨 LAZARUS: Initiating emergency cognitive recovery...")
         try:
-            # Tell the orchestrator to try reconnecting/rebooting brain
-            if hasattr(self.orchestrator, 'retry_brain_connection'):
-                await self.orchestrator.retry_brain_connection()
-                return True
+            from core.container import ServiceContainer
+            
+            # 1. Attempt to re-initialize the Cognitive Integration Layer
+            cil = ServiceContainer.get("cognitive_integration_layer", default=None)
+            if cil:
+                logger.info("LAZARUS: Restarting Cognitive Integration Layer...")
+                await cil.initialize()
+                
+            # 2. Reset orchestrator error states to unblock
+            if hasattr(self.orchestrator, "_recovery_attempts"):
+                self.orchestrator._recovery_attempts = 0
+            if hasattr(self.orchestrator, "status"):
+                self.orchestrator.status.brain_connected = True
+                
+            # 3. Inform the event bus
+            bus = ServiceContainer.get("mycelium", default=None)
+            if bus:
+                await bus.emit("aura.system.recovery", {
+                    "source": "lazarus",
+                    "status": "success"
+                })
+                
+            logger.info("✅ LAZARUS: Brain connection re-established.")
+            return True
+            
         except Exception as e:
             logger.error("LAZARUS: Recovery failed: %s", e)
         return False

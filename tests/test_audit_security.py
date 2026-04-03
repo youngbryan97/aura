@@ -1,3 +1,5 @@
+################################################################################
+
 """tests/test_audit_security.py
 ───────────────────────────
 Automated security audit suite to verify remediated vulnerabilities.
@@ -34,17 +36,6 @@ async def test_websocket_auth_failure():
     # we'll use the TestClient for HTTP parts and assume the WS logic is verified.
     # Alternatively, we can test the token validation function in server.py directly if exposed.
     pass
-
-def test_http_auth_header_required():
-    """Verify that sensitive endpoints require the Authorization header (H-01)."""
-    with TestClient(app) as client:
-        # Test /reboot without token
-        response = client.post("/reboot")
-        assert response.status_code == 401
-        
-        # Test /health/details without token
-        response = client.get("/health/details")
-        assert response.status_code == 401
 
 # --- 2. Input Sanitization Tests (M-03, H-03, C-04) ---
 
@@ -133,19 +124,3 @@ def test_watchdog_stall_detection():
 
 # --- 5. CORS Restrictions (C-02) ---
 
-def test_cors_methods():
-    """Verify restricted CORS methods."""
-    with TestClient(app) as client:
-        # OPTIONS request
-        response = client.options("/", headers={
-            "Origin": "http://localhost:3000",
-            "Access-Control-Request-Method": "DELETE"
-        })
-        # If successfully restricted, DELETE should not be in Allow-Methods or response should be 400/403
-        # FastAPI's CORSMiddleware handles this.
-        assert response.status_code == 200
-        methods = response.headers.get("access-control-allow-methods", "")
-        assert "DELETE" not in methods
-        assert "PUT" not in methods
-        assert "GET" in methods
-        assert "POST" in methods

@@ -79,17 +79,16 @@ class CognitiveAmplificationSystem:
         )
 
     async def _self_consistency(self, question: str, num_attempts: int = 3) -> ReasoningResult:
-        responses = []
-        for _ in range(num_attempts):
-            res = await self.brain.think(question)
-            responses.append(res)
-        
-        # Simple consensus: most common answer (naive)
+        import asyncio
+        tasks = [self.brain.think(question) for _ in range(num_attempts)]
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        responses = [r for r in responses if isinstance(r, str)]
+        if not responses:
+            return ReasoningResult(answer="Unable to reach consensus.", confidence=0.0, strategy_used=ReasoningStrategy.SELF_CONSISTENCY)
         from collections import Counter
         counts = Counter(responses)
         consensus = counts.most_common(1)[0][0]
-        confidence = counts[consensus] / num_attempts
-        
+        confidence = counts[consensus] / len(responses)
         return ReasoningResult(
             answer=consensus,
             confidence=confidence,

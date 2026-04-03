@@ -1,13 +1,15 @@
 import logging
-import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .agency_core import RobustOrchestrator
 
 logger = logging.getLogger("Cognition.SelfEvaluator")
 
 class SelfEvaluator:
     """Metacognitive module for post-action reflection.
     """
-    def __init__(self, orchestrator=None):
+    def __init__(self, orchestrator: Optional["RobustOrchestrator"] = None):
         self.orchestrator = orchestrator
         self.grounding_guard = None
         if orchestrator:

@@ -1,4 +1,3 @@
-
 """core/verifiers/decision_verifier.py
 
 Verifies proposed plans and actions against system constraints and ethical guidelines.

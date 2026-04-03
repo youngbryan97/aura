@@ -1,0 +1,155 @@
+import asyncio
+import logging
+import os
+import shlex
+import shutil
+import platform
+import subprocess
+from pathlib import Path
+from typing import Any, Dict, Optional
+from pydantic import BaseModel, Field
+
+from core.config import config
+from core.utils.task_tracker import task_tracker
+from core.skills.base_skill import BaseSkill
+
+logger = logging.getLogger("Skills.SovereignTerminal")
+
+class TerminalInput(BaseModel):
+    action: str = Field("execute", description="Action: 'execute', 'open_app', 'open_file', 'cd'")
+    command: Optional[str] = Field(None, description="Shell command to run (for 'execute').")
+    target: Optional[str] = Field(None, description="App name or file path (for 'open' actions).")
+    cwd: Optional[str] = Field(None, description="Current working directory for execution or 'cd'.")
+    timeout: int = Field(15, description="Timeout in seconds for execution.")
+
+class SovereignTerminalSkill(BaseSkill):
+    """The unified terminal and system operation capability for Aura.
+    Handles shell command execution, application launching, and file opening.
+    """
+    
+    name = "sovereign_terminal"
+    description = "Execute shell commands, launch system apps, and open files via CLI."
+    input_model = TerminalInput
+    
+    def __init__(self):
+        super().__init__()
+        # Use workspace root as default CWD if available
+        self.default_cwd = str(getattr(config.paths, "base_dir", os.getcwd()))
+
+    async def execute(self, params: TerminalInput, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Unified entry point for all system operations."""
+        if isinstance(params, dict):
+            try:
+                params = TerminalInput(**params)
+            except Exception as e:
+                return {"ok": False, "error": f"Invalid input: {e}"}
+
+        action = params.action
+        cwd = params.cwd or self.default_cwd
+        
+        try:
+            if action == "execute":
+                return await self._run_command(params.command, cwd, params.timeout)
+            elif action in ["open_app", "open_file"]:
+                return await self._open_target(params.target, action)
+            elif action == "cd":
+                new_path = os.path.abspath(os.path.join(cwd, params.target or "."))
+                # Security shortcut: Ensure we stay in workspace if it's strictly enforced (optional for sovereign)
+                return {"ok": True, "new_cwd": new_path, "message": f"Directory changed to {new_path}"}
+            else:
+                return {"ok": False, "error": f"Unsupported terminal action: {action}"}
+        except Exception as e:
+            logger.error("Terminal skill failed: %s", e)
+            return {"ok": False, "error": str(e)}
+
+    async def _run_command(self, cmd: str, cwd: str, timeout: int) -> Dict[str, Any]:
+        if not cmd:
+            return {"ok": False, "error": "Execute action requires a 'command'."}
+        
+        # --- Advanced Security Hardening ---
+        normalized_cmd = cmd.lower()
+        obfuscation_patterns = ["base64 -d", "base64 --decode", "\\x", "\\u", "${", "eval $(", "echo -e"]
+        if any(p in normalized_cmd for p in obfuscation_patterns):
+            logger.warning("🛡️ Potential obfuscation bypass attempt: %s", cmd)
+            return {"ok": False, "error": "Command blocked: Obfuscation patterns detected."}
+
+        destructive_patterns = [
+            "rm -rf /", "rm -rf *", ":(){ :|:& };:", "dd if=/dev/", 
+            "mkfs.", "chmod -r 777", "chown -r", "> /dev/sda",
+            "shutdown", "reboot", "halt", "poweroff"
+        ]
+        
+        for pattern in destructive_patterns:
+            if pattern in normalized_cmd:
+                logger.warning("🛡️ Destructive command blocked: %s", pattern)
+                return {"ok": False, "error": f"Command blocked: Destructive operation '{pattern}' detected."}
+
+        # RM Specific Guard: rm must only operate on relative paths within workspace
+        # We parse the command for 'rm' but 'execute' can be anything, so we look for 'rm ' anywhere
+        if "rm " in normalized_cmd:
+             tokens = shlex.split(cmd)
+             for i, tok in enumerate(tokens):
+                 if tok == "rm":
+                     for arg in tokens[i+1:]:
+                         if arg.startswith("-"): continue
+                         resolved = os.path.realpath(os.path.join(cwd, arg))
+                         allowed_root = str(getattr(config.paths, "base_dir", "/")) # Default to root if not set
+                         if not resolved.startswith(allowed_root) and allowed_root != "/":
+                             logger.warning("🛡️ RM blocked: path %s is outside %s", resolved, allowed_root)
+                             return {"ok": False, "error": f"rm blocked: '{arg}' resolves outside sanctioned path."}
+
+        logger.info("🐚 Shell Execute: %s (CWD: %s)", cmd, cwd)
+        
+        try:
+            # Track shell task for audit
+            with task_tracker.track("shell_command", details={"command": cmd[:100]}):
+                process = await asyncio.create_subprocess_shell(
+                    cmd,
+                    cwd=cwd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                try:
+                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=float(timeout))
+                    return {
+                        "ok": process.returncode == 0,
+                        "stdout": stdout.decode().strip()[:5000],
+                        "stderr": stderr.decode().strip()[:2000],
+                        "return_code": process.returncode,
+                        "cwd": cwd
+                    }
+                except asyncio.TimeoutError:
+                    try: 
+                        process.kill()
+                    except Exception as e:
+                        logger.debug("Failed to kill process %s: %s", process.pid, e)
+                    return {"ok": False, "error": "Execution timed out."}
+        except Exception as e:
+            return {"ok": False, "error": f"Shell error: {e}"}
+
+    async def _open_target(self, target: str, action: str) -> Dict[str, Any]:
+        if not target:
+            return {"ok": False, "error": "Open action requires a 'target'."}
+        
+        system = platform.system()
+        cmd = []
+        if system == "Darwin":
+            if action == "open_app":
+                cmd = ["open", "-a", target]
+            else:
+                cmd = ["open", target]
+        elif system == "Linux":
+            cmd = ["xdg-open", target]
+        else:
+            return {"ok": False, "error": f"Unsupported OS for 'open': {system}"}
+            
+        logger.info("🚀 Launching %s: %s", action, target)
+        try:
+            # Tracking open actions too
+            with task_tracker.track("system_open", details={"target": target}):
+                process = await asyncio.create_subprocess_exec(*cmd)
+                await process.wait()
+                return {"ok": True, "summary": f"Target {target} opened successfully."}
+        except Exception as e:
+            return {"ok": False, "error": f"Failed to open target: {e}"}

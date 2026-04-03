@@ -334,7 +334,7 @@ Return JSON:
             thought = self.brain.think(prompt)
             response = thought.content.strip()
             # Hardening: Use robust extraction
-            from utils.json_utils import extract_json
+            from core.utils.json_utils import extract_json
             return extract_json(response) or {}
         except Exception as e:
             logger.error("Impact analysis failed: %s", e)

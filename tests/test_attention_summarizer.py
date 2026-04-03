@@ -1,3 +1,5 @@
+################################################################################
+
 """tests/test_attention_summarizer.py
 Unit test for AttentionSummarizer context compression.
 """
@@ -6,7 +8,7 @@ import json
 import unittest
 from unittest.mock import MagicMock, AsyncMock, patch
 from core.memory.attention import AttentionSummarizer
-from core.global_workspace import GlobalWorkspace, WorkItem
+from core.consciousness.global_workspace import GlobalWorkspace, BroadcastRecord, CognitiveCandidate
 from core.world_model.belief_graph import BeliefGraph
 from core.container import ServiceContainer
 
@@ -35,9 +37,11 @@ class TestAttentionSummarizer(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ws_reg, self.workspace)
         
         # 1. Fill workspace with history
+        import time
         for i in range(10):
-            wi = WorkItem(5, 0.0, f"id-{i}", "test-source", {"msg": f"event-{i}"}, "test")
-            self.workspace.history.append(wi)
+            candidate = CognitiveCandidate(content=f"event-{i}", source="test-source", priority=0.5)
+            record = BroadcastRecord(winner=candidate, losers=[], timestamp=time.time())
+            self.workspace.history.append(record)
         
         self.assertEqual(len(self.workspace.history), 10)
         
@@ -70,3 +74,6 @@ class TestAttentionSummarizer(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+##

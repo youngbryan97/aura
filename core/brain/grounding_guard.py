@@ -1,6 +1,7 @@
 import logging
 import time
 import asyncio
+from collections import deque
 from typing import Any, Dict, List, Optional
 from core.config import config
 
@@ -13,7 +14,7 @@ class GroundingGuard:
     
     def __init__(self, orchestrator):
         self.orchestrator = orchestrator
-        self.history = []
+        self.history = deque(maxlen=200)
 
     async def validate_eval(self, objective: str, eval_score: float, actual_result: Dict[str, Any]) -> float:
         """Adjusts the self-evaluation score based on evidence.

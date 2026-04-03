@@ -1,4 +1,3 @@
-
 """core/main.py - Sovereign AGI Interaction Loop
 Implements the persistent conversation loop for Aura.
 
@@ -17,14 +16,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from .orchestrator import RobustOrchestrator
 
+# Standard logging setup
+logger = logging.getLogger("Aura.Main")
+
 # --- THE PANIC ROOM: SAFETY NET ---
 try:
     import core.resilience.safety_net
     core.resilience.safety_net.install()
 except ImportError:
-    pass
-
-logger = logging.getLogger("Aura.Main")
+    logger.debug("Exception caught during execution", exc_info=True)
 container = get_container()
 
 # --- Circuit Breaker Constants ---
@@ -50,8 +50,9 @@ async def conversation_loop():
         return
 
     # Start and run in background so cycles process (Metabolism, etc.)
+    from core.utils.task_tracker import fire_and_track
     await orchestrator.start()
-    asyncio.create_task(orchestrator.run())
+    fire_and_track(orchestrator.run(), name="OrchestratorMainLoop")
 
     consecutive_failures = 0
     backoff = INITIAL_BACKOFF_SECONDS
@@ -71,6 +72,16 @@ async def conversation_loop():
 
             # 2. Get User Input (using run_in_executor to avoid blocking event loop)
             loop = asyncio.get_running_loop()
+            
+            # Global exception handler to catch silent background task deaths
+            def _handle_exception(loop, context):
+                msg = context.get("exception", context["message"])
+                logger.critical("🔥 UNHANDLED ASYNC EXCEPTION: %s", msg)
+                if "exception" in context:
+                    import traceback
+                    traceback.print_exception(type(context["exception"]), context["exception"], context["exception"].__traceback__)
+            loop.set_exception_handler(_handle_exception)
+            
             # Note: We keep print("YOU: ") or input() if it's the intended CLI interface
             user_input = await loop.run_in_executor(None, input, "YOU: ")
 
@@ -112,4 +123,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(conversation_loop())
     except KeyboardInterrupt:
-        pass
+        import logging
+        logger.debug("Exception caught during execution", exc_info=True)

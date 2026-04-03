@@ -10,6 +10,7 @@ class LatentCore:
         # Initialize with random state to ensure uniqueness per instance
         self._vec = np.random.randn(dim).astype(np.float32)
         self._lock = threading.Lock()
+        self._update_counter = 0
 
     def update(self, sensory_vector: np.ndarray, lr: float = 0.05):
         """Update latent state with simple gradient-free update: moving average.
@@ -30,10 +31,13 @@ class LatentCore:
         with self._lock:
             # EMA Update: internal_state = (1-lr)*old + lr*input
             self._vec = (1 - lr) * self._vec + lr * sensory_vector
-            # Normalize to prevent explosion
-            norm = np.linalg.norm(self._vec)
-            if norm > 0:
-                self._vec = self._vec / norm
+            self._update_counter += 1
+            
+            # Audit-52: Optimize normalization frequency (every 10 updates or high norm)
+            if self._update_counter % 10 == 0:
+                norm = np.linalg.norm(self._vec)
+                if norm > 0 and (abs(norm - 1.0) > 0.05 or self._update_counter % 100 == 0):
+                    self._vec = self._vec / norm
 
     def get_summary(self) -> Dict[str, Any]:
         """Returns only non-sensitive diagnostics (metadata), NEVER the raw vector.

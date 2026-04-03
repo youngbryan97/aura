@@ -9,7 +9,23 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+from core.utils.task_tracker import get_task_tracker
+
 logger = logging.getLogger("Aura.Proactive")
+
+
+def _proactivity_suppressed_now(now: Optional[float] = None) -> bool:
+    try:
+        from core.container import ServiceContainer
+
+        orch = ServiceContainer.get("orchestrator", default=None)
+        if not orch:
+            return False
+        now = time.time() if now is None else now
+        quiet_until = float(getattr(orch, "_suppress_unsolicited_proactivity_until", 0.0) or 0.0)
+        return quiet_until > now
+    except Exception:
+        return False
 
 class EmotionalState(Enum):
     """Aura's emotional states that affect communication"""
@@ -106,7 +122,9 @@ class ProactiveCommunicationManager:
     async def start(self):
         if self._background_task: return
         self._stop_event.clear()
-        self._background_task = asyncio.create_task(self._process_messages())
+        self._background_task = get_task_tracker().track_task(
+            asyncio.create_task(self._process_messages(), name="proactive_communication.process_messages")
+        )
 
     async def stop(self):
         if self._background_task:
@@ -123,6 +141,8 @@ class ProactiveCommunicationManager:
                 if self.messages_sent_today >= self.daily_message_limit:
                     continue
                 if now - self.last_message_time < 30: # Min 30s between messages
+                    continue
+                if _proactivity_suppressed_now(now):
                     continue
                 
                 # Stop proactive messaging if user isn't responding
@@ -158,28 +178,70 @@ class ProactiveCommunicationManager:
                 logger.error("Proactive comm error: %s", e)
 
     async def _send_msg(self, msg: ProactiveMessage):
+        if _proactivity_suppressed_now():
+            logger.debug("Proactive communication suppressed by demo quiet window.")
+            return
         # Sanitize content for Aura's professional voice
         clean_content = self._clean_content(msg.content)
         
         logger.info("PROACTIVE: (%s) %s", msg.urgency.name, clean_content)
-        
-        # 1. UI Notification (if bound)
-        if self.notification_callback:
-            await self.notification_callback(clean_content, msg.urgency.value)
-            
-        # 2. Sentient Unity Protocol (Phase 9)
-        # Directly wake up Aura's core cognitive loop with the proactive thought
-        from core.container import ServiceContainer
-        orchestrator = ServiceContainer.get("orchestrator", None)
-        if orchestrator and hasattr(orchestrator, "enqueue_from_thread"):
-            logger.info("🧠 Injecting proactive thought into Orchestrator queue.")
-            # We use a payload dictionary for unified queue handling
-            orchestrator.enqueue_from_thread({
-                "content": clean_content,
-                "origin": "impulse",
-                "context": {"urgency": msg.urgency.name, "emotion": msg.emotion.name}
-            })
-        
+
+        def _constitutional_runtime_live() -> bool:
+            try:
+                from core.container import ServiceContainer
+
+                return (
+                    ServiceContainer.has("executive_core")
+                    or ServiceContainer.has("aura_kernel")
+                    or ServiceContainer.has("kernel_interface")
+                    or bool(getattr(ServiceContainer, "_registration_locked", False))
+                )
+            except Exception:
+                return False
+
+        # Route every proactive emission through the governing executive surface first.
+        delivered = False
+        orchestrator = None
+        try:
+            from core.container import ServiceContainer
+            from core.consciousness.executive_authority import get_executive_authority
+
+            orchestrator = ServiceContainer.get("orchestrator", None)
+            authority = get_executive_authority(orchestrator)
+            decision = await authority.release_expression(
+                clean_content,
+                source="proactive_comm",
+                urgency=msg.urgency.value / max(1.0, float(InterruptionUrgency.CRITICAL.value)),
+                metadata={
+                    "emotion": msg.emotion.name,
+                    "urgency": msg.urgency.name,
+                    "voice": False,
+                },
+            )
+            delivered = bool(decision.get("ok"))
+        except Exception as exc:
+            logger.debug("Executive authority routing failed for proactive comm: %s", exc)
+
+        if not delivered:
+            try:
+                from core.health.degraded_events import record_degraded_event
+
+                record_degraded_event(
+                    "proactive_communication",
+                    "autonomous_expression_suppressed_without_authority",
+                    detail=clean_content[:120],
+                    severity="warning",
+                    classification="background_degraded",
+                    context={
+                        "urgency": msg.urgency.name,
+                        "emotion": msg.emotion.name,
+                        "constitutional_runtime_live": _constitutional_runtime_live(),
+                    },
+                )
+            except Exception as exc:
+                logger.debug("Proactive comm degraded-event logging failed: %s", exc)
+            return
+
         self.messages_sent_today += 1
         self.last_message_time = time.time()
         self.unanswered_count += 1  # Track unanswered

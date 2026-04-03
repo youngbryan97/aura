@@ -9,14 +9,16 @@ from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 
-from ..brain.cognitive_engine import cognitive_engine as global_brain
+from core.container import ServiceContainer
 
 logger = logging.getLogger("Skills.TestGen")
 
 class TestGeneratorParams(BaseModel):
+    __test__ = False
     target_file: str = Field(..., description="The path to the Python file or module to generate tests for.")
 
 class TestGeneratorSkill(BaseSkill):
+    __test__ = False
     """Test Generator Skill v2.0
     Generates unit tests using the brain and executes them to verify code integrity.
     """
@@ -27,7 +29,7 @@ class TestGeneratorSkill(BaseSkill):
     
     def __init__(self, brain=None):
         super().__init__()
-        self.brain = brain or global_brain
+        self.brain = brain
         
     async def execute(self, params: TestGeneratorParams, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute test generation and execution.
@@ -40,6 +42,15 @@ class TestGeneratorSkill(BaseSkill):
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         target_file = params.target_file
+        
+        # Issue 82: Lazy resolve brain
+        brain = self.brain or ServiceContainer.get("cognitive_engine")
+        if not brain:
+            from core.brain.cognitive_engine import cognitive_engine
+            brain = cognitive_engine
+            
+        if not brain:
+            return {"ok": False, "error": "Cognitive engine unavailable for test generation."}
         
         if not target_file:
             return {"ok": False, "error": "No target_file provided."}
@@ -67,10 +78,12 @@ class TestGeneratorSkill(BaseSkill):
             Respond ONLY with the Python code for the test. Focus on edge cases and functional correctness.
             """
             
-            thought = await self.brain.think(
-                objective=prompt,
+            # Issue 82: Fix brain.think parameter 'objective' -> 'prompt' and 'mode' -> ThinkingMode
+            from core.brain.cognitive_engine import ThinkingMode
+            thought = await brain.think(
+                prompt=prompt,
                 context={"role": "qa_engineer", "target": target_file},
-                mode="deep"
+                mode=ThinkingMode.DEEP
             )
             
             test_code = thought.content

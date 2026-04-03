@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 import time
+import asyncio
 from pathlib import Path
 from typing import List, Optional
 
@@ -78,18 +79,25 @@ class SovereignSupervisor:
         )
 
         # Start threads to stream output to our logger
-        threading.Thread(target=self._pipe_logger, args=(self.process.stdout, logging.INFO), daemon=True).start()
-        threading.Thread(target=self._pipe_logger, args=(self.process.stderr, logging.ERROR), daemon=True).start()
+        threading.Thread(target=self._pipe_logger, args=(self.process.stdout, logging.INFO, "stdout"), daemon=True).start()
+        threading.Thread(target=self._pipe_logger, args=(self.process.stderr, logging.ERROR, "stderr"), daemon=True).start()
 
-    def _pipe_logger(self, pipe, level):
+    def _pipe_logger(self, pipe, level, label):
         """Reads from a pipe and logs each line."""
         try:
             for line in iter(pipe.readline, ''):
+                if not line: break
                 clean_line = line.strip()
                 if clean_line:
                     logger.log(level, "[Sub] %s", clean_line)
-        except ValueError:
-            pass  # Pipe closed
+        except ValueError as e:
+            # Handle 'I/O operation on closed file' specifically (BUG-010)
+            if "closed file" in str(e).lower():
+                logger.debug(f"Pipe {label} closed normally.")
+            else:
+                logger.error(f"ValueError in pipe {label}: {e}")
+        except Exception as e:
+            logger.error(f"Error reading pipe {label}: {e}")
         finally:
             pipe.close()
 
@@ -138,7 +146,7 @@ class SovereignSupervisor:
             try:
                 os.kill(pid, signal.SIGTERM)
             except OSError:
-                pass
+                logger.debug("Exception caught during execution", exc_info=True)
             return
 
         try:
@@ -152,10 +160,9 @@ class SovereignSupervisor:
             for p in alive:
                 p.kill()
         except psutil.NoSuchProcess:
-            pass
+            logger.debug("Exception caught during execution", exc_info=True)
 
 if __name__ == "__main__":
-    import asyncio
     # Example usage: Watch run_aura.py
     supervisor = SovereignSupervisor("run_aura.py", ["--server"])
     
@@ -167,4 +174,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        pass
+        logger.debug("Exception caught during execution", exc_info=True)

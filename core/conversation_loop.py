@@ -16,6 +16,14 @@ import time
 from queue import Empty, Queue
 from typing import Any, Dict, List, Optional
 
+from core.conversation.unified_transcript import UnifiedTranscript
+
+def get_transcript() -> UnifiedTranscript:
+    global _transcript
+    if '_transcript' not in globals():
+        _transcript = UnifiedTranscript.get_instance()
+    return _transcript
+
 logger = logging.getLogger("Kernel.ConversationLoop")
 
 
@@ -43,6 +51,8 @@ class AutonomousConversationLoop:
         self.drives = drive_system
         self.memory = memory
         self.brain = brain
+        self.hierarchical_orch = None
+        self.conversation_reflector = None
         
         # State management
         self.is_running = False
@@ -54,8 +64,7 @@ class AutonomousConversationLoop:
         data_dir = DATA_DIR
         data_dir.mkdir(parents=True, exist_ok=True)
         self.history_path = str(data_dir / "recent_history.json")
-        self.conversation_history: List[Dict[str, Any]] = self._load_history()
-        
+        # conversation_history is now a property pulling from UnifiedTranscript
         # Timing controls
         self.last_autonomous_action = time.time()
         self.autonomous_interval = 30  # Seconds between autonomous actions
@@ -68,30 +77,11 @@ class AutonomousConversationLoop:
             "failed_executions": 0
         }
     
-    def _load_history(self) -> List[Dict[str, Any]]:
-        import json
-        import os
-        if os.path.exists(self.history_path):
-            try:
-                with open(self.history_path, 'r') as f:
-                    data = json.load(f)
-                    return data[-50:] # Keep last 50
-            except Exception as e:
-                logger.error("Failed to load history: %s", e)
-        return []
-
-    def _save_history(self):
-        """Synchronous save — used during boot/init only."""
-        import json
-        try:
-            with open(self.history_path, 'w') as f:
-                json.dump(self.conversation_history, f, indent=2)
-        except Exception as e:
-            logger.error("Failed to save history: %s", e)
-
-    async def _async_save_history(self):
-        """Non-blocking save — used in async paths."""
-        await asyncio.to_thread(self._save_history)
+    @property
+    def conversation_history(self) -> List[Dict[str, Any]]:
+        """Dynamically build conversation history from the unified transcript."""
+        transcript = get_transcript()
+        return [entry.to_dict() for entry in transcript.get_context_window(n=50)]
     
     def start(self):
         """Start the autonomous loop"""
@@ -131,6 +121,47 @@ class AutonomousConversationLoop:
         # Add to conversation history
         await self._add_to_history("user", user_message)
         
+        # Phase 6: Hierarchical Memory Compaction
+        if not self.hierarchical_orch:
+            from core.container import get_container
+            self.hierarchical_orch = get_container().get("hierarchical_memory_orchestrator")
+            
+        if self.hierarchical_orch:
+            # The orchestrator will internalize the history and store compact versions in the DB
+            await self.hierarchical_orch.maybe_compact(self.conversation_history)
+        
+        # Phase 10: Meta-Cognition (Conversation Reflection)
+        if not self.conversation_reflector:
+            try:
+                from core.conversation_reflection import get_reflector
+                self.conversation_reflector = get_reflector()
+            except ImportError as _exc:
+                logger.debug("Suppressed ImportError: %s", _exc)
+        
+        if self.conversation_reflector:
+            # Background the reflection task to avoid blocking the main interaction
+            reflect_coro = self.conversation_reflector.maybe_reflect(self.conversation_history, self.brain)
+            try:
+                reflect_task = asyncio.create_task(reflect_coro)
+            except RuntimeError:
+                reflect_coro.close()
+            except Exception:
+                reflect_coro.close()
+                raise
+            else:
+                if not (asyncio.isfuture(reflect_task) or isinstance(reflect_task, asyncio.Task)):
+                    reflect_coro.close()
+                    reflect_task = None
+                try:
+                    if reflect_task is not None:
+                        from core.utils.task_tracker import get_task_tracker
+
+                        get_task_tracker().track_task(reflect_task, name="conversation_loop_reflection")
+                except Exception:
+                    if reflect_task is not None:
+                        reflect_task.cancel()
+                    raise
+        
         # Update stats
         self.stats["user_goals"] += 1
         
@@ -152,19 +183,29 @@ class AutonomousConversationLoop:
                 "plan": ["Responded to greeting"]
             }
         
-        # Decompose into plan (uses LLM - slow)
-        plan = await self.planner.decompose(user_message)
-        
-        if not plan or not plan.get("tool_calls"):
-            # No specific tools needed - pure conversation
-            logger.info("No tool calls in plan, using direct conversation")
+        # Force every response through the full cognitive stack.
+        # Instead of the 'planner' shortcut, we enter the unitary pipeline directly.
+        # This ensures every turn gets full perception, planning, and self-correction.
+        logger.info("🧠 ConversationLoop: Routing through full cognitive stack...")
+        try:
+            response = await self.brain.generate(user_message, priority=True)
+            await self._add_to_history(self.AI_ROLE, response)
+            return {
+                "ok": True,
+                "response": response,
+                "type": "conversation",
+                "plan": ["Processed via Unitary Cognitive Pipeline"]
+            }
+        except Exception as e:
+            logger.error("❌ ConversationLoop: Full cognitive stack failed: %s", e)
+            # Fallback to direct generate if phase loop fails
             response = await self._generate_conversational_response(user_message)
             await self._add_to_history(self.AI_ROLE, response)
             return {
                 "ok": True,
                 "response": response,
                 "type": "conversation",
-                "plan": plan.get("plan", [])
+                "plan": ["Fallback to direct generation"]
             }
         
         # Execute the plan
@@ -384,11 +425,7 @@ class AutonomousConversationLoop:
         """
         try:
             # Import identity lock and meta-filter
-            try:
-                from .synthesis import IDENTITY_LOCK, strip_meta_commentary
-            except ImportError:
-                IDENTITY_LOCK = ""
-                strip_meta_commentary = lambda x: x
+            from core.synthesis import IDENTITY_LOCK, strip_meta_commentary
             
             # Build context from conversation history
             history_text = ""
@@ -467,10 +504,19 @@ Respond naturally as Aura:
                     error = result.get("error", "unknown_error")
                     summaries.append(f"Error: {error}")
             
+            # Apply Identity Lock to Synthesis (Fix 1)
+            try:
+                from core.synthesis import IDENTITY_LOCK, strip_meta_commentary
+            except ImportError:
+                IDENTITY_LOCK = ""
+                strip_meta_commentary = lambda x: x
+
             # Build synthesis prompt
             results_text = "\n".join(f"- {s}" for s in summaries)
             
-            prompt = f"""Synthesize a natural conversational response based on these action results.
+            prompt = f"""{IDENTITY_LOCK}
+
+Synthesize a natural conversational response based on these action results.
 
 User asked: {user_message}
 
@@ -491,9 +537,9 @@ Response:"""
             
             if not response:
                 # Fallback to simple concatenation
-                return f"I completed {len(results)} actions: " + ". ".join(summaries[:3])
+                return strip_meta_commentary(f"I completed {len(results)} actions: " + ". ".join(summaries[:3]))
             
-            return response.strip()
+            return strip_meta_commentary(response.strip())
             
         except Exception as e:
             logger.error("Response synthesis failed: %s", e, exc_info=True)
@@ -513,20 +559,11 @@ Response:"""
         
         return f"{successful}/{total} successful. " + "; ".join(summaries)
     
-    async def _add_to_history(self, role: str, content: str):
-        """Add entry to conversation history (Async)."""
-        self.conversation_history.append({
-            "role": role,
-            "content": content,
-            "timestamp": time.time()
-        })
-        
-        # Trim history to last 50 messages
-        if len(self.conversation_history) > 50:
-            self.conversation_history = self.conversation_history[-50:]
-            
-        # Persist (Non-blocking)
-        await self._async_save_history()
+    async def _add_to_history(self, role: str, content: str, channel: str = "text", modality: str = "typed"):
+        """Add entry to conversation history (Async) and UnifiedTranscript."""
+        transcript = get_transcript()
+        transcript.add(role, content, channel=channel, modality=modality)
+        # UnifiedTranscript handles its own state synchronization and bounds logic
     
     def get_status(self) -> Dict[str, Any]:
         """Get current loop status"""

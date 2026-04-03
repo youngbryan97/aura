@@ -4,6 +4,7 @@ Allows Aura to spawn external monitoring probes.
 """
 from core.skills.base_skill import BaseSkill
 from core.container import ServiceContainer
+from typing import Any, Dict
 from pydantic import BaseModel, Field
 import logging
 import time
@@ -26,10 +27,10 @@ class GhostProbeSkill(BaseSkill):
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
 
-    async def execute(self, params: GhostProbeParams, context: dict = None) -> str:
-        manager = ServiceContainer.get("probe_manager")
+    async def execute(self, params: GhostProbeParams, context: dict = None) -> Dict[str, Any]:
+        manager = ServiceContainer.get("probe_manager", default=None)
         if not manager:
-            return "Error: ProbeManager service not available."
+            return {"ok": False, "error": "ProbeManager service not available."}
             
         success = await manager.deploy_probe(
             params.probe_id, 
@@ -39,19 +40,30 @@ class GhostProbeSkill(BaseSkill):
         )
         
         if success:
-            return f"Ghost Probe '{params.probe_id}' successfully deployed to watch {params.target} ({params.type}) for {params.duration}s."
+            return {"ok": True, "summary": f"Ghost Probe '{params.probe_id}' successfully deployed to watch {params.target} ({params.type}) for {params.duration}s."}
         else:
-            return f"Failed to deploy Ghost Probe '{params.probe_id}'. It might already exist or there was a system error."
+            return {"ok": False, "error": f"Failed to deploy Ghost Probe '{params.probe_id}'. It might already exist or there was a system error."}
 
-    async def list_probes(self) -> str:
+    async def list_probes(self) -> Dict[str, Any]:
         """List all active ghost probes."""
-        manager = ServiceContainer.get("probe_manager")
-        if not manager: return "ProbeManager offline."
+        manager = ServiceContainer.get("probe_manager", default=None)
+        if not manager: 
+            return {"ok": False, "error": "ProbeManager offline."}
         
         if not manager.probes:
-            return "No active ghost probes."
+            return {"ok": True, "probes": [], "summary": "No active ghost probes."}
             
-        lines = ["Active Ghost Probes:"]
+        probes = []
         for pid, meta in manager.probe_metadata.items():
-            lines.append(f"- {pid}: {meta['type']} @ {meta['target']} (Expires in {int(meta['expiry'] - time.time())}s)")
-        return "\n".join(lines)
+            probes.append({
+                "id": pid,
+                "type": meta['type'],
+                "target": meta['target'],
+                "expires_in": int(meta['expiry'] - time.time())
+            })
+            
+        return {
+            "ok": True, 
+            "probes": probes, 
+            "summary": f"Found {len(probes)} active ghost probes."
+        }

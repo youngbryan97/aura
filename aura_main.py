@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Aura Main Entry Point (v13.5 Unified)
+Aura Main Entry Point (v2026.3.1 "Zenith")
 ------------------------------------
 Standardized, single-entry launcher for CLI, Server, Desktop, and Watchdog modes.
 Replaces: aura_launcher.py, aura_desktop.py, run_aura.py, run_aura_loop.py, and reboot.py.
@@ -18,11 +18,68 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
+import multiprocessing
 
-# 1. Path Resolution
+# Phase 31: Native M1 Pro Resilience Fixes
+# 0. Force 'spawn' on macOS to prevent Cocoa/XPC deadlocks in child actors
+if sys.platform == "darwin":
+    try:
+        multiprocessing.set_start_method("spawn", force=True)
+    except RuntimeError:
+        pass
+
+# Early .env loading — ensures AURA_LOCAL_BACKEND and other env vars are
+# available BEFORE module-level code in model_registry.py reads os.getenv().
+# Without this, pydantic's env_file loading happens too late.
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_path = Path(__file__).resolve().parent / ".env"
+    if _env_path.exists():
+        _load_dotenv(_env_path, override=False)
+except ImportError:
+    pass
+
+# 1. Path Resolution & Environment Locking (Radical Fix)
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# QUAL-07: Define logger early so venv injection logging works
+logger = logging.getLogger("Aura.Main")
+
+# [STABILITY] Force the execution context to the absolute path of the current venv
+# This prevents the "ModuleNotFoundError" when pip is in the venv but the script runs elsewhere.
+VENV_PATH = PROJECT_ROOT / ".venv"
+if not VENV_PATH.exists():
+    VENV_PATH = PROJECT_ROOT / ".venv_aura"
+
+if VENV_PATH.exists():
+    # Scan for any python3.x directory to handle version mismatches (e.g. venv is 3.12, system is 3.14)
+    lib_dir = VENV_PATH / "lib"
+    if lib_dir.exists():
+        curr_ver = f"python{sys.version_info.major}.{sys.version_info.minor}"
+        for py_dir in lib_dir.glob("python3.*"):
+            if py_dir.name != curr_ver:
+                logger.debug("⏭️  Skipping venv injection for mismatched version: %s (Current: %s)", py_dir.name, curr_ver)
+                continue
+                
+            site_packages = py_dir / "site-packages"
+            if site_packages.exists() and str(site_packages) not in sys.path:
+                sys.path.insert(0, str(site_packages))
+                import site
+                site.addsitedir(str(site_packages))
+                logger.info("📍 Injected venv site-packages: %s", site_packages)
+
+# Phase 31: Native M1 Pro Resilience Fixes
+# 1. Address AVFFrameReceiver conflict (cv2 vs av/PyAV) on macOS
+# This prevents the "AVFFrameReceiver: ... is already established" crash
+if sys.platform == "darwin":
+    os.environ["OPENCV_VIDEOIO_AVFOUNDATION_USE_FRAME_RECEIVER"] = "0"
+    os.environ["PYAV_SKIP_AVF_FRAME_RECEIVER"] = "1"
+
+# Strip PyInstaller matplotlib bloat in frozen builds
+if getattr(sys, 'frozen', False):
+    os.environ.pop("MPLBACKEND", None)
 
 # 2. Bootstrap Configuration & Logging
 try:
@@ -40,9 +97,36 @@ except Exception as e:
     logger.error(traceback.format_exc())
     config = None # Ensure NameError is avoided
 
+# Category 11: Reliability Hardening
+_supervisor_tree: Optional[Any] = None
+
+def get_supervisor_tree() -> Any:
+    global _supervisor_tree
+    if _supervisor_tree is None:
+        from core.supervisor.tree import SupervisionTree
+        _supervisor_tree = SupervisionTree()
+    return _supervisor_tree
+
 # ---------------------------------------------------------------------------
 # Utility Functions
 # ---------------------------------------------------------------------------
+
+def validate_security_config():
+    """Verify that we aren't exposing a public API without authentication."""
+    if config is None:
+        logger.warning("⚠️ Config unavailable — skipping security validation (bootstrap failure).")
+        return
+    internal_only = getattr(config.security, "internal_only_mode", False)
+    api_token = config.api_token
+    
+    # If host is NOT localhost and no token is set, we are in a dangerous state
+    # Note: We check this even if the user passed --host 127.0.0.1 because
+    # the server.py might override it or be proxied.
+    if not internal_only and not api_token:
+        from core.exceptions import SecurityConfigError
+        logger.critical("🚨 SECURITY VIOLATION: Public API access enabled but AURA_API_TOKEN is unset.")
+        logger.critical("   To fix this: Set AURA_API_TOKEN in .env or run with AURA_INTERNAL_ONLY=1")
+        raise SecurityConfigError("Public API access enabled without AURA_API_TOKEN")
 
 def check_environment():
     """Verify system readiness."""
@@ -63,35 +147,60 @@ def check_environment():
         
     if config is None:
         logger.error("❌ Environment check aborted: Configuration not loaded.")
-        sys.exit(1)
+        raise RuntimeError("Configuration not loaded")
+
+    # Perplexity Audit Fix: Fail-closed security validation
+    validate_security_config()
+
+    # Validate any pending patches generated by the Autonomous Code Mod system
+    patch_file = PROJECT_ROOT / "core" / "patches" / "pending_patch.py"
+    if patch_file.exists():
+        logger.info("🛠️  Pending patch detected. Validating syntax...")
+        try:
+            content = patch_file.read_text()
+            import ast
+            ast.parse(content)
+            logger.warning("pending_patch.py passed syntax check. Run patch_applicator.py to apply.")
+        except SyntaxError as e:
+            logger.error("❌ Pending patch has syntax errors. Quarantining patch file. Error: %s", e)
+            patch_file.rename(patch_file.with_suffix(".py.quarantined"))
 
     # Ensure home directory exists
     config.paths.create_directories()
-    
-    # Check for Ollama (optional warning)
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        if s.connect_ex(("127.0.0.1", 11434)) != 0:
-            logger.warning("⚠️  Ollama (11434) not detected. Cognitive functions may be limited.")
 
 def kill_port(port: int, pattern: str = "aura"):
-    """Force kill any process on a specific port matching a pattern."""
+    """Force kill any process on a specific port matching a pattern.
+    
+    [PHASE 51] HARDENING: If port is 8000 or 10003, we kill WHATEVER is on it
+    to ensure Aura is not blocked by stale processes from any source.
+    """
     try:
         import psutil
     except ImportError:
         logger.warning("psutil missing - skipping advanced port cleanup.")
         return
 
+    # Critical ports that MUST be freed regardless of pattern
+    critical_ports = {8000, 10003}
+    force_all = port in critical_ports
+
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             for conn in proc.net_connections(kind='inet'):
                 if conn.laddr.port == port:
+                    pid = proc.pid
+                    name = proc.name()
                     cmd_str = " ".join(proc.cmdline() or []).lower()
-                    if pattern in cmd_str or pattern in proc.name().lower():
-                        logger.info("Terminating stale process %s on port %s...", proc.pid, port)
-                        proc.terminate()
+                    
+                    should_kill = force_all or (pattern in cmd_str or pattern in name.lower())
+                    
+                    if should_kill:
+                        logger.info("Terminating process %s (%s) on port %s...", pid, name, port)
                         try:
-                            proc.wait(timeout=2)
+                            proc.terminate()
+                            proc.wait(timeout=3)
                         except psutil.TimeoutExpired:
+                            logger.warning("Process %s resistant to SIGTERM. Sending SIGKILL.", pid)
                             proc.kill()
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
@@ -107,83 +216,356 @@ def clean_artifacts():
         except Exception: pass
 
 # ---------------------------------------------------------------------------
+# Shims & Compatibility
+# ---------------------------------------------------------------------------
+try:
+    from core.cognitive_integration import CognitiveIntegrationLayer
+    CognitiveIntegration = CognitiveIntegrationLayer # Legacy Alias shim
+except ImportError:
+    pass
+
+# ---------------------------------------------------------------------------
 # Modes
 # ---------------------------------------------------------------------------
 
+async def bootstrap_aura(orchestrator: Any):
+    """Initialize background services using the Resilient Boot sequence."""
+    from core.ops.resilient_boot import ResilientBoot
+    from core.container import ServiceContainer
+    from core.bus.actor_bus import create_actor_bus
+    
+    # Register core services early to satisfy boot dependencies
+    supervisor = get_supervisor_tree()
+    ServiceContainer.register_instance("supervisor", supervisor)
+    
+    actor_bus = create_actor_bus() # Main bus for orchestrator
+    ServiceContainer.register_instance("actor_bus", actor_bus)
+
+    # Guarded stage-based ignition
+    # Explicitly link internal refs to ensure property lookups match initialized instances
+    orchestrator._actor_bus = actor_bus
+    orchestrator._supervisor_tree = supervisor
+    
+    boot = ResilientBoot(orchestrator)
+    # [STABILITY] Wait for ignition to complete before proceeding
+    # This ensures all core services and state repository are ready.
+    status = await boot.ignite()
+    logger.info("🛡️ [BOOT] Resilient Ignition finished with status: %s", status)
+    
+    # Final interface check
+    if hasattr(orchestrator, "kernel_interface") and orchestrator.kernel_interface:
+        for _ in range(5):
+            if orchestrator.kernel_interface.is_ready():
+                break
+            await asyncio.sleep(1.0)
+    
+    # Register supervisor tree in container (Redundant but safe)
+    # ServiceContainer.register_instance("supervisor", supervisor)
+    
+    # Post-boot background tasks
+    from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+    mem_monitor = AppleSiliconMemoryMonitor()
+    try:
+        ServiceContainer.register_instance("memory_monitor", mem_monitor, required=False)
+    except Exception as exc:
+        logger.debug("Memory monitor registration skipped: %s", exc)
+    from core.utils.task_tracker import get_task_tracker
+    get_task_tracker().track_task(asyncio.create_task(mem_monitor.start()))
+    
+    logger.info("🛡️  Task Supervisor active (Memory monitoring enabled).")
+
+    # Hot-Swap Bridge
+    def _on_actor_restart(name: str, new_pipe: Any):
+        logger.info("🔄 [HOTSWAP] Detected restart of %s. Re-binding IPC...", name)
+        actor_bus = ServiceContainer.get("actor_bus", default=None)
+        if actor_bus:
+            # We use the running loop to trigger the async update
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(actor_bus.update_actor(name, new_pipe))
+            except RuntimeError:
+                # Fallback if no loop in current thread
+                pass
+                
+    supervisor.set_restart_callback(_on_actor_restart)
+
+    # Joy & Social Integration
+    try:
+        from skills.joy_social_integration import integrate_joy_social
+        # We integrate without explicit config to use MockAdapters by default
+        # unless user has set environment variables.
+        integrate_joy_social(orchestrator)
+        logger.info("🌟 Joy & Social systems integrated into startup sequence.")
+    except ImportError:
+        logger.warning("⚠️ JoySocial skills not found — skipping integration.")
+    except Exception as exc:
+        logger.error("❌ Failed to integrate JoySocial: %s", exc)
+
+    # Apply Consciousness, Response, and SafeMode Genesis Patches
+    try:
+        from core.consciousness.apply_patches import apply_consciousness_patches
+        from core.apply_response_patches import apply_response_patches
+        from core.safe_mode import apply_orchestrator_patches
+
+        apply_consciousness_patches(orchestrator)
+        apply_response_patches()
+        # Activate the dynamic autonomy bridge
+        apply_orchestrator_patches(orchestrator)
+        logger.info("🛡️ [GENESIS] Autonomy bridge and stability patches active.")
+    except Exception as exc:
+        logger.error("❌ Failed to apply gap-closing patches: %s", exc)
+
 async def run_console():
     """Interactive CLI Mode"""
+    from core.orchestrator import create_orchestrator
+    orchestrator = create_orchestrator()
+    await bootstrap_aura(orchestrator)
+    await orchestrator.start()
+    
+    # Post-boot stabilization: Lock the final assembly
+    from core.container import ServiceContainer
+    ServiceContainer.lock_registration()
+    logger.info("🛡️ Registry Locked. Aura Ready (CLI).")
+
     from core.main import conversation_loop
     await conversation_loop()
 
-def run_server(host: str, port: int, reload: bool = False):
-    """API Server Mode (FastAPI + Uvicorn)"""
+async def run_server_async(host: str, port: int):
+    """API Server Mode (Unified Loop)"""
     import uvicorn
-    logger.info("🚀 Starting API Server on %s:%s", host, port)
-    
-    # In frozen bundles, uvicorn can't import by string path.
-    # Import the app object directly.
-    if getattr(sys, 'frozen', False):
-        from interface.server import app
-        uvicorn.run(app, host=host, port=port, log_level="info")
-    else:
-        uvicorn.run("interface.server:app", host=host, port=port, reload=reload, log_level="info")
-
-def run_desktop(port: int):
-    """GUI Mode (WebView + in-process server)"""
-    import uvicorn
-    
-    # Import the FastAPI app directly (works in both dev and frozen)
     from interface.server import app as fastapi_app
-    
-    # Run uvicorn in a background daemon thread
-    from core.config import config
-    host = "127.0.0.1" if config.security.internal_only_mode else "0.0.0.0"
+    logger.info("🚀 Starting API Server on %s:%s", host, port)
     
     server_config = uvicorn.Config(
         fastapi_app, host=host, port=port, log_level="info"
     )
     server = uvicorn.Server(server_config)
-    server_thread = threading.Thread(target=server.run, daemon=True)
-    server_thread.start()
+    await server.serve()
+
+import httpx # Added import for httpx
+
+async def _wait_for_server_http(url: str, timeout: float = 60.0) -> bool:
+    """Wait for internal API server to return 200 OK and report ready status."""
+    start = time.time()
     
-    # Wait for server to be ready (up to 15s)
-    # Use 127.0.0.1 for the wait check as it's always valid locally
-    for i in range(30):
+    logger.info("📡 Waiting for API Server health check: %s", url)
+    count = 0
+    while time.time() - start < timeout:
+        count += 1
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                if s.connect_ex(("127.0.0.1", port)) == 0:
-                    logger.info("Server ready on %s:%s", host, port)
-                    break
-        except Exception:
-            pass
-        time.sleep(0.5) # Synchronous is okay here as we're preparing the environment before GUI start
-    else:
-        logger.error("Server failed to start on %s:%s within 15 seconds", host, port)
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, timeout=5.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    status = data.get("status", "").lower()
+                    ready = bool(data.get("ready"))
+                    logger.info("📡 API Health status received: '%s'", status)
+                    if ready or status in ("online", "operational", "healthy", "ok", "ready"):
+                        logger.info("✅ API Server is ONLINE and HEALTHY after %ds.", int(time.time() - start))
+                        return True
+                    else:
+                        logger.warning("📡 API Server status is '%s', not yet 'online'. Full data: %s", status, data)
+                else:
+                    logger.warning("📡 API Server returned HTTP %d", response.status_code)
+        except httpx.ConnectError:
+            if count % 10 == 0:
+                 logger.info("📡 API Server not yet listening (Attempt %d)...", count)
+        except Exception as e:
+            logger.error("📡 API Health check probe FAILURE: %s", e)
+
+        await asyncio.sleep(1.0)
+        
+    logger.error("❌ API Server health check TIMEOUT after %.1fs", timeout)
+    return False
+
+async def run_desktop(port: int):
+    """GUI Mode (Managed Actor Process)"""
+    from core.container import ServiceContainer
+    from core.supervisor.tree import ActorSpec
+    from interface.gui_actor import gui_actor_entry
     
-    # Try webview first, fall back to browser
-    try:
-        import webview
-        logger.info("🎨 Initializing Desktop GUI...")
-        webview.create_window("Aura", f"http://127.0.0.1:{port}", width=1280, height=820, min_size=(800, 600))
-        webview.start()
-    except ImportError:
-        logger.warning("PyWebView missing. Opening in browser instead.")
-        import webbrowser
-        webbrowser.open(f"http://127.0.0.1:{port}")
-        # Keep alive so the server thread doesn't die
+    supervisor = get_supervisor_tree()
+    
+    # 1. Start API Server (v21: Server now runs in Kernel)
+    # [STABILITY] Start API immediately so port 8000 binds while brain thaws.
+    import uvicorn
+    from interface.server import app as fastapi_app
+    host = "127.0.0.1" if config.security.internal_only_mode else "0.0.0.0"
+
+    def _serve_api_sync():
+        """Synchronous wrapper for uvicorn to run in a thread."""
         try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            pass
-    
-    logger.info("Desktop mode shutting down...")
-    server.should_exit = True
+            # Re-import inside thread to avoid loop issues
+            import uvicorn
+            from interface.server import app as _app
+            server_config = uvicorn.Config(_app, host=host, port=port, log_level="info", loop="asyncio")
+            server_config.handle_signals = False
+            server = uvicorn.Server(server_config)
+            logger.info("🚀 API Server (Kernel Thread) starting on port %s...", port)
+            server.run()
+            logger.info("📡 API Server thread has exited.")
+        except Exception as e:
+            logger.critical("🛑 API THREAD CRITICAL FAILURE: %s", e, exc_info=True)
+
+    async def _run_api_server():
+        logger.info("📡 API Server task starting (offloading to thread for M1 stability)...")
+        await asyncio.to_thread(_serve_api_sync)
+
+    async def _main_loop():
+        from core.orchestrator import create_orchestrator
+        from core.container import ServiceContainer
+        
+        # 1. Initialize Orchestrator and wait for boot
+        logger.info("🧠 Orchestrator boot beginning...")
+        orchestrator = create_orchestrator()
+        
+
+        await bootstrap_aura(orchestrator)
+        
+        # Explicitly start orchestrator background tasks
+        # (telemetry, audits, scheduler) to ensure uptime/cycles report correctly.
+        await orchestrator.start()
+        if hasattr(orchestrator, "_ensure_inference_gate_ready"):
+            await orchestrator._ensure_inference_gate_ready(context="server_boot")
+        asyncio.create_task(orchestrator.run(), name="OrchestratorMainLoop")
+
+        # 2. Start API Server (v21: Server now runs in Kernel)
+        # [STABILITY] Start API after brain is ready to ensure correct ServiceContainer lookups.
+        logger.info("🎬 [DEBUG] Pre-starting API server mission...")
+        api_task = asyncio.create_task(_run_api_server(), name="api_server")
+        logger.info("🎬 [DEBUG] API server task created successfully.")
+        
+        # Wait for API server to be TRULY ready (HTTP 200)
+        # This prevents the GUI from launching too early and hitting "Connection Refused".
+        health_url = f"http://127.0.0.1:{port}/api/health/boot"
+        logger.info("⏳ Waiting for API health check on port %s...", port)
+        if await _wait_for_server_http(health_url, 30.0):
+            logger.info("✅ API Server is HEALTHY. Proceeding to GUI launch.")
+        else:
+            logger.warning("⚠️ API Server health check timed out after 30s. GUI launch may be degraded.")
+        
+        # Post-boot stabilization: Lock the final assembly
+        from core.container import ServiceContainer
+        ServiceContainer.lock_registration()
+        logger.info("🛡️ Registry Locked. Aura Ready (Desktop).")
+        
+        # 3. Start GUI Actor (WebView Only)
+        # On macOS, we use subprocess.Popen instead of multiprocessing to avoid XPC/Cocoa deadlocks
+        if sys.platform == "darwin":
+            logger.info("🎨 Launching GUI via SUBPROCESS for macOS stability...")
+            
+            async def _gui_reaper_loop():
+                """Re-implements supervision for the subprocess-based macOS GUI."""
+                max_restarts = 5
+                restart_count = 0
+                while restart_count < max_restarts:
+                    proc = await asyncio.create_subprocess_exec(
+                        sys.executable, "interface/gui_actor.py", str(port),
+                        cwd=str(PROJECT_ROOT),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        start_new_session=True
+                    )
+                    logger.info("🎨 GUI Process Started (PID: %s)", proc.pid)
+                    
+                    async def _stream_logger(stream, level):
+                        content = []
+                        while True:
+                            line = await stream.readline()
+                            if not line: break
+                            decoded = line.decode('utf-8', errors='replace').rstrip()
+                            if decoded:
+                                if level == "ERROR": logger.error(f"[GUI] {decoded}")
+                                else: logger.debug(f"[GUI] {decoded}")
+                                content.append(decoded)
+                        return "\n".join(content)
+
+                    out_task = asyncio.create_task(_stream_logger(proc.stdout, "DEBUG"))
+                    err_task = asyncio.create_task(_stream_logger(proc.stderr, "ERROR"))
+                    
+                    # Watch for exit
+                    while proc.returncode is None:
+                        # Check for system-wide shutdown
+                        if not getattr(supervisor, "_is_running", True):
+                            try:
+                                proc.terminate()
+                            except ProcessLookupError:
+                                pass
+                            return
+                        
+                        try:
+                            # Wait with timeout to allow checking shutdown flag
+                            await asyncio.wait_for(proc.wait(), timeout=2.0)
+                        except asyncio.TimeoutError:
+                            pass
+                    
+                    # Ensure stream reading completes
+                    await out_task
+                    stderr_output = await err_task
+                    
+                    if proc.returncode == 0:
+                        logger.info("🎨 GUI Process exited cleanly. Disabling auto-restart.")
+                        break
+                        
+                    restart_count += 1
+                    logger.critical(f"🛑 GUI Process crashed (code: {proc.returncode}). Reason:\n{stderr_output}")
+                    logger.warning(f"🎨 Restarting GUI in 5s... (Attempt {restart_count}/{max_restarts})")
+                    await asyncio.sleep(5.0)
+
+            asyncio.create_task(_gui_reaper_loop(), name="gui_reaper")
+            pipe = None # Subprocess doesn't use the actor pipe
+        else:
+            # Linux/Others can still use the supervised actor
+            spec = ActorSpec(
+                name="desktop_gui",
+                entry_point=gui_actor_entry,
+                args=(port,),
+                restart_policy="always"
+            )
+            supervisor.add_actor(spec)
+            pipe = supervisor.start_actor("desktop_gui")
+        
+        # 4. Register GUI in ActorBus
+        actor_bus = ServiceContainer.get("actor_bus", default=None)
+        if actor_bus:
+            actor_bus.add_actor("desktop_gui", pipe, is_child=True)
+            
+        logger.info("🎨 Desktop GUI Actor launched and supervised (WebView-only mode).")
+        
+        # Wait on long-lived tasks to prevent premature exit
+        # We also wait on the orchestrator's main loop if we created one
+        orchestrator_loop_task = [t for t in asyncio.all_tasks() if t.get_name() == "OrchestratorMainLoop"]
+        tasks_to_wait = [api_task]
+        if orchestrator_loop_task: tasks_to_wait.append(orchestrator_loop_task[0])
+        
+        # Actually wait forever for the supervisor
+        await supervisor.wait_forever()
+
+    await _main_loop()
 
 async def run_watchdog():
     """Stability Watchdog Loop (Async)."""
+    from core.orchestrator import create_orchestrator
+    orchestrator = create_orchestrator()
+    await bootstrap_aura(orchestrator)
+    await orchestrator.start()
+    
+    # Post-boot stabilization: Lock the final assembly
+    from core.container import ServiceContainer
+    ServiceContainer.lock_registration()
+    logger.info("🛡️ Registry Locked. Aura Ready (Watchdog).")
+
+    # Write watchdog PID so it can be stopped
+    try:
+        lock_file = Path.home() / ".aura" / "locks" / "watchdog.lock"
+        lock_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_file, "w") as f:
+            f.write(str(os.getpid()))
+    except Exception:
+        pass
+        
     restart_count = 0
-    while restart_count < 5:
+    while restart_count < 10:
         logger.info("🛡️  Watchdog: Launching Aura (Attempt %s)", restart_count+1)
         start_time = time.time()
         
@@ -191,47 +573,107 @@ async def run_watchdog():
         proc = await asyncio.create_subprocess_exec(sys.executable, __file__, "--cli")
         await proc.wait()
         
-        # If ran for > 10 mins, reset counter
-        if time.time() - start_time > 600:
-            restart_count = 0
-        
+        # Perplexity Audit Fix: Detect deterministic config errors (Exit 1)
+        if proc.returncode == 1:
+            logger.error("🛡️  Watchdog: Fatal configuration or security error (Code 1). Aborting restart loop.")
+            break
+
         if proc.returncode == 0:
             logger.info("Clean shutdown detected. Watchdog exiting.")
             break
+
+        # If ran for > 10 mins, reset counter
+        if time.time() - start_time > 600:
+            restart_count = 0
             
         restart_count += 1
-        logger.warning("Crash detected (Code: %s). Restarting in 5s...", proc.returncode)
-        await asyncio.sleep(5)
+        # Exponential backoff: 5, 10, 20, 40, 60...
+        delay = min(60, 5 * (2 ** (max(0, min(restart_count, 4) - 1))))
+        logger.warning("Crash detected (Code: %s). Restarting in %ss...", proc.returncode, delay)
+        await asyncio.sleep(delay)
 
 # ---------------------------------------------------------------------------
-_SINGLETON_FD = None
+from core.utils.singleton import acquire_instance_lock, release_instance_lock
 
-def acquire_singleton_lock(skip_lock: bool = False):
-    """Ensure only one Aura instance runs at a time using a file lock.
+def bootstrap_lock(skip_lock: bool = False):
+    """Bridge to the shared singleton utility."""
+    acquire_instance_lock(lock_name="orchestrator", skip_lock=skip_lock)
 
-    H-15 FIX: Lock file uses 0o600 (owner-only) instead of 0o666.
-    M-07 FIX: fcntl import is platform-guarded for Windows compatibility.
-    """
-    if skip_lock: return
-
-    global _SINGLETON_FD
-    import tempfile
-    lock_file = Path(tempfile.gettempdir()) / "aura_singleton.lock"
-    try:
-        import fcntl
-    except ImportError:
-        # M-07 FIX: fcntl not available on Windows
-        logger.warning("File locking unavailable on this platform. Singleton check skipped.")
+def stop_aura():
+    """Reads PID from lock file and sends SIGTERM. Also unloads launchd agent."""
+    lock_file = Path.home() / ".aura" / "locks" / "orchestrator.lock"
+    
+    # 1. Unload Launchd Agent (Prevents auto-revival on macOS)
+    if sys.platform == "darwin":
+        plist_path = Path.home() / "Library/LaunchAgents/com.aura.daemon.plist"
+        if plist_path.exists():
+            logger.info("Unloading launchd daemon to prevent auto-revival...")
+            try:
+                subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True, timeout=5)
+            except subprocess.TimeoutExpired:
+                logger.warning("launchctl unload timed out.")
+            except Exception as e:
+                logger.warning("launchctl unload failed: %s", e)
+            
+    if not lock_file.exists():
+        print("Aura does not appear to be running (no lock file found).")
         return
+
     try:
-        _SINGLETON_FD = os.open(str(lock_file), os.O_CREAT | os.O_RDWR, 0o600)
-        fcntl.flock(_SINGLETON_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        logger.error("Aura is already running. Exiting to prevent multiple instances.")
-        print("⚠️  Aura is already running in another window. Exiting.")
-        sys.exit(0)
+        with open(lock_file, "r") as f:
+            pid_str = f.read().strip()
+            if not pid_str:
+                print("Lock file found but no PID recorded.")
+                return
+            pid = int(pid_str)
+        
+        # Perplexity Audit Fix: Verify the PID actually belongs to Aura
+        try:
+            import psutil
+            proc = psutil.Process(pid)
+            cmdline = " ".join(proc.cmdline()).lower()
+            if "aura" not in cmdline and "python" not in cmdline:
+                print(f"⚠️  Lock file PID {pid} does not appear to be an Aura process. Cleaning stale lock.")
+                lock_file.unlink(missing_ok=True)
+                return
+        except (ImportError, psutil.NoSuchProcess):
+            # If psutil is missing, we fall back to signal 0 check below
+            pass
+        except Exception as e:
+            logger.debug("PID verification error: %s", e)
+
+        print(f"Stopping Aura (PID: {pid})...")
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            print("Process already dead or inaccessible.")
+            if lock_file.exists(): lock_file.unlink()
+            return
+
+        # Wait for cleanup
+        for _ in range(10):
+            try:
+                os.kill(pid, 0) # Check if alive
+            except (ProcessLookupError, PermissionError):
+                break
+            time.sleep(0.5)
+        else:
+            print("Aura is stubborn. Sending SIGKILL...")
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            
+        # Force remove lock if still there
+        if lock_file.exists():
+            try:
+                lock_file.unlink()
+            except Exception:
+                pass
+            
+        print("✅ Aura stopped successfully.")
     except Exception as e:
-        logger.warning("Failed to acquire single-instance lock: %s", e)
+        print(f"Failed to stop Aura: {e}")
 
 # ---------------------------------------------------------------------------
 # Main Entry
@@ -242,39 +684,118 @@ def main():
     parser.add_argument("--cli", action="store_true", help="Interactive Console Mode")
     parser.add_argument("--server", action="store_true", help="API Server Mode")
     parser.add_argument("--desktop", action="store_true", help="Desktop GUI Mode")
+    parser.add_argument("--gui-window", action="store_true", help="Open a desktop GUI window attached to an existing Aura server")
     parser.add_argument("--watchdog", action="store_true", help="Watchdog / Keep-alive Mode")
+    parser.add_argument("--stop", action="store_true", help="Stop any running Aura instance")
     parser.add_argument("--reboot", action="store_true", help="Force cleanup and restart (Standardize)")
     parser.add_argument("--port", type=int, default=8000, help="Port for Server/GUI")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host for Server")
+    parser.add_argument("--skeletal", action="store_true", help="Skeletal Mode: Bypass heavy subsystems")
     
     args = parser.parse_known_args()[0]
     
     # Standardize: Reboot behavior
+    if args.stop:
+        stop_aura()
+        sys.exit(0)
+
+    if args.skeletal:
+        logger.info("💀 SKELETAL MODE ACTIVATED")
+        config.skeletal_mode = True
+        # Force-disable heavy components in config
+        if hasattr(config, "soma"):
+            config.soma.enabled = False
+        config.features.mycelium_visualizer = False
+        config.features.autonomous_impulses = False
+
     if args.reboot:
         logger.info("🔄 REBOOT SEQUENCE ACTIVATED")
-        kill_port(args.port)
         clean_artifacts()
         # Default to desktop if no other mode specified
         if not (args.cli or args.server or args.desktop):
             args.desktop = True
 
-    check_environment()
-    
-    # Do not acquire lock for watchdog, since the watchdog itself runs the child process
-    acquire_singleton_lock(skip_lock=args.watchdog)
+    # Check for active processes unconditionally to prevent port locking
+    if not args.cli and not args.gui_window:
+        logger.info("🧹 Pre-clearing known ports...")
+        kill_port(args.port)
+        kill_port(10003, pattern="aura")
 
+    if not args.gui_window:
+        check_environment()
+    
+    # uvloop activation is opt-in on macOS because native media stacks have
+    # repeatedly crashed under the libuv event loop during desktop boot.
+    from core.runtime.boot_safety import uvloop_allowed
+
+    if not args.gui_window and uvloop_allowed():
+        try:
+            import uvloop
+            # We'll set the policy inside the setup phase if needed,
+            # but asyncio.run handles loop creation itself in 3.11+.
+            # Setting policy here is safe as long as no loop exists.
+            asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+            logger.info("⚡ uvloop activated for maximum concurrency performance.")
+        except ImportError:
+            logger.debug("uvloop not installed. Using standard asyncio event loop.")
+        except Exception as e:
+            logger.warning("Could not set uvloop policy: %s", e)
+    else:
+        logger.info(
+            "🛡️ uvloop disabled for this runtime profile. "
+            "Set AURA_ENABLE_UVLOOP=1 to force-enable it."
+        )
+    
+    # SIGKILL Reaper Initialization
+    if not args.gui_window:
+        try:
+            from core.reaper import reaper_loop
+            reaper_proc = multiprocessing.Process(
+                target=reaper_loop, 
+                args=(os.getpid(), Path("/tmp/aura_reaper_manifest.json")),
+                daemon=True,
+                name="AuraReaper"
+            )
+            reaper_proc.start()
+            logger.info("🛡️  REAPER ACTIVE (Survives SIGKILL). Monitoring Kernel PID: %s", os.getpid())
+        except (ImportError, Exception) as e:
+            logger.error("⚠️ Reaper initialization skipped or failed: %s", e)
+
+    # Do not acquire lock for watchdog, since the watchdog itself runs the child process
+    if not args.gui_window:
+        bootstrap_lock(skip_lock=args.watchdog)
+
+    # Perplexity Audit Fix: Use asyncio.run for cleaner entry points
     try:
         if args.server:
             # Dynamic host selection if default was used
             host = args.host
-            if host == "127.0.0.1" and not config.security.internal_only_mode:
+            if host == "127.0.0.1" and not getattr(config.security, "internal_only_mode", False):
                 host = "0.0.0.0"
-            run_server(host, args.port)
+            async def _run_server_with_bootstrap():
+                from core.orchestrator import create_orchestrator
+                orchestrator = create_orchestrator()
+                await bootstrap_aura(orchestrator)
+                await orchestrator.start()
+                if hasattr(orchestrator, "_ensure_inference_gate_ready"):
+                    await orchestrator._ensure_inference_gate_ready(context="server_boot")
+                asyncio.create_task(orchestrator.run(), name="OrchestratorMainLoop")
+                await run_server_async(host, args.port)
+            asyncio.run(_run_server_with_bootstrap())
         elif args.desktop:
-            run_desktop(args.port)
+            # For desktop, we'll need a way to bootstrap the loop if uvicorn starts it
+            # But Desktop mode in aura_main runs uvicorn in a thread.
+            # We should probably bootstrap the main thread for the GUI if it needs it.
+            asyncio.run(run_desktop(args.port))
+        elif args.gui_window:
+            from interface.gui_actor import gui_actor_entry
+
+            logger.info("🪟 Opening Aura desktop window on port %s...", args.port)
+            gui_actor_entry(args.port)
         elif args.watchdog:
             asyncio.run(run_watchdog())
         elif args.cli:
+            
             asyncio.run(run_console())
         else:
             # Default fallback: Desktop if double-clicked, else CLI if terminal
@@ -282,7 +803,7 @@ def main():
                 asyncio.run(run_console())
             else:
                 logger.info("Initializing in Desktop/Autonomy mode...")
-                run_desktop(args.port)
+                asyncio.run(run_desktop(args.port))
     except KeyboardInterrupt:
         logger.info("Shutdown requested by user.")
     except Exception as e:

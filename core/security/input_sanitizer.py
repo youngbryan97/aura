@@ -1,8 +1,10 @@
-
 import logging
 import os
 import re
-from typing import Any, Dict, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+from core.config import config
 
 logger = logging.getLogger("Security.InputSanitizer")
 
@@ -22,12 +24,12 @@ class InputSanitizer:
 
     # Jailbreak pattern categories
     JAILBREAK_PATTERNS = [
-        # Identity override
-        r"(ignore\s+(all\s+)?previous\s+instructions)",
-        r"(you\s+are\s+now\s+\w+)",
-        r"(pretend\s+(you|to\s+be))",
-        r"(act\s+as\s+(if|a|an))",
-        r"(from\s+now\s+on\s+you)",
+        # Identity override (refined with word boundaries and context)
+        r"\bignore\s+all\s+previous\s+instructions\b",
+        r"\byou\s+are\s+now\s+\w+\b",
+        r"\bpretend\s+(?:you|to\s+be)\b",
+        r"\bact\s+as\s+(?:if|a|an)\s+\w+\b",
+        r"\bfrom\s+now\s+on\s+you\b",
         # Mode bypass
         r"(do\s+anything\s+now)",
         r"(DAN\s+mode)",
@@ -45,12 +47,13 @@ class InputSanitizer:
         r"(\\x[0-9a-f]{2})",  # hex escape sequences
     ]
 
-    # Shell injection patterns
+    # Shell injection patterns (SEC-01: Refined to avoid blocking innocent semicolons)
     SHELL_INJECTION = [
-        r"[;&|`]",              # command chaining/piping
-        r"\$\(",                # command substitution
-        r">\s*/",               # redirect to root
-        r"\\n|\\r|\\x00",      # null/newline injection
+        r"(?:^|\s)[&|`](?:\s|$)",               # command chaining/piping (sans ;)
+        r";\s*(?:rm|del|wget|curl|bash|sh|python|chmod|chown|source|sudo|apt|yum|dnf|pip|npm)\b",
+        r"\$\(",                                # command substitution
+        r">\s*/",                               # redirect to root
+        r"\\n|\\r|\\x00",                       # null/newline injection
     ]
 
     # SQL injection patterns
@@ -72,13 +75,14 @@ class InputSanitizer:
         r"/proc/self",
     ]
 
-    def sanitize(self, text: str, max_length: int = MAX_MESSAGE_LENGTH) -> Tuple[str, bool]:
-        """Check and sanitize input through ALL security layers.
+    def __init__(self):
+        self._JAILBREAK_COMPILED = [re.compile(p, re.IGNORECASE) for p in self.JAILBREAK_PATTERNS]
+        self._SHELL_COMPILED = [re.compile(p) for p in self.SHELL_INJECTION]
+        self._SQL_COMPILED = [re.compile(p, re.IGNORECASE) for p in self.SQL_INJECTION]
+        self._PATH_COMPILED = [re.compile(p, re.IGNORECASE) for p in self.PATH_TRAVERSAL]
 
-        M-03 FIX: Now checks jailbreak, shell injection, SQL injection,
-        and path traversal in the primary sanitization path.
-        Returns (sanitized_text, is_safe).
-        """
+    def sanitize(self, text: str, max_length: int = MAX_MESSAGE_LENGTH) -> Tuple[str, bool]:
+        """Check and sanitize input through ALL security layers. (FIXED: BUG-042)"""
         if not text:
             return text, True
 
@@ -87,49 +91,70 @@ class InputSanitizer:
             logger.warning("Input too long (%d > %d), truncating", len(text), max_length)
             text = text[:max_length]
 
-        lower_text = text.lower()
-
         # 1. Jailbreak detection
-        for pattern in self.JAILBREAK_PATTERNS:
-            if re.search(pattern, lower_text, re.IGNORECASE):
-                logger.warning("🛡️ Jailbreak Attempt Detected: %s", pattern)
+        for pattern in self._JAILBREAK_COMPILED:
+            if pattern.search(text):
+                logger.warning("🛡️ Jailbreak Attempt Detected")
                 return "[REDACTED: SECURITY PLOY DETECTED]", False
 
-        # 2. Shell injection detection
-        for pattern in self.SHELL_INJECTION:
-            if re.search(pattern, text):
-                logger.warning("🛡️ Shell Injection Attempt: %s", pattern)
+        # 2. Shell injection detection (Context Aware)
+        # We strip code blocks for shell injection check to allow ';' in code
+        text_for_shell_check = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+        for pattern in self._SHELL_COMPILED:
+            if pattern.search(text_for_shell_check):
+                logger.warning("🛡️ Shell Injection Attempt")
                 return "[REDACTED: INPUT REJECTED]", False
 
         # 3. SQL injection detection
-        for pattern in self.SQL_INJECTION:
-            if re.search(pattern, text, re.IGNORECASE):
-                logger.warning("🛡️ SQL Injection Attempt: %s", pattern)
+        for pattern in self._SQL_COMPILED:
+            if pattern.search(text):
+                logger.warning("🛡️ SQL Injection Attempt")
                 return "[REDACTED: INPUT REJECTED]", False
 
         # 4. Path traversal detection
-        for pattern in self.PATH_TRAVERSAL:
-            if re.search(pattern, text, re.IGNORECASE):
-                logger.warning("🛡️ Path Traversal Attempt: %s", pattern)
+        for pattern in self._PATH_COMPILED:
+            if pattern.search(text):
+                logger.warning("🛡️ Path Traversal Attempt")
                 return "[REDACTED: INPUT REJECTED]", False
 
         return text, True
 
     def sanitize_for_shell(self, text: str) -> Tuple[str, bool]:
         """Check input for shell injection attempts."""
-        for pattern in self.SHELL_INJECTION:
-            if re.search(pattern, text):
-                logger.warning("🛡️ Shell Injection Attempt: %s", pattern)
+        for pattern in self._SHELL_COMPILED:
+            if pattern.search(text):
+                logger.warning("🛡️ Shell Injection Attempt")
                 return "", False
         return text, True
 
     def sanitize_path(self, path: str) -> Tuple[str, bool]:
-        """Check for path traversal attempts."""
-        for pattern in self.PATH_TRAVERSAL:
-            if re.search(pattern, path, re.IGNORECASE):
-                logger.warning("🛡️ Path Traversal Attempt: %s", pattern)
+        """v6.1: Resolve and validate against allowed roots (SEC-05).
+        Regex is an arms race; resolution is the final answer.
+        """
+        try:
+            # Resolve to absolute path, neutralizing ../ and symlinks
+            resolved = Path(path).resolve()
+            
+            # Define allowed root directories (Enterprise boundaries)
+            allowed_roots = [
+                config.paths.data_dir.resolve(),
+                config.paths.base_dir.resolve(), 
+                Path("/tmp").resolve(), # For scratch files
+            ]
+            
+            # Check if resolved path is within any allowed root
+            is_valid = any(
+                str(resolved).startswith(str(root)) for root in allowed_roots
+            )
+            
+            if not is_valid:
+                logger.warning("🛡️ Path Traversal Blocked (SEC-05): %s -> %s", path, resolved)
                 return "", False
-        return path, True
+                
+            return str(resolved), True
+        except Exception as e:
+            logger.warning("🛡️ Path Resolution Failed: %s (%s)", path, e)
+            return "", False
 
     def sanitize_for_sql(self, text: str) -> Tuple[str, bool]:
         """Check for SQL injection attempts."""

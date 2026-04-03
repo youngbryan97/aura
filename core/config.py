@@ -1,14 +1,22 @@
+"""core/config.py
+Hardened Configuration System for Aura.
+2026 Standards: Pydantic Settings V2, Strict Validation, and Mycelial Observability.
+"""
+
+from __future__ import annotations
+
 import json
 import logging
 import os
 import sys
 import threading
-from dataclasses import asdict, dataclass, field, is_dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union
+from typing import ClassVar, Optional, Union, List, Dict, Any
 
-# Use our dependency manager for yaml
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 try:
     import yaml
 except ImportError:
@@ -16,166 +24,190 @@ except ImportError:
 
 logger = logging.getLogger("Aura.Config")
 
-# --- THE SOVEREIGN BOUNDARY ---
-INTERNAL_ONLY = os.environ.get("AURA_INTERNAL_ONLY", "1") == "1"
 
-T = TypeVar("T")
+class Environment(str, Enum):
+    DEV = "dev"
+    STAGING = "staging"
+    PROD = "prod"
 
-class ConfigSource(Enum):
-    """Configuration source for debugging"""
 
-    DEFAULT = "default"
-    ENV = "environment"
-    FILE = "config_file"
-    CLI = "command_line"
-    RUNTIME = "runtime"
+class SomaConfig(BaseModel):
+    fps: int = 20
+    enabled: bool = True
 
-@dataclass
-class PathConfig:
-    """Centralized path configuration"""
+class FeatureToggles(BaseModel):
+    voice_enabled: bool = True
+    # Keep the in-process webcam disabled by default on macOS.
+    # OpenCV + PyAV/Whisper can collide through AVFoundation during desktop boot.
+    camera_enabled: bool = False
+    mycelium_visualizer: bool = True
+    autonomous_impulses: bool = True
 
-    # Bundle-aware path resolution
-    # In macOS .app bundles, sys._MEIPASS = Contents/Frameworks
-    # but data files live in Contents/Resources
+
+class Paths(BaseModel):
+    """
+    Centralized path configuration with platform-aware resolution.
+    ISSUE #78: Note that @property fields are intentionally excluded from Pydantic serialization.
+    """
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    _runtime_home_cache: ClassVar[Optional[Path]] = None
+
+    home_dir: Path = Field(default_factory=lambda: Path.home().expanduser().resolve() / ".aura")
+
+    def _effective_home_dir(self) -> Path:
+        cached = self.__class__._runtime_home_cache
+        if cached is not None:
+            return cached
+
+        candidate = self.home_dir.expanduser().resolve()
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".aura_write_probe"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            self.__class__._runtime_home_cache = candidate
+            return candidate
+        except Exception as exc:
+            fallback = self.project_root / ".aura_runtime"
+            fallback.mkdir(parents=True, exist_ok=True)
+            self.__class__._runtime_home_cache = fallback
+            logger.warning(
+                "Paths.home_dir unavailable (%s). Falling back to %s",
+                exc,
+                fallback,
+            )
+            return fallback
+
     @property
     def project_root(self) -> Path:
-        # 1. Environment Override (Highest Priority)
         aura_root = os.environ.get("AURA_ROOT")
         if aura_root:
             return Path(aura_root).resolve()
-
-        # 2. Bundle Resolution (macOS .app)
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            meipass = Path(sys._MEIPASS)
-            # Check if we're in a macOS .app bundle (Contents/Frameworks)
-            resources = meipass.parent / "Resources"
-            if resources.exists():
-                return resources
-            return meipass
-
-        # 3. Default: Relative to this file
         return Path(__file__).resolve().parent.parent
 
     @property
     def base_dir(self) -> Path:
+        """Alias for project_root used by legacy subsystems."""
         return self.project_root
-    
-    home_dir: Path = field(default_factory=lambda: Path.home().resolve() / ".aura")
-    
+
     @property
     def data_dir(self) -> Path:
-        # Enforce absolute path to avoid relative 'data' resolution in read-only bundles
-        return self.home_dir.resolve() / "data"
-    
+        return self._effective_home_dir() / "data"
+
     @property
-    def backup_dir(self) -> Path:
-        return self.data_dir / "backups"
-    
+    def log_dir(self) -> Path:
+        return self._effective_home_dir() / "logs"
+
+    @property
+    def uploads_dir(self) -> Path:
+        return self.data_dir / "uploads"
+
+    @property
+    def images_dir(self) -> Path:
+        return self.data_dir / "generated_images"
+
     @property
     def memory_dir(self) -> Path:
         return self.data_dir / "memory"
-    
-    @property
-    def log_dir(self) -> Path:
-        return self.home_dir / "logs"
-    
-    @property
-    def config_file(self) -> Path:
-        return self.home_dir / "config.yaml"
-    
-    @property
-    def log_file(self) -> Path:
-        return self.log_dir / "aura.log"
-    
-    def create_directories(self):
-        """Create all required directories with secure permissions."""
-        directories = [
-            self.home_dir,
-            self.data_dir,
-            self.backup_dir,
-            self.log_dir,
-            self.memory_dir,
-        ]
-        
-        for directory in directories:
-            try:
-                directory.mkdir(parents=True, exist_ok=True)
-                if os.name != 'nt':
-                    directory.chmod(0o700) # Secure: User-only
-            except Exception as e:
-                logger.warning("Failed to create directory %s: %s", directory, e)
-    
-    def to_dict(self) -> Dict[str, str]:
-        return {
-            "base_dir": str(self.base_dir),
-            "home_dir": str(self.home_dir),
-            "data_dir": str(self.data_dir),
-            "memory_dir": str(self.memory_dir),
-            "backup_dir": str(self.backup_dir),
-            "log_dir": str(self.log_dir),
-            "config_file": str(self.config_file),
-            "log_file": str(self.log_file),
-        }
 
-@dataclass
-class SecurityConfig:
-    """Security configuration - HARDENED for Sovereign Deployment"""
+    @property
+    def brain_dir(self) -> Path:
+        """Alias for home_dir used by Volition and audit logs."""
+        return self._effective_home_dir() / "brain"
 
-    internal_only_mode: bool = False  # Set to False for Infinity
-    auto_fix_enabled: bool = True 
-    aura_full_autonomy: bool = True  # Enabled for Sovereign Autonomy
-    enableautonomy: bool = True
-    require_human_approval_for: List[str] = field(default_factory=list) # Unhindered operation
-    max_modifications_per_day: int = 100 # Increased for high-activity autonomy
-    allow_network_access: bool = True # Enabled for Live connectivity
-    allowed_domains: List[str] = field(default_factory=lambda: ["*"]) # Wildcard for Infinity
-    enable_stealth_mode: bool = True  # Enabled for operational security
-    unity_enabled: bool = False # SEVERED: Disable phantom body until Unity is active
-    force_unity_on: bool = False # Allow manual override of unity status in HUD
+    def create_directories(self) -> None:
+        root = self._effective_home_dir()
+        for d in [root, self.data_dir, self.log_dir, self.uploads_dir, self.images_dir, self.memory_dir, self.brain_dir]:
+            d.mkdir(parents=True, exist_ok=True)
 
-@dataclass
-class SafeModificationConfig:
-    """Safety limits for autonomous self-repair"""
-    allowed_paths: List[str] = field(default_factory=lambda: ["core/", "skills/", "interface/"])
-    max_risk_level: int = 4
+
+class SecurityConfig(BaseModel):
+    internal_only_mode: bool = False
+    auto_fix_enabled: bool = True
+    aura_full_autonomy: bool = True
+    max_modifications_per_day: int = 100
+    allow_network_access: bool = True
+    allowed_domains: list[str] = Field(default_factory=lambda: ["*"])
+    enable_stealth_mode: bool = True
+    force_unity_on: bool = False
+
+
+class DynamicScalingConfig(BaseModel):
+    min_interval: float = 0.5
+    max_interval: float = 10.0
+    adjustment_step: float = 0.1
+
+class AegisConfig(BaseModel):
+    enabled: bool = True
+    sentinel_interval: float = 5.0
+    auto_heal: bool = True
+    scaling: DynamicScalingConfig = Field(default_factory=DynamicScalingConfig)
+
+class SafeModificationConfig(BaseModel):
+    allowed_paths: list[str] = Field(default_factory=lambda: ["core/", "skills/", "interface/"])
+    protected_paths: list[str] = Field(default_factory=lambda: [
+        "core/security/",
+        "core/guardians/",
+        "core/prime_directives.py",
+        "core/constitution.py",
+        "core/config.py",
+    ])
+    max_risk_level: int = 6
     max_lines_changed: int = 100
     backup_max_age_days: int = 7
     auto_commit: bool = True
 
-@dataclass
-class RedisConfig:
-    """Redis configuration for inter-process communication (Celery & Events)"""
-    url: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+class RedisConfig(BaseModel):
+    url: str = Field(default_factory=lambda: os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
     enabled: bool = True
     use_for_events: bool = True
-    # H-28 FIX: Force memory mode if Redis is disabled to prevent library retry delays
-    broker_url: str = field(default_factory=lambda: "memory://" if os.environ.get("AURA_REDIS_ENABLED") == "0" else os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
-    result_backend: str = field(default_factory=lambda: "cache+memory://" if os.environ.get("AURA_REDIS_ENABLED") == "0" else os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
-
-@dataclass
-class LLMConfig:
-    """LLM configuration - TIERED for Infinity Autonomy"""
-
-    provider: str = "ollama" 
-    base_url: str = "http://localhost:11434"
-    api_key: Optional[str] = "ollama"
     
-    # Tier 1: Conversation (Ultra-fast)
-    fast_model: str = "llama3:latest"
-    fast_max_tokens: int = 512
+    @property
+    def broker_url(self) -> str:
+        if os.environ.get("AURA_REDIS_ENABLED") == "0":
+            return "memory://"
+        return self.url
+
+    @property
+    def result_backend(self) -> str:
+        if os.environ.get("AURA_REDIS_ENABLED") == "0":
+            return "cache+memory://"
+        return self.url
+
+
+class LLMConfig(BaseModel):
+    provider: str = "local_runtime"
+    api_key: Optional[str] = None
+    
+    # Tri-Cameral Architecture (Phase 16) — Tuned for M5 Pro 64 GB
+    # Tier 1: Brainstem (Heartbeat, telemetry, background tasks)
+    chat_model: str = "Qwen2.5-7B-Instruct-4bit"
+
+    # Tier 2: Cortex (daily interaction — 32B primary conversation lane)
+    fast_model: str = "Qwen2.5-32B-Instruct-8bit"
+    fast_max_tokens: int = 8192
     temperature: float = 0.7
+
+    # Tier 3: Deep Solver (72B hot-swap lane for complex reasoning)
+    deep_model: str = "Qwen2.5-72B-Instruct-4bit"
+    deep_max_tokens: int = 8192
+    deep_temperature: float = 0.4
     
-    # Tier 2: Deep Reasoning (M1 Pro optimized)
-    deep_model: str = "llama3:latest"
-    deep_max_tokens: int = 2048
-    deep_temperature: float = 0.3
+    # Teacher/Oracle: Cloud API for distillation and emergency fallback
+    teacher_model: str = "gemini-2.5-pro"
     
-    # Vision & Audio
-    vision_model: str = "llava"
+    # Cloud API Keys
+    # ISSUE #70 - resolved env lookup inside Pydantic by moving to model_validator
+    gemini_api_key: Optional[str] = None
+
+    vision_model: str = "Qwen2.5-32B-Instruct-8bit"  # Use cortex-aligned model for vision
     whisper_model: str = "small.en"
     embedding_model: str = "nomic-embed-text"
-    
-    # Legacy fields for compatibility
+    local_cortex_path: Optional[str] = None
+    local_solver_path: Optional[str] = None
+    local_brainstem_path: Optional[str] = None
+
     @property
     def model(self) -> str:
         return self.fast_model
@@ -184,214 +216,182 @@ class LLMConfig:
     def max_tokens(self) -> int:
         return self.fast_max_tokens
 
-@dataclass
-class LoggingConfig:
+    @property
+    def mlx_model_path(self) -> Optional[str]:
+        return self.local_cortex_path
+
+    @property
+    def mlx_deep_model_path(self) -> Optional[str]:
+        return self.local_solver_path
+
+    @property
+    def mlx_brainstem_path(self) -> Optional[str]:
+        return self.local_brainstem_path
+
+
+
+class LoggingConfig(BaseModel):
     level: str = "INFO"
     format: str = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     file_output: bool = True
-    max_file_size_mb: int = 50
+    json_output: bool = True
+    max_file_size_mb: int = 100
     backup_count: int = 5
 
-class AuraConfig:
-    """Main configuration class with Sovereign Hardening.
-    THREAD-SAFE SINGLETON implementation.
+
+class CognitiveConfig(BaseModel):
+    skill_keywords: list[str] = Field(default_factory=lambda: [
+        "generate", "image", "picture", "draw", "visualize", "creative",
+        "search", "web", "google", "lookup", "find", "url",
+        "terminal", "shell", "command", "bash", "run", "execute",
+        "file", "read", "write", "code", "save", "load",
+        "network", "ping", "ip", "connect", "scan",
+        "skill", "ability", "capabilities", "activate",
+        "status", "health", "system", "resources", "cpu", "ram",
+        "weather", "browse", "open", "download", "install", "delete",
+        "remember", "memorize", "forget", "recall",
+        "look", "screenshot", "screen", "camera", "see", "watch",
+        "speak", "say", "listen", "hear", "mute", "unmute",
+        "repair", "fix", "diagnose", "heal",
+        "evolve", "improve", "upgrade", "optimize", "train",
+        "dream", "sleep", "research", "explore", "investigate",
+        "malware", "security", "audit", "threat",
+        "propagate", "deploy", "manifest",
+        "what time", "what date", "clock",
+        "belief", "opinion", "think about",
+    ])
+    classification_cache_size: int = 100
+    baseline_volition: float = 40.0
+    volition_sensitivity: float = 0.5  # Modulates threshold shift based on energy
+
+
+class AuraConfig(BaseSettings):
     """
+    Aura Zenith Sovereign Configuration.
+    Loads from AURA_* environment variables or .env file.
+    """
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="AURA_",
+        env_nested_delimiter="__",
+        extra="ignore",
+        case_sensitive=False
+    )
 
-    _instance: Optional['AuraConfig'] = None
-    _lock = threading.Lock()
+    env: Environment = Environment.DEV
+    version: str = Field(default="unknown")
+    api_token: Optional[str] = Field(default=None)
     
-    def __new__(cls):
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super(AuraConfig, cls).__new__(cls)
-                cls._instance._initialized = False
-            return cls._instance
+    # Feature flags
+    features: FeatureToggles = Field(default_factory=FeatureToggles)
     
-    def __init__(self):
-        if getattr(self, '_initialized', False):
-            return
+    # Sub-configs
+    paths: Paths = Field(default_factory=Paths)
+    cognitive: CognitiveConfig = Field(default_factory=CognitiveConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    modification: SafeModificationConfig = Field(default_factory=SafeModificationConfig)
+    redis: RedisConfig = Field(default_factory=RedisConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    aegis: AegisConfig = Field(default_factory=AegisConfig)
+    soma: SomaConfig = Field(default_factory=SomaConfig)
 
-        self.paths = PathConfig()
-        self.security = SecurityConfig()
-        # SecurityConfig dataclass defaults are the single source of truth.
-        # Operators can override via config file or env vars.
-        
-        
-        self.llm = LLMConfig()
-        self.modification = SafeModificationConfig()
-        self.redis = RedisConfig()
-        self.logging = LoggingConfig()
-        self.logging_level = "INFO"
-        
-        self._source_tracking: Dict[str, ConfigSource] = {}
-        self._env_prefix = "AURA_"
-        
-        self.load()
-        self._initialized = True
-    
-    def load(self):
-        """Bootstrap configuration sequence."""
-        if self.security.internal_only_mode:
-            os.environ.setdefault("AURA_INTERNAL_ONLY", "1")
+    # Hardening & Autonomous Limits
+    llm_request_timeout_s: float = Field(default=120.0)
+    llm_max_retries: int = Field(default=3)
+    max_conversation_turns_in_context: int = Field(default=100)  # 64GB — deeper context window
+    vault_eviction_target_pct: float = Field(default=0.80)
+    autonomous_thought_interval_s: float = Field(default=30.0)    # Think more often — she has headroom
+    autonomous_thought_max_duration_s: float = Field(default=180.0)  # More time per thought on 64GB
+    max_autonomous_actions_per_hour: int = Field(default=60)     # More agency — double previous cap
+    recover_last_session_on_start: bool = Field(default=True)
+    skeletal_mode: bool = Field(default=False)
+
+    # Remove __new__ as it conflicts with Pydantic V2 BaseSettings
+    # Use module-level instance at the end of the file instead.
+
+    @model_validator(mode='after')
+    def setup_infrastructure(self) -> 'AuraConfig':
+        # 1. Set Version
+        try:
+            from core.version import VERSION
+            self.version = VERSION
+        except ImportError as _e:
+            logger.debug('Ignored ImportError in config.py: %s', _e)
+
+        # ISSUE #70 - evaluate gemini_api_key env lookup safely
+        if not self.llm.gemini_api_key:
+            self.llm.gemini_api_key = os.environ.get("GEMINI_API_KEY")
+
+        # Canonicalize role expectations so config-backed call sites cannot drift
+        # away from the managed runtime registry.
+        try:
+            from core.brain.llm.model_registry import (
+                ACTIVE_MODEL,
+                BRAINSTEM_MODEL,
+                DEEP_MODEL,
+                audit_lane_assignments,
+                get_runtime_model_path,
+            )
+
+            self.llm.chat_model = BRAINSTEM_MODEL
+            self.llm.fast_model = ACTIVE_MODEL
+            self.llm.deep_model = DEEP_MODEL
+            self.llm.vision_model = ACTIVE_MODEL
+            self.llm.local_cortex_path = get_runtime_model_path(ACTIVE_MODEL)
+            self.llm.local_solver_path = get_runtime_model_path(DEEP_MODEL)
+            self.llm.local_brainstem_path = get_runtime_model_path(BRAINSTEM_MODEL)
+
+            audit = audit_lane_assignments()
+            if not bool(audit.get("ok", True)):
+                logger.warning("LLM lane role audit found issues: %s", audit.get("issues", []))
+        except Exception as exc:
+            logger.debug("LLM role canonicalization skipped: %s", exc)
+
+        # 2. Create paths
         self.paths.create_directories()
-        self._track_defaults()
-        if self.paths.config_file.exists():
-            self._load_from_file()
-        self._load_from_env()
         
-        # H-12 Resilience: Auto-disable Redis if Celery is missing
-        try:
-            import celery
-        except ImportError:
-            if self.redis.enabled or self.redis.use_for_events:
-                logger.info("📡 Celery module missing — force-disabling Redis IPC fallback.")
-                self.redis.enabled = False
-                self.redis.use_for_events = False
-                
-        self.validate()
-    
-    def _track_defaults(self):
-        for field_path in self._get_all_fields():
-            self._source_tracking[field_path] = ConfigSource.DEFAULT
-    
-    def _load_from_file(self):
-        if not yaml:
-            logger.warning("PyYAML not installed, skipping config file loading.")
-            return
-        try:
-            with open(self.paths.config_file, 'r') as f:
-                config_data = yaml.safe_load(f) or {}
-            self._apply_config_dict(config_data, ConfigSource.FILE)
-        except Exception as e:
-            logger.error("Failed to load config file: %s", e)
-    
-    def _load_from_env(self):
-        for field_path in self._get_all_fields():
-            env_var = f"{self._env_prefix}{field_path.upper().replace('.', '_')}"
-            if env_var in os.environ:
-                value = os.environ[env_var]
-                typed_value = self._parse_env_value(field_path, value)
-                if typed_value is not None:
-                    self._set_nested_value(field_path, typed_value)
-                    self._source_tracking[field_path] = ConfigSource.ENV
-    
-    def _parse_env_value(self, field_path: str, value: str) -> Any:
-        try:
-            current = self._get_nested_value(field_path)
-            if isinstance(current, bool):
-                return value.lower() in ('true', 'yes', '1', 'on')
-            elif isinstance(current, int):
-                return int(value)
-            elif isinstance(current, float):
-                return float(value)
-            elif isinstance(current, list):
-                return [item.strip() for item in value.split(',')]
-            elif isinstance(current, Path):
-                return Path(value)
-            return value
-        except Exception:
-            return None
-    
-    def _apply_config_dict(self, config_dict: Dict[str, Any], source: ConfigSource):
-        for section_name, section_values in config_dict.items():
-            if not isinstance(section_values, dict): continue
-            if hasattr(self, section_name):
-                section = getattr(self, section_name)
-                for k, v in section_values.items():
-                    if hasattr(section, k):
-                        setattr(section, k, v)
-                        self._source_tracking[f"{section_name}.{k}"] = source
-
-    def _get_nested_value(self, field_path: str) -> Any:
-        parts = field_path.split('.')
-        obj = self
-        for part in parts:
-            if hasattr(obj, part):
-                obj = getattr(obj, part)
-            else:
-                raise AttributeError(f"Field not found: {field_path}")
-        return obj
-    
-    def _set_nested_value(self, field_path: str, value: Any):
-        parts = field_path.split('.')
-        obj = self
-        for part in parts[:-1]:
-            obj = getattr(obj, part)
-        setattr(obj, parts[-1], value)
-    
-    def _get_all_fields(self) -> List[str]:
-        fields = []
-        for section_name in ['paths', 'security', 'llm', 'modification', 'redis', 'logging']:
-            section = getattr(self, section_name)
-            if is_dataclass(section):
-                for f in section.__dataclass_fields__.keys():
-                    fields.append(f"{section_name}.{f}")
-            # Also include @property attributes
-            cls = type(section)
-            for attr_name in dir(cls):
-                attr = getattr(cls, attr_name)
-                if isinstance(attr, property):
-                    field_path = f"{section_name}.{attr_name}"
-                    if field_path not in fields:
-                        fields.append(field_path)
-        return fields
-    
-    def validate(self):
-        """Strict validation of configuration integrity."""
-        errors = []
-        if self.security.internal_only_mode and not INTERNAL_ONLY:
-            errors.append("Security mismatch: Internal mode requested but env barrier missing.")
-        
-        if self.llm.provider == "ollama" and not self.llm.base_url.startswith("http"):
-            errors.append(f"Invalid Ollama URL: {self.llm.base_url}")
+        # 3. Fail-fast on critical missing infrastructure in PROD
+        if self.env == Environment.PROD:
+            if not self.api_token:
+                print("CRITICAL ERROR: Missing AURA_API_TOKEN for PROD environment.")
+                sys.exit(1)
+            if not os.environ.get("GEMINI_API_KEY"):
+                print("CRITICAL ERROR: Missing GEMINI_API_KEY for PROD environment.")
+                sys.exit(1)
             
-        if errors:
-            for err in errors:
-                logger.error("Config Validation Error: %s", err)
-            raise ValueError(f"Configuration failed validation: {'; '.join(errors)}")
+        return self
 
-    def save(self, path: Optional[Path] = None):
-        """Save current configuration with JSON fallback."""
-        save_path = path or self.paths.config_file
-        
-        def normalize(obj):
-            if isinstance(obj, dict):
-                return {k: normalize(v) for k, v in obj.items()}
-            elif isinstance(obj, Path):
-                return str(obj)
-            elif isinstance(obj, list):
-                return [normalize(i) for i in obj]
-            elif is_dataclass(obj) and not isinstance(obj, type):
-                return normalize(asdict(obj))
-            return obj
-
-        config_dict = normalize({
-            "paths": self.paths,
-            "security": self.security,
-            "llm": self.llm,
-            "modification": self.modification,
-            "redis": self.redis,
-        })
-
+    def save(self) -> None:
+        """Durable configuration persistence."""
+        # ISSUE #29 - AuraConfig.save JSON serializable Path bug
+        data = self.model_dump(mode='json')
+        file_path = self.paths._effective_home_dir() / "config.yaml"
         try:
             if yaml:
-                with open(save_path, 'w') as f:
-                    yaml.dump(config_dict, f, default_flow_style=False)
+                with open(file_path, 'w') as f:
+                    yaml.dump(data, f, default_flow_style=False)
             else:
-                json_path = save_path.with_suffix('.json')
-                with open(json_path, 'w') as f:
-                    json.dump(config_dict, f, indent=4)
-                logger.info("PyYAML missing, saved to %s", json_path)
+                with open(file_path.with_suffix('.json'), 'w') as f:
+                    json.dump(data, f, indent=4)
         except Exception as e:
-            logger.error("Failed to save configuration: %s", e)
+            logger.error("config_save_failed: %s", e)
 
-    def generate_report(self) -> str:
-        report = ["Configuration Report:", "=" * 50]
-        for field_path in sorted(self._get_all_fields()):
-            val = self._get_nested_value(field_path)
-            source = self._source_tracking.get(field_path, ConfigSource.DEFAULT)
-            report.append(f"  {field_path:30} = {str(val)[:50]:30} ({source.value})")
-        return "\n".join(report)
+# Singleton implementation
+_config: Optional[AuraConfig] = None
+_config_lock = threading.RLock()
 
-# Global instance
-config = AuraConfig()
+def get_config() -> AuraConfig:
+    global _config
+    with _config_lock:
+        if _config is None:
+            _config = AuraConfig()
+    return _config
+
+# Legacy alias
+config = get_config()
+
+# Legacy compatibility exports for older boot paths.
+PROJECT_ROOT = config.paths.project_root
+DATA_DIR = config.paths.data_dir
+LOG_DIR = config.paths.log_dir

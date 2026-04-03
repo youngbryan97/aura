@@ -1,4 +1,3 @@
-
 # core/brain/consciousness/contract.py
 # Wraps existing ConsciousnessCore into formal M(t) subject
 # Provides runtime auditing: "Is someone home right now?"
@@ -7,6 +6,7 @@ import asyncio
 import hashlib
 import logging
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -115,7 +115,7 @@ class ConsciousnessContract:
     def __init__(self, consciousness_core: ConsciousnessCore):
         self.core = consciousness_core
         self.tracker = SubjectIdentityTracker()
-        self.state_history = []  # For auditing (ring buffer ideally)
+        self.state_history = deque(maxlen=200)  # Ring buffer for auditing
         
         # Initialize Compressor (JL Transform)
         self.compressor = CognitiveCompressor(input_dim=64, target_dim=16) # Substrate is small (64), so strict compression
@@ -140,7 +140,8 @@ class ConsciousnessContract:
         workspace = self.core.workspace
         
         # 1. Extract Affect & Substrate Vector
-        sub_state = substrate.get_state_summary()
+        # Fix: get_state_summary is async — use sync get_substrate_affect instead
+        sub_state = substrate.get_substrate_affect()
         raw_vector = substrate.x # 64-dim vector
         
         # 2. Compress/Transform for Differentiation Score
@@ -152,8 +153,8 @@ class ConsciousnessContract:
         unity = 0.0
         if workspace.current_broadcast:
             unity = workspace.current_broadcast.score
-        elif workspace.coalitions:
-            unity = max([c.score for c in workspace.coalitions]) * 0.5
+        elif hasattr(workspace, '_candidates') and workspace._candidates:
+            unity = max([c.priority for c in workspace._candidates]) * 0.5
             
         # 4. Extract Self Confidence (Epistemic)
         bg = get_belief_graph()

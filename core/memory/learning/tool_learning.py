@@ -210,8 +210,10 @@ class ToolLearningSystem:
                     for key, combo in self._combos.items()
                 },
             }
-            with open(self._persist_path, "w") as f:
+            tmp = self._persist_path + ".tmp"
+            with open(tmp, "w") as f:
                 json.dump(data, f, indent=2)
+            os.replace(tmp, self._persist_path)  # Atomic rename
         except Exception as e:
             logger.error("Failed to save tool learning data: %s", e)
 
@@ -242,6 +244,22 @@ class ToolLearningSystem:
 
 
 # ---------------------------------------------------------------------------
-# Global Instance
+# Global Instance / Lazy Factory
 # ---------------------------------------------------------------------------
-tool_learner = ToolLearningSystem()
+_tool_learner: Optional[ToolLearningSystem] = None
+_tool_learner_lock = threading.Lock()
+
+def get_tool_learner() -> ToolLearningSystem:
+    global _tool_learner
+    if _tool_learner is None:
+        with _tool_learner_lock:
+            if _tool_learner is None:
+                _tool_learner = ToolLearningSystem()
+    return _tool_learner
+
+# Keep the export for backward compatibility but initialize safely
+def _deprecated_tool_learner():
+    return get_tool_learner()
+
+# NOTE: Direct module-level instantiation removed. Use get_tool_learner().
+tool_learner = get_tool_learner()

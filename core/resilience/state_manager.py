@@ -1,16 +1,38 @@
-
 import json
 import logging
-import os
 import shutil
 import time
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
+import zlib
 
 from core.config import config
 
 logger = logging.getLogger("Core.Resilience.StateManager")
+
+
+class _SafeEncoder(json.JSONEncoder):
+    """Custom encoder that handles Enums, numpy types, and other non-serializable objects."""
+    def default(self, obj):
+        if isinstance(obj, Enum):
+            return obj.value
+        try:
+            import numpy as np
+            if isinstance(obj, (np.integer,)):
+                return int(obj)
+            if isinstance(obj, (np.floating,)):
+                return float(obj)
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+        except ImportError as _e:
+            logger.debug('Ignored ImportError in state_manager.py: %s', _e)
+        try:
+            return super().default(obj)
+        except TypeError:
+            return str(obj)
+
 
 class StateManager:
     """Manages system state snapshots for resilience and recovery.
@@ -20,14 +42,6 @@ class StateManager:
     def __init__(self):
         self.snapshot_dir = Path(config.paths.data_dir) / "snapshots"
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
-        self.current_state = {
-            "version": "1.0",
-            "cycle_count": 0,
-            "startup_time": 0,
-            "last_active": 0,
-            "active_goals": [],
-            "short_term_memory": []
-        }
         
     async def save_snapshot_async(self, orchestrator_state: Dict[str, Any], reason: str = "periodic") -> bool:
         """Asynchronously save a snapshot using a background thread."""
@@ -59,10 +73,16 @@ class StateManager:
             # 1. Save "latest" snapshot (for quick recovery)
             latest_path = self.snapshot_dir / "latest_snapshot.json"
             
-            # Write to temp file first for atomicity
+            # Write to temp file first for atomicity (with Checksum)
             temp_path = latest_path.with_suffix(".tmp")
-            with open(temp_path, 'w') as f:
-                json.dump(snapshot, f, indent=2)
+            
+            # 1a. Serialize payload to bytes
+            data_bytes = json.dumps(snapshot, indent=2, cls=_SafeEncoder).encode('utf-8')
+            checksum = zlib.crc32(data_bytes) & 0xffffffff # Force unsigned
+            
+            with open(temp_path, 'wb') as f:
+                f.write(checksum.to_bytes(4, 'big'))
+                f.write(data_bytes)
             
             if reason == "existential":
                 existential_path = self.snapshot_dir / "existential_snapshot.json"
@@ -77,6 +97,21 @@ class StateManager:
             # Rename temp to latest
             temp_path.replace(latest_path)
             
+            # Wire EternalRecord for long-term persistence
+            if reason in ["manual", "existential", "shutdown"]:
+                try:
+                    from core.resilience.eternal_record import EternalRecord
+                    # Use the parent of snapshots dir as brain_dir
+                    brain_dir = self.snapshot_dir.parent
+                    recorder = EternalRecord(brain_dir)
+                    
+                    # Snapshot the Knowledge Graph if it exists
+                    kg_path = Path(config.paths.data_dir) / "knowledge_graph.db"
+                    recorder.create_snapshot(kg_path)
+                    logger.info("🏺 Eternal Record snapshot triggered via StateManager (%s)", reason)
+                except Exception as er_err:
+                    logger.error("Failed to trigger Eternal Record: %s", er_err)
+
             logger.debug("State snapshot saved (%s).", reason)
             return True
             
@@ -92,15 +127,43 @@ class StateManager:
         """Phase 18.3: Load the hardened identity snapshot."""
         return self._load_from_path(self.snapshot_dir / "existential_snapshot.json")
 
+    def _initiate_autopsy(self, corrupted_file_path: Path):
+        """Archives corrupted data for later analysis without halting the system."""
+        autopsy_dir = self.snapshot_dir / "autopsy"
+        autopsy_dir.mkdir(exist_ok=True)
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        target_path = autopsy_dir / f"corrupted_state_{timestamp}_{corrupted_file_path.name}"
+        try:
+            shutil.move(str(corrupted_file_path), str(target_path))
+            logger.critical("🚨 DATA CORRUPTION DETECTED: Snapshot quarantined to %s", target_path)
+        except Exception as e:
+            logger.error("Failed to quarantine corrupted file %s: %s", corrupted_file_path, e)
+
     def _load_from_path(self, path: Path) -> Optional[Dict[str, Any]]:
-        """Generic loader logic."""
+        """Generic loader logic with Checksum verification."""
         try:
             if not path.exists():
                 logger.debug("Snapshot path %s does not exist.", path)
                 return None
                 
-            with open(path, 'r') as f:
-                snapshot = json.load(f)
+            with open(path, 'rb') as f:
+                header = f.read(4)
+                
+                # Fallback for old un-checksummed JSON strings (starts with '{' == 123)
+                if len(header) > 0 and header[0] == 123:
+                    f.seek(0)
+                    data_bytes = f.read()
+                    logger.warning("Loading unchecksummed legacy snapshot at %s", path)
+                else:
+                    checksum_from_file = int.from_bytes(header, 'big')
+                    data_bytes = f.read()
+                    calculated_checksum = zlib.crc32(data_bytes) & 0xffffffff # Force unsigned
+                    
+                    if checksum_from_file != calculated_checksum:
+                        self._initiate_autopsy(path)
+                        raise ValueError(f"State checksum mismatch in {path.name}! File corrupted.")
+                        
+            snapshot = json.loads(data_bytes.decode('utf-8'))
                 
             meta = snapshot.get("meta", {})
             data = snapshot.get("data", {})

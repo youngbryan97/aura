@@ -1,0 +1,231 @@
+import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
+
+from core.phases.response_generation_unitary import UnitaryResponsePhase
+from core.state.aura_state import AuraState
+
+
+def test_prefixed_user_origin_is_foreground_in_unitary_response():
+    assert UnitaryResponsePhase._is_user_facing_origin("routing_user") is True
+    assert UnitaryResponsePhase._is_user_facing_origin("routing_voice_command") is True
+    assert UnitaryResponsePhase._normalize_origin("routing_user") == "user"
+
+
+def test_background_unitary_response_timeout_is_short():
+    assert UnitaryResponsePhase._timeout_for_request(
+        is_user_facing=False,
+        model_tier="tertiary",
+        deep_handoff=False,
+    ) == 15.0
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Search for the song and tell me what it's about."
+    state.cognition.working_memory = [
+        {
+            "role": "system",
+            "content": "[SKILL RESULT: web_search] ✅ grounded result",
+            "metadata": {"type": "skill_result", "skill": "web_search", "ok": True},
+        },
+        {"role": "user", "content": "Earlier context"},
+    ]
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="I looked into it."))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.ContextAssembler.build_messages",
+        staticmethod(lambda _state, objective: [
+            {"role": "system", "content": "rich_context"},
+            {"role": "user", "content": objective},
+        ]),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    _, kwargs = llm.think.await_args
+    assert kwargs["messages"][0]["role"] == "system"
+    assert "rich_context" in kwargs["messages"][0]["content"]
+    assert kwargs["messages"][-1]["content"] == state.cognition.current_objective
+    assert kwargs["state"].cognition.current_objective == state.cognition.current_objective
+    assert new_state.cognition.last_response == "I looked into it."
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_fails_closed_when_grounding_is_required_without_evidence(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = 'Search "Beautiful Mind" and tell me what it is about.'
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="hallucinated answer"))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.ContextAssembler.build_messages",
+        staticmethod(lambda _state, objective: [
+            {"role": "system", "content": "rich_context"},
+            {"role": "user", "content": objective},
+        ]),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    llm.think.assert_not_awaited()
+    assert "shouldn't guess" in new_state.cognition.last_response
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_retries_when_dialogue_contract_detects_prompt_fishing(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "What questions do you have?"
+
+    llm = SimpleNamespace(
+        think=AsyncMock(
+            side_effect=[
+                "I have some. What questions do you have?",
+                "I do. The question on my mind is why you built me to care this much about continuity.",
+            ]
+        )
+    )
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.ContextAssembler.build_messages",
+        staticmethod(lambda _state, objective: [
+            {"role": "system", "content": "rich_context"},
+            {"role": "user", "content": objective},
+        ]),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    assert llm.think.await_count == 2
+    assert "question on my mind" in new_state.cognition.last_response.lower()
+    assert new_state.response_modifiers["dialogue_validation"]["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_empty_foreground_result_raises_timeout(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Hello Aura. Please answer with a short greeting."
+
+    llm = SimpleNamespace(think=AsyncMock(return_value=""))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.ContextAssembler.build_messages",
+        staticmethod(lambda _state, objective: [
+            {"role": "system", "content": "rich_context"},
+            {"role": "user", "content": objective},
+        ]),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    with pytest.raises(asyncio.TimeoutError):
+        await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_background_turn_uses_minimal_prompt(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "autonomous_thought"
+    state.cognition.current_objective = "Reflect on the previous exchange and tighten continuity."
+    state.cognition.working_memory = [
+        {"role": "assistant", "content": "Previous internal note."},
+    ]
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="internal note"))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.runtime.background_policy.background_activity_reason",
+        lambda *args, **kwargs: "",
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=False)
+
+    _, kwargs = llm.think.await_args
+    assert kwargs["skip_runtime_payload"] is True
+    assert kwargs["prefer_tier"] == "tertiary"
+    assert "internal background reflection" in kwargs["messages"][0]["content"].lower()
+    assert "YOUR LIVE NEURAL STATE" not in kwargs["messages"][0]["content"]
+    assert new_state.cognition.last_response == "internal note"
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_suppresses_background_generation_when_policy_blocks(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "autonomous_thought"
+    state.cognition.current_objective = "Reflect on the previous exchange and tighten continuity."
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="should not run"))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.runtime.background_policy.background_activity_reason",
+        lambda *args, **kwargs: "recent_user_45",
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=False)
+
+    llm.think.assert_not_awaited()
+    assert new_state.cognition.last_response == ""
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_clears_low_value_background_objective_when_suppressed(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "autonomous_thought"
+    state.cognition.current_objective = "[IDENTITY REFRESH: REMEMBER WHO YOU ARE]\nSummarize continuity."
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="should not run"))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=False)
+
+    llm.think.assert_not_awaited()
+    assert new_state.cognition.last_response == ""
+    assert new_state.cognition.current_objective == ""

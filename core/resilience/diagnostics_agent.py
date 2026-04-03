@@ -1,10 +1,10 @@
-
 """Diagnostics Agent
 Responsible for deep system health checks, skill validation, and connectivity verification.
 Run independently of the main loop to ensure resilience.
 """
 import asyncio
 import importlib
+import importlib.util
 import logging
 import os
 import sys
@@ -99,7 +99,7 @@ class DiagnosticsAgent:
         try:
             start = asyncio.get_running_loop().time()
             async with aiohttp.ClientSession() as session:
-                async with session.get("http://localhost:8000/health") as resp:
+                async with session.get("http://localhost:8000/health", timeout=5) as resp:
                     if resp.status == 200:
                         results["server_online"] = True
                         results["latency_ms"] = (asyncio.get_running_loop().time() - start) * 1000

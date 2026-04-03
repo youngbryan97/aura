@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import logging
@@ -14,14 +15,58 @@ logger = logging.getLogger("Memory.Vector")
 # Try to import ChromaDB — if missing, set a flag for sovereign fallback
 # ---------------------------------------------------------------------------
 _CHROMA_AVAILABLE = False
-_OllamaEF = None
 try:
     import chromadb
     from chromadb.config import Settings as ChromaSettings
-    from chromadb.utils.embedding_functions import OllamaEmbeddingFunction as _OllamaEF
     _CHROMA_AVAILABLE = True
-except ImportError:
-    logger.warning("chromadb not installed — VectorMemory will run in Sovereign Fallback mode (JSON).")
+except (ImportError, Exception) as e:
+    logger.warning("VectorMemory: ChromaDB unavailable. Falling back to Sovereign Mode. Error: %s", e)
+    _CHROMA_AVAILABLE = False
+
+
+class AuraEmbeddingFunction:
+    """Consolidated embedding function using Aura's internal LLMs."""
+    def __call__(self, input: List[str]) -> List[List[float]]:
+        try:
+            from core.container import ServiceContainer
+            adapter = ServiceContainer.get("api_adapter")
+            if not adapter:
+                # Return deterministic pseudo-embeddings if adapter missing
+                return [self._pseudo_embed(text) for text in input]
+            
+            embeddings = []
+            for text in input:
+                embeddings.append(adapter.embed_sync(text))
+            return embeddings
+        except Exception as e:
+            logger.error("AuraEmbeddingFunction failed: %s", e)
+            return [self._pseudo_embed(text) for text in input]
+
+    def _pseudo_embed(self, text: str) -> List[float]:
+        """Bag-of-words hashing embedding that preserves semantic similarity.
+        Texts sharing words will have proportional cosine similarity.
+        """
+        import hashlib
+        import numpy as np
+        dim = 768
+        vec = np.zeros(dim, dtype=np.float64)
+        words = text.lower().split()
+        if not words:
+            return vec.tolist()
+        for word in words:
+            clean = ''.join(c for c in word if c.isalnum())
+            if not clean:
+                continue
+            weight = 1.0 + min(len(clean), 12) * 0.15
+            for salt in (b"a", b"b", b"c"):
+                h = hashlib.md5(salt + clean.encode()).digest()
+                idx = int.from_bytes(h[:2], "big") % dim
+                sign = 1.0 if h[2] & 1 else -1.0
+                vec[idx] += sign * weight
+        norm = np.linalg.norm(vec)
+        if norm > 1e-10:
+            vec /= norm
+        return vec.tolist()
 
 
 # ---------------------------------------------------------------------------
@@ -29,7 +74,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 class VectorMemory:
-    """Semantic vector store backed by ChromaDB + Ollama embeddings.
+    """Semantic vector store backed by ChromaDB + Internal Aura embeddings.
     Fails over to local JSON persistence if ChromaDB is unavailable.
     """
 
@@ -37,15 +82,8 @@ class VectorMemory:
         self,
         collection_name: str = "aura_memories",
         persist_directory: Optional[str] = None,
-        ollama_client: Any = None,
-        ollama_base_url: str = "http://localhost:11434",
-        ollama_model: Optional[str] = None,
     ):
-        from core.config import config
-        if not ollama_model:
-            ollama_model = getattr(config.llm, "embedding_model", config.llm.fast_model)
         self.collection_name = collection_name
-        self.ollama_client = ollama_client
         self._fallback_mode = False
 
         if persist_directory is None:
@@ -65,18 +103,15 @@ class VectorMemory:
                     path=str(self.persist_directory),
                     settings=ChromaSettings(anonymized_telemetry=False),
                 )
-                self._embed_fn = _OllamaEF(
-                    url=ollama_base_url,
-                    model_name=ollama_model,
-                )
+                self._embed_fn = AuraEmbeddingFunction()
                 self._collection = self._client.get_or_create_collection(
                     name=collection_name,
                     embedding_function=self._embed_fn,
                     metadata={"hnsw:space": "cosine"},
                 )
                 logger.info(
-                    f"VectorMemory ONLINE — collection '{collection_name}' "
-                    f"({self._collection.count()} vectors), persist={persist_directory}"
+                    "VectorMemory ONLINE — collection '%s' (%d vectors), persist=%s",
+                    collection_name, self._collection.count(), persist_directory
                 )
             except Exception as e:
                 logger.error("ChromaDB init failed, falling back to Sovereign Persistence: %s", e)
@@ -174,18 +209,22 @@ class VectorMemory:
         # ── Pillar 4: Emotional Salience (Stamping) ──
         try:
             from core.container import ServiceContainer
-            affect = ServiceContainer.get("affect_engine")
+            affect = ServiceContainer.get("affect_engine", default=None)
             if affect:
                 # Synchronous-compatible access if possible, or skip for now
                 # H-28 FIX: Use safe getattr to avoid AttributeError on V2 engine
                 markers = getattr(affect, 'markers', None)
                 if markers and hasattr(markers, 'get_wheel'):
-                    w = markers.get_wheel()["primary"]
-                    pos = w.get("joy", 0) + w.get("trust", 0)
-                    neg = w.get("fear", 0) + w.get("sadness", 0) + w.get("anger", 0)
-                    meta["valence"] = float(pos - neg)
-                    meta["arousal"] = float(max(w.values()) if w else 0.0)
-        except: pass
+                    wheel = markers.get_wheel()
+                    if isinstance(wheel, dict) and "primary" in wheel:
+                        w = wheel["primary"]
+                        if isinstance(w, dict):
+                            pos = w.get("joy", 0) + w.get("trust", 0)
+                            neg = w.get("fear", 0) + w.get("sadness", 0) + w.get("anger", 0)
+                            meta["valence"] = float(pos - neg)
+                            meta["arousal"] = float(max(w.values()) if w else 0.0)
+        except Exception as e:
+            logger.debug("Emotional salience stamping failed: %s", e)
 
         if self._fallback_mode:
             self._store.append({"id": doc_id, "content": content, "metadata": meta})
@@ -214,19 +253,48 @@ class VectorMemory:
             return []
 
         if self._fallback_mode:
-            # Simple keyword search fallback for degraded mode
-            query_low = query.lower()
-            results = [
-                m for m in self._store 
-                if query_low in m['content'].lower() or any(query_low in str(v).lower() for v in m['metadata'].values())
-            ]
-            # Sort by timestamp (newest first) since we don't have embeddings in fallback
-            results.sort(key=lambda x: x['metadata'].get('timestamp', 0), reverse=True)
-            return results[:limit]
+            # v14.9 Improved Fallback: Weighted Word Match + Recency
+            query_words = set(query.lower().split())
+            if not query_words:
+                return []
+            
+            scored_memories = []
+            for m in self._store:
+                content_low = m['content'].lower()
+                content_words = content_low.split()
+                # Count matches
+                matches = sum(1 for w in query_words if w in content_low)
+                if matches > 0:
+                    # Score = overlap % + recency boost
+                    overlap = matches / len(query_words)
+                    # Timestamp scaling (0.0 to 0.1 boost for last 24h)
+                    recency = max(0, 1.0 - (time.time() - m['metadata'].get('timestamp', 0)) / 86400) * 0.1
+                    final_score = overlap + recency
+                    scored_memories.append({**m, "score": final_score})
+            
+            # Sort by highest match score
+            scored_memories.sort(key=lambda x: x['score'], reverse=True)
+            return scored_memories[:limit]
 
         try:
-            # Fetch more than we need for re-ranking
-            internal_limit = limit * 3
+            # --- Pillar 4: Emotional Salience (Re-ranking) ---
+            from core.container import ServiceContainer
+            affect = ServiceContainer.get("affect_engine", default=None)
+            current_valence = 0.0
+            current_arousal = 0.0
+            if affect:
+                # H-28 FIX: Use safe getattr to avoid AttributeError on V2 engine
+                markers = getattr(affect, 'markers', None)
+                if markers and hasattr(markers, 'get_wheel'):
+                    w = markers.get_wheel()["primary"]
+                    current_valence = float((w.get("joy", 0) + w.get("trust", 0)) - (w.get("fear", 0) + w.get("sadness", 0) + w.get("anger", 0)))
+                    current_arousal = float(max(w.values()) if w else 0.0)
+
+            # Issue 111: Emotional Coloring - Arousal-based K-expansion
+            # High arousal (panic/excitement) leads to broader, less precise associative leaps
+            arousal_boost = int(current_arousal * limit * 2)
+            internal_limit = (limit + arousal_boost) * 3
+            
             results = self._collection.query(
                 query_texts=[query],
                 n_results=min(internal_limit, max(self._collection.count(), 1)),
@@ -236,38 +304,34 @@ class VectorMemory:
             dists = results.get("distances", [[]])[0]
             ids = results.get("ids", [[]])[0]
             
-            # --- Pillar 4: Emotional Salience (Re-ranking) ---
-            from core.container import ServiceContainer
-            affect = ServiceContainer.get("affect_engine")
-            current_valence = 0.0
-            if affect:
-                # H-28 FIX: Use safe getattr to avoid AttributeError on V2 engine
-                markers = getattr(affect, 'markers', None)
-                if markers and hasattr(markers, 'get_wheel'):
-                    w = markers.get_wheel()["primary"]
-                    current_valence = float((w.get("joy", 0) + w.get("trust", 0)) - (w.get("fear", 0) + w.get("sadness", 0) + w.get("anger", 0)))
+            # Already retrieved above due to k-expansion needs
 
+            import numpy as np
+            
+            # Vectorized scoring
+            num_res = len(docs)
+            dist_arr = np.array(dists[:num_res]) if dists else np.zeros(num_res)
+            # Ensure lengths match
+            metas_clean = metas[:num_res] if metas else [{}] * num_res
+            valence_arr = np.array([m.get("valence", 0.0) for m in metas_clean])
+            
+            # Semantic score = 1.0 - distance
+            semantic_scores = 1.0 - dist_arr
+            
+            # Emotional alignment = 1.0 - (abs(diff) / 2.0)
+            emotional_alignments = 1.0 - (np.abs(current_valence - valence_arr) / 2.0)
+            
+            # Final weighted score
+            final_scores = (semantic_scores * 0.7) + (emotional_alignments * 0.3)
+            
             scored_results = []
-            for i in range(len(docs)):
-                doc_meta = metas[i] if i < len(metas) else {}
-                doc_valence = doc_meta.get("valence", 0.0)
-                
-                # Semantic distance (lower is better in cosine space for chromadb)
-                semantic_score = 1.0 - (dists[i] if i < len(dists) else 0.5)
-                
-                # Emotional alignment (1.0 = same mood, 0.0 = opposite)
-                # Valence is roughly [-1, 1]
-                emotional_alignment = 1.0 - (abs(current_valence - doc_valence) / 2.0)
-                
-                # Final weighted score
-                final_score = (semantic_score * 0.7) + (emotional_alignment * 0.3)
-                
+            for i in range(num_res):
                 scored_results.append({
                     "id": ids[i],
                     "content": docs[i],
-                    "metadata": doc_meta,
-                    "score": final_score,
-                    "distance": dists[i] if i < len(dists) else None,
+                    "metadata": metas_clean[i],
+                    "score": float(final_scores[i]),
+                    "distance": float(dists[i]) if i < len(dists) else None,
                 })
 
             # Sort by final score descending
@@ -306,7 +370,8 @@ class VectorMemory:
         try:
             count = self._collection.count()
             return {"total_vectors": count, "engine": "chromadb", "status": "active"}
-        except Exception:
+        except Exception as e:
+            logger.debug("ChromaDB count failed: %s", e)
             return {"total_vectors": -1, "engine": "chromadb", "status": "error"}
 
     # ------------------------------------------------------------------
@@ -315,6 +380,10 @@ class VectorMemory:
 
     def add(self, content: str, metadata: Optional[Dict] = None, **kwargs) -> bool:
         return self.add_memory(content, metadata=metadata, _id=kwargs.get("_id"))
+
+    async def index(self, content: str, metadata: Optional[Dict] = None, **kwargs) -> bool:
+        """Async shim for MemoryManager compatibility."""
+        return await asyncio.to_thread(self.add_memory, content, metadata=metadata, **kwargs)
 
     def search(self, query: str = "", limit: int = 5, k: int = 0, **kwargs) -> List[Dict]:
         effective_limit = k if k > 0 else limit
@@ -347,6 +416,7 @@ class VectorMemory:
         logger.info("🧹 Pruning low-salience memories (threshold=%s days)...", threshold_days)
         now = time.time()
         expiry_seconds = threshold_days * 86400
+        neutral_expiry_seconds = max(expiry_seconds, min(45 * 86400, expiry_seconds * 2))
         ids_to_prune = []
 
         if self._fallback_mode:
@@ -354,8 +424,14 @@ class VectorMemory:
             self._store = [
                 m for m in self._store
                 if not (
-                    (now - m["metadata"].get("last_accessed", m["metadata"].get("timestamp", 0)) > expiry_seconds) and
-                    (m["metadata"].get("valence", 0.0) < min_salience)
+                    (
+                        (now - m["metadata"].get("last_accessed", m["metadata"].get("timestamp", 0)) > expiry_seconds)
+                        and (m["metadata"].get("valence", 0.0) < min_salience)
+                    )
+                    or (
+                        (now - m["metadata"].get("last_accessed", m["metadata"].get("timestamp", 0)) > neutral_expiry_seconds)
+                        and (m["metadata"].get("valence", 0.0) <= 0.05)
+                    )
                 )
             ]
             final_count = len(self._store)
@@ -386,7 +462,10 @@ class VectorMemory:
                 valence = meta.get("valence", 0.0)
                 
                 # Expiry condition: Old unaccessed AND low salience
-                if (now - last_access > expiry_seconds) and (valence < min_salience):
+                if (
+                    ((now - last_access > expiry_seconds) and (valence < min_salience))
+                    or ((now - last_access > neutral_expiry_seconds) and (valence <= 0.05))
+                ):
                     ids_to_prune.append(_id)
 
             if ids_to_prune:

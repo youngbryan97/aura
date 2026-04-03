@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.utils.exceptions import capture_and_log
 
 import asyncio
 import logging
@@ -58,6 +59,17 @@ class StableVoicePipeline:
         self._config = config or VoicePipelineConfig()
         self._state = VoiceState.IDLE
         self._running = False
+        
+        # Phase 7: Voice Bridge integration
+        from core.voice.voice_bridge import VoiceConversationBridge
+        from core.container import ServiceContainer
+        conv_engine = ServiceContainer.get("conversation_engine")
+        self._bridge = VoiceConversationBridge(orchestrator, conv_engine)
+        
+        # Phase III: Resilience - Circuit Breakers
+        from core.resilience.circuit_breaker import NeuroCircuitBreaker
+        self._stt_breaker = NeuroCircuitBreaker("SovereignVoice_STT", orchestrator, failure_threshold=4, recovery_timeout=45.0)
+        self._tts_breaker = NeuroCircuitBreaker("StableVoice_TTS", orchestrator, failure_threshold=3, recovery_timeout=60.0)
 
         # Core components (lazy loaded)
         self._stt = None
@@ -82,55 +94,39 @@ class StableVoicePipeline:
     # ── Component Loading ─────────────────────────────────────────────────────
 
     async def _load_stt(self) -> bool:
-        """Load STT engine with fallback options."""
-        # Try RealtimeSTT first (existing engine)
+        """Load STT engine with priority on SovereignVoiceEngine."""
         try:
             from core.senses.voice_engine import get_voice_engine
             self._stt = get_voice_engine()
             if self._stt:
-                logger.info("STT: Using existing SovereignVoiceEngine")
+                # Ensure models are loaded inside the engine
+                if hasattr(self._stt, "ensure_stt_async"):
+                    await self._stt.ensure_stt_async()
+                else:
+                    await self._stt.ensure_models_async()
+                logger.info("STT: Consolidated via SovereignVoiceEngine")
                 return True
         except Exception as exc:
-            logger.warning("SovereignVoiceEngine unavailable: %s", exc)
-
-        # Try faster-whisper directly
-        try:
-            from faster_whisper import WhisperModel
-            self._stt = _WhisperWrapper(
-                model_size=self._config.stt_model,
-                language=self._config.stt_language,
-            )
-            logger.info("STT: Using faster-whisper directly")
-            return True
-        except ImportError:
-            logger.warning("faster-whisper not installed")
-        except Exception as exc:
-            logger.error("faster-whisper init failed: %s", exc)
+            logger.warning("SovereignVoiceEngine STT unavailable: %s", exc)
 
         logger.error("No STT engine available")
         return False
 
     async def _load_tts(self) -> bool:
-        """Load TTS engine with fallback options."""
-        # Try FastMouth first (existing engine)
+        """Load TTS engine with priority on SovereignVoiceEngine."""
         try:
-            from core.senses.tts_stream import FastMouth
-            self._tts = FastMouth()
-            logger.info("TTS: Using FastMouth")
-            return True
-        except Exception as exc:
-            logger.warning("FastMouth unavailable: %s", exc)
-
-        # Try macOS 'say' command as fallback (works on Bryan's MacBook)
-        try:
-            import subprocess
-            result = subprocess.run(["which", "say"], capture_output=True)
-            if result.code == 0:
-                self._tts = _MacOSSayWrapper()
-                logger.info("TTS: Using macOS 'say' command as fallback")
+            from core.container import ServiceContainer
+            self._tts = ServiceContainer.get("voice_engine", default=None)
+            if self._tts:
+                # Ensure models are loaded inside the engine
+                if hasattr(self._tts, "ensure_tts_async"):
+                    await self._tts.ensure_tts_async()
+                else:
+                    await self._tts.ensure_models_async()
+                logger.info("TTS: Consolidated via SovereignVoiceEngine")
                 return True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("SovereignVoiceEngine TTS unavailable: %s", exc)
 
         logger.error("No TTS engine available")
         return False
@@ -138,32 +134,30 @@ class StableVoicePipeline:
     # ── STT Reconnection ──────────────────────────────────────────────────────
 
     async def _reconnect_stt(self) -> bool:
-        """Attempt to reconnect STT with exponential backoff."""
-        if self._reconnect_attempts >= self._config.stt_max_reconnect_attempts:
-            logger.error("STT reconnection failed after %d attempts", self._reconnect_attempts)
-            self._set_state(VoiceState.ERROR)
-            return False
+        """Attempt to reconnect STT with exponential backoff iteratively (Issue 48)."""
+        while self._running:
+            if self._reconnect_attempts >= self._config.stt_max_reconnect_attempts:
+                logger.error("STT reconnection failed after %d attempts", self._reconnect_attempts)
+                self._set_state(VoiceState.ERROR)
+                return False
 
-        self._set_state(VoiceState.RECONNECTING)
-        delay = self._config.stt_reconnect_delay_s * (2 ** self._reconnect_attempts)
-        delay = min(delay, 30.0)  # Cap at 30 seconds
+            self._set_state(VoiceState.RECONNECTING)
+            delay = self._config.stt_reconnect_delay_s * (2 ** self._reconnect_attempts)
+            delay = min(delay, 30.0)
 
-        logger.info(
-            "STT reconnecting in %.1fs (attempt %d/%d)",
-            delay, self._reconnect_attempts + 1,
-            self._config.stt_max_reconnect_attempts
-        )
+            logger.info("STT reconnecting in %.1fs (attempt %d/%d)",
+                        delay, self._reconnect_attempts + 1,
+                        self._config.stt_max_reconnect_attempts)
 
-        await asyncio.sleep(delay)
-        self._reconnect_attempts += 1
+            await asyncio.sleep(delay)
+            self._reconnect_attempts += 1
 
-        success = await self._load_stt()
-        if success:
-            self._reconnect_attempts = 0
-            self._set_state(VoiceState.IDLE)
-            logger.info("STT reconnected successfully")
-            return True
-        return await self._reconnect_stt()
+            if await self._load_stt():
+                self._reconnect_attempts = 0
+                self._set_state(VoiceState.IDLE)
+                logger.info("STT reconnected successfully")
+                return True
+        return False
 
     # ── Main Loop ─────────────────────────────────────────────────────────────
 
@@ -248,15 +242,18 @@ class StableVoicePipeline:
                         try:
                             self._utterance_queue.get_nowait()
                             self._utterance_queue.put_nowait(utterance)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            import logging
+                            logger.debug("STT frame processing: %s", e)
 
             except asyncio.CancelledError:
                 break
             except Exception as exc:
                 self._stt_errors += 1
                 logger.error("Listen loop error: %s", exc)
-                await self._reconnect_stt()
+                # Issue 48: Ensure we don't recurse indefinitely; handle via loop
+                if self._running:
+                    await self._reconnect_stt()
 
     async def _capture_utterance(self) -> Optional[str]:
         """
@@ -268,29 +265,37 @@ class StableVoicePipeline:
             return None
 
         try:
-            # If STT has an async get method, use it
-            if hasattr(self._stt, 'get_utterance'):
-                return await asyncio.wait_for(
-                    self._stt.get_utterance(),
-                    timeout=self._config.stt_max_utterance_s
-                )
-            # If STT uses callbacks, poll a queue
-            elif hasattr(self._stt, 'last_text'):
-                await asyncio.sleep(0.1)
-                text = getattr(self._stt, 'last_text', None)
-                if text:
-                    self._stt.last_text = None  # Clear it
-                    return text
-                return None
-            # Fallback: run blocking transcription in thread
-            elif hasattr(self._stt, 'transcribe'):
-                return await asyncio.get_event_loop().run_in_executor(
-                    None, self._stt.transcribe
-                )
-            else:
-                await asyncio.sleep(0.5)
-                return None
+            # Wrap STT capture in the NeuroCircuitBreaker
+            async def _do_capture():
+                # If STT has an async get method, use it
+                if hasattr(self._stt, 'get_utterance'):
+                    return await asyncio.wait_for(
+                        self._stt.get_utterance(),
+                        timeout=self._config.stt_max_utterance_s
+                    )
+                # If STT uses callbacks, poll a queue
+                elif hasattr(self._stt, 'last_text'):
+                    await asyncio.sleep(0.1)
+                    text = getattr(self._stt, 'last_text', None)
+                    if text:
+                        self._stt.last_text = None  # Clear it
+                        return text
+                    return None
+                # Fallback: run blocking transcription in thread
+                elif hasattr(self._stt, 'transcribe'):
+                    return await asyncio.get_running_loop().run_in_executor(
+                        None, self._stt.transcribe
+                    )
+                else:
+                    await asyncio.sleep(0.5)
+                    return None
+                    
+            return await self._stt_breaker.execute(_do_capture)
+            
         except asyncio.TimeoutError:
+            return None
+        except Exception as e:
+            logger.debug("STT Breaker intercepted error: %s", e)
             return None
 
     # ── Process Loop ──────────────────────────────────────────────────────────
@@ -320,39 +325,60 @@ class StableVoicePipeline:
                 self._set_state(VoiceState.IDLE)
 
     async def _handle_utterance(self, utterance: str):
-        """Process a single utterance through LLM and TTS."""
+        """Process a single utterance through the FULL cognitive pipeline and TTS.
+        
+        Phase Transcendental: Voice now goes through the same cognitive engine
+        as text — personality, memory, qualia, consciousness, homeostatic
+        modifiers are all applied identically.
+        """
         self._utterances_processed += 1
         self._set_state(VoiceState.PROCESSING)
 
         logger.info("Processing utterance #%d: %r", self._utterances_processed, utterance[:80])
 
         try:
-            # Interrupt any current autonomous thought
-            await self._interrupt_autonomous_thought()
+            # 1. Route through the Voice Bridge for cognitive processing
+            async def _stream_iterator():
+                # Subscribe to the chat stream on the event bus
+                from core.event_bus import get_event_bus
+                bus = get_event_bus()
+                stream_q = await bus.subscribe("chat_stream")
+                
+                try:
+                    # Start the cognitive process via bridge
+                    bridge_task = asyncio.create_task(self._bridge.process_voice_input(utterance))
+                    
+                    while not bridge_task.done():
+                        try:
+                            _pri, _seq, event = await asyncio.wait_for(stream_q.get(), timeout=0.1)
+                            if event.get("type") == "chat_stream_chunk":
+                                yield event.get("chunk", "")
+                        except asyncio.TimeoutError:
+                            continue
+                    
+                    # Ensure we get the final response if needed
+                    await bridge_task
+                finally:
+                    await bus.unsubscribe("chat_stream", stream_q)
 
-            # Send to orchestrator (this is the LLM call)
-            response = await asyncio.wait_for(
-                self._orch.process_user_input(utterance, origin="voice"),
-                timeout=self._config.processing_timeout_s
-            )
+            # 2. Feed the stream into the voice output
+            if self._tts and hasattr(self._tts, 'speak_stream'):
+                final_text = await self._tts.speak_stream(_stream_iterator())
+                logger.info("Voice Session Complete. Spoken: %r", final_text[:100])
+            else:
+                # Fallback for non-streaming TTS
+                response = await self._bridge.process_voice_input(utterance)
+                if response:
+                    await self._speak(response)
 
-            if not response or not response.strip():
-                logger.warning("Voice: Empty LLM response for utterance %r", utterance[:50])
-                self._set_state(VoiceState.IDLE)
-                return
-
-            # Validate response length
-            words = response.strip().split()
-            if len(words) < self._config.min_response_length:
-                logger.warning(
-                    "Voice: Response too short (%d words): %r",
-                    len(words), response[:50]
-                )
-                self._set_state(VoiceState.IDLE)
-                return
-
-            # Speak the response
-            await self._speak(response)
+            # Mycelial Reinforcement: Strengthen voice cognitive pathways
+            try:
+                from core.container import ServiceContainer
+                mycelium = ServiceContainer.get("mycelium", default=None)
+                if mycelium:
+                    mycelium.reinforce("voice_cognitive_pipeline", success=True)
+            except Exception as e:
+                capture_and_log(e, {'module': __name__})
 
         except asyncio.TimeoutError:
             logger.error(
@@ -360,7 +386,11 @@ class StableVoicePipeline:
                 self._config.processing_timeout_s, utterance[:50]
             )
             self._set_state(VoiceState.IDLE)
+        except asyncio.CancelledError:
+            logger.debug("Voice handler cancelled for utterance: %r", utterance[:50])
+            raise
         except Exception as exc:
+            # Issue 47 Fix: Use 'exc' instead of 'e'
             logger.error("Voice: Error handling utterance: %s", exc)
             self._set_state(VoiceState.IDLE)
 
@@ -378,29 +408,40 @@ class StableVoicePipeline:
         logger.info("Speaking: %r...", text[:60])
 
         try:
-            self._current_tts_task = asyncio.create_task(
+            task = asyncio.create_task(
                 self._tts_speak(text), name="tts_speak"
             )
-            await self._current_tts_task
+            self._current_tts_task = task
+            await task
         except asyncio.CancelledError:
             self._tts_interrupted += 1
             logger.debug("TTS interrupted")
+            await self._interrupt_tts()  # VP-01: Ensure engine stop
+            raise
         except Exception as exc:
             logger.error("TTS error: %s", exc)
         finally:
             self._current_tts_task = None
-            self._set_state(VoiceState.IDLE)
+            if self._state == VoiceState.SPEAKING:
+                self._set_state(VoiceState.IDLE)
 
     async def _tts_speak(self, text: str):
-        """Actual TTS call, wrapped for async."""
-        if hasattr(self._tts, 'speak_async'):
-            await self._tts.speak_async(text)
-        elif hasattr(self._tts, 'speak'):
-            await asyncio.get_event_loop().run_in_executor(
-                None, self._tts.speak, text
-            )
-        elif hasattr(self._tts, 'stream_text'):
-            await self._tts.stream_text(text)
+        """Actual TTS call, wrapped for async and circuit-broken."""
+        
+        async def _do_speak():
+            if hasattr(self._tts, 'speak_async'):
+                await self._tts.speak_async(text)
+            elif hasattr(self._tts, 'speak'):
+                await asyncio.get_running_loop().run_in_executor(
+                    None, self._tts.speak, text
+                )
+            elif hasattr(self._tts, 'stream_text'):
+                await self._tts.stream_text(text)
+                
+        try:
+            await self._tts_breaker.execute(_do_speak)
+        except Exception as e:
+            logger.warning("TTS pipeline bypassed due to breaker: %s", e)
 
     async def _interrupt_tts(self):
         """Stop current TTS output."""
@@ -409,12 +450,12 @@ class StableVoicePipeline:
             try:
                 await self._current_tts_task
             except (asyncio.CancelledError, Exception):
-                pass
+                logger.debug('Ignored Exception in stable_voice_pipeline.py: %s', "unknown_error")
         if self._tts and hasattr(self._tts, 'stop'):
             try:
                 self._tts.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("TTS stop cleanup: %s", e)
 
     # ── Orchestrator Integration ──────────────────────────────────────────────
 
@@ -434,8 +475,10 @@ class StableVoicePipeline:
         task.cancel()
         try:
             await asyncio.wait_for(asyncio.shield(task), timeout=2.0)
-        except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
-            pass
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            logger.debug('Ignored Exception in stable_voice_pipeline.py: %s', "unknown_error")
+        except Exception as e:
+            logger.debug("Autonomous thought interruption: %s", e)
 
         # Clear the task reference
         self._orch._current_thought_task = None
@@ -451,9 +494,18 @@ class StableVoicePipeline:
     # ── State Management ──────────────────────────────────────────────────────
 
     def _set_state(self, new_state: VoiceState):
-        if new_state != self._state:
-            logger.debug("Voice state: %s → %s", self._state.value, new_state.value)
-            self._state = new_state
+        """VP-02: Stricter state machine transitions."""
+        if new_state == self._state:
+            return
+
+        # Defensive transitions: Don't allow LISTENING if we are SPEAKING (unless interrupt enabled)
+        if new_state == VoiceState.LISTENING and self._state == VoiceState.SPEAKING:
+             if not self._config.tts_interrupt_on_user_speech:
+                 logger.debug("State transition blocked: Cannot LST while SPK (interrupt disabled)")
+                 return
+
+        logger.debug("Voice state: %s → %s", self._state.value, new_state.value)
+        self._state = new_state
 
     def get_status(self) -> Dict[str, Any]:
         return {
@@ -502,7 +554,8 @@ class _WhisperWrapper:
 
     def __init__(self, model_size: str = "base", language: str = "en"):
         from faster_whisper import WhisperModel
-        self._model = WhisperModel(model_size, device="auto", compute_type="int8")
+        # Issue 49: Force CPU on Apple Silicon (FW doesn't support 'mps')
+        self._model = WhisperModel(model_size, device="cpu", compute_type="int8")
         self._language = language
         self.last_text = None
         logger.info("WhisperWrapper loaded (model=%s)", model_size)

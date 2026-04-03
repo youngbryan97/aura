@@ -30,9 +30,9 @@ from __future__ import annotations
 
 # ── Canonical Version ────────────────────────────────────────
 
-MAJOR: int = 14
-MINOR: int = 0
-PATCH: int = 0
+MAJOR: int = 2026
+MINOR: int = 3
+PATCH: int = 2
 
 #: Release label — set to "" for stable, "alpha"/"beta"/"rc.1" otherwise
 LABEL: str = "Zenith"
@@ -41,7 +41,7 @@ LABEL: str = "Zenith"
 VERSION: str = f"{MAJOR}.{MINOR}.{PATCH}" + (f"-{LABEL}" if LABEL else "")
 
 #: Codename shown in UI
-CODENAME: str = "Infinity"
+CODENAME: str = "Zenith"
 
 
 def version_string(style: str = "full") -> str:
@@ -59,7 +59,7 @@ def version_string(style: str = "full") -> str:
 
     """
     if style == "full":
-        return f"Aura {CODENAME} v{VERSION}"
+        return f"Aura Luna v{VERSION}"
     if style == "short":
         return f"v{VERSION}"
     if style == "semver":

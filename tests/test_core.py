@@ -1,3 +1,5 @@
+################################################################################
+
 """
 tests/test_core.py
 ──────────────────
@@ -7,7 +9,10 @@ Verify core infrastructure: MemoryEvent, Logging redaction.
 import logging
 import time
 from core.memory.base import MemoryEvent
-from core.logging_config import RedactionFilter
+import logging
+import time
+from core.memory.base import MemoryEvent
+from core.logging_config import _redact_processor
 
 def test_memory_event():
     # Defaults
@@ -23,14 +28,18 @@ def test_memory_event():
     assert e2.to_dict()['t'] == t
 
 def test_logging_redaction():
-    f = RedactionFilter()
+    # Mock structlog event
+    event = {
+        "event": "My secret sk-1234567890abcdef12345 is here",
+        "nested": "Bearer abcdef1234567890 token"
+    }
     
-    # Mock record
-    record = logging.LogRecord("test", logging.INFO, "path", 1, "My secret sk-1234567890abcdef12345 is here", (), None)
-    f.filter(record)
-    assert "sk-1234567890abcdef12345" not in record.msg
-    assert "[REDACTED_API_KEY]" in record.msg
+    processed = _redact_processor(None, None, event)
+    
+    assert "sk-1234567890abcdef12345" not in processed["event"]
+    assert "[REDACTED_API_KEY]" in processed["event"]
+    assert "Bearer [REDACTED_BEARER]" in processed["nested"]
+    assert "abcdef1234567890" not in processed["nested"]
 
-    record2 = logging.LogRecord("test", logging.INFO, "path", 1, "Bearer abcdef1234567890 token", (), None)
-    f.filter(record2)
-    assert "Bearer [REDACTED_BEARER]" in record2.msg
+
+##

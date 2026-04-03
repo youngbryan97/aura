@@ -1,0 +1,138 @@
+from pathlib import Path
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from core.brain.inference_gate import InferenceGate
+from core.brain.llm_health_router import build_router_from_config
+from core.container import ServiceContainer
+from core.config import PROJECT_ROOT, config
+from core.runtime.boot_safety import main_process_camera_policy, uvloop_allowed
+from core.runtime.desktop_boot_safety import compute_mlx_cache_limit, desktop_safe_boot_enabled
+from core.senses.continuous_vision import ContinuousSensoryBuffer
+from core.sensory_motor_cortex import SensoryMotorCortex
+from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+
+
+def test_config_exports_project_root_alias():
+    assert PROJECT_ROOT == config.paths.project_root
+
+
+def test_uvloop_disabled_by_default_on_darwin(monkeypatch):
+    monkeypatch.delenv("AURA_ENABLE_UVLOOP", raising=False)
+    assert uvloop_allowed(platform="darwin") is False
+
+
+def test_uvloop_can_be_forced_on_darwin(monkeypatch):
+    monkeypatch.setenv("AURA_ENABLE_UVLOOP", "1")
+    assert uvloop_allowed(platform="darwin") is True
+
+
+def test_main_process_camera_policy_blocks_darwin_without_override(monkeypatch):
+    monkeypatch.delenv("AURA_ALLOW_UNSAFE_MAIN_PROCESS_CAMERA", raising=False)
+    enabled, reason = main_process_camera_policy(True, platform="darwin")
+    assert enabled is False
+    assert "cv2/PyAV" in reason
+
+
+def test_continuous_vision_blocks_forced_camera_on_darwin(monkeypatch):
+    monkeypatch.setenv("AURA_FORCE_CAMERA", "1")
+    monkeypatch.delenv("AURA_ALLOW_UNSAFE_MAIN_PROCESS_CAMERA", raising=False)
+
+    with patch("core.runtime.boot_safety.sys.platform", "darwin"):
+        buffer = ContinuousSensoryBuffer(Path("/tmp/aura-test"))
+
+    assert buffer.camera_enabled is False
+
+
+def test_sensory_motor_cortex_blocks_forced_camera_on_darwin(monkeypatch):
+    monkeypatch.setenv("AURA_FORCE_CAMERA", "1")
+    monkeypatch.delenv("AURA_ALLOW_UNSAFE_MAIN_PROCESS_CAMERA", raising=False)
+
+    with patch("core.runtime.boot_safety.sys.platform", "darwin"):
+        cortex = SensoryMotorCortex()
+
+    assert cortex.camera_enabled is False
+
+
+def test_memory_monitor_uses_psutil_pressure_sample(monkeypatch):
+    monitor = AppleSiliconMemoryMonitor()
+    monkeypatch.setattr(
+        "core.utils.memory_monitor.psutil.virtual_memory",
+        lambda: SimpleNamespace(percent=57.8),
+    )
+
+    assert monitor._get_pressure_sysctl() == 57
+
+
+def test_health_router_prefers_existing_inference_gate(monkeypatch):
+    sentinel_gate = object()
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        ServiceContainer,
+        "get",
+        classmethod(lambda cls, name, default="_SENTINEL": sentinel_gate if name == "inference_gate" else default),
+    )
+
+    router = build_router_from_config(config)
+
+    from core.brain.llm.model_registry import PRIMARY_ENDPOINT
+    assert router.endpoints[PRIMARY_ENDPOINT].client is sentinel_gate
+
+
+def test_desktop_safe_boot_tracks_app_launch_context(monkeypatch):
+    monkeypatch.delenv("AURA_SAFE_BOOT_DESKTOP", raising=False)
+    monkeypatch.setenv("AURA_LAUNCHED_FROM_APP", "1")
+
+    assert desktop_safe_boot_enabled() is True
+
+
+def test_inference_gate_disables_boot_prewarm_under_safe_desktop_boot(monkeypatch):
+    monkeypatch.setenv("AURA_SAFE_BOOT_DESKTOP", "1")
+
+    assert InferenceGate._boot_should_eager_warmup() is False
+    assert InferenceGate._boot_should_schedule_deferred_prewarm() is False
+
+
+def test_compute_mlx_cache_limit_uses_safer_cap_for_desktop_safe_boot(monkeypatch):
+    monkeypatch.setenv("AURA_SAFE_BOOT_DESKTOP", "1")
+    monkeypatch.delenv("AURA_LAUNCHED_FROM_APP", raising=False)
+
+    total = 64 * 1024 ** 3
+    limit = compute_mlx_cache_limit(total)
+
+    assert limit == int(total * 0.56)
+    assert limit < 36 * 1024 ** 3
+
+
+def test_compute_mlx_cache_limit_defaults_to_standard_ratio_when_not_safe(monkeypatch):
+    monkeypatch.delenv("AURA_SAFE_BOOT_DESKTOP", raising=False)
+    monkeypatch.delenv("AURA_LAUNCHED_FROM_APP", raising=False)
+
+    limit = compute_mlx_cache_limit(64 * 1024 ** 3)
+
+    assert limit == int(64 * 1024 ** 3 * 0.75)
+
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+
+
+@pytest.mark.asyncio
+async def test_continuous_vision_defers_screen_backend_without_permission(monkeypatch):
+    class _FakeMSSModule:
+        def mss(self):
+            raise AssertionError("mss() should not be called without active permission")
+
+    guard = MagicMock()
+    guard.check_permission = AsyncMock(return_value={"granted": False, "status": "deferred"})
+
+    monkeypatch.setitem(sys.modules, "mss", _FakeMSSModule())
+
+    with patch("core.container.ServiceContainer.get", return_value=guard):
+        buffer = ContinuousSensoryBuffer(Path("/tmp/aura-test"))
+        ready = await buffer._ensure_screen_backend()
+
+    assert ready is False
+    assert buffer.sct is None
+    assert buffer.monitor is None

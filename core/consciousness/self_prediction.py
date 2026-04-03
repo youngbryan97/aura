@@ -1,4 +1,4 @@
-
+from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
 import time
@@ -55,7 +55,7 @@ class SelfPredictionLoop:
 
     def __init__(self, orchestrator):
         self.orch = orchestrator
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None  # CS-01: Lazy-initialized
 
         # State history for extrapolation
         self._valence_history: deque = deque(maxlen=self._HISTORY_SIZE)
@@ -92,6 +92,7 @@ class SelfPredictionLoop:
         2. Record actual state in history
         3. Generate next prediction
         """
+        if self._lock is None: self._lock = asyncio.Lock()
         async with self._lock:
             # Step 1: Evaluate previous prediction
             if self._current_prediction is not None:
@@ -116,6 +117,7 @@ class SelfPredictionLoop:
             self._focus_history.append(actual_focus_source)
 
             # Step 3: Predict next state
+            self._current_prediction = None  # Clear before generating new
             self._current_prediction = self._predict_next()
 
     def get_current_prediction(self) -> Optional[InternalStatePrediction]:
@@ -251,3 +253,85 @@ class SelfPredictionLoop:
             self._ERROR_SMOOTHING * error.focus_error
             + (1 - self._ERROR_SMOOTHING) * self._focus_error_ema
         )
+
+        # Direct policy adaptation: when prediction error is PERSISTENT (not
+        # just a single spike), immediately adjust behavioral parameters so
+        # the organism reacts to its own miscalibration.  This closes the
+        # "predict → error → behavior change" loop that active inference requires.
+        self._direct_policy_adaptation(error)
+
+        # If surprise crosses threshold, seed curiosity engine directly.
+        # The heartbeat also does this, but this path fires immediately on
+        # high-error ticks rather than waiting for the next heartbeat cycle.
+        CURIOSITY_THRESHOLD = 0.6
+        if self._smoothed_error > CURIOSITY_THRESHOLD:
+            try:
+                from core.container import ServiceContainer
+                curiosity = ServiceContainer.get("curiosity_engine", default=None)
+                if curiosity and hasattr(curiosity, "add_seed"):
+                    dim = self.get_most_unpredictable_dimension()
+                    curiosity.add_seed(
+                        topic=f"unexpected {dim}",
+                        weight=self._smoothed_error,
+                        source="self_prediction_surprise"
+                    )
+                
+                # ── EPISTEMIC WIRING ──
+                # High surprise IS an epistemic gap.
+                tracker = ServiceContainer.get("epistemic_tracker", default=None)
+                if tracker:
+                    tracker.signal_uncertainty(
+                        topic=f"self_state_{self.get_most_unpredictable_dimension()}",
+                        context=f"High prediction error (surprise: {self._smoothed_error:.2f})"
+                    )
+            except Exception as e:
+                capture_and_log(e, {'module': __name__})
+
+    def _direct_policy_adaptation(self, error: PredictionError) -> None:
+        """Directly adjust behavioral parameters based on persistent prediction error.
+
+        This is the active-inference closure: prediction errors don't just get
+        logged — they immediately change how the organism behaves.  Only fires
+        when EMAs indicate persistent miscalibration, not single-tick spikes.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            # 1. Persistent valence miscalibration → shift affect baseline
+            #    If we consistently mis-predict valence, our homeostatic target is wrong.
+            if self._valence_error_ema > 0.35:
+                affect_engine = ServiceContainer.get("affect_engine", default=None)
+                if affect_engine and hasattr(affect_engine, "state"):
+                    # Nudge baseline toward recent actuals (gentle correction)
+                    if self._valence_history:
+                        recent_avg = sum(list(self._valence_history)[-5:]) / min(5, len(self._valence_history))
+                        current = affect_engine.state.valence
+                        correction = (recent_avg - current) * 0.05  # 5% per tick
+                        affect_engine.state.valence = max(-1.0, min(1.0, current + correction))
+
+            # 2. Persistent drive miscalibration → flag for deeper reflection
+            #    The motivation system should re-evaluate drive priorities.
+            if self._drive_error_ema > 0.5:
+                orch = self.orch
+                if orch and hasattr(orch, "homeostasis") and orch.homeostasis:
+                    # Trigger a motivation rebalance on the next tick
+                    if hasattr(orch.homeostasis, "request_rebalance"):
+                        orch.homeostasis.request_rebalance(
+                            reason=f"SelfPrediction: drive predictions wrong {self._drive_error_ema:.0%} of the time"
+                        )
+
+            # 3. High composite error → increase interruptibility
+            #    The system is unpredictable to itself — be more cautious.
+            if self._smoothed_error > 0.5:
+                # Shrink autonomy: don't take big actions when self-model is unreliable
+                orch = self.orch
+                if orch and hasattr(orch, "_state") and orch._state:
+                    mods = getattr(orch._state, "response_modifiers", {})
+                    if isinstance(mods, dict):
+                        # Scale down autonomy when self-model is unreliable
+                        current_scale = mods.get("phi_autonomy_scale", 1.0)
+                        dampened = current_scale * (1.0 - 0.15 * self._smoothed_error)
+                        mods["phi_autonomy_scale"] = round(max(0.5, dampened), 3)
+
+        except Exception as e:
+            logger.debug("SelfPrediction: policy adaptation failed (non-critical): %s", e)

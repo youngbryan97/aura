@@ -15,6 +15,7 @@ class ASTAnalyzer:
     def __init__(self, project_root: Optional[Path] = None):
         from core.config import config
         self.root = project_root or config.paths.project_root
+        self._parent_map: Dict[ast.AST, ast.AST] = {}
 
     async def analyze_file(self, file_path: Path) -> Dict[str, Any]:
         """Performs a comprehensive structural audit of a file (Async)."""
@@ -24,6 +25,7 @@ class ASTAnalyzer:
         try:
             source = await asyncio.to_thread(file_path.read_text, encoding='utf-8')
             tree = ast.parse(source)
+            self._build_parent_map(tree) # SM-02: Build map once per file
         except Exception as e:
             logger.error("Failed to parse %s: %s", file_path, e)
             return {"error": str(e)}
@@ -54,7 +56,7 @@ class ASTAnalyzer:
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
                 # Skip methods (already in classes)
-                is_method = any(isinstance(p, ast.ClassDef) for p in self._get_parents(tree, node))
+                is_method = any(isinstance(p, ast.ClassDef) for p in self._get_parents(node))
                 if not is_method:
                     functions.append({
                         "name": node.name,
@@ -127,34 +129,9 @@ class ASTAnalyzer:
                         if "asyncio.sleep" in func_name:
                             has_await_or_sleep = True
 
-                # 3. Deadlock Sensor (Nested Locks)
-                # Check for nested 'with self._lock' blocks
+                # 3. Deadlock Sensor (Nested Locks) - SM-01 FIX: Scoped Traversal
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    lock_stack = []
-                    for sub in ast.walk(node):
-                        if isinstance(sub, ast.With):
-                            for item in sub.items:
-                                lock_name = ast.unparse(item.context_expr) if hasattr(ast, 'unparse') else ""
-                                if "lock" in lock_name.lower():
-                                    if lock_name in lock_stack:
-                                        smells.append({
-                                            "type": "deadlock_risk",
-                                            "severity": "critical",
-                                            "message": f"Recursive/Nested lock acquisition detected for '{lock_name}' in '{node.name}'.",
-                                            "lineno": sub.lineno
-                                        })
-                                    lock_stack.append(lock_name)
-                                    # We don't easily know when it ends in a walk, but nested 'with' in body is the trigger
-                                    for child in ast.walk(sub):
-                                        if child != sub and isinstance(child, ast.With):
-                                             child_lock = ast.unparse(child.items[0].context_expr) if hasattr(ast, 'unparse') else ""
-                                             if child_lock == lock_name:
-                                                  smells.append({
-                                                        "type": "deadlock_risk",
-                                                        "severity": "critical",
-                                                        "message": f"Nested acquisition of SAME lock '{lock_name}' in '{node.name}'.",
-                                                        "lineno": child.lineno
-                                                  })
+                    smells.extend(self._check_nested_locks(node))
 
         # 4. Resource Leak Sensor
         for node in ast.walk(tree):
@@ -162,8 +139,8 @@ class ASTAnalyzer:
                 if isinstance(node.func, ast.Name) and node.func.id == "open":
                     # Check if it's inside a 'with' statement
                     is_in_with = False
-                    parent = self._get_parents(tree, node)
-                    if any(isinstance(p, ast.With) for p in parent):
+                    parents = self._get_parents(node)
+                    if any(isinstance(p, ast.With) for p in parents):
                         is_in_with = True
                     
                     if not is_in_with:
@@ -188,15 +165,54 @@ class ASTAnalyzer:
                 complexity[node.name] = score
         return complexity
 
-    def _get_parents(self, tree: ast.AST, target_node: ast.AST) -> List[ast.AST]:
-        """Helper to find parent nodes for context."""
-        parents = []
+    def _build_parent_map(self, tree: ast.AST):
+        """SM-02: Pre-calculate parent relationships for O(1) lookup."""
+        self._parent_map = {}
         for node in ast.walk(tree):
             for child in ast.iter_child_nodes(node):
-                if child == target_node:
-                    parents.append(node)
-                    parents.extend(self._get_parents(tree, node))
+                self._parent_map[child] = node
+
+    def _get_parents(self, target_node: ast.AST) -> List[ast.AST]:
+        """SM-02: Optimized parent lookup using the pre-built map."""
+        parents = []
+        curr = target_node
+        while curr in self._parent_map:
+            curr = self._parent_map[curr]
+            parents.append(curr)
         return parents
+
+    def _check_nested_locks(self, func_node: ast.AST) -> List[Dict]:
+        """SM-01: Correct nested lock detection using scoped recursive visitor."""
+        findings = []
+        
+        def _visit_with_scope(nodes, active_locks: set):
+            for node in nodes:
+                if isinstance(node, ast.With):
+                    acquired = set()
+                    for item in node.items:
+                        lock_name = ast.unparse(item.context_expr) if hasattr(ast, 'unparse') else ""
+                        if "lock" in lock_name.lower():
+                            if lock_name in active_locks:
+                                findings.append({
+                                    "type": "deadlock_risk",
+                                    "severity": "critical",
+                                    "message": f"Nested acquisition of SAME lock '{lock_name}' in '{func_node.name}'",
+                                    "lineno": node.lineno
+                                })
+                            acquired.add(lock_name)
+                    # Recurse into the WITH body with the newly acquired locks in scope
+                    _visit_with_scope(node.body, active_locks | acquired)
+                
+                # Broaden to other nodes that have body blocks (If, For, While, Try)
+                elif hasattr(node, 'body') and isinstance(node.body, list):
+                    _visit_with_scope(node.body, active_locks)
+                    if hasattr(node, 'orelse') and isinstance(node.orelse, list):
+                        _visit_with_scope(node.orelse, active_locks)
+                    if hasattr(node, 'finalbody') and isinstance(node.finalbody, list):
+                        _visit_with_scope(node.finalbody, active_locks)
+        
+        _visit_with_scope(func_node.body, set())
+        return findings
 
     async def map_repository(self) -> Dict[str, Any]:
         """Scans the entire core codebase to build an architectural map (Async)."""
@@ -205,7 +221,8 @@ class ASTAnalyzer:
         if not core_dir.exists():
             return {"error": "Core directory not found"}
 
-        for py_file in core_dir.rglob("*.py"):
+        py_files = await asyncio.to_thread(list, core_dir.rglob("*.py"))
+        for py_file in py_files:
             rel_path = py_file.relative_to(self.root)
             repo_map[str(rel_path)] = await self.analyze_file(py_file)
             

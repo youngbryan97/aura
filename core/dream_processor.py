@@ -1,9 +1,7 @@
-# core/dream_processor.py
 import logging
 import time
-from typing import List, Optional
-
-from infrastructure import Cognitive
+from typing import List, Optional, Dict, Any
+from core.container import ServiceContainer
 
 logger = logging.getLogger("Kernel.Dream")
 
@@ -12,12 +10,12 @@ class DreamProcessor:
     Turning short-term logs into long-term wisdom.
     """
 
-    def __init__(self, memory_nexus, brain: Cognitive):
+    def __init__(self, memory_nexus, brain):
         self.memory = memory_nexus
         self.brain = brain
         self.fragment_threshold = 10 # Process after 10 new events
 
-    def dream(self):
+    async def dream(self):
         """The Dreaming Cycle.
         1. Fetch recent raw episodes.
         2. Summarize them into a narrative.
@@ -52,7 +50,7 @@ class DreamProcessor:
             "Format: Bullet points."
         )
         try:
-            reflection = self.brain.think(summary_prompt)
+            reflection = await self.brain.think(summary_prompt)
             logger.info("Dream Insight: %s", reflection)
             
             # 3. Consolidate to Vector Memory
@@ -61,8 +59,40 @@ class DreamProcessor:
                 metadata={"source": "dream_cycle", "timestamp": time.time()}
             )
             
-            # 4. Pruning (Optional - usually we keep raw logs but archive them)
-            # For this MVP, we just log that we processed them.
+            # 4. Phase 10: Graph Contraction (Long-term Wisdom)
+            await self._contract_graph(reflection)
+            
+            logger.info("✓ Dream cycle complete: Consolidated wisdom into Knowledge Graph.")
             
         except Exception as e:
             logger.error("Nightmare error: %s", e)
+
+    async def _contract_graph(self, reflection: str):
+        """Distill the fuzzy reflection into structured Graph nodes/edges."""
+        kg = ServiceContainer.get("knowledge_graph", default=None)
+        if not kg:
+            logger.warning("Graph Contraction: Knowledge Graph not found in container.")
+            return
+
+        logger.debug("Graph Contraction: Starting distillation of reflection...")
+
+        contract_prompt = (
+            "From this reflection, extract the core entities and their relationships.\n"
+            f"Reflection: {reflection}\n"
+            "Format: entity1 | relation | entity2\n"
+            "One per line."
+        )
+        
+        try:
+            struct_data = await self.brain.think(contract_prompt)
+            logger.debug("Graph Contraction raw output: %s", struct_data)
+            for line in struct_data.split("\n"):
+                if "|" in line:
+                    logger.debug("Parsing line: %s", line)
+                    parts = [p.strip() for p in line.split("|")]
+                    if len(parts) == 3:
+                        e1, rel, e2 = parts
+                        logger.info("🕸️ Upserting relationship: %s -[%s]-> %s", e1, rel, e2)
+                        kg.upsert_relationship(e1, rel, e2, weight=1.5)
+        except Exception as e:
+            logger.debug("Graph contraction failed: %s", e)

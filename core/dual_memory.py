@@ -1,4 +1,3 @@
-
 """core/dual_memory.py — Aura Dual Memory Architecture
 =====================================================
 Separates episodic memory (what happened to me) from semantic memory
@@ -31,93 +30,24 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from core.utils.exceptions import capture_and_log
+from core.utils.concurrency import RobustLock
+
+from core.memory.horcrux import HorcruxManager
+from core.memory.black_hole import encode_payload, decode_payload
+from core.memory.rag import chunk_text, tokenize, compute_term_freq, retrieve_memories_v2 as retrieve_memories
+from core.memory.physics import PhysicsEngine
 
 logger = logging.getLogger("Core.DualMemory")
 
 
-# ---------------------------------------------------------------------------
-# Episodic Memory
-# ---------------------------------------------------------------------------
-
-@dataclass
-class Episode:
-    """A single episodic memory — a specific event that happened.
-    
-    Key distinction from semantic facts: episodes are PERSONAL, TIME-BOUND,
-    and carry emotional context. "I talked about space elevators on Tuesday
-    and the user seemed excited" is an episode. "Space elevators are theoretically
-    possible" is a semantic fact.
-    """
-
-    id: str
-    timestamp: float
-    description: str            # What happened
-    participants: List[str]     # Who was involved (user, Aura, etc.)
-    emotional_valence: float    # -1.0 (negative) to 1.0 (positive)
-    arousal: float              # 0.0 (calm) to 1.0 (intense)
-    importance: float           # 0.0-1.0 subjective importance
-    linked_semantic_ids: List[str] = field(default_factory=list)  # Connected facts
-    context_snapshot: str = ""  # Brief state snapshot at time of episode
-    tags: List[str] = field(default_factory=list)
-    decay_rate: float = 0.01    # How fast this memory fades (important = slower)
-    
-    @classmethod
-    def create(cls, description: str, emotional_valence: float = 0.0,
-               arousal: float = 0.5, importance: float = 0.5,
-               participants: List[str] = None, tags: List[str] = None) -> "Episode":
-        timestamp = time.time()
-        ep_id = hashlib.sha256(f"{timestamp}{description[:30]}".encode()).hexdigest()[:16]
-        # More important memories decay more slowly
-        decay = max(0.001, 0.02 - (importance * 0.018))
-        return cls(
-            id=ep_id,
-            timestamp=timestamp,
-            description=description,
-            participants=participants or ["user", "aura"],
-            emotional_valence=emotional_valence,
-            arousal=arousal,
-            importance=importance,
-            tags=tags or [],
-            decay_rate=decay
-        )
-    
-    def current_strength(self) -> float:
-        """Memory strength at current time, accounting for decay.
-        Uses Ebbinghaus forgetting curve: R = e^(-t/S)
-        where t = time elapsed, S = stability (inverse of decay_rate)
-        """
-        elapsed_hours = (time.time() - self.timestamp) / 3600
-        stability = (1.0 / self.decay_rate) * (1 + self.importance)
-        raw_strength = math.exp(-elapsed_hours / stability)
-        
-        # Emotional salience boosts retention
-        emotional_boost = abs(self.emotional_valence) * 0.2
-        return min(1.0, raw_strength + emotional_boost)
-    
-    def to_retrieval_text(self) -> str:
-        """Format for injection into prompt context."""
-        age_hours = (time.time() - self.timestamp) / 3600
-        if age_hours < 1:
-            time_desc = f"{int(age_hours * 60)} minutes ago"
-        elif age_hours < 24:
-            time_desc = f"{int(age_hours)} hours ago"
-        else:
-            time_desc = f"{int(age_hours / 24)} days ago"
-        
-        valence_desc = "positively" if self.emotional_valence > 0.2 else \
-                      "negatively" if self.emotional_valence < -0.2 else "neutrally"
-        
-        return (
-            f"[Episodic Memory — {time_desc}] "
-            f"{self.description} "
-            f"(experienced {valence_desc}, importance: {self.importance:.0%})"
-        )
-
+from core.memory.episodic_memory import Episode
 
 class EpisodicMemoryStore:
     """SQLite-backed episodic memory with decay and emotional indexing."""
     
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, vault_key: str = "aura-fallback-key"):
+        self.vault_key = vault_key
         if not db_path:
             from core.config import config
             db_path = str(config.paths.data_dir / "memory" / "episodic.db")
@@ -147,15 +77,18 @@ class EpisodicMemoryStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_valence ON episodes(emotional_valence)")
     
     def store(self, episode: Episode):
+        enc_desc = encode_payload(episode.description, self.vault_key)["encoded"]
+        enc_ctx = encode_payload(episode.context_snapshot, self.vault_key)["encoded"] if episode.context_snapshot else ""
+        
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO episodes VALUES (?,?,?,?,?,?,?,?,?,?,?)
             """, (
-                episode.id, episode.timestamp, episode.description,
+                episode.id, episode.timestamp, enc_desc,
                 json.dumps(episode.participants), episode.emotional_valence,
                 episode.arousal, episode.importance,
                 json.dumps(episode.linked_semantic_ids),
-                episode.context_snapshot, json.dumps(episode.tags),
+                enc_ctx, json.dumps(episode.tags),
                 episode.decay_rate
             ))
     
@@ -184,27 +117,12 @@ class EpisodicMemoryStore:
         
         return [self._row_to_episode(row) for row in rows]
     
-    def retrieve_by_keyword(self, keywords: List[str], limit: int = 5) -> List[Episode]:
-        """Find episodes containing specific keywords."""
-        results = []
+    def get_all_episodes(self) -> List[Episode]:
+        """Fetch all episodes for RAG operations."""
         with sqlite3.connect(self.db_path) as conn:
-            for keyword in keywords[:3]:  # Limit to 3 keywords for performance
-                rows = conn.execute("""
-                    SELECT * FROM episodes WHERE description LIKE ? 
-                    ORDER BY importance DESC, timestamp DESC LIMIT ?
-                """, (f"%{keyword}%", limit)).fetchall()
-                results.extend(rows)
-        
-        # Deduplicate and sort by importance × recency
-        seen = set()
-        episodes = []
-        for row in results:
-            if row[0] not in seen:
-                seen.add(row[0])
-                episodes.append(self._row_to_episode(row))
-        
-        episodes.sort(key=lambda e: e.importance * e.current_strength(), reverse=True)
-        return episodes[:limit]
+            rows = conn.execute("SELECT * FROM episodes").fetchall()
+        return [self._row_to_episode(row) for row in rows]
+
     
     def get_salient_memories(self, top_n: int = 5) -> List[Episode]:
         """Get the most emotionally significant memories regardless of age."""
@@ -218,12 +136,33 @@ class EpisodicMemoryStore:
         return [self._row_to_episode(row) for row in rows]
     
     def _row_to_episode(self, row) -> Episode:
+        desc = row[2]
+        try:
+             # Basic heuristic to avoid decoding plaintext legacy entries
+             if isinstance(desc, str) and ("[LZ77]" in desc or desc.startswith("b'")):
+                  res = decode_payload(desc, self.vault_key)
+                  if res and "decoded" in res:
+                        desc = res["decoded"]
+        except Exception as e:
+             capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_desc"})
+             pass 
+             
+        ctx = row[8] or ""
+        try:
+             if ctx and isinstance(ctx, str) and ("[LZ77]" in ctx or ctx.startswith("b'")):
+                  res = decode_payload(ctx, self.vault_key)
+                  if res and "decoded" in res:
+                        ctx = res["decoded"]
+        except Exception as e:
+             capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_ctx"})
+             pass
+
         return Episode(
-            id=row[0], timestamp=row[1], description=row[2],
+            id=row[0], timestamp=row[1], description=desc,
             participants=json.loads(row[3] or "[]"),
             emotional_valence=row[4], arousal=row[5], importance=row[6],
             linked_semantic_ids=json.loads(row[7] or "[]"),
-            context_snapshot=row[8] or "",
+            context_snapshot=ctx,
             tags=json.loads(row[9] or "[]"),
             decay_rate=row[10] or 0.01
         )
@@ -245,10 +184,10 @@ class SemanticFact:
     predicate: str              # What is being claimed about it
     value: str                  # The claim value
     confidence: float
-    source_episode_ids: List[str] = field(default_factory=list)  # Derived from these episodes
+    domain: str = "general"     # "science", "personal", "preference", etc.
+    source_episode_ids: List[str] = field(default_factory=list)
     last_validated: float = field(default_factory=time.time)
     validation_count: int = 1
-    domain: str = "general"     # "science", "personal", "preference", etc.
     
     @property
     def full_claim(self) -> str:
@@ -265,7 +204,7 @@ class SemanticFact:
         """Re-confirm this fact, boosting confidence slightly."""
         self.last_validated = time.time()
         self.validation_count += 1
-        if new_confidence:
+        if new_confidence is not None:
             # Weighted average with existing confidence
             self.confidence = (self.confidence * 0.7) + (new_confidence * 0.3)
         else:
@@ -279,7 +218,8 @@ class SemanticFact:
 class SemanticMemoryStore:
     """SQLite-backed semantic fact store with concept indexing."""
     
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, vault_key: str = "aura-fallback-key"):
+        self.vault_key = vault_key
         if not db_path:
             from core.config import config
             db_path = str(config.paths.data_dir / "memory" / "semantic.db")
@@ -306,11 +246,12 @@ class SemanticMemoryStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_domain ON facts(domain)")
     
     def store(self, fact: SemanticFact):
+        enc_val = encode_payload(fact.value, self.vault_key)["encoded"]
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO facts VALUES (?,?,?,?,?,?,?,?,?)
             """, (
-                fact.id, fact.concept, fact.predicate, fact.value,
+                fact.id, fact.concept, fact.predicate, enc_val,
                 fact.confidence, json.dumps(fact.source_episode_ids),
                 fact.last_validated, fact.validation_count, fact.domain
             ))
@@ -327,36 +268,54 @@ class SemanticMemoryStore:
         
         return [self._row_to_fact(row) for row in rows]
     
-    def retrieve_by_keywords(self, keywords: List[str],
-                              limit: int = 10) -> List[SemanticFact]:
-        """Full-text search across concept + predicate + value."""
-        results = []
-        seen = set()
-        
+    def get_all_facts(self) -> List[SemanticFact]:
+        """Fetch all facts for RAG operations."""
         with sqlite3.connect(self.db_path) as conn:
-            for kw in keywords[:5]:
-                rows = conn.execute("""
-                    SELECT * FROM facts 
-                    WHERE concept LIKE ? OR predicate LIKE ? OR value LIKE ?
-                    ORDER BY confidence DESC LIMIT ?
-                """, (f"%{kw}%", f"%{kw}%", f"%{kw}%", limit)).fetchall()
-                
-                for row in rows:
-                    if row[0] not in seen:
-                        seen.add(row[0])
-                        results.append(self._row_to_fact(row))
-        
-        results.sort(key=lambda f: f.confidence, reverse=True)
-        return results[:limit]
+            rows = conn.execute("SELECT * FROM facts").fetchall()
+        return [self._row_to_fact(row) for row in rows]
+
     
     def _row_to_fact(self, row) -> SemanticFact:
+        val = row[3]
+        try:
+             if isinstance(val, str) and ("[LZ77]" in val or val.startswith("b'")):
+                  res = decode_payload(val, self.vault_key)
+                  if res and "decoded" in res:
+                        val = res["decoded"]
+        except Exception as e:
+             capture_and_log(e, {"context": "SemanticMemoryStore.row_to_fact.decode"})
+             pass
         return SemanticFact(
-            id=row[0], concept=row[1], predicate=row[2], value=row[3],
+            id=row[0], concept=row[1], predicate=row[2], value=val,
             confidence=row[4],
             source_episode_ids=json.loads(row[5] or "[]"),
             last_validated=row[6], validation_count=row[7],
             domain=row[8] or "general"
         )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def retrieve_memories_sync(query: str, memories: List[Dict[str, Any]], top_k: int = 5) -> List[Dict[str, Any]]:
+    """Synchronous TF-IDF retrieval helper for dual memory initialization/sync points."""
+    if not memories:
+        return []
+    
+    query_vec = compute_term_freq(tokenize(query))
+    
+    scored = []
+    for m in memories:
+        # Simple dot product on TF vectors
+        score = 0.0
+        for word, count in query_vec.items():
+            if word in m["vec"]:
+                score += count * m["vec"][word]
+        scored.append((score, m))
+    
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [m for score, m in scored[:top_k]]
 
 
 # ---------------------------------------------------------------------------
@@ -393,20 +352,25 @@ class DualMemorySystem:
         if not base_dir:
             from core.config import config
             base_dir = str(config.paths.data_dir / "memory")
-        self.episodic = EpisodicMemoryStore(f"{base_dir}/episodic.db")
-        self.semantic = SemanticMemoryStore(f"{base_dir}/semantic.db")
-        self._lock: Optional[asyncio.Lock] = None
-        logger.info("DualMemorySystem constructed. Call await initialize() before use.")
+            
+        self.horcrux = HorcruxManager()
+        self.horcrux.initialize()
+        self.vault_key = self.horcrux.get_key_string() if self.horcrux.master_key else "aura-fallback-key"
+        
+        self.episodic = EpisodicMemoryStore(f"{base_dir}/episodic.db", self.vault_key)
+        self.semantic = SemanticMemoryStore(f"{base_dir}/semantic.db", self.vault_key)
+        self._lock: Optional[RobustLock] = None
+        logger.info("DualMemorySystem constructed with Black Hole Vault.")
     
     async def initialize(self):
         """Initialize async components (Locks, etc.)"""
         if self._lock is None:
-            self._lock = asyncio.Lock()
+            self._lock = RobustLock("Memory.DualMemory")
         logger.info("✓ DualMemorySystem async components initialized")
     
     def store_experience(self, description: str, emotional_valence: float = 0.0,
                           arousal: float = 0.5, importance: float = 0.5,
-                          tags: List[str] = None) -> str:
+                          tags: Optional[List[str]] = None) -> str:
         """Store a new episodic memory. Returns episode ID.
         High-importance or high-arousal episodes are stored with slower decay.
         """
@@ -435,48 +399,88 @@ class DualMemorySystem:
                                 emotional_context: float = 0.0,
                                 max_episodes: int = 5,
                                 max_facts: int = 8) -> str:
-        """Retrieve a blended context string for prompt injection.
+        """Retrieve a blended context string for prompt injection via RAG TF-IDF.
         
         Balances episodic (personal, time-bound) and semantic (factual, timeless)
-        with appropriate framing for each type.
+        with appropriate framing for each type. Validates against Bekenstein Bound.
         """
         if self._lock is None:
-             self._lock = asyncio.Lock()
+             self._lock = RobustLock("Memory.DualMemory")
              
-        async with self._lock:
-            keywords = [w for w in query.lower().split() if len(w) > 3][:6]
+        if not await self._lock.acquire_robust(timeout=5.0):
+            logger.warning("⚠️ Memory retrieval lock timeout. Returning partial context.")
+            return "Memory system busy."
+
+        try:
+            # RAG TF-IDF Engine Vectorization
+            # ISSUE 9 fix: Avoid O(N) scan by using retrieve_recent
+            active_episodes = self.episodic.retrieve_recent(limit=max_episodes * 2, min_strength=0.1)
+            ep_memories = [
+                {"id": e.id, "obj": e, "vec": compute_term_freq(tokenize(e.description))}
+                for e in active_episodes
+            ]
+
+            # For facts, we still need all searchable facts but limit to recent or salient if possible.
+            # For now, following the optimization to reduce scan size if possible,
+            # but specifically for episodes where N grows fast.
+            fact_memories = []
+            for f in self.semantic.get_all_facts():
+                text = f.full_claim
+                fact_memories.append({
+                    "id": f.id, "obj": f, 
+                    "vec": compute_term_freq(tokenize(text))
+                })
+                
+            top_ep_dicts = retrieve_memories_sync(query, ep_memories, top_k=max_episodes)
+            top_fact_dicts = retrieve_memories_sync(query, fact_memories, top_k=max_facts)
             
-            # Retrieve from both systems
-            episodes = self.episodic.retrieve_by_keyword(keywords, max_episodes)
+            # top_ep_dicts contains list of dicts with 'obj'
+            episodes = [d["obj"] for d in top_ep_dicts]
+            facts = [d["obj"] for d in top_fact_dicts]
             
             # Add emotionally-resonant episodes if emotional context is strong
             if abs(emotional_context) > 0.4:
                 emotional_episodes = self.episodic.retrieve_by_emotion(
                     emotional_context, limit=2
                 )
-                episodes = list({e.id: e for e in episodes + emotional_episodes}.values())
+                ep_ids = {e.id for e in episodes}
+                for ee in emotional_episodes:
+                    if ee.id not in ep_ids:
+                        episodes.append(ee)
+                        ep_ids.add(ee.id)
             
-            facts = self.semantic.retrieve_by_keywords(keywords, max_facts)
-            
-            # Build context block
+            # Build context block applying Bekenstein Bound (Max ~16000 context characters safely)
+            MAX_CONTEXT_RADIUS = 16000
             parts = []
+            current_len = 0
             
             if episodes:
                 parts.append("— Personal Memory (Episodic) —")
-                # Sort by strength × importance
+                current_len += len(parts[-1])
                 episodes.sort(
                     key=lambda e: e.current_strength() * e.importance, reverse=True
                 )
                 for ep in episodes[:max_episodes]:
                     if ep.current_strength() > 0.1:
-                        parts.append(ep.to_retrieval_text())
+                        txt = ep.to_retrieval_text()
+                        if PhysicsEngine.check_bekenstein_bound(current_len + len(txt), MAX_CONTEXT_RADIUS):
+                             parts.append(txt)
+                             current_len += len(txt)
             
             if facts:
-                parts.append("— Known Facts (Semantic) —")
+                sep = "— Known Facts (Semantic) —"
+                parts.append(sep)
+                current_len += len(sep)
                 for fact in facts[:max_facts]:
-                    parts.append(fact.to_retrieval_text())
+                    txt = fact.to_retrieval_text()
+                    if PhysicsEngine.check_bekenstein_bound(current_len + len(txt), MAX_CONTEXT_RADIUS):
+                         parts.append(txt)
+                         current_len += len(txt)
             
             return "\n".join(parts) if parts else ""
+        finally:
+            if self._lock.locked():
+                self._lock.release()
     
     def get_salient_history(self) -> str:
         """Get the most emotionally significant episodes.

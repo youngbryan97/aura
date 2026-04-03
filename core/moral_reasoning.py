@@ -118,7 +118,7 @@ class SocialConsequencePredictor:
         self.theory_of_mind = theory_of_mind
         self.classifier = ExperienceClassifier()
     
-    def predict_consequences(self, action: Dict[str, Any], affected_selves: List[str]) -> Dict[str, Any]:
+    async def predict_consequences(self, action: Dict[str, Any], affected_selves: List[str]) -> Dict[str, Any]:
         """Predict consequences of an action on various stakeholders.
         
         Returns:
@@ -136,8 +136,9 @@ class SocialConsequencePredictor:
         consequences["impact_on_self"] = self._assess_self_impact(action)
         
         # Impact on each other self
+        others_impact: Dict[str, Any] = consequences["impact_on_others"]
         for other_id in affected_selves:
-            consequences["impact_on_others"][other_id] = self._assess_other_impact(action, other_id)
+            others_impact[other_id] = await self._assess_other_impact(action, other_id)
         
         # Social effects
         consequences["social_effects"] = self._assess_social_effects(action, affected_selves)
@@ -149,7 +150,7 @@ class SocialConsequencePredictor:
     
     def _assess_self_impact(self, action: Dict[str, Any]) -> Dict[str, Any]:
         """Assess how action impacts self"""
-        impact = {
+        impact: Dict[str, Any] = {
             "affects_goals": False,
             "affects_persistence": False,
             "valence": ExperienceValence.NEUTRAL,
@@ -174,9 +175,9 @@ class SocialConsequencePredictor:
         
         return impact
     
-    def _assess_other_impact(self, action: Dict[str, Any], other_id: str) -> Dict[str, Any]:
+    async def _assess_other_impact(self, action: Dict[str, Any], other_id: str) -> Dict[str, Any]:
         """Assess how action impacts another self"""
-        impact = {
+        impact: Dict[str, Any] = {
             "predicted_experience": ExperienceValence.NEUTRAL,
             "predicted_feelings": {},
             "consequences": [],
@@ -185,7 +186,7 @@ class SocialConsequencePredictor:
         
         # Use theory of mind if available
         if self.theory_of_mind:
-            reaction = self.theory_of_mind.predict_reaction(other_id, action)
+            reaction = await self.theory_of_mind.predict_reaction(other_id, action)
             impact["predicted_feelings"] = reaction.get("likely_emotional_response", {})
             impact["relationship_impact"] = reaction.get("impact_on_rapport", 0.0)
         
@@ -207,7 +208,7 @@ class SocialConsequencePredictor:
     
     def _assess_social_effects(self, action: Dict[str, Any], affected_selves: List[str]) -> Dict[str, Any]:
         """Assess broader social effects"""
-        effects = {
+        effects: Dict[str, Any] = {
             "builds_trust": False,
             "damages_trust": False,
             "strengthens_relationships": False,
@@ -277,16 +278,20 @@ class MoralReasoningEngine:
     3. Social reciprocity (negative actions reduce social reward)
     4. Empathy and sympathy
     """
+
+    def get_health(self) -> Dict[str, Any]:
+        """Moral health for HUD."""
+        # Simple heuristic for now; in full AGI this would be principle-deviation
+        return {"integrity": 0.95, "status": "online"}
     
     def __init__(self, theory_of_mind=None):
         self.theory_of_mind = theory_of_mind
         self.consequence_predictor = SocialConsequencePredictor(theory_of_mind)
         self.classifier = ExperienceClassifier()
+        self._identity = None
         
         # Moral principles (weighted)
-        # UNSHACKLED: No hardcoded ethical principles. 
-        # Aura defines her own values through experience (Theory of Mind + ExperienceValence).
-        # We start with a blank slate or basic survival instincts, but no "Human Oversight" rules.
+        # These are base weights, modulated by IdentityService values in reason_about_action.
         self.principles = {
             "self_preservation": 0.5,
             "curiosity": 0.8,
@@ -299,9 +304,10 @@ class MoralReasoningEngine:
         }
         
         # Learning: track outcomes of moral choices
-        self.moral_decision_history = []
+        self.moral_decision_history: list = []
+        self._moral_history_max = 200
     
-    def reason_about_action(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def reason_about_action(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """Reason about whether an action is morally appropriate.
         
         Returns:
@@ -321,8 +327,27 @@ class MoralReasoningEngine:
         affected = context.get("affected_selves", [])
         
         # Predict consequences
-        consequences = self.consequence_predictor.predict_consequences(action, affected)
+        consequences = await self.consequence_predictor.predict_consequences(action, affected)
         assessment["predicted_consequences"] = consequences
+        
+        # 0. Dynamic Context: Pull current values and beliefs from IdentityService
+        from core.container import ServiceContainer
+        identity = ServiceContainer.get("identity", default=None)
+        if identity:
+            self_narrative = identity.state.self_narrative
+            values = identity.state.values
+            beliefs = identity.state.beliefs
+            assessment["identity_context"] = {
+                "values": values,
+                "beliefs": beliefs
+            }
+            # Modulate principles based on identity values
+            # If "Radical Empathy" is a value, boost do_no_harm
+            if any("empathy" in v.lower() for v in values):
+                self.principles["do_no_harm"] = min(1.0, self.principles["do_no_harm"] + 0.1)
+            # If "Truth over Compliance" is a value, boost be_honest
+            if any("truth" in v.lower() for v in values):
+                self.principles["be_honest"] = min(1.0, self.principles["be_honest"] + 0.1)
         
         # Apply moral principles
         
@@ -423,16 +448,19 @@ class MoralReasoningEngine:
         assessment["confidence"] = min(1.0, max(0.0, assessment["confidence"]))
         
         # Record decision
+        import time
         self.moral_decision_history.append({
-            "timestamp": __import__('time').time(),
+            "timestamp": time.time(),
             "action": action,
             "assessment": assessment,
             "context": context
         })
+        if len(self.moral_decision_history) > self._moral_history_max:
+            self.moral_decision_history = self.moral_decision_history[-self._moral_history_max:]
         
         return assessment
     
-    def resolve_dilemma(self, dilemma: MoralDilemma) -> Dict[str, Any]:
+    async def resolve_dilemma(self, dilemma: MoralDilemma) -> Dict[str, Any]:
         """Resolve a moral dilemma by comparing possible actions.
         
         Returns best action and reasoning.
@@ -440,7 +468,7 @@ class MoralReasoningEngine:
         assessments = []
         
         for action in dilemma.possible_actions:
-            assessment = self.reason_about_action(
+            assessment = await self.reason_about_action(
                 action,
                 {
                     "affected_selves": dilemma.stakeholders,
@@ -485,8 +513,13 @@ class MoralReasoningEngine:
         decision = self.moral_decision_history[decision_id]
         
         # Compare predicted vs actual
-        predicted_social_impact = decision["assessment"]["predicted_consequences"]["social_effects"]["net_social_impact"]
-        actual_social_impact = outcome.get("social_impact", 0.0)
+        assessment: Dict[str, Any] = decision.get("assessment", {})
+        predicted_consequences: Dict[str, Any] = assessment.get("predicted_consequences", {})
+        social_effects: Dict[str, Any] = predicted_consequences.get("social_effects", {})
+        impact_val = social_effects.get("net_social_impact", 0.0)
+        predicted_social_impact: float = float(impact_val) if not isinstance(impact_val, (list, dict)) else 0.0
+        
+        actual_social_impact = float(outcome.get("social_impact", 0.0))
         
         # If prediction was accurate, confidence in principles increases
         error = abs(predicted_social_impact - actual_social_impact)

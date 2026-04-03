@@ -1,7 +1,6 @@
 """Multi-layer code validation for safe self-modification.
 """
 import ast
-import hashlib
 import io
 import logging
 import tokenize
@@ -101,7 +100,7 @@ class CodeValidator:
                 if isinstance(node, ast.FunctionDef):
                     stats["functions"] += 1
                     # Calculate function length
-                    if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'): # type: ignore
+                    if hasattr(node, 'lineno') and getattr(node, 'end_lineno', None) is not None:
                         length = node.end_lineno - node.lineno # type: ignore
                         stats["max_function_length"] = max(stats["max_function_length"], length)
                 

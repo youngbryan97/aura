@@ -2,16 +2,17 @@
 Deterministic classification gateway for all user inputs.
 Replaces the open-ended "Cognitive Engine" ReAct loop.
 """
-import json
+from __future__ import annotations
 import logging
+import re
 from enum import Enum
-from typing import Any, Dict, Optional
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any, Optional, Union, Dict, List
 
-# Attempt to load LLM client
-try:
-    from core.brain.llm.ollama_client import get_llm_client
-except ImportError:
-    get_llm_client = None
+from core.config import config
+
+if TYPE_CHECKING:
+    from core.brain.types import LLMClient
 
 logger = logging.getLogger("Aura.IntentRouter")
 
@@ -26,33 +27,55 @@ class Intent(Enum):
 class IntentRouter:
     """Classifies user input to determine the strict State Machine path."""
 
-    def __init__(self):
-        # H-28 FIX: Grab the raw text generator, not the high-level brain manager
+    def __init__(self) -> None:
         from core.container import ServiceContainer
-        self.llm = ServiceContainer.get("llm_router") or ServiceContainer.get("local_llm") or ServiceContainer.get("ollama")
+        # H-28 FIX: Explicit type hint for the protocol
+        self.llm: Optional[LLMClient] = ServiceContainer.get("llm_router", default=None)
         
         if not self.llm:
-            logger.warning("IntentRouter: No valid LLM generator found in container. Checking fallbacks...")
-            self.llm = get_llm_client() if get_llm_client else None
+            logger.warning("IntentRouter: No valid LLM generator found in container.")
 
-    async def classify(self, user_input: str, context: Optional[Dict[str, Any]] = None) -> Intent:
-        """Determines the intent of the user input deterministically.
+    @lru_cache(maxsize=100)
+    def _check_heuristics(self, lower_input: str) -> Optional[Intent]:
+        """Fast Regex/Heuristic bypasses (Zero Token Cost)."""
         
-        Uses an ultra-fast, low-context LLM call strictly for classification.
-        """
-        # H-28 FIX: Bulletproof check - force CHAT if generator is missing or incompatible
-        if not self.llm or not hasattr(self.llm, 'generate'):
-            logger.warning("IntentRouter: Valid LLM generator not found or missing .generate(). Defaulting to CHAT.")
-            return Intent.CHAT
+        # SYSTEM bypass
+        system_cmds = ["reboot", "restart", "shutdown", "sleep", "wake up"]
+        if any(cmd in lower_input for cmd in system_cmds):
+            return Intent.SYSTEM
+            
+        # SKILL bypass (High Priority keywords)
+        # Use regex word boundaries to avoid false positives (e.g., "run" in "runner")
+        for kw in config.cognitive.skill_keywords:
+            if re.search(rf"\b{re.escape(kw)}\b", lower_input):
+                logger.debug("Heuristic trigger: Forced SKILL intent for keyword: %s", kw)
+                return Intent.SKILL
 
-        # Fast Regex/Heuristic bypasses (Zero Token Cost)
-        lower_input = user_input.lower().strip()
         if lower_input in ["hello", "hi", "hey", "sup"]:
             return Intent.CHAT
-        if lower_input in ["reboot", "shutdown", "sleep", "wake"]:
-            return Intent.SYSTEM
+            
+        return None
 
-        # LLM Classification (Lightning Fast)
+    async def classify(self, user_input: str, context: Optional[dict[str, Any]] = None) -> Intent:
+        """Determines the intent of the user input deterministically."""
+        
+        # Phase 37 v2: Sovereign Scanner & Agency Bypass
+        if context and context.get("intent_hint"):
+            logger.info("⚡ IntentRouter: Bypassing classification due to intent_hint")
+            return Intent.SKILL
+
+        lower_input = user_input.lower().strip()
+        
+        # 1. Check Heuristics (Cached)
+        heuristic_result = self._check_heuristics(lower_input)
+        if heuristic_result:
+            return heuristic_result
+
+        # 2. LLM Classification (Lightning Fast)
+        if not self.llm:
+            logger.warning("IntentRouter: LLM missing, defaulting to CHAT.")
+            return Intent.CHAT
+
         system_prompt = (
             "You are an intent classifier. Respond ONLY with one of the following words:\n"
             "CHAT - General conversation, greetings, empathy, or answering basic questions.\n"

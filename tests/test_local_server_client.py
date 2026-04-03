@@ -1,0 +1,231 @@
+import pytest
+import httpx
+import subprocess
+from collections import deque
+from unittest.mock import AsyncMock, MagicMock
+
+from core.brain.llm import local_server_client
+from core.brain.llm.local_server_client import LocalServerClient, _SERVER_CLIENTS
+from core.brain.memory_guard import ContextPruner
+
+
+def _register(client: LocalServerClient) -> LocalServerClient:
+    _SERVER_CLIENTS[client.model_path] = client
+    return client
+
+
+@pytest.fixture(autouse=True)
+def _clear_runtime_clients():
+    _SERVER_CLIENTS.clear()
+    yield
+    _SERVER_CLIENTS.clear()
+
+
+@pytest.mark.asyncio
+async def test_background_lane_will_not_evict_ready_cortex():
+    cortex = _register(LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf"))
+    cortex._lane_state = "ready"
+
+    brainstem = _register(LocalServerClient("/tmp/qwen2.5-7b-instruct-q4_k_m.gguf"))
+
+    original = local_server_client._parallel_lane_runtime_allowed
+    local_server_client._parallel_lane_runtime_allowed = lambda: False
+    try:
+        allowed = await brainstem._yield_runtime_slot(foreground_request=False)
+    finally:
+        local_server_client._parallel_lane_runtime_allowed = original
+
+    assert allowed is False
+    assert brainstem.get_lane_status()["last_error"] == "background_deferred:foreground_reserved"
+    assert cortex.get_lane_status()["state"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_background_brainstem_can_coexist_with_ready_cortex_when_parallel_runtime_allowed():
+    cortex = _register(LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf"))
+    cortex._lane_state = "ready"
+
+    brainstem = _register(LocalServerClient("/tmp/qwen2.5-7b-instruct-q4_k_m.gguf"))
+
+    original = local_server_client._parallel_lane_runtime_allowed
+    local_server_client._parallel_lane_runtime_allowed = lambda: True
+    try:
+        allowed = await brainstem._yield_runtime_slot(foreground_request=False)
+    finally:
+        local_server_client._parallel_lane_runtime_allowed = original
+
+    assert allowed is True
+    assert brainstem.get_lane_status()["last_error"] == ""
+    assert cortex.get_lane_status()["state"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_foreground_solver_evicts_existing_cortex_before_start():
+    cortex = _register(LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf"))
+    cortex._lane_state = "ready"
+
+    calls = []
+
+    async def _fake_reboot_worker(reason: str = "manual_reboot", mark_failed: bool = False):
+        calls.append((reason, mark_failed))
+        cortex._lane_state = "cold"
+
+    cortex.reboot_worker = _fake_reboot_worker
+
+    solver = _register(LocalServerClient("/tmp/qwen2.5-72b-instruct-q4_k_m.gguf"))
+
+    allowed = await solver._yield_runtime_slot(foreground_request=True)
+
+    assert allowed is True
+    assert calls == [("yield_to:Solver", False)]
+    assert cortex.get_lane_status()["state"] == "cold"
+
+
+@pytest.mark.asyncio
+async def test_message_payload_sanitization_drops_non_json_metadata():
+    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client._lane_state = "ready"
+
+    captured = {}
+
+    class _FakeHttpClient:
+        async def post(self, _url, json=None, timeout=None):
+            captured["json"] = json
+            captured["timeout"] = timeout
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {"message": {"content": "Hello from Cortex."}}
+                    ]
+                },
+            )
+
+    async def _fake_client():
+        return _FakeHttpClient()
+
+    client._client = _fake_client
+    client._ensure_runtime_ready = AsyncMock(return_value=True)
+
+    result = await client.generate_text_async(
+        "hello",
+        messages=[
+            {
+                "role": "user",
+                "content": {"text": "hello"},
+                "metadata": {"type": "skill_result", "opaque": object()},
+                "timestamp": object(),
+            }
+        ],
+        foreground_request=False,
+    )
+
+    assert result == "Hello from Cortex."
+    assert captured["json"]["messages"] == [
+        {"role": "user", "content": '{"text": "hello"}'}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_server_health_detects_wrong_model_on_reserved_lane_port():
+    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+
+    class _FakeHttpClient:
+        async def get(self, url, timeout=None):
+            if url.endswith("/health"):
+                return httpx.Response(200, json={"status": "ok"})
+            if url.endswith("/v1/models"):
+                return httpx.Response(
+                    200,
+                    json={
+                        "data": [
+                            {"id": "qwen2.5-72b-instruct-q3_k_m-00001-of-00009.gguf"}
+                        ]
+                    },
+                )
+            raise AssertionError(f"unexpected url: {url}")
+
+    async def _fake_client():
+        return _FakeHttpClient()
+
+    client._client = _fake_client
+
+    healthy, mismatch = await client._server_healthy()
+
+    assert healthy is False
+    assert mismatch is True
+    assert client.get_lane_status()["runtime_identity_ok"] is False
+    assert client.get_lane_status()["detected_models"] == [
+        "qwen2.5-72b-instruct-q3_k_m-00001-of-00009.gguf"
+    ]
+    assert client.get_lane_status()["last_error"].startswith("runtime_model_mismatch:")
+
+
+def test_spawn_server_uses_single_slot_and_disables_prompt_cache_by_default(tmp_path, monkeypatch):
+    model_path = tmp_path / "qwen2.5-32b-instruct-q5_k_m.gguf"
+    model_path.write_text("stub", encoding="utf-8")
+
+    client = LocalServerClient(str(model_path))
+    client._resolve_llama_server_bin = lambda: "/opt/homebrew/bin/llama-server"
+    client._log_path = lambda: tmp_path / "runtime.log"
+
+    monkeypatch.delenv("AURA_LOCAL_PROMPT_CACHE", raising=False)
+    monkeypatch.delenv("AURA_LOCAL_CACHE_RAM_MIB", raising=False)
+    monkeypatch.delenv("AURA_LOCAL_PARALLEL_SLOTS", raising=False)
+
+    captured = {}
+
+    def _fake_popen(cmd, stdout=None, stderr=None, cwd=None):
+        captured["cmd"] = list(cmd)
+        captured["cwd"] = cwd
+        return MagicMock(spec=subprocess.Popen)
+
+    original = subprocess.Popen
+    subprocess.Popen = _fake_popen
+    try:
+        client._spawn_server_blocking()
+    finally:
+        subprocess.Popen = original
+
+    assert "--parallel" in captured["cmd"]
+    assert captured["cmd"][captured["cmd"].index("--parallel") + 1] == "1"
+    assert "--cache-ram" in captured["cmd"]
+    assert captured["cmd"][captured["cmd"].index("--cache-ram") + 1] == "256"
+    assert "--no-cache-prompt" in captured["cmd"]
+
+
+def test_fit_messages_to_context_trims_oversized_background_payload():
+    client = LocalServerClient("/tmp/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+    messages = [
+        {"role": "system", "content": "S" * 6000},
+        {"role": "user", "content": "U" * 12000},
+        {"role": "assistant", "content": "A" * 8000},
+        {"role": "user", "content": "latest prompt"},
+    ]
+
+    fitted = client._fit_messages_to_context(messages, max_tokens=256)
+
+    assert fitted
+    assert fitted[0]["role"] == "system"
+    assert fitted[-1]["content"] == "latest prompt"
+    assert sum(client._estimate_message_tokens(msg) for msg in fitted) < sum(
+        client._estimate_message_tokens(msg) for msg in messages
+    )
+
+
+def test_memory_guard_handles_deque_history_without_index_pop_failure():
+    pruner = ContextPruner()
+    history = deque(
+        [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "u" * 12000},
+            {"role": "assistant", "content": "a" * 12000},
+            {"role": "user", "content": "final prompt"},
+        ]
+    )
+
+    pruned = pruner.prune_context(history, tier="reflex")
+
+    assert isinstance(pruned, list)
+    assert pruned[0]["role"] == "system"
+    assert any(msg.get("content") == "final prompt" for msg in pruned)

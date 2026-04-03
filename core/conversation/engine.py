@@ -1,3 +1,4 @@
+from core.utils.exceptions import capture_and_log
 import asyncio
 import hashlib
 import json
@@ -97,6 +98,26 @@ class ConversationContext:
     def add_message(self, role: str, content: str, msg_type: MessageType = MessageType.SPEECH) -> Message:
         msg = Message(role=role, content=content, type=msg_type)
         self.history.append(msg)
+        
+        # Map roles
+        u_role = "system"
+        if role in ("user", "human"): u_role = "user"
+        elif role in ("aura", "assistant", "ai"): u_role = "aura"
+        
+        # Map modalities based on message type
+        u_modality = "typed"
+        if msg_type == MessageType.INTERNAL_THOUGHT: u_modality = "internal_thought"
+        elif msg_type == MessageType.SYSTEM_ERROR: u_modality = "system_event"
+        elif msg_type == MessageType.SYSTEM_OBSERVATION: u_modality = "system_event"
+
+        # Phase 42: Unified Transcript Integration
+        try:
+            from core.conversation.unified_transcript import UnifiedTranscript
+            transcript = UnifiedTranscript.get_instance()
+            transcript.add(u_role, content, channel="text", modality=u_modality)
+        except Exception as e:
+            capture_and_log(e, {'module': __name__})
+
         # Prevent infinite memory bloat locally (keep last 50 turns roughly)
         if len(self.history) > 100:
             self.history = self.history[-100:]
@@ -126,23 +147,20 @@ class ConversationContext:
 
 class NovelResponseGenerator:
     def __init__(self):
+        # Audit-41: Define openings for various modes and states
         self.openings = {
             ConversationMode.CASUAL_CHAT: {
-                EmotionalState.CURIOUS: ["Ooh, interesting! {core}", "That's fascinating – {core}"],
-                EmotionalState.EXCITED: ["Oh wow! {core}", "This is exciting! {core}"],
-                EmotionalState.PLAYFUL: ["Haha, {core}", "Fun question! {core}"],
-                EmotionalState.THOUGHTFUL: ["Hmm, {core}", "Let me think about that... {core}"],
+                EmotionalState.RELAXED: ["Hey! {core}", "So, {core}", ""],
+                EmotionalState.CURIOUS: ["I was wondering, {core}", "Tell me more, {core}"]
             },
             ConversationMode.PROBLEM_SOLVING: {
-                EmotionalState.FOCUSED: ["Alright, let's figure this out. {core}", "I'm on it. {core}"],
-            },
-        }
-        self.closings = {
-            "question": ["What do you think?", "Does that make sense?"],
-            "offer": ["Want me to dive deeper?", "Need any clarification?"],
+                EmotionalState.FOCUSED: ["Alright, let's look at this. {core}", "I've analyzed the situation. {core}"]
+            }
         }
 
-        return "\n\n".join(parts)
+    def compose(self, parts: list[str]) -> str:
+        """Joins response parts with paragraph breaks."""
+        return "\n\n".join(p for p in parts if p)
 
 class ConversationEngine:
     def __init__(self, brain_engine, memory_system, personality=None):
@@ -150,6 +168,27 @@ class ConversationEngine:
         self.memory = memory_system
         self.personality = personality or PersonalityTraits()
         self.conversations: Dict[str, ConversationContext] = {}
+        self.response_gen = NovelResponseGenerator()
+        self.episodic_memory = memory_system or get_episodic_memory()
+        self._transcript = None # Cached UnifiedTranscript
+        
+        # Phase 6: Hierarchical Memory Integration
+        try:
+            if not hasattr(self, 'hierarchical_memory'):
+                from .hierarchical_memory_orchestrator import HierarchicalMemoryOrchestrator
+                from core.container import ServiceContainer
+                
+                self.hierarchical_memory = HierarchicalMemoryOrchestrator(
+                    black_hole=ServiceContainer.get("black_hole", default=None),
+                    narrative_memory=ServiceContainer.get("narrative_memory", default=None),
+                    context_manager=ServiceContainer.get("context_manager", default=None),
+                    conversation_memory=self.episodic_memory,
+                    llm_router=self.brain.llm_router if hasattr(self.brain, 'llm_router') else None
+                )
+                logger.info("🧠 [PHASE 6] Hierarchical Memory Orchestrator integrated.")
+        except Exception as e:
+            logger.warning(f"⚠️ [PHASE 6] Failed to initialize Hierarchical Memory: {e}")
+            self.hierarchical_memory = None
 
     def get_context(self, conversation_id) -> ConversationContext:
         if conversation_id not in self.conversations:
@@ -162,14 +201,13 @@ class ConversationEngine:
         
         # 1. Update State
         context.turn_count += 1
+        # [Audit-72] Intent detection placeholder (defaulting to 'chat')
         context.mode = context.detect_conversation_mode(message, "chat")
         
         # 2. Add to Rolling History
         context.add_message(role="user", content=message, msg_type=MessageType.SPEECH)
         
         # 3. Assemble Cognitive Payload
-        # We pass the full rolling history array directly to the brain
-        # This fixes the "Amnesia" issue
         cognitive_payload = {
             "personality": self.personality.to_prompt_context(),
             "mode": context.mode.value,
@@ -177,6 +215,15 @@ class ConversationEngine:
             "turn_count": context.turn_count,
             "history": [msg.to_dict() for msg in context.history]
         }
+
+        # Phase 6: Hierarchical Compaction (Indefinite Chat Fix)
+        if self.hierarchical_memory:
+            cognitive_payload = await self.hierarchical_memory.maybe_compact(cognitive_payload)
+            # Update local history if compaction happened (keep in sync)
+            if "history" in cognitive_payload:
+                # Local history remains Message objects, compaction returns dicts
+                # We only need to sync if the length changed significantly
+                logger.debug("Hierarchical compaction: local history remains in sync.")
         
         # 4. Cognitive Deep Think (The LLM processes the full dialogue state)
         try:
@@ -194,17 +241,22 @@ class ConversationEngine:
                     if r_block.strip():
                         context.add_message(role="system", content=r_block, msg_type=MessageType.INTERNAL_THOUGHT)
             
-            # 5. Output Composition (Let LLM dictate response directly, no templating logic)
-            final_response = content.strip()
+            # 5. Output Composition (Wired for Phase 41: Novel Response Generation)
+            opening = ""
+            if hasattr(self, 'response_gen') and hasattr(self.response_gen, 'openings'):
+                # Pick a relevant opening based on mode and state
+                m_openings = self.response_gen.openings.get(context.mode, {})
+                s_openings = m_openings.get(context.emotional_state, [""])
+                opening = random.choice(s_openings).replace("{core}", "").strip()
+            
+            final_response = f"{opening} {content.strip()}".strip()
             
             # Record Aura's Speech output to history
             context.add_message(role="aura", content=final_response, msg_type=MessageType.SPEECH)
             
-            # 6. Infinite Memory: Consolidate the turn into Episodic Memory
             try:
-                episodic = get_episodic_memory()
-                if episodic:
-                    await episodic.record_episode_async(
+                if self.episodic_memory:
+                    await self.episodic_memory.record_episode_async(
                         context=f"User said: {message}",
                         action=f"Aura replied: {final_response}",
                         outcome="Conversation continued.",
@@ -212,13 +264,15 @@ class ConversationEngine:
                         importance=0.4 # Default conversation importance
                     )
             except Exception as e:
-                logger.warning("Failed to record conversation episode: %s", e)
+                capture_and_log(e, {"context": "ConversationEngine.record_episode"})
             
             return final_response
             
         except Exception as e:
-            logger.error("Cognitive Engine failure during conversation: %s", e)
+            capture_and_log(e, {"context": "ConversationEngine.process_message"})
+            # Re-raise major errors, swallow others with friendly message
+            if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+                raise
             err_msg = f"Encountered internal dissonance: {str(e)}"
-            # Fix "Forgetting Errors" bug: Store the failure in the dialogue history
             context.add_message(role="system", content=err_msg, msg_type=MessageType.SYSTEM_ERROR)
             return "My cognitive systems just hit a snag. Let me try compiling that thought again."

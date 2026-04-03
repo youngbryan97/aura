@@ -34,6 +34,7 @@ class Event:
     priority: EventPriority = field(default=EventPriority.NORMAL, compare=True)
     ts: float = field(default_factory=time.time, compare=True)
     type: EventType = field(default=EventType.SYSTEM, compare=False)
+    topic: str = field(default="", compare=False) # Added for v14.1 routing compatibility
     payload: Dict[str, Any] = field(default_factory=dict, compare=False)
     source: str = field(default="", compare=False)
     retry_count: int = field(default=0, compare=False)
@@ -55,15 +56,66 @@ class InputBus:
         self._executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="Aura.Events")
         self._dlq_lock = threading.Lock()
 
-    def publish(self, event: Event, block: bool = False, timeout: Optional[float] = None) -> None:
+    def publish(self, event: Union[Event, Dict[str, Any], str], block: bool = False, timeout: Optional[float] = None) -> None:
         """Enqueue an event and notify all typed subscribers synchronously."""
-        self._notify_subscribers(event)
-        self._enqueue(event, block, timeout)
+        event_obj = self._normalize_event(event)
+        self._notify_subscribers(event_obj)
+        self._enqueue(event_obj, block, timeout)
 
-    def publish_async(self, event: Event, block: bool = False, timeout: Optional[float] = None) -> None:
+    def publish_async(self, event: Union[Event, Dict[str, Any], str], block: bool = False, timeout: Optional[float] = None) -> None:
         """Enqueue an event and notify subscribers in a background thread."""
-        self._executor.submit(self._notify_subscribers, event)
-        self._enqueue(event, block, timeout)
+        event_obj = self._normalize_event(event)
+        self._executor.submit(self._notify_subscribers, event_obj)
+        self._enqueue(event_obj, block, timeout)
+
+    def _normalize_event(self, event_input: Union[Event, Dict[str, Any], str, tuple]) -> Event:
+        """v48 Resilience: Ensures all inputs are converted to Event objects.
+        Accepts Event | (topic, payload) | str | dict.
+        """
+        if isinstance(event_input, Event):
+            return event_input
+            
+        # (topic, payload) tuple support
+        if isinstance(event_input, tuple) and len(event_input) == 2:
+            topic, payload = event_input
+            return Event(
+                type=EventType.SYSTEM,
+                topic=str(topic),
+                payload=payload if isinstance(payload, dict) else {"data": payload},
+                source="tuple_input"
+            )
+
+        if isinstance(event_input, dict):
+            # Try to map dict fields to Event
+            try:
+                e_type_val = event_input.get("type", "SYSTEM")
+                if isinstance(e_type_val, str):
+                    try:
+                        e_type = EventType[e_type_val.upper()]
+                    except KeyError:
+                        e_type = EventType.SYSTEM
+                else:
+                    e_type = EventType.SYSTEM
+
+                return Event(
+                    type=e_type,
+                    topic=event_input.get("topic", ""),
+                    payload=event_input,
+                    source=event_input.get("source", "normalized_dict"),
+                    priority=event_input.get("priority", EventPriority.NORMAL)
+                )
+            except Exception:
+                return Event(payload=event_input, source="fallback_dict")
+
+        if isinstance(event_input, str):
+            return Event(
+                type=EventType.SYSTEM,
+                topic=event_input if "/" in event_input else "", # Heuristic for topic-like strings
+                payload={"message": event_input},
+                source="normalized_string"
+            )
+
+        return Event(payload={"raw_data": str(event_input)}, source="unknown_input")
 
     def _enqueue(self, event: Event, block: bool = False, timeout: Optional[float] = None) -> None:
         """Internal helper — stores (-priority, ts, event) for correct pop order."""
@@ -140,4 +192,3 @@ class InputBus:
     def shutdown(self) -> None:
         """Shutdown the executor."""
         self._executor.shutdown(wait=True)
-

@@ -4,25 +4,44 @@ from typing import List, Optional
 
 import numpy as np
 
-try:
-    from faster_whisper import WhisperModel
-except ImportError:
-    WhisperModel = None
-
 logger = logging.getLogger("Aura.VoiceProcessor")
 
 # Global singleton for Whisper to prevent RAM churn across connections
 _WHISPER_MODEL_CACHE = {}
+_WhisperModel = None
+_whisper_import_attempted = False
+
+
+def _get_whisper_model_class():
+    global _WhisperModel, _whisper_import_attempted
+    if _WhisperModel is not None:
+        return _WhisperModel
+    if _whisper_import_attempted:
+        return None
+
+    _whisper_import_attempted = True
+    try:
+        from faster_whisper import WhisperModel as whisper_model_cls
+        _WhisperModel = whisper_model_cls
+    except ImportError:
+        logger.error("faster-whisper is unavailable; websocket STT disabled.")
+    except Exception as exc:
+        logger.error("faster-whisper import failed; websocket STT disabled: %s", exc)
+    return _WhisperModel
 
 def get_whisper_model(model_name="tiny"):
     if model_name not in _WHISPER_MODEL_CACHE:
-        if WhisperModel:
-            try:
-                logger.info("🎙️ Loading Whisper STT (%s)...", model_name)
-                _WHISPER_MODEL_CACHE[model_name] = WhisperModel(model_name, device="cpu", compute_type="int8")
-            except Exception as e:
-                logger.error("Failed to load Whisper: %s", e)
-                return None
+        whisper_model_cls = _get_whisper_model_class()
+        if whisper_model_cls is None:
+            return None
+        try:
+            logger.info("🎙️ Loading Whisper STT (%s)...", model_name)
+            _WHISPER_MODEL_CACHE[model_name] = whisper_model_cls(
+                model_name, device="cpu", compute_type="int8"
+            )
+        except Exception as e:
+            logger.error("Failed to load Whisper: %s", e)
+            return None
     return _WHISPER_MODEL_CACHE.get(model_name)
 
 class VoiceStreamProcessor:
@@ -96,6 +115,22 @@ class VoiceStreamProcessor:
                 return "".join([s.text for s in segments]).strip()
 
             text = await asyncio.to_thread(_sync_transcribe)
+            
+            # Phase 4: Spinal Cord Reflex Engine (Audio Interrupts)
+            from core.container import ServiceContainer
+            orch = ServiceContainer.get("orchestrator", default=None)
+            if orch and hasattr(orch, "reflex_engine") and orch.reflex_engine:
+                clean_t = text.upper().strip()
+                # Remove punctuation for emergency matching
+                import re
+                clean_t = re.sub(r'[^\w\s]', '', clean_t)
+                
+                if clean_t in ("STOP", "HALT", "ABORT", "CANCEL", "SHUT UP", "STOP TALKING", "QUIET"):
+                    logger.critical("🚨 [VOICE] Emergency Interrupt Detected: '%s'", text)
+                    await orch.reflex_engine.process_emergency_interrupt(clean_t, context="audio_stream")
+                    # If it's a STOP command, we might not even want to return the text to the main
+                    # cognitive loop, or we return a specific token. For now, returning it is fine
+                    # because the reflex engine already purged the action queue.
             
             self.reset()
             return text

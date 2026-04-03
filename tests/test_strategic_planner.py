@@ -1,3 +1,6 @@
+import pytest
+################################################################################
+
 import asyncio
 import os
 import sys
@@ -18,6 +21,7 @@ class MockBrain:
             'expectation': 'success'
         })
 
+@pytest.mark.asyncio
 async def test_flow():
     db_path = "tests/test_projects.db"
     if os.path.exists(db_path):
@@ -69,3 +73,6 @@ async def test_flow():
 
 if __name__ == "__main__":
     asyncio.run(test_flow())
+
+
+##

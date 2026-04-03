@@ -228,7 +228,7 @@ class ConversationPersistence:
             self._message_count_since_save = 0
             # Schedule async save without blocking
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 if loop.is_running():
                     loop.create_task(self.save_async())
                 else:
@@ -241,7 +241,7 @@ class ConversationPersistence:
     async def save_async(self):
         """Save current session asynchronously."""
         try:
-            await asyncio.get_event_loop().run_in_executor(None, self.save_sync)
+            await asyncio.get_running_loop().run_in_executor(None, self.save_sync)
         except Exception as exc:
             logger.error("Async save failed: %s", exc)
 
@@ -274,7 +274,8 @@ class ConversationPersistence:
             try:
                 temp_path.unlink(missing_ok=True)
             except Exception:
-                pass
+                import logging
+                logger.debug("Exception caught during execution", exc_info=True)
 
     async def end_session(self, generate_summary: bool = True):
         """
@@ -361,7 +362,8 @@ class ConversationPersistence:
                     "summary": data.get("summary"),
                 })
             except Exception:
-                pass
+                import logging
+                logger.debug("Exception caught during execution", exc_info=True)
 
         return sorted(sessions, key=lambda s: s["started_at"])
 
@@ -378,7 +380,8 @@ class ConversationPersistence:
                 path.unlink()
                 logger.debug("Rotated old session: %s", s["session_id"])
             except Exception:
-                pass
+                import logging
+                logger.debug("Exception caught during execution", exc_info=True)
 
     def list_sessions_summary(self) -> str:
         """Human-readable session history."""

@@ -1,8 +1,9 @@
 import base64
 import io
 import logging
+import os
+import time
 
-import pyautogui
 import requests
 from PIL import Image
 
@@ -14,40 +15,93 @@ except ImportError:
 
 logger = logging.getLogger("Senses.Vision")
 
+
+def _screen_capture_preflight() -> bool:
+    """Return True only when the current app identity already has screen permission."""
+    try:
+        import Quartz  # type: ignore
+
+        preflight = getattr(Quartz, "CGPreflightScreenCaptureAccess", None)
+        if callable(preflight):
+            return bool(preflight())
+    except Exception as exc:
+        logger.debug("Quartz screen preflight unavailable in LocalVision: %s", exc)
+    return os.getenv("AURA_ASSUME_SCREEN_PERMISSION", "0") == "1"
+
+def _process_image_for_vlm(img):
+    """Picklable top-level function for process pool."""
+    img.thumbnail((672, 672))
+    if img.mode == 'RGBA':
+        img = img.convert('RGB')
+    buffered = io.BytesIO()
+    img.save(buffered, format="JPEG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
 class LocalVision:
     """The 'Eyes' of the machine.
-    Uses a local Vision-Language Model (LLaVA) via Ollama to see the screen.
+    Redirected to Aura's Brain (Cognitive Engine) for unified inference.
     """
 
-    def __init__(self, model="llava"):
+    def __init__(self, model="vision-fallback"):
         self.model = model
-        self.api_url = "http://localhost:11434/api/generate"
         self._last_failure_time = 0
         self._cooling_period = 60  # seconds
+        
+        # v7.0 HARDENING: Eagerly initialize Vision Circuit Breaker (Issue 25)
+        from core.resilience.resilience import SmartCircuitBreaker
+        self._circuit_breaker = SmartCircuitBreaker(
+            name="Vision", failure_threshold=2, base_recovery_timeout=300
+        )
 
     async def capture_screen(self):
-        """Take a screenshot of the primary monitor.
-        Note: pyautogui.screenshot() is generally thread-safe on macOS but 
-        performs best when offloaded if Resize/PIL follows.
-        """
+        """Take a screenshot of the primary monitor."""
+        try:
+            from core.container import ServiceContainer
+            from core.security.permission_guard import PermissionType
+
+            guard = ServiceContainer.get("permission_guard", default=None)
+            if guard:
+                check = await guard.check_permission(PermissionType.SCREEN)
+                if not check.get("granted", False):
+                    logger.info("👁️ Screen capture skipped: screen permission not active for this app identity.")
+                    return None
+        except Exception as exc:
+            logger.debug("Screen permission preflight failed before capture: %s", exc)
+
         from core.utils.executor import run_in_thread
-        return await run_in_thread(pyautogui.screenshot)
+        
+        def _safe_screenshot():
+            try:
+                if not _screen_capture_preflight():
+                    logger.info("👁️ Screen capture preflight denied for LocalVision.")
+                    return None
+                import pyautogui
+
+                return pyautogui.screenshot()
+            except Exception as e:
+                logger.error("Screenshot failed (check screen recording permissions): %s", e)
+                return None
+        
+        return await run_in_thread(_safe_screenshot)
+
+    async def capture_desktop(self):
+        """Compatibility shim for code paths that expect a desktop-capture interface."""
+        return await self.capture_screen()
 
     async def analyze_moment(self, prompt="What is on the user's screen?"):
         """The visual cortex loop.
-        Captures screen -> Sends to LLaVA -> Returns description.
+        Captures screen -> Sends to primary Brain -> Returns description.
         """
         from core.container import ServiceContainer
         from core.security.permission_guard import PermissionType
-        from core.utils.executor import run_in_process, run_in_thread
+        from core.utils.executor import run_in_process
+        from core.resilience.resilience import SmartCircuitBreaker # Use standardized breaker
         
-        if time.time() - self._last_failure_time < self._cooling_period:
-            logger.debug("👁️ Vision in cooling period, skipping capture.")
-            return "Vision system is recovering from a previous failure."
+        # v7.0 HARDENING: Formally wrap Vision in a SmartCircuitBreaker
 
-        try:
+        async def _vision_payload():
             # 1. Pre-flight Permission Check
-            guard = ServiceContainer.get("permission_guard")
+            guard = ServiceContainer.get("permission_guard", default=None)
             if guard:
                 check = await guard.check_permission(PermissionType.SCREEN)
                 if not check["granted"]:
@@ -56,37 +110,25 @@ class LocalVision:
 
             # 2. Capture
             image = await self.capture_screen()
+            if not image:
+                raise RuntimeError("Screen capture returned empty (likely permission issue)")
             
             # Offload CPU-heavy image processing to Process Pool
-            def process_image(img):
-                img.thumbnail((672, 672))
-                buffered = io.BytesIO()
-                img.save(buffered, format="JPEG")
-                return base64.b64encode(buffered.getvalue()).decode("utf-8")
+            img_str = await run_in_process(_process_image_for_vlm, image)
 
-            img_str = await run_in_process(process_image, image)
+            # 3. Analyze using primary Brain (Cognitive Engine)
+            brain = ServiceContainer.get("cognitive_engine", default=None)
+            if not brain:
+                return "Vision brain unavailable."
 
-            payload = {
-                "model": self.model,
-                "prompt": prompt,
-                "images": [img_str],
-                "stream": False
-            }
+            full_prompt = f"IMAGE_DATA_ATTACHED: [Base64 Encoded JPEG]\n\nUSER_REQUEST: {prompt}"
+            
+            logger.info("🧠 Processing visual data via primary Brain...")
+            response = await brain.think(full_prompt, images=[img_str])
+            return response.content if hasattr(response, 'content') else str(response)
 
-            logger.info("🧠 Processing visual data with %s...", self.model)
-            
-            # Offload blocking HTTP request to Thread Pool
-            def send_request(url, p):
-                return requests.post(url, json=p, timeout=30)
-                
-            response = await run_in_thread(send_request, self.api_url, payload)
-            response.raise_for_status()
-            
-            description = response.json().get("response", "")
-            logger.info("👁️ Vision Result: %s...", description[:50])
-            return description
-            
+        try:
+            return await self._circuit_breaker.call(_vision_payload)
         except Exception as e:
-            self._last_failure_time = time.time()
-            logger.error("Blindness Error: %s", e)
-            return "I tried to look, but my vision subsystem failed. Please ensure Ollama is running with LLaVA."
+            logger.error("👁️ Vision Circuit Tripped: %s", e)
+            return "Vision subsystem is offline due to repeated failures (check macOS Screen Recording permissions)."

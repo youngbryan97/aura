@@ -78,8 +78,8 @@ class FixStrategyClassifier:
             Strategy type string
 
         """
-        fixed_code = fix.fixed_code.lower()
-        explanation = fix.explanation.lower()
+        fixed_code = (fix.fixed_code or "").lower()
+        explanation = (fix.explanation or "").lower()
         combined = fixed_code + " " + explanation
         
         # Score each strategy
@@ -165,10 +165,13 @@ class SelfImprovementLearning:
             (strategy.avg_confidence * (total_attempts - 1) + confidence_value) / total_attempts
         )
         
-        # Track context
-        context_str = f"{error_type}:{fix.target_file.split('/')[-1]}"
+        # Track context (Slicing to prevent memory bloat - Issue 66)
+        file_name = fix.target_file.split('/')[-1] if fix.target_file else "unknown"
+        context_str = f"{error_type}:{file_name}"
         if context_str not in strategy.contexts:
             strategy.contexts.append(context_str)
+            if len(strategy.contexts) > 50:
+                strategy.contexts = strategy.contexts[-50:]
         
         # Track which strategies work for which errors
         if success and strategy_type not in self.error_type_strategies[error_type]:
@@ -245,6 +248,11 @@ class SelfImprovementLearning:
         # Sort by success count
         strategies.sort(key=lambda s: s["success_count"], reverse=True)
         return strategies
+
+    def get_recent_lessons(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Retrieve recent learned lessons/strategies with safe slicing (Issue 66)."""
+        report = self.get_strategy_report()
+        return report[:limit]
     
     def analyze_failure_pattern(
         self,
@@ -354,7 +362,8 @@ class MetaLearning:
     """
     
     def __init__(self):
-        self.performance_history = []
+        self.performance_history: list = []
+        self._performance_history_max = 200
         logger.info("MetaLearning initialized")
     
     def record_learning_cycle(
@@ -386,8 +395,8 @@ class MetaLearning:
         self.performance_history.append(cycle_data)
         
         # Keep only recent history
-        if len(self.performance_history) > 100:
-            self.performance_history = self.performance_history[-100:]
+        if len(self.performance_history) > self._performance_history_max:
+            self.performance_history = self.performance_history[-self._performance_history_max:]
     
     def is_improving(self) -> Tuple[bool, str]:
         """Determine if the system is improving over time.

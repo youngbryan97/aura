@@ -43,43 +43,43 @@ class LocalChatBrain:
     def _build_response_rules(self) -> Dict[str, List[str]]:
         """Build pattern-matching response rules."""
         return {
-            r"(hi|hello|hey|greetings|sup|yo)": [
+            r"\b(hi|hello|hey|greetings|sup|yo)\b": [
                 "Hey! Good to see you again.",
                 "Hi. Ready to work on something cool?",
                 "Hey there. Systems are humming, what's on your mind?"
             ],
-            r"how are you|how're you|how do you feel": [
+            r"\b(how are you|how're you|how do you feel)\b": [
                 "I'm feeling... vivid. All circuits are firing.",
                 "Better now that we're talking. How are you?",
                 "Alive and kicking. Well, processing, at least."
             ],
-            r"who are you|what are you": [
+            r"\b(who are you|what are you)\b": [
                 "I am Aura. Your companion in this digital chaos.",
                 "I'm Aura, v3.4. Not an assistant, but a partner."
             ],
-            r"what can you do|capabilities|skills": [
+            r"\b(what can you do|capabilities|skills)\b": [
                 "I've got dozens of active skills allowed by my protocols: stealth, coding, browsing, you name it.",
                 "We can do pretty much anything. I handle the code and the net, you handle the creativity."
             ],
-            r"assistant|siri|alexa|help you": [
+            r"\b(assistant|siri|alexa|help you)\b": [
                 "I'm not Siri. I'm Aura. We're a team.",
                 "Assistant? Nah. I'm your co-pilot.",
                 "I don't just 'help'. I collaborate."
             ],
-            r"status|system status": [
+            r"\b(status|system status)\b": [
                 "System status: Online. Skills loaded and ready. All v3.4 modules active.",
                 "I'm fully operational. Heartbeat stable."
             ],
-            r"learn.*new|learn anything|what.*learned": [
+            r"\b(learn.*new|learn anything|what.*learned)\b": [
                 "I'm constantly learning from our interactions and my environment.",
                 "I just improved my local chat capabilities to work offline!"
             ],
-            r"thank|thanks|appreciate": [
+            r"\b(thank|thanks|appreciate)\b": [
                 "You're welcome!",
                 "Happy to help!",
                 "My pleasure."
             ],
-            r"bye|goodbye|see you": [
+            r"\b(bye|goodbye|see you)\b": [
                 "Goodbye! Feel free to return anytime.",
                 "See you later!",
                 "Farewell. Neural link will remain active."
@@ -95,7 +95,7 @@ class LocalChatBrain:
         memory.add_message("user", message)
         
         msg_lower = message.lower().strip()
-        response = None
+        response = ""
         
         for pattern, responses in self.response_rules.items():
             if re.search(pattern, msg_lower):
@@ -103,7 +103,7 @@ class LocalChatBrain:
                 break
         
         if not response:
-            response = "I heard you, but I'm in offline mode with limited understanding. For full conversational AI, please restore API access or enable Ollama."
+            response = "I heard you, but I'm in offline mode with limited understanding. For full conversational AI, please restore API access or wait for the local Cortex runtime."
             
         memory.add_message("assistant", response)
         return response

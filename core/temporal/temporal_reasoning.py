@@ -166,11 +166,11 @@ class PastReflectionEngine:
         if len(self.past_events) > self.max_cache:
             self.past_events = self.past_events[-self.max_cache:]
         
-        self._persist_event(event)
+        await self._persist_event(event)
         
         return event
     
-    def reflect_on_similar(self, current_situation: str) -> Dict[str, Any]:
+    async def reflect_on_similar(self, current_situation: str) -> Dict[str, Any]:
         """Reflect on past events similar to current situation.
         
         Args:
@@ -195,7 +195,7 @@ class PastReflectionEngine:
         analysis = self._analyze_event_pattern(similar)
         
         # Generate reflection using LLM
-        reflection = self._generate_reflection(current_situation, similar, analysis)
+        reflection = await self._generate_reflection(current_situation, similar, analysis)
         
         return {
             "found_similar": True,
@@ -205,7 +205,7 @@ class PastReflectionEngine:
             "recommendation": self._extract_recommendation(reflection)
         }
     
-    def learn_from_failure(self, failed_action: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def learn_from_failure(self, failed_action: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Deep analysis of why something failed.
         
         Args:
@@ -252,7 +252,7 @@ Return JSON:
 }}"""
         
         try:
-            thought = self.brain.think(prompt)
+            thought = await self.brain.think(prompt)
             response = thought.content.strip()
             analysis = json.loads(response.strip('```json').strip('```'))
             
@@ -421,7 +421,7 @@ Format as JSON array: ["lesson1", "lesson2"]"""
             "common_externalities": [ext for ext, _ in common_externalities]
         }
     
-    def _generate_reflection(
+    async def _generate_reflection(
         self,
         current_situation: str,
         similar_events: List[PastEvent],
@@ -449,7 +449,7 @@ Based on this history, provide:
 Be specific and actionable."""
         
         try:
-            thought = self.brain.think(prompt)
+            thought = await self.brain.think(prompt)
             return thought.content
         except Exception as e:
             return f"Reflection unavailable: {e}"
@@ -485,13 +485,15 @@ Event {i}:
 """)
         return '\n'.join(formatted)
     
-    def _persist_event(self, event: PastEvent):
-        """Save event to disk"""
-        try:
-            with open(self.memory_path, 'a') as f:
-                f.write(json.dumps(event.to_dict()) + '\n')
-        except Exception as e:
-            logger.error("Failed to persist event: %s", e)
+    async def _persist_event(self, event: PastEvent):
+        """Save event to disk without blocking the event loop"""
+        def write_sync():
+            try:
+                with open(self.memory_path, 'a') as f:
+                    f.write(json.dumps(event.to_dict()) + '\n')
+            except Exception as e:
+                logger.error("Failed to persist event: %s", e)
+        await asyncio.to_thread(write_sync)
     
     def _load_past_events(self):
         """Load past events from disk"""
@@ -533,7 +535,7 @@ class FuturePredictionEngine:
         
         logger.info("FuturePredictionEngine initialized")
     
-    def predict_outcome(
+    async def predict_outcome(
         self,
         action: str,
         context: Dict[str, Any],
@@ -556,7 +558,7 @@ class FuturePredictionEngine:
         past_reflection = self.past.reflect_on_similar(f"{action} in context {context}")
         
         # Generate prediction using LLM
-        prediction_data = self._generate_prediction(action, context, goal, past_reflection)
+        prediction_data = await self._generate_prediction(action, context, goal, past_reflection)
         
         # Calculate confidence
         confidence, confidence_score = self._calculate_confidence(prediction_data, past_reflection)
@@ -580,7 +582,7 @@ class FuturePredictionEngine:
         
         return prediction
     
-    def compare_options(
+    async def compare_options(
         self,
         options: List[str],
         context: Dict[str, Any],
@@ -601,14 +603,14 @@ class FuturePredictionEngine:
         
         predictions = []
         for option in options:
-            pred = self.predict_outcome(option, context, goal)
+            pred = await self.predict_outcome(option, context, goal)
             predictions.append(pred)
         
         # Rank by confidence and positive outcomes
         ranked = self._rank_options(predictions)
         
         # Generate comparison summary
-        comparison = self._generate_comparison(options, predictions, ranked, goal)
+        comparison = await self._generate_comparison(options, predictions, ranked, goal)
         
         return {
             "goal": goal,
@@ -619,7 +621,7 @@ class FuturePredictionEngine:
             "reasoning": comparison.get('reasoning')
         }
     
-    def _generate_prediction(
+    async def _generate_prediction(
         self,
         action: str,
         context: Dict[str, Any],
@@ -665,10 +667,10 @@ Return JSON:
 }}"""
         
         try:
-            thought = self.brain.think(prompt)
+            thought = await self.brain.think(prompt)
             response = thought.content.strip()
             # Hardening: Use robust extraction
-            from utils.json_utils import extract_json
+            from core.utils.json_utils import extract_json
             return extract_json(response) or {}
         except Exception as e:
             logger.error("Prediction generation failed: %s", e)
@@ -780,7 +782,7 @@ Return JSON:
         ranked.sort(key=lambda x: x['score'], reverse=True)
         return ranked
     
-    def _generate_comparison(
+    async def _generate_comparison(
         self,
         options: List[str],
         predictions: List[FuturePrediction],
@@ -812,7 +814,7 @@ Provide:
 Be concise (2-3 sentences)."""
         
         try:
-            thought = self.brain.think(prompt)
+            thought = await self.brain.think(prompt)
             return {
                 "recommendation": ranked[0]['action'],
                 "reasoning": thought.content

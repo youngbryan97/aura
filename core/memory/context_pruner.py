@@ -1,4 +1,3 @@
-
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
@@ -52,7 +51,9 @@ DENSE MEMORY SPORES:
         try:
             thought = await cognitive_engine.think(
                 objective=prompt, 
-                mode=ThinkingMode.FAST
+                mode=ThinkingMode.FAST,
+                origin="context_pruner",
+                is_background=True,
             )
             summary_text = thought.content
             

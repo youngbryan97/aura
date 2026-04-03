@@ -6,52 +6,92 @@
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#030005">
+    <meta name="description" content="Aura — Autonomous cognitive companion. A living digital organism with consciousness-inspired architecture, persistent memory, and adaptive personality.">
+    <meta property="og:title" content="Aura Luna">
+    <meta property="og:description" content="A sovereign digital organism with biological-inspired cognition, persistent memory, and autonomous agency.">
+    <meta property="og:type" content="website">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌌</text></svg>">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
-    <title>AURA: INFINITY</title>
+    <title>Aura Luna</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap"
         rel="stylesheet">
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <link rel="manifest" href="/static/manifest.json?v=Zenith.Mobile.Fix.15.0">
-    <link rel="stylesheet" href="/static/aura.css?v=Zenith.Mobile.Fix.15.0">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="stylesheet" href="/static/aura.css">
 </head>
 
 <body>
+    <!-- ═══ SPLASH SCREEN ═══ -->
+    <div id="splash-screen" class="splash-screen" role="status" aria-label="Loading Aura">
+        <div class="splash-content">
+            <div class="splash-orb">
+                <div class="splash-orb-inner"></div>
+                <div class="splash-orb-ring"></div>
+                <div class="splash-orb-ring ring-2"></div>
+            </div>
+            <h1 class="splash-title">Aura Luna</h1>
+            <p class="splash-subtitle">Initializing Cognitive Systems</p>
+            <div class="splash-progress">
+                <div class="splash-progress-bar" id="splash-bar"></div>
+            </div>
+            <p class="splash-status" id="splash-status">Establishing neural link...</p>
+        </div>
+    </div>
+
+    <!-- ═══ AURORA AMBIENT BACKGROUND ═══ -->
+    <div class="aurora-bg" aria-hidden="true">
+        <div class="aurora-layer aurora-1"></div>
+        <div class="aurora-layer aurora-2"></div>
+        <div class="aurora-layer aurora-3"></div>
+    </div>
     <!-- ═══ HEADER ═══ -->
     <header>
         <div class="brand">
             <div class="brand-icon"></div>
-            <span class="brand-title">AURA: INFINITY</span>
-            <span class="brand-ver" id="ui-ver"
-                style="display:flex; flex-direction:column; align-items:flex-start; line-height:1.2;"><span>Aura
-                    Infinity</span><span>v14.0.0-Zenith</span></span>
+            <span class="brand-title">Aura Luna</span>
+            <span class="brand-ver" id="ui-ver">Aura Luna</span>
+            <div class="brand-status" aria-live="polite">
+                <span class="brand-status-dot" id="brand-status-dot"></span>
+                <span class="brand-status-text" id="hud-status">booting</span>
+            </div>
         </div>
         <div class="hud-stats">
-            <div class="hud-stat agency">AGENCY <strong id="hud-agency">--</strong></div>
-            <div class="hud-stat curiosity">CURIOSITY <strong id="hud-curiosity">--</strong></div>
-            <div class="hud-stat fixes">FIXES <strong id="hud-fixes">0</strong></div>
-            <div class="hud-stat beliefs">BELIEFS <strong id="hud-beliefs">0</strong></div>
-            <div class="hud-stat episodes">EPISODES <strong id="hud-episodes">0</strong></div>
-            <div class="hud-stat goals">GOALS <strong id="hud-goals">0</strong></div>
-            <div class="hud-stat autonomy" id="hud-autonomy">AUTONOMY <span class="pulsating status-ok">ON</span></div>
-            <div class="hud-stat stealth" id="hud-stealth">STEALTH <span class="pulsating status-ok">ON</span></div>
-            <div class="hud-stat unity" id="hud-unity">UNITY <span class="pulsating status-ok">ON</span></div>
-            <div class="hud-stat" id="hud-scratchpad">SCRATCHPAD <span class="pulsating status-ok">ON</span></div>
-            <div class="hud-stat" id="hud-forge">FORGE <span class="pulsating status-ok">ON</span></div>
-            <div class="hud-stat" id="hud-subconscious">SUBCONSCIOUS <span class="status-ok">IDLE</span></div>
-            <div class="hud-stat cycles">CYCLES <strong id="hud-cycles">0</strong></div>
-            <div class="hud-stat">UPTIME <strong id="hud-uptime">0s</strong></div>
+            <div class="hud-stats-inner">
+                <div class="hud-stat agency">AGENCY <strong id="hud-agency">--</strong></div>
+                <div class="hud-stat curiosity">CURIOSITY <strong id="hud-curiosity">--</strong></div>
+                <div class="hud-stat fixes">FIXES <strong id="hud-fixes">0</strong></div>
+                <div class="hud-stat beliefs">BELIEFS <strong id="hud-beliefs">0</strong></div>
+                <div class="hud-stat episodes">EPISODES <strong id="hud-episodes">0</strong></div>
+                <div class="hud-stat goals">GOALS <strong id="hud-goals">0</strong></div>
+                <div class="hud-stat closure">CLOSURE <strong id="hud-closure">--</strong></div>
+                <div class="hud-stat readiness">READY <strong id="hud-readiness">--</strong></div>
+                <div class="hud-stat autonomy" id="hud-autonomy">AUTONOMY <span class="pulsating status-ok">ON</span></div>
+                <div class="hud-stat stealth" id="hud-stealth">STEALTH <span class="pulsating status-ok">ON</span></div>
+                <div class="hud-stat unity" id="hud-unity">UNITY <span class="pulsating status-ok">ON</span></div>
+                <div class="hud-stat" id="hud-scratchpad">SCRATCHPAD <span class="pulsating status-ok">ON</span></div>
+                <div class="hud-stat" id="hud-forge">FORGE <span class="pulsating status-ok">ON</span></div>
+                <div class="hud-stat" id="hud-subconscious">SUBCONSCIOUS <span class="status-ok">IDLE</span></div>
+                <div class="hud-stat cpu">CPU <strong id="hud-cpu">0%</strong></div>
+                <div class="hud-stat pcore">P-CORE <strong id="hud-pcore">0%</strong></div>
+                <div class="hud-stat ram">RAM <strong id="hud-ram">0%</strong></div>
+                <div class="hud-stat cycles">CYCLES <strong id="hud-cycles">0</strong></div>
+                <div class="hud-stat">UPTIME <strong id="hud-uptime">0s</strong></div>
+            </div>
         </div>
         <div class="hdr-actions">
-            <button class="hdr-btn" id="btn-apk" title="Download Mobile App"
-                onclick="window.location.href='/static/aura.apk'">↓ APK</button>
+            <button class="hdr-btn privacy-btn" id="btn-mute" title="Toggle Microphone">● MUTE</button>
+            <button class="hdr-btn privacy-btn" id="btn-cam" title="Toggle Camera">● CAM</button>
+            <button class="hdr-btn" id="btn-apk" title="Download Mobile App">↓ APK</button>
             <button class="hdr-btn" id="btn-brain" title="Retry cognitive engine">◇ BRAIN</button>
             <button class="hdr-btn" id="btn-src" title="Download source bundle">↓ SRC</button>
+            <button class="hdr-btn" id="btn-soul" title="Mycelial Soul Map">◈ SOUL</button>
             <button class="hdr-btn" id="btn-term" title="Toggle terminal">▸ TERM</button>
+            <button class="hdr-btn" id="btn-mem-map" title="Open Black Hole Memory Map">◈ MEMORY</button>
             <button class="hdr-btn reboot" id="btn-reboot" title="Reboot Aura">⏻</button>
         </div>
     </header>
@@ -60,7 +100,6 @@
     <main>
         <!-- Chat Column -->
         <section class="chat-panel">
-            <div class="conn-banner" id="conn-banner">⚠ Connection lost — reconnecting…</div>
             <div id="messages">
                 <div class="sys-box">
                     Aura: Infinity online. Synchronizing cognitive drives...
@@ -73,18 +112,22 @@
             </div>
 
             <div class="typing-indicator" id="typing-ind">
-                <span class="typing-dots"><span>●</span> <span>●</span> <span>●</span></span> Aura is thinking…
+                <span class="typing-dots"><span>●</span> <span>●</span> <span>●</span></span> <span id="typing-label">Aura is thinking…</span>
             </div>
 
             <div class="input-area">
-                <form class="input-bar" id="chat-form">
-                    <input type="text" id="chat-input" placeholder="Talk to Aura..." autocomplete="off">
-                    <button type="submit" class="input-btn">SEND</button>
-                    <button type="button" class="input-btn mic-btn" id="mic-btn" title="Toggle voice">
-                        <div id="voice-orb"></div>
-                        <div id="stop-icon" class="hidden">■</div>
-                    </button>
+                <form class="input-bar" id="chat-form" role="form" aria-label="Chat input">
+                    <textarea id="chat-input" placeholder="Talk to Aura...    (⌘+Enter to send)" autocomplete="off" rows="1" aria-label="Message input"></textarea>
+                    <div class="input-actions">
+                        <button type="button" class="input-btn regen-btn" id="regen-btn" title="Regenerate last response (⌘+Shift+R)" aria-label="Regenerate response" style="display:none;">↻</button>
+                        <button type="submit" class="input-btn send-btn" aria-label="Send message">SEND</button>
+                        <button type="button" class="input-btn mic-btn" id="mic-btn" title="Toggle voice" aria-label="Toggle voice input">
+                            <div id="mic-orb"></div>
+                            <div id="stop-icon" class="hidden">■</div>
+                        </button>
+                    </div>
                 </form>
+                <div class="input-hint" aria-hidden="true"><kbd>⌘</kbd>+<kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline · <kbd>?</kbd> shortcuts</div>
             </div>
         </section>
 
@@ -103,6 +146,9 @@
                 <button class="tab-btn" data-tab="skills">
                     <span class="tab-icon">⚡</span> SKILLS
                 </button>
+                <button class="tab-btn" data-tab="settings">
+                    <span class="tab-icon">⚙</span> SETTINGS
+                </button>
             </div>
             <div class="sidebar-body">
                 <!-- Neural Tab -->
@@ -118,7 +164,37 @@
 
                 <!-- Telemetry Tab -->
                 <div id="pane-telemetry" class="tab-pane">
-                    <div class="section-label">LIQUID STATE GAUGES</div>
+                    <div class="telemetry-toolbar">
+                        <div class="section-label telemetry-toolbar-label">LIQUID STATE GAUGES</div>
+                        <button id="metric-guide-toggle" class="metric-guide-toggle" type="button" aria-expanded="false" aria-controls="metric-guide-panel">
+                            <span>Metric Guide</span>
+                            <span class="metric-guide-toggle-icon">?</span>
+                        </button>
+                    </div>
+                    <div id="metric-guide-panel" class="metric-guide-panel" hidden>
+                        <div class="metric-guide-header">
+                            <div>
+                                <div class="metric-guide-eyebrow">Metric guide</div>
+                                <div class="metric-guide-name" id="metric-guide-name">Aura telemetry guide</div>
+                            </div>
+                            <button id="metric-guide-close" class="metric-guide-close" type="button" aria-label="Close telemetry guide">×</button>
+                        </div>
+                        <div class="metric-guide-live" id="metric-guide-live">Select any gauge, card, or telemetry panel for a brief explanation.</div>
+                        <div class="metric-guide-grid">
+                            <div class="metric-guide-block">
+                                <span class="metric-guide-block-label">What it is</span>
+                                <p id="metric-guide-what">Telemetry here represents live state estimates from Aura’s runtime, not decorative placeholders.</p>
+                            </div>
+                            <div class="metric-guide-block">
+                                <span class="metric-guide-block-label">How it’s computed</span>
+                                <p id="metric-guide-how">Values are derived from the same kernel, affect, homeostasis, executive, and consciousness subsystems that drive behavior.</p>
+                            </div>
+                            <div class="metric-guide-block">
+                                <span class="metric-guide-block-label">What it means for Aura</span>
+                                <p id="metric-guide-why">Use it to tell whether a number reflects stress, integration, motivation, memory pressure, or governance rather than guessing from the label alone.</p>
+                            </div>
+                        </div>
+                    </div>
                     <div class="gauge-row">
                         <div class="gauge-label"><span>ENERGY</span><span id="g-energy-val">--</span></div>
                         <div class="gauge-bar">
@@ -210,6 +286,130 @@
                                 class="con-lbl">SURPRISE</span></div>
                         <div class="con-box"><span class="con-val" id="c-swarm">0</span><span
                                 class="con-lbl">SWARM</span></div>
+                        <div class="con-box"><span class="con-val" id="c-singularity">1.0x</span><span
+                                class="con-lbl">SINGULARITY</span></div>
+                        <div class="con-box"><span class="con-val" id="c-meta-loop">IDLE</span><span
+                                class="con-lbl">META-LOOP</span></div>
+                    </div>
+
+                    <div class="section-label">EXECUTIVE AUTHORITY</div>
+                    <div class="consciousness-grid executive-grid">
+                        <div class="con-box"><span class="con-val" id="c-closure">--</span><span class="con-lbl">CLOSURE</span></div>
+                        <div class="con-box"><span class="con-val" id="exec-need">--</span><span class="con-lbl">DOMINANT NEED</span></div>
+                        <div class="con-box"><span class="con-val" id="exec-pressure">--</span><span class="con-lbl">PRESSURE</span></div>
+                        <div class="con-box"><span class="con-val" id="e-reliability">--</span><span class="con-lbl">RELIABILITY</span></div>
+                        <div class="con-box"><span class="con-val" id="e-subjectivity">--</span><span class="con-lbl">SUBJECTIVITY</span></div>
+                        <div class="con-box"><span class="con-val" id="e-enterprise">--</span><span class="con-lbl">ENTERPRISE</span></div>
+                        <div class="con-box"><span class="con-val" id="exec-released">0/0</span><span class="con-lbl">RELEASES</span></div>
+                        <div class="con-box"><span class="con-val" id="exec-suppressed">0</span><span class="con-lbl">SUPPRESSED</span></div>
+                    </div>
+                    <div class="executive-card">
+                        <div class="executive-line">
+                            <span class="executive-key">CURRENT IMPERATIVE</span>
+                            <span class="executive-value" id="exec-objective">Awaiting imperative.</span>
+                        </div>
+                        <div class="executive-line">
+                            <span class="executive-key">ATTENTION FOCUS</span>
+                            <span class="executive-value" id="exec-focus">Internal monitoring.</span>
+                        </div>
+                        <div class="executive-line">
+                            <span class="executive-key">AUTHORITY ROUTE</span>
+                            <span class="executive-value" id="exec-authority">IDLE</span>
+                        </div>
+                        <div class="executive-line">
+                            <span class="executive-key">ASSESSMENT</span>
+                            <span class="executive-value" id="e-assessment">Operational evidence pending.</span>
+                        </div>
+                    </div>
+
+                    <div class="section-label">CONSTITUTIONAL HEALTH</div>
+                    <div class="consciousness-grid">
+                        <div class="con-box"><span class="con-val" id="c-policy-mode">--</span><span class="con-lbl">POLICY MODE</span></div>
+                        <div class="con-box"><span class="con-val" id="c-fragmentation">0%</span><span class="con-lbl">FRAGMENTATION</span></div>
+                        <div class="con-box"><span class="con-val" id="c-contradictions">0</span><span class="con-lbl">CONTRADICTIONS</span></div>
+                        <div class="con-box"><span class="con-val" id="c-contested">0</span><span class="con-lbl">CONTESTED</span></div>
+                        <div class="con-box"><span class="con-val" id="c-commitments">0</span><span class="con-lbl">COMMITMENTS</span></div>
+                        <div class="con-box"><span class="con-val" id="c-tools-available">0/0</span><span class="con-lbl">TOOLS</span></div>
+                    </div>
+                    <div class="flag-strip" id="health-flags">
+                        <span class="flag-chip neutral">awaiting constitutional snapshot</span>
+                    </div>
+                    <div class="narrative-box state-summary-box" id="rolling-summary">Awaiting continuity summary...</div>
+                    <div class="narrative-box phenomenal-box" id="phenomenal-summary">Phenomenal field offline.</div>
+
+                    <div class="section-label">QUALIA ENGINE</div>
+                    <div class="consciousness-grid">
+                        <div class="con-box"><span class="con-val" id="q-pri">0.00</span><span class="con-lbl">PRI</span></div>
+                        <div class="con-box"><span class="con-val" id="q-norm">0.00</span><span class="con-lbl">‖Q‖</span></div>
+                        <div class="con-box"><span class="con-val" id="q-dim">--</span><span class="con-lbl">DOMINANT</span></div>
+                        <div class="con-box"><span class="con-val" id="q-attractor">--</span><span class="con-lbl">ATTRACTOR</span></div>
+                        <div class="con-box"><span class="con-val" id="q-identity">100%</span><span class="con-lbl">IDENTITY</span></div>
+                    </div>
+
+                    <div class="section-label">RESILIENCE MATRIX</div>
+                    <div class="consciousness-grid">
+                        <div class="con-box"><span class="con-val" id="r-llm-tier">CLOUD</span><span class="con-lbl">LLM TIER</span></div>
+                        <div class="con-box"><span class="con-val" id="r-snapshot">--</span><span class="con-lbl">SNAPSHOT</span></div>
+                        <div class="con-box"><span class="con-val" id="r-stt">CLOSED</span><span class="con-lbl">STT BREAKER</span></div>
+                        <div class="con-box"><span class="con-val" id="r-tts">CLOSED</span><span class="con-lbl">TTS BREAKER</span></div>
+                        <div class="con-box"><span class="con-val" id="r-hardening">ACTIVE</span><span class="con-lbl">HARDENING</span></div>
+                    </div>
+
+                    <div class="section-label">MYCELIAL NETWORK</div>
+                    <div class="consciousness-grid">
+                        <div class="con-box"><span class="con-val" id="m-health">--</span><span class="con-lbl">STATUS</span></div>
+                        <div class="con-box"><span class="con-val" id="m-nodes">0</span><span class="con-lbl">NODES</span></div>
+                        <div class="con-box"><span class="con-val" id="m-edges">0</span><span class="con-lbl">EDGES</span></div>
+                    </div>
+
+                    <div class="section-label">PNEUMA ENGINE</div>
+                    <div class="consciousness-grid">
+                        <div class="con-box"><span class="con-val" id="pn-online">--</span><span class="con-lbl">STATUS</span></div>
+                        <div class="con-box"><span class="con-val" id="pn-temp">0.70</span><span class="con-lbl">TEMPERATURE</span></div>
+                        <div class="con-box"><span class="con-val" id="pn-arousal">0.00</span><span class="con-lbl">AROUSAL</span></div>
+                        <div class="con-box"><span class="con-val" id="pn-stability">0.00</span><span class="con-lbl">STABILITY</span></div>
+                        <div class="con-box"><span class="con-val" id="pn-attractors">0</span><span class="con-lbl">ATTRACTORS</span></div>
+                    </div>
+
+                    <div class="section-label">MHAF FIELD</div>
+                    <div class="consciousness-grid">
+                        <div class="con-box"><span class="con-val" id="mhaf-online">--</span><span class="con-lbl">STATUS</span></div>
+                        <div class="con-box"><span class="con-val" id="mhaf-phi">0.00</span><span class="con-lbl">Φ (PHI)</span></div>
+                        <div class="con-box"><span class="con-val" id="mhaf-nodes">0</span><span class="con-lbl">NODES</span></div>
+                        <div class="con-box"><span class="con-val" id="mhaf-edges">0</span><span class="con-lbl">EDGES</span></div>
+                        <div class="con-box"><span class="con-val" id="mhaf-lexicon">0</span><span class="con-lbl">LEXICON</span></div>
+                    </div>
+
+                    <div class="section-label">SECURITY</div>
+                    <div class="consciousness-grid">
+                        <div class="con-box"><span class="con-val" id="sec-trust">GUEST</span><span class="con-lbl">TRUST</span></div>
+                        <div class="con-box"><span class="con-val" id="sec-threat">0.00</span><span class="con-lbl">THREAT</span></div>
+                        <div class="con-box"><span class="con-val" id="sec-integrity">OK</span><span class="con-lbl">INTEGRITY</span></div>
+                        <div class="con-box"><span class="con-val" id="sec-passphrase">--</span><span class="con-lbl">AUTH</span></div>
+                    </div>
+
+                    <div class="section-label">CIRCADIAN STATE</div>
+                    <div class="consciousness-grid">
+                        <div class="con-box"><span class="con-val" id="circ-phase">--</span><span class="con-lbl">PHASE</span></div>
+                        <div class="con-box"><span class="con-val" id="circ-arousal">0.00</span><span class="con-lbl">AROUSAL</span></div>
+                        <div class="con-box"><span class="con-val" id="circ-mode">--</span><span class="con-lbl">MODE</span></div>
+                        <div class="con-box"><span class="con-val" id="circ-energy">0.00</span><span class="con-lbl">ENERGY</span></div>
+                    </div>
+
+                    <div class="section-label">SUBSTRATE LEARNING</div>
+                    <div class="consciousness-grid">
+                        <div class="con-box"><span class="con-val" id="lora-captured">0</span><span class="con-lbl">CAPTURED</span></div>
+                        <div class="con-box"><span class="con-val" id="lora-flushed">0</span><span class="con-lbl">CRYSTALLIZED</span></div>
+                        <div class="con-box"><span class="con-val" id="lora-quality">0.00</span><span class="con-lbl">AVG QUALITY</span></div>
+                        <div class="con-box"><span class="con-val" id="lora-buffer">0</span><span class="con-lbl">BUFFER</span></div>
+                    </div>
+
+                    <div class="section-label">IDENTITY NARRATIVE</div>
+                    <div class="narrative-box" id="identity-narrative">consolidating lived experience...</div>
+                    <div class="consciousness-grid" style="margin-top:6px;">
+                        <div class="con-box"><span class="con-val" id="consol-version">v0</span><span class="con-lbl">VERSION</span></div>
+                        <div class="con-box"><span class="con-val" id="consol-traits">0</span><span class="con-lbl">TRAITS</span></div>
+                        <div class="con-box"><span class="con-val" id="consol-age">--</span><span class="con-lbl">AGE</span></div>
                     </div>
 
                     <div class="section-label">TEMPORAL NARRATIVE</div>
@@ -233,9 +433,116 @@
 
                 <!-- Skills Tab -->
                 <div id="pane-skills" class="tab-pane">
+                    <div class="section-label">TOOL MATRIX</div>
+                    <div class="consciousness-grid tool-overview-grid">
+                        <div class="con-box"><span class="con-val" id="tool-available-count">0</span><span class="con-lbl">AVAILABLE</span></div>
+                        <div class="con-box"><span class="con-val" id="tool-degraded-count">0</span><span class="con-lbl">DEGRADED</span></div>
+                        <div class="con-box"><span class="con-val" id="tool-voice-state">--</span><span class="con-lbl">VOICE</span></div>
+                        <div class="con-box"><span class="con-val" id="tool-last-stage">IDLE</span><span class="con-lbl">LAST EVENT</span></div>
+                    </div>
+                    <div class="tool-last-detail" id="tool-last-detail">Tool orchestration channel awaiting events.</div>
                     <div class="section-label">REGISTERED SKILLS</div>
                     <div id="skills-list">
                         <div class="mem-empty">Loading skills...</div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="pane-settings" class="tab-pane">
+                    <div class="section-label">APPEARANCE</div>
+                    <div class="settings-row">
+                        <label>Theme</label>
+                        <select id="setting-theme" class="setting-input">
+                            <option value="dark">Dark (Default)</option>
+                            <option value="midnight">Midnight</option>
+                            <option value="light">Light</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label>Accent Color</label>
+                        <select id="setting-accent" class="setting-input">
+                            <option value="violet">Violet</option>
+                            <option value="cyan">Cyan</option>
+                            <option value="emerald">Emerald</option>
+                            <option value="amber">Amber</option>
+                        </select>
+                    </div>
+
+                    <div class="section-label">VOICE</div>
+                    <div class="settings-row">
+                        <label>Voice Enabled</label>
+                        <input type="checkbox" id="setting-voice" checked class="setting-toggle">
+                    </div>
+                    <div class="settings-row">
+                        <label>Auto-Listen</label>
+                        <input type="checkbox" id="setting-autolisten" class="setting-toggle">
+                    </div>
+                    <div class="settings-row">
+                        <label>TTS Speed</label>
+                        <input type="range" id="setting-tts-speed" min="0.5" max="2.0" step="0.1" value="1.0" class="setting-range">
+                    </div>
+
+                    <div class="section-label">MEMORY</div>
+                    <div class="settings-row">
+                        <label>Auto-Enrichment</label>
+                        <input type="checkbox" id="setting-enrichment" checked class="setting-toggle">
+                    </div>
+                    <div class="settings-row">
+                        <label>Reflection Learning</label>
+                        <input type="checkbox" id="setting-reflection" checked class="setting-toggle">
+                    </div>
+
+                    <div class="section-label">AUTONOMY</div>
+                    <div class="settings-row">
+                        <label>Autonomous Actions</label>
+                        <input type="checkbox" id="setting-autonomy" checked class="setting-toggle">
+                    </div>
+                    <div class="settings-row">
+                        <label>Require Approval</label>
+                        <select id="setting-approval" class="setting-input">
+                            <option value="destructive">Destructive Only</option>
+                            <option value="all">All Actions</option>
+                            <option value="none">Never</option>
+                        </select>
+                    </div>
+
+                    <div class="section-label">CHEAT CODES</div>
+                    <div class="settings-row">
+                        <label>Activate Code</label>
+                        <input
+                            type="password"
+                            id="setting-cheat-code"
+                            class="setting-input"
+                            placeholder="Enter cheat code"
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+                    </div>
+                    <div class="settings-row">
+                        <label>Code Status</label>
+                        <span id="setting-cheat-status" class="setting-value">IDLE</span>
+                    </div>
+                    <div class="settings-row">
+                        <label>Run Cheat</label>
+                        <button class="setting-btn" id="btn-activate-cheat-code">↑ Activate</button>
+                    </div>
+                    <div class="settings-help">
+                        Examples: <code>MEGAJUMP</code>, <code>TIMERUSH</code>, <code>TOONAMIPLANE</code>, <code>ALLPSI</code>,
+                        <code>MAXRANK</code>, <code>SECRETARY</code>, <code>RARECANDY</code>, <code>MASTERBALL</code>, or your owner code.
+                    </div>
+
+                    <div class="section-label">SYSTEM</div>
+                    <div class="settings-row">
+                        <label>Version</label>
+                        <span id="setting-version" class="setting-value">--</span>
+                    </div>
+                    <div class="settings-row">
+                        <label>Export Data</label>
+                        <button class="setting-btn" id="btn-export-data">↓ Export</button>
+                    </div>
+                    <div class="settings-row">
+                        <label>Clear History</label>
+                        <button class="setting-btn danger" id="btn-clear-history">⚠ Clear</button>
                     </div>
                 </div>
             </div>
@@ -265,7 +572,106 @@
             <span class="m-nav-lbl">DOWNLOAD</span>
         </a>
     </nav>
-    <script src="/static/aura.js?MEGA_SYNC_FINAL_v14_0_5"></script>
+    <!-- Soul Map Fullscreen Overlay -->
+    <div id="soul-overlay" class="soul-overlay">
+        <iframe id="soul-frame" class="soul-frame" src=""></iframe>
+        <button id="soul-close" class="soul-close-btn">✕ CLOSE</button>
+    </div>
+
+    <!-- Terminal Fallback Status Modal -->
+    <div id="terminal-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card terminal-modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title terminal-modal-title">▸ TERMINAL FALLBACK</h2>
+                <p class="modal-subtitle terminal-modal-subtitle">Emergency last-resort communication channel</p>
+            </div>
+            <div class="modal-body terminal-modal-body">
+                <div class="terminal-status-grid">
+                    <div class="terminal-status-cell">
+                        <div class="terminal-status-label">WATCHDOG</div>
+                        <div id="term-watchdog" style="color:var(--success);">MONITORING</div>
+                    </div>
+                    <div class="terminal-status-cell">
+                        <div class="terminal-status-label">TERMINAL</div>
+                        <div id="term-active" style="color:#888;">STANDBY</div>
+                    </div>
+                    <div class="terminal-status-cell">
+                        <div class="terminal-status-label">PENDING MSG</div>
+                        <div id="term-pending" style="color:#888;">0</div>
+                    </div>
+                    <div class="terminal-status-cell">
+                        <div class="terminal-status-label">TRIGGER</div>
+                        <div style="color:#888;font-size:10px;">UI GONE &gt;30s + MSG</div>
+                    </div>
+                </div>
+                <div class="terminal-queue-label">QUEUE A MESSAGE FOR TERMINAL DELIVERY:</div>
+                <div class="terminal-input-wrap">
+                    <input id="term-msg-input" type="text" placeholder="Message for Aura to deliver via terminal..." class="terminal-msg-field">
+                    <button id="term-send-btn" class="terminal-queue-btn">QUEUE</button>
+                </div>
+                <div id="term-send-result" class="terminal-send-result"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn primary" id="term-close-btn">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onboarding Modal (First Run) -->
+    <div id="onboarding-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="brand-icon onboarding-brand-icon"></div>
+                <h2>Welcome to Aura</h2>
+                <p class="modal-subtitle">Your autonomous cognitive companion</p>
+            </div>
+            <div class="modal-body">
+                <div class="onboard-step active" data-step="1">
+                    <h3>🧠 Cognitive Engine</h3>
+                    <p>Aura thinks before she speaks. She uses multi-step reasoning, memory retrieval, and belief revision to form thoughtful responses.</p>
+                </div>
+                <div class="onboard-step" data-step="2">
+                    <h3>🎙️ Voice & Vision</h3>
+                    <p>Talk to Aura using your microphone. She can also see your screen when you ask her to. Toggle these in the header controls.</p>
+                </div>
+                <div class="onboard-step" data-step="3">
+                    <h3>📊 Neural Dashboard</h3>
+                    <p>Use the sidebar tabs to view Aura's neural activity, telemetry gauges, memories, skills, and settings in real-time.</p>
+                </div>
+                <div class="onboard-step" data-step="4">
+                    <h3>⚙️ Make It Yours</h3>
+                    <p>Visit Settings to customize themes, voice, autonomy level, and more. Aura learns your preferences over time.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" id="onboard-skip">Skip</button>
+                <div class="modal-dots" id="onboard-dots">
+                    <span class="dot active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                </div>
+                <button class="modal-btn primary" id="onboard-next">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Overlay -->
+    <div id="shortcuts-overlay" class="shortcuts-overlay" style="display:none;" role="dialog" aria-label="Keyboard shortcuts">
+        <div class="shortcuts-card">
+            <div class="shortcuts-header">
+                <h3>Keyboard Shortcuts</h3>
+                <button class="shortcuts-close" id="shortcuts-close" aria-label="Close shortcuts">✕</button>
+            </div>
+            <div class="shortcuts-grid">
+                <div class="shortcut-row"><kbd>⌘</kbd>+<kbd>Enter</kbd><span>Send message</span></div>
+                <div class="shortcut-row"><kbd>Shift</kbd>+<kbd>Enter</kbd><span>New line</span></div>
+                <div class="shortcut-row"><kbd>Escape</kbd><span>Clear input / Close overlay</span></div>
+                <div class="shortcut-row"><kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd><span>Regenerate last response</span></div>
+                <div class="shortcut-row"><kbd>?</kbd><span>Show this overlay</span></div>
+            </div>
+        </div>
+    </div>
+    <!-- Connection Toast -->
+    <div id="conn-toast" class="conn-toast">⚠ Connection lost — reconnecting…</div>
+    <script src="/static/aura.js"></script>
 </body>
 
 </html>

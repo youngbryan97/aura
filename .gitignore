@@ -4,19 +4,51 @@ config_creds.json
 .env
 identity.seal
 
+# Models (large binaries — never commit)
+models/
+models_gguf/
+*.gguf
+*.safetensors
+*.bin
+*.onnx
+
 # Data and Logs
 data/
 logs/
 server.log
 server.pid
 *.npy
+*.log
+MUJOCO_LOG.TXT
+FINAL_BOOT_LOG.txt
+FINAL_STABLE_BOOT.txt
+boot_log.txt
+my_debug.log
+test_out.txt
 
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 .venv/
+.venv_aura/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+
+# Build artifacts
+build/
+dist/
+.aura_runtime/
+.aura_snapshots/
+.aura_test.log
 
 # OS
 .DS_Store
+.localized
+Thumbs.db

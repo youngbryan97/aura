@@ -89,7 +89,7 @@ class CodeFixGenerator:
         
         # Read the buggy code
         try:
-            code_context = self._extract_code_context(file_path, line_number, context_lines)
+            code_context = await self._extract_code_context(file_path, line_number, context_lines)
             # v6.2: Add AST structural context
             ast_context = await self.analyzer.analyze_file(self.code_base / file_path)
             code_context["ast_summary"] = ast_context
@@ -219,7 +219,7 @@ Return ONLY the fixed code (same line range), no explanation, no markdown.
 Start your response with the first line of fixed code."""
 
         try:
-            thought = await self.brain.think(prompt)
+            thought = await self.brain.think(prompt, priority=0.1)
             response = thought.content # proper extraction
             
             # Clean up response
@@ -433,7 +433,7 @@ class SandboxTester:
             
             # Apply fix in sandbox
             try:
-                self._apply_fix_in_sandbox(temp_path, fix)
+                await self._apply_fix_in_sandbox(temp_path, fix)
             except Exception as e:
                 logger.error("Fix application failed: %s", e)
                 return False, {"error": f"Fix application: {e}"}
@@ -456,31 +456,32 @@ class SandboxTester:
         sandbox_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(target_file, sandbox_file)
         
-        # Copy any dependencies (same directory)
+        # v18 Hardening: Copy parent __init__.py and all siblings
+        # This ensures imports like 'from . import sibling' work.
         source_dir = target_file.parent
         for dep_file in source_dir.glob("*.py"):
             if dep_file.name != "__pycache__":
-                dest = sandbox_path / dep_file.relative_to(self.code_base)
+                dest = sandbox_path / fix.target_file.replace(target_file.name, dep_file.name)
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(dep_file, dest)
+                if not dest.exists(): # Don't overwrite the target_file we just copied
+                    shutil.copy2(dep_file, dest)
         
+        # Try to copy parent __init__.py if it exists (for absolute imports)
+        parent_init = source_dir.parent / "__init__.py"
+        if parent_init.exists():
+            dest_init = sandbox_path / fix.target_file.split('/')[0] / "__init__.py"
+            dest_init.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(parent_init, dest_init)
+            
         return True
     
-    def _apply_fix_in_sandbox(self, sandbox_path: Path, fix: CodeFix):
-        """Apply the fix to the sandboxed file"""
+    async def _apply_fix_in_sandbox(self, sandbox_path: Path, fix: CodeFix):
+        """Apply the fix to the sandboxed file (Async)."""
         sandbox_file = sandbox_path / fix.target_file
         
-        # Read original
-        with open(sandbox_file, 'r') as f:
-            content = f.read()
-        
-        # Apply fix (simple replacement for now)
-        # In production, use more sophisticated patching
+        content = await asyncio.to_thread(sandbox_file.read_text, encoding='utf-8')
         modified_content = content.replace(fix.original_code, fix.fixed_code)
-        
-        # Write back
-        with open(sandbox_file, 'w') as f:
-            f.write(modified_content)
+        await asyncio.to_thread(sandbox_file.write_text, modified_content, encoding='utf-8')
     
     async def _run_tests_in_sandbox(self, sandbox_path: Path, fix: CodeFix) -> Dict[str, Any]:
         """Run tests in sandbox with enhanced safety (Async)."""
@@ -569,7 +570,28 @@ class SandboxTester:
             results["integrity_check"] = True
 
 
-        # Test 4: Run Unit Tests (pytest) if available
+        # Test 4: Type check (Pyright Guard) - Phase 30
+        try:
+            from core.resilience.diagnostic_hub import get_diagnostic_hub
+            hub = get_diagnostic_hub()
+            logger.info("🛡️ [NEURO] Running Pyright validation on sandbox fix...")
+            
+            # We must run pyright on the specific file in the sandbox
+            # Pyright usually needs a config, but we can run it on a single file
+            pyright_res = await hub._run_pyright(sandbox_file)
+            if not pyright_res.get("ok", True):
+                issues = pyright_res.get("issues", [])
+                if issues:
+                    # Filter for errors only if desired, or report all
+                    results["errors"].append(f"Pyright type mismatch: {issues[0].get('message')}")
+                    logger.warning("❌ [NEURO] Pyright rejected the fix.")
+                    return results
+            results["integrity_check"] = True
+            logger.info("✅ [NEURO] Pyright validation passed.")
+        except Exception as e:
+            logger.warning("Pyright guard bypassed due to error: %s", e)
+
+        # Test 5: Run Unit Tests (pytest) if available
         # Check for test files associated with the target
         # e.g., core/memory.py -> tests/core/test_memory.py or same dir test_memory.py
         try:
@@ -635,7 +657,7 @@ class SandboxTester:
             
             # Simple replacement (matches _apply_fix_in_sandbox logic)
             # This 'code_patch' is the CodeFix.original_code or CodeFix.fixed_code
-            # Wait, the 'code_patch' here should be the WHOLE file content for simplicity, 
+            # Wait, the 'code_patch' here should be the WHOLE file content for simplicity,
             # but let's stick to the replacement logic for consistency with previous tools.
             # Actually, let's just write the modified content passed in.
             
@@ -718,9 +740,36 @@ class AutonomousCodeRepair:
             (success, fix_object, test_results)
 
         """
-        logger.info("Attempting autonomous repair: %s:%d", file_path, line_number)
-        
+        # v40: Growth Ladder Veto
+        from core.container import ServiceContainer
+        ladder = ServiceContainer.get("growth_ladder", default=None)
+        if ladder:
+            proposal_id = f"repair_{file_path}_{line_number}"
+            # Level 2 or 3 depending on file path
+            level = 3 if "core/" in file_path else 2
+            consent = await ladder.propose_modification(
+                proposal_id=proposal_id,
+                modification_type="code_repair",
+                level=level,
+                description=f"Autonomous repair of {file_path}:{line_number}. Diagnosis: {diagnosis.get('summary', 'unknown')}"
+            )
+            if not consent:
+                logger.warning("🚫 [GrowthLadder] Aura VETOED code repair for %s", file_path)
+                return False, None, {"error": "Vetoed by entity"}
+
         # Step 1: Generate fix
+        
+        # v29.1: Mechanical Repair Layer (Ruff)
+        logger.info("🔧 [NEURO] Attempting mechanical repair with Ruff...")
+        try:
+            from core.resilience.diagnostic_hub import get_diagnostic_hub
+            hub = get_diagnostic_hub()
+            # If it's a simple syntax or style issue, ruff might fix it
+            cmd = ["ruff", "check", "--fix", file_path]
+            subprocess.run(cmd, capture_output=True, text=True, cwd=self.generator.code_base)
+        except Exception as e:
+            logger.warning("Mechanical repair failed: %s", e)
+
         fix = await self.generator.generate_fix(file_path, line_number, diagnosis)
         if not fix:
             return False, None, {"error": "Fix generation failed"}
@@ -730,8 +779,7 @@ class AutonomousCodeRepair:
         # Step 2: Validate fix
         # Read original file
         full_path = Path(self.generator.code_base) / file_path
-        with open(full_path, 'r') as f:
-            original_content = f.read()
+        original_content = await asyncio.to_thread(full_path.read_text, encoding='utf-8')
         
         # Apply fix to get full new content
         modified_content = original_content.replace(fix.original_code, fix.fixed_code)

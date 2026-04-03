@@ -1,49 +1,57 @@
+from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
+from typing import Dict
 
-# --- PyInstaller / Frozen Handling ---
-IS_FROZEN = getattr(sys, 'frozen', False)
+CORE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = CORE_DIR.parent
 
-if IS_FROZEN:
-    # PyInstaller temporary extraction folder for resources (onefile mode)
-    # This is where bundle files like 'interface/static' and 'core/identity_base.txt' live
-    PROJECT_ROOT = Path(sys._MEIPASS).resolve()
-    # Persistent storage for memories/identity must be in user home
-    # We use ~/.aura to keep it consistent across updates and prevent loss on app exit
-    PERSISTENT_ROOT = Path.home() / ".aura"
-else:
-    # Development mode: everything is local to the source tree
-    PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
-    
-    # Check if we have write access to the project root
-    # If not (e.g. running from /Applications without being 'frozen'), 
-    # we MUST use the user home directory for persistent data.
-    if os.access(PROJECT_ROOT, os.W_OK):
-        PERSISTENT_ROOT = PROJECT_ROOT
-    else:
-        PERSISTENT_ROOT = Path.home() / ".aura"
+def get_paths() -> Dict[str, Path]:
+    """Returns a dictionary of all core Aura paths for subsystems."""
+    from core.config import config
+    return {
+        "root": aura_root(),
+        "data": aura_data_dir(),
+        "logs": aura_logs_dir(),
+        "backups": aura_backups_dir(),
+        "error_logs": aura_error_logs_dir(),
+        "vault": aura_vault_dir(),
+        "project_root": PROJECT_ROOT
+    }
 
-def get_path(relative_path: str) -> Path:
-    """Get absolute path relative to project root (resources)."""
-    return PROJECT_ROOT / relative_path
+def aura_root() -> Path:
+    """Returns the root directory for Aura data/logs, defaulting to ~/.aura"""
+    return Path(os.getenv("AURA_ROOT", Path.home() / ".aura")).expanduser().resolve()
 
-def get_user_home() -> Path:
-    """Get user home directory."""
-    return Path.home()
+def aura_data_dir() -> Path:
+    """Returns the data directory, creating it if it doesn't exist."""
+    p = aura_root() / "data"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
-def get_desktop() -> Path:
-    """Get user desktop directory."""
-    return Path.home() / "Desktop"
+def aura_logs_dir() -> Path:
+    """Returns the logs directory, creating it if it doesn't exist."""
+    p = aura_root() / "logs"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
-# Common implementation directories
-CORE_DIR = PROJECT_ROOT / "core"
-SKILLS_DIR = PROJECT_ROOT / "skills"
-INTERFACE_DIR = PROJECT_ROOT / "interface"
+def aura_backups_dir() -> Path:
+    """Returns the backups directory, creating it if it doesn't exist."""
+    p = aura_root() / "backups"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
-# DATA and LOGS must be persistent
-DATA_DIR = PERSISTENT_ROOT / "data"
+def aura_error_logs_dir() -> Path:
+    """Returns the error logs directory, creating it if it doesn't exist."""
+    p = aura_data_dir() / "error_logs"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
-# Ensure persistent directories exist
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+def aura_vault_dir() -> Path:
+    p = aura_root() / "vault"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+# v1.0.1: Moved to end of file to prevent circular import issues during early boot
+DATA_DIR = aura_data_dir()

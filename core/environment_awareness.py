@@ -118,12 +118,15 @@ async def get_device_info() -> DeviceInfo:
                             free_pages += int(parts[1].strip().rstrip("."))
                 info.memory_available_gb = (free_pages * 4096) / (1024**3)
         elif platform.system() == "Linux":
-            with open("/proc/meminfo") as f:
-                for line in f:
-                    if line.startswith("MemTotal"):
-                        info.memory_total_gb = int(line.split()[1]) / (1024**2)
-                    elif line.startswith("MemAvailable"):
-                        info.memory_available_gb = int(line.split()[1]) / (1024**2)
+            def _read_mem():
+                with open("/proc/meminfo") as f:
+                    return f.readlines()
+            lines = await asyncio.to_thread(_read_mem)
+            for line in lines:
+                if line.startswith("MemTotal"):
+                    info.memory_total_gb = int(line.split()[1]) / (1024**2)
+                elif line.startswith("MemAvailable"):
+                    info.memory_available_gb = int(line.split()[1]) / (1024**2)
     except Exception as e:
         logger.debug("Memory info failed: %s", e)
     
@@ -146,7 +149,7 @@ async def get_device_info() -> DeviceInfo:
     # Disk
     try:
         import shutil
-        total, used, free = shutil.disk_usage("/")
+        total, used, free = await asyncio.to_thread(shutil.disk_usage, "/")
         info.disk_free_gb = free / (1024**3)
     except Exception as e:
         logger.debug("Disk info unavailable: %s", e)
@@ -161,8 +164,11 @@ async def get_device_info() -> DeviceInfo:
                     boot_time = int(match.group(1))
                     info.uptime_hours = (time.time() - boot_time) / 3600
         elif platform.system() == "Linux":
-            with open("/proc/uptime") as f:
-                info.uptime_hours = float(f.read().split()[0]) / 3600
+            def _read_uptime():
+                with open("/proc/uptime") as f:
+                    return f.read()
+            content = await asyncio.to_thread(_read_uptime)
+            info.uptime_hours = float(content.split()[0]) / 3600
     except Exception as e:
         logger.debug("Uptime info unavailable: %s", e)
     
@@ -261,7 +267,8 @@ async def get_location_from_system() -> LocationInfo:
                     loc.accuracy_meters = 100.0
                     return loc
     except FileNotFoundError:
-        pass
+        import logging
+        logger.debug("Exception caught during execution", exc_info=True)
     except Exception as e:
         logger.debug("System location failed: %s", e)
     
@@ -486,12 +493,13 @@ class EnvironmentAwareness:
             self.location = await get_location_from_system()
             self._last_location_refresh = now
         return self.location
-    
+
     async def get_full_context(self, user_agent: str = "", ip_address: str = "") -> Dict[str, Any]:
         """Get full environment context for prompt injection (Async)."""
         device = await self.refresh_device()
         location = await self.refresh_location()
         user_ctx = self.user_manager.get_current_user_context(user_agent, ip_address)
+        health_report = ServiceContainer.get_health_report() if hasattr(ServiceContainer, "get_health_report") else {}
         
         return {
             "device": await device.summary() if device else "Unknown device",
@@ -499,6 +507,7 @@ class EnvironmentAwareness:
             "user_identity": user_ctx,
             "device_raw": asdict(device) if device else {},
             "location_raw": asdict(location) if location else {},
+            "system_health": health_report,
         }
     
     async def get_context_string(self, user_agent: str = "", ip_address: str = "") -> str:
@@ -510,6 +519,13 @@ class EnvironmentAwareness:
         if ctx['location'] != "Unknown location":
             parts.append(f"[Environment] Location: {ctx['location']}")
         parts.append(f"[Environment] {ctx['user_identity']}")
+        
+        # Add Architectural Status
+        health = ctx.get("system_health", {})
+        services = health.get("services", {})
+        if services:
+            active_count = sum(1 for s in services.values() if s.get("initialized"))
+            parts.append(f"[Environment] System Architecture: {active_count}/{len(services)} core services active.")
         
         return "\n".join(parts)
 
@@ -543,13 +559,13 @@ async def get_environment_api_data() -> Dict[str, Any]:
 def get_environment() -> EnvironmentAwareness:
     """Get global environment awareness via DI container."""
     try:
-        if "environment_awareness" not in ServiceContainer._services:
+        if not ServiceContainer.get("environment_awareness", None):
             ServiceContainer.register(
                 "environment_awareness",
                 factory=lambda: EnvironmentAwareness(),
                 lifetime=ServiceLifetime.SINGLETON
             )
-        return ServiceContainer.get("environment_awareness")
+        return ServiceContainer.get("environment_awareness", default=None)
     except Exception as e:
         logger.debug("ServiceContainer unavailable or failed: %s. Using transient EnvironmentAwareness.", e)
         return EnvironmentAwareness()

@@ -166,9 +166,9 @@ class Memory:
             
             # Attempt rollback
             try:
-                if backup_file.exists() and self.storage_file.exists():
-                    self.storage_file.unlink()
                 if backup_file.exists():
+                    if self.storage_file.exists():
+                        self.storage_file.unlink()
                     backup_file.replace(self.storage_file)
             except Exception as rollback_error:
                 logger.critical("Rollback failed: %s", rollback_error)
@@ -178,9 +178,9 @@ class Memory:
                 try:
                     temp_file.unlink()
                 except Exception as exc:
-                    logger.debug("Suppressed: %%s", exc)
+                    logger.debug("Suppressed: %s", exc)
 
-                    return False
+            return False
     
     def load(self) -> None:
         """Load memory from storage file with corruption recovery.
@@ -404,3 +404,27 @@ class Memory:
                 "last_modified": self.data["metadata"].get("last_modified"),
                 "dirty_count": self._dirty_count
             }
+
+# --- Standalone Atomic Utilities (ISSUE 14) ---
+
+def atomic_write(file_path: str, content: str) -> None:
+    """Thread-safe atomic write utility using a temporary file and atomic rename."""
+    path = Path(file_path)
+    temp_path = path.with_suffix(".tmp")
+    try:
+        # Ensure parent directory exists
+        path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write to temp file using context manager (ensures closure)
+        with open(temp_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+            
+        # Atomic rename
+        temp_path.replace(path)
+    except Exception as e:
+        logger.error("Standalone atomic write failed for %s: %s", file_path, e)
+        if temp_path.exists():
+            temp_path.unlink()
+        raise

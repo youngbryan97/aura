@@ -38,7 +38,7 @@ async def compact_working_memory(chat_history: List[Dict[str, Any]], max_raw_tur
 
     try:
         from core.container import ServiceContainer
-        llm = ServiceContainer.get("ollama_client")
+        llm = ServiceContainer.get("llm_router", default=None)
         
         summary_prompt = (
             "Condense the following conversation into a dense, factual summary of what was discussed, "
@@ -49,10 +49,13 @@ async def compact_working_memory(chat_history: List[Dict[str, Any]], max_raw_tur
         # Note: We append the history to the prompt for summarization
         full_summarization_request = f"{summary_prompt}\n\nCONVERSATION:\n{content_block}"
         
-        # In a real scenario, we might want a 'fast' model, but we'll use the default for now
-        # but with lower max_tokens/temperature
-        summary_response = await llm.generate(full_summarization_request, system="You are a memory consolidation sub-process.")
-        summary_text = summary_response.get("response", "Conversation continued.")
+        from core.brain.types import ThinkingMode
+        summary_response = await llm.think(
+            full_summarization_request, 
+            system_prompt="You are a memory consolidation sub-process.",
+            mode=ThinkingMode.FAST
+        )
+        summary_text = summary_response.strip() if isinstance(summary_response, str) else str(summary_response)
         
         # Build the condensed history
         # Always preserve the primary system prompt if it exists

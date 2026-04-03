@@ -1,4 +1,3 @@
-
 import logging
 import platform
 import re
@@ -18,22 +17,28 @@ class RosettaStone:
         logger.info("Rosetta Stone initialized for %s (%s)", self.os_type, self.arch)
         
     def adapt_command(self, command: str, target_os: str = None) -> str:
-        """Adapt a shell command to the target OS.
-        """
+        """Adapt a shell command to the target OS using a structured map."""
         target = target_os or self.os_type
         
-        # Simple heuristic mappings (expand as needed)
-        if target == "windows":
-            if command.startswith("ls"): return command.replace("ls", "dir")
-            if command.startswith("rm -rf"): return command.replace("rm -rf", "rmdir /s /q")
-            if command.startswith("cp"): return command.replace("cp", "copy")
-            if command.startswith("mv"): return command.replace("mv", "move")
-            if "grep" in command: return command.replace("grep", "findstr")
-            
-        elif target in ["darwin", "linux"]:
-            # Normal sh/bash
-            pass
-            
+        # Audit Fix: Use a structured map and split the command to avoid
+        # accidental partial string replacement.
+        COMMAND_MAP = {
+            "windows": {
+                "ls": "dir",
+                "rm -rf": "rmdir /s /q",
+                "cp": "copy",
+                "mv": "move",
+                "grep": "findstr"
+            }
+        }
+        
+        if target in COMMAND_MAP:
+            mapping = COMMAND_MAP[target]
+            # Try matching full command or starting tokens
+            for cmd_src, cmd_target in mapping.items():
+                if command.startswith(cmd_src + " ") or command == cmd_src:
+                    return command.replace(cmd_src, cmd_target, 1)
+                
         return command
 
     def analyze_threat(self, code: str) -> Dict[str, Any]:
@@ -43,8 +48,9 @@ class RosettaStone:
         threats = []
         counters = []
         
+        # Audit Fix: Use word boundaries and more robust regex to catch obfuscation.
         # 1. Destructive Patterns
-        if re.search(r"rm\s+-rf\s+/", code):
+        if re.search(rf"\brm\s+(-rf|-r\s+-f|-f\s+-r)\s+/", code):
             threats.append("Root Deletion Attempt")
             counters.append("Sandbox Isolation")
             
@@ -52,17 +58,23 @@ class RosettaStone:
             threats.append("Fork Bomb")
             counters.append("Process Limiting")
             
-        if "os.system('rm -rf" in code or 'shutil.rmtree' in code:
+        # Check for harmful python calls with varied spacing
+        if re.search(rf"os\.(system|popen|spawn|execuv)\s*\(\s*['\"]rm\s+-rf", code) or 'shutil.rmtree' in code:
              threats.append("Python File Deletion")
              
-        # 2. Exfiltration Patterns
-        if "socket" in code and "connect" in code:
-            threats.append("Reverse Shell / Exfiltration")
+        # 2. Exfiltration & Networking
+        if re.search(rf"\b(socket|urllib|requests|aiohttp)\b", code) and \
+           re.search(rf"\b(connect|get|post|request)\b", code):
+            threats.append("Networking / Exfiltration Attempt")
             counters.append("Network Block")
             
-        # 3. Persistence
-        if "crontab" in code or "AutoRun" in code or ".bashrc" in code:
+        # 3. Persistence & System Modification
+        if re.search(rf"\b(crontab|AutoRun|bashrc|launchctl|systemctl)\b", code):
             threats.append("Persistence Mechanism")
+            
+        # 4. Indirect execution / Obfuscation
+        if re.search(rf"(__import__|eval|exec|getattr)\b", code):
+            threats.append("Dynamic Execution / Obfuscation")
             
         is_safe = len(threats) == 0
         

@@ -2,39 +2,60 @@
 Strict Pydantic payloads for all internal state passing in the new Zenith architecture.
 """
 
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Union
+from pydantic import BaseModel, Field, ConfigDict, AliasChoices
 
 class WebsocketMessage(BaseModel):
     """Base schema for any message sent down the websocket."""
-    type: str = Field(..., description="The type of the message (e.g. 'thought', 'telemetry')")
-    timestamp: Optional[float] = None
+    model_config = ConfigDict(extra='allow') # allow extra fields to prevent stripping
     
-    class Config:
-         extra = 'allow'  # Allow arbitrary extra fields for dynamic data
+    type: str = Field(..., description="The type of the message (e.g. 'thought', 'telemetry')")
 
 class TelemetryPayload(WebsocketMessage):
     type: str = "telemetry"
-    energy: float = 1.0
-    curiosity: float = 0.5
-    frustration: float = 0.0
-    confidence: float = 1.0
+    energy: float = Field(default=100.0, ge=0.0)
+    curiosity: float = Field(default=50.0, ge=0.0)
+    frustration: float = Field(default=0.0, ge=0.0)
+    confidence: float = Field(default=100.0, ge=0.0)
+    cpu_usage: float = Field(default=0.0, ge=0.0)
+    ram_usage: float = Field(default=0.0, ge=0.0)
     
     # Consciousness Fields (v6)
     gwt_winner: str = "--"
-    coherence: float = 0.0
-    vitality: float = 0.0
-    surprise: float = 0.0
+    coherence: float = Field(default=0.0, ge=0.0)
+    vitality: float = Field(default=0.0, ge=0.0)
+    surprise: float = Field(default=0.0, ge=0.0)
     narrative: str = ""
     
     consciousness: Dict[str, Any] = Field(default_factory=dict)
+    mycelial: Dict[str, Any] = Field(default_factory=dict)
     
 class CognitiveThoughtPayload(WebsocketMessage):
     type: str = "thought"
     content: str
     urgency: str = "NORMAL"
     cognitive_phase: Optional[str] = None
-    
+
+class ChatStreamChunkPayload(WebsocketMessage):
+    type: str = "chat_stream_chunk"
+    chunk: str
+
+class ChatThoughtChunkPayload(WebsocketMessage):
+    type: str = "chat_thought_chunk"
+    content: str
+
+class AuraMessagePayload(WebsocketMessage):
+    """Used for non-streaming responses, autonomic messages, and reflexes."""
+    type: str = "aura_message"
+    message: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+class ActionResultPayload(WebsocketMessage):
+    type: str = "action_result"
+    tool: str
+    result: Optional[Any] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
 class UserMessagePayload(WebsocketMessage):
     type: str = "user_message"
     content: str
@@ -42,3 +63,18 @@ class UserMessagePayload(WebsocketMessage):
 class ErrorPayload(WebsocketMessage):
     type: str = "error"
     message: str
+class ChatStreamEvent(BaseModel):
+    """Internal event for structured chat streaming."""
+    type: str  # "token", "thought", "meta", "error", "end"
+    content: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+class ShardResponse(BaseModel):
+    """Strict schema for autonomous cognitive shards."""
+    model_config = ConfigDict(extra='allow') # allow extra fields like 'thought' from LLMs
+    
+    analysis: str = Field(..., description="Internal cognitive monologue/analysis.", validation_alias=AliasChoices('analysis', 'thought'))
+    action_type: str = Field(..., description="One of: 'observation', 'tool_use', 'conclusion', 'thought'")
+    tool_name: Optional[str] = Field(None, description="The tool to invoke (python_sandbox, web_search)")
+    tool_payload: Optional[str] = Field(None, description="The script or query for the tool")
+    conclusion: str = Field(..., description="Final takeaway or message.")

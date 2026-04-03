@@ -32,11 +32,12 @@ def append_audit(entry: str):
         with open(LOG_KEY_PATH, "rb") as f:
             key = f.read()
         
-        sig = hmac.new(key, line.encode("utf-8"), hashlib.sha256).hexdigest()
+        # Use hmac.HMAC instead of deprecated hmac.new (BUG-005)
+        sig = hmac.HMAC(key, line.encode("utf-8"), hashlib.sha256).hexdigest()
         _prev_hash = sig  # Chain to next entry
         
         with open(LOG_PATH, "a") as f:
-            f.write(f"{line}|{sig}\n")
+            f.write(f"{line} | HM:{sig}\n")
             
     except Exception as e:
         logger.error("AUDIT LOG FAILURE: %s", e)

@@ -11,6 +11,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+import asyncio
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Kernel.IntegrityGuard")
@@ -65,13 +66,21 @@ class IntegrityGuard:
             return report
 
         try:
+            from core.adaptation.immune_system import get_immune_system
+            immune_sys = get_immune_system()
+        except ImportError:
+            immune_sys = None
+
+        try:
             beliefs = self._get_beliefs()
             report.beliefs_scanned = len(beliefs)
             for belief in beliefs:
                 if belief.get("confidence", 1.0) < self.confidence_threshold:
-                    self._quarantine(belief, report)
+                    await self._quarantine(belief, report)
             self._detect_contradictions(beliefs, report)
-            self._decay_stale(beliefs, report)
+            
+            # Use the dedicated decay method
+            await self._decay_stale(beliefs, report)
         except Exception as exc:
             msg = f"Integrity audit error: {exc}"
             logger.error(msg, exc_info=True)
@@ -88,9 +97,9 @@ class IntegrityGuard:
                 level="info" if not report.quarantined else "warning",
             )
         except Exception as exc:
-            logger.debug("Suppressed: %%s", exc)
+            logger.debug("Suppressed thought-stream emit: %s", exc)
 
-            return report
+        return report
 
     # ------------------------------------------------------------------
     def _get_beliefs(self) -> List[Dict]:
@@ -107,7 +116,7 @@ class IntegrityGuard:
             logger.warning("Failed to retrieve beliefs: %s", exc)
         return []
 
-    def _quarantine(self, belief: Dict, report: AuditReport) -> None:
+    async def _quarantine(self, belief: Dict, report: AuditReport) -> None:
         belief_id = belief.get("id", "unknown")
         logger.info(
             "🚨 Quarantining belief %s (conf=%.3f): %s...",
@@ -118,61 +127,87 @@ class IntegrityGuard:
             if hasattr(self.belief_graph, "update_belief"):
                 self.belief_graph.update_belief(belief_id, status="quarantined", quarantined_at=time.time())
             elif hasattr(self.belief_graph, "conn"):
-                c = self.belief_graph.conn.cursor()
-                c.execute("UPDATE beliefs SET status='quarantined' WHERE id=?", (belief_id,))
-                self.belief_graph.conn.commit()
+                def _do_quarantine():
+                    c = self.belief_graph.conn.cursor()
+                    c.execute("UPDATE beliefs SET status='quarantined' WHERE id=?", (belief_id,))
+                    self.belief_graph.conn.commit()
+                await asyncio.to_thread(_do_quarantine)
             report.quarantined += 1
         except Exception as exc:
             report.errors.append(f"quarantine {belief_id}: {exc}")
 
     def _detect_contradictions(self, beliefs: List[Dict], report: AuditReport) -> None:
-        # Cap to 500 beliefs to avoid O(n²) explosion on large graphs
+        """Detect contradictions with O(n) prefix matching (PERF-02)."""
         MAX_SCAN = 500
         MAX_CONTRADICTIONS = 50
+        NEGATION_PREFIXES = ("not ", "never ", "cannot ", "doesn't ", "isn't ", "won't ")
+        
         contents = [
             (b.get("id", "?"), str(b.get("content", "")).lower().strip())
             for b in beliefs[:MAX_SCAN] if b.get("status") != "quarantined"
         ]
-        NEGATION_PREFIXES = ("not ", "never ", "cannot ", "doesn't ", "isn't ", "won't ")
+        
+        # Build prefix-indexed lookup for O(n) instead of O(n^2)
+        negated: Dict[str, str] = {}  # stripped_text -> original_id
+        for bid, text in contents:
+            for prefix in NEGATION_PREFIXES:
+                if text.startswith(prefix):
+                    negated[text[len(prefix):]] = bid
+        
         seen: set = set()
-        for i, (id_a, text_a) in enumerate(contents):
-            if report.contradictions_found >= MAX_CONTRADICTIONS:
-                break
-            for j, (id_b, text_b) in enumerate(contents):
-                if i >= j:
-                    continue
-                pair = (min(id_a, id_b), max(id_a, id_b))
-                if pair in seen:
-                    continue
-                for prefix in NEGATION_PREFIXES:
-                    if (text_a.startswith(prefix) and text_b == text_a[len(prefix):]) or \
-                       (text_b.startswith(prefix) and text_a == text_b[len(prefix):]):
-                        seen.add(pair)
-                        report.contradictions_found += 1
-                        logger.warning("⚠️  Contradiction: [%s] vs [%s]", id_a, id_b)
-                        break
+        for bid, text in contents:
+            if text in negated and negated[text] != bid:
+                pair = frozenset({bid, negated[text]})
+                if pair not in seen:
+                    seen.add(pair)
+                    report.contradictions_found += 1
+                    logger.warning("⚠️  Contradiction: [%s] vs [%s]", bid, negated[text])
+                if report.contradictions_found >= MAX_CONTRADICTIONS:
+                    break
 
-    def _decay_stale(self, beliefs: List[Dict], report: AuditReport) -> None:
+    async def _decay_stale(self, beliefs: List[Dict], report: AuditReport) -> None:
+        """Decay all stale beliefs."""
         cutoff = time.time() - (self.staleness_days * 86400)
         for belief in beliefs:
-            if belief.get("status") == "quarantined":
-                continue
-            last_reinforced = belief.get("last_reinforced", belief.get("created_at", 0))
-            if not last_reinforced or last_reinforced < cutoff:
-                belief_id = belief.get("id", "unknown")
-                old_conf = belief.get("confidence", 1.0)
-                new_conf = max(0.0, old_conf - 0.05)
-                if new_conf != old_conf:
-                    try:
-                        if hasattr(self.belief_graph, "update_belief"):
-                            self.belief_graph.update_belief(belief_id, confidence=new_conf)
-                        elif hasattr(self.belief_graph, "conn"):
+            await self._decay_stale_single(belief, report, cutoff)
+
+    async def _decay_stale_single(self, belief: Dict, report: AuditReport, cutoff: Optional[float] = None) -> None:
+        """Decay a single stale belief."""
+        if cutoff is None:
+            cutoff = time.time() - (self.staleness_days * 86400)
+            
+        if belief.get("status") == "quarantined":
+            return
+
+        # [Phase 17.4] Protected Enclaves check
+        try:
+            from core.adaptation.immune_system import get_immune_system
+            immune_sys = get_immune_system()
+            if immune_sys:
+                is_protected = immune_sys.is_protected(belief.get("metadata", {}) or belief)
+                if is_protected:
+                    return
+        except ImportError:
+            logger.debug("IntegrityGuard: Immune system not installed, skipping enclave check.")
+            
+        last_reinforced = belief.get("last_reinforced", belief.get("created_at", 0))
+        if not last_reinforced or last_reinforced < cutoff:
+            belief_id = belief.get("id", "unknown")
+            old_conf = belief.get("confidence", 1.0)
+            new_conf = max(0.0, old_conf - 0.05)
+            if new_conf != old_conf:
+                try:
+                    if hasattr(self.belief_graph, "update_belief"):
+                        self.belief_graph.update_belief(belief_id, confidence=new_conf)
+                    elif hasattr(self.belief_graph, "conn"):
+                        def _do_decay():
                             c = self.belief_graph.conn.cursor()
                             c.execute("UPDATE beliefs SET confidence=? WHERE id=?", (new_conf, belief_id))
                             self.belief_graph.conn.commit()
-                        report.decayed += 1
-                    except Exception as exc:
-                        report.errors.append(f"decay {belief_id}: {exc}")
+                        await asyncio.to_thread(_do_decay)
+                    report.decayed += 1
+                except Exception as exc:
+                    report.errors.append(f"decay {belief_id}: {exc}")
 
     def _write_audit_log(self, report: AuditReport) -> None:
         try:

@@ -1,0 +1,14 @@
+{
+  "extraPaths": ["."],
+  "pythonVersion": "3.12",
+  "reportMissingImports": "warning",
+  "reportMissingModuleSource": "none",
+  "reportOptionalMemberAccess": "warning",
+  "reportGeneralTypeIssues": "warning",
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/backups",
+    "**/rust_extensions"
+  ]
+}

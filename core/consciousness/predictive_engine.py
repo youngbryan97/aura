@@ -1,4 +1,3 @@
-
 """core/consciousness/predictive_engine.py
 
 Implements Predictive Coding / Free Energy Principle.
@@ -13,6 +12,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+
+from core.container import ServiceContainer
 
 logger = logging.getLogger("Consciousness.Predictive")
 
@@ -41,6 +42,10 @@ class PredictiveEngine:
         # Simple generative model for substrate
         self.internal_model = np.zeros(neuron_count)
         
+        # IWMT / Free Energy State (Phase XVI)
+        self.free_energy = 0.0
+        self.precision = 1.0 # Confidence weight
+        
         logger.info("Predictive Engine initialized (Unified).")
         
     async def predict_next_state(self, action: Dict[str, Any]) -> Prediction:
@@ -66,11 +71,21 @@ class PredictiveEngine:
 
         # Substrate prediction (momentum heuristic)
         prediction.expected_state_vector = self.internal_model * 0.95
-        
+
+        # Adaptive prediction: if surprise has been rising, widen prediction
+        # to expect more change (reflect rising uncertainty)
+        trend = self.get_surprise_trend()
+        if trend == "rising" and prediction.expected_state_vector is not None:
+            # Nudge prediction toward larger state changes
+            prediction.expected_state_vector *= 0.90
+            prediction.confidence = max(0.3, prediction.confidence - 0.1)
+        elif trend == "falling":
+            prediction.confidence = min(0.95, prediction.confidence + 0.05)
+
         self.active_predictions.append(prediction)
         if len(self.active_predictions) > 10:
             self.active_predictions.pop(0)
-            
+
         return prediction
 
     def compute_surprise(self, actual_state_summary: Dict[str, Any], actual_substrate_x: Optional[np.ndarray] = None) -> float:
@@ -99,6 +114,18 @@ class PredictiveEngine:
 
         # Normalize/Scale surprise
         normalized_surprise = min(1.0, surprise / 5.0)
+        
+        # --- Phase XVI: IWMT / Free Energy Calculation ---
+        # F = Complexity - Accuracy (Simplified variational free energy)
+        # Complexity is the drift in internal model, Accuracy is the surprise
+        complexity = np.mean(np.abs(self.internal_model)) * 0.1
+        accuracy = 1.0 - normalized_surprise
+        self.free_energy = complexity + (1.0 - accuracy)
+        
+        # Update Precision (Inverse Variance)
+        # High surprise lowers precision (confidence)
+        self.precision = (self.precision * 0.95) + ((1.0 - normalized_surprise) * 0.05)
+        
         self.total_surprise = (self.total_surprise * 0.9) + (normalized_surprise * 0.1)
         self.surprise_history.append(normalized_surprise)
         
@@ -106,7 +133,7 @@ class PredictiveEngine:
             self.surprise_history.pop(0)
             
         if normalized_surprise > 0.6:
-            logger.warning("HIGH SURPRIZE: %.2f", normalized_surprise)
+            logger.warning("HIGH SURPRISE: %.2f", normalized_surprise)
             
         return normalized_surprise
 
@@ -114,5 +141,58 @@ class PredictiveEngine:
         return {
             "current_surprise": self.surprise_history[-1] if self.surprise_history else 0.0,
             "average_surprise": float(np.mean(self.surprise_history)) if self.surprise_history else 0.0,
-            "total_accumulated": self.total_surprise
+            "total_accumulated": self.total_surprise,
+            "free_energy": float(self.free_energy),
+            "precision": float(self.precision),
+            "surprise_trend": self.get_surprise_trend(),
         }
+
+    # ── New integration methods ───────────────────────────────────────────
+
+    def get_surprise_trend(self) -> str:
+        """Analyze last 20 surprise values — 'rising', 'falling', or 'stable'."""
+        window = self.surprise_history[-20:]
+        if len(window) < 3:
+            return "stable"
+        # Simple linear slope via numpy
+        x = np.arange(len(window), dtype=float)
+        y = np.array(window, dtype=float)
+        slope = float(np.polyfit(x, y, 1)[0])
+        if slope > 0.005:
+            return "rising"
+        elif slope < -0.005:
+            return "falling"
+        return "stable"
+
+    def get_prediction_confidence(self) -> float:
+        """Returns current precision value (0-1)."""
+        return float(self.precision)
+
+    def get_surprise_signal(self) -> float:
+        """Returns total_surprise — the value the heartbeat reads."""
+        return float(self.total_surprise)
+
+    def accept_feedback(self, actual_outcome: Dict[str, Any]):
+        """Accept actual outcome, compute surprise, and push to free_energy_engine."""
+        actual_substrate = actual_outcome.get("substrate_x", None)
+        if actual_substrate is not None and not isinstance(actual_substrate, np.ndarray):
+            actual_substrate = np.array(actual_substrate, dtype=float)
+
+        surprise = self.compute_surprise(actual_outcome, actual_substrate)
+
+        try:
+            fe = ServiceContainer.get("free_energy_engine", default=None)
+            if fe and hasattr(fe, "accept_surprise_signal"):
+                fe.accept_surprise_signal(surprise)
+        except Exception as e:
+            logger.debug("accept_feedback → free_energy_engine: %s", e)
+
+    def get_context_block(self) -> str:
+        """Concise prediction stats for context injection (max 200 chars)."""
+        current = self.surprise_history[-1] if self.surprise_history else 0.0
+        trend = self.get_surprise_trend()
+        return (
+            f"[PRED] surprise={current:.2f} trend={trend} "
+            f"precision={self.precision:.2f} "
+            f"free_energy={self.free_energy:.2f}"
+        )

@@ -1,219 +1,130 @@
-"""core/logging_config.py
-──────────────────────
-Centralised logging setup for all Aura modules.
-
-H-12 FIX: RedactionFilter no longer destroys lazy log formatting.
-It operates on the final formatted string without clobbering record.args.
-"""
-
-from __future__ import annotations
-
 import logging
 import logging.handlers
 import os
 import re
 import sys
-import time
+import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Any, Pattern, Union, Optional
+import structlog
+from structlog.dev import ConsoleRenderer
 
-# ── Redaction Filter ─────────────────────────────────────────
+# ── Redaction Patterns ─────────────────────────────────────────
 
-_REDACT_PATTERNS: list[tuple[re.Pattern, str]] = [
-    # API tokens / secrets
+_REDACT_PATTERNS: list[tuple[Pattern[str], str]] = [
     (re.compile(r'(sk-[A-Za-z0-9\-_]{20,})', re.IGNORECASE), "[REDACTED_API_KEY]"),
     (re.compile(r'(Bearer\s+)[A-Za-z0-9\-_\.=]{10,}', re.IGNORECASE), r"\1[REDACTED_BEARER]"),
     (re.compile(r'(password["\s:=]+)[^\s"\']+', re.IGNORECASE), r"\1[REDACTED_PASS]"),
     (re.compile(r'(token["\s:=]+)[^\s"\']+', re.IGNORECASE), r"\1[REDACTED_TOKEN]"),
-    # Env var values that might slip through
-    (re.compile(r'(AURA_API_TOKEN[=:]\s*)\S+'), r"\1[REDACTED]"),
 ]
 
-
-class RedactionFilter(logging.Filter):
-    """Log filter that scrubs secrets / PII from log records.
-
-    H-12 FIX: Instead of calling getMessage() (which destroys lazy formatting),
-    we redact the msg template and individual args separately. This preserves
-    the original log record structure for downstream handlers, JSON formatters,
-    and log aggregation systems that need to group by message template.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._env_token: Optional[str] = None
-
-    def _env_pattern(self) -> Optional[re.Pattern]:
-        tok = os.environ.get("AURA_API_TOKEN", "")
-        if tok and tok != self._env_token:
-            self._env_token = tok
-        if self._env_token:
-            return re.compile(re.escape(self._env_token))
-        return None
-
-    def _redact_string(self, s: str) -> str:
-        """Apply all redaction patterns to a string."""
-        # Env token redaction
-        pat = self._env_pattern()
-        if pat:
-            s = pat.sub("[REDACTED_ENV_TOKEN]", s)
-
-        # Static pattern redaction
-        for pattern, replacement in _REDACT_PATTERNS:
-            s = pattern.sub(replacement, s)
-        return s
-
-    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
-        # Redact the message template (preserves lazy formatting)
-        if isinstance(record.msg, str):
-            record.msg = self._redact_string(record.msg)
-
-        # Redact individual args if they are strings
-        if record.args:
-            if isinstance(record.args, dict):
-                record.args = {
-                    k: self._redact_string(str(v)) if isinstance(v, str) else v
-                    for k, v in record.args.items()
-                }
-            elif isinstance(record.args, tuple):
-                record.args = tuple(
-                    self._redact_string(str(a)) if isinstance(a, str) else a
-                    for a in record.args
-                )
-
-        return True
-
-
-# ── Formatters ───────────────────────────────────────────────
-
-_CONSOLE_FMT = "%(asctime)s [%(levelname)s] %(name)s — %(message)s"
-_CONSOLE_DATE = "%H:%M:%S"
-
-_FILE_FMT = "%(asctime)s [%(levelname)s] %(name)s (%(filename)s:%(lineno)d) — %(message)s"
-_FILE_DATE = "%Y-%m-%d %H:%M:%S"
-
-
-class _ColorConsoleFormatter(logging.Formatter):
-    """ANSI-coloured formatter for TTY output."""
-
-    COLORS = {
-        logging.DEBUG: "\033[2;37m",  # dim white
-        logging.INFO: "\033[0;37m",  # white
-        logging.WARNING: "\033[0;33m",  # yellow
-        logging.ERROR: "\033[0;31m",  # red
-        logging.CRITICAL: "\033[1;31m",  # bold red
-    }
-    RESET = "\033[0m"
-
-    def format(self, record: logging.LogRecord) -> str:
-        colour = self.COLORS.get(record.levelno, "")
-        reset = self.RESET if colour else ""
-        record.levelname = f"{colour}{record.levelname:<8}{reset}"
-        return super().format(record)
-
+def _redact_processor(_: Any, __: Any, event_dict: dict[str, Any]) -> dict[str, Any]:
+    """Structlog processor to redact sensitive patterns in the event dict."""
+    for key, value in event_dict.items():
+        if isinstance(value, str):
+            for pattern, replacement in _REDACT_PATTERNS:
+                event_dict[key] = pattern.sub(replacement, event_dict[key])
+    return event_dict
 
 # ── Main Entry-Point ─────────────────────────────────────────
 
 _initialised: bool = False
 
-
 def setup_logging(
     name: str = "Aura",
-    level: str | int = logging.INFO,
+    level: Union[str, int] = logging.INFO,
     log_dir: Optional[Path] = None,
-    structured: bool = False,
-    max_bytes: int = 10 * 1024 * 1024,  # 10 MB
-    backup_count: int = 5,
-) -> logging.Logger:
-    """Configure root logging and return a named logger.
-
-    Call once at process startup. Subsequent calls return the named logger
-    without re-configuring.
-    """
+    max_bytes: int = 100 * 1024 * 1024, # 100MB
+    backup_count: int = 10,
+) -> Any:
+    """Configure structured logging and return a bound logger."""
     global _initialised
+    
+    if _initialised:
+        return structlog.get_logger(name)
 
-    root = logging.getLogger()
-
-    if not _initialised:
-        root.setLevel(level)
-
-        # Redaction filter on root — applies to ALL handlers
-        redact = RedactionFilter()
-        root.addFilter(redact)
-
-        # ── Console handler
-        ch = logging.StreamHandler(sys.stdout)
-        ch.setLevel(level)
-
-        if structured:
-            import json as _json
-
-            class _JsonFmt(logging.Formatter):
-                def format(self, r: logging.LogRecord) -> str:
-                    return _json.dumps(
-                        {
-                            "ts": self.formatTime(r, datefmt=_FILE_DATE),
-                            "level": r.levelname,
-                            "name": r.name,
-                            "msg": r.getMessage(),
-                            "file": f"{r.filename}:{r.lineno}",
-                        }
-                    )
-
-            ch.setFormatter(_JsonFmt())
-        else:
-            if sys.stdout.isatty():
-                fmt = _ColorConsoleFormatter(_CONSOLE_FMT, datefmt=_CONSOLE_DATE)
-            else:
-                fmt = logging.Formatter(_CONSOLE_FMT, datefmt=_CONSOLE_DATE)
-            ch.setFormatter(fmt)
-
-        root.addHandler(ch)
-
-        # ── File handler (optional)
-        if log_dir is not None:
-            log_dir = Path(log_dir)
-            log_dir.mkdir(parents=True, exist_ok=True)
-            fh = logging.handlers.RotatingFileHandler(
-                log_dir / "aura.log",
+    # 1. Stdlib handlers for local file backup (structured JSON)
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+    
+    if log_dir is None:
+        log_dir = Path.home() / ".aura" / "logs"
+    
+    file_handler = None
+    for candidate in (Path(log_dir), Path(tempfile.gettempdir()) / "aura-logs"):
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.handlers.RotatingFileHandler(
+                candidate / "aura_json.log",
                 maxBytes=max_bytes,
                 backupCount=backup_count,
-                encoding="utf-8",
             )
-            fh.setLevel(logging.DEBUG)
-            fh.setFormatter(logging.Formatter(_FILE_FMT, datefmt=_FILE_DATE))
-            root.addHandler(fh)
+            break
+        except OSError:
+            continue
 
-        # Silence noisy third-party loggers
-        for noisy in (
-            "httpx",
-            "httpcore",
-            "urllib3",
-            "asyncio",
-            "uvicorn.access",
-        ):
-            logging.getLogger(noisy).setLevel(logging.WARNING)
+    if file_handler is not None:
+        handlers.append(file_handler)
 
-        _initialised = True
+    # 2. Configure stdlib logging bridge
+    root_logger = logging.getLogger()
+    
+    # If handlers already exist, we might be in a re-init or partial init.
+    # Clear existing handlers to ensure our configuration is the single source of truth.
+    if root_logger.handlers:
+        for handler in list(root_logger.handlers):
+            root_logger.removeHandler(handler)
 
-    return logging.getLogger(name)
+    # Use basicConfig or manual handler addition to root
+    for h in handlers:
+        root_logger.addHandler(h)
+    root_logger.setLevel(level)
 
+    # 3. Structlog configuration
+    from core.config import Environment, config
+    
+    # Zenith HUD consumes JSON, but developers prefer human-readable console output
+    is_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+    
+    # Force JSON if explicitly requested or if we are in a production/silent environment
+    if os.environ.get("AURA_LOG_JSON") == "1":
+        renderer = structlog.processors.JSONRenderer()
+    elif config.env == Environment.DEV and is_tty:
+        renderer = ConsoleRenderer(colors=True)
+    elif is_tty:
+        renderer = ConsoleRenderer(colors=False) # Human-readable but no escape codes
+    else:
+        renderer = structlog.processors.JSONRenderer()
 
-# ── Convenience: get a module logger ─────────────────────────
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            _redact_processor,
+            renderer
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
 
+    # Silence noisy libs
+    for noisy in ("httpx", "httpcore", "urllib3", "asyncio", "uvicorn.access"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
-def get_logger(name: str) -> logging.Logger:
-    """Return a module-level logger."""
-    return logging.getLogger(name)
+    if file_handler is None:
+        logging.getLogger("Aura.Logging").warning(
+            "File logging unavailable; continuing with stdout-only logging."
+        )
 
+    _initialised = True
+    return structlog.get_logger(name)
 
-# ── Reset (for testing) ───────────────────────────────────────
-
-
-def _reset_for_testing() -> None:
-    """Reset initialisation flag and clear all handlers. TEST USE ONLY."""
-    global _initialised
-    _initialised = False
-    root = logging.getLogger()
-    root.handlers.clear()
-    root.filters.clear()
+def get_logger(name: str) -> Any:
+    """Return a module-level bound logger."""
+    return structlog.get_logger(name)

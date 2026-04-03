@@ -1,3 +1,5 @@
+################################################################################
+
 """
 Unit tests for core.events.InputBus.
 """
@@ -6,6 +8,11 @@ import threading
 import time
 from core.events import InputBus, Event, EventType
 
+
+@pytest.fixture
+def event_bus():
+    """Provide a fresh InputBus for each test."""
+    return InputBus()
 
 class TestPublishAndNext:
     def test_publish_and_next(self, event_bus):
@@ -104,3 +111,6 @@ class TestThreadSafety:
         while event_bus.next(timeout=0.01) is not None:
             count += 1
         assert count == 100  # 5 threads × 20 events
+
+
+##

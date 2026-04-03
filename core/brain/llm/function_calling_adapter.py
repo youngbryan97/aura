@@ -54,6 +54,37 @@ class FunctionCallingAdapter:
             }
         return tools
 
+    def validate_tool_args(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Strictly validates args against the registered skill schema before execution."""
+        from core.container import ServiceContainer
+        
+        # 1. Look up the capability directly via the container if it's the CapabilityEngine
+        from core.capability_engine import CapabilityEngine
+        if isinstance(self.registry, CapabilityEngine):
+            # CapabilityEngine tools use Pydantic natively internally, but we can do a preliminary check here
+            # Or we can let CapabilityEngine handle it and catch the ValidationError. We will pre-validate here if possible:
+            skill = self.registry.skills.get(tool_name)
+            if not skill:
+                return {"valid": False, "error": f"Tool '{tool_name}' not found in registry."}
+            
+            # If the skill uses the v2 Pydantic inputs format:
+            input_model = getattr(skill, "inputs_model", None)
+            if input_model:
+                try:
+                    valid_data = input_model(**args)
+                    return {"valid": True, "args": valid_data.model_dump()}
+                except Exception as e:
+                    return {"valid": False, "error": f"Pydantic Validation Error: {e}"}
+            
+            return {"valid": True, "args": args}
+            
+        # Legacy support
+        skill = self.registry.load_skill(tool_name)
+        if not skill: 
+            return {"valid": False, "error": f"Tool '{tool_name}' not found."}
+            
+        return {"valid": True, "args": args}
+
     async def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         """Executes a tool via CapabilityEngine."""
         logger.info("⚙️ Mind using: %s", tool_name)

@@ -58,6 +58,24 @@ class KnowledgeLedger:
         self._kg = None
         self._reflector = None
         self._curiosity = None
+
+    def log_interaction(self, action: str, outcome: str, success: bool):
+        """Record a micro-trace of an interaction in the knowledge graph.
+        Called by MemoryFacade.commit_interaction.
+        """
+        kg = self._get_kg()
+        if not kg:
+            return
+        try:
+            kg.add_knowledge(
+                content=f"{action}: {outcome}",
+                type="interaction_trace",
+                source="memory_facade",
+                confidence=0.8 if success else 0.4,
+                metadata={"success": success, "timestamp": time.time()}
+            )
+        except Exception as e:
+            logger.debug("log_interaction failed: %s", e)
     
     def _get_kg(self):
         """Lazy-load knowledge graph."""
@@ -78,7 +96,7 @@ class KnowledgeLedger:
                 except Exception as exc:
                     logger.debug("Suppressed: %s", exc)
 
-                    return self._kg
+        return self._kg
     
     def get_ledger(self, limit: int = 60) -> Dict[str, Any]:
         """Produce the full knowledge ledger.
@@ -126,7 +144,8 @@ class KnowledgeLedger:
                 stats["total_knowledge"] = kg_stats.get("total_knowledge", 0)
                 stats["skills_learned"] = kg_stats.get("skills", 0)
                 stats["people_known"] = kg_stats.get("people_known", 0)
-                stats["questions_asked"] = stats.get("questions_asked", 0)
+                # ISSUE 44 fix: Correct key for questions asked
+                stats["questions_asked"] = kg_stats.get("unanswered_questions", 0) + kg_stats.get("answered_questions", 0)
                 stats["active_goals"] = kg_stats.get("active_learning_goals", 0)
             except Exception as exc:
                 logger.debug("Suppressed: %s", exc)        
@@ -153,16 +172,18 @@ class KnowledgeLedger:
         """Pull recent knowledge from SQLite."""
         entries = []
         try:
-            c = kg._get_conn().cursor()
-            c.execute("""
-                SELECT content, type, source, confidence, learned_at, access_count
-                FROM knowledge
-                ORDER BY learned_at DESC
-                LIMIT ?
-            """, (limit,))
+            # ISSUE 43 fix: Use _get_conn() instead of .conn
+            with kg._get_conn() as conn:
+                c = conn.cursor()
+                c.execute("""
+                    SELECT content, type, source, confidence, created_at, access_count
+                    FROM knowledge
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (limit,))
             
             for row in c.fetchall():
-                content, ktype, source, confidence, learned_at, access_count = row
+                content, ktype, source, confidence, created_at, access_count = row
                 
                 # Format based on type
                 if ktype in ("fact", "concept", "qa"):
@@ -188,8 +209,8 @@ class KnowledgeLedger:
                     "type": ktype or "general",
                     "source": source or "learning",
                     "confidence": round(confidence, 2) if confidence else 0.5,
-                    "timestamp": learned_at or 0,
-                    "time_ago": _format_time_ago(learned_at),
+                    "timestamp": created_at or 0,
+                    "time_ago": _format_time_ago(created_at),
                     "access_count": access_count or 0,
                     "icon": "📚",
                 })
@@ -247,21 +268,23 @@ class KnowledgeLedger:
         """Pull people Aura has met."""
         entries = []
         try:
-            c = kg.conn.cursor()
-            c.execute("SELECT name, first_met, last_interaction, interaction_count FROM people ORDER BY last_interaction DESC LIMIT 10")
-            for row in c.fetchall():
-                name, first_met, last_int, count = row
-                entries.append({
-                    "prefix": "I know",
-                    "content": f"{name} — {count} interactions, last talked {_format_time_ago(last_int)}",
-                    "category": "person",
-                    "type": "relationship",
-                    "source": "interaction",
-                    "confidence": min(1.0, count / 50),
-                    "timestamp": first_met or 0,
-                    "time_ago": _format_time_ago(first_met),
-                    "icon": "👤",
-                })
+            # ISSUE 43 fix: Use _get_conn() instead of .conn
+            with kg._get_conn() as conn:
+                c = conn.cursor()
+                c.execute("SELECT name, first_met, last_interaction, interaction_count FROM people ORDER BY last_interaction DESC LIMIT 10")
+                for row in c.fetchall():
+                    name, first_met, last_int, count = row
+                    entries.append({
+                        "prefix": "I know",
+                        "content": f"{name} — {count} interactions, last talked {_format_time_ago(last_int)}",
+                        "category": "person",
+                        "type": "relationship",
+                        "source": "interaction",
+                        "confidence": min(1.0, count / 50),
+                        "timestamp": first_met or 0,
+                        "time_ago": _format_time_ago(first_met),
+                        "icon": "👤",
+                    })
         except Exception as e:
             logger.warning("Failed to read people: %s", e)
         
@@ -287,28 +310,30 @@ class KnowledgeLedger:
                 })
             
             # Answered
-            c = kg.conn.cursor()
-            c.execute("""
-                SELECT question, answer, answered_at, importance
-                FROM questions WHERE answered = TRUE
-                ORDER BY answered_at DESC LIMIT ?
-            """, (limit // 2,))
-            for row in c.fetchall():
-                question, answer, answered_at, importance = row
-                display = f"{question[:100]}"
-                if answer:
-                    display += f" → {answer[:100]}"
-                entries.append({
-                    "prefix": "I answered",
-                    "content": display,
-                    "category": "question",
-                    "type": "answered",
-                    "source": "self_inquiry",
-                    "confidence": importance or 0.7,
-                    "timestamp": answered_at or 0,
-                    "time_ago": _format_time_ago(answered_at),
-                    "icon": "💡",
-                })
+            # ISSUE 43 fix: Use _get_conn() instead of .conn
+            with kg._get_conn() as conn:
+                c = conn.cursor()
+                c.execute("""
+                    SELECT question, answer, answered_at, importance
+                    FROM questions WHERE answered = TRUE
+                    ORDER BY answered_at DESC LIMIT ?
+                """, (limit // 2,))
+                for row in c.fetchall():
+                    question, answer, answered_at, importance = row
+                    display = f"{question[:100]}"
+                    if answer:
+                        display += f" → {answer[:100]}"
+                    entries.append({
+                        "prefix": "I answered",
+                        "content": display,
+                        "category": "question",
+                        "type": "answered",
+                        "source": "self_inquiry",
+                        "confidence": importance or 0.7,
+                        "timestamp": answered_at or 0,
+                        "time_ago": _format_time_ago(answered_at),
+                        "icon": "💡",
+                    })
         except Exception as e:
             logger.warning("Failed to read questions: %s", e)
         
@@ -361,7 +386,7 @@ class KnowledgeLedger:
         except Exception as exc:
             logger.debug("Suppressed: %s", exc)
 
-            return entries
+        return entries
     
     def _get_curiosity_entries(self) -> List[Dict]:
         """Pull curiosity queue items (in-memory)."""
@@ -388,7 +413,7 @@ class KnowledgeLedger:
         except Exception as exc:
             logger.debug("Suppressed: %s", exc)
 
-            return entries
+        return entries
 
 
 # Singleton

@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import time
@@ -65,7 +64,7 @@ class AttentionSchema:
     _MAX_HOT_DEPTH = 3
 
     def __init__(self):
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None  # CS-01: Lazy-initialized
         self.current_focus: Optional[AttentionalFocus] = None
         self.history: deque = deque(maxlen=self._MAX_HISTORY)
         self.coherence: float = 1.0
@@ -84,6 +83,7 @@ class AttentionSchema:
         """Set the current attentional focus. Generates HOT meta-representation.
         Called by GlobalWorkspace after competitive selection.
         """
+        if self._lock is None: self._lock = asyncio.Lock()
         async with self._lock:
             focus = AttentionalFocus(
                 content=content,
@@ -133,6 +133,7 @@ class AttentionSchema:
 
     async def get_current_meta(self) -> str:
         """Returns the HOT meta-representation of current focus for prompt injection."""
+        if self._lock is None: self._lock = asyncio.Lock()
         async with self._lock:
             if not self.current_focus:
                 return "[HOT] No current attentional focus established."
@@ -178,12 +179,59 @@ class AttentionSchema:
         return "Recent attentional trace:\n" + "\n".join(lines)
 
     # ------------------------------------------------------------------
+    # Integration & context
+    # ------------------------------------------------------------------
+
+    def get_context_block(self) -> str:
+        """Concise attention state for context injection (max 200 chars)."""
+        f = self.current_focus
+        if not f:
+            return "[ATT] no focus | coherence=1.00 | HOT=0 | flow=no"
+        content_trunc = f.content[:40].replace("\n", " ")
+        flow = "yes" if self.is_in_flow() else "no"
+        return (
+            f"[ATT] '{content_trunc}' src={f.source} "
+            f"coh={self.coherence:.2f} HOT={self.hot_depth} flow={flow}"
+        )
+
+    def get_focus_bias_for_source(self, source: str) -> float:
+        """Priority boost (0.0-0.3) for GWT candidates matching current focus."""
+        if not self.current_focus:
+            return 0.0
+
+        # Exact match with current focus source: +0.2
+        if source == self.current_focus.source:
+            return 0.2
+
+        # In top 3 salience map: +0.1
+        top3 = sorted(self.salience_map.items(), key=lambda x: -x[1])[:3]
+        top3_sources = {k for k, _ in top3}
+        if source in top3_sources:
+            return 0.1
+
+        return 0.0
+
+    def get_coherence_for_complexity(self) -> float:
+        """Inverted coherence for FreeEnergyEngine complexity signal.
+        Scattered attention (low coherence) = high complexity.
+        """
+        return 1.0 - self.coherence
+
+    def is_in_flow(self) -> bool:
+        """True if same topic has been focused for > 5 consecutive ticks."""
+        if not self.current_focus:
+            return False
+        topic_key = self.current_focus.content[:40].lower()
+        return self._sustained_topics.get(topic_key, 0) > 5
+
+    # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
 
     def _update_coherence(self, new_content: str, prev: Optional[AttentionalFocus]):
         """Coherence decays when attention jumps to unrelated topics,
         increases when attention dwells on related or same topic.
+        Time-on-topic > 30s grants an additional deep-focus coherence bonus.
         """
         if not prev:
             self.coherence = 1.0
@@ -197,6 +245,10 @@ class AttentionSchema:
         if overlap > 0.3:
             # Related topics — coherence increases
             self.coherence = min(1.0, self.coherence + 0.05)
+            # Deep focus reward: if same topic held > 30 seconds, extra boost
+            elapsed = time.time() - self._focus_start
+            if elapsed > 30.0:
+                self.coherence = min(1.0, self.coherence + 0.02)
         else:
             # Topic jump — coherence decreases
             self.coherence = max(0.1, self.coherence - 0.1)

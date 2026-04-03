@@ -9,6 +9,7 @@ Features:
 6. Comprehensive metrics and logging
 """
 
+import asyncio
 import atexit
 import json
 import logging
@@ -24,6 +25,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 import psutil
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Kernel.ProcessManager")
 
@@ -99,6 +101,7 @@ class ManagedProcess:
         self.last_restart_attempt: Optional[float] = None
         self._lock = threading.RLock()
         self._health_check_thread: Optional[threading.Thread] = None
+        self._health_check_task: Optional[asyncio.Task] = None
         self._stop_health_check = threading.Event()
     
     async def start(self) -> bool:
@@ -198,7 +201,8 @@ class ManagedProcess:
                         psutil_process = psutil.Process(self.process.pid)
                         psutil_process.terminate()  # SIGTERM
                     except psutil.NoSuchProcess:
-                        pass
+                        import logging
+                        logger.debug("Exception caught during execution", exc_info=True)
                 
                 # Wait for graceful shutdown
                 self.process.join(timeout=self.config.shutdown_timeout)
@@ -262,7 +266,10 @@ class ManagedProcess:
             return
             
         self._stop_health_check.clear()
-        self._health_check_task = asyncio.create_task(self._health_monitor_loop())
+        self._health_check_task = get_task_tracker().create_task(
+            self._health_monitor_loop(),
+            name=f"process_manager.{self.config.name}.health_monitor",
+        )
         logger.debug("Started health monitoring for %s", self.config.name)
     
     async def _stop_health_monitoring(self):
@@ -277,24 +284,27 @@ class ManagedProcess:
                 try:
                     await self._health_check_task
                 except asyncio.CancelledError:
-                    pass
+                    import logging
+                    logger.debug("Exception caught during execution", exc_info=True)
             except asyncio.CancelledError:
-                pass # Task was already cancelled
+                import logging
+                logger.debug("Exception caught during execution", exc_info=True)
         self._health_check_task = None
     
     async def _health_monitor_loop(self):
         """Continuous health monitoring loop."""
         while not self._stop_health_check.is_set():
             try:
-                self._check_health()
+                await asyncio.to_thread(self._check_health)
             except Exception as e:
                 logger.error("Health check failed for %s: %s", self.config.name, e, exc_info=True)
             
             # Wait for next check or stop signal
             try:
-                await asyncio.wait_for(self._stop_health_check.wait(), timeout=self.config.health_check_interval)
-            except asyncio.TimeoutError:
-                pass # Timeout occurred, continue loop for next check
+                await asyncio.to_thread(
+                    self._stop_health_check.wait,
+                    self.config.health_check_interval,
+                )
             except asyncio.CancelledError:
                 break # Task was cancelled, exit loop
     
@@ -378,6 +388,7 @@ class ProcessManager:
         self.shutdown_event = threading.Event()
         self._lock = threading.RLock()
         self._monitor_thread: Optional[threading.Thread] = None
+        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
         self._register_signal_handlers()
         atexit.register(self.cleanup)
     
@@ -436,6 +447,10 @@ class ProcessManager:
 
         """
         with self._lock:
+            try:
+                self._event_loop = asyncio.get_running_loop()
+            except RuntimeError as _exc:
+                logger.debug("Suppressed RuntimeError: %s", _exc)
             if name not in self.processes:
                 logger.error("Process %s not registered", name)
                 return False
@@ -480,6 +495,10 @@ class ProcessManager:
     async def start_all(self) -> Dict[str, bool]:
         """Start all registered processes."""
         results = {}
+        try:
+            self._event_loop = asyncio.get_running_loop()
+        except RuntimeError as _exc:
+            logger.debug("Suppressed RuntimeError: %s", _exc)
         with self._lock:
             for name in list(self.processes.keys()):
                 results[name] = await self.start_process(name)
@@ -534,7 +553,11 @@ class ProcessManager:
                         # Auto-restart if enabled
                         if process.stats.restarts < process.config.max_restarts:
                             logger.info("Auto-restarting process %s", name)
-                            asyncio.create_task(process.restart())
+                            loop = self._event_loop
+                            if loop and not loop.is_closed():
+                                asyncio.run_coroutine_threadsafe(process.restart(), loop)
+                            else:
+                                logger.warning("No live event loop available to restart process %s", name)
                     
                 except Exception as e:
                     logger.error("Error checking process %s: %s", name, e)
@@ -543,8 +566,6 @@ class ProcessManager:
         """Clean up all processes gracefully."""
         if self.shutdown_event.is_set():
             return  # Already cleaning up
-        
-        logger.info("Initiating process manager cleanup...")
         self.shutdown_event.set()
         
         # Stop monitoring
@@ -557,8 +578,6 @@ class ProcessManager:
         # Log results
         successful = sum(1 for success in stop_results.values() if success)
         total = len(stop_results)
-        
-        logger.info("Cleanup complete: %d/%d processes stopped successfully", successful, total)
     
     def get_status(self) -> Dict[str, Any]:
         """Get status of all processes."""

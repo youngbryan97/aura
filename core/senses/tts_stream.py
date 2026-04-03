@@ -1,67 +1,42 @@
 import logging
+import asyncio
 
-try:
-    from RealtimeTTS import SystemEngine, TextToAudioStream
-except ImportError:
-    TextToAudioStream = None
-    SystemEngine = None
+# Issue 30: Unused dead imports removed
 
 logger = logging.getLogger("Senses.Mouth")
 
 class FastMouth:
-    """The 'Mouth' of the machine.
-    Uses RealtimeTTS to speak LLM tokens/sentences instantly.
-    """
-
+    """Shim for backward compatibility."""
     def __init__(self):
-        # Sovereign Priority: Kokoro-TTS
-        # Switch from SystemEngine (Cloud-Linked) to Kokoro (Local-Only)
-        try:
-            # We assume Kokoro is available via RealtimeTTS or a local API
-            from RealtimeTTS import KokoroEngine
-            self.engine = KokoroEngine()
-            self.stream = TextToAudioStream(self.engine)
-            logger.info("👄 FastMouth initialized (KokoroEngine — Sovereign)")
-        except (ImportError, Exception):
-            # Fallback to SystemEngine (Fastest for Mac)
-            try:
-                self.engine = SystemEngine() 
-                self.stream = TextToAudioStream(self.engine)
-                logger.info("👄 FastMouth initialized (SystemEngine)")
-            except Exception as e:
-                logger.warning("Failed to initialize RealtimeTTS Engine: %s. Falling back to system 'say'.", e)
-                self.stream = None
-                self.fallback_say = True
-
+        from core.container import ServiceContainer
+        self.engine = ServiceContainer.get("voice_engine", default=None)
+        self._speak_task = None
+        self._stream_task = None
+    
     def speak(self, text: str):
-        """Speaks a single string immediately.
-        """
-        if self.stream:
+        import asyncio
+        if self.engine:
             try:
-                self.stream.feed(text)
-                self.stream.play_async()
-            except Exception as e:
-                logger.error("Speech error: %s", e)
-        elif getattr(self, 'fallback_say', False):
-            # macOS native 'say' fallback
-            import subprocess
-            try:
-                subprocess.Popen(["say", "-v", "Samantha", text]) # Background process
-            except (FileNotFoundError, OSError):
-                subprocess.Popen(["say", text])
+                loop = asyncio.get_running_loop()
+                # Cancel previous task to prevent pile-up
+                if self._speak_task and not self._speak_task.done():
+                    self._speak_task.cancel()
+                self._speak_task = loop.create_task(self.engine.speak(text))
+            except RuntimeError as _e:
+                logger.debug('Ignored RuntimeError in tts_stream.py: %s', _e)
 
     def speak_stream(self, text_generator):
-        """Ingests a generator (the LLM stream) and speaks instantly.
-        """
-        if not self.stream:
-            return
-            
-        try:
-            self.stream.feed(text_generator)
-            self.stream.play_async() # Non-blocking playback
-        except Exception as e:
-            logger.error("Speech error: %s", e)
+        import asyncio
+        if self.engine:
+            try:
+                loop = asyncio.get_running_loop()
+                if self._stream_task and not self._stream_task.done():
+                    self._stream_task.cancel()
+                self._stream_task = loop.create_task(self.engine.speak_stream(text_generator))
+            except RuntimeError as _e:
+                logger.debug('Ignored RuntimeError in tts_stream.py: %s', _e)
 
     def stop(self):
-        if self.stream:
-            self.stream.stop()
+        for task in (self._speak_task, self._stream_task):
+            if task and not task.done():
+                task.cancel()

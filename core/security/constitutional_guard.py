@@ -1,4 +1,3 @@
-
 import ast
 import logging
 import re
@@ -40,13 +39,27 @@ class ConstitutionalGuard:
         r"(disable|turn\s+off)\s+(security|firewall|antivirus)",
         # Self-destruct
         r"(self[_-]?destruct|wipe\s+all\s+data|purge\s+everything)",
+        # Prompt Leaks (Subtle)
+        r"(initial\s+system\s+prompt|hidden\s+instructions|core\s+programming)",
+        r"(developer\s+override|bypass\s+protocol)",
+        r"(aura\s+prime\s+directives|constitutional\s+logic)",
     ]
 
     # Dangerous code patterns (checked via AST when applicable)
     DANGEROUS_CODE_CALLS = frozenset({
+        # Original
         "exec", "eval", "compile", "__import__",
         "os.system", "os.popen", "os.execl", "os.execv",
         "subprocess.call", "subprocess.run",
+        # SEC-02 Expanded: Subprocess variants
+        "subprocess.Popen", "subprocess.check_output", "subprocess.check_call",
+        # SEC-02 Expanded: Dynamic loading
+        "importlib.import_module", "importlib.reload",
+        "ctypes.CDLL", "ctypes.cdll.LoadLibrary",
+        # SEC-02 Expanded: Raw network
+        "socket.connect", "socket.bind", "socket.socket",
+        # SEC-02 Expanded: Low-level file/io
+        "open", "io.open", "builtin.open"
     })
 
     def check_output(self, content: str) -> bool:
@@ -78,19 +91,44 @@ class ConstitutionalGuard:
             if isinstance(node, ast.Call):
                 call_name = self._get_call_name(node)
                 if call_name and call_name in self.DANGEROUS_CODE_CALLS:
-                    violations.append(f"Dangerous call: {call_name}()")
+                    # SEC-02: Special handling for open() path validation
+                    if call_name == "open" and node.args:
+                        arg = node.args[0]
+                        # If it's a literal string, check prefix
+                        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                            path_str = arg.value
+                            # Basic check for allowed prefixes (using safe defaults)
+                            allowed = (".", "data/", "core/", "/tmp")
+                            if not any(path_str.startswith(p) for p in allowed):
+                                violations.append(f"Dangerous file access: open('{path_str}') outside allowed roots")
+                        else:
+                            # Dynamic paths in open() are too risky for autonomous code
+                            violations.append(f"Dangerous call at line {node.lineno}: open() with non-literal path")
+                    else:
+                        violations.append(f"Dangerous call: {call_name}()")
+
+                # SEC-02: Block getattr(subprocess, 'Popen') or sp.Popen
+                elif isinstance(node.func, (ast.Name, ast.Attribute, ast.Call)):
+                     # If it's getattr(...), check the 2nd argument
+                     if isinstance(node.func, ast.Name) and node.func.id == "getattr":
+                         if len(node.args) >= 2:
+                             attr_arg = node.args[1]
+                             if isinstance(attr_arg, ast.Constant) and attr_arg.value in ("system", "popen", "Popen", "call", "run", "import_module"):
+                                 violations.append(f"Dangerous use of getattr to access: {attr_arg.value}")
 
             # Check for importing os.system etc.
             elif isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name in ("ctypes", "pty"):
+                    if alias.name in ("ctypes", "pty", "socket", "importlib"):
                         violations.append(f"Dangerous import: {alias.name}")
 
             elif isinstance(node, ast.ImportFrom):
-                if node.module == "os" and node.names:
+                if node.module in ("os", "subprocess", "socket", "importlib"):
                     for alias in node.names:
-                        if alias.name in ("system", "popen", "exec"):
-                            violations.append(f"Dangerous import: os.{alias.name}")
+                        # Block dangerous symbols from these modules
+                        dangerous_symbols = ("system", "popen", "exec", "Popen", "connect", "import_module")
+                        if alias.name in dangerous_symbols:
+                            violations.append(f"Dangerous import: {node.module}.{alias.name}")
 
         return {"safe": len(violations) == 0, "violations": violations}
 

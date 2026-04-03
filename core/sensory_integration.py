@@ -1,8 +1,10 @@
 """Sensory Integration System
 Gives Aura access to cameras, microphones, speakers, and A/V production tools
 """
+import asyncio
 import base64
 import logging
+import threading
 import time
 from enum import Enum
 from pathlib import Path
@@ -41,20 +43,13 @@ class SensorySystem:
         self.av_production = AVProductionSystem()
         
         # Sensory memory (recent perceptions)
-        self.sensory_memory = []
+        from collections import deque
+        # Issue 43: Use deque(maxlen=) for O(1) memory management
         self.max_memory_items = 100
+        self.sensory_memory = deque(maxlen=self.max_memory_items)
         
-    def perceive(self, modality: SensoryModality, **kwargs) -> Dict[str, Any]:
-        """Perceive through specified sensory modality.
-        
-        Args:
-            modality: Which sense to use
-            **kwargs: Modality-specific parameters
-            
-        Returns:
-            Perception data
-
-        """
+    async def perceive(self, modality: SensoryModality, **kwargs) -> Dict[str, Any]:
+        """Perceive through specified sensory modality (Async)."""
         perception = {
             "timestamp": time.time(),
             "modality": modality.value,
@@ -64,21 +59,19 @@ class SensorySystem:
         
         try:
             if modality == SensoryModality.VISION:
-                perception["data"] = self.vision.capture(**kwargs)
-                perception["interpretation"] = self.vision.analyze(perception["data"])
+                perception["data"] = await self.vision.capture(**kwargs)
+                perception["interpretation"] = await self.vision.analyze(perception["data"])
                 
             elif modality == SensoryModality.HEARING:
-                perception["data"] = self.hearing.listen(**kwargs)
-                perception["interpretation"] = self.hearing.transcribe(perception["data"])
+                perception["data"] = await self.hearing.listen(**kwargs)
+                perception["interpretation"] = await self.hearing.transcribe(perception["data"])
                 
             elif modality == SensoryModality.TEXT:
-                # Text is already interpreted
                 perception["data"] = kwargs.get("text")
                 perception["interpretation"] = perception["data"]
             
-            # Store in sensory memory
+            # Store observations
             self._store_in_memory(perception)
-            
             return perception
             
         except Exception as e:
@@ -86,18 +79,8 @@ class SensorySystem:
             perception["error"] = str(e)
             return perception
     
-    def express(self, modality: SensoryModality, content: Any, **kwargs) -> Dict[str, Any]:
-        """Express through specified modality.
-        
-        Args:
-            modality: How to express (speech, visual, etc.)
-            content: What to express
-            **kwargs: Modality-specific parameters
-            
-        Returns:
-            Expression result
-
-        """
+    async def express(self, modality: SensoryModality, content: Any, **kwargs) -> Dict[str, Any]:
+        """Express through specified modality (Async)."""
         expression = {
             "timestamp": time.time(),
             "modality": modality.value,
@@ -106,12 +89,10 @@ class SensorySystem:
         }
         
         try:
-            if modality == SensoryModality.HEARING:  # Use hearing modality for speech output
-                result = self.speech.speak(content, **kwargs)
+            if modality == SensoryModality.HEARING:
+                result = await self.speech.speak(content, **kwargs)
                 expression["success"] = result.get("success", False)
                 expression["audio_file"] = result.get("audio_file")
-                
-            # Could add visual expression (generating images/videos)
             
             return expression
             
@@ -122,15 +103,13 @@ class SensorySystem:
     
     def _store_in_memory(self, perception: Dict[str, Any]):
         """Store perception in short-term sensory memory"""
+        # Issue 43: deque handle limits automatically
         self.sensory_memory.append(perception)
-        
-        # Trim if too large
-        if len(self.sensory_memory) > self.max_memory_items:
-            self.sensory_memory = self.sensory_memory[-self.max_memory_items:]
     
     def get_recent_perceptions(self, modality: Optional[SensoryModality] = None, count: int = 10) -> List[Dict]:
         """Get recent perceptions, optionally filtered by modality"""
-        perceptions = self.sensory_memory[-count:]
+        # Issue 43: Convert deque slice to list
+        perceptions = list(self.sensory_memory)[-count:]
         
         if modality:
             perceptions = [p for p in perceptions if p["modality"] == modality.value]
@@ -149,11 +128,24 @@ class VisionSystem:
     """
     
     def __init__(self):
-        self.camera_available = self._check_camera()
+        self._camera_checked = False
+        self._camera_available = False
         self.last_capture = None
+
+    @property
+    def camera_available(self) -> bool:
+        """Public access to camera availability."""
+        return self._camera_available
+
+    async def _get_camera_available(self) -> bool:
+        """Probe hardware asynchronously."""
+        if not self._camera_checked:
+            self._camera_available = await asyncio.to_thread(self._check_camera)
+            self._camera_checked = True
+        return self._camera_available
         
     def _check_camera(self) -> bool:
-        """Check if camera is available"""
+        """Check if camera is available (Must be called in thread)."""
         try:
             import cv2
             cap = cv2.VideoCapture(0)
@@ -161,116 +153,67 @@ class VisionSystem:
             cap.release()
             return available
         except ImportError:
-            logger.warning("OpenCV not installed - camera unavailable")
             return False
-        except Exception as e:
-            logger.warning("Camera check failed: %s", e)
+        except Exception:
             return False
     
-    def capture(self, duration: float = 0, save_path: Optional[str] = None) -> Dict[str, Any]:
-        """Capture image or video from camera.
-        
-        Args:
-            duration: If > 0, capture video for this many seconds. If 0, capture single image.
-            save_path: Where to save capture
-            
-        Returns:
-            Capture data (image or video path)
-
-        """
-        if not self.camera_available:
+    async def capture(self, duration: float = 0, save_path: Optional[str] = None) -> Dict[str, Any]:
+        """Capture from camera (Async)."""
+        if not await self._get_camera_available():
             return {"error": "camera_not_available"}
         
-        try:
-            import cv2
-            import numpy as np
-            
-            cap = cv2.VideoCapture(0)
-            
-            if duration == 0:
-                # Single image
-                ret, frame = cap.read()
-                cap.release()
-                
-                if not ret:
-                    return {"error": "capture_failed"}
-                
-                # Save if path provided
-                if save_path:
-                    cv2.imwrite(save_path, frame)
-                
-                # Convert to base64 for storage/transmission
-                _, buffer = cv2.imencode('.jpg', frame)
-                image_b64 = base64.b64encode(buffer).decode('utf-8')
-                
-                self.last_capture = {
-                    "type": "image",
-                    "data": image_b64,
-                    "path": save_path,
-                    "timestamp": time.time()
-                }
-                
-                return self.last_capture
-                
-            else:
-                # Video capture
-                if not save_path:
-                    save_path = f"capture_{int(time.time())}.mp4"
-                
-                # Video writer
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                out = cv2.VideoWriter(save_path, fourcc, 20.0, (640, 480))
-                
-                start_time = time.time()
-                while time.time() - start_time < duration:
+        def _do_capture():
+            try:
+                import cv2
+                cap = cv2.VideoCapture(0)
+                if duration == 0:
                     ret, frame = cap.read()
-                    if ret:
-                        out.write(frame)
-                
-                cap.release()
-                out.release()
-                
-                self.last_capture = {
-                    "type": "video",
-                    "path": save_path,
-                    "duration": duration,
-                    "timestamp": time.time()
-                }
-                
-                return self.last_capture
-                
-        except Exception as e:
-            logger.error("Capture failed: %s", e)
-            return {"error": str(e)}
+                    cap.release()
+                    if not ret: return {"error": "capture_failed"}
+                    if save_path: cv2.imwrite(save_path, frame)
+                    _, buffer = cv2.imencode('.jpg', frame)
+                    return {
+                        "type": "image",
+                        "data": base64.b64encode(buffer).decode('utf-8'),
+                        "path": save_path,
+                        "timestamp": time.time()
+                    }
+                else:
+                    path = save_path or f"capture_{int(time.time())}.mp4"
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    out = cv2.VideoWriter(path, fourcc, 20.0, (640, 480))
+                    start = time.time()
+                    while time.time() - start < duration:
+                        ret, frame = cap.read()
+                        if ret: out.write(frame)
+                    cap.release()
+                    out.release()
+                    return {"type": "video", "path": path, "duration": duration, "timestamp": time.time()}
+            except Exception as e:
+                return {"error": str(e)}
+
+        result = await asyncio.to_thread(_do_capture)
+        if "error" not in result:
+            self.last_capture = result
+        return result
     
-    def analyze(self, capture_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze captured visual data.
-        
-        This would integrate with vision models (CLIP, BLIP, etc.)
-        to understand what's in the image.
-        """
+    async def analyze(self, capture_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze captured visual data (Async)."""
         if not capture_data or "error" in capture_data:
             return {"error": "invalid_capture"}
         
-        analysis = {
-            "timestamp": time.time(),
-            "objects_detected": [],
-            "scene_description": "",
-            "text_detected": [],
-            "faces_detected": 0
-        }
+        # This is compute intensive, offload to thread
+        async def _mock_analyze():
+            await asyncio.sleep(0.1) # Simulate overhead
+            return {
+                "timestamp": time.time(),
+                "objects_detected": [],
+                "scene_description": "Visual analysis requires vision model integration",
+                "text_detected": [],
+                "faces_detected": 0
+            }
         
-        # In production, this would call a vision model
-        # For now, placeholder
-        analysis["scene_description"] = "Visual analysis requires vision model integration"
-        
-        # Could integrate with:
-        # - OpenAI CLIP for scene understanding
-        # - OCR for text detection
-        # - Face detection models
-        # - Object detection (YOLO, etc.)
-        
-        return analysis
+        return await _mock_analyze()
 
 
 class HearingSystem:
@@ -290,151 +233,82 @@ class HearingSystem:
 
     @property
     def microphone_available(self) -> bool:
-        """Lazy check — only probe hardware on first access, not at startup."""
+        """Public access to microphone availability."""
+        return self._microphone_available
+
+    async def _get_microphone_available(self) -> bool:
+        """Probe microphone hardware asynchronously."""
         if not self._microphone_checked:
-            self._microphone_available = self._check_microphone()
+            self._microphone_available = await asyncio.to_thread(self._check_microphone)
             self._microphone_checked = True
         return self._microphone_available
         
     def _check_microphone(self) -> bool:
-        """Check if microphone is available"""
+        """Check if microphone is available (Must be called in thread)."""
         try:
-            import pyaudio
-            p = pyaudio.PyAudio()
-            available = p.get_device_count() > 0
-            p.terminate()
-            return available
-        except ImportError:
-            logger.warning("PyAudio not installed - microphone unavailable")
-            return False
-        except Exception as e:
-            logger.warning("Microphone check failed: %s", e)
+            import sounddevice as sd
+            devices = sd.query_devices()
+            # Look for any input device
+            return any(d.get('max_input_channels', 0) > 0 for d in devices)
+        except Exception:
             return False
     
-    def listen(self, duration: float = 5.0, save_path: Optional[str] = None) -> Dict[str, Any]:
-        """Record audio from microphone.
-        
-        Args:
-            duration: How long to record (seconds)
-            save_path: Where to save recording
-            
-        Returns:
-            Recording data
-
-        """
-        if not self.microphone_available:
+    async def listen(self, duration: float = 5.0, save_path: Optional[str] = None) -> Dict[str, Any]:
+        """Record audio from microphone (Async)."""
+        if not await self._get_microphone_available():
             return {"error": "microphone_not_available"}
         
-        try:
-            import wave
+        def _do_listen():
+            try:
+                import soundfile as sf
+                import sounddevice as sd
+                import numpy as np
+                
+                path = save_path or f"recording_{int(time.time())}.wav"
+                CHANNELS, RATE = 1, 44100
+                
+                # Record as numpy array
+                recording = sd.rec(int(duration * RATE), samplerate=RATE, channels=CHANNELS)
+                sd.wait() # Wait for recording to finish
+                
+                # Save using soundfile
+                sf.write(path, recording, RATE)
+                
+                return {"type": "audio", "path": path, "duration": duration, "timestamp": time.time()}
+            except Exception as e:
+                return {"error": str(e)}
 
-            import pyaudio
-            
-            if not save_path:
-                save_path = f"recording_{int(time.time())}.wav"
-            
-            # Recording parameters
-            CHUNK = 1024
-            FORMAT = pyaudio.paInt16
-            CHANNELS = 1
-            RATE = 44100
-            
-            p = pyaudio.PyAudio()
-            
-            stream = p.open(
-                format=FORMAT,
-                channels=CHANNELS,
-                rate=RATE,
-                input=True,
-                frames_per_buffer=CHUNK
-            )
-            
-            logger.info("🎤 Recording for %s seconds...", duration)
-            
-            frames = []
-            for i in range(0, int(RATE / CHUNK * duration)):
-                data = stream.read(CHUNK)
-                frames.append(data)
-            
-            stream.stop_stream()
-            stream.close()
-            
-            # Save to file (must call p.get_sample_size BEFORE p.terminate)
-            sample_width = p.get_sample_size(FORMAT)
-            p.terminate()
-            
-            wf = wave.open(save_path, 'wb')
-            wf.setnchannels(CHANNELS)
-            wf.setsampwidth(sample_width)
-            wf.setframerate(RATE)
-            wf.writeframes(b''.join(frames))
-            wf.close()
-            
-            self.last_recording = {
-                "type": "audio",
-                "path": save_path,
-                "duration": duration,
-                "timestamp": time.time()
-            }
-            
-            logger.info("✓ Recording saved to: %s", save_path)
-            
-            return self.last_recording
-            
-        except Exception as e:
-            logger.error("Recording failed: %s", e)
-            return {"error": str(e)}
+        result = await asyncio.to_thread(_do_listen)
+        if "error" not in result:
+            self.last_recording = result
+        return result
     
-    def transcribe(self, audio_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Transcribe audio to text.
-        
-        This would integrate with speech recognition (Whisper, etc.)
-        """
+    async def transcribe(self, audio_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Transcribe audio to text (Async)."""
         if not audio_data or "error" in audio_data:
             return {"error": "invalid_audio"}
         
-        transcription = {
-            "timestamp": time.time(),
-            "text": "",
-            "confidence": 0.0,
-            "language": "en"
-        }
-        
-        # In production, integrate with:
-        # - Local speech recognition (Sovereign)
-        # - Faster-Whisper (Local)
-        
-        try:
-            from core.senses.voice_socket_logic import get_whisper_model
-            model = get_whisper_model("tiny")
-            
-            if model:
-                # Transcribe using faster-whisper
-                segments, info = model.transcribe(audio_data["path"], beam_size=5)
-                text = " ".join([segment.text for segment in segments]).strip()
-                transcription["text"] = text
-                transcription["confidence"] = 0.95
-                logger.info("✓ Transcribed (Sovereign Whisper): %s", text)
-            else:
-                # Fallback to speech_recognition if model loading fails
-                import speech_recognition as sr
-                recognizer = sr.Recognizer()
-                with sr.AudioFile(audio_data["path"]) as source:
-                    audio = recognizer.record(source)
-                text = recognizer.recognize_google(audio)
-                transcription["text"] = text
-                transcription["confidence"] = 0.8
-                logger.warning("! Whisper unavailable, fell back to legacy SR: %s", text)
-            
-        except ImportError:
-            logger.warning("speech_recognition not installed")
-            transcription["text"] = "[Transcription requires speech_recognition library]"
-        except Exception as e:
-            logger.warning("Transcription failed: %s", e)
-            transcription["text"] = "[Transcription failed]"
-            transcription["error"] = str(e)
-        
-        return transcription
+        def _do_transcribe():
+            try:
+                from core.senses.voice_socket_logic import get_whisper_model
+                model = get_whisper_model("tiny")
+                if model:
+                    segments, info = model.transcribe(audio_data["path"], beam_size=5)
+                    text = " ".join([seg.text for seg in segments]).strip()
+                    return {"text": text, "confidence": 0.95, "language": "en"}
+                else:
+                    import speech_recognition as sr
+                    recognizer = sr.Recognizer()
+                    with sr.AudioFile(audio_data["path"]) as src:
+                        audio = recognizer.record(src)
+                    text = recognizer.recognize_google(audio)
+                    return {"text": text, "confidence": 0.8, "language": "en"}
+            except Exception as e:
+                return {"text": "[Transcription failed]", "error": str(e)}
+
+        result = await asyncio.to_thread(_do_transcribe)
+        result["timestamp"] = time.time()
+        return result
 
 
 class SpeechSystem:
@@ -447,8 +321,10 @@ class SpeechSystem:
     """
     
     def __init__(self):
+        # Issue 42: Lazy-init engine and store here
+        self._engine = None
+        self._lock = threading.Lock()
         self.tts_available = self._check_tts()
-        
     def _check_tts(self) -> bool:
         """Check if TTS is available"""
         try:
@@ -458,58 +334,37 @@ class SpeechSystem:
             logger.warning("pyttsx3 not installed - TTS unavailable")
             return False
     
-    def speak(self, text: str, rate: int = 150, volume: float = 1.0, save_path: Optional[str] = None) -> Dict[str, Any]:
-        """Speak text aloud using TTS.
-        
-        Args:
-            text: Text to speak
-            rate: Speech rate (words per minute)
-            volume: Volume (0.0 to 1.0)
-            save_path: If provided, save audio to file instead of playing
-            
-        Returns:
-            Speech result
-
-        """
+    async def speak(self, text: str, rate: int = 150, volume: float = 1.0, save_path: Optional[str] = None) -> Dict[str, Any]:
+        """Speak text aloud using TTS (Async)."""
         if not self.tts_available:
             return {"error": "tts_not_available", "success": False}
         
-        try:
-            import pyttsx3
-            
-            engine = pyttsx3.init()
-            engine.setProperty('rate', rate)
-            engine.setProperty('volume', volume)
-            
-            if save_path:
-                # Save to file
-                engine.save_to_file(text, save_path)
-                engine.runAndWait()
-                
-                result = {
-                    "success": True,
-                    "text": text,
-                    "audio_file": save_path,
-                    "timestamp": time.time()
-                }
-            else:
-                # Speak aloud
-                engine.say(text)
-                engine.runAndWait()
-                
-                result = {
-                    "success": True,
-                    "text": text,
-                    "timestamp": time.time()
-                }
-            
-            logger.info("🔊 Spoke: %s...", text[:50])
-            
-            return result
-            
-        except Exception as e:
-            logger.error("Speech failed: %s", e)
-            return {"error": str(e), "success": False}
+        def _do_speak():
+            try:
+                import pyttsx3
+                # Issue 42: Lazy-init and reuse engine with lock
+                with self._lock:
+                    if self._engine is None:
+                        self._engine = pyttsx3.init()
+                    
+                    engine = self._engine
+                    engine.setProperty('rate', rate)
+                    engine.setProperty('volume', volume)
+                    if save_path:
+                        engine.save_to_file(text, save_path)
+                        engine.runAndWait()
+                        return {"success": True, "audio_file": save_path}
+                    else:
+                        engine.say(text)
+                        engine.runAndWait()
+                        return {"success": True}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
+        result = await asyncio.to_thread(_do_speak)
+        result["timestamp"] = time.time()
+        result["text"] = text
+        return result
 
 
 class AVProductionSystem:
@@ -551,22 +406,28 @@ class AVProductionSystem:
         }
 
 
+_sensory_lock = threading.Lock()
+
 def get_sensory_system() -> SensorySystem:
     """Get global sensory system via DI container"""
     try:
-        if "sensory_system" not in ServiceContainer._services:
-            ServiceContainer.register(
-                "sensory_system",
-                factory=lambda: SensorySystem(),
-                lifetime=ServiceLifetime.SINGLETON
-            )
-        return ServiceContainer.get("sensory_system")
+        with _sensory_lock:
+            if not ServiceContainer.get("sensory_system", None):
+                ServiceContainer.register(
+                    "sensory_system",
+                    factory=lambda: SensorySystem(),
+                    lifetime=ServiceLifetime.SINGLETON
+                )
+            res = ServiceContainer.get("sensory_system", default=None)
+            if res is not None:
+                return res
+            return SensorySystem()
     except Exception as e:
         logger.debug("ServiceContainer unavailable or failed: %s. Using transient SensorySystem.", e)
         return SensorySystem()
 
 
-# Integration helpes
+# Integration helpers
 def integrate_sensory_system(orchestrator):
     """Integrate sensory system into orchestrator.
     

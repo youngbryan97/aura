@@ -1,4 +1,7 @@
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_pronouns(text: str, session=None) -> str:

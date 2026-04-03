@@ -1,3 +1,5 @@
+################################################################################
+
 """tests/test_project_store.py
 Verification for Phase 17.1: ProjectStore persistence and task retrieval.
 """
@@ -64,3 +66,6 @@ class TestProjectStore(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+##

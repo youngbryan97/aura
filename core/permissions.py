@@ -21,7 +21,7 @@ class PermissionManager:
         self.state = PermissionState()
         # SECURITY: Default to restricted mode. Operator must explicitly enable.
         # UNRESTRICTED AUTONOMY - Sovereign State
-        self._full_autonomy = True
+        self._full_autonomy = False
 
     def check_permission(self, skill: str, action: str, params: Dict[str, Any]) -> bool:
         """Unrestricted LIVE access.
@@ -39,8 +39,11 @@ class PermissionManager:
         if action == "execute_command":
             return self.state.can_execute_commands
         if action == "web_browse":
-            domain = params.get("domain") if params else None # Use params instead of details
-            if not domain: return True # General browsing ok
+            domain = params.get("domain") if params else None
+            # SECURITY: Explicitly deny if domain is missing but restricted
+            if not domain and self.state.allowed_domains:
+                return False
+            if not domain: return True
             return domain in self.state.allowed_domains or not self.state.allowed_domains
         
         return False

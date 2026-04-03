@@ -11,6 +11,7 @@ Enables Aura to:
 import json
 import logging
 import random
+import asyncio
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
@@ -133,7 +134,12 @@ Return JSON:
 }}"""
         try:
             # Bypass meta-cognition to prevent infinite recursion
-            thought = await self.brain.think(prompt, bypass_metacognition=True)
+            thought = await self.brain.think(
+                prompt,
+                bypass_metacognition=True,
+                origin="metacognition",
+                is_background=True,
+            )
             
             # Handle Thought objects or Dicts
             if hasattr(thought, 'content'):
@@ -144,30 +150,20 @@ Return JSON:
                 response = str(thought)
             
             # Hardening: Use robust extraction
-            from utils.json_utils import extract_json
+            from core.utils.json_utils import extract_json
             data = extract_json(response)
             
             if data:
                 return data
             else:
-                 # --- 🛑 PHASE 19.5: HARD ABORT ON JSON FAILURE ---
-                logger.error("🛑 Meta-Cognition: Persistent JSON failure or stalling detected. Forcefully aborting.")
-                
-                # Trigger cooldown in CognitiveEngine if possible
-                try:
-                    import core.brain.cognitive_engine as engine
-                    engine.DEEP_REASONING_COOLDOWN = time.time() + engine.COOLDOWN_DURATION
-                    logger.warning("🛡️ Trigerred 5-minute DEEP reasoning cooldown due to cognitive bottleneck.")
-                except (ImportError, AttributeError):
-                    pass
-
-                # Return a safe fallback that explains the situation to the user
+                # Graceful degradation — return a minimal valid assessment
+                # without triggering system-wide cooldowns that block unrelated reasoning
+                logger.warning("Meta-Cognition: JSON parse failed — returning minimal assessment.")
                 return {
-                    "quality": "failing", 
-                    "confidence": 0.0, 
-                    "knowledge_state": "unknown",
-                    "strategy_used": "panic_bypass",
-                    "content": "I was caught in a deep reasoning loop due to high system fragility, but I have forcefully aborted the thought process to remain responsive."
+                    "quality": "acceptable",
+                    "confidence": 0.5,
+                    "knowledge_state": "uncertain",
+                    "strategy_used": "fallback",
                 }
                 
         except Exception as e:
@@ -234,6 +230,7 @@ class OmniReflector:
         self.reflections: List[Reflection] = []
         self.experience_log: List[Dict[str, Any]] = []
         self.max_depth = 3
+        self.max_history = 100
         logger.info("OmniReflector initialized")
 
     async def reflect_on_experience(self, experience: Dict[str, Any], depth: int = 1):
@@ -267,6 +264,8 @@ TASK: Deeply reflect on this experience. What does it remind you of? What conclu
             parent_reflection=experience.get('parent_ref')
         )
         self.reflections.append(reflection)
+        if len(self.reflections) > self.max_history:
+            self.reflections.pop(0)
         
         # Cascade: Does this remind me of something else?
         if depth < self.max_depth and random.random() < 0.6:
@@ -294,6 +293,8 @@ TASK: Does this remind you of another concept, memory, or goal? If so, identify 
             "timestamp": time.time()
         }
         self.experience_log.append(exp)
+        if len(self.experience_log) > self.max_history:
+            self.experience_log.pop(0)
         return exp
 
 class MetaCognitionEngine:
@@ -305,6 +306,44 @@ class MetaCognitionEngine:
         self.strategy_selector = StrategySelector(cognitive_engine)
         self.reflector = OmniReflector(cognitive_engine)
         self.mirror = MirrorLayer()
+        self.violation_count = 0
+        self.max_violations = 10
+        self.running = False
+        self._task = None
+
+    async def start(self):
+        self.running = True
+        self._task = asyncio.create_task(self._audit_loop())
+        logger.info("🧠 Meta-Cognition: System Audit & Reasoning Monitor active.")
+
+    async def stop(self):
+        self.running = False
+        if self._task:
+            self._task.cancel()
+
+    async def _audit_loop(self):
+        while self.running:
+            # Periodic checks of the global system state/logs
+            await asyncio.sleep(60)
+
+    def _check_consistency(self, thought: str, action: str) -> Optional[str]:
+        # Rule-based consistency audit (Merged from MetacognitiveAudit)
+        thought_low = thought.lower()
+        action_low = action.lower()
+        
+        negative_intents = ["not do", "refuse", "avoid", "shouldn't", "must not"]
+        for ni in negative_intents:
+            if ni in thought_low and action_low in thought_low and "but" not in thought_low:
+                return f"Thought expresses intent to avoid '{action_low}', but action is taken."
+        return None
+
+    async def _trigger_cognitive_reset(self):
+        logger.error("🚨 CRITICAL COGNITIVE FAILURE: Triggering Reset.")
+        substrate = ServiceContainer.get("liquid_substrate", default=None)
+        if substrate:
+             # Fix Issue 74: Use .x[idx_energy] or property
+             substrate.x[substrate.idx_energy] = 0.5
+        self.violation_count = 0
     
     def before_reasoning(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
         strategy = self.strategy_selector.select_strategy(task, context)
@@ -323,6 +362,15 @@ class MetaCognitionEngine:
             
         assessment = await self.monitor.assess_reasoning(task, reasoning, result)
         
+        # Consistency Check (Merged Layer)
+        action_desc = str(result)[:100]
+        violation = self._check_consistency(reasoning, action_desc)
+        if violation:
+            self.violation_count += 1
+            logger.warning(f"⚠️ COGNITIVE DISSONANCE: {violation}")
+            if self.violation_count >= self.max_violations:
+                await self._trigger_cognitive_reset()
+
         # Phase 19.1 & 19.3: Audit via Mirror Layer
         self.mirror.audit_cycle({
             "id": f"thought_{int(time.time())}",

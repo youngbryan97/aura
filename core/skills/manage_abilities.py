@@ -24,18 +24,18 @@ class ManageAbilitiesSkill(BaseSkill):
         skill_name = params.skill_name
         
         from core.container import ServiceContainer
-        engine = ServiceContainer.get("capability_engine")
+        engine = ServiceContainer.get("capability_engine", default=None)
         
         if not engine:
             return {"ok": False, "error": "CapabilityEngine unavailable."}
 
         # Metabolic Override Protection
-        metabolism = ServiceContainer.get("metabolic_monitor")
+        metabolism = ServiceContainer.get("metabolic_monitor", default=None)
         if action == "activate" and metabolism:
             health = metabolism.get_current_metabolism().health_score
             skill_meta = engine.get(skill_name)
             if skill_meta:
-                cost = getattr(skill_meta.skill_class, "metabolic_cost", 1)
+                cost = skill_meta.metabolic_cost
                 # Fail fast if system is too hot for heavy tools
                 if health < 0.7 and cost >= 2:
                     logger.warning("🛡️ METABOLIC BLOCK: Refused activation of %s due to thermal stress.", skill_name)
@@ -48,17 +48,14 @@ class ManageAbilitiesSkill(BaseSkill):
             success = engine.activate_skill(skill_name)
             if success:
                 logger.info("🧠 Aura activated skill: %s", skill_name)
-                return {
-                    "ok": True, 
-                    "message": f"SYSTEM: {skill_name} is now AWAKE and injected into your active tools. You MUST use it in your very next response if needed. Remember to deactivate it when finished."
-                }
-            return {"ok": False, "error": f"Skill {skill_name} not found."}
+                return {"ok": True, "message": f"SYSTEM: {skill_name} is now AWAKE and injected into your active tools. You MUST use it in your very next response if needed. Remember to deactivate it when finished."}
+            return {"ok": False, "message": f"Skill '{skill_name}' not found or activation failed."}
             
         elif action == "deactivate":
             success = engine.deactivate_skill(skill_name)
             if success:
                 logger.info("💤 Aura put skill to sleep: %s", skill_name)
                 return {"ok": True, "message": f"{skill_name} is now DORMANT. Memory freed."}
-            return {"ok": False, "error": f"Skill {skill_name} is either not active or is a CORE tool."}
+            return {"ok": False, "message": f"Skill '{skill_name}' is either not active or is a CORE tool."}
             
-        return {"ok": False, "error": "Invalid action. Use 'activate' or 'deactivate'."}
+        return {"ok": False, "message": "Invalid action. Use 'activate' or 'deactivate'."}

@@ -7,6 +7,7 @@ This replaces static state flags with a continuous multi-dimensional state vecto
 import logging
 import math
 import time
+from collections import deque
 from dataclasses import dataclass
 
 logger = logging.getLogger("Aura.LiquidState")
@@ -22,7 +23,7 @@ class LiquidState:
     def __init__(self):
         self.current = StateVector()
         self.last_update = time.time()
-        self.history = []
+        self.history = deque(maxlen=200)
         
     def update(self, delta_frustration=0.0, delta_curiosity=0.0):
         """Apply a delta to the current state."""
@@ -92,3 +93,4 @@ class LiquidState:
     def get_summary(self) -> str:
         """Returns a text summary for the context builder."""
         return f"Current Mood: {self.get_mood()} (Energy: {self.current.energy:.2f}, Focus: {self.current.focus:.2f})"
+

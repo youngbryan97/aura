@@ -34,7 +34,7 @@ class SensoryInstincts:
                 # (Assuming VoiceEngine could report decibel levels)
                 
                 # 2. Vision Check (Motion/Change Detection)
-                # We can't do full LLaVA analysis every second, 
+                # We can't do full LLaVA analysis every second,
                 # but we can check if the screen has changed significantly.
                 
                 await asyncio.sleep(1.0) # Check every second
@@ -45,7 +45,7 @@ class SensoryInstincts:
 
     def trigger_spike(self, modality: str, intensity: float, emotion: str = "curiosity"):
         """Directly influence the LiquidState based on sensory input."""
-        ls = ServiceContainer.get("liquid_state")
+        ls = ServiceContainer.get("liquid_state", default=None)
         if not ls:
             return
             

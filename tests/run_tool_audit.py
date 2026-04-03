@@ -1,3 +1,5 @@
+################################################################################
+
 
 import asyncio
 import logging
@@ -33,7 +35,7 @@ async def main():
              from core.brain.llm.openai_client import OpenAIClient
              brain.client = OpenAIClient()
              print("✓ OpenAI Client Injected (Fallback)")
-        except:
+        except Exception:
              pass
 
     auditor = ToolAuditor(brain)
@@ -57,3 +59,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+##

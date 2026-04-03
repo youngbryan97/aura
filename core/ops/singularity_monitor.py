@@ -58,7 +58,7 @@ class SingularityMonitor:
              # Inject deep-seated bias into thinking modes
              # This is a 'latent' shift in how Aura perceives her own throughput
              logger.info("🧠 Injecting Acceleration Factor: %.1fx", factor)
-             # We can't directly modify LLM params easily here without a hook, 
+             # We can't directly modify LLM params easily here without a hook,
              # so we'll set a state flag that the CognitiveEngine can check.
              setattr(ce, "singularity_factor", factor)
 

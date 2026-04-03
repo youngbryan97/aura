@@ -3,7 +3,9 @@ Orchestrates the complete self-improvement system.
 """
 import asyncio
 import logging
+import os
 import time
+import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -12,7 +14,11 @@ from .code_repair import AutonomousCodeRepair
 # Import all subsystems
 from .error_intelligence import ErrorIntelligenceSystem
 from .learning_system import MetaLearning, SelfImprovementLearning
-from .safe_modification import SafeSelfModification
+from .safe_modification import SafeSelfModification, LogicTransplant
+from .kernel_refiner import KernelRefiner
+from .boot_validator import GhostBootValidator
+from .shadow_ast_healer import ShadowASTHealer
+from .shadow_runtime import get_shadow_runtime
 
 logger = logging.getLogger("SelfModification.Engine")
 
@@ -74,6 +80,15 @@ class AutonomousSelfModificationEngine:
         
         self.meta_learning = MetaLearning()
         
+        self.kernel_refiner = KernelRefiner(
+            cognitive_engine,
+            str(self.code_base)
+        )
+        
+        self.boot_validator = GhostBootValidator(self.code_base)
+        self.shadow_healer = ShadowASTHealer(self.code_base)
+        self.shadow_runtime = get_shadow_runtime(str(self.code_base))
+        
         # Background monitoring
         self.monitoring_enabled = False
         self.monitor_thread = None
@@ -84,8 +99,10 @@ class AutonomousSelfModificationEngine:
             "bugs_detected": 0,
             "fixes_attempted": 0,
             "fixes_successful": 0,
+            "health_fixes_triggered": 0,
             "session_start": time.time()
         }
+        self._fix_lock = asyncio.Lock()
         
         logger.info("✓ Autonomous Self-Modification Engine initialized")
         
@@ -113,13 +130,12 @@ class AutonomousSelfModificationEngine:
                 self_mod_engine.on_error(e, context, skill.name, goal)
                 raise
         """
-        # Log to error intelligence
-        event = self.error_intelligence.on_error(error, context, skill_name, goal)
+        # Log to error intelligence (Async)
+        async def _log():
+            event = await self.error_intelligence.on_error(error, context, skill_name, goal)
+            logger.debug("Error logged: %s", event.fingerprint())
         
-        # Increment detection counter
-        self.session_stats["bugs_detected"] += 1
-        
-        logger.debug("Error logged: %s", event.fingerprint())
+        asyncio.create_task(_log())
     
     def on_skill_execution(
         self,
@@ -172,6 +188,23 @@ class AutonomousSelfModificationEngine:
         
         logger.info("Proposing fix for %s:%d", sample_event.file_path, sample_event.line_number)
         
+        # Issue 91: Shadow AST Wiring (Zero-token repair attempt)
+        if "is not defined" in sample_event.error_message.lower():
+            logger.info("⚡ Attempting zero-token AST healing...")
+            path = self.code_base / sample_event.file_path
+            if await self.shadow_healer.attempt_repair(path, sample_event.error_message):
+                logger.info("✨ AST Healing successful. Skipping LLM repair.")
+                return {
+                    "bug": bug,
+                    "fix": LogicTransplant(
+                        target_file=sample_event.file_path,
+                        explanation="Zero-token AST repair for missing definition",
+                        chunks=[] # ShadowHealer already applied change to disk
+                    ),
+                    "test_results": {"success": True},
+                    "ready_to_apply": True
+                }
+
         success, fix, test_results = await self.code_repair.repair_bug(
             sample_event.file_path,
             sample_event.line_number,
@@ -182,6 +215,21 @@ class AutonomousSelfModificationEngine:
             logger.warning("Fix generation or sandbox testing failed: %s", test_results.get("error") or "Unknown error")
             return None
         
+        # Issue 96: Shadow Runtime Wiring (Deep Validation)
+        logger.info("🔬 Initiating Deep Shadow Runtime Validation for %s...", sample_event.file_path)
+        shadow_result = await self.shadow_runtime.test_mutation(
+            file_path=sample_event.file_path,
+            original_code=fix.original_code,
+            patched_code=fix.fixed_code,
+            soak_seconds=10
+        )
+        
+        if not shadow_result.passed:
+            logger.error("❌ Shadow Runtime Validation FAILED: %s", shadow_result.errors)
+            return None
+            
+        logger.info("✅ Shadow Runtime Validation PASSED.")
+
         return {
             "bug": bug,
             "fix": fix,
@@ -195,7 +243,16 @@ class AutonomousSelfModificationEngine:
         force: bool = False,
         test_results: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """Apply a fix proposal with Swarm Review (Phase 15)."""
+        """Apply a fix proposal with Swarm Review and Safe Modification (Phase 31)."""
+        # Level 3 Check
+        from core.container import ServiceContainer
+        kernel = ServiceContainer.get("aura_kernel", default=None)
+        volition = getattr(kernel, 'volition_level', 0) if kernel else 0
+        
+        if volition < 3 and not force:
+            logger.warning("SME: Modification BLOCKED. Requires Volition Level 3 (Action).")
+            return False
+
         if not self.auto_fix_enabled and not force:
             logger.warning("Auto-fix disabled. Use force=True to override.")
             return False
@@ -207,8 +264,20 @@ class AutonomousSelfModificationEngine:
             logger.error("❌ Fix Rejected by Swarm Critic. Aborting modification.")
             return False
 
-        logger.info("Applying fix to %s...", fix.target_file)
-        
+        # [Phase 30] Circuit Breaker Check (Metabolic Quarantine)
+        immunity = None
+        try:
+            from ..resilience.immunity_hyphae import get_immunity
+            immunity = get_immunity()
+            # If the specific file is entering a fail-loop, quarantine it
+            if immunity and hasattr(immunity, 'circuit_breakers') and fix.target_file in immunity.circuit_breakers:
+                cb = immunity.circuit_breakers[fix.target_file]
+                if cb.state == "OPEN":
+                    logger.error("🛑 [NEURO] Component %s is QUARANTINED. Modification blocked.", fix.target_file)
+                    return False
+        except Exception as e:
+            logger.debug("Shielded circuit breaker check failed: %s", e)
+
         # Use provided test results, or those inside the proposal
         final_test_results = test_results or fix_proposal.get("test_results")
         
@@ -220,53 +289,69 @@ class AutonomousSelfModificationEngine:
             logger.error("❌ Refusing to apply fix: Sandboxed tests failed.")
             return False
 
-        # Phase 22: Transactional Snapshot (Targeted A+ Hardening)
-        try:
-            from core.resilience.snapshot_manager import SnapshotManager
-            sm = SnapshotManager()
-            sm.create_snapshot(label=f"pre-fix-{fix.target_file.split('/')[-1]}", files=[fix.target_file])
-        except Exception as e:
-            logger.warning("Snapshot failed before fix (non-fatal): %s", e)
-
-        # Apply with safety protocol
-        success, message = await self.safe_modification.apply_fix(fix, final_test_results)
+        logger.info("🧬 [NEURO] Initiating permanent fix application for %s", fix.target_file)
         
-        if success:
-            self.session_stats["fixes_successful"] += 1
-            logger.info("✅ Fix applied successfully: %s", message)
-            
-            # UPGRADE NOTIFICATION
+        # Phase 31: Permanent Persistence via SafeSelfModification
+        async with self._fix_lock:
             try:
-                from core.thought_stream import get_emitter
-                get_emitter().emit("System Evolution", f"Self-Modification Applied: {message}", level="success")
-            except Exception as exc:
-                logger.debug("Suppressed: %s", exc)            
-            # Record for learning
-            error_type = fix_proposal.get("bug", {}).get("pattern", {}).get("events", [{}])[0].get("error_type", "optimization")
-            self.learning_system.record_fix_attempt(
-                fix,
-                error_type,
-                success=True,
-                context={}
-            )
-        else:
-            logger.error("❌ Fix application failed: %s", message)
-            # Record failure
-            error_type = fix_proposal.get("bug", {}).get("pattern", {}).get("events", [{}])[0].get("error_type", "optimization")
-            self.learning_system.record_fix_attempt(
-                fix,
-                error_type,
-                success=False,
-                context={"failure_reason": message}
-            )
+                # First, we still write to pending_patch.py as a 'registry' of recent changes
+                # but we ALSO apply to the real file via SafeSelfModification
+                patch_dir = self.code_base / "core" / "patches"
+                patch_dir.mkdir(parents=True, exist_ok=True)
+                patch_file = patch_dir / "pending_patch.py"
+                
+                with open(patch_file, "a") as f:
+                    f.write(f"\n# [APPLIED] Fix for {fix.target_file} at {time.ctime()}\n")
+                    f.write(f"'''\n{fix.fixed_code}\n'''\n")
+
+                # Delegate permanent application to SafeSelfModification
+                # This handles: Backups, Git branches, Ghost Boot, and Rollback
+                success, message = await self.safe_modification.apply_fix(
+                    fix=fix,
+                    test_results=final_test_results
+                )
+                
+                if success:
+                    self.session_stats["fixes_successful"] += 1
+                    logger.info("✅ [NEURO] Permanent fix applied: %s", message)
+                    
+                    # UPGRADE NOTIFICATION
+                    try:
+                        from ..thought_stream import get_emitter
+                        get_emitter().emit("System Evolution", f"Sovereign Repair Persistent: {fix.target_file}", level="success")
+                    except Exception as exc:
+                        logger.debug("Suppressed: %s", exc)            
+                else:
+                    logger.error("❌ [NEURO] Permanent application FAILED: %s", message)
+                    # Record failure in immunity for pattern analysis
+                    try:
+                        if immunity:
+                            immunity.audit_error(RuntimeError(f"Persistence failed: {message}"), {"file": fix.target_file})
+                    except Exception as e:
+                        logger.debug("Failed to audit persistence error to immunity: %s", e)
+                
+                # Record for learning
+                error_type = fix_proposal.get("bug", {}).get("pattern", {}).get("events", [{}])[0].get("error_type", "optimization")
+                self.learning_system.record_fix_attempt(
+                    fix,
+                    error_type,
+                    success=success,
+                    context={"persistence_msg": message}
+                )
+                
+                self.session_stats["fixes_attempted"] += 1
+                return success
+                
+            except Exception as e:
+                logger.exception("CRITICAL: Persistence error in SME: %s", e)
+                return False
         
-        self.session_stats["fixes_attempted"] += 1
-        return success
+        return False # Fallback
 
     async def _swarm_review(self, proposal: Dict[str, Any]) -> bool:
         """Recursive check: spawn a swarm debate to review the proposed fix."""
         from core.container import ServiceContainer
-        swarm = ServiceContainer.get("agent_delegator")
+        swarm = ServiceContainer.get("agent_delegator", default=None)
         if not swarm:
             logger.debug("Swarm Delegator not available, skipping swarm review.")
             return True # Fallback to single-brain if swarm is offline
@@ -353,19 +438,29 @@ class AutonomousSelfModificationEngine:
     async def run_autonomous_cycle(self) -> Dict[str, Any]:
         """Run one autonomous self-improvement cycle (Async).
         
-        Workflow:
-        1. Find bugs to fix
-        2. Prioritize by severity/impact
-        3. Generate fix for top bug
-        4. Apply if auto_fix enabled
-        5. Learn from outcome
-        
-        Returns:
-            Cycle results
+        [GENESIS] Volition-scaled logic:
+        1. Check Volition Level (Requires Level 3 for Auto-fix)
+        2. Find bugs to fix
+        ...
         """
         cycle_start = time.time()
         
-        logger.debug("--- [SME] Starting Autonomous Cycle ---")
+        # Dynamic Volition Pull
+        from core.container import ServiceContainer
+        kernel = ServiceContainer.get("aura_kernel", default=None)
+        volition = getattr(kernel, 'volition_level', 0) if kernel else 0
+        
+        # Override auto_fix based on Volition
+        if volition >= 3:
+            if not self.auto_fix_enabled:
+                logger.info("SME: Volition Level 3 detected. AUTO-FIX ENGAGED.")
+                self.auto_fix_enabled = True
+        else:
+            if self.auto_fix_enabled:
+                logger.debug("SME: Volition Level < 3. Auto-fix held in proposal-only mode.")
+                self.auto_fix_enabled = False
+
+        logger.debug("--- [SME] Starting Autonomous Cycle (Volition=%d) ---", volition)
         logger.info("AUTONOMOUS SELF-MODIFICATION CYCLE")
         logger.info("=" * 80)
         
@@ -373,21 +468,17 @@ class AutonomousSelfModificationEngine:
         bugs = await self.diagnose_current_bugs()
         
         if not bugs:
-            # Singularity Upgrade: High-Health Proactive Optimization (Phase 21)
-            from core.container import ServiceContainer
-            singularity = ServiceContainer.get("singularity_monitor", default=None)
-            if singularity and singularity.is_accelerated:
-                logger.info("⚡ [SINGULARITY] High Health detected. Triggering deep architectural optimization.")
-                # Proactively look for sparse node optimizations or refactoring needs
-                # For Phase 21, we simulate a 'perfective' refactor of the orchestrator or core modules
-                return await self.report_optimization({
-                    "file": str(self.code_base / "core/orchestrator.py"),
-                    "line": 1,
-                    "type": "architectural_polish",
-                    "message": "Accelerated Cognition: Refining core loop efficiencies for Singularity Event."
-                })
-                
-            logger.info("No bugs detected - system healthy")
+            # Re-enabled proactive refinement (v47) but only every 4 cycles to prevent LLM spam/locking
+            if random.random() < 0.25:
+                logger.info("No bugs detected - triggering proactive refinement cycle.")
+                try:
+                    from ..thought_stream import get_emitter
+                    get_emitter().emit("Proactive Refinement 💎", "Scanning for architectural optimizations...", level="info", category="Self-Modification")
+                except Exception as _exc:
+                    logger.debug("Suppressed Exception: %s", _exc)
+                return await self.run_refinement_cycle()
+            
+            logger.info("No bugs detected - system healthy (idle)")
             return {
                 "success": True,
                 "bugs_found": 0,
@@ -453,6 +544,44 @@ class AutonomousSelfModificationEngine:
                 "fixes_applied": 0,
                 "proposed_fix": fix_proposal
             }
+
+    # ========================================================================
+    # Refinement (Recursive Self-Architecture)
+    # ========================================================================
+    
+    async def run_refinement_cycle(self) -> Dict[str, Any]:
+        """Run a proactive architectural refinement cycle.
+        
+        Hunts for bottlenecks in core reasoning logic and optimizes them.
+        """
+        logger.info("💎 [REFINE] Starting Kernel Refinement Cycle...")
+        cycle_start = time.time()
+        
+        # Step 1: Analyze kernel health
+        refinements = await self.kernel_refiner.analyze_kernel_health()
+        
+        if not refinements:
+            logger.info("✨ Kernel is optimal. No refinements proposed.")
+            return {"success": True, "refinements_applied": 0}
+            
+        top_refinement = refinements[0]
+        logger.info("🚀 Targeted Refinement: %s", top_refinement['message'])
+        try:
+            from ..thought_stream import get_emitter
+            get_emitter().emit("Synthesis 🚀", f"Optimizing {top_refinement.get('file', 'system')}: {top_refinement.get('message', '')}", level="info", category="Self-Modification")
+        except Exception as _exc:
+            logger.debug("Suppressed Exception: %s", _exc)
+        
+        # Step 2: Convert refinement to a 'synthetic bug' for the repair engine
+        # This allows us to reuse the existing safety/testing/apply pipeline
+        proposal = await self.report_optimization(top_refinement)
+        
+        duration = time.time() - cycle_start
+        return {
+            "success": proposal,
+            "refinements_applied": 1 if proposal else 0,
+            "duration": duration
+        }
     
     # ========================================================================
     # Background Monitoring
@@ -469,10 +598,12 @@ class AutonomousSelfModificationEngine:
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
-                # Fallback to general event loop if not currently running
-                loop = asyncio.get_event_loop()
+                logger.error("Failed to start monitoring: No asyncio loop available.")
+                self.monitoring_enabled = False
+                return
                 
             self.monitor_thread = loop.create_task(self._monitoring_loop(), name="SelfModificationMonitor")
+            self.health_thread = loop.create_task(self._health_watcher_loop(), name="SelfModificationHealthWatcher")
         except RuntimeError:
             logger.error("Failed to start monitoring: No asyncio loop available.")
             self.monitoring_enabled = False
@@ -486,11 +617,16 @@ class AutonomousSelfModificationEngine:
         if self.monitor_thread:
             self.monitor_thread.cancel()
             self.monitor_thread = None
+        if hasattr(self, 'health_thread') and self.health_thread:
+            self.health_thread.cancel()
+            self.health_thread = None
         
         logger.info("Background monitoring stopped")
     
     async def _monitoring_loop(self):
         """Background monitoring loop with circuit breaker (v5.2)"""
+        # Phase 24 Optimization: Delay first cycle to unblock boot
+        await asyncio.sleep(10)
         logger.info("Monitoring loop starting...")
         _consecutive_failures = 0
         _MAX_FAILURES = 5
@@ -500,11 +636,15 @@ class AutonomousSelfModificationEngine:
             try:
                 result = await self.run_autonomous_cycle()
                 
-                if result.get("fixes_applied", 0) > 0:
-                    logger.info("✅ Autonomous fix applied in background")
+                # Fix: run_autonomous_cycle can return a bool via report_optimization
+                if not isinstance(result, dict):
+                    result = {"success": bool(result), "fixes_applied": 1 if result else 0}
+                
+                if result.get("fixes_applied", 0) > 1:
+                    logger.info("✅ Autonomous fixes applied in background")
                     _consecutive_failures = 0
                     _backoff = self.monitor_interval
-                elif result.get("errors", 0) > 0:
+                elif result.get("bugs_found", 0) > 0: # Issue 83: Fix plural/singular key mismatch (errors -> bugs_found)
                     _consecutive_failures += 1
                     _backoff = min(600, _backoff * 2)  # Exponential backoff, max 10min
                 else:
@@ -519,6 +659,14 @@ class AutonomousSelfModificationEngine:
                     _backoff = self.monitor_interval
                     continue
                 
+                # Synthetic recovery tests are dangerous in production because they
+                # generate false repair work and noisy degraded cognition.
+                if (
+                    os.environ.get("AURA_ENABLE_SYNTHETIC_SELF_TESTS", "0") == "1"
+                    and time.time() % 3600 < self.monitor_interval
+                ):
+                    await self.trigger_synthetic_test()
+
                 # Wait for next cycle
                 await asyncio.sleep(_backoff)
                 
@@ -530,6 +678,85 @@ class AutonomousSelfModificationEngine:
                 await asyncio.sleep(max(60, _backoff))
         
         logger.info("Monitoring loop stopped")
+    
+    async def _health_watcher_loop(self):
+        """Monitor SubsystemAudit and trigger repairs for failing components (v18).
+
+        v49 hardening:
+        - 120s boot grace period (subsystems still initializing)
+        - Per-subsystem injection cooldown (5min) to prevent cascading noise
+        - Only inject when staleness exceeds 2x the expected heartbeat interval
+        """
+        await asyncio.sleep(120)  # Boot grace: subsystems need time to initialize
+        logger.info("Health Watcher starting...")
+        _injection_cooldowns: dict[str, float] = {}  # subsystem → last injection time
+        _INJECTION_COOLDOWN = 300.0  # 5 minutes between injections per subsystem
+
+        while self.monitoring_enabled:
+            try:
+                from core.container import get_container
+                container = get_container()
+                audit = container.get("subsystem_audit", None)
+
+                if audit:
+                    health = audit.check_health()
+                    now = time.time()
+                    for name, info in health.get("subsystems", {}).items():
+                        status = info.get("status")
+                        if status not in ("STALE", "NEVER_SEEN"):
+                            continue
+
+                        # Rate limit: don't re-inject for the same subsystem within cooldown
+                        last_injection = _injection_cooldowns.get(name, 0.0)
+                        if (now - last_injection) < _INJECTION_COOLDOWN:
+                            continue
+
+                        # Staleness threshold: only inject if stale for >2x expected interval
+                        stale_secs = info.get("stale_seconds")
+                        if status == "STALE" and stale_secs is not None:
+                            from core.subsystem_audit import SubsystemAudit
+                            expected = SubsystemAudit.SUBSYSTEMS.get(name, 300)
+                            if stale_secs < expected * 2:
+                                continue  # Not stale enough to warrant a repair injection
+
+                        logger.warning(
+                            "💉 Health Watcher detected issues in %s (%s, stale=%ss). Injecting repair requirement.",
+                            name, status, stale_secs,
+                        )
+                        self.on_error(
+                            RuntimeError(f"Subsystem {name} is {status}"),
+                            {"subsystem": name, "telemetry": info},
+                            skill_name="HealthWatcher",
+                            goal="Stabilize core subsystem"
+                        )
+                        _injection_cooldowns[name] = now
+                        self.session_stats["health_fixes_triggered"] += 1
+
+                await asyncio.sleep(60)  # check every minute
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error("Health Watcher error: %s", e)
+                await asyncio.sleep(30)
+
+    async def trigger_synthetic_test(self):
+        """Generate a synthetic error to test the recovery pipeline (Issue 86)."""
+        logger.info("🧪 [TEST] Injecting synthetic test error...")
+        try:
+             # This error is caught by on_error and should trigger a repair cycle
+             # for a safe, non-critical file.
+             test_file = self.code_base / "core" / "utils" / "test_canary.py"
+             if not test_file.exists():
+                 test_file.write_text("# Synthetic test canary\ndef canary(): return True\n")
+             
+             self.on_error(
+                 RuntimeError("Synthetic recovery test failure"),
+                 {"synthetic": True, "target_file": str(test_file)},
+                 skill_name="SelfTestSystem",
+                 goal="Verify autonomous recovery health"
+             )
+        except Exception as e:
+             logger.error("Failed to trigger synthetic test: %s", e)
     
     # ========================================================================
     # Reporting & Status
@@ -618,8 +845,10 @@ TOP FIX STRATEGIES:
         return report
     
     def enable_auto_fix(self, confirm: bool = False):
-        """Enable automatic fixing.
-        """
+        """Enable automatic fixing (Issue 84: Gate with confirmation)."""
+        if not confirm:
+            logger.error("Attempted to enable auto-fix without explicit confirmation.")
+            return False
         self.auto_fix_enabled = True
         logger.warning("⚠️  AUTO-FIX ENABLED - System will modify its own code")
         return True

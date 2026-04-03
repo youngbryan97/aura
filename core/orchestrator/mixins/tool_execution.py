@@ -1,0 +1,250 @@
+"""Tool Execution Mixin for RobustOrchestrator.
+Extracts browser task and tool execution logic.
+"""
+import logging
+import time
+from typing import Any
+
+from core.container import ServiceContainer
+
+logger = logging.getLogger(__name__)
+
+
+class ToolExecutionMixin:
+    """Handles tool execution with constitutional gating, episodic recording, and tool learning."""
+
+    async def run_browser_task(self, url: str, task: str) -> Any:
+        """Formalized browser task execution via skill router.
+        Rigor: No more stubs.
+        """
+        logger.info("🌐 Initiating Browser Task: %s @ %s", task, url)
+        return await self.execute_tool("browser", {"url": url, "task": task})
+
+
+    async def execute_tool(self, tool_name: str, args: dict[str, Any], **kwargs) -> Any:
+        """Execute a single tool with feedback reporting, episodic recording, and tool learning"""
+        _start = time.time()
+        _constitution = None
+        _tool_handle = None
+        _constitutional_runtime_live = False
+
+        # ── EXECUTIVE APPROVAL GATE ──────────────────────────────────────
+        try:
+            from core.container import ServiceContainer as _SC
+            from core.constitution import get_constitutional_core
+
+            _constitutional_runtime_live = (
+                _SC.has("executive_core")
+                or _SC.has("aura_kernel")
+                or _SC.has("kernel_interface")
+                or bool(getattr(_SC, "_registration_locked", False))
+            )
+            _constitution = get_constitutional_core(self)
+            _origin = kwargs.get("origin", "unknown")
+            _tool_handle = await _constitution.begin_tool_execution(
+                tool_name,
+                args,
+                source=_origin,
+                objective=self._current_objective or "",
+            )
+            if not _tool_handle.approved:
+                reason = _tool_handle.decision.reason
+                logger.warning("🚫 ExecutiveCore blocked tool '%s': %s", tool_name, reason)
+                try:
+                    from core.unified_action_log import get_action_log
+                    get_action_log().record(tool_name, kwargs.get("origin","unknown"), "tool", "blocked", str(reason))
+                except Exception: pass
+                return {"ok": False, "error": f"Executive blocked: {reason}"}
+            try:
+                from core.unified_action_log import get_action_log
+                get_action_log().record(tool_name, kwargs.get("origin","unknown"), "tool", "approved")
+            except Exception: pass
+            if _tool_handle.constraints:
+                kwargs.update(_tool_handle.constraints)  # Apply any degraded-mode constraints
+        except Exception as _exec_err:
+            if _constitutional_runtime_live:
+                try:
+                    from core.health.degraded_events import record_degraded_event
+
+                    record_degraded_event(
+                        "orchestrator",
+                        "tool_gate_unavailable",
+                        detail=tool_name,
+                        severity="warning",
+                        classification="foreground_blocking" if kwargs.get("origin") in ("user", "voice", "admin", "api") else "background_degraded",
+                        context={"error": type(_exec_err).__name__},
+                        exc=_exec_err,
+                    )
+                except Exception as _exc:
+                    logger.debug("Suppressed Exception: %s", _exc)
+                logger.warning("🚫 ConstitutionalCore unavailable for tool '%s': %s", tool_name, _exec_err)
+                return {"ok": False, "error": "Constitutional tool gate unavailable"}
+            logger.debug("ConstitutionalCore unavailable for tool gate: %s", _exec_err)
+        # ─────────────────────────────────────────────────────────────────
+
+        # 0. Virtual & Internal Tools
+        if tool_name == "swarm_debate":
+            if not self.swarm:
+                if _constitution and _tool_handle:
+                    await _constitution.finish_tool_execution(
+                        _tool_handle,
+                        result={"ok": False, "error": "Swarm Delegator not available."},
+                        success=False,
+                        duration_ms=(time.time() - _start) * 1000,
+                        error="Swarm Delegator not available.",
+                    )
+                return {"ok": False, "error": "Swarm Delegator not available."}
+            topic = args.get("topic") or args.get("query") or self._current_objective
+            roles = args.get("roles", ["architect", "critic"])
+            self._emit_thought_stream(f"🐝 Engaging Swarm Debate: {topic[:100]}...")
+            result = await self.swarm.delegate_debate(topic, roles=roles, **kwargs)
+            if _constitution and _tool_handle:
+                await _constitution.finish_tool_execution(
+                    _tool_handle,
+                    result={"ok": True, "output": result},
+                    success=True,
+                    duration_ms=(time.time() - _start) * 1000,
+                )
+            return {"ok": True, "output": result}
+
+        try:
+            # 1. Check if tool exists in registry
+            if tool_name not in self.router.skills:
+                # Fallback for notify_user which is sometimes a virtual alias
+                if tool_name == "notify_user":
+                    if _constitution and _tool_handle:
+                        await _constitution.finish_tool_execution(
+                            _tool_handle,
+                            result={"ok": True, "message": args.get("message", "Done.")},
+                            success=True,
+                            duration_ms=(time.time() - _start) * 1000,
+                        )
+                    return {"ok": True, "message": args.get("message", "Done.")}
+
+                # 1.5 Autogenesis (Hephaestus Engine)
+                if self.hephaestus:
+                    self._emit_thought_stream(f"🔨 Tool '{tool_name}' missing. Initiating Autonomous Forge...")
+                    objective = f"Create a skill '{tool_name}' to handle request within objective: {self._current_objective}"
+                    forge_result = await self.hephaestus.synthesize_skill(tool_name, objective)
+                    if forge_result.get("ok"):
+                        self._emit_thought_stream(f"✅ Skill '{tool_name}' forged successfully. Retrying...")
+                        if _constitution and _tool_handle:
+                            await _constitution.finish_tool_execution(
+                                _tool_handle,
+                                result={"ok": True, "handoff": "autogenesis_retry", "tool_name": tool_name},
+                                success=True,
+                                duration_ms=(time.time() - _start) * 1000,
+                            )
+                        # Retry execution once
+                        return await self.execute_tool(tool_name, args)
+                    else:
+                        logger.warning("Autogenesis failed for %s: %s", tool_name, forge_result.get("error"))
+
+                if _constitution and _tool_handle:
+                    await _constitution.finish_tool_execution(
+                        _tool_handle,
+                        result={"ok": False, "error": f"Tool '{tool_name}' not found."},
+                        success=False,
+                        duration_ms=(time.time() - _start) * 1000,
+                        error=f"Tool '{tool_name}' not found.",
+                    )
+                return {"ok": False, "error": f"Tool '{tool_name}' not found."}
+
+            # 2. Contextual Awareness
+            context = {
+                "objective": self._current_objective,
+                "system": self.status.model_dump(),
+                "stealth": await self.stealth_mode.get_stealth_status() if hasattr(self, 'stealth_mode') and self.stealth_mode and getattr(self.stealth_mode, 'stealth_enabled', False) else {},
+                "liquid_state": self.liquid_state.get_status() if hasattr(self, 'liquid_state') and self.liquid_state else {},
+                **kwargs
+            }
+
+            # 3. Literal Execution (Async)
+            result = await self.router.execute(tool_name, args, context)
+
+            success = result.get('ok', False)
+            elapsed_ms = (time.time() - _start) * 1000
+            logger.info("Tool %s execution completed: %s", tool_name, success)
+
+            # 5. Tool Learning
+            if hasattr(self, 'tool_learner') and self.tool_learner:
+                try:
+                    category = self.tool_learner.classify_task(str(args.get('query', args.get('path', ''))))
+                    self.tool_learner.record_usage(tool_name, category, success, elapsed_ms)
+                except Exception as _e:
+                    logger.debug("Tool learning record failed: %s", _e)
+
+            # 6. Episodic Recording (Now via Facade)
+            if hasattr(self, 'memory') and self.memory:
+                try:
+                    await self.memory.commit_interaction(
+                        context=str(args)[:500],
+                        action=f"execute_tool({tool_name})",
+                        outcome=str(result)[:500],
+                        success=success,
+                        importance=0.3 if success else 0.7,
+                    )
+                except Exception as _e:
+                    logger.debug("Unified memory record failed: %s", _e)
+
+            # 7. Causal Learning (ACG)
+            try:
+                from core.world_model.acg import acg
+                acg.record_outcome(
+                    action=tool_name,
+                    context=str(context)[:500],
+                    outcome=result,
+                    success=success
+                )
+            except Exception as _e:
+                logger.debug("ACG record failed: %s", _e)
+
+            # WIRE-01: Affect State Update
+        # Redundant local import removed
+            affect_mgr = ServiceContainer.get("affect_engine", default=None)
+            if affect_mgr:
+                stimulus = "error" if not success else "intrigue"
+                intensity = 15.0 if not success else 5.0
+                self._fire_and_forget(
+                    affect_mgr.apply_stimulus(stimulus, intensity),
+                    name="orchestrator.affect_engine.apply_stimulus",
+                )
+
+            if _constitution and _tool_handle:
+                await _constitution.finish_tool_execution(
+                    _tool_handle,
+                    result=result,
+                    success=success,
+                    duration_ms=elapsed_ms,
+                )
+            return result
+
+        except Exception as e:
+            logger.error("Execution Jolt (Pain): Tool %s crashed: %s", tool_name, e)
+            # Record failure
+            if hasattr(self, 'memory') and self.memory:
+                try:
+                    await self.memory.commit_interaction(
+                        context=str(args)[:500],
+                        action=f"execute_tool({tool_name})",
+                        outcome=f"CRASH: {type(e).__name__}",
+                        success=False,
+                        emotional_valence=-0.5,
+                        importance=0.9,
+                    )
+                except Exception as _e:
+                    logger.debug("Unified memory record failed (crash path): %s", _e)
+            if _constitution and _tool_handle:
+                try:
+                    await _constitution.finish_tool_execution(
+                        _tool_handle,
+                        result={"ok": False, "error": "execution_jolt", "message": str(e)},
+                        success=False,
+                        duration_ms=(time.time() - _start) * 1000,
+                        error=str(e),
+                    )
+                except Exception as _finish_exc:
+                    logger.debug("Constitutional tool completion failed: %s", _finish_exc)
+            return {"ok": False, "error": "execution_jolt", "message": str(e)}
+
+        logger.info("Orchestrator stopped")

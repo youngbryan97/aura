@@ -50,18 +50,21 @@ class SocialMemory(AuraBaseModule):
 
     def save(self):
         try:
-            with open(self.data_path, 'w') as f:
+            import os
+            tmp_path = str(self.data_path) + ".tmp"
+            with open(tmp_path, 'w') as f:
                 json.dump({
                     "milestones": [m.to_dict() for m in self.milestones],
                     "depth": self.relationship_depth,
                     "shared_keys": self.shared_context_keys
                 }, f, indent=2)
+            os.replace(tmp_path, self.data_path)
         except Exception as e:
             self.logger.error("Failed to save social memory: %s", e)
 
     def record_milestone(self, description: str, importance: float = 0.5):
         """Adds a new milestone and increases relationship depth."""
-        milestone = RelationshipMilestone(description, importance)
+        milestone = RelationshipMilestone(description, importance=importance)
         self.milestones.append(milestone)
         self.relationship_depth = min(1.0, self.relationship_depth + (importance * 0.05))
         self.logger.info("💌 Social Milestone Recorded: %s", description)

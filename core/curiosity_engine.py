@@ -5,11 +5,24 @@ import asyncio
 import logging
 import random
 import time
+import psutil
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
+from core.runtime.background_policy import background_activity_allowed
+
 logger = logging.getLogger("Aura.Curiosity")
+
+
+def _background_exploration_allowed(orchestrator) -> bool:
+    return background_activity_allowed(
+        orchestrator,
+        min_idle_seconds=900.0,
+        max_memory_percent=80.0,
+        max_failure_pressure=0.12,
+        require_conversation_ready=True,
+    )
 
 @dataclass
 class CuriosityTopic:
@@ -82,18 +95,36 @@ class CuriosityEngine:
     async def _worker(self):
         while not self._stop_event.is_set():
             try:
-                # Idle between explorations
-                # Yield to ensure we don't hog the loop
-                await asyncio.sleep(random.uniform(60, 180))
+                # Volition-scaled Idle
+                volition = 0
+                kernel = getattr(self.orchestrator, 'kernel', None)
+                if kernel:
+                    volition = getattr(kernel, 'volition_level', 0)
+                
+                # Lockdown (0) = No background curiosity
+                if volition == 0:
+                    await asyncio.sleep(60)
+                    continue
+                
+                # Tiered intervals: L1: 180s, L2: 60s, L3: 30s
+                base_sleep = 180 if volition == 1 else (60 if volition == 2 else 30)
+                await asyncio.sleep(random.uniform(base_sleep * 0.8, base_sleep * 1.2))
                 
                 # Check if system is busy with user request
-                # We do NOT want to interrupt or slow down user interactions
-                if getattr(self.orchestrator, 'is_busy', False):
+                # Level 3 volition allows moderate background activity even when 'busy'
+                is_busy = getattr(self.orchestrator, 'is_busy', False)
+                if is_busy and volition < 3:
+                    continue
+
+                if not _background_exploration_allowed(self.orchestrator):
                     continue
 
                 # Check boredom
                 boredom = self.proactive_comm.get_boredom_level()
-                if boredom > 0.7 or self.curiosity_queue:
+                # Level 2+ lowers curiosity threshold
+                boredom_threshold = 0.7 if volition < 2 else 0.4
+                
+                if boredom > boredom_threshold or self.curiosity_queue:
                     topic = self._get_next()
                     if topic:
                         await self._explore(topic)
@@ -105,22 +136,8 @@ class CuriosityEngine:
 
     def _get_next(self) -> Optional[CuriosityTopic]:
         if not self.curiosity_queue:
-            # Singularity Upgrade: Use the Knowledge Graph for novelty search (Phase 20)
-            kg = getattr(self.orchestrator, 'knowledge_graph', None)
-            if kg and hasattr(kg, 'get_sparse_nodes'):
-                try:
-                    sparse_nodes = kg.get_sparse_nodes(limit=5)
-                    if sparse_nodes:
-                        target = random.choice(sparse_nodes)
-                        logger.info("🧠 Singularity Curiosity: Targeted low-density node for exploration.")
-                        return CuriosityTopic(f"deeper complexity of {target}", "knowledge graph novelty search", 0.7)
-                except Exception as exc:
-                    logger.debug("Sparse search failed: %s", exc)            
-            
-            # Fallback
-            return CuriosityTopic("latest developments in AI", "autonomous exploration", 0.5)
-        
-        # Sort by priority
+            return None
+
         topics = sorted(list(self.curiosity_queue), key=lambda x: x.priority, reverse=True)
         for t in topics:
             if not t.explored:
@@ -128,8 +145,18 @@ class CuriosityEngine:
                 return t
         return None
 
+    async def identify_knowledge_gap(self) -> Optional[str]:
+        """Proactively identifies a knowledge gap for the meta-evolution loop."""
+        topic = self._get_next()
+        if topic:
+            return topic.topic
+        return None
+
     async def _explore(self, topic: CuriosityTopic):
         # Strict check before starting
+        if not _background_exploration_allowed(self.orchestrator):
+            logger.info("Skipping exploration of %s due to active conversation or memory pressure.", topic.topic)
+            return
         if getattr(self.orchestrator, 'is_busy', False):
             logger.info("Skipping exploration of '%s' due to user activity.", topic.topic)
             return
@@ -181,6 +208,10 @@ class CuriosityEngine:
                                 )
                                 if emitter:
                                     emitter.emit("Curiosity Result 📚", f"Learned about: {topic.topic}", level="info")
+                                
+                                # Phase XXII.E: Feed architecture insights into MetaEvolution
+                                self._feed_to_meta_evolution(topic.topic, result_content)
+                                
                             except Exception as store_err:
                                 logger.warning("Failed to store curiosity finding: %s", store_err)
                         elif emitter:
@@ -197,3 +228,51 @@ class CuriosityEngine:
             logger.error("Exploration failed: %s", e)
         finally:
             self.current_topic = None
+
+    def _feed_to_meta_evolution(self, topic: str, content: str):
+        """Feed architecture-related curiosity findings into MetaEvolution.
+        
+        This creates the autonomous loop:
+        Curiosity → KG → MetaEvolution → Hephaestus → Code Patch
+        """
+        # Check if the finding is about Aura's own architecture
+        architecture_keywords = [
+            "optimization", "performance", "architecture", "design pattern",
+            "code quality", "refactor", "efficiency", "latency", "memory",
+            "concurrency", "async", "pipeline", "module", "subsystem",
+            "self-improvement", "cognitive", "neural", "agent", "autonomous"
+        ]
+        
+        topic_lower = topic.lower()
+        content_lower = content.lower()[:500]
+        
+        is_architecture_relevant = any(
+            kw in topic_lower or kw in content_lower
+            for kw in architecture_keywords
+        )
+        
+        if not is_architecture_relevant:
+            return
+        
+        logger.info("🧠 Curiosity→Evolution: Feeding insight '%s' to MetaEvolution", topic[:50])
+        
+        try:
+            from core.container import ServiceContainer
+            meta_evo = ServiceContainer.get("meta_evolution", default=None)
+            if meta_evo and hasattr(meta_evo, "queue_optimization"):
+                meta_evo.queue_optimization(
+                    target_area=None,
+                    context=f"Curiosity insight: {topic} — {content[:200]}"
+                )
+            elif meta_evo:
+                # If no queue, store as pending for next cycle
+                if not hasattr(meta_evo, '_pending_curiosity'):
+                    meta_evo._pending_curiosity = []
+                meta_evo._pending_curiosity.append({
+                    "topic": topic,
+                    "content": content[:300],
+                    "source": "curiosity_engine"
+                })
+                logger.info("📋 Queued curiosity insight for next evolution cycle")
+        except Exception as e:
+            logger.debug("Could not feed to MetaEvolution: %s", e)

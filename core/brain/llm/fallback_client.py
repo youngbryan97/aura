@@ -103,6 +103,33 @@ class FallbackLLMClient(LLMProvider):
         logger.error("All LLM providers in fallback JSON chain failed (async).")
         raise last_error or RuntimeError("No providers available")
 
+    async def generate_stream(self, prompt: str, system_prompt: Optional[str] = None, model: Optional[str] = None, **kwargs):
+        """Attempt streaming generation through the chain of providers."""
+        import asyncio
+        last_error = None
+        for provider in self.providers:
+            try:
+                is_healthy = False
+                if hasattr(provider, "check_health_async"):
+                    is_healthy = await provider.check_health_async()
+                else:
+                    is_healthy = await asyncio.to_thread(provider.check_health)
+
+                if not is_healthy:
+                    continue
+
+                async for chunk in provider.generate_stream(prompt, system_prompt, model, **kwargs):
+                    yield chunk
+                return
+            except Exception as e:
+                last_error = e
+                logger.warning("Provider %s stream failed: %s. Trying fallback...", provider.__class__.__name__, e)
+
+        logger.error("All LLM providers in fallback stream chain failed.")
+        if last_error:
+            raise last_error
+        raise RuntimeError("No providers available")
+
     def check_health(self) -> bool:
         """Health check returns true if ANY provider is healthy."""
         return any(p.check_health() for p in self.providers)

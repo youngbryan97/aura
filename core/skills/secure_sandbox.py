@@ -71,14 +71,28 @@ class SecureDockerSandbox:
                     container.remove(force=True)
                 except Exception as exc:
                     logger.debug("Suppressed: %s", exc)
+
     def verify_safety(self) -> bool:
-        """Verify that the sandbox is correctly blocking network access.
+        """v6.1: Verify network isolation using exit code detection (SK-03).
+        A non-zero exit code means networking was successfully blocked.
         """
-        test_code = "import urllib.request; urllib.request.urlopen('http://google.com', timeout=1)"
-        result = self.execute_code(test_code, "/tmp")
-        # If it failed to connect (which it should), then it's safe.
-        if "timeout" in result.get("output", "").lower() or "error" in result.get("error", "").lower():
+        test_code = (
+            "import urllib.request, sys\n"
+            "try:\n"
+            "    # Attempt connection to a public IP\n"
+            "    urllib.request.urlopen('http://1.1.1.1', timeout=2)\n"
+            "    sys.exit(0)  # Network accessible — UNSAFE\n"
+            "except Exception:\n"
+            "    sys.exit(1)  # Network blocked — SAFE\n"
+        )
+        result = self.execute_code(test_code, "/tmp", timeout=10)
+        
+        # exit_code 1 (non-zero) means the exception was caught -> Network BLOCKED -> SAFE
+        is_safe = result.get("exit_code", 0) != 0
+        
+        if is_safe:
             logger.info("Sandbox Safety Verified: Network access blocked.")
-            return True
-        logger.warning("Sandbox Safety Check FAILED: Potential network leak!")
-        return False
+        else:
+            logger.critical("🛡️ SANDBOX SAFETY CHECK FAILED: Network may be accessible!")
+            
+        return is_safe

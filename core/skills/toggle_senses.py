@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 from core.thought_stream import get_emitter
+import subprocess
 
 from ..sovereign.local_sandbox import LocalSandbox
-from .active_coding import get_sandbox
 from core.config import config
 
 logger = logging.getLogger("Skills.ToggleSenses")
@@ -72,7 +72,7 @@ class ToggleParams(BaseModel):
 # ... (Logging and PID helpers remain unchanged, assuming imports are fixed)
 # Wait, I need to keep the imports and helpers!
 # I will use replace_file_content carefully.
-# The original file imports `infrastructure.base_skill` on line 12. 
+# The original file imports `infrastructure.base_skill` on line 12.
 # I should change that to `core.skills.base_skill`.
 
 class ToggleSensesSkill(BaseSkill):
@@ -104,7 +104,11 @@ class ToggleSensesSkill(BaseSkill):
         sense = params.sense
         action = params.action
         
-        sandbox = get_sandbox()
+        # Issue 84: Resolve sandbox correctly
+        sandbox = ServiceContainer.get("local_sandbox", default=None)
+        if not sandbox:
+            from core.sovereign.local_sandbox import LocalSandbox
+            sandbox = LocalSandbox(sandbox_id="senses_controller")
         
         if sense == "vision":
             script = "senses/vision_service.py"

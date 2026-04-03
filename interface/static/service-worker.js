@@ -1,21 +1,23 @@
-const CACHE_NAME = 'aura-v7-hardened';
+const CACHE_NAME = 'aura-runtime-v2026-03-31-2';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/static/aura.css',
-  '/static/manifest.json',
   '/static/icon.svg',
   '/static/icon-192.png',
-  '/static/icon-512.png',
-  '/static/aura.js',
-  '/static/service-worker.js'
+  '/static/icon-512.png'
 ];
+const LIVE_SHELL_PATHS = new Set([
+  '/',
+  '/static/aura.css',
+  '/static/aura.js',
+  '/static/manifest.json',
+  '/static/service-worker.js'
+]);
 
 // ── Install: Cache core assets ──
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Aura SW] Caching app shell');
+      // Caching app shell
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
@@ -27,7 +29,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
         if (key !== CACHE_NAME) {
-          console.log('[Aura SW] Removing old cache', key);
+          // Removing old cache
           return caches.delete(key);
         }
       }));
@@ -41,6 +43,9 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (url.pathname.startsWith('/ws/')) return;
   if (url.pathname.startsWith('/api/')) return;
+  if (LIVE_SHELL_PATHS.has(url.pathname)) return;
+  if (event.request.mode === 'navigate') return;
+  if (['document', 'script', 'style', 'manifest'].includes(event.request.destination)) return;
 
   event.respondWith(
     fetch(event.request)
@@ -51,12 +56,24 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => {
+        return caches.match(event.request).then(cachedResponse => {
+           if (cachedResponse) return cachedResponse;
+           if (event.request.mode === 'navigate') {
+             return caches.match('/');
+           }
+        });
+      })
   );
 });
 
 // ── Push Notifications (from page via postMessage) ──
 self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
+
   if (event.data && event.data.type === 'AURA_REPLY') {
     const { title, body, tag } = event.data;
     // Only notify if no visible client is focused
@@ -134,9 +151,9 @@ self.addEventListener('sync', (event) => {
   if (event.tag === 'aura-reconnect') {
     event.waitUntil(
       fetch('/api/state').then(r => r.json()).then(data => {
-        console.log('[Aura SW] Background sync — server alive, cycle:', data.cycle);
+        // Background sync — server alive
       }).catch(() => {
-        console.log('[Aura SW] Background sync — server unreachable');
+        // Background sync — server unreachable
       })
     );
   }
@@ -147,9 +164,8 @@ self.addEventListener('periodicsync', (event) => {
   if (event.tag === 'aura-heartbeat') {
     event.waitUntil(
       fetch('/api/state').then(r => r.json()).then(data => {
-        console.log('[Aura SW] Heartbeat — cycle:', data.cycle);
+        // Heartbeat received
       })
     );
   }
 });
-

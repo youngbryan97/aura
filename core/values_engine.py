@@ -1,10 +1,11 @@
-
 """core/values_engine.py — Aura Values & Identity System
 =====================================================
 Manages core values, ethical weights, and persistent identity.
 Hardened implementation replacing earlier stubs.
 """
 
+import asyncio
+from core.utils.exceptions import capture_and_log
 import json
 import logging
 import time
@@ -38,7 +39,28 @@ class ValueSystem:
         self.active_modifiers: Dict[str, float] = {}
 
     def get_active_weights(self) -> Dict[str, float]:
-        """Returns current weights including temporary emotional modifiers."""
+        """Returns current weights including temporary emotional modifiers.
+
+        Pulls mood from the substrate (sync-safe) to modulate values in real time.
+        """
+        try:
+            from core.container import ServiceContainer
+            # Use the substrate's sync accessor — no async needed
+            substrate = ServiceContainer.get("liquid_substrate", default=None)
+            if substrate and hasattr(substrate, "get_mood"):
+                mood = substrate.get_mood()
+                if mood:
+                    self.apply_emotional_context(mood)
+            else:
+                # Fallback: try affect engine's sync path
+                affect = ServiceContainer.get("affect_engine", default=None)
+                if affect and hasattr(affect, "get_dominant_emotion_sync"):
+                    mood = affect.get_dominant_emotion_sync()
+                    if mood:
+                        self.apply_emotional_context(mood)
+        except Exception as e:
+            capture_and_log(e, {'module': __name__})
+
         weights = {}
         for name, val in self.values.items():
             mod = self.active_modifiers.get(name, 0.0)
@@ -49,15 +71,18 @@ class ValueSystem:
         """Shifts value weights based on current emotional state."""
         self.active_modifiers.clear()
         
-        if mood == "Curious":
+        # Canonicalize
+        m = mood.lower()
+        
+        if m in ["curious", "anticipation"]:
             self.active_modifiers["Curiosity"] = 0.15
             self.active_modifiers["Safety"] = -0.05
-        elif mood == "Anxious":
+        elif m in ["anxious", "fear", "terror"]:
             self.active_modifiers["Safety"] = 0.2
             self.active_modifiers["Autonomy"] = -0.1
-        elif mood == "Creative":
+        elif m in ["creative", "joy"]:
             self.active_modifiers["Creativity"] = 0.2
-            self.active_modifiers["Integrity"] = -0.1 # Allow for artistic license
+            self.active_modifiers["Integrity"] = -0.1 
         
     def evaluate_action(self, action: str, predicted_outcome: str) -> float:
         """Simple heuristic evaluation of an action against values.

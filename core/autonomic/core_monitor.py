@@ -5,6 +5,7 @@ import time
 import os
 import gc
 from typing import Dict, Any
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.AutonomicCore")
 
@@ -34,7 +35,10 @@ class AutonomicCore:
     async def start(self):
         """Boot the unified autonomic heartbeat."""
         self.running = True
-        self._task = asyncio.create_task(self._heartbeat_loop())
+        self._task = get_task_tracker().create_task(
+            self._heartbeat_loop(),
+            name="autonomic_core.heartbeat",
+        )
         logger.info("🛡️ Autonomic Core online. Unified survival heartbeat started.")
         
     async def stop(self):
@@ -70,13 +74,13 @@ class AutonomicCore:
                 logger.critical("🚨 EXISTENTIAL THREAT: Critical Vitals (RAM: %s%%, Disk: %s%%). Initiating emergency purge.", mem.percent, disk.percent)
                 gc.collect()
                 await self._unload_llm()
-                self._emit_status("CRITICAL WARNING: Imminent Memory Exhaustion")
+                await self._emit_status("CRITICAL WARNING: Imminent Memory Exhaustion")
                 
             # 2. Hard Cleanup Needed
             elif mem.percent >= self.cleanup_ram_percent:
                 logger.warning("⚠️ High RAM (%s%%). Running aggressive garbage collection.", mem.percent)
                 gc.collect()
-                self._emit_status("Memory load high. Optimizing...")
+                await self._emit_status("Memory load high. Optimizing...")
                 
             # 3. Throttling
             elif mem.percent >= self.throttle_ram_percent:
@@ -97,14 +101,10 @@ class AutonomicCore:
         pass
         
     async def _unload_llm(self):
-        """Attempts to unload Ollama models to free VRAM/RAM."""
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                await client.post("http://localhost:11434/api/generate", json={"model": "llama3", "keep_alive": 0})
-            logger.info("🧠 Ollama models forcefully unloaded from memory.")
-        except Exception:
-            pass
+        """Attempts to unload local models to free VRAM/RAM."""
+        # Ollama unload logic removed in v5.1.
+        # Future: Integrate with MLX Worker to purge model cache if memory is critical.
+        logger.info("🧠 Requesting local model memory optimization...")
 
     async def _check_survival(self):
         """Phase 8: Check for existential threats via SurvivalDriver."""
@@ -119,3 +119,8 @@ class AutonomicCore:
     def get_survival_report(self) -> Dict[str, Any]:
         """Provides the latest survival metrics."""
         return self.survival_status
+
+    async def _emit_status(self, message: str) -> None:
+        """Publish a status message to the event bus."""
+        from core.event_bus import get_event_bus
+        await get_event_bus().publish("autonomic/status", {"message": message})

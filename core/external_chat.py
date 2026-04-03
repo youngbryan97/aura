@@ -10,6 +10,7 @@ CRITICAL CAPABILITIES:
 
 This allows Aura to "tap you on the shoulder" when she wants to talk.
 """
+import asyncio
 import json
 import logging
 import os
@@ -59,6 +60,7 @@ class TerminalChatWindow:
         # State
         self.active = False
         self.process = None
+        self.handler_task = None
         
         logger.info("✓ Terminal Chat Window created: %s", window_id)
     
@@ -183,9 +185,14 @@ rm -f $PIPE_IN $PIPE_OUT
         
         return script_path
     
-    async def _start_message_handler(self):
-        """Start background task to handle messages"""
-        self.handler_task = asyncio.create_task(self._message_handler_loop())
+    def _start_message_handler(self):
+        """Start background task to handle messages."""
+        try:
+            loop = asyncio.get_running_loop()
+            self.handler_task = loop.create_task(self._message_handler_loop())
+        except RuntimeError:
+            # No running loop — use ensure_future to schedule for when one starts
+            self.handler_task = asyncio.ensure_future(self._message_handler_loop())
     
     async def _message_handler_loop(self):
         """Handle bidirectional communication"""
@@ -218,8 +225,9 @@ rm -f $PIPE_IN $PIPE_OUT
         """
         try:
             # Add to orchestrator's message queue
-            if hasattr(self.orchestrator, 'message_queue'):
-                self.orchestrator.message_queue.put(message)
+            # Add to orchestrator's message queue via threadsafe method
+            if hasattr(self.orchestrator, 'enqueue_from_thread'):
+                self.orchestrator.enqueue_from_thread(message, origin=f"external_window_{self.window_id}")
             
             # Store in orchestrator's conversation history
             if hasattr(self.orchestrator, 'conversation_history'):
@@ -386,7 +394,7 @@ class GUIChatWindow:
                         chat_display.config(state=tk.DISABLED)
                         chat_display.see(tk.END)
                 except queue.Empty:
-                    pass
+                    logger.debug('Exception caught during execution: %s', e if 'e' in locals() or 'e' in globals() else 'unknown')
                 
                 # Schedule next check
                 if self.active:
@@ -413,8 +421,9 @@ class GUIChatWindow:
         """Process user message through orchestrator"""
         try:
             # Same as terminal window - full integration
-            if hasattr(self.orchestrator, 'message_queue'):
-                self.orchestrator.message_queue.put(message)
+            # Add to orchestrator's message queue via threadsafe method
+            if hasattr(self.orchestrator, 'enqueue_from_thread'):
+                self.orchestrator.enqueue_from_thread(message, origin=f"external_window_{self.window_id}")
             
             if hasattr(self.orchestrator, 'conversation_history'):
                 self.orchestrator.conversation_history.append({
@@ -549,7 +558,7 @@ def integrate_external_chat(orchestrator):
     
     # Hook response delivery to also send to external windows
     # Check if there's a method to hook into
-    # orchestrator usually just prints or returns. 
+    # orchestrator usually just prints or returns.
     # We might need to monkey patch or rely on orchestrator calling this explicitly.
     
     logger.info("✅ External chat integrated")

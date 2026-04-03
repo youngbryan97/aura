@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA // ZENITH SOUL MAP</title>
+    <script src="https://unpkg.com/three"></script>
+    <script src="https://unpkg.com/3d-force-graph"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@800&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; background-color: #030005; overflow: hidden; font-family: 'Space Mono', monospace; }
+        #graph { width: 100vw; height: 100vh; }
+        
+        .overlay {
+            position: fixed;
+            top: 30px;
+            left: 30px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .title {
+            color: #fff;
+            font-family: 'Syne', sans-serif;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            text-transform: uppercase;
+            text-shadow: 0 0 20px rgba(138, 43, 226, 0.8);
+            margin-bottom: 2px;
+        }
+
+        .zenith-tag {
+            color: #8a2be2;
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: rgba(138, 43, 226, 0.1);
+            padding: 2px 8px;
+            border-left: 2px solid #8a2be2;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+
+        .telemetry-block {
+            margin-top: 30px;
+            font-size: 11px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .telemetry-row { display: flex; gap: 15px; }
+        .telemetry-label { color: rgba(255, 255, 255, 0.3); width: 80px; }
+        .telemetry-value { color: #fff; }
+        .telemetry-highlight { color: #00e5ff; font-weight: bold; }
+
+        .stats-hud {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(3, 0, 5, 0.8);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            padding: 20px;
+            border-radius: 2px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 11px;
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            z-index: 10;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 1);
+        }
+
+        .stat-row { display: flex; justify-content: space-between; gap: 60px; margin-bottom: 8px; }
+        .stat-label { color: rgba(255, 255, 255, 0.4); letter-spacing: 1px; }
+        .stat-value { color: #00e5ff; font-weight: bold; text-shadow: 0 0 10px rgba(0, 229, 255, 0.5); }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #8a2be2;
+            font-family: 'Syne', sans-serif;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; text-shadow: 0 0 30px #8a2be2; }
+            100% { opacity: 0.3; }
+        }
+
+        .node-card {
+            background: rgba(3, 0, 5, 0.95);
+            padding: 15px;
+            border: 1px solid rgba(138, 43, 226, 0.5);
+            border-top: 4px solid #8a2be2;
+            color: #fff;
+            min-width: 240px;
+            max-width: 320px;
+            pointer-events: none;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+        }
+
+        .node-card-header {
+            font-weight: 800;
+            font-size: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 8px;
+        }
+
+        .node-type-tag {
+            font-size: 9px;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 2px;
+            background: #8a2be2;
+            letter-spacing: 1px;
+        }
+
+        .node-desc {
+            font-size: 12px;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 15px;
+            font-style: italic;
+        }
+
+        .node-meta-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            margin-bottom: 4px;
+        }
+
+        .node-meta-label { color: rgba(255, 255, 255, 0.3); }
+        .node-meta-value { color: #00e5ff; }
+
+        .progress-bar {
+            height: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            margin-top: 5px;
+            width: 100%;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #00e5ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <div class="title">AURA: INFINITY</div>
+        <div class="zenith-tag">Aura Zenith v2026.3.1-Zenith</div>
+        
+        <div class="telemetry-block">
+            <div class="telemetry-row"><span class="telemetry-label">AGENCY</span><span class="telemetry-value telemetry-highlight">72</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">CURIOSITY</span><span class="telemetry-value">0%</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">AUTONOMY</span><span class="telemetry-value telemetry-highlight">ON</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">STEALTH</span><span class="telemetry-value">ON</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">SUBCONSCIOUS</span><span class="telemetry-value">IDLE</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">RAM</span><span class="telemetry-value" id="hud-ram">0.0%</span></div>
+        </div>
+    </div>
+
+    <div id="loading" class="loading">SYNCING NEURAL CONNECTOME...</div>
+
+    <div class="stats-hud">
+        <div class="stat-row"><span class="stat-label">NODES</span><span id="stat-nodes" class="stat-value">0</span></div>
+        <div class="stat-row"><span class="stat-label">HYPHAE</span><span id="stat-edges" class="stat-value">0</span></div>
+        <div class="stat-row"><span class="stat-label">COHESION</span><span id="stat-cohesion" class="stat-value">0.00</span></div>
+        <div class="stat-row"><span class="stat-label">LATENCY</span><span id="stat-latency" class="stat-value">0ms</span></div>
+    </div>
+
+    <div id="graph"></div>
+
+    <script>
+        const elem = document.getElementById('graph');
+        const Graph = ForceGraph3D()(elem)
+            .backgroundColor('#030005')
+            .nodeLabel(node => {
+                const confPercent = Math.round((node.confidence || 0) * 100);
+                const color = node.color || '#8a2be2';
+                return `
+                <div class="node-card" style="border-top-color: ${color}">
+                    <div class="node-card-header">
+                        <span>${node.label || 'Subsystem'}</span>
+                        <span class="node-type-tag" style="background: ${color}">${node.type || 'core'}</span>
+                    </div>
+                    <div class="node-desc">${node.description || 'No neural profile available for this node.'}</div>
+                    <div class="node-meta-row">
+                        <span class="node-meta-label">ID</span>
+                        <span class="node-meta-value" style="color: #fff; opacity: 0.5">${node.id}</span>
+                    </div>
+                    <div class="node-meta-row">
+                        <span class="node-meta-label">CENTRALITY</span>
+                        <span class="node-meta-value">${node.centrality || 0}</span>
+                    </div>
+                    <div class="node-meta-row">
+                        <span class="node-meta-label">HITS</span>
+                        <span class="node-meta-value">${node.hits || 0}</span>
+                    </div>
+                    <div class="node-meta-row">
+                        <span class="node-meta-label">CONFIDENCE</span>
+                        <span class="node-meta-value">${confPercent}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${confPercent}%; background: ${color}"></div>
+                    </div>
+                </div>`;
+            })
+            .nodeColor(node => node.color || '#4a4a4a')
+            .nodeRelSize(4)
+            .nodeVal(node => {
+                let base = (node.confidence || 0.5) * 6;
+                if (node.centrality) base += (node.centrality * 1.5);
+                if (node.is_critical) base *= 2.5; 
+                return base;
+            })
+            .nodeResolution(32)
+            .nodeThreeObject(node => {
+                const color = node.color || '#8a2be2';
+                let size = (node.confidence || 0.5) * 6;
+                if (node.centrality) size += (node.centrality * 1.5);
+                if (node.is_critical) size *= 2.5;
+
+                const geometry = new THREE.SphereGeometry(size, 32, 32);
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: color,
+                    emissive: color,
+                    emissiveIntensity: node.is_critical ? 0.8 : 0.4,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                const sphere = new THREE.Mesh(geometry, material);
+
+                // Richer Glowing Aura
+                const glowSize = node.is_critical ? 3.0 : 1.8;
+                const glowGeometry = new THREE.SphereGeometry(size * glowSize, 32, 32);
+                const glowMaterial = new THREE.MeshBasicMaterial({ 
+                    color: color, 
+                    transparent: true, 
+                    opacity: node.is_critical ? 0.2 : 0.1,
+                    blending: THREE.AdditiveBlending,
+                    side: THREE.BackSide
+                });
+                const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                sphere.add(glow);
+
+                return sphere;
+            })
+            // Edges: Use data-driven colors and thickness
+            .linkColor(link => link.color || 'rgba(0, 229, 255, 0.4)') 
+            .linkWidth(link => (link.strength || 1.0) * 1.5) 
+            .linkDirectionalParticles(2)
+            .linkDirectionalParticleSpeed(0.003)
+            .linkDirectionalParticleWidth(2.0)
+            .linkDirectionalParticleColor(() => '#ff00ff')
+            .onNodeClick(node => {
+                const distance = 60;
+                const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
+                Graph.cameraPosition(
+                    { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
+                    node, 
+                    2000 
+                );
+            });
+
+        // Add soft ambient light for the Phong material
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        Graph.scene().add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        Graph.scene().add(pointLight);
+
+        async function initData() {
+            const start = Date.now();
+            try {
+                const res = await fetch('/api/mycelial/graph');
+                const data = await res.json();
+                
+                if (data.nodes && data.nodes.length > 0) {
+                    const isFirstLoad = !Graph.graphData().nodes.length;
+                    const linksData = data.links || data.edges || [];
+                    
+                    Graph.graphData({
+                        nodes: data.nodes,
+                        links: linksData.map(e => ({
+                            ...e,
+                            source: e.source || e.from,
+                            target: e.target || e.to
+                        }))
+                    });
+                    
+                    if (isFirstLoad) {
+                        setTimeout(() => { Graph.zoomToFit(1500, 200); }, 800);
+                    }
+                    
+                    document.getElementById('stat-nodes').textContent = data.nodes.length;
+                    document.getElementById('stat-edges').textContent = linksData.length;
+                    document.getElementById('stat-cohesion').textContent = (data.system_cohesion || data.cohesion || 0).toFixed(2);
+                    document.getElementById('stat-latency').textContent = (Date.now() - start) + 'ms';
+                    document.getElementById('loading').style.display = 'none';
+
+                    if (data.ram_usage !== undefined) {
+                        document.getElementById('hud-ram').textContent = data.ram_usage.toFixed(1) + '%';
+                    }
+                } else {
+                    document.getElementById('loading').textContent = 'SOUL STATE: TRANSCENDENTAL (IDLE)';
+                    document.getElementById('loading').style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading').textContent = 'NEURAL DESYNC DETECTED';
+            }
+        }
+
+        initData();
+        setInterval(initData, 20000);
+
+        window.addEventListener('resize', () => {
+            Graph.width(window.innerWidth);
+            Graph.height(window.innerHeight);
+        });
+    </script>
+</body>
+</html>

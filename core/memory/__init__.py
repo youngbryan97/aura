@@ -1,4 +1,3 @@
-# core/memory package
-from core.memory.vector_memory import VectorMemory, VectorStorage
-
-__all__ = ["VectorMemory", "VectorStorage"]
+# core/memory package (Digital Metabolism: Shims Restored)
+from .rag import retrieve_memories, retrieve_memories_v2, tokenize, chunk_text
+from .memory_facade import MemoryFacade

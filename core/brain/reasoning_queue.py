@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import time
@@ -37,6 +36,7 @@ class BackgroundReasoningQueue:
         self._active_tasks: Set[asyncio.Task] = set()
         self._results: Dict[str, Any] = {}
         self._worker_task: Optional[asyncio.Task] = None
+        self._MAX_CACHED_RESULTS = 50
     
     async def submit(
         self,
@@ -58,6 +58,14 @@ class BackgroundReasoningQueue:
         
         await self._queue.put(task)
         logger.debug("Queued [%s]: %s (%s)", priority.name, description, task_id)
+        
+        # Phase 11.3: Update StateRegistry
+        try:
+            from core.state_registry import get_registry
+            asyncio.create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
+        except Exception as _e:
+            logger.debug('Ignored Exception in reasoning_queue.py: %s', _e)
+            
         return task_id
     
     async def start(self):
@@ -86,6 +94,11 @@ class BackgroundReasoningQueue:
                     
                     self._results[task.task_id] = result
                     
+                    # FIX-007: Bounded results cache
+                    if len(self._results) > self._MAX_CACHED_RESULTS:
+                        oldest = next(iter(self._results))
+                        self._results.pop(oldest)
+                    
                     if task.callback:
                         if asyncio.iscoroutinefunction(task.callback):
                             await task.callback(result)
@@ -97,6 +110,12 @@ class BackgroundReasoningQueue:
                     
                 finally:
                     self._queue.task_done()
+                    # Phase 11.3: Update StateRegistry
+                    try:
+                        from core.state_registry import get_registry
+                        asyncio.create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
+                    except Exception as _e:
+                        logger.debug('Ignored Exception in reasoning_queue.py: %s', _e)
                     
             except asyncio.CancelledError:
                 break
@@ -104,6 +123,32 @@ class BackgroundReasoningQueue:
                 logger.error("Queue worker encountered error: %s", e)
                 await asyncio.sleep(1) # Prevent tight loop on persistent errors
     
+    async def prune_low_priority(self, threshold_priority: int = ReasoningPriority.NORMAL.value):
+        """Drops all tasks with priority > threshold_priority (numerically higher values are lower priority)."""
+        new_queue = asyncio.PriorityQueue()
+        dropped_count = 0
+        
+        while not self._queue.empty():
+            try:
+                task = self._queue.get_nowait()
+                if task.priority <= threshold_priority:
+                    await new_queue.put(task)
+                else:
+                    dropped_count += 1
+                    logger.info("🗑️ Pruning low-priority task [%s] due to cognitive overwhelm.", task.description)
+            except asyncio.QueueEmpty:
+                break
+        
+        self._queue = new_queue
+        # Update StateRegistry with new size
+        try:
+            from core.state_registry import get_registry
+            asyncio.create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
+        except Exception as _e:
+            logger.debug('Ignored Exception in reasoning_queue.py: %s', _e)
+            
+        return dropped_count
+
     def stop(self):
         """Stop the worker loop."""
         self._running = False

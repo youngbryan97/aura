@@ -1,4 +1,3 @@
-
 import json
 import logging
 import time
@@ -19,8 +18,13 @@ class ReliabilityTracker:
         else:
             self.data_path = Path(data_path)
         self.stats: Dict[str, Dict[str, Any]] = {}
-        self._load()
+        self._loaded = False
         
+    def _ensure_loaded(self):
+        if not self._loaded:
+            self._load()
+            self._loaded = True
+
     def _load(self):
         try:
             if self.data_path.exists():
@@ -40,6 +44,7 @@ class ReliabilityTracker:
 
     def record_attempt(self, tool_name: str, success: bool, error_msg: Optional[str] = None):
         """Record a tool execution result."""
+        self._ensure_loaded()
         if tool_name not in self.stats:
             self.stats[tool_name] = {
                 "attempts": 0, 
@@ -66,6 +71,7 @@ class ReliabilityTracker:
 
     def get_reliability(self, tool_name: str) -> float:
         """Get success rate (0.0 to 1.0). Default 1.0 (optimistic)."""
+        self._ensure_loaded()
         if tool_name not in self.stats:
             return 1.0 # Innocent until proven guilty? Or cautious 0.5?
             
@@ -77,6 +83,7 @@ class ReliabilityTracker:
 
     def get_capabilities_summary(self) -> str:
         """Get a text summary of strong/weak skills."""
+        self._ensure_loaded()
         strong = []
         weak = []
         

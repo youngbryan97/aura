@@ -1,3 +1,5 @@
+################################################################################
+
 """
 tests/test_version.py
 ─────────────────────
@@ -27,3 +29,6 @@ def test_comparisons():
     assert is_at_least(0, 0, 0)
     assert not is_at_least(MAJOR + 1, 0, 0)
     assert as_tuple() == (MAJOR, MINOR, PATCH)
+
+
+##

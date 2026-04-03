@@ -1,4 +1,3 @@
-
 import hashlib
 import logging
 from collections import deque
@@ -26,10 +25,10 @@ class LoopDetector:
             return False
             
         recent = self.history[-1]
-        count = list(self.history).count(recent)
+        count = sum(1 for h in self.history if h == recent)
         
         if count >= self.threshold:
-            logger.warning("⚠️ Loop Detected! Event repeated %s times in last %s cycles.", count, len(self.history))
+            logger.warning("⚠️ Loop Detected! Event '%s' repeated %d times in last %d cycles.", recent[:8], count, len(self.history))
             return True
             
         return False

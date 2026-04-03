@@ -4,7 +4,10 @@ Ensures that fixes actually solve the problem they claim to solve.
 import logging
 import asyncio
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, List
+import ast
+import re
+import hashlib
 
 logger = logging.getLogger("SelfModification.EvaluationHarness")
 
@@ -19,6 +22,53 @@ class EvaluationHarness:
         self.tester = sandbox_tester
         self.code_base = Path(code_base_path)
         logger.info("EvaluationHarness initialized")
+
+    @staticmethod
+    def preflight_security_check(code: str) -> Tuple[bool, str]:
+        """The 'Digital Metabolism' filter: 10-line high-speed security check.
+        Rejects obviously dangerous or invalid code before it reaches the sandbox.
+        """
+        try:
+            # 1. Parse valid Python
+            tree = ast.parse(code)
+            
+            # 2. Check for banned patterns (Metabolic Rejection)
+            banned_modules = {
+                'socket', 'urllib', 'ftplib', 'smtplib', 'requests', 'http', 
+                'telnetlib', 'xmlrpc', 'asyncio.subprocess', 'multiprocessing',
+                'pty', 'platform', 'getpass'
+            }
+            banned_calls = {'eval', 'exec', 'input', 'breakpoint', 'getattr', 'setattr', 'delattr'}
+            
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for n in node.names:
+                        if n.name.split('.')[0] in banned_modules:
+                            return False, f"Banned import: {n.name}"
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module and node.module.split('.')[0] in banned_modules:
+                        return False, f"Banned from-import: {node.module}"
+                elif isinstance(node, ast.Call):
+                    # Check for banned function calls
+                    func = node.func
+                    if isinstance(func, ast.Name) and func.id in banned_calls:
+                        return False, f"Banned function call: {func.id}"
+                    
+                    # Block direct os.system/subprocess calls
+                    if isinstance(func, ast.Attribute):
+                        if func.attr in {'system', 'spawn', 'popen', 'fork', 'execv', 'execve'} and \
+                           isinstance(func.value, ast.Name) and func.value.id in {'os', 'subprocess'}:
+                            return False, f"Banned direct OS call: {func.attr}"
+
+            # 3. Size check (Metabolic Cost)
+            if len(code.splitlines()) > 500:
+                return False, "Code too large for autonomous metabolism (max 500 lines)."
+                
+            return True, "Preflight PASSED."
+        except SyntaxError as e:
+            return False, f"Syntax Error in generated code: {e}"
+        except Exception as e:
+            return False, f"Preflight error: {e}"
 
     async def create_weakness_probe(self, file_path: str, diagnosis: Dict[str, Any]) -> Optional[str]:
         """Generate a Python script that reproduces the reported weakness.
@@ -49,7 +99,7 @@ Requirements:
 Return ONLY the Python code, no explanation, no markdown blocks.
 """
         try:
-            thought = await self.brain.think(prompt)
+            thought = await self.brain.think(prompt, priority=0.1)
             probe_code = thought.content.strip()
             
             # Clean markdown if LLM included it
@@ -63,16 +113,20 @@ Return ONLY the Python code, no explanation, no markdown blocks.
             return None
 
     async def evaluate_fix(self, fix: Any, diagnosis: Dict[str, Any]) -> Tuple[bool, str]:
-        """Run the full Evaluation Harness loop.
+        """Run the full Evaluation Harness loop."""
         
-        1. Generate Probe
-        2. Verify Probe FAILS on original code
-        3. Verify Probe PASSES on fixed code
-        """
-        # Read the current file as base
+        # --- FAIL-FIRST: Preflight Check ---
+        ok, msg = self.preflight_security_check(fix.fixed_code)
+        if not ok:
+            logger.warning("❌ Fail-First Filter: Fix rejected during preflight. Reason: %s", msg)
+            return False, f"Preflight rejected fix: {msg}"
+        # Read the current file as base (Async)
         full_path = self.code_base / fix.target_file
-        with open(full_path, 'r') as f:
-            full_original_content = f.read()
+        full_original_content = await asyncio.to_thread(full_path.read_text, encoding='utf-8')
+        
+        # v51: Pin to file hash
+        file_hash = hashlib.sha256(full_original_content.encode()).hexdigest()[:8]
+        logger.info("Evaluation Harness: [Version %s] Started for %s", file_hash, fix.target_file)
 
         # 1. Generate Probe
         probe_code = await self.create_weakness_probe(fix.target_file, diagnosis)

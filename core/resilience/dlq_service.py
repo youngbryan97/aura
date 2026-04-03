@@ -5,7 +5,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("Resilience.DLQ")
 
@@ -43,9 +43,18 @@ class DeadLetterQueue:
         self.failure_counts[err_key] = self.failure_counts.get(err_key, 0) + 1
         self.last_failure = entry
 
+        # Patch 11: Robust Atomic Write
         try:
-            with open(self.storage_path, "a") as f:
-                f.write(json.dumps(entry) + "\n")
+            import os
+            # Use encoding for cross-platform reliability
+            with open(self.storage_path, "a", encoding="utf-8") as f:
+                # On many OSs/filesystems, a single write call <= PIPE_BUF is atomic
+                # for appends. But for JSONL, we ensure each entry is a single line.
+                line = json.dumps(entry) + "\n"
+                f.write(line)
+                # Ensure it's flushed to disk physically
+                f.flush()
+                os.fsync(f.fileno())
             logger.info("💀 DLQ: Captured cognitive failure (%s)", err_key)
         except Exception as e:
             logger.error("Failed to write to DLQ: %s", e)

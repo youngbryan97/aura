@@ -2,11 +2,14 @@ import json
 import logging
 import time
 import uuid
+import asyncio
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 logger = logging.getLogger("Meta.Learning")
+
+from core.adaptation.finetune_pipe import get_finetune_pipe
 
 class MetaLearningEngine:
     """Enables Aura to learn from past experiences by identifying structural similarities
@@ -26,7 +29,7 @@ class MetaLearningEngine:
             return None
             
         try:
-            # Use the brain's legacy client (RobustOllamaClient) which has generate_embedding
+            # Use the brain's legacy client which has generate_embedding
             if hasattr(self.brain, "client") and self.brain.client:
                 return self.brain.client.generate_embedding(task_description)
             else:
@@ -77,6 +80,24 @@ class MetaLearningEngine:
         # Create a text representation for the vector store
         text_rep = f"Task: {task}\nOutcome: {outcome}\nTools: {', '.join(successful_tools)}\nNote: {strategy_note}"
         
-        # VectorMemory.add handles the embedding internally via Ollama
-        self.vectors.add(content=text_rep, metadata=experience_data)
+        # VectorMemory.add handles the embedding internally
+        res = self.vectors.add(content=text_rep, metadata=experience_data)
+        if asyncio.iscoroutine(res):
+            await res
         logger.info("🧠 Meta-Learning: Indexed experience for '%s...'", task[:30])
+        
+        # ACTIVE LEARNING: Route to LoRA dataset generator if tools were successfully used
+        if successful_tools:
+            try:
+                # We fire and forget this async task so it doesn't block the critical path
+                pipe = get_finetune_pipe()
+                asyncio.create_task(
+                    pipe.register_success(
+                        task_description=task,
+                        context=strategy_note or "Standard execution context.",
+                        reasoning=f"Analyzed objective and selected tools: {successful_tools}",
+                        final_action=outcome
+                    )
+                )
+            except Exception as e:
+                logger.error("Failed to route to FinetunePipe: %s", e)

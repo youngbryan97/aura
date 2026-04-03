@@ -1,12 +1,17 @@
+import asyncio
 import json
 import logging
 from typing import Any, Dict, List
 
-from .memory_store import Strategy, StrategyStore, UserMemory, UserMemoryStore
+try:
+    from .memory_store import Strategy, StrategyStore, UserMemory, UserMemoryStore
+except ImportError:
+    # Legacy module — memory_store was consolidated into the unified memory subsystem
+    Strategy = StrategyStore = UserMemory = UserMemoryStore = None  # type: ignore
 
 logger = logging.getLogger("Kernel.MetaOptimizer")
 
-class MetaOptimizer:
+class StrategyMetaOptimizer:
     """The 'Meta-Cortex' that reflects on execution to improve system behavior.
     Handles:
     1. Extracting memories/strategies from turns.
@@ -18,11 +23,11 @@ class MetaOptimizer:
         self.strategy_store = strategy_store
         self.user_store = user_store
 
-    def process_turn(self, turn_record: Dict[str, Any]):
+    async def process_turn(self, turn_record: Dict[str, Any]):
         """Analyze a completed turn to extract potential learnings.
         """
         try:
-            extraction = self._extract_memories_from_turn(turn_record)
+            extraction = await self._extract_memories_from_turn(turn_record)
             
             # Save User Memories
             for um in extraction.get("user_memories", []):
@@ -50,7 +55,7 @@ class MetaOptimizer:
         except Exception as e:
             logger.error("Meta-optimization loop failed: %s", e, exc_info=True)
 
-    def _extract_memories_from_turn(self, turn: Dict[str, Any]) -> Dict[str, Any]:
+    async def _extract_memories_from_turn(self, turn: Dict[str, Any]) -> Dict[str, Any]:
         """Decide which user memories and strategies to create from a turn.
         """
         # Simplify turn for LLM consumption
@@ -97,7 +102,10 @@ TURN:
 ```
 """
         try:
-            raw = self.brain.generate(prompt) # Assuming self.brain is the client and has a .generate method
+            if asyncio.iscoroutinefunction(self.brain.generate):
+                raw = await self.brain.generate(prompt)
+            else:
+                raw = self.brain.generate(prompt)
             # Safe cleaning: handle if raw is already a dict (some clients auto-parse)
             if isinstance(raw, dict):
                 return raw

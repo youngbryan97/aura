@@ -234,11 +234,20 @@ class ContinuousLearningEngine(AuraBaseModule):
                     return
             
             # Fallback to standard think
-            res = await brain.think(prompt)
-            if "{" in res.content:
-                data = json.loads(res.content[res.content.find("{"):res.content.rfind("}")+1])
+            raw = await brain.generate(
+                prompt,
+                use_strategies=False,
+                origin="knowledge_extraction",
+                is_background=True,
+            )
+            if raw and "{" in raw:
+                data = json.loads(raw[raw.find("{"):raw.rfind("}")+1])
                 for fact in data.get("facts", []):
-                    self.knowledge.add_knowledge(content=fact, source="conversation")
+                    self.knowledge.add_knowledge(
+                        content=fact,
+                        type="fact",
+                        source="conversation_learning",
+                    )
         except Exception as e:
             self.logger.debug("Knowledge extraction failed: %s", e)
 
@@ -261,7 +270,8 @@ class ContinuousLearningEngine(AuraBaseModule):
                 if person_info:
                     count = person_info.get("interaction_count", 0)
                     context_parts.append(f"[Identity] User is {user_name}. We have had {count} interactions.")
-            except: pass
+            except Exception as e:
+                self.logger.debug("Identity retrieval failed: %s", e)
 
         # 2. Pattern context
         patterns = self.store.get_patterns()

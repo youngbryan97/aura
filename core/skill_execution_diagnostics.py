@@ -251,7 +251,7 @@ def add_self_diagnosis_skill(orchestrator):
     class SystemRestartSkill:
         name = "system_restart"
         description = "Restart the engine core"
-        def execute(self, goal=None, context=None):
+        async def execute(self, goal=None, context=None):
             return {"ok": True, "message": "Restart command received. System is cycling."}
 
     # Add system_restart as a safe No-Op
@@ -291,4 +291,3 @@ def add_self_diagnosis_skill(orchestrator):
     for alias_name in all_diag_names:
         orchestrator.router.register_skill(alias_name, diag_instance)
     orchestrator.router.register_skill("system_restart", restart_instance)
-

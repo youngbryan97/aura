@@ -1,6 +1,7 @@
 """Error Intelligence System - Autonomous Bug Detection & Analysis
 Tracks execution, detects patterns, and generates diagnoses.
 """
+import asyncio
 import hashlib
 import json
 import logging
@@ -34,8 +35,11 @@ class ErrorEvent:
     def fingerprint(self) -> str:
         """Generate unique identifier for this error type"""
         # Hash based on error type + location, not message (messages vary)
-        key = f"{self.error_type}:{self.file_path}:{self.line_number}"
-        return hashlib.md5(key.encode()).hexdigest()
+        # v18: Fallback for context-free errors to still allow grouping
+        path = self.file_path or "unknown_file"
+        line = str(self.line_number) if self.line_number else "0"
+        key = f"{self.error_type}:{path}:{line}"
+        return hashlib.sha256(key.encode()).hexdigest()
 
 
 @dataclass
@@ -82,25 +86,14 @@ class StructuredErrorLogger:
         
         logger.info("StructuredErrorLogger initialized at %s", self.log_dir)
     
-    def log_error(
+    async def log_error(
         self,
         error: Exception,
         context: Dict[str, Any],
         skill_name: Optional[str] = None,
         goal: Optional[str] = None
     ) -> ErrorEvent:
-        """Log an error with full context.
-        
-        Args:
-            error: The exception that occurred
-            context: Execution context (parameters, state, etc.)
-            skill_name: Which skill failed
-            goal: What was being attempted
-            
-        Returns:
-            ErrorEvent object
-
-        """
+        """Log an error with full context (Async)."""
         # Extract stack trace information
         stack_trace = tb.format_exc()
         trace_lines = stack_trace.split('\n')
@@ -117,8 +110,8 @@ class StructuredErrorLogger:
                     file_path = file_part
                     line_number = int(line_part)
                     break
-                except Exception as exc:
-                    logger.debug("Suppressed: %s", exc)        
+                except Exception:
+                    logger.debug("Traceback line parse failed: %s", line)
         # Create error event
         event = ErrorEvent(
             timestamp=time.time(),
@@ -137,8 +130,8 @@ class StructuredErrorLogger:
         if len(self.recent_errors) > self.max_recent:
             self.recent_errors = self.recent_errors[-self.max_recent:]
         
-        # Persist to disk
-        self._append_to_log(self.error_log_path, event.to_dict())
+        # Persist to disk (Async)
+        await self._append_to_log(self.error_log_path, event.to_dict())
         
         logger.warning("Error logged: %s in %s", event.error_type, skill_name or 'unknown')
         
@@ -171,13 +164,16 @@ class StructuredErrorLogger:
         
         self._append_to_log(self.execution_log_path, execution_event)
     
-    def _append_to_log(self, path: Path, data: Dict[str, Any]):
-        """Append JSON line to log file"""
+    async def _append_to_log(self, path: Path, data: Dict[str, Any]):
+        """Append JSON line to log file (Async)"""
         try:
-            with open(path, 'a') as f:
-                f.write(json.dumps(data) + '\n')
+            line = json.dumps(data) + '\n'
+            def _write():
+                with open(path, 'a', encoding='utf-8') as f:
+                    f.write(line)
+            await asyncio.to_thread(_write)
         except Exception as e:
-            logger.error("Health check error for %s: %s", self.config.name, e)
+            logger.error("Failed to append to log %s: %s", path, e)
     
     def get_recent_errors(self, limit: int = 50) -> List[ErrorEvent]:
         """Get most recent errors"""
@@ -208,9 +204,10 @@ class ErrorPatternAnalyzer:
         # Pattern storage
         self.patterns: Dict[str, ErrorPattern] = {}
         
-        # Thresholds
-        self.pattern_threshold = 3  # 3 occurrences = pattern
-        self.critical_threshold = 10  # 10 occurrences = critical
+        # Thresholds (v18 Detection Overdrive)
+        self.pattern_threshold = 2  # 2 occurrences = pattern (was 3)
+        self.critical_threshold = 3  # 3 occurrences = critical (was 1)
+        self.high_threshold = 3      # 3 occurrences = high
         
         logger.info("ErrorPatternAnalyzer initialized")
     
@@ -257,11 +254,16 @@ class ErrorPatternAnalyzer:
         patterns = []
         for fingerprint, events in clusters.items():
             if len(events) >= self.pattern_threshold:
-                # Determine severity
+                # Determine severity (v18 Detection Overdrive)
                 occurrences = len(events)
-                if occurrences >= self.critical_threshold:
+                # v18 FIX: Check for critical types even if occurrence counts are low
+                is_crash = any(e.error_type in ["AttributeError", "TypeError", "ImportError", "ServiceNotFoundError", "SyntaxError"] for e in events)
+                
+                if occurrences >= self.critical_threshold and is_crash:
                     severity = 'critical'
                 elif occurrences >= 7:
+                    severity = 'high'
+                elif occurrences >= self.high_threshold:
                     severity = 'high'
                 elif occurrences >= 5:
                     severity = 'medium'
@@ -311,13 +313,14 @@ class ErrorPatternAnalyzer:
             True if should attempt fix
 
         """
-        # Criteria for autonomous fixing:
-        # 1. At least 3 occurrences (established pattern)
+        # Criteria for autonomous fixing (v18 Overdrive):
+        # 1. At least 1-2 occurrences depending on severity
         # 2. Recent (within last hour or critical severity)
-        # 3. Same error location (file + line)
+        # 3. Same error location (file + line) or critical type
         # 4. Not a systemic issue (doesn't affect too many different skills)
         
-        if pattern.occurrences < 3:
+        needed = self.pattern_threshold if pattern.severity != 'critical' else 1
+        if pattern.occurrences < needed:
             return False
         
         # Check recency
@@ -362,7 +365,7 @@ class AutomatedDiagnosisEngine:
         
         # Get LLM analysis
         try:
-            thought = await self.brain.think(prompt)
+            thought = await self.brain.think(prompt, priority=0.1)
             diagnosis = self._parse_diagnosis(thought.content if hasattr(thought, 'content') else str(thought))
             
             logger.info("Generated %d hypotheses", len(diagnosis.get('hypotheses', [])))
@@ -471,15 +474,15 @@ class ErrorIntelligenceSystem:
         
         logger.info("ErrorIntelligenceSystem fully initialized")
     
-    def on_error(
+    async def on_error(
         self,
         error: Exception,
         context: Dict[str, Any],
         skill_name: Optional[str] = None,
         goal: Optional[str] = None
     ) -> ErrorEvent:
-        """Handle an error occurrence"""
-        return self.logger_system.log_error(error, context, skill_name, goal)
+        """Handle an error occurrence (Async)"""
+        return await self.logger_system.log_error(error, context, skill_name, goal)
     
     def on_execution(
         self,

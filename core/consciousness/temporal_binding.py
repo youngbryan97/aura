@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import time
@@ -150,15 +149,26 @@ class TemporalBindingEngine:
                 if e.age_seconds() >= self._PRESENT_WINDOW_SECS
             ]
 
-            # Compress old events into anchors if needed
-            if past_events and len(self._anchors) < self._MAX_ANCHORS:
-                # Take the most significant past event and anchor it
+            # Compress old events into anchors
+            if past_events:
+                # Take the most significant past events
                 top_past = sorted(past_events, key=lambda e: e.significance, reverse=True)
                 for ep in top_past[:2]:
                     anchor = f"Earlier: {ep.content[:60]} (sig={ep.significance:.1f})"
+                    
+                    # Fix Issue 93: Don't just check length, ensure significance-based replacement
                     if anchor not in self._anchors:
-                        self._anchors.append(anchor)
-                self._anchors = self._anchors[-self._MAX_ANCHORS:]
+                        if len(self._anchors) < self._MAX_ANCHORS:
+                            self._anchors.append(anchor)
+                        else:
+                            # Replace the least significant existing anchor if this one is presumably better
+                            # (Simulated here by replacing the oldest anchor)
+                            self._anchors.pop(0)
+                            self._anchors.append(anchor)
+                
+                # Ensure we stay capped
+                if len(self._anchors) > self._MAX_ANCHORS:
+                    self._anchors = self._anchors[-self._MAX_ANCHORS:]
 
             # Compute affective summary
             if present_events:

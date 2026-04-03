@@ -10,7 +10,6 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import List
 
 logger = logging.getLogger("Aura.DreamCycle")
 
@@ -31,7 +30,7 @@ class DreamCycle:
 
     def stop(self):
         self._running = False
-        if self._task:
+        if self._task and not self._task.done():
             self._task.cancel()
 
     async def _cycle_loop(self, interval: float):

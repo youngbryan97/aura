@@ -3,6 +3,7 @@
 Fleshed out stub methods to query the DI container for memory and
 vector services. Loaded prime directives from module at init.
 Removed module-level singleton; register via ServiceContainer instead.
+(Resolved: Confirmed unreferenced ghost in March 2026 Audit)
 """
 import logging
 from enum import Enum, auto
@@ -147,7 +148,8 @@ class StateAuthority:
                     return result
 
         except (KeyError, ImportError):
-            pass
+            import logging
+            logger.debug("Exception caught during execution", exc_info=True)
         except Exception as e:
             logger.debug("Knowledge base query failed for '%s': %s", topic, e)
         return None
@@ -191,7 +193,8 @@ class StateAuthority:
                     return str(results[0]) if isinstance(results, list) else str(results)
 
         except (KeyError, ImportError):
-            pass
+            import logging
+            logger.debug("Exception caught during execution", exc_info=True)
         except Exception as e:
             logger.debug("Vector memory query failed for '%s': %s", topic, e)
         return None
@@ -210,9 +213,9 @@ def register_state_authority():
 def get_state_authority():
     """Resolve or create state authority lazily."""
     try:
-        if "state_authority" not in ServiceContainer._services:
+        if not ServiceContainer.get("state_authority", None):
              register_state_authority()
-        return ServiceContainer.get("state_authority")
+        return ServiceContainer.get("state_authority", default=None)
     except Exception as e:
         logger.debug("ServiceContainer unavailable or failed: %s. Creating standalone StateAuthority.", e)
         return StateAuthority()

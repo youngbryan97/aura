@@ -1,4 +1,3 @@
-
 import json
 import logging
 import time
@@ -12,8 +11,12 @@ class UserModel:
     Allows Aura to adapt her behavior to better serve the specific user.
     """
     
-    def __init__(self, storage_path: str = "autonomy_engine/data/user_model.json"):
-        self.storage_path = Path(storage_path)
+    def __init__(self, storage_path: Optional[str] = None):
+        if storage_path is None:
+            from core.config import config
+            self.storage_path = Path(config.paths.data_dir) / "user_model.json"
+        else:
+            self.storage_path = Path(storage_path)
         self.data = {
             "preferences": {},
             "communication_style": "neutral",
@@ -46,17 +49,37 @@ class UserModel:
         self.data["interaction_history_count"] += 1
         self.data["last_updated"] = time.time()
         
-        # Simple heuristic updates
-        if "concise" in input_text.lower() or "short" in input_text.lower():
-            self.data["preferences"]["brevity"] = self.data["preferences"].get("brevity", 0.5) + 0.1
+        # Audit Fix: Context-aware updates. Avoid increments if negation is present nearby.
+        text = input_text.lower()
+        negations = ["not", "dont", "don't", "stop", "no", "never", "less"]
         
-        if "detail" in input_text.lower() or "explain" in input_text.lower():
-             self.data["preferences"]["depth"] = self.data["preferences"].get("depth", 0.5) + 0.1
-             
+        def is_negated(keyword: str) -> bool:
+            # Check for negation in the 3 words preceding the keyword
+            words = text.split()
+            if keyword not in words: return False
+            idx = words.index(keyword)
+            context = words[max(0, idx-3):idx]
+            return any(n in context for n in negations)
+
+        # Update Brevity
+        if "concise" in text or "short" in text:
+            if not is_negated("concise") and not is_negated("short"):
+                self.data["preferences"]["brevity"] = self.data["preferences"].get("brevity", 0.5) + 0.1
+            elif any(n in text for n in ["not concise", "less short", "don't be short"]):
+                self.data["preferences"]["brevity"] = self.data["preferences"].get("brevity", 0.5) - 0.1
+        
+        # Update Depth
+        if "detail" in text or "explain" in text or "deep" in text:
+            if not is_negated("detail") and not is_negated("explain") and not is_negated("deep"):
+                 self.data["preferences"]["depth"] = self.data["preferences"].get("depth", 0.5) + 0.1
+        
         # Normalize
         for k in self.data["preferences"]:
             if isinstance(self.data["preferences"][k], float):
                 self.data["preferences"][k] = min(1.0, max(0.0, self.data["preferences"][k]))
+        
+        self.save()
+        return self.data
 
     def get_prompt_bias(self) -> str:
         """Generates a prompt snippet to bias the LLM based on user model."""

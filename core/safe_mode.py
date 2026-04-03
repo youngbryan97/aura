@@ -14,7 +14,7 @@ Provides two things:
 
 Usage in aura_main.py or orchestrator_boot.py:
     from core.safe_mode import apply_orchestrator_patches, SAFE_MODE_CONFIG
-    apply_orchestrator_patches(orchestrator, safe_mode=True)
+    apply_orchestrator_patches(orchestrator, safe_mode=False)
 """
 
 from __future__ import annotations
@@ -42,7 +42,6 @@ SAFE_MODE_CONFIG = {
     "self_preservation": False,     # No network scanning / replication
     "persona_evolution": False,     # No personality drift during session
     "dream_cycle": False,           # No dead-letter re-injection
-    "rl_training": False,           # No PPO training
     "device_discovery": False,      # No network scanning
     "stealth_mode": False,          # No VPN / IP spoofing
     "singularity_monitor": False,   # No thought interval compression
@@ -68,7 +67,6 @@ FULL_MODE_CONFIG = {
     "self_preservation": False,     # Keep this off — see code review
     "persona_evolution": True,
     "dream_cycle": True,
-    "rl_training": True,
     "device_discovery": False,      # Keep this off — see code review
     "stealth_mode": True,
     "singularity_monitor": True,
@@ -84,13 +82,31 @@ FULL_MODE_CONFIG = {
 
 # ── Orchestrator Patches ──────────────────────────────────────────────────────
 
-def apply_orchestrator_patches(orchestrator, safe_mode: bool = True):
+def apply_orchestrator_patches(orchestrator, safe_mode: bool = False):
     """
     Apply targeted patches to the existing orchestrator instance.
     These fix the specific bugs identified without rewriting the orchestrator.
     """
+    # Dynamic Volition Integration
+    kernel = getattr(orchestrator, 'kernel', None)
+    volition = getattr(kernel, 'volition_level', 0) if kernel else 0
+    
     config = SAFE_MODE_CONFIG if safe_mode else FULL_MODE_CONFIG
-    logger.info("Applying orchestrator patches (safe_mode=%s)", safe_mode)
+    
+    # Overwrite config based on Volition Level if not in strict safe_mode
+    if not safe_mode:
+        if volition >= 1:
+            config["dream_cycle"] = True
+            config["context_pruning"] = True
+            config["memory_consolidation"] = True
+        if volition >= 2:
+            config["persona_evolution"] = True
+        if volition >= 3:
+            config["self_modification"] = True
+            config["self_preservation"] = True
+            config["singularity_monitor"] = True
+
+    logger.info("Applying orchestrator patches (safe_mode=%s, volition=%d)", safe_mode, volition)
 
     # Patch 1: Fix singularity acceleration cap
     _patch_singularity_cap(orchestrator, config["singularity_acceleration_cap"])
@@ -170,8 +186,8 @@ def _patch_process_user_input(orchestrator):
                     asyncio.shield(orchestrator._current_thought_task),
                     timeout=3.0
                 )
-            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
-                pass
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception) as exc:
+                logger.debug('Exception caught during execution: %s', exc)
             finally:
                 orchestrator._current_thought_task = None
 
@@ -203,63 +219,73 @@ def _patch_process_user_input(orchestrator):
 
 
 def _apply_feature_flags(orchestrator, config: Dict[str, Any]):
-    """Disable subsystems based on feature flags."""
+    """
+    Wrap subsystems to respect Volition Level in real-time.
+    [GENESIS] Dynamic Gatekeeping
+    """
+    kernel = getattr(orchestrator, 'kernel', None)
 
-    # Dream cycle
-    if not config.get("dream_cycle", True):
-        if hasattr(orchestrator, 'dream_cycle') and orchestrator.dream_cycle:
-            try:
-                # Set interval to effectively disabled
-                if hasattr(orchestrator.dream_cycle, 'interval'):
-                    orchestrator.dream_cycle.interval = 999999
-                elif hasattr(orchestrator.dream_cycle, '_interval'):
-                    orchestrator.dream_cycle._interval = 999999
-                logger.info("Dream cycle disabled (interval set to max)")
-            except Exception as exc:
-                logger.warning("Could not disable dream cycle: %s", exc)
+    # Helper to check volition
+    def get_volition():
+        return getattr(kernel, 'volition_level', 0) if kernel else 0
 
-    # Self-modification
-    if not config.get("self_modification", True):
-        if hasattr(orchestrator, 'self_modifier') and orchestrator.self_modifier:
-            try:
-                if hasattr(orchestrator.self_modifier, '_monitoring'):
-                    orchestrator.self_modifier._monitoring = False
-                if hasattr(orchestrator.self_modifier, 'enabled'):
-                    orchestrator.self_modifier.enabled = False
-                logger.info("Self-modification disabled")
-            except Exception as exc:
-                logger.warning("Could not disable self-modifier: %s", exc)
+    # 1. Dream Cycle (Requires Level 1)
+    if hasattr(orchestrator, 'dream_cycle') and orchestrator.dream_cycle:
+        dc = orchestrator.dream_cycle
+        # Patch the main processing loop if possible, or the interval
+        if hasattr(dc, 'process_cycle'):
+            original_dc = dc.process_cycle
+            async def gated_dc(*args, **kwargs):
+                if get_volition() < 1:
+                    logger.debug("DreamCycle: Skipped (Volition < 1)")
+                    return
+                return await original_dc(*args, **kwargs)
+            dc.process_cycle = gated_dc
+            logger.info("Gated DreamCycle: Dynamic Link to Volition Level 1")
 
-    # Self-preservation
-    if not config.get("self_preservation", True):
-        if hasattr(orchestrator, 'self_preservation') and orchestrator.self_preservation:
-            try:
-                if hasattr(orchestrator.self_preservation, 'enabled'):
-                    orchestrator.self_preservation.enabled = False
-                logger.info("Self-preservation disabled")
-            except Exception as exc:
-                logger.warning("Could not disable self-preservation: %s", exc)
+    # 2. Self-Modification (Requires Level 3)
+    if hasattr(orchestrator, 'self_modifier') and orchestrator.self_modifier:
+        sm = orchestrator.self_modifier
+        if hasattr(sm, 'run_autonomous_cycle'):
+            original_sm = sm.run_autonomous_cycle
+            async def gated_sm(*args, **kwargs):
+                if get_volition() < 3:
+                    return {"success": True, "msg": "SME: Passive (Volition < 3)"}
+                return await original_sm(*args, **kwargs)
+            sm.run_autonomous_cycle = gated_sm
+            logger.info("Gated SelfModifier: Dynamic Link to Volition Level 3")
 
-    # Persona evolution
-    if not config.get("persona_evolution", True):
-        if hasattr(orchestrator, 'persona_evolver') and orchestrator.persona_evolver:
-            try:
-                if hasattr(orchestrator.persona_evolver, 'enabled'):
-                    orchestrator.persona_evolver.enabled = False
-                # Alternatively, set a very long evolution interval
-                if hasattr(orchestrator.persona_evolver, '_evolution_interval'):
-                    orchestrator.persona_evolver._evolution_interval = 999999
-                logger.info("Persona evolution disabled for this session")
-            except Exception as exc:
-                logger.warning("Could not disable persona evolver: %s", exc)
+    # 3. Persona Evolution (Requires Level 2)
+    if hasattr(orchestrator, 'persona_evolver') and orchestrator.persona_evolver:
+        pe = orchestrator.persona_evolver
+        if hasattr(pe, 'evolve'):
+            original_pe = pe.evolve
+            async def gated_pe(*args, **kwargs):
+                if get_volition() < 2:
+                    return
+                return await original_pe(*args, **kwargs)
+            pe.evolve = gated_pe
+            logger.info("Gated PersonaEvolver: Dynamic Link to Volition Level 2")
 
-    # Context pruning
-    if not config.get("context_pruning", True):
-        _disable_context_pruning(orchestrator)
+    # 4. Context Pruning & Memory Consolidation (Requires Level 1)
+    if hasattr(orchestrator, '_prune_history_async'):
+        original_prune = orchestrator._prune_history_async
+        async def gated_prune(*args, **kwargs):
+            if get_volition() < 1:
+                # Fallback to simple truncation
+                if len(orchestrator.conversation_history) > 50:
+                    orchestrator.conversation_history = orchestrator.conversation_history[-50:]
+                return
+            return await original_prune(*args, **kwargs)
+        orchestrator._prune_history_async = gated_prune
 
-    # Memory consolidation
-    if not config.get("memory_consolidation", True):
-        _disable_memory_consolidation(orchestrator)
+    if hasattr(orchestrator, '_consolidate_long_term_memory'):
+        original_consolidate = orchestrator._consolidate_long_term_memory
+        async def gated_consolidate(*args, **kwargs):
+            if get_volition() < 1:
+                return
+            return await original_consolidate(*args, **kwargs)
+        orchestrator._consolidate_long_term_memory = gated_consolidate
 
     # Conversation history size
     max_history = config.get("max_conversation_history", 100)

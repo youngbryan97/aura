@@ -45,19 +45,22 @@ class DynamicContextBuilder:
         try:
             conv_engine = container.get("conversation_engine")
             if conv_engine and hasattr(conv_engine, "memory"):
-                rich_context["memory_context"] = await conv_engine.memory.retrieve_context(message)
+                memories = await conv_engine.memory.retrieve(message, limit=3)
+                if memories:
+                    # Format the retrieved memories into a single context string
+                    rich_context["memory_context"] = "\n".join(
+                        f"- {m.get('text', m) if isinstance(m, dict) else m}" for m in memories
+                    )
         except Exception as e:
             logger.debug("Episodic memory retrieval failed: %s", e)
 
         # 4. Semantic Memory Retrieval (Vector Search)
         try:
-            semantic_memory = container.get("semantic_memory")
-            if semantic_memory:
-                memories = semantic_memory.search_memories(message, top_k=3)
-                if memories:
-                    rich_context["semantic_context"] = "\n".join(
-                        f"- {m['text']}" for m in memories
-                    )
+            semantic_memory = container.get("vector_memory_engine")
+            if semantic_memory and hasattr(semantic_memory, "recall_formatted"):
+                formatted_memories = await semantic_memory.recall_formatted(message, limit=5)
+                if formatted_memories:
+                    rich_context["semantic_context"] = formatted_memories
         except Exception as e:
             logger.debug("Semantic memory retrieval failed: %s", e)
 
@@ -68,6 +71,46 @@ class DynamicContextBuilder:
                 rich_context["user_intent"] = await tom.infer_intent(message, rich_context)
         except Exception as e:
             logger.debug("Theory of Mind unavailable: %s", e)
+
+        # 6. Global Workspace Theory — last N competition winners
+        # get_context_stream() returns a pre-formatted string; safe to call sync.
+        try:
+            gws = container.get("global_workspace")
+            if gws and hasattr(gws, "get_context_stream"):
+                stream = gws.get_context_stream(n=4)
+                if stream:
+                    rich_context["gwt_stream"] = stream
+        except Exception as e:
+            logger.debug("GlobalWorkspace stream unavailable: %s", e)
+
+        # 7. Temporal Binding — autobiographical present-window narrative
+        # get_narrative() is async (holds a lock); await it directly.
+        try:
+            tb = container.get("temporal_binding")
+            if tb and hasattr(tb, "get_narrative"):
+                narrative = await tb.get_narrative()
+                if narrative:
+                    rich_context["temporal_narrative"] = narrative
+        except Exception as e:
+            logger.debug("TemporalBinding narrative unavailable: %s", e)
+
+        # 10. Spiritual Spine — ideological stability
+        try:
+            spine = container.get("spine")
+            if spine and hasattr(spine, "pre_response_check"):
+                check = await spine.pre_response_check(message)
+                if check.has_prior_position or check.conflict_severity > 0.4:
+                    rich_context["spine_check"] = check.injection
+        except Exception as e:
+            logger.debug("SpiritualSpine check failed: %s", e)
+
+        # 11. Social Modeling (Ava) — user relationship alignment
+        try:
+            ava = container.get("ava")
+            if ava and hasattr(ava, "get_context_injection"):
+                rich_context["social_context"] = ava.get_context_injection()
+        except Exception as e:
+            logger.debug("Ava social context injection failed: %s", e)
 
         return rich_context
 
@@ -118,5 +161,14 @@ class DynamicContextBuilder:
 
         if context.get("semantic_context"):
             segments.append(f"### RELEVANT PAST MEMORIES\n{context['semantic_context']}")
+
+        if context.get("identity_correction"):
+            segments.append(f"### IDENTITY ANCHOR\n{context['identity_correction']}")
+
+        if context.get("spine_check"):
+            segments.append(f"### SPIRITUAL SPINE\n{context['spine_check']}")
+
+        if context.get("social_context"):
+            segments.append(f"### SOCIAL CONTEXT\n{context['social_context']}")
 
         return "\n\n".join(segments)

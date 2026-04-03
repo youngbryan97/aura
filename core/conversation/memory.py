@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from core.utils.exceptions import capture_and_log
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -22,6 +23,7 @@ class EnhancedMemorySystem:
     def __init__(self, db_path=None):
         # We ignore db_path and use config-driven directories from DualMemorySystem
         self.dual = DualMemorySystem()
+        self._tasks = set()
 
     async def store_turn(self, conversation_id: str, user_message: str, aura_response: str, context: Dict[str, Any]):
         """Stores a conversation turn in the episodic store of the DualMemorySystem."""
@@ -31,7 +33,7 @@ class EnhancedMemorySystem:
         
         if valence is None or importance is None:
             from core.container import ServiceContainer
-            affect = ServiceContainer.get("affect_engine")
+            affect = ServiceContainer.get("affect_engine", default=None)
             if affect and hasattr(affect, 'get_state'):
                 # Heuristic: Higher intensity = Higher importance
                 current_state = affect.get_state() if hasattr(affect, 'get_state') else {}
@@ -53,7 +55,9 @@ class EnhancedMemorySystem:
         )
         
         # Proactive learning using the LLM (Knowledge Extraction)
-        asyncio.create_task(self.learn_fact_from_interaction(user_message, aura_response))
+        task = asyncio.create_task(self.learn_fact_from_interaction(user_message, aura_response))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
     async def retrieve_context(self, message: str, limit=5) -> str:
         """Retrieves history from the DualMemorySystem."""
@@ -97,6 +101,7 @@ If no facts found, return [].
                         domain=f.get("domain", "general")
                     )
         except Exception as e:
+            capture_and_log(e, {"context": "ConversationMemory.knowledge_extraction"})
             logger.error("Knowledge extraction failed: %s", e)
 
     # Internal API compatibility

@@ -92,7 +92,7 @@ class AuraBaseModule:
         old_avg = self.metrics["avg_latency"]
         self.metrics["avg_latency"] = old_avg + (current_latency - old_avg) / n
 
-    def handle_error(self, error: Exception, context: str) -> Dict[str, Any]:
+    def handle_error(self, error: Union[Exception, str], context: str) -> Dict[str, Any]:
         """Overrideable error handler for module-specific recovery.
         
         Args:

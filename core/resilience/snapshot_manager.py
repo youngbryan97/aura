@@ -1,134 +1,199 @@
-
 """core/resilience/snapshot_manager.py
 
-Handles immutable "Heartstone" snapshots of critical system files.
-Enables transactional rollbacks for autonomous self-modification.
+Snapshot Manager for Architectural Resilience
+============================================
+
+Handles freezing and thawing the entire cognitive, emotional, and 
+phenomenal state of Aura to disk. This mitigates the "House of Cards"
+risk where a crash loses the continuous stream of consciousness.
+
+Features:
+- Versioned JSON serialization
+- Atomic writes
+- Coordinates extracting state from deeply entangled subsystems
 """
 
 import json
 import logging
 import os
-import shutil
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.config import config
 
-logger = logging.getLogger("Resilience.SnapshotManager")
+logger = logging.getLogger("Aura.SnapshotManager")
 
 class SnapshotManager:
-    """Manages system snapshots and automated rollbacks."""
+    """Coordinates freezing and thawing cognitive state."""
+    
+    VERSION = "1.0"
 
-    def __init__(self, history_limit: int = 5):
-        self.root = config.paths.project_root
+    def __init__(self, orchestrator=None):
+        self._orch = orchestrator
         self.snapshot_dir = config.paths.data_dir / "snapshots"
-        self.history_limit = history_limit
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        self.snapshot_file = self.snapshot_dir / "latest.aura_snapshot"
+        logger.info("📸 Cognitive Snapshot Manager ONLINE")
+
+    def freeze(self) -> bool:
+        """Freeze current state to disk."""
+        if not self._orch:
+            logger.error("SnapshotManager requires orchestrator reference to freeze state.")
+            return False
+
+        logger.info("🥶 Freezing cognitive state...")
         
-        self.index_file = self.snapshot_dir / "snapshot_index.json"
-        self.snapshots = self._load_index()
-
-    def _load_index(self) -> List[Dict[str, Any]]:
-        if self.index_file.exists():
-            try:
-                with open(self.index_file, "r") as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error("Failed to load snapshot index: %s", e)
-        return []
-
-    def _save_index(self):
         try:
-            with open(self.index_file, "w") as f:
-                json.dump(self.snapshots, f, indent=2)
-        except Exception as e:
-            logger.error("Failed to save snapshot index: %s", e)
+            state = {
+                "version": self.VERSION,
+                "timestamp": time.time(),
+                "subsystems": {}
+            }
 
-    def create_snapshot(self, label: str, files: Optional[List[str]] = None) -> Optional[str]:
-        """Creates a snapshot of the specified files or core system by default."""
-        timestamp = int(time.time())
-        snapshot_id = f"snap_{timestamp}_{label.replace(' ', '_')}"
-        target_dir = self.snapshot_dir / snapshot_id
-        target_dir.mkdir(parents=True, exist_ok=True)
+            # 1. Qualia State
+            qualia = getattr(self._orch, "qualia", None)
+            if qualia and hasattr(qualia, "get_state"):
+                logger.debug("Freezing Qualia Synthesizer...")
+                state["subsystems"]["qualia"] = qualia.get_state()
 
-        if files is None:
-            # Default to core system files
-            files = ["core", "infrastructure", "utils", "interface/server.py"]
+            # 2. Affect State
+            affect = getattr(self._orch, "affect", None)
+            if affect:
+                logger.debug("Freezing Affect Engine...")
+                if hasattr(affect, "get_snapshot"):
+                    state["subsystems"]["affect"] = affect.get_snapshot()
+                elif hasattr(affect, "get"):
+                    # Fallback for older versions if they were sync
+                    res = affect.get()
+                    import inspect
+                    if not inspect.isawaitable(res):
+                        state["subsystems"]["affect"] = res
 
-        copied_files = []
-        for f_path in files:
-            src = self.root / f_path
-            if src.exists():
-                dst = target_dir / f_path
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                if src.is_dir():
-                    shutil.copytree(src, dst, dirs_exist_ok=True)
-                else:
-                    shutil.copy2(src, dst)
-                copied_files.append(f_path)
+            # 3. Conversation Context (Short-term memory)
+            engine = getattr(self._orch, "conversation_engine", None)
+            if engine and hasattr(engine, "get_context"):
+                # Grab the default text chat and voice chat contexts
+                ctx = engine.get_context("default")
+                voice_ctx = engine.get_context("voice")
+                
+                state["subsystems"]["conversation"] = {
+                    "default_emotional_state": ctx.emotional_state.value if hasattr(ctx, 'emotional_state') else "neutral",
+                    "default_mode": ctx.mode.value if hasattr(ctx, 'mode') else "chat",
+                    "voice_emotional_state": voice_ctx.emotional_state.value if hasattr(voice_ctx, 'emotional_state') else "neutral",
+                    "voice_mode": voice_ctx.mode.value if hasattr(voice_ctx, 'mode') else "chat"
+                }
 
-        snapshot_info = {
-            "id": snapshot_id,
-            "timestamp": timestamp,
-            "label": label,
-            "files": copied_files,
-            "path": str(target_dir)
-        }
+            # 4. Orchestrator Volatiles
+            state["subsystems"]["orchestrator"] = {
+                "current_mode": getattr(self._orch, "current_mode", "autonomous"),
+                "cognitive_load": getattr(self._orch, "cognitive_load", 0.0)
+            }
 
-        self.snapshots.append(snapshot_info)
-        # Sort by timestamp and keep limit
-        self.snapshots.sort(key=lambda x: x["timestamp"], reverse=True)
-        
-        # Cleanup old snapshots
-        while len(self.snapshots) > self.history_limit:
-            old = self.snapshots.pop()
-            old_path = Path(old["path"])
-            if old_path.exists():
-                shutil.rmtree(old_path)
-            logger.info("Purged old snapshot: %s", old["id"])
-
-        self._save_index()
-        logger.info("Created snapshot: %s (%s)", snapshot_id, label)
-        return snapshot_id
-
-    def rollback(self, snapshot_id: Optional[str] = None) -> bool:
-        """Rolls back the system to a previous snapshot."""
-        if not self.snapshots:
-            logger.error("Rollback failed: No snapshots available.")
-            return False
-
-        target_snap = None
-        if snapshot_id:
-            for s in self.snapshots:
-                if s["id"] == snapshot_id:
-                    target_snap = s
-                    break
-        else:
-            # Rollback to the most recent one
-            target_snap = self.snapshots[0]
-
-        if not target_snap:
-            logger.error("Rollback failed: Snapshot %s not found.", snapshot_id)
-            return False
-
-        logger.warning("🔄 INITIATING ROLLBACK TO: %s (%s)", target_snap["id"], target_snap["label"])
-        
-        snap_path = Path(target_snap["path"])
-        for f_path in target_snap["files"]:
-            src = snap_path / f_path
-            dst = self.root / f_path
+            # Write atomically
+            temp_file = str(self.snapshot_file) + ".tmp"
+            with open(temp_file, "w") as f:
+                json.dump(state, f, indent=2)
+            os.replace(temp_file, self.snapshot_file)
             
-            if src.exists():
-                if src.is_dir():
-                    shutil.rmtree(dst, ignore_errors=True)
-                    shutil.copytree(src, dst)
+            logger.info("✅ Cognitive state frozen to disk: %s", self.snapshot_file)
+            return True
+
+        except Exception as e:
+            logger.error("Failed to freeze state: %s", e, exc_info=True)
+            return False
+
+    def thaw(self) -> bool:
+        """Thaw state from disk and inject into running subsystems."""
+        if not self._orch:
+            logger.error("SnapshotManager requires orchestrator reference to thaw state.")
+            return False
+
+        if not self.snapshot_file.exists():
+            logger.info("No snapshot found. Starting fresh.")
+            return False
+
+        logger.info("🔥 Thawing cognitive state from disk...")
+        
+        try:
+            with open(self.snapshot_file, "r") as f:
+                state = json.load(f)
+
+            if state.get("version") != self.VERSION:
+                logger.warning("Snapshot version mismatch (%s != %s). Discarding.", 
+                               state.get("version"), self.VERSION)
+                return False
+
+            subsystems = state.get("subsystems", {})
+
+            # 1. Qualia State
+            qualia = getattr(self._orch, "qualia", None)
+            q_state = subsystems.get("qualia")
+            if qualia and q_state:
+                logger.debug("Thawing Qualia Synthesizer...")
+                # Restore the last known qualia vector and history
+                if hasattr(qualia, "q_vector") and "q_vector" in q_state:
+                    qualia.q_vector = q_state["q_vector"]
+                if hasattr(qualia, "history") and "history" in q_state:
+                    qualia.history = q_state["history"]
+
+            # 2. Affect State
+            affect = getattr(self._orch, "affect", None)
+            a_state = subsystems.get("affect")
+            if affect and a_state:
+                logger.debug("Thawing Affect Engine...")
+                # AffectEngineV2 restoration
+                if hasattr(affect, "markers"):
+                    markers = affect.markers
+                    if "emotions" in a_state:
+                        markers.emotions.update(a_state["emotions"])
+                    if "physiology" in a_state:
+                        p = a_state["physiology"]
+                        markers.heart_rate = p.get("heart_rate", markers.heart_rate)
+                        markers.gsr = p.get("gsr", markers.gsr)
+                        markers.cortisol = p.get("cortisol", markers.cortisol)
+                        markers.adrenaline = p.get("adrenaline", markers.adrenaline)
+                    if "mood_baselines" in a_state:
+                        markers.mood_baselines.update(a_state["mood_baselines"])
                 else:
-                    shutil.copy2(src, dst)
-                logger.info("  ✓ Restored: %s", f_path)
+                    # Legacy fallback
+                    if hasattr(affect, "valence") and "valence" in a_state:
+                        affect.valence = a_state["valence"]
+                    if hasattr(affect, "arousal") and "arousal" in a_state:
+                        affect.arousal = a_state["arousal"]
 
-        logger.info("✅ Rollback complete. System state restored.")
-        return True
+            # 3. Conversation Context
+            engine = getattr(self._orch, "conversation_engine", None)
+            c_state = subsystems.get("conversation")
+            if engine and c_state:
+                logger.debug("Thawing Conversation context...")
+                try:
+                    from core.conversation.engine import EmotionalState, ConversationMode
+                    ctx = engine.get_context("default")
+                    voice_ctx = engine.get_context("voice")
+                    
+                    if "default_emotional_state" in c_state:
+                        ctx.emotional_state = EmotionalState(c_state["default_emotional_state"])
+                    if "default_mode" in c_state:
+                        ctx.mode = ConversationMode(c_state["default_mode"])
+                        
+                    if "voice_emotional_state" in c_state:
+                        voice_ctx.emotional_state = EmotionalState(c_state["voice_emotional_state"])
+                    if "voice_mode" in c_state:
+                        voice_ctx.mode = ConversationMode(c_state["voice_mode"])
+                except Exception as e:
+                    logger.debug("Could not fully restore conversation enums: %s", e)
 
-    def get_latest_snapshot(self) -> Optional[Dict[str, Any]]:
-        return self.snapshots[0] if self.snapshots else None
+            # 4. Orchestrator Volatiles
+            o_state = subsystems.get("orchestrator")
+            if o_state:
+                if "current_mode" in o_state:
+                    self._orch.current_mode = o_state["current_mode"]
+                if "cognitive_load" in o_state:
+                    self._orch.cognitive_load = o_state["cognitive_load"]
+
+            logger.info("✅ Cognitive state thawed successfully.")
+            return True
+
+        except Exception as e:
+            logger.error("Failed to thaw state: %s", e, exc_info=True)
+            return False

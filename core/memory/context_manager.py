@@ -36,7 +36,7 @@ class ContextManager:
     def __init__(
         self,
         vector_memory: Any = None,
-        token_budget: int = 3072,
+        token_budget: int = 8192,
         system_prompt: str = "",
     ):
         self.vector_memory = vector_memory

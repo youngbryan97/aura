@@ -78,15 +78,24 @@ class ASTGuard(ast.NodeVisitor):
             self._check_import(node.module)
         self.generic_visit(node)
 
+    def visit_Attribute(self, node):
+        # Block introspection escapes
+        if node.attr in ("__class__", "__subclasses__", "__mro__", "__globals__", 
+                         "__subclasshook__", "__init__", "__func__", "__self__", "__dict__"):
+            self.violations.append(f"Forbidden attribute access: {node.attr}")
+        self.generic_visit(node)
+
     def visit_Call(self, node):
         # Check for calls to unsafe builtins
         if isinstance(node.func, ast.Name):
             if node.func.id in self.unsafe_builtins:
                 self.violations.append(f"Call to unsafe builtin: {node.func.id}")
-        # Check for attribute calls like os.system()
+        # Check for attribute calls like os.system() or obj.__subclasses__()
         elif isinstance(node.func, ast.Attribute):
             if node.func.attr in ("system", "popen", "exec", "call", "run",
-                                   "check_output", "check_call", "Popen"):
+                                   "check_output", "check_call", "Popen",
+                                   "spawnl", "spawnv", "execv", "execve",
+                                   "__subclasses__", "globals"):
                 self.violations.append(
                     f"Call to dangerous method: {node.func.attr}"
                 )

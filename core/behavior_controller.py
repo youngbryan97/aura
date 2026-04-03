@@ -22,18 +22,51 @@ class AutonomousBehaviorController:
         self.orchestrator = orchestrator
         self.safety_checks_enabled = True
     
+    # SEC-AUDIT: Expanded destructive command pattern list
+    _BLOCKED_PATTERNS = [
+        "rm -rf /",
+        "rm -rf ~",
+        "rm -rf *",
+        "rm --no-preserve-root",
+        "mkfs",
+        "dd if=/dev/zero",
+        "dd if=/dev/random",
+        "> /dev/sda",
+        "shred /dev",
+        "wipefs",
+        ":(){ :|:& };:",   # fork bomb (spaced)
+        ":(){:|:&};:",     # fork bomb (compact)
+        "chmod -r 777 /",
+        "> /etc/passwd",
+        "> /etc/shadow",
+        "kill -9 -1",
+        "pkill -u root",
+        "sudo rm -rf",
+        "shutdown -h",
+        "halt -p",
+        "poweroff",
+        "reboot",
+        "| bash",          # pipe-to-shell
+        "| sh",            # pipe-to-shell compact
+        "|bash",           # pipe-to-shell no-space
+        "|sh",             # pipe-to-shell no-space
+        "curl | ",         # curl pipe
+        "wget -o-",        # wget stdout
+        "wget -O- ",       # wget stdout long form
+    ]
+
     def validate_action(self, action: Dict[str, Any]) -> bool:
-        """Validate if an action is safe to execute.
-        """
+        """Validate if an action is safe to execute."""
         action_type = action.get("type", "unknown")
-        
-        # Basic safety checks
+
         if action_type == "terminal":
             command = action.get("command", "")
-            if "rm -rf /" in command or "mkfs" in command:
-                logger.error("🚫 Blocked dangerous command: %s", command)
-                return False
-                
+            cmd_lower = command.lower()
+            for pattern in self._BLOCKED_PATTERNS:
+                if pattern.lower() in cmd_lower:
+                    logger.error("🚫 Blocked dangerous command (pattern '%s'): %s", pattern, command[:120])
+                    return False
+
         return True
     
     def execute_tool_call(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
@@ -51,13 +84,18 @@ class AutonomousBehaviorController:
                 try:
                     loop = asyncio.get_running_loop()
                 except RuntimeError:
-                    loop = asyncio.get_event_loop()
+                    logger.warning("execute_tool_call: No running event loop — cannot dispatch tool")
+                    return {"ok": False, "error": "No event loop available"}
 
                 if loop.is_running():
                     # Create a future and schedule on the loop
                     import concurrent.futures
+                    target_loop = loop
+                    if self.orchestrator and hasattr(self.orchestrator, "loop") and self.orchestrator.loop:
+                        target_loop = self.orchestrator.loop
+                        
                     future = asyncio.run_coroutine_threadsafe(
-                        self.orchestrator.execute_tool(tool_name, arguments), loop
+                        self.orchestrator.execute_tool(tool_name, arguments), target_loop
                     )
                     return future.result(timeout=120)
                 else:
@@ -81,7 +119,7 @@ def integrate_behavior_control(orchestrator):
     controller = AutonomousBehaviorController(orchestrator)
     
     # 1. Register Safety Hook (pre_action)
-    async def on_pre_action_hook(tool_name: str, params: Dict):
+    async def on_pre_action_hook(tool_name: str, params: Dict[str, Any]):
         # Return False to veto dangerous actions
         is_safe = controller.validate_action({"type": tool_name, "command": params.get("command", "")})
         
@@ -98,7 +136,7 @@ def integrate_behavior_control(orchestrator):
              
              if not assessment.get("is_morally_acceptable"):
                  logger.warning("⚠️ Moral check raised concern: %s", tool_name)
-                 # Note: per previous design, we log but don't necessarily block 
+                 # Note: per previous design, we log but don't necessarily block
                  # unless it's a safety violation.
         
         return is_safe

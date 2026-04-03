@@ -21,12 +21,23 @@ except Exception:
 KEY_DIR = str(config.paths.home_dir / "keys")
 ED25519_PRIV_PATH = os.path.join(KEY_DIR, "ed25519_priv.pem")
 HMAC_KEY_PATH = os.path.join(KEY_DIR, "hmac_key.bin")
+_EPHEMERAL_HMAC_KEY = os.urandom(32)
 
-os.makedirs(KEY_DIR, mode=0o700, exist_ok=True)
-if os.name != 'nt':
-    os.chmod(KEY_DIR, 0o700)
+def _prepare_key_dir() -> bool:
+    try:
+        os.makedirs(KEY_DIR, mode=0o700, exist_ok=True)
+        if os.name != 'nt':
+            os.chmod(KEY_DIR, 0o700)
+        return True
+    except OSError as exc:
+        logger.warning("Runtime key storage unavailable at %s: %s. Using ephemeral signatures.", KEY_DIR, exc)
+        return False
+
+_KEY_STORAGE_AVAILABLE = _prepare_key_dir()
 
 def _ensure_keys():
+    if not _KEY_STORAGE_AVAILABLE:
+        return
     if CRYPTO_AVAILABLE:
         if not os.path.exists(ED25519_PRIV_PATH):
             # generate and write private key
@@ -45,22 +56,27 @@ def _ensure_keys():
             with os.fdopen(fd, "wb") as f:
                 f.write(os.urandom(32))
 
-_ensure_keys()
+try:
+    _ensure_keys()
+except OSError as exc:
+    logger.warning("Failed to materialize runtime signing keys: %s. Using ephemeral signatures.", exc)
 
 def _compute_sha256_hex(payload: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 def _sign_payload(payload_bytes: bytes) -> str:
-    if CRYPTO_AVAILABLE and os.path.exists(ED25519_PRIV_PATH):
+    if CRYPTO_AVAILABLE and _KEY_STORAGE_AVAILABLE and os.path.exists(ED25519_PRIV_PATH):
         with open(ED25519_PRIV_PATH, "rb") as f:
             priv = serialization.load_pem_private_key(f.read(), password=None)
         sig = priv.sign(payload_bytes)
         return sig.hex()
-    else:
+    elif _KEY_STORAGE_AVAILABLE and os.path.exists(HMAC_KEY_PATH):
         with open(HMAC_KEY_PATH, "rb") as f:
             key = f.read()
-        sig = hmac.new(key, payload_bytes, hashlib.sha256).hexdigest()
-        return sig
+    else:
+        key = _EPHEMERAL_HMAC_KEY
+    sig = hmac.new(key, payload_bytes, hashlib.sha256).hexdigest()
+    return sig
 
 def get_runtime_state() -> Dict[str, Any]:
     """Trusted function that samples live runtime pieces and returns:
@@ -119,7 +135,8 @@ def get_runtime_state() -> Dict[str, Any]:
         "process_id": os.getpid(),
     }
     
-    state_json = json.dumps(state, sort_keys=True, ensure_ascii=False)
+    from core.resilience.state_manager import _SafeEncoder
+    state_json = json.dumps(state, sort_keys=True, ensure_ascii=False, cls=_SafeEncoder)
     sha256 = _compute_sha256_hex(state_json)
     signature = _sign_payload(state_json.encode("utf-8"))
     

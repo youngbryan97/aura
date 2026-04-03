@@ -1,3 +1,6 @@
+import pytest
+################################################################################
+
 
 import asyncio
 import logging
@@ -13,6 +16,7 @@ from core.world_model.belief_graph import belief_graph
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Test.WorldModel")
 
+@pytest.mark.asyncio
 async def test_active_surprise():
     print("\n🧪 TESTING ACTIVE WORLD MODELING (SURPRISE-DRIVEN RE-THINKING)...")
     
@@ -59,3 +63,6 @@ async def test_active_surprise():
 
 if __name__ == "__main__":
     asyncio.run(test_active_surprise())
+
+
+##

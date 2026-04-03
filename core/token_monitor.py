@@ -1,4 +1,3 @@
-
 import logging
 import time
 
@@ -51,13 +50,13 @@ def register_token_monitor():
 
 def get_token_monitor():
     """Resolve token monitor from container."""
-    return ServiceContainer.get("token_monitor")
+    return ServiceContainer.get("token_monitor", default=None)
 
 # Auto-register if not already present
 try:
-    if "token_monitor" not in ServiceContainer._services:
+    if not ServiceContainer.get("token_monitor", default=None):
         register_token_monitor()
-except (KeyError, AttributeError, TypeError):
-    pass
+except Exception:
+    register_token_monitor()
 
 token_monitor = get_token_monitor()

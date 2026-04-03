@@ -7,6 +7,7 @@ import subprocess
 import time
 import asyncio
 import logging
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 
@@ -19,7 +20,12 @@ class GhostBootValidator:
         from core.config import config
         self.root = project_root or config.paths.project_root
 
-    async def validate_boot(self, sandbox_path: Path, timeout: int = 30) -> Tuple[bool, str]:
+    async def validate_boot(
+        self,
+        sandbox_path: Path,
+        timeout: int = 30,
+        overlay_file: Optional[Tuple[str, str]] = None,
+    ) -> Tuple[bool, str]:
         """Attempts to 'boot' the system in the sandbox (Async)."""
         logger.info("👻 Starting Ghost Boot validation in %s...", sandbox_path)
         
@@ -28,44 +34,48 @@ class GhostBootValidator:
         boot_script = sandbox_path / ".ghost_boot.py"
         self._create_minimal_boot_script(boot_script)
 
+        overlay_target: Optional[Path] = None
+        overlay_backup: Optional[bytes] = None
+        overlay_had_original = False
+
         try:
+            if overlay_file:
+                target_file, staging_file = overlay_file
+                overlay_target = Path(target_file)
+                if not overlay_target.is_absolute():
+                    overlay_target = sandbox_path / overlay_target
+                staging_path = Path(staging_file)
+                overlay_target.parent.mkdir(parents=True, exist_ok=True)
+                overlay_had_original = overlay_target.exists()
+                if overlay_had_original:
+                    overlay_backup = overlay_target.read_bytes()
+                shutil.copy2(staging_path, overlay_target)
+
             # Run the boot script in a subprocess
             env = os.environ.copy()
             env["PYTHONPATH"] = str(sandbox_path)
             env["AURA_GHOST_BOOT"] = "1" # Flag to skip heavy systems
             
-            process = subprocess.Popen(
-                [sys.executable, str(boot_script)],
-                cwd=sandbox_path,
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, str(boot_script),
+                cwd=str(sandbox_path),
                 env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
 
-            start_time = time.time()
-            success = False
-            output = ""
-            error_output = ""
-
-            while time.time() - start_time < timeout:
-                if process.poll() is not None:
-                    break
-                await asyncio.sleep(0.5)
-
-            # Final check - wait for it to finish or kill it
             try:
-                stdout, stderr = process.communicate(timeout=2)
-                output += stdout
-                error_output += stderr
-            except subprocess.TimeoutExpired:
+                stdout_data, stderr_data = await asyncio.wait_for(process.communicate(), timeout=timeout)
+                output = stdout_data.decode()
+                error_output = stderr_data.decode()
+            except asyncio.TimeoutError:
                 process.kill()
-                stdout, stderr = process.communicate()
-                output += stdout
-                error_output += stderr
+                stdout_data, stderr_data = await process.communicate()
+                output = stdout_data.decode()
+                error_output = stderr_data.decode()
+                error_output += "\n[Timeout reached without heartbeat]"
 
-            if "GHOST_HEARTBEAT_STABLE" in output:
-                success = True
+            success = "GHOST_HEARTBEAT_STABLE" in output
 
             if success:
                 logger.info("✅ Ghost Boot SUCCESS: System reached stable state.")
@@ -79,6 +89,14 @@ class GhostBootValidator:
             logger.error("Ghost Boot execution error: %s", e)
             return False, str(e)
         finally:
+            if overlay_target is not None:
+                try:
+                    if overlay_had_original and overlay_backup is not None:
+                        overlay_target.write_bytes(overlay_backup)
+                    elif overlay_target.exists():
+                        overlay_target.unlink()
+                except Exception as e:
+                    logger.debug("Failed to restore ghost boot overlay: %s", e)
             if boot_script.exists():
                 try:
                     boot_script.unlink()
@@ -92,34 +110,48 @@ import os
 import sys
 import logging
 import time
-from unittest.mock import MagicMock
+import types
+
+# Create a dummy logger to avoid configuration issues
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("GhostBoot")
 
 # Disable all heavy systems immediately
 os.environ["AURA_GHOST_BOOT"] = "1"
 os.environ["AURA_INTERNAL_ONLY"] = "1"
 
-# Mock out blocking components before importing
-sys.modules["core.managers.health_monitor"] = MagicMock()
-sys.modules["core.resilience.state_manager"] = MagicMock()
+# Stub out blocking components before importing (lightweight, no unittest.mock)
+_stub = types.ModuleType("core.managers.health_monitor")
+class _GhostHealthMonitor:
+    def __init__(self, *args, **kwargs):
+        pass
+_stub.HealthMonitor = _GhostHealthMonitor
+sys.modules["core.managers.health_monitor"] = _stub
 
 try:
-    logger = logging.getLogger("GhostBoot")
     logger.info("Ghost: Initializing core architecture...")
     from core.config import config
     from core.orchestrator import RobustOrchestrator
+    from core.state.aura_state import AuraState
     
     # Minimal init
+    from core.state.aura_state import AuraState
     orch = RobustOrchestrator()
-    logger.info("Ghost: Orchestrator instance created.")
+    orch.state = AuraState() # Ensure fresh state
     
-    # Check if critical components are present
-    if not hasattr(orch, 'status'):
-        raise RuntimeError("Orchestrator missing status object")
-        
+    logger.info("Ghost: Orchestrator initialized. Testing state derivation...")
+    
+    # Test a simple state derivation to ensure lineage/versioning is intact
+    test_state = orch.state.derive("ghost_test", origin="GhostBoot")
+    if test_state.parent_state_id != orch.state.state_id:
+        raise RuntimeError("State lineage failed in Ghost Boot")
+    if test_state.version != orch.state.version + 1:
+        raise RuntimeError("State derivation failed in Ghost Boot")
+
     logger.info("Ghost: Orchestrator Status -> %s", orch.status)
     
     # We reached the end of validation without crashing
-    logger.info("GHOST_HEARTBEAT_STABLE")
+    print("GHOST_HEARTBEAT_STABLE")
     sys.exit(0)
 except Exception as e:
     import traceback

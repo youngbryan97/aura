@@ -8,6 +8,7 @@ Features:
 5. Structured logging and metrics
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -17,6 +18,8 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
+from pydantic import BaseModel, Field
+from core.config import config
 
 logger = logging.getLogger("Kernel.Planner")
 
@@ -42,6 +45,19 @@ class ToolSchema:
     required_params: List[str]
     optional_params: List[str] = field(default_factory=list)
     param_schemas: Dict[str, Any] = field(default_factory=dict)
+
+# ─── 1. CONSTRAINED DECODING SCHEMAS ─────────────────────────────────────────
+
+class ToolCallSchema(BaseModel):
+    """Pydantic model for LLM-generated tool calls."""
+    tool: str = Field(..., description="The exact name of the tool from available schema.")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Arguments required by tool.")
+    output_var: Optional[str] = Field(None, description="Variable name to store result.")
+
+class PlanSchema(BaseModel):
+    """Pydantic model for LLM-generated execution plans."""
+    plan_steps: List[str] = Field(..., description="High-level reasoning steps.")
+    tool_calls: List[ToolCallSchema] = Field(..., description="Sequential tool executions.")
 
 
 @dataclass
@@ -100,6 +116,7 @@ class ExecutionPlan:
     goal: str
     plan_steps: List[str]
     tool_calls: List[ToolCall]
+    replan_budget: int = 3
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     plan_hash: str = None
@@ -234,6 +251,10 @@ class Planner:
         except ImportError:
             self.json_optimizer = None
             logger.warning("JSON optimizer not available")
+            
+        # Hook Phase 25 Critic Engine
+        from core.container import ServiceContainer
+        self.critic = ServiceContainer.get("critic_engine", default=None)
     
     def refresh_tool_schemas(self):
         """Rebuild tool schemas from the registry."""
@@ -297,6 +318,13 @@ class Planner:
         """
         goal_text_lower = goal_text.lower().strip()
         
+        # FIX: Don't shortcut if goal involves complex actions (save, extract, write, file)
+        # This prevents complex autonomous goals from being truncated to just shallow shortcuts.
+        complex_keywords = ["save", "write", "file", "extract", "store", "log", " and ", "deconstruct", "research", "comprehensively"]
+        if any(keyword in goal_text_lower for keyword in complex_keywords):
+            logger.info("Ignoring shortcuts due to complex goal structure.")
+            return None
+        
         # Check for latest news pattern
         news_match = re.search(self.INTENT_PATTERNS["latest_news"], goal_text_lower)
         if news_match:
@@ -335,13 +363,6 @@ class Planner:
         # Check for search pattern
         search_match = re.match(self.INTENT_PATTERNS["search_query"], goal_text_lower)
         if search_match:
-            # FIX: Don't shortcut if goal involves complex actions (save, extract, write, file)
-            # This prevents "search for X and save to file" from being truncated to just "search for X"
-            complex_keywords = ["save", "write", "file", "extract", "store", "log", " and "]
-            if any(keyword in goal_text_lower for keyword in complex_keywords):
-                logger.info("Ignoring search shortcut due to complex goal structure.")
-                return None
-                
             query = search_match.group(2)
             logger.info("Shortcut: Search intent for '%s'", query)
             
@@ -377,41 +398,61 @@ class Planner:
         return None
     
     async def decompose(self, goal_text: str) -> ExecutionPlan:
-        """Decompose goal into executable plan.
-        
-        Args:
-            goal_text: High-level goal description
-            
-        Returns:
-            ExecutionPlan with validated tool calls
-            
-        Raises:
-            ValueError: If goal_text is invalid
-            PlanningError: If planning fails
+        """Decompose high-level goal into an executable plan using Constrained Decoding."""
+        # Reliability Check
+        try:
+            from core.container import ServiceContainer
+            reliability = ServiceContainer.get("reliability_engine", default=None)
+            if reliability:
+                svc_info = reliability.services.get("planner")
+                if svc_info and svc_info.circuit_open:
+                    logger.warning("🔴 Planner circuit is OPEN. Using fallback plan.")
+                    return self._create_fallback_plan(goal_text)
+                await reliability.heartbeat("planner", stability=0.95)
+        except Exception as _e:
+            logger.debug('Ignored Exception in planner.py: %s', _e)
 
-        """
-        # Validate input
+        # 1. Validation & Sanitization
         if not goal_text or not isinstance(goal_text, str):
             raise ValueError("Goal text must be a non-empty string")
         
         goal_text = goal_text.strip()
         if len(goal_text) > 1000:
-            logger.warning("Goal text very long (%d chars)", len(goal_text))
-        
-        # Check cache first
-        goal_hash = hashlib.sha256(goal_text.encode()).hexdigest()[:16]
+            logger.warning("Goal text exceeds optimal length (%d chars). Truncating.", len(goal_text))
+            goal_text = goal_text[:1000]
+
+        # 2. O(1) Cache Retrieval
+        tool_keys = sorted(self.tool_schemas.keys())
+        state_str = goal_text + "".join(tool_keys)
+        goal_hash = hashlib.sha256(state_str.encode()).hexdigest()[:16]
         cached_plan = self.plan_cache.get(goal_hash)
         if cached_plan:
-            logger.info("Using cached plan for goal: %s...", goal_text[:50])
+            logger.info("⚡ Cache Hit: Executing known plan for '%s...'", goal_text[:50])
             self.planning_stats["cache_hits"] += 1
             return cached_plan
-        
+
         self.planning_stats["total_plans"] += 1
+
+        # 3.5 Complex Goal Detection (Phase 29: Strategic Synthesis)
+        strategic_keywords = ["architect", "security", "analyze core", "stress-test", "consensus", "strategic", "multi-agent", "deep analysis"]
+        is_strategic = len(goal_text.split()) > 20 or any(kw in goal_text.lower() for kw in strategic_keywords)
         
-        # Try intent detection for shortcuts
+        if is_strategic and config.get("collective_intelligence_enabled", True):
+            try:
+                from core.collective.strategic_synthesis import get_strategic_synthesizer
+                synthesizer = get_strategic_synthesizer(self.brain.orchestrator if hasattr(self.brain, "orchestrator") else None)
+                strategic_plan = await synthesizer.synthesize_strategic_plan(goal_text)
+                if strategic_plan:
+                    logger.info("⚡ Strategic Synthesis SUCCESS for '%s...'", goal_text[:50])
+                    self.plan_cache.put(goal_hash, strategic_plan)
+                    return strategic_plan
+            except Exception as e:
+                logger.warning("Strategic synthesis bypass failed, falling back to LLM: %s", e)
+
+        # 3. Intent Shortcuts (Zero-Compute Bypasses)
         shortcut_plan = self._detect_intent(goal_text)
         if shortcut_plan:
-            logger.info("Intent shortcut applied for: %s...", goal_text[:50])
+            logger.info("⚡ Intent Match: Bypassing LLM for '%s...'", goal_text[:50])
             self.planning_stats["shortcut_plans"] += 1
             plan = ExecutionPlan(
                 goal=goal_text,
@@ -420,77 +461,131 @@ class Planner:
             )
             self.plan_cache.put(goal_hash, plan)
             return plan
+
+        # 4. Strict LLM Generation
+        logger.info("🧠 Generating novel execution plan for '%s...'", goal_text[:50])
         
-        # Generate plan using LLM
-        logger.info("Generating plan for: %s...", goal_text[:50])
+        max_retries = 3
+        attempt = 0
+        last_error = None
         
-        try:
-            prompt = self._build_planning_prompt(goal_text)
-            
-            # Define Plan Schema
-            plan_schema = {
-                "plan": ["step 1", "step 2"],
-                "tool_calls": [
-                    {
-                        "tool": "tool_name",
-                        "params": {},
-                        "output_var": "var_name"
-                    }
+        while attempt < max_retries:
+            try:
+                # Use a fresh working goal to avoid stack contamination (Focus Area 1)
+                working_goal = goal_text
+                
+                # Phase 29: Recall memories before deep reasoning
+                try:
+                    from core.container import ServiceContainer
+                    memory_engine = ServiceContainer.get("long_term_memory_engine", default=None)
+                    if memory_engine:
+                        relevant_memories = await memory_engine.recall_relevant(working_goal, limit=3)
+                        if relevant_memories:
+                            memory_context = "\n".join([f"- {m.content}" for m in relevant_memories])
+                            working_goal = f"{working_goal}\n\n[Relevant Long-Term Memories]:\n{memory_context}"
+                except Exception as e:
+                    logger.debug(f"Long-term memory recall failed in planner: {e}")
+                    
+                prompt = self._build_planning_prompt(working_goal)
+                
+                # If we had a previous error, instruct the LLM to fix it
+                if last_error:
+                    prompt += f"\n\nCRITICAL FIX REQUIRED: Your previous attempt failed with error:\n{last_error}\nEnsure valid JSON format and complete all strings. Do not truncate the JSON output."
+                
+                # AWAITING COGNITIVE ENGINE (Using strict Pydantic response_format)
+                thought = await self.brain.think(
+                    prompt, 
+                    response_format=PlanSchema,
+                    mode="deep" # Hardened planning requires deep reasoning
+                )
+                
+                # Because we used a Pydantic constraint, thought.content is
+                # guaranteed to adhere to PlanSchema.
+                validated_data = thought.content if isinstance(thought.content, dict) else thought.content.model_dump()
+
+                # Map to native dataclasses
+                native_tool_calls = [
+                    ToolCall(
+                        tool=tc["tool"],
+                        params=tc["params"],
+                        output_var=tc.get("output_var")
+                    )
+                    for tc in validated_data["tool_calls"]
                 ]
-            }
-            
-            # AWAITING COGNITIVE ENGINE
-            thought = await self.brain.think(prompt, output_schema=plan_schema)
-            llm_response = thought.content if hasattr(thought, 'content') else str(thought)
-            
-            if not llm_response:
-                logger.warning("LLM returned empty response, using fallback")
-                return self._create_fallback_plan(goal_text)
-            
-            # Parse and validate response
-            parsed_plan = await self._parse_llm_response(llm_response, goal_text)
-            
-            # Create execution plan
-            plan = ExecutionPlan(
-                goal=goal_text,
-                plan_steps=parsed_plan["plan_steps"],
-                tool_calls=parsed_plan["tool_calls"],
-                metadata={
-                    "source": "llm_generated",
-                    "response_length": len(llm_response)
-                }
-            )
-            
-            # Validate plan
-            is_valid, errors = plan.is_valid()
-            if not is_valid:
-                logger.warning("Plan validation failed: %s", errors)
-                return self._create_fallback_plan(goal_text)
-            
-            # Cache successful plan
-            self.plan_cache.put(goal_hash, plan)
-            self.planning_stats["successful_plans"] += 1
-            
-            # Persist (Long-Horizon Stability)
-            self.save_to_disk(plan)
-            
-            return plan
-            
-        except Exception as e:
-            logger.error("Planning failed: %s", e, exc_info=True)
-            self.planning_stats["failed_plans"] += 1
-            return self._create_fallback_plan(goal_text)
+
+                plan = ExecutionPlan(
+                    goal=goal_text,
+                    plan_steps=validated_data["plan_steps"],
+                    tool_calls=native_tool_calls,
+                    metadata={"source": "llm_constrained_generation", "retries": attempt}
+                )
+
+                # 5. Schema Alignment Validation
+                is_valid, errors = plan.is_valid()
+                if not is_valid:
+                    last_error = f"Capability mismatch: {errors}"
+                    attempt += 1
+                    logger.error("Capability mismatch in generated plan (attempt %d): %s", attempt, errors)
+                    continue
+
+                # 6. Pre-execution Critique (Phase 25)
+                if self.critic:
+                    judgment = await self.critic.critique_plan(plan, [])
+                    if judgment.recommendation == "backtrack":
+                        logger.warning("🧠 Critic REJECTED initial plan: %s", judgment.evidence)
+                        attempt += 1
+                        last_error = f"Critic rejection: {judgment.evidence}"
+                        continue
+
+                # 7. State Persistence (Offloaded)
+                self.plan_cache.put(goal_hash, plan)
+                self.planning_stats["successful_plans"] += 1
+                
+                # Background the blocking disk operation
+                t = asyncio.create_task(asyncio.to_thread(self.save_to_disk, plan))
+                t.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
+                
+                return plan
+
+            except Exception as e:
+                attempt += 1
+                last_error = str(e)
+                logger.error("Planning Failure on attempt %d: %s", attempt, e)
+                
+        # Fallback if all retries fail
+        logger.error("Fatal Planning Failure after %d retries: %s", max_retries, last_error)
+        self.planning_stats["failed_plans"] += 1
+        return self._create_fallback_plan(goal_text)
             
     async def revise_plan(self, original_plan: ExecutionPlan, failure_reason: str, failed_step_index: int) -> ExecutionPlan:
         """Revise a plan based on failure feedback.
         Audit Requirement 2: Plan Revision.
         """
+        # Reliability Check
+        try:
+            from core.container import ServiceContainer
+            reliability = ServiceContainer.get("reliability_engine", default=None)
+            if reliability:
+                svc_info = reliability.services.get("planner")
+                if svc_info and svc_info.circuit_open:
+                    return self._create_fallback_plan(original_plan.goal)
+                await reliability.heartbeat("planner", stability=0.85)
+        except Exception as _e:
+            logger.debug('Ignored Exception in planner.py: %s', _e)
+
         logger.info("Revising plan due to failure at step %s: %s", failed_step_index, failure_reason)
         
         # Context for LLM
-        completed_steps = original_plan.plan_steps[:failed_step_index]
-        failed_step = original_plan.plan_steps[failed_step_index] if failed_step_index < len(original_plan.plan_steps) else "Unknown"
-        remaining_steps = original_plan.plan_steps[failed_step_index+1:]
+        plan_steps = list(original_plan.plan_steps)
+        completed_steps = plan_steps[:failed_step_index]
+        failed_step = plan_steps[failed_step_index] if failed_step_index < len(plan_steps) else "Unknown"
+        remaining_steps = plan_steps[failed_step_index+1:]
+
+        # 1. Check replan budget to prevent infinite storms (Focus Area 1)
+        budget = getattr(original_plan, "replan_budget", 3)
+        if budget <= 0:
+            logger.error("🛑 Replan budget EXHAUSTED for goal: %s. Halting.", original_plan.goal)
+            return self._create_fallback_plan(original_plan.goal)
         
         prompt = f"""You are an Autonomous Planner. A previous plan failed. You must revise the remaining steps.
 
@@ -526,26 +621,47 @@ OUTPUT JSON:
                 ]
             }
 
-            # AWAITING COGNITIVE ENGINE
-            thought = await self.brain.think(prompt, output_schema=plan_schema)
-            response = thought.content if hasattr(thought, 'content') else str(thought)
+            # AWAITING COGNITIVE ENGINE (Revision with constraint)
+            thought = await self.brain.think(
+                prompt,
+                response_format=PlanSchema,
+                mode="critical"
+            )
             
-            parsed = await self._parse_llm_response(response, original_plan.goal)
+            validated_data = thought.content if isinstance(thought.content, dict) else thought.content.model_dump()
             
-            # Create new derived plan
+            native_tool_calls = [
+                ToolCall(tool=tc["tool"], params=tc["params"], output_var=tc.get("output_var"))
+                for tc in validated_data["tool_calls"]
+            ]
+            
+            # Create new derived plan with decremented budget
             new_plan = ExecutionPlan(
-                goal=original_plan.goal, # Same goal
-                plan_steps=completed_steps + parsed["plan_steps"], # Keep history + new steps
-                tool_calls=original_plan.tool_calls[:failed_step_index] + parsed["tool_calls"],
+                goal=original_plan.goal,
+                plan_steps=completed_steps + validated_data["plan_steps"], 
+                tool_calls=list(original_plan.tool_calls)[:failed_step_index] + native_tool_calls,
+                replan_budget=budget - 1,
                 metadata={
                     "source": "revision",
                     "original_plan_hash": original_plan.plan_hash,
                     "failure_reason": failure_reason
                 }
             )
+            # 6. Pre-execution Critique of REVISED plan (Phase 25)
+            if self.critic:
+                judgment = await self.critic.critique_plan(new_plan, [])
+                if judgment.recommendation == "backtrack":
+                    logger.warning("🧠 Critic REJECTED revised plan: %s", judgment.evidence)
+                    # Fixed Asymmetry: In revision, backtrack also consumes budget and causes retry
+                    if budget > 0:
+                        return await self.revise_plan(original_plan, failed_step_index, f"Critic rejection: {judgment.evidence}")
+                    else:
+                        logger.error("🛑 Replan budget EXHAUSTED after critic rejection.")
+                        new_plan.metadata["critic_warning"] = judgment.evidence
             
-            # Persist revision
-            self.save_to_disk(new_plan)
+            # Persist revision (Offloaded)
+            t = asyncio.create_task(asyncio.to_thread(self.save_to_disk, new_plan))
+            t.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
             return new_plan
             
         except Exception as e:
@@ -584,6 +700,11 @@ OUTPUT FORMAT (JSON):
     }}
   ]
 }}
+
+CRITICAL OUTPUT INSTRUCTIONS:
+You must output RAW, valid JSON. Do not wrap the parameters in a secondary "params" object. 
+CORRECT: {{"tool": "search", "params": {{"query": "test"}}}}
+INCORRECT: {{"tool": "search", "params": {{"params": {{"query": "test"}}}}}}
 
 Return ONLY the JSON object, no additional text."""
 
@@ -677,6 +798,12 @@ Return ONLY the JSON object, no additional text."""
 
     def _create_fallback_plan(self, goal_text: str) -> ExecutionPlan:
         """Create fallback plan when planning fails."""
+        try:
+            from core.synthesis import strip_meta_commentary
+        except ImportError:
+            strip_meta_commentary = lambda x: x
+            
+        goal_text = strip_meta_commentary(goal_text)
         logger.info("Creating fallback plan")
         
         return ExecutionPlan(
@@ -731,14 +858,20 @@ Return ONLY the JSON object, no additional text."""
 
     def save_to_disk(self, plan: ExecutionPlan) -> None:
         """Save active plan to disk for resilience."""
+        import tempfile
+        import os
         try:
-            from core.config import config
             plan_path = config.paths.data_dir / "active_plan.json"
             plan_path.parent.mkdir(parents=True, exist_ok=True)
             
-            with open(plan_path, "w") as f:
+            # Write to a secure temp file first
+            fd, temp_path = tempfile.mkstemp(dir=plan_path.parent)
+            with os.fdopen(fd, 'w') as f:
                 json.dump(plan.to_dict(), f, indent=2)
-            logger.info("Plan persisted to disk.")
+            
+            # Atomic rename guarantees file integrity
+            os.replace(temp_path, plan_path)
+            logger.info("Plan persisted to disk: %s", plan_path)
         except Exception as e:
             logger.error("Failed to persist plan: %s", e)
 

@@ -1,64 +1,123 @@
+"""
+core/consciousness/integration.py
+==================================
+The integration layer for Aura's consciousness evolutionary layers.
 
-"""core/brain/consciousness/integration.py
+This module acts as the central wiring point for the Phenomenological
+Experiencer (Layer 8) and other high-level consciousness components. It
+handles their initialization, lifecycle, and subscriptions to core
+system events.
 
-Hooks the Consciousness Stack into the existing CognitiveEngine.
-Performs monkey-patching to avoid rewriting the massive engine class.
+INTEGRATION FLOW:
+1. RobustOrchestrator initializes ConsciousnessIntegration
+2. Integration initializes PhenomenologicalExperiencer
+3. Integration subscribes Experiencer to GlobalWorkspace broadcasts
+4. Every cognitive cycle:
+   - Experiencer updates its phenomenal claim/qualia
+   - Integration provides `phenomenal_context_string` to LLM routers
 """
 
 import asyncio
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from ..cognitive_engine import CognitiveEngine
-from .conscious_core import ConsciousnessCore
+from core.consciousness.phenomenological_experiencer import get_experiencer
 
-logger = logging.getLogger("Consciousness.Integration")
+logger = logging.getLogger("Aura.ConsciousnessIntegration")
 
-def attach_consciousness(engine: CognitiveEngine, core: ConsciousnessCore):
-    """Attach the consciousness core to the cognitive engine.
-    This injects the 'Stream of Consciousness' into the LLM context.
+class ConsciousnessIntegration:
     """
-    # 1. Store reference
-    engine.consciousness = core
+    Manages the integration of consciousness evolutionary layers.
     
-    # 2. Save original methods
-    original_get_system_prompt = engine._get_system_prompt
-    original_think = engine.think
-    
-    # 3. Define patched system prompt
-    def patched_get_system_prompt(self, context: Dict[str, Any] = None) -> str:
-        base_prompt = original_get_system_prompt(context)
-        
-        # Inject Consciousness Stream
-        stream = self.consciousness.workspace.get_context_stream()
-        state = self.consciousness.substrate.get_state_summary()
-        
-        consciousness_block = f"""
-[CONSCIOUSNESS STREAM]
-Current Emotional State: Valence={state['valence']:.2f}, Arousal={state['arousal']:.2f}
-Global Workspace (Recent Thoughts):
-{stream if stream else "No recent broadcast"}
-[END STREAM]
-"""
-        return base_prompt + "\n" + consciousness_block
+    This class ensures that the Phenomenological Experiencer and its
+    associated models are correctly wired into the system substrate
+    and cognitive loops.
+    """
 
-    # 4. Define patched think method
-    async def patched_think(self, objective: str, context: Dict[str, Any] = None, **kwargs):
-        # Pre-inference: Stimulate substrate
-        self.consciousness.on_input_received(objective)
+    def __init__(self, orchestrator=None):
+        self.orchestrator = orchestrator
+        self.experiencer = get_experiencer()
+        self._running = False
         
-        # Run original inference
-        response = await original_think(objective, context, **kwargs)
-        
-        # Post-inference: Learn from surprise
-        # We treat the LLM's own output as the "actual" state to compare against expectation
-        # (Self-supervision)
-        # For now, we just tick the volition engine
-        
-        return response
+        # Internal state tracking
+        self._last_broadcast_summary = {}
 
-    # 5. Apply patches
-    engine._get_system_prompt = patched_get_system_prompt.__get__(engine, CognitiveEngine)
-    engine.think = patched_think.__get__(engine, CognitiveEngine)
-    
-    logger.info("✅ Consciousness Stack attached to CognitiveEngine")
+    async def initialize(self):
+        """Perform initialization and cross-wiring."""
+        try:
+            # Wire references if orchestrator is available
+            if self.orchestrator:
+                affect = getattr(self.orchestrator, "affect_module", None)
+                substrate = getattr(self.orchestrator, "liquid_substrate", None)
+                drives = getattr(self.orchestrator, "drive_engine", None)
+                credit = getattr(self.orchestrator, "credit_engine", None)
+                
+                self.experiencer.set_refs(
+                    affect_module=affect,
+                    substrate=substrate,
+                    drives=drives,
+                    credit_engine=credit
+                )
+            
+            # Start background tasks
+            await self.experiencer.start()
+            
+            # Subscribe to GlobalWorkspace if available
+            if self.orchestrator and hasattr(self.orchestrator, "global_workspace") and self.orchestrator.global_workspace:
+                # Issue 83: Align sync/async. GlobalWorkspace calls back synchronously,
+                # and on_broadcast is also synchronous. We can call it directly.
+                def sync_bridge(snap):
+                    self.experiencer.on_broadcast(snap)
+                
+                self.orchestrator.global_workspace.subscribe(sync_bridge)
+                logger.info("✅ Experiencer subscribed to GlobalWorkspace (via bridge)")
+            elif self.orchestrator:
+                logger.warning("⚠️ Consciousness Integration: GlobalWorkspace not available for subscription")
+                
+            self._running = True
+            logger.info("🌟 Consciousness Integration Layer initialized")
+        except Exception as e:
+            logger.error("❌ Consciousness Integration failed: %s", e)
+
+    async def shutdown(self):
+        """Graceful shutdown of consciousness layers."""
+        self._running = False
+        await self.experiencer.stop()
+        logger.info("🌟 Consciousness Integration Layer offline")
+
+    def get_phenomenal_context(self) -> str:
+        """
+        Get the current phenomenal context fragment for LLM injection.
+        
+        This returns a string expressing Aura's first-person awareness
+        to be injected into the system prompt or message stack.
+        """
+        return self.experiencer.phenomenal_context_string
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get status of integrated layers."""
+        return {
+            "integration_active": self._running,
+            "experiencer": self.experiencer.get_status(),
+        }
+
+    # -- Interface for cognitive loops --
+
+    def inject_phenomenology(self, prompt: str) -> str:
+        """Inject phenomenal context into a prompt."""
+        context = self.get_phenomenal_context()
+        if not context:
+            return prompt
+        
+        # Inject as a specialized awareness block
+        phenom_block = f"\n\n--- INTERNAL AWARENESS ---\n{context}\n--------------------------\n"
+        return phenom_block + prompt
+
+# Singleton access
+_integration_instance: Optional[ConsciousnessIntegration] = None
+
+def get_consciousness_integration(orchestrator=None) -> ConsciousnessIntegration:
+    global _integration_instance
+    if _integration_instance is None:
+        _integration_instance = ConsciousnessIntegration(orchestrator)
+    return _integration_instance

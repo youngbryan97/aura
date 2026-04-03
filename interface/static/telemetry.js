@@ -24,10 +24,20 @@ const DOM = {
 
 function connect() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    state.ws = new WebSocket(`${proto}//${location.host}/ws`);
+    // Force IPv4 for local testing to avoid ::1 resolution issues with Uvicorn
+    const hostname = location.hostname === 'localhost' ? '127.0.0.1' : location.hostname;
+    const port = location.port ? ':' + location.port : '';
+    state.ws = new WebSocket(`${proto}//${hostname}${port}/ws`);
+
+    // Application-layer heartbeat to prevent silent disconnects
+    if (state.pingInterval) clearInterval(state.pingInterval);
+    state.pingInterval = setInterval(() => {
+        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+            state.ws.send(JSON.stringify({ type: 'ping' }));
+        }
+    }, 25000);
 
     state.ws.onopen = () => {
-        state.connected = true;
         logToFeed("SYSTEM", "WebSocket connection established.", "info");
         if (!state.beliefGraphInit) initBeliefGraph();
     };
@@ -36,14 +46,16 @@ function connect() {
         try {
             const data = JSON.parse(e.data);
             handleWsEvent(data);
-        } catch (err) { }
+        } catch (err) {}
     };
 
     state.ws.onclose = () => {
-        state.connected = false;
-        logToFeed("SYSTEM", "Connection lost. Retrying...", "error");
+        if (state.pingInterval) clearInterval(state.pingInterval);
+        logToFeed("SYSTEM", "WebSocket disconnected. Reconnecting in 3s...", "error");
         setTimeout(connect, 3000);
     };
+
+    state.ws.onerror = () => {};
 }
 
 function triggerVoiceOrb(state) {

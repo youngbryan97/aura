@@ -1,3 +1,5 @@
+################################################################################
+
 """
 tests/test_resilience.py
 ────────────────────────
@@ -75,3 +77,6 @@ async def test_resilient_decorator():
     # Should fail after retries (raises RetryExhausted)
     with pytest.raises(RetryExhausted):
         await unstable_api(False)
+
+
+##

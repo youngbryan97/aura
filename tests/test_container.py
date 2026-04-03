@@ -1,8 +1,16 @@
+################################################################################
+
 """
 Unit tests for core.container.ServiceContainer.
 """
 import pytest
 from core.container import ServiceContainer, ServiceLifetime
+
+@pytest.fixture
+def clean_container():
+    """Provides a fresh container for each test."""
+    ServiceContainer.clear()
+    return ServiceContainer
 
 
 class TestServiceRegistration:
@@ -36,9 +44,16 @@ class TestServiceRegistration:
         clean_container.register_instance("preset", obj)
         assert clean_container.get("preset") is obj
 
+    def test_register_normalizes_legacy_instance_input(self, clean_container):
+        """Legacy callers that pass an instance to register() should still resolve cleanly."""
+        obj = object()
+        clean_container.register("legacy", obj)
+        assert clean_container.get("legacy") is obj
+
     def test_get_missing_service_raises(self, clean_container):
-        """Accessing an unregistered service raises KeyError."""
-        with pytest.raises(KeyError, match="not found"):
+        """Accessing an unregistered service raises ServiceNotFoundError."""
+        from core.exceptions import ServiceNotFoundError
+        with pytest.raises(ServiceNotFoundError, match="not found"):
             clean_container.get("nonexistent")
 
     def test_get_missing_with_default(self, clean_container):
@@ -49,10 +64,11 @@ class TestServiceRegistration:
 
 class TestCircularDependency:
     def test_circular_dependency_detected(self, clean_container):
-        """Circular dependencies raise RuntimeError."""
+        """Circular dependencies raise CircularDependencyError."""
+        from core.exceptions import CircularDependencyError
         clean_container.register("a", lambda b: None, dependencies=["b"])
         clean_container.register("b", lambda a: None, dependencies=["a"])
-        with pytest.raises(RuntimeError, match="Circular dependency"):
+        with pytest.raises(CircularDependencyError, match="Circular dependency"):
             clean_container.get("a")
 
 
@@ -78,3 +94,21 @@ class TestValidation:
         report = clean_container.get_health_report()
         assert "test" in report["services"]
         assert report["services"]["test"]["status"] == "online"
+
+    def test_health_report_marks_invalid_sovereignty_seal_degraded(self, clean_container, tmp_path, monkeypatch):
+        """Seal drift should surface in the health report."""
+        seal_path = tmp_path / "sovereignty_seal.json"
+        monkeypatch.setattr(ServiceContainer, "_seal_path", classmethod(lambda cls: seal_path))
+
+        clean_container.register_instance("alpha", object())
+        clean_container.write_sovereignty_seal()
+        clean_container.register_instance("beta", object())
+
+        report = clean_container.get_health_report()
+
+        assert report["status"] == "degraded"
+        assert report["sovereignty_seal"]["present"] is True
+        assert report["sovereignty_seal"]["valid"] is False
+
+
+##

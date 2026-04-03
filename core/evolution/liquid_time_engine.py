@@ -19,6 +19,8 @@ from pathlib import Path
 
 import numpy as np
 
+MAX_SLEEP_WAKE_DT_S = 300.0
+
 
 class ContinuousState:
     """Continuous-Time Recurrent Engine.
@@ -77,8 +79,16 @@ class ContinuousState:
         """Inject stimuli and update network via forward Euler method."""
         async with self._lock:
             current_time = time.time()
-            dt = current_time - self.last_update
+            raw_dt = current_time - self.last_update
+            dt = max(0.0, min(raw_dt, MAX_SLEEP_WAKE_DT_S))
             self.last_update = current_time
+
+            if raw_dt > MAX_SLEEP_WAKE_DT_S:
+                logger.info(
+                    "LiquidState: clamped oversized wall-clock delta from %.1fs to %.1fs",
+                    raw_dt,
+                    dt,
+                )
 
             for name, node in self.nodes.items():
                 # Apply continuous time decay (differential equation)

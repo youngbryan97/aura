@@ -169,7 +169,7 @@ Return as JSON as before:
                         conn=conn
                     )
             
-            feed = ServiceContainer.get("neural_feed")
+            feed = ServiceContainer.get("neural_feed", default=None)
             if feed:
                 feed.push(f"REFLECTION_LOOP: Replanned project '{project.name}' after failure: {reason}", category="STRATEGY")
             

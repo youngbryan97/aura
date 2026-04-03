@@ -1,0 +1,19 @@
+[package]
+name = "aura-m1-ext"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "aura_m1_ext"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+ndarray = "0.15"
+# bumpalo is used for the slab allocator to eliminate GC pressure
+bumpalo = "3.16"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

@@ -229,6 +229,7 @@ class SemanticMemory:
             return
 
         try:
+            from core.brain.cognitive_engine import ThinkingMode
             text_to_summarize = "\n".join(
                 f"{m['role'].upper()}: {m['content']}" for m in history[-10:]
             )
@@ -236,12 +237,19 @@ class SemanticMemory:
                 "Summarize key facts (under 30 words).\n"
                 f"CONVERSATION:\n{text_to_summarize}\n\nSUMMARY:"
             )
-            summary_thought = await cognitive_engine.think(prompt, mode="fast")
-            summary = (
-                summary_thought.content
-                if hasattr(summary_thought, "content")
-                else str(summary_thought)
+            summary_thought = await cognitive_engine.think(
+                prompt,
+                mode=ThinkingMode.FAST,
+                origin="semantic_memory_consolidation",
+                is_background=True,
             )
+            # Phase 34 FIX: Handle both dict and object returns
+            if hasattr(summary_thought, "content"):
+                summary = summary_thought.content
+            elif isinstance(summary_thought, dict):
+                summary = summary_thought.get("content", str(summary_thought))
+            else:
+                summary = str(summary_thought)
             if summary and "CONVERSATION:" not in summary:
                 logger.info("Consolidating Memory: %s", summary[:80])
                 self.add_memory(summary, context_tags={"source": "consolidation"})

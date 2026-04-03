@@ -50,3 +50,7 @@ class HealthMonitor:
             "last_error": self.last_error,
             "uptime_seconds": round(self.uptime, 2)
         }
+
+    def get_status(self) -> dict:
+        """Alias for standardized system reporting."""
+        return self.get_status_report()

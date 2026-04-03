@@ -1,4 +1,3 @@
-# core/fail_controller.py
 import logging
 import time
 from collections import defaultdict

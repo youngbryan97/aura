@@ -142,4 +142,5 @@ class DataEngine:
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                import logging
+                logger.debug("Exception caught during execution", exc_info=True)

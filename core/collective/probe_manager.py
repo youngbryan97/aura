@@ -7,6 +7,7 @@ import logging
 import os
 import signal
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -19,7 +20,7 @@ class ProbeManager:
 
     def __init__(self, orchestrator):
         self.orchestrator = orchestrator
-        self.probes: Dict[str, subprocess.Popen] = {}
+        self.probes: Dict[str, asyncio.subprocess.Process] = {}
         self.probe_metadata: Dict[str, Dict[str, Any]] = {}
 
     async def deploy_probe(self, probe_id: str, target: str, type: str = "file", duration: int = 3600) -> bool:
@@ -53,17 +54,16 @@ try:
 except Exception as e:
     print(f"ghost_error:{{e}}")
 """
-        probe_path = Path(f"/tmp/aura_probe_{probe_id}.py")
+        probe_path = Path(tempfile.gettempdir()) / f"aura_probe_{probe_id}.py"
         probe_path.write_text(probe_script)
         
         try:
-            # Spawn in background
-            process = subprocess.Popen(
-                ["python3", str(probe_path)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                preexec_fn=os.setsid
+            # Spawn in background with asyncio
+            process = await asyncio.create_subprocess_exec(
+                "python3", str(probe_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                start_new_session=True
             )
             
             self.probes[probe_id] = process
@@ -89,11 +89,11 @@ except Exception as e:
         process = self.probes.get(probe_id)
         if not process: return
 
-        while process.poll() is None:
-            line = await asyncio.to_thread(process.stdout.readline)
-            if not line: break
+        while process.returncode is None:
+            line_bytes = await process.stdout.readline()
+            if not line_bytes: break
             
-            line = line.strip()
+            line = line_bytes.decode().strip()
             if line.startswith("ghost_update:"):
                 update = line.split(":", 2)[1:]
                 self.orchestrator.enqueue_message(f"Impulse [GHOST:{probe_id}]: {update}")
@@ -110,7 +110,8 @@ except Exception as e:
             proc = self.probes.pop(probe_id)
             try:
                 os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-            except: pass
+            except Exception as e:
+                logger.debug("Failed to kill probe process group %d: %s", proc.pid, e)
             
             meta = self.probe_metadata.pop(probe_id, {})
             path = meta.get("path")
