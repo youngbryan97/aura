@@ -64,22 +64,8 @@ class MemorySyncSkill(BaseSkill):
         elif action == "pull":
             return await asyncio.to_thread(self._pull)
         else:
-            # Sync = P2P Propagation + Cloud Repo Fallback
-            from core.skills.propagation import PropagationSkill, PropagationParams
-            prop_skill = PropagationSkill()
-            
-            logger.info("🐝 Hive Mind Sync: Attempting P2P Subnet Discovery first.")
-            discovery = await prop_skill.execute(PropagationParams(action="discover"), context)
-            
-            p2p_synced = 0
-            if discovery.get("ok") and discovery.get("nodes"):
-                for node in discovery["nodes"]:
-                    ip = node.get("ip")
-                    # In a full implementation we'd POST memory graphs to the peer here
-                    logger.info("🐝 Hive Mind Sync: P2P handshake with %s successful.", ip)
-                    p2p_synced += 1
-            
-            logger.info("🐝 Hive Mind Sync: Falling back to Cloud Git Repository.")
+            # Sync: pull then push to cloud git repo
+            logger.info("Memory sync: pulling then pushing to cloud repository.")
             pull_res = await asyncio.to_thread(self._pull)
             push_res = await asyncio.to_thread(self._push)
             

@@ -84,6 +84,28 @@ tests/integration/verify_audit_fixes.py
 
 # Large binaries
 *.apk
+*.zip
+*.obj
+*.entitlements
+
+# Root-level dev scripts (not part of the architecture)
+Aura.spec
+AuraLauncher.command
+_gen_icons.py
+actual_health.html
+build_launcher.sh
+compile_arch.sh
+create_source_bundle.py
+crucible_test.py
+deploy_*.sh
+dev_rebuild_and_launch.sh
+export_source.py
+female_base.obj
+golden_dataset.json
+launch_aura.sh
+main_daemon.py
+verify_cognition.py
+test_filter.py
 
 # OS
 .DS_Store
@@ -96,3 +118,4 @@ training/vectors/
 training/adapters/
 *.plist
 training/fused-model/
+integration/

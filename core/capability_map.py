@@ -196,9 +196,7 @@ class CapabilityMap:
                     "browser_navigate": ["browser", "navigate", "web", "browser_action"],
                     "file_operations": ["file", "read", "write", "file_operation"],
                     "self_modify": ["coding", "self_modification", "self_improvement", "self_evolution"],
-                    "privacy_toggle": ["stealth_ops", "stealth", "privacy"],
                     "chat_window": ["native_chat", "chat", "external_chat"],
-                    "device_discovery": ["network_ops", "network_recon", "device_discovery"],
                     "device_connect": ["network_ops", "uplink_local", "inter_agent_comm"],
                     "browser_interactive": ["browser_action", "phantom_browser"],
                 }

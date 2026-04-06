@@ -1,6 +1,0 @@
-# Sovereign Voice Mode Dependencies
-# All run locally — zero external API calls
-faster-whisper>=1.0.0
-piper-tts>=1.2.0
-silero-vad>=5.1
-soundfile>=0.12.0

@@ -148,7 +148,7 @@ SAFE_TOOLS = {
 # Tool names that require identity assertion before execution
 IDENTITY_SENSITIVE_TOOLS = {
     "self_evolution", "self_repair", "self_improvement",
-    "propagation", "auto_refactor", "train_self",
+    "auto_refactor", "train_self",
 }
 
 

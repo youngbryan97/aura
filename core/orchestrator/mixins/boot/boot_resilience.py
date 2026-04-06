@@ -53,7 +53,7 @@ class BootResilienceMixin:
         from collections import deque
         from core.utils.hook_manager import HookManager
         from core.orchestrator.orchestrator_types import SystemStatus
-        from core.orchestrator.privacy_stealth import get_stealth_mode
+        get_stealth_mode = lambda: False  # privacy_stealth removed
 
         now = time.time()
         self.status = SystemStatus(

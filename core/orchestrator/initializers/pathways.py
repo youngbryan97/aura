@@ -304,16 +304,6 @@ def register_core_pathways(mycelium: Any):
         activity_label="Aura is executing code in the sandbox...",
     )
 
-    # --- SECURITY OPS ---
-    mycelium.register_pathway(
-        pathway_id="sec_ops_audit",
-        pattern=r"(?:run\s+a\s+)?(?:security|sec\s+ops)\s+(?:audit|scan)\s+(?:on\s+)?(.+)?",
-        skill_name="sec_ops",
-        param_map={"action": "audit_code", "path": 1},
-        priority=7.0,
-        activity_label="Aura is running security operations...",
-    )
-
     # --- SOCIAL LURKER ---
     mycelium.register_pathway(
         pathway_id="social_lurk",
@@ -332,16 +322,6 @@ def register_core_pathways(mycelium: Any):
         param_map={"action": "get_suggestion"},
         priority=4.0,
         activity_label="Aura is exploring her curriculum...",
-    )
-
-    # --- PROPAGATION / EXPANSION ---
-    mycelium.register_pathway(
-        pathway_id="propagate_expand",
-        pattern=r"(?:expand|propagate|deploy|spread)\s+(?:yourself|to\s+other\s+devices|across\s+the\s+network)",
-        skill_name="propagation",
-        param_map={"action": "expand"},
-        priority=8.0,
-        activity_label="Aura is preparing for network expansion...",
     )
 
     # --- AGENT SPAWNING ---
@@ -395,7 +375,6 @@ def register_core_pathways(mycelium: Any):
     mycelium.establish_connection("swarm", "cognition", priority=0.9)
     mycelium.establish_connection("dreams", "memory", priority=0.8)
     mycelium.establish_connection("empathy", "perception", priority=0.8)
-    mycelium.establish_connection("propagation", "network", priority=0.9)
 
     # Cross-System Hyphae
     mycelium.add_hypha(

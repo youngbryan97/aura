@@ -258,13 +258,11 @@ class CapabilityEngine(AuraBaseModule):
             # Self-modification & evolution
             "self_repair", "self_evolution", "self_improvement", "auto_refactor",
             "train_self", "cognitive_trainer", "evolution_status",
-            # Security & analysis
-            "sec_ops", "malware_analysis", "stealth_ops",
             # OS & computer control
             "computer_use", "os_manipulation",
             # Agency & autonomy
             "curiosity", "deploy_ghost_probe", "social_lurker",
-            "delegate_shard", "inter_agent_comm", "propagation",
+            "delegate_shard", "inter_agent_comm",
             "spawn_agent", "spawn_agents_parallel",
             # Identity & personality
             "personality", "embodiment",

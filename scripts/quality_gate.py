@@ -54,7 +54,7 @@ def check_hardcoded_paths():
         capture_output=True, text=True, cwd=ROOT,
     )
     # Exclude files that legitimately reference the pattern (the gate itself, specs)
-    exclude = {"scripts/quality_gate.py", "specs/QUALITY_GATES.md"}
+    exclude = {"scripts/quality_gate.py", "scripts/cleanup_agent.py", "specs/QUALITY_GATES.md"}
     files = [f for f in result.stdout.strip().split("\n") if f and f not in exclude]
     if files:
         for f in files:

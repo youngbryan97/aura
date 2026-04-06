@@ -13,7 +13,7 @@ from core.config import config
 from core.container import ServiceContainer
 from core.orchestrator.types import SystemStatus
 from core.capability_engine import CapabilityEngine
-from core.orchestrator.privacy_stealth import get_stealth_mode
+# privacy_stealth module removed from public repo
 
 logger = logging.getLogger("Aura.BootManager")
 
@@ -56,7 +56,7 @@ class BootManager:
         
         self.orchestrator._extensions_initialized = False
         self.orchestrator.boredom = 0
-        self.orchestrator.stealth_mode = get_stealth_mode()
+        self.orchestrator.stealth_mode = False
         self.orchestrator.conversation_history = []
         self.orchestrator._thread = None
         self.orchestrator._autonomous_task = None
