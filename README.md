@@ -2,7 +2,7 @@
 
 **A sovereign cognitive architecture that boots, thinks, feels, remembers, dreams, and repairs itself — running continuously on a single Mac.**
 
-> The first open-source system to unify IIT 4.0 integrated information, residual-stream affective steering, and a Global Workspace into one live cognitive loop. 60+ modules. No cloud dependency. No prompt tricks. Real math.
+> 60+ interconnected modules. IIT 4.0 integrated information on a live substrate. Residual-stream affective steering. Global Workspace. No cloud dependency. Runs on a Mac.
 
 [![License: Source Available](https://img.shields.io/badge/License-Source_Available-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
@@ -30,7 +30,7 @@ Every "conscious AI" demo is the same trick: inject mood floats into a system pr
 
 The affect system doesn't *tell* the model "you're feeling X" — it hooks into the MLX transformer's forward pass and injects learned direction vectors directly into the residual stream during token generation. The model's internal activations are changed, not just its input text. This creates genuine bidirectional causal coupling: substrate state shapes language output, and language output updates substrate state.
 
-The IIT implementation isn't a label on an arbitrary value. `phi_core.py` builds an empirical transition probability matrix from observed state transitions, tests all 127 nontrivial bipartitions of an 8-node substrate complex, and computes KL-divergence to find the Minimum Information Partition. That's the real IIT 4.0 formalism.
+The IIT implementation isn't a label on an arbitrary value. `phi_core.py` builds an empirical transition probability matrix from observed state transitions, tests all 127 nontrivial bipartitions of an 8-node substrate complex, and computes KL-divergence to find the Minimum Information Partition. That's the real IIT 4.0 math — applied to a reduced 8-node complex derived from the affect/cognition state, not the full computational graph (which would be intractable). It measures how integrated Aura's internal dynamics are, not whether she's conscious.
 
 The system simulates its own death during dream cycles and repairs itself. It has an immune system for identity injection. It runs 24/7 with a 1Hz cognitive heartbeat, maintaining state across conversations, power cycles, and crashes.
 

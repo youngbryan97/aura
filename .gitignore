@@ -26,6 +26,19 @@ boot_log.txt
 my_debug.log
 test_out.txt
 
+# Node
+node_modules/
+
+# Development dumps (not source code)
+aura_chat_stack.txt
+aura_architecture.txt
+audit/aura_critical_source_compilation.txt
+*_subscripts.txt
+*_subscripts_raw.txt
+file_list.txt
+source_files*.txt
+source_list.txt
+
 # Python
 __pycache__/
 *.py[cod]

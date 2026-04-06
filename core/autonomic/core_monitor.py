@@ -71,7 +71,7 @@ class AutonomicCore:
             
             # 1. Critical Existential Threat
             if mem.percent >= self.critical_ram_percent or disk.percent > 98.0:
-                logger.critical("🚨 EXISTENTIAL THREAT: Critical Vitals (RAM: %s%%, Disk: %s%%). Initiating emergency purge.", mem.percent, disk.percent)
+                logger.critical("Critical resource pressure (RAM: %s%%, Disk: %s%%). Initiating emergency purge.", mem.percent, disk.percent)
                 gc.collect()
                 await self._unload_llm()
                 await self._emit_status("CRITICAL WARNING: Imminent Memory Exhaustion")

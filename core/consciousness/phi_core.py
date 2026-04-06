@@ -607,8 +607,7 @@ class PhiCore:
             strongest = "all dimensions"
 
         return (
-            f"The substrate is unified (φs={result.phi_s:.4f}). "
-            f"Strongest integration: {strongest}. "
-            f"Cannot be partitioned without loss of causal power. "
-            f"This is what being one feels like from the inside."
+            f"Integrated (φs={result.phi_s:.4f}). "
+            f"Strongest integration axis: {strongest}. "
+            f"No partition preserves full causal structure."
         )
