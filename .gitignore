@@ -73,3 +73,6 @@ interface/static/aura_avatar.png
 Thumbs.db
 benchmarks/latest_results.json
 benchmarks/long_horizon_results.json
+training/data/
+training/vectors/
+training/adapters/
