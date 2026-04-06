@@ -67,6 +67,24 @@ aura_icon.icns
 mujoco_screen.png
 interface/static/aura_avatar.png
 
+# Dev scripts with hardcoded paths
+scripts/export_*.py
+scripts/generate_export.py
+scripts/generate_high_fidelity_dataset.py
+scripts/bundle_audit.py
+scripts/aura_comprehensive_export.py
+scripts/make_audit_snapshots.py
+scripts/one_off/consolidate_stack.py
+scripts/one_off/repro_loop_monitor.py
+scripts/one_off/verify_architectural_fix.py
+compile_full_arch.sh
+tests/diag_mlx.py
+tests/integration/verify_phase_*.py
+tests/integration/verify_audit_fixes.py
+
+# Large binaries
+*.apk
+
 # OS
 .DS_Store
 .localized
