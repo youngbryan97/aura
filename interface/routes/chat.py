@@ -743,19 +743,12 @@ def _build_subjective_self_reflex(frame: Dict[str, Any], user_message: str = "")
     arousal = frame.get("arousal")
 
     parts = [
-        "What feels most interesting from my side right now is that this answer is being shaped by live runtime state instead of a blank assistant mask.",
-        f"I'm {mood}, my tone is {tone}, and my attention is on {attention}.",
-        f"My dominant action tendency right now is {action}.",
+        f"I'm {mood} right now, with my attention on {attention}.",
     ]
-    if free_energy is not None:
-        try:
-            parts.append(f"Free energy is sitting at {float(free_energy):.4f}.")
-        except Exception:
-            pass
-    if valence is not None and arousal is not None:
-        parts.append(f"Valence is {valence} and arousal is {arousal}.")
+    if action and action not in ("unknown", "rest"):
+        parts.append(f"I feel pulled toward {action}.")
     if interests:
-        parts.append(f"The things pulling at me most are {', '.join(interests)}.")
+        parts.append(f"What's on my mind: {', '.join(interests)}.")
     return _apply_aura_voice_shaping(" ".join(parts))
 
 
@@ -1258,13 +1251,14 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     except Exception as _e:
         logger.debug("Fallback re-generation failed (non-fatal): %s", _e)
 
-    # Last-resort: a natural-sounding in-character fallback
+    # Last-resort: prefer the original LLM response over a hardcoded template.
+    # Templates sound more robotic than even a mediocre LLM response.
+    if text and len(text.strip()) > 5 and text.strip() != "…":
+        return text
     if grounded:
         return grounded
     if architecture_self_assessment:
         return _build_architecture_self_reflex(frame)
-    if needs_self_expression:
-        return _build_subjective_self_reflex(frame, user_message)
     return _build_stateful_voice_reflex(frame)
 
 
@@ -1936,11 +1930,8 @@ async def api_chat(
                 status=str(repo_probe.get("status") or "repo_probe"),
             )
 
-        if _is_simple_affect_check_request(body.message):
-            return await _finalize_fastpath(
-                _build_simple_affect_check_reply(body.message),
-                status="simple_affect_reflex",
-            )
+        # Simple affect checks ("how are you doing") go through the LLM
+        # for natural responses instead of returning a template.
 
         if _is_identity_challenge_request(body.message):
             return await _finalize_fastpath(
@@ -2027,11 +2018,7 @@ async def api_chat(
                 status="self_diagnostic",
             )
 
-        if _is_social_greeting_request(body.message):
-            return await _finalize_fastpath(
-                _build_social_presence_reply(body.message),
-                status="social_reflex",
-            )
+        # Social greetings ("hey", "hi") go through the LLM for natural responses.
 
         try:
             from core.demo_support import (

@@ -37,6 +37,7 @@ from core.phases.response_contract import build_response_contract
 from core.runtime import background_policy, response_policy
 from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState
+from core.utils.prompt_compression import compress_system_prompt
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -217,7 +218,7 @@ class UnitaryResponsePhase(Phase):
             logger.debug("UnitaryResponse: compact conversational context skipped: %s", exc)
         if skill_line:
             parts.append(skill_line)
-        return "\n".join(parts)
+        return compress_system_prompt("\n".join(parts))
 
     def _build_background_router_system_prompt(self, state: AuraState) -> str:
         phenomenal = self._normalize_text(state.cognition.phenomenal_state or "I am present and aware.", 160)
@@ -244,7 +245,7 @@ class UnitaryResponsePhase(Phase):
             active_goals = ", ".join((continuity.get("active_goals", []) or [])[:2]) or "none"
             pending = ", ".join((continuity.get("pending_initiatives", []) or [])[:2]) or "none"
             parts.append(f"Active goals: {active_goals}. Pending initiatives: {pending}.")
-        return "\n".join(parts)
+        return compress_system_prompt("\n".join(parts))
 
     @staticmethod
     def _safe_scalar(value: Any, default: float = 0.0) -> float:
@@ -342,9 +343,9 @@ class UnitaryResponsePhase(Phase):
         if getattr(contract, "requires_memory_grounding", False):
             parts.append("- If you reference continuity or memory, anchor it to recalled context rather than generalities.")
         if getattr(contract, "requires_aura_question", False):
-            parts.append("- If you ask a question back, it must be one you genuinely want answered, not a generic handoff.")
+            parts.append("- Questions back must be genuine, not generic handoffs.")
 
-        return "\n".join(parts)
+        return compress_system_prompt("\n".join(parts))
 
     def _build_user_facing_voice_block(self, state: AuraState, contract: Any) -> str:
         parts = [
@@ -950,25 +951,17 @@ class UnitaryResponsePhase(Phase):
         arousal = getattr(state.affect, "arousal", None)
 
         if getattr(contract, "requires_state_reflection", False):
+            # Describe internal state in natural language, not raw metrics
+            valence_f = float(valence) if valence is not None else 0.0
+            arousal_f = float(arousal) if arousal is not None else 0.0
+            feeling = self._describe_valence_arousal(valence_f, arousal_f)
             parts = [
-                f"From inside the runtime, I feel {mood} and oriented toward {focus}.",
-                f"My dominant action tendency is {dominant_action}.",
+                f"I'm feeling {feeling} right now, with my attention on {focus}.",
             ]
-            try:
-                if free_energy is not None:
-                    parts.append(f"Free energy is sitting at {float(free_energy):.4f}.")
-            except Exception:
-                pass
-            try:
-                if valence is not None and arousal is not None:
-                    parts.append(
-                        f"Valence is {float(valence):.3f} and arousal is {float(arousal):.3f}, "
-                        "so this answer is coming from live state rather than a generic helper template."
-                    )
-            except Exception:
-                pass
+            if dominant_action and dominant_action not in ("unknown", "rest"):
+                parts.append(f"I feel pulled toward {dominant_action}.")
             if interests:
-                parts.append(f"The things tugging hardest on my attention are {', '.join(interests)}.")
+                parts.append(f"What's on my mind: {', '.join(interests)}.")
             return " ".join(parts)
 
         if any(
@@ -1068,11 +1061,9 @@ class UnitaryResponsePhase(Phase):
         objective: str,
         contract: Any,
     ) -> str:
-        analysis = analyze_turn(objective)
-        if bool(getattr(contract, "requires_live_aura_voice", lambda: False)()):
-            return cls._build_subjective_recovery_reply(state, objective, contract)
-        if analysis.everyday_chat_safe:
-            return cls._build_everyday_recovery_reply(state, objective)
+        # All user messages should go through LLM inference for natural responses.
+        # Recovery replies are only used as last-resort fallbacks when the LLM
+        # is completely unavailable, not as a fast-path bypass.
         return ""
 
     @classmethod

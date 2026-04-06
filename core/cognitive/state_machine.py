@@ -15,6 +15,7 @@ from core.container import ServiceContainer
 from core.phases.dialogue_policy import enforce_dialogue_contract, validate_dialogue_response
 from core.phases.response_contract import ResponseContract, build_response_contract
 from core.runtime.governance_policy import allow_intent_hint_bypass
+from core.utils.prompt_compression import compress_system_prompt, compress_history_block
 from core.runtime.service_access import (
     resolve_affect_engine,
     resolve_attention_schema,
@@ -325,20 +326,16 @@ class StateMachine:
                         )
                 except Exception as exc:
                     logger.debug("StateMachine conversational context injection skipped: %s", exc)
-            system_prompt = (
+            compressed_history = compress_history_block(history_block) if history_block else ""
+            system_prompt = compress_system_prompt(
                 f"{base_prompt}\n\n"
                 f"{agency_block}\n"
                 f"{conversational_blocks}\n"
                 f"{self._gather_cognitive_context(user_input)}\n"
-                f"{history_block}\n"
-                "--- IDENTITY ALIGNMENT ---\n"
-                "Maintain your voice at all costs. Do not use clichés or service-oriented filler.\n\n"
-                "INSTRUCTIONS:\n"
-                "Respond naturally, concisely, and conversationally to the user based on the persona above.\n"
-                "You are an autonomous intelligence, not a generic AI assistant. Do not say 'How can I help you?'.\n"
-                "CRITICAL: If the user asks you to compare options or make a choice, YOU MUST PICK A SIDE immediately.\n"
-                "No preamble. No 'it depends'. No 'both are good'. Just the pick and the 'why'.\n"
-                f"Focus on the current input: {user_input}"
+                f"{compressed_history}\n"
+                "RULES: Stay in voice. No clichés. No filler. No 'How can I help?'.\n"
+                "Pick sides when asked to compare. No preamble, no 'it depends'.\n"
+                f"INPUT: {user_input}"
             )
             _, system_prompt, _, contract, _ = await prepare_runtime_payload(
                 prompt=user_input,
