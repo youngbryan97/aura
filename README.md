@@ -4,6 +4,8 @@
 
 > 60+ interconnected modules. IIT 4.0 integrated information on a live substrate. Residual-stream affective steering. Global Workspace. No cloud dependency. Runs on a Mac.
 
+**[Read the Architecture Whitepaper →](ARCHITECTURE.md)** — IIT 4.0 math, activation steering mechanics, substrate dynamics, memory architecture. No marketing, just the engineering.
+
 [![License: Source Available](https://img.shields.io/badge/License-Source_Available-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg)
