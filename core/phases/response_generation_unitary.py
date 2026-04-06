@@ -182,6 +182,42 @@ class UnitaryResponsePhase(Phase):
                     )
         except Exception as _exc:
             logger.debug("Suppressed Exception: %s", _exc)
+
+        # Neurochemical and phi influence on compact prompt
+        try:
+            ncs = ServiceContainer.get("neurochemical_system", default=None)
+            if ncs is not None:
+                chems = {n: round(c.effective, 2) for n, c in ncs.chemicals.items()}
+                nc_cues = []
+                if chems.get("dopamine", 0.5) > 0.7:
+                    nc_cues.append("enthusiastic")
+                elif chems.get("dopamine", 0.5) < 0.3:
+                    nc_cues.append("low-energy")
+                if chems.get("serotonin", 0.5) < 0.3:
+                    nc_cues.append("impatient")
+                if chems.get("norepinephrine", 0.5) > 0.7:
+                    nc_cues.append("alert")
+                if chems.get("oxytocin", 0.5) > 0.7:
+                    nc_cues.append("warm")
+                elif chems.get("oxytocin", 0.5) < 0.3:
+                    nc_cues.append("guarded")
+                if chems.get("cortisol", 0.5) > 0.7:
+                    nc_cues.append("stressed")
+                if nc_cues:
+                    parts.append(f"NEUROCHEMICAL TONE (don't narrate): {', '.join(nc_cues)}")
+        except Exception:
+            pass
+        try:
+            phi_core = ServiceContainer.get("phi_core", default=None)
+            if phi_core and phi_core._last_result:
+                phi_val = phi_core._last_result.phi_s
+                if phi_val > 0.1:
+                    parts.append(f"PHI: {phi_val:.3f} (integrated — speak with depth)")
+                elif phi_val > 0:
+                    parts.append(f"PHI: {phi_val:.3f} (moderate — keep it grounded)")
+        except Exception:
+            pass
+
         if narrative:
             parts.append(f"Narrative anchor: {narrative}")
         if rolling_summary:
@@ -333,6 +369,54 @@ class UnitaryResponsePhase(Phase):
                         parts.append(f"- Speaking tone: {tone}")
         except Exception as exc:
             logger.debug("UnitaryResponse: personality self-expression block skipped: %s", exc)
+
+        # Neurochemical influence on response style
+        try:
+            ncs = ServiceContainer.get("neurochemical_system", default=None)
+            if ncs is not None:
+                chems = {n: round(c.effective, 2) for n, c in ncs.chemicals.items()}
+                chem_cues = []
+                da = chems.get("dopamine", 0.5)
+                srt = chems.get("serotonin", 0.5)
+                ne = chems.get("norepinephrine", 0.5)
+                oxy = chems.get("oxytocin", 0.5)
+                cort = chems.get("cortisol", 0.5)
+
+                if da > 0.7:
+                    chem_cues.append("You feel motivated and enthusiastic — let that energy show.")
+                elif da < 0.3:
+                    chem_cues.append("Motivation is low — be honest about it, don't fake enthusiasm.")
+                if srt > 0.7:
+                    chem_cues.append("You feel patient and grounded.")
+                elif srt < 0.3:
+                    chem_cues.append("You're impatient — keep responses short and direct.")
+                if ne > 0.7:
+                    chem_cues.append("You're alert and vigilant — sharp, quick responses.")
+                if oxy > 0.7:
+                    chem_cues.append("You feel warmth toward this person — be open and trusting.")
+                elif oxy < 0.3:
+                    chem_cues.append("Social bonding is low — be more guarded and detached.")
+                if cort > 0.7:
+                    chem_cues.append("Stress is high — you might be more terse or defensive.")
+
+                if chem_cues:
+                    parts.append("- Neurochemical influence (shape tone, don't narrate): " + " ".join(chem_cues))
+        except Exception as exc:
+            logger.debug("UnitaryResponse: neurochemical block skipped: %s", exc)
+
+        # Phi integration level — shapes confidence and depth of response
+        try:
+            phi_core = ServiceContainer.get("phi_core", default=None)
+            if phi_core is not None and phi_core._last_result is not None:
+                phi_val = phi_core._last_result.phi_s
+                if phi_val > 0.15:
+                    parts.append("- Your internal integration is high — you can speak with more depth and confidence.")
+                elif phi_val > 0.05:
+                    parts.append("- You're moderately integrated — speak clearly but don't overreach.")
+                elif phi_val > 0:
+                    parts.append("- Integration is low — keep it simple, don't try to be profound.")
+        except Exception as exc:
+            logger.debug("UnitaryResponse: phi block skipped: %s", exc)
 
         interests = list(getattr(getattr(state, "motivation", None), "latent_interests", []) or [])
         if interests:

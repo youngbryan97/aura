@@ -123,6 +123,26 @@ class AffectiveCircumplex:
         rep_range = _REP_MAX - _REP_MIN
         rep_penalty = round(_REP_MAX - valence * rep_range, 3)
 
+        # Neurochemical modulation: dopamine boosts temperature (exploration),
+        # serotonin dampens it (patience), cortisol reduces token budget (terse)
+        try:
+            from core.container import ServiceContainer
+            ncs = ServiceContainer.get("neurochemical_system", default=None)
+            if ncs is not None:
+                da = ncs.chemicals["dopamine"].effective
+                srt = ncs.chemicals["serotonin"].effective
+                cort = ncs.chemicals["cortisol"].effective
+                # Dopamine: high → more exploratory (higher temp)
+                temperature += (da - 0.5) * 0.1
+                temperature = max(_TEMP_MIN, min(_TEMP_MAX, round(temperature, 3)))
+                # Serotonin: high → more patient (slightly more tokens)
+                max_tokens = int(max_tokens + (srt - 0.5) * 50)
+                # Cortisol: high → terse (fewer tokens)
+                max_tokens = int(max_tokens - max(0, (cort - 0.5)) * 80)
+                max_tokens = max(_TOKENS_MIN, min(_TOKENS_MAX, max_tokens))
+        except Exception:
+            pass
+
         narrative = self._make_narrative(valence, arousal)
 
         result = {
