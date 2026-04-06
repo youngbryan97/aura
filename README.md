@@ -4,7 +4,7 @@
 
 > The first open-source system to unify IIT 4.0 integrated information, residual-stream affective steering, and a Global Workspace into one live cognitive loop. 60+ modules. No cloud dependency. No prompt tricks. Real math.
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![License: Source Available](https://img.shields.io/badge/License-Source_Available-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg)
 
@@ -178,4 +178,4 @@ Aura boots, loads state from SQLite, warms the local LLM, and begins her cogniti
 
 ## License
 
-[AGPL-3.0](LICENSE) — you can use, modify, and distribute this code. If you run a modified version as a service, you must share your modifications. This matches the spirit of the project: sovereign and open.
+**Source Available** — you can read, review, and learn from this code. You may not copy, redistribute, or use it in your own projects. See [LICENSE](LICENSE) for details.
