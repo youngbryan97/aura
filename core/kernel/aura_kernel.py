@@ -782,12 +782,16 @@ class AuraKernel:
         logger.debug("AuraKernel._dispatch_pending_initiatives is retired; no action taken.")
 
     async def _commit_vault(self, objective: str):
-        """Atomically persists the Monolithic state."""
+        """Persist state to vault. Non-fatal on failure — the tick still returns."""
         commit = getattr(self.vault, "commit", None)
-        if callable(commit):
+        if not callable(commit):
+            return
+        try:
             await commit(self.state, self.state.transition_cause or f"tick: {objective}")
-        else:
-            logger.debug("Vault has no commit method — skipping persistence.")
+        except (BrokenPipeError, ConnectionError, OSError) as e:
+            logger.warning("Vault commit failed (pipe/connection): %s — state not persisted this tick.", e)
+        except Exception as e:
+            logger.warning("Vault commit failed: %s — state not persisted this tick.", e)
 
     async def _process_storage_intents(self):
         """
