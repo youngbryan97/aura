@@ -72,3 +72,4 @@ interface/static/aura_avatar.png
 .localized
 Thumbs.db
 benchmarks/latest_results.json
+benchmarks/long_horizon_results.json

@@ -10,7 +10,7 @@ from enum import Enum
 import hashlib
 from core.motivation.constants import clone_motivation_budget_defaults
 
-MAX_WORKING_MEMORY: Final[int] = 80   # 64GB system — deeper conversational context
+MAX_WORKING_MEMORY: Final[int] = 40   # Tighter cap prevents context window overflow and personality drift
 MAX_PERCEPTS: Final[int] = 200        # More sensory history
 MAX_EVOLUTION_LOG: Final[int] = 1000  # Richer evolution tracking
 
@@ -718,31 +718,41 @@ class AuraState:
             "updated_at": time.time(),
         }
 
-    def compact(self, *, trigger_threshold: int = MAX_WORKING_MEMORY, keep_turns: int = 50) -> bool:
-        """Compact hot conversational state into a rolling summary when it grows too large."""
+    def compact(self, *, trigger_threshold: int = MAX_WORKING_MEMORY, keep_turns: int = 20) -> bool:
+        """Compact hot conversational state into a rolling summary.
+
+        Prevents personality drift by:
+        1. Keeping only recent turns in working memory (identity stays close to generation)
+        2. Compressing old turns into a clean narrative summary (not pipe-delimited mess)
+        3. Capping total summary length to prevent context window bloat
+        """
         working = list(getattr(self.cognition, "working_memory", []) or [])
         if len(working) <= trigger_threshold:
             self._refresh_cognitive_health()
             return False
 
+        # Split: old turns to summarize, recent turns to keep
         summary_candidates = [
             msg for msg in working[:-keep_turns]
             if not (isinstance(msg, dict) and (msg.get("metadata", {}) or {}).get("synthetic_summary"))
         ]
         recent = working[-keep_turns:]
+
+        # Build a clean summary instead of pipe-concatenating
         existing_summary = " ".join(str(getattr(self.cognition, "rolling_summary", "") or "").split())
         new_summary = self._summarize_messages(summary_candidates)
 
         if existing_summary and new_summary:
-            combined_summary = f"{existing_summary} | {new_summary}"
+            # Replace old summary with merged version, not concatenation
+            combined_summary = f"Earlier: {existing_summary[:800]} Recent: {new_summary[:800]}"
         else:
             combined_summary = existing_summary or new_summary
-        combined_summary = combined_summary[:3200]
+        combined_summary = combined_summary[:2000]
         self.cognition.rolling_summary = combined_summary
 
         summary_entry = {
             "role": "system",
-            "content": f"[ROLLING SUMMARY]\n{combined_summary}" if combined_summary else "[ROLLING SUMMARY]\nContext compacted.",
+            "content": f"[CONVERSATION CONTEXT]\n{combined_summary}" if combined_summary else "[CONVERSATION CONTEXT]\nOlder messages compacted.",
             "timestamp": time.time(),
             "metadata": {"synthetic_summary": True, "source": "state_compact"},
         }

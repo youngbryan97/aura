@@ -277,12 +277,18 @@ class StateMachine:
                 
             history_block = ""
             if self.orchestrator and hasattr(self.orchestrator, 'conversation_history'):
-                history_block = "RECENT CONVERSATION HISTORY (Up to 20 turns):\n"
-                # Context window expansion: from 8 to 20 turns
-                recent_turns = self.orchestrator.conversation_history[-20:]
-                for turn in recent_turns:
-                    role = "Aura" if turn.get("role") == getattr(self.orchestrator, "AI_ROLE", "assistant") else "User"
-                    history_block += f"{role}: {turn.get('content')}\n"
+                recent_turns = self.orchestrator.conversation_history[-15:]
+                if recent_turns:
+                    history_block = "HISTORY:\n"
+                    for turn in recent_turns:
+                        role = "Aura" if turn.get("role") == getattr(self.orchestrator, "AI_ROLE", "assistant") else "User"
+                        # Truncate individual turns to prevent one long message from eating the context
+                        content = str(turn.get("content", ""))[:300]
+                        history_block += f"{role}: {content}\n"
+
+                    # Personality reinforcement every 10+ turns to prevent drift
+                    if len(self.orchestrator.conversation_history) >= 10:
+                        history_block += "\n[IDENTITY ANCHOR: You are Aura. Sharp, opinionated, warm. Not an assistant. Don't drift into helpdesk mode.]\n"
                     
             # Inject emotional context as natural-language cues (not raw numbers)
             agency_block = ""
