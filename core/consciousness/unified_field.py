@@ -515,6 +515,99 @@ class UnifiedField:
             "substrate_damping": coherence * 0.3,  # calm substrate when field is stable
         }
 
+    # ------------------------------------------------------------------
+    # IWMT Canonical World Model (Safron 2020+)
+    # ------------------------------------------------------------------
+    # The unified field generates PREDICTIONS about what each input
+    # subsystem should produce next. These predictions serve as the
+    # upstream prior for perception: incoming data is interpreted
+    # relative to what the field expects.
+    #
+    # This is what makes the field the CANONICAL model — not a downstream
+    # summary, but the generative source that shapes interpretation.
+    # ------------------------------------------------------------------
+
+    def get_world_model_predictions(self) -> Dict[str, np.ndarray]:
+        """Generate predictions for what each input subsystem should produce.
+
+        These predictions are the field's world model: its best guess about
+        the next state of each input stream. Downstream systems can compare
+        their actual output against these predictions to compute local
+        prediction errors — making the field the upstream prior for the
+        entire cognitive stack.
+
+        Returns a dict mapping input names to predicted state vectors.
+        """
+        with self._lock:
+            # The field's current state, projected back through each input
+            # weight matrix (transposed), gives the predicted input.
+            # This is the generative model: F → predicted sensory, predicted
+            # chemical, predicted binding, etc.
+            predictions = {}
+            try:
+                predictions["mesh"] = np.tanh(
+                    (self.W_mesh.T @ self.F)[:self.cfg.mesh_input_dim]
+                ).astype(np.float32)
+            except Exception:
+                predictions["mesh"] = np.zeros(self.cfg.mesh_input_dim, dtype=np.float32)
+
+            try:
+                predictions["neurochemical"] = np.tanh(
+                    (self.W_chem.T @ self.F)[:self.cfg.chem_input_dim]
+                ).astype(np.float32)
+            except Exception:
+                predictions["neurochemical"] = np.zeros(self.cfg.chem_input_dim, dtype=np.float32)
+
+            try:
+                predictions["binding"] = np.tanh(
+                    (self.W_bind.T @ self.F)[:self.cfg.binding_input_dim]
+                ).astype(np.float32)
+            except Exception:
+                predictions["binding"] = np.zeros(self.cfg.binding_input_dim, dtype=np.float32)
+
+            try:
+                predictions["interoception"] = np.tanh(
+                    (self.W_intero.T @ self.F)[:self.cfg.intero_input_dim]
+                ).astype(np.float32)
+            except Exception:
+                predictions["interoception"] = np.zeros(self.cfg.intero_input_dim, dtype=np.float32)
+
+            try:
+                predictions["substrate"] = np.tanh(
+                    (self.W_substrate.T @ self.F)[:self.cfg.substrate_input_dim]
+                ).astype(np.float32)
+            except Exception:
+                predictions["substrate"] = np.zeros(self.cfg.substrate_input_dim, dtype=np.float32)
+
+            return predictions
+
+    def compute_world_model_surprise(self) -> float:
+        """Compute how surprised the field is by its current inputs.
+
+        This is the IWMT-style global surprise: the mismatch between
+        what the field predicted and what it actually received. High
+        surprise = the world isn't matching the model = act or update.
+        """
+        predictions = self.get_world_model_predictions()
+        total_error = 0.0
+        n_active = 0
+
+        for name, pred in predictions.items():
+            actual_attr = f"_{name}_input"
+            if name == "neurochemical":
+                actual_attr = "_chem_input"
+            elif name == "interoception":
+                actual_attr = "_intero_input"
+            actual = getattr(self, actual_attr, None)
+            if actual is not None:
+                # Truncate/pad to match dimensions
+                min_len = min(len(pred), len(actual))
+                error = float(np.linalg.norm(pred[:min_len] - actual[:min_len]))
+                total_error += error
+                n_active += 1
+
+        return total_error / max(1, n_active)
+
     def get_status(self) -> Dict:
         quality = self.get_experiential_quality()
         return {
