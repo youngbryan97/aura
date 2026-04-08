@@ -255,10 +255,22 @@ class ContextAssembler:
             ("relational_intelligence", "SOCIAL MODEL"),
             ("metacognitive_strategy", "REASONING STRATEGY"),
             ("credit_assignment", "OUTCOME AWARENESS"),
+            ("narrative_context", "AUTOBIOGRAPHICAL NARRATIVE"),
         ):
             block = str(mods.get(mod_key, "") or "").strip()
             if block:
                 personhood_blocks.append(f"## {header}\n{block}")
+        # Natural followup: structured decision about whether to ask a question
+        followup = mods.get("natural_followup")
+        if isinstance(followup, dict) and followup.get("should_followup"):
+            fu_type = followup.get("followup_type", "question")
+            fu_hint = followup.get("context_hint", "")
+            fu_reason = followup.get("reason", "")
+            personhood_blocks.append(
+                f"## CONVERSATIONAL INTENT\n"
+                f"Follow-up type: {fu_type} | Reason: {fu_reason}"
+                + (f" | Hint: {fu_hint}" if fu_hint else "")
+            )
         personhood_context = "\n\n".join(personhood_blocks) + "\n\n" if personhood_blocks else ""
 
         # 4. Somatic & World Context (Simplified if casual)

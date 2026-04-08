@@ -198,6 +198,12 @@ class NeuralMesh:
         self._sensory_buffer: Optional[np.ndarray] = None
         self._association_buffer: Optional[np.ndarray] = None
 
+        # Recurrent Processing Theory (Lamme): explicit top-down feedback
+        self._recurrent_feedback_enabled: bool = True
+        self._recurrent_feedback_strength: float = 0.8  # relative to feedforward
+        self._feedback_W: Optional[np.ndarray] = None
+        self._build_feedback_weights()
+
         # Stats
         self._mean_column_energy: float = 0.0
         self._global_synchrony: float = 0.0
@@ -246,6 +252,84 @@ class NeuralMesh:
                         strength *= 1.5
                     W[i, j] = strength
         return W
+
+    def _build_feedback_weights(self):
+        """Build the explicit top-down (exec→sensory) feedback pathway.
+
+        Lamme's RPT: consciousness arises specifically from recurrent feedback
+        from higher cortical areas back to lower sensory areas. This creates
+        an architecturally distinct pathway from feedforward processing.
+
+        The feedback matrix connects executive columns (48-63) back to sensory
+        columns (0-15) via association columns (16-47) as relay. The strength
+        is configurable and the pathway can be ablated for adversarial testing.
+        """
+        n = self.cfg.columns
+        W = np.zeros((n, n), dtype=np.float32)
+        for i in range(n):
+            tier_i = self._tier_for(i)
+            for j in range(n):
+                tier_j = self._tier_for(j)
+                # Executive → Association (feedback)
+                if tier_i == CorticalTier.EXECUTIVE and tier_j == CorticalTier.ASSOCIATION:
+                    dist = abs(i - j)
+                    prob = 0.08 * np.exp(-dist * 0.1)
+                    if self._rng.random() < prob:
+                        W[i, j] = self._rng.standard_normal() * 0.04
+                # Association → Sensory (feedback)
+                elif tier_i == CorticalTier.ASSOCIATION and tier_j == CorticalTier.SENSORY:
+                    dist = abs(i - j)
+                    prob = 0.06 * np.exp(-dist * 0.1)
+                    if self._rng.random() < prob:
+                        W[i, j] = self._rng.standard_normal() * 0.03
+                # Direct executive → Sensory (long-range feedback, sparser)
+                elif tier_i == CorticalTier.EXECUTIVE and tier_j == CorticalTier.SENSORY:
+                    dist = abs(i - j)
+                    prob = 0.03 * np.exp(-dist * 0.05)
+                    if self._rng.random() < prob:
+                        W[i, j] = self._rng.standard_normal() * 0.02
+
+        self._feedback_W = W.astype(np.float32)
+
+    def _apply_recurrent_feedback(self, dt: float, gain: float,
+                                   noise_sigma: float, now: float):
+        """Apply top-down recurrent feedback from executive to sensory tiers.
+
+        This is the Lamme RPT mechanism: after feedforward processing completes
+        in step 3, executive columns send signals back down to sensory columns.
+        This recurrent sweep is what RPT claims generates phenomenal experience.
+
+        The feedback modulates sensory columns by adding a top-down prior that
+        shapes what the sensory tier "expects to see" based on executive state.
+        """
+        if self._feedback_W is None:
+            return
+
+        # Compute column-level means for the feedback path
+        col_means = np.array([np.mean(c.x) for c in self.columns], dtype=np.float32)
+        feedback_drive = self._feedback_W @ col_means * self._recurrent_feedback_strength
+
+        # Apply feedback as modulatory input to target columns
+        for i, col in enumerate(self.columns):
+            if col.tier in (CorticalTier.SENSORY, CorticalTier.ASSOCIATION):
+                if abs(feedback_drive[i]) > 1e-6:
+                    feedback_input = np.full(col.n, feedback_drive[i], dtype=np.float32)
+                    # The feedback is gentler than feedforward — it modulates, not overrides
+                    dx_feedback = np.tanh(gain * 0.5 * feedback_input) * dt * 0.3
+                    col.x = np.clip(col.x + dx_feedback, -1.0, 1.0).astype(np.float32)
+
+    def set_recurrent_feedback_enabled(self, enabled: bool):
+        """Enable/disable recurrent feedback for ablation testing.
+
+        When disabled, feedforward processing (steps 1-3) still works but
+        RPT predicts phenomenal experience should degrade. Compare qualia
+        output with and without this to test RPT vs GWT predictions.
+        """
+        prev = self._recurrent_feedback_enabled
+        self._recurrent_feedback_enabled = enabled
+        if prev != enabled:
+            logger.info("NeuralMesh: Recurrent feedback %s (RPT ablation)",
+                        "ENABLED" if enabled else "DISABLED")
 
     # ── Lifecycle ────────────────────────────────────────────────────────
 
@@ -331,6 +415,20 @@ class NeuralMesh:
                     ext += assoc_input[start:end]
 
             col.step(ext, dt, cfg.decay, noise_sigma, gain, now)
+
+        # ── 3.5. Recurrent Processing (Lamme RPT) ────────────────────
+        # Explicit top-down feedback from executive tier back to sensory tier.
+        # This is architecturally DISTINCT from the bidirectional inter-column
+        # coupling: RPT claims that this specific exec→sensory feedback is the
+        # generative mechanism for phenomenal experience, not just integration.
+        #
+        # Feedforward (steps 1-3): fast, unconscious processing
+        # Feedback (this step): slower, recurrent, the claimed source of experience
+        #
+        # The feedback can be selectively disabled for ablation testing:
+        # if disabled, feedforward still works but RPT predicts qualia degrades.
+        if self._recurrent_feedback_enabled:
+            self._apply_recurrent_feedback(dt, gain, noise_sigma, now)
 
         # ── 4. STDP (every tick — it's cheap with vectorized ops) ────
         if self._tick_count % 2 == 0:  # every other tick for perf

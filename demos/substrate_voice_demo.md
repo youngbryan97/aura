@@ -51,7 +51,7 @@ In a second terminal (or via curl):
 ```bash
 curl -X POST http://localhost:8000/api/voice/affect-modulate \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer aura-superuser-token" \
+  -H "Authorization: Bearer YOUR_AURA_API_TOKEN" \
   -d '{"mood": "tired"}'
 ```
 
@@ -89,7 +89,7 @@ enforced them mechanically."
 ```bash
 curl -X POST http://localhost:8000/api/voice/affect-modulate \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer aura-superuser-token" \
+  -H "Authorization: Bearer YOUR_AURA_API_TOKEN" \
   -d '{"mood": "energized"}'
 ```
 
@@ -120,7 +120,7 @@ the substrate's curiosity signal crossed the threshold."
 
 ```bash
 curl -s http://localhost:8000/api/voice/state \
-  -H "Authorization: Bearer aura-superuser-token" | python -m json.tool
+  -H "Authorization: Bearer YOUR_AURA_API_TOKEN" | python -m json.tool
 ```
 
 **Show on screen.** This exposes the full SpeechProfile:
@@ -140,7 +140,7 @@ Every response she gives is shaped by these values. Not suggested. Shaped."
 ```bash
 curl -X POST http://localhost:8000/api/voice/affect-modulate \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer aura-superuser-token" \
+  -H "Authorization: Bearer YOUR_AURA_API_TOKEN" \
   -d '{"mood": "frustrated"}'
 ```
 
@@ -227,16 +227,16 @@ This is one governed intelligence."
 # Shift mood
 curl -X POST http://localhost:8000/api/voice/affect-modulate \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer aura-superuser-token" \
+  -H "Authorization: Bearer YOUR_AURA_API_TOKEN" \
   -d '{"mood": "tired"}'  # or: energized, frustrated, warm, curious, neutral
 
 # Check voice state
 curl -s http://localhost:8000/api/voice/state \
-  -H "Authorization: Bearer aura-superuser-token" | python -m json.tool
+  -H "Authorization: Bearer YOUR_AURA_API_TOKEN" | python -m json.tool
 
 # Chat
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer aura-superuser-token" \
+  -H "Authorization: Bearer YOUR_AURA_API_TOKEN" \
   -d '{"message": "hey, what'\''s on your mind?"}'
 ```
