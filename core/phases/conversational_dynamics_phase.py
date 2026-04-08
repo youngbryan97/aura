@@ -136,6 +136,60 @@ class ConversationalDynamicsPhase(Phase):
                 "association_chain": dynamics.association_chain,
             }
 
+            # ── Multiple Drafts (Dennett): parallel interpretation streams ──
+            # Submit the user's input to spawn competing drafts FIRST.
+            # If there are unresolved drafts from the PREVIOUS input, probe
+            # them now -- the arrival of a new message IS the probe event.
+            try:
+                from core.consciousness.multiple_drafts import get_multiple_drafts_engine
+                md_engine = get_multiple_drafts_engine()
+                # Probe previous drafts (new user message = retroactive elevation)
+                if md_engine.get_pending_draft_count() > 0:
+                    md_engine.probe(source="user_message")
+                # Submit current input for new draft generation
+                md_engine.submit_input(objective, new_state)
+                # Surface divergence and context for downstream consumption
+                divergence = md_engine.get_draft_divergence()
+                md_block = md_engine.get_context_block()
+                if md_block:
+                    new_state.response_modifiers["multiple_drafts"] = md_block
+                if divergence > 0.15:
+                    cog.modifiers["draft_divergence"] = f"{divergence:.2f}"
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: multiple drafts skipped: %s", exc)
+
+            # ── Higher-Order Thought (Rosenthal): thought about the thought ──
+            # Generate a HOT from the current affective state so the LLM has
+            # meta-awareness of its own cognitive condition during this turn.
+            # This is DISTINCT from AttentionSchema (Graziano): AST models
+            # attention itself; HOT is a reflexive representation of mental state.
+            try:
+                from core.consciousness.hot_engine import get_hot_engine
+                hot_engine = get_hot_engine()
+                affect = new_state.affect
+                hot_state = {
+                    "valence": float(getattr(affect, "valence", 0.0)),
+                    "arousal": float(getattr(affect, "arousal", 0.5)),
+                    "curiosity": float(getattr(affect, "curiosity", 0.5)),
+                    "energy": float(getattr(affect, "energy", 0.7) if hasattr(affect, "energy") else 0.7),
+                    "surprise": float(getattr(affect, "surprise", 0.0) if hasattr(affect, "surprise") else 0.0),
+                }
+                hot = hot_engine.generate_fast(hot_state)
+                # Apply reflexive feedback: noticing changes the noticed
+                try:
+                    from core.container import ServiceContainer
+                    affect_engine = ServiceContainer.get("affect_engine", default=None)
+                    if affect_engine:
+                        hot_engine.apply_feedback(affect_engine)
+                except Exception:
+                    pass
+                hot_block = hot_engine.get_context_block()
+                if hot_block:
+                    new_state.response_modifiers["higher_order_thought"] = hot_block
+                    cog.modifiers["higher_order_thought"] = hot_block
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: HOT engine skipped: %s", exc)
+
             # ── Wire dormant personhood modules into the foreground path ──
             # These modules exist but were never called during live conversation.
             # Each provides context that shapes HOW Aura responds, not just WHAT.
@@ -253,6 +307,60 @@ class ConversationalDynamicsPhase(Phase):
                             }
             except Exception as exc:
                 logger.debug("ConversationalDynamics: natural followup skipped: %s", exc)
+
+            # Intersubjectivity: constitutive other-perspective modeling (Husserl/Zahavi)
+            try:
+                from core.consciousness.intersubjectivity import get_intersubjectivity_engine
+                isub = get_intersubjectivity_engine()
+                # Feed interlocutor data from user model if available
+                try:
+                    from core.container import ServiceContainer
+                    user_model = ServiceContainer.get("user_model", default=None)
+                    if user_model and hasattr(user_model, "get_profile"):
+                        profile_data = user_model.get_profile("owner") or {}
+                        isub.update_interlocutor_model(
+                            communication_style=str(profile_data.get("communication_style", "")),
+                            emotional_state=str(profile_data.get("emotional_state", "")),
+                            knowledge_level=str(profile_data.get("knowledge_level", "")),
+                            engagement_level=float(profile_data.get("engagement", 0.5)),
+                            trust_level=float(profile_data.get("trust", 0.5)),
+                        )
+                except Exception:
+                    pass
+                # Compute intersubjective frame from current qualia state
+                try:
+                    qs = ServiceContainer.get("qualia_synthesizer", default=None)
+                    q_vec = getattr(qs, "q_vector", None) if qs else None
+                    if q_vec is not None:
+                        frame = isub.compute_intersubjective_frame(
+                            q_vec,
+                            topic=str(dynamics.current_topic or ""),
+                            is_shared_event=True,
+                        )
+                        isub_block = isub.get_context_block()
+                        if isub_block:
+                            new_state.response_modifiers["intersubjectivity"] = isub_block
+                except Exception:
+                    pass
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: intersubjectivity skipped: %s", exc)
+
+            # Narrative Gravity: autobiographical self-narrative (Gazzaniga/Dennett)
+            try:
+                from core.consciousness.narrative_gravity import get_narrative_gravity_center
+                ngc = get_narrative_gravity_center()
+                # Record this conversation turn as an autobiographical event
+                ngc.record_event(
+                    f"Conversation with user: {objective[:100]}",
+                    emotional_tone=dynamics.partner_frame,
+                    identity_relevance=0.3 if dynamics.partner_intensity > 0.5 else 0.1,
+                    arc_theme="ongoing_relationship" if dynamics.partner_intensity > 0.3 else "",
+                )
+                ng_block = ngc.get_context_block()
+                if ng_block:
+                    new_state.response_modifiers["narrative_gravity"] = ng_block
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: narrative gravity skipped: %s", exc)
 
             logger.debug(
                 "ConversationalDynamics: frame=%s intensity=%.2f speech_act=%s register=%s humor=%s",

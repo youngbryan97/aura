@@ -257,6 +257,8 @@ class ContextAssembler:
             ("credit_assignment", "OUTCOME AWARENESS"),
             ("narrative_context", "AUTOBIOGRAPHICAL NARRATIVE"),
             ("agency_comparator", "SENSE OF AGENCY"),
+            ("intersubjectivity", "INTERSUBJECTIVE AWARENESS"),
+            ("narrative_gravity", "NARRATIVE SELF"),
         ):
             block = str(mods.get(mod_key, "") or "").strip()
             if block:
