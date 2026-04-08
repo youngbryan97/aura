@@ -31,9 +31,276 @@ const state = {
     bootstrapTimer: null,
     conversationReady: true,
     conversationLane: null,
-    version: 'Aura Luna (live runtime)'
+    version: 'Aura Luna (live runtime)',
+    interactionSignals: null,
+    typingSignalSession: null,
+    typingSignalTimer: null,
+    voiceSignalAggregation: null,
+    voiceSignalTimer: null,
+    cameraSignalActive: false,
+    cameraSignalWanted: false,
+    cameraSignalInterval: null,
+    cameraSignalCapture: null
 };
 console.log(`%c AURA %c ${state.version} `, "color:white; background:#8a2be2; padding:2px 5px; border-radius:3px 0 0 3px;", "color:white; background:#1e1535; padding:2px 5px; border-radius:0 3px 3px 0;");
+
+const CHAT_REQUEST_TIMEOUT_READY_MS = 155000;
+const CHAT_REQUEST_TIMEOUT_RECOVERING_MS = 185000;
+const THOUGHT_QUEUE_MAX = 160;
+const THOUGHT_COALESCE_WINDOW_MS = 12000;
+const THOUGHT_COALESCE_LOOKBACK = 18;
+const TYPING_SIGNAL_DEBOUNCE_MS = 850;
+const VOICE_SIGNAL_FLUSH_MS = 900;
+const CAMERA_SIGNAL_INTERVAL_MS = 2200;
+
+function nowSeconds() {
+    return Date.now() / 1000;
+}
+
+async function postInteractionSignal(path, payload, { quiet = true, keepalive = false } = {}) {
+    try {
+        await fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive
+        });
+    } catch (err) {
+        if (!quiet) console.warn(`[signals] ${path} failed`, err);
+    }
+}
+
+function createTypingSignalSession(seedLength = 0) {
+    const now = Date.now();
+    return {
+        startedAt: now,
+        firstKeyAt: 0,
+        lastKeyAt: 0,
+        keyCount: 0,
+        correctionCount: 0,
+        maxPauseMs: 0,
+        messageChars: seedLength
+    };
+}
+
+function ensureTypingSignalSession(seedLength = 0) {
+    if (!state.typingSignalSession) {
+        state.typingSignalSession = createTypingSignalSession(seedLength);
+    }
+    return state.typingSignalSession;
+}
+
+function scheduleTypingSignalFlush() {
+    clearTimeout(state.typingSignalTimer);
+    state.typingSignalTimer = setTimeout(() => {
+        flushTypingSignal({ submitted: false });
+    }, TYPING_SIGNAL_DEBOUNCE_MS);
+}
+
+function noteTypingSignalKey(event, textarea) {
+    if (!textarea) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const session = ensureTypingSignalSession((textarea.value || '').length);
+    const now = Date.now();
+    if (!session.firstKeyAt) session.firstKeyAt = now;
+    if (session.lastKeyAt) {
+        session.maxPauseMs = Math.max(session.maxPauseMs, now - session.lastKeyAt);
+    }
+    session.lastKeyAt = now;
+    if (event.key.length === 1 || event.key === 'Enter' || event.key === 'Backspace' || event.key === 'Delete') {
+        session.keyCount += 1;
+    }
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+        session.correctionCount += 1;
+    }
+    session.messageChars = (textarea.value || '').length;
+    scheduleTypingSignalFlush();
+}
+
+function noteTypingSignalInput(textarea) {
+    if (!textarea) return;
+    const value = textarea.value || '';
+    if (!value) {
+        flushTypingSignal({ submitted: false, forceInactive: true, messageCharsOverride: 0 });
+        return;
+    }
+    const session = ensureTypingSignalSession(value.length);
+    const now = Date.now();
+    if (!session.firstKeyAt) session.firstKeyAt = now;
+    if (!session.lastKeyAt) session.lastKeyAt = now;
+    session.messageChars = value.length;
+    scheduleTypingSignalFlush();
+}
+
+function flushTypingSignal({ submitted = false, forceInactive = false, messageCharsOverride = null } = {}) {
+    clearTimeout(state.typingSignalTimer);
+    const session = state.typingSignalSession;
+    if (!session) return;
+    const textarea = $('chat-input');
+    const now = Date.now();
+    const messageChars = messageCharsOverride != null
+        ? messageCharsOverride
+        : Math.max(0, textarea ? (textarea.value || '').length : session.messageChars);
+    const firstKeyAt = session.firstKeyAt || session.startedAt || now;
+    const lastKeyAt = session.lastKeyAt || firstKeyAt;
+    const sessionMs = Math.max(1, now - firstKeyAt);
+    const pauseBeforeSubmitMs = submitted ? Math.max(0, now - lastKeyAt) : 0;
+    const active = !submitted && !forceInactive && messageChars > 0;
+
+    postInteractionSignal('/api/signals/typing', {
+        timestamp: nowSeconds(),
+        active,
+        session_ms: sessionMs,
+        key_count: Math.max(session.keyCount, messageChars),
+        correction_count: session.correctionCount,
+        max_pause_ms: session.maxPauseMs,
+        pause_before_submit_ms: pauseBeforeSubmitMs,
+        message_chars: messageChars,
+        submitted
+    }, { quiet: true, keepalive: submitted });
+
+    if (submitted || forceInactive || messageChars === 0) {
+        state.typingSignalSession = null;
+        return;
+    }
+    session.messageChars = messageChars;
+}
+
+function resetVoiceSignalAggregation() {
+    clearTimeout(state.voiceSignalTimer);
+    state.voiceSignalTimer = null;
+    state.voiceSignalAggregation = {
+        startedAt: Date.now(),
+        frames: 0,
+        samples: 0,
+        speechFrames: 0,
+        rmsSum: 0,
+        rmsSqSum: 0,
+        peakSum: 0,
+        zcrSum: 0,
+        clippingSum: 0
+    };
+}
+
+function flushVoiceSignal() {
+    clearTimeout(state.voiceSignalTimer);
+    state.voiceSignalTimer = null;
+    const agg = state.voiceSignalAggregation;
+    if (!agg || !agg.frames) return;
+
+    const frames = Math.max(1, agg.frames);
+    const rmsAvg = agg.rmsSum / frames;
+    const rmsVar = Math.max(0, (agg.rmsSqSum / frames) - (rmsAvg * rmsAvg));
+    postInteractionSignal('/api/signals/voice', {
+        timestamp: nowSeconds(),
+        duration_ms: Date.now() - agg.startedAt,
+        speech_ratio: agg.speechFrames / frames,
+        rms_avg: rmsAvg,
+        rms_std: Math.sqrt(rmsVar),
+        peak_avg: agg.peakSum / frames,
+        zcr_avg: agg.zcrSum / frames,
+        clipping_ratio: agg.clippingSum / frames
+    }, { quiet: true });
+    resetVoiceSignalAggregation();
+}
+
+function accumulateVoiceSignal(features) {
+    if (!state.voiceActive) return;
+    if (!state.voiceSignalAggregation) resetVoiceSignalAggregation();
+    const agg = state.voiceSignalAggregation;
+    const rms = Number(features && features.rms);
+    const peak = Number(features && features.peak);
+    const zcr = Number(features && features.zcr);
+    const clippingRatio = Number(features && features.clippingRatio);
+    if (![rms, peak, zcr, clippingRatio].every(Number.isFinite)) return;
+
+    agg.frames += 1;
+    agg.samples += Number(features.sampleCount || 0);
+    agg.rmsSum += rms;
+    agg.rmsSqSum += rms * rms;
+    agg.peakSum += peak;
+    agg.zcrSum += zcr;
+    agg.clippingSum += clippingRatio;
+    if (rms > 0.018 || peak > 0.09) {
+        agg.speechFrames += 1;
+    }
+
+    if (!state.voiceSignalTimer) {
+        state.voiceSignalTimer = setTimeout(() => flushVoiceSignal(), VOICE_SIGNAL_FLUSH_MS);
+    }
+}
+
+async function startCameraSignals() {
+    if (state.cameraSignalActive || !state.cameraSignalWanted) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showBriefNotification('Camera sensing is unavailable in this browser.');
+        return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'user',
+                width: { ideal: 320 },
+                height: { ideal: 240 }
+            },
+            audio: false
+        });
+        const video = document.createElement('video');
+        video.setAttribute('playsinline', 'true');
+        video.muted = true;
+        video.srcObject = stream;
+        await video.play();
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 320;
+        canvas.height = 240;
+        const ctx = canvas.getContext('2d', { willReadFrequently: false });
+        state.cameraSignalCapture = { stream, video, canvas, ctx };
+        state.cameraSignalActive = true;
+        state.cameraSignalInterval = setInterval(captureCameraSignalFrame, CAMERA_SIGNAL_INTERVAL_MS);
+        captureCameraSignalFrame();
+    } catch (err) {
+        console.error('Camera signal capture failed:', err);
+        state.cameraSignalActive = false;
+        state.cameraSignalCapture = null;
+        showBriefNotification('Camera access was denied or unavailable.');
+    }
+}
+
+function stopCameraSignals() {
+    clearInterval(state.cameraSignalInterval);
+    state.cameraSignalInterval = null;
+    state.cameraSignalActive = false;
+    const capture = state.cameraSignalCapture;
+    if (!capture) return;
+    try {
+        if (capture.video) {
+            capture.video.pause();
+            capture.video.srcObject = null;
+        }
+        if (capture.stream) {
+            capture.stream.getTracks().forEach(track => track.stop());
+        }
+    } catch (_err) {
+        // Ignore teardown noise.
+    }
+    state.cameraSignalCapture = null;
+}
+
+function captureCameraSignalFrame() {
+    if (!state.cameraSignalActive || !state.cameraSignalCapture) return;
+    const { video, canvas, ctx } = state.cameraSignalCapture;
+    if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const frameDataUrl = canvas.toDataURL('image/jpeg', 0.55);
+    postInteractionSignal('/api/signals/vision', {
+        timestamp: nowSeconds(),
+        frame_data_url: frameDataUrl,
+        width: canvas.width,
+        height: canvas.height
+    }, { quiet: true });
+}
 
 // ── DOM Cache for High-Frequency Updates (Zero Repaint Overhead)
 const DOM = {
@@ -660,6 +927,15 @@ function rememberEventId(id) {
     return false;
 }
 
+function conversationLaneRequestTimeoutMs(lane) {
+    const laneState = String((lane && lane.state) || '').toLowerCase();
+    if (lane && lane.conversation_ready) return CHAT_REQUEST_TIMEOUT_READY_MS;
+    if (['warming', 'recovering', 'cold', 'spawning', 'handshaking'].includes(laneState)) {
+        return CHAT_REQUEST_TIMEOUT_RECOVERING_MS;
+    }
+    return CHAT_REQUEST_TIMEOUT_READY_MS;
+}
+
 function formatPercent01(value, digits = 0) {
     const num = Number(value || 0);
     if (!Number.isFinite(num)) return '--';
@@ -886,6 +1162,9 @@ function applyBootstrapPayload(payload, { hydrateConversationHistory = false } =
     renderToolCatalog(payload.tools || []);
     applyVoiceSummary(payload.voice || {});
     renderStatusFlags(payload.ui && payload.ui.status_flags);
+    if (payload.interaction_signals) {
+        state.interactionSignals = payload.interaction_signals;
+    }
 
     if (payload.executive) {
         const ex = payload.executive;
@@ -1264,8 +1543,80 @@ const triggerVoiceOrb = (type) => {
     // When voice is off, orb stays hidden — no flash on every message
 };
 function queueThought(data) {
-    state.thoughtQueue.push(data);
+    const item = normalizeThoughtEvent(data);
+    if (!item) return;
+    item.repeatCount = Math.max(1, Number(item.repeatCount || 1));
+    item.fingerprint = buildThoughtFingerprint(item);
+    if (coalesceThoughtQueueItem(item)) return;
+
+    if (state.thoughtQueue.length >= THOUGHT_QUEUE_MAX) {
+        state.thoughtQueue.splice(0, state.thoughtQueue.length - THOUGHT_QUEUE_MAX + 1);
+    }
+    state.thoughtQueue.push(item);
     if (!state.pacingActive) processThoughtQueue();
+}
+
+function normalizeThoughtTimestamp(rawTimestamp) {
+    const numericTimestamp = Number(rawTimestamp);
+    if (Number.isFinite(numericTimestamp)) {
+        return numericTimestamp < 1e12 ? numericTimestamp : numericTimestamp / 1000;
+    }
+    if (typeof rawTimestamp === 'string' && rawTimestamp.trim()) {
+        const parsed = Date.parse(rawTimestamp);
+        if (!Number.isNaN(parsed)) return parsed / 1000;
+    }
+    return Date.now() / 1000;
+}
+
+function normalizeThoughtEvent(data) {
+    if (!data || typeof data !== 'object') return null;
+    const message = String(data.message || data.content || '').trim();
+    if (!message || message.toLowerCase() === 'status') return null;
+    return {
+        ...data,
+        name: String(data.name || data.module || 'SYS'),
+        level: String(data.level || '').toLowerCase(),
+        message,
+        timestamp: normalizeThoughtTimestamp(data.timestamp),
+    };
+}
+
+function normalizeThoughtText(text) {
+    return String(text || '')
+        .replace(/\b\d{1,2}:\d{2}:\d{2}\b/g, '<time>')
+        .replace(/\b\d+\.\d+\b/g, '<num>')
+        .replace(/\b\d+\b/g, '<num>')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+function buildThoughtFingerprint(data) {
+    return [
+        String(data.name || 'SYS').toLowerCase(),
+        String(data.level || '').toLowerCase(),
+        normalizeThoughtText(data.message || data.content || ''),
+    ].join('|');
+}
+
+function coalesceThoughtQueueItem(item) {
+    const lookbackStart = Math.max(0, state.thoughtQueue.length - THOUGHT_COALESCE_LOOKBACK);
+    const itemSeenMs = normalizeThoughtTimestamp(item.lastSeenAt || item.timestamp) * 1000;
+    for (let i = state.thoughtQueue.length - 1; i >= lookbackStart; i--) {
+        const existing = state.thoughtQueue[i];
+        const existingFingerprint = existing.fingerprint || buildThoughtFingerprint(existing);
+        if (existingFingerprint !== item.fingerprint) continue;
+
+        const existingSeenMs = normalizeThoughtTimestamp(existing.lastSeenAt || existing.timestamp) * 1000;
+        if (Math.abs(itemSeenMs - existingSeenMs) > THOUGHT_COALESCE_WINDOW_MS) continue;
+
+        existing.repeatCount = Math.max(1, Number(existing.repeatCount || 1)) + item.repeatCount;
+        existing.lastSeenAt = item.timestamp;
+        existing.timestamp = item.timestamp;
+        existing.message = item.message;
+        return true;
+    }
+    return false;
 }
 
 function saveImageToDevice(url) {
@@ -1291,11 +1642,20 @@ async function processThoughtQueue() {
         return;
     }
     state.pacingActive = true;
-    const data = state.thoughtQueue.shift();
-    addThoughtCard(data);
+    const batchSize =
+        state.thoughtQueue.length > 100 ? 4 :
+        state.thoughtQueue.length > 40 ? 3 :
+        state.thoughtQueue.length > 12 ? 2 :
+        1;
+    for (let i = 0; i < batchSize && state.thoughtQueue.length > 0; i++) {
+        addThoughtCard(state.thoughtQueue.shift());
+    }
 
-    // Pacing: slow down if many messages, minimum 800ms
-    const delay = Math.max(800, 1500 / (state.thoughtQueue.length + 1));
+    const delay =
+        state.thoughtQueue.length > 100 ? 70 :
+        state.thoughtQueue.length > 40 ? 110 :
+        state.thoughtQueue.length > 12 ? 170 :
+        320;
     setTimeout(processThoughtQueue, delay);
 }
 
@@ -1329,7 +1689,7 @@ function addThoughtCard(data) {
     const card = document.createElement('div');
     const level = data.level || '';
     let cls = 'thought-card';
-    if (level === 'impulse' || level === 'INFO') cls += ' impulse';
+    if (level === 'impulse' || level === 'INFO' || level === 'info') cls += ' impulse';
     else if (level === 'ERROR' || level === 'error') cls += ' error';
     else if (level === 'WARNING' || level === 'warning') cls += ' warning';
     card.className = cls;
@@ -1337,14 +1697,17 @@ function addThoughtCard(data) {
     const ts = formatEventTimestamp(data.timestamp);
     const name = data.name || 'SYS';
     const msg = data.message || data.content || JSON.stringify(data);
+    const repeatCount = Math.max(1, Number(data.repeatCount || 1));
     const safeName = escHtml(name);
     const safeMsg = escHtml(msg).replace(/\n/g, '<br>');
-    card.dataset.copyText = `[${ts}] ${name}\n${msg}`;
+    const repeatBadge = repeatCount > 1 ? `<span class="thought-repeat">x${repeatCount}</span>` : '';
+    card.dataset.copyText = repeatCount > 1 ? `[${ts}] ${name} (x${repeatCount})\n${msg}` : `[${ts}] ${name}\n${msg}`;
     card.innerHTML = `
         <div class="thought-card-head">
             <div class="thought-card-meta">
                 <span class="thought-ts">${ts}</span>
                 <span class="thought-tag">${safeName}</span>
+                ${repeatBadge}
             </div>
             <button class="thought-copy-btn" type="button" onclick="copyThoughtCard(this)">COPY</button>
         </div>
@@ -1527,6 +1890,8 @@ $('chat-form').onsubmit = async e => {
 
     if (!msg) return;
 
+    flushTypingSignal({ submitted: true, messageCharsOverride: msg.length });
+
     // Track last user message for regeneration
     state.lastUserMessage = msg;
     const regenBtn = $('regen-btn');
@@ -1544,7 +1909,7 @@ $('chat-form').onsubmit = async e => {
     // Allow user to continue typing or send more messages.
 
     const controller = new AbortController();
-    const requestTimeoutMs = 90000;
+    const requestTimeoutMs = conversationLaneRequestTimeoutMs(state.conversationLane);
     const timeoutId = window.setTimeout(() => controller.abort(), requestTimeoutMs);
 
     try {
@@ -1584,7 +1949,10 @@ $('chat-form').onsubmit = async e => {
                 last_failure_reason: 'foreground_http_timeout',
             });
             applyConversationLane(timedOutLane, 'degraded');
-            appendMsg('aura', 'My 32B conversation lane timed out before it could answer. Please try again in a moment.');
+            const streamedReplyInFlight = !!(activeStreamDiv || (activeStreamContentRaw && activeStreamContentRaw.trim()));
+            if (!streamedReplyInFlight) {
+                appendMsg('aura', 'My 32B conversation lane is still recovering from a long turn. Please try again in a moment.');
+            }
         } else {
             appendMsg('aura', '⚠ Communication error. Check connection.');
         }
@@ -1790,6 +2158,12 @@ function formatEventTimestamp(rawTimestamp) {
     const fallback = new Date();
     const numericTimestamp = Number(rawTimestamp);
     if (!Number.isFinite(numericTimestamp)) {
+        if (typeof rawTimestamp === 'string' && rawTimestamp.trim()) {
+            const parsedString = new Date(rawTimestamp);
+            if (!Number.isNaN(parsedString.getTime())) {
+                return parsedString.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+        }
         return fallback.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
     const millis = numericTimestamp < 1e12 ? numericTimestamp * 1000 : numericTimestamp;
@@ -2113,6 +2487,10 @@ async function pollHealth() {
             if ($('exec-focus')) $('exec-focus').textContent = ex.attention_focus || 'Internal monitoring.';
         }
 
+        if (d.interaction_signals) {
+            state.interactionSignals = d.interaction_signals;
+        }
+
         if (d.consciousness_evidence) {
             const ev = d.consciousness_evidence;
             if ($('hud-readiness')) $('hud-readiness').textContent = fmtPct01(ev.enterprise_readiness || 0);
@@ -2358,6 +2736,9 @@ async function pollHealth() {
                     muteBtn.innerHTML = '<span>● MUTED</span>';
                 }
                 muteBtn.onclick = () => togglePrivacy('microphone', p.microphone_enabled, muteBtn);
+                if (p.microphone_enabled === false && state.voiceActive) {
+                    toggleVoice();
+                }
             }
             if (camBtn) {
                 if (p.camera_enabled !== false) {
@@ -2368,6 +2749,10 @@ async function pollHealth() {
                     camBtn.innerHTML = '<span>● CAM OFF</span>';
                 }
                 camBtn.onclick = () => togglePrivacy('camera', p.camera_enabled, camBtn);
+                if (p.camera_enabled === false) {
+                    state.cameraSignalWanted = false;
+                    stopCameraSignals();
+                }
             }
         }
 
@@ -2387,6 +2772,13 @@ async function togglePrivacy(type, currentEnabled, btn) {
         const next = !currentEnabled;
         // Optimistic UI: update button immediately
         state._privacyLockUntil = Date.now() + 3000; // Lock pollHealth from resetting for 3s
+        if (type === 'camera' && !next) {
+            state.cameraSignalWanted = false;
+            stopCameraSignals();
+        }
+        if (type === 'microphone' && !next && state.voiceActive) {
+            toggleVoice();
+        }
         if (btn) {
             if (next) {
                 btn.classList.remove('disabled');
@@ -2406,6 +2798,14 @@ async function togglePrivacy(type, currentEnabled, btn) {
             // Privacy toggle applied
             // Update the onclick to reflect new state
             if (btn) btn.onclick = () => togglePrivacy(type, next, btn);
+            if (type === 'camera') {
+                state.cameraSignalWanted = !!next;
+                if (next) {
+                    await startCameraSignals();
+                } else {
+                    stopCameraSignals();
+                }
+            }
         } else {
             // Revert on failure
             state._privacyLockUntil = 0;
@@ -2471,6 +2871,122 @@ async function loadSkills() {
 }
 
 // ── Memory ───────────────────────────────────────────────
+function normalizeGoalStatus(status) {
+    return String(status || 'queued').trim().toLowerCase().replace(/-/g, '_');
+}
+
+function goalStatusClass(status) {
+    const normalized = normalizeGoalStatus(status);
+    if (normalized === 'completed') return 'success';
+    if (normalized === 'failed' || normalized === 'abandoned') return 'error';
+    if (normalized === 'blocked' || normalized === 'paused') return 'warn';
+    return 'info';
+}
+
+function formatGoalTimestamp(ts) {
+    const value = Number(ts);
+    if (!Number.isFinite(value) || value <= 0) return '';
+    const date = new Date(value * 1000);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function renderGoalItem(item) {
+    const objective = String(item.objective || item.description || item.goal || item.name || '').trim();
+    const status = normalizeGoalStatus(item.status);
+    const horizon = String(item.horizon || 'short_term').trim().toLowerCase().replace(/-/g, '_');
+    const priority = Number(item.priority);
+    const source = String(item.source || '').trim();
+    const progressRaw = Number(item.progress);
+    const progress = Number.isFinite(progressRaw)
+        ? Math.max(0, Math.min(100, Math.round(progressRaw * 100)))
+        : (item.steps_total ? Math.round(((Number(item.steps_done || 0) / Number(item.steps_total || 1)) * 100)) : 0);
+    const stepsTotal = Number(item.steps_total || 0);
+    const stepsDone = Number(item.steps_done || 0);
+    const summary = String(item.summary || item.success_criteria || '').trim();
+    const updatedAt = formatGoalTimestamp(item.completed_at || item.updated_at || item.started_at || item.created_at);
+    const metaBits = [];
+    if (Number.isFinite(priority) && priority > 0) metaBits.push(`Priority ${priority.toFixed(2)}`);
+    if (source) metaBits.push(source.replace(/_/g, ' '));
+    if (stepsTotal > 0) metaBits.push(`${stepsDone}/${stepsTotal} steps`);
+    if (updatedAt) metaBits.push(updatedAt);
+
+    return `
+        <div class="mem-item goal-card">
+            <div class="goal-head">
+                <strong>${escHtml(objective || 'Untitled goal')}</strong>
+                <div class="goal-tags">
+                    <span class="tag ${goalStatusClass(status)}">${escHtml(status.replace(/_/g, ' '))}</span>
+                    <span class="tag">${escHtml(horizon.replace(/_/g, ' '))}</span>
+                    ${item.quick_win ? '<span class="tag info">quick win</span>' : ''}
+                </div>
+            </div>
+            ${summary ? `<div class="goal-summary-text">${escHtml(summary)}</div>` : ''}
+            ${progress > 0 || stepsTotal > 0 ? `
+                <div class="goal-progress">
+                    <div class="goal-progress-bar" style="width:${progress}%;"></div>
+                </div>
+            ` : ''}
+            ${metaBits.length ? `<div class="goal-meta">${escHtml(metaBits.join(' • '))}</div>` : ''}
+        </div>
+    `;
+}
+
+function renderGoalSection(title, items, emptyText = '') {
+    if (!items.length) {
+        return emptyText
+            ? `<div class="goal-group"><div class="goal-group-title">${escHtml(title)}</div><div class="mem-item goal-empty-inline">${escHtml(emptyText)}</div></div>`
+            : '';
+    }
+    return `
+        <div class="goal-group">
+            <div class="goal-group-title">${escHtml(title)}</div>
+            ${items.map(renderGoalItem).join('')}
+        </div>
+    `;
+}
+
+function renderGoalMemory(items, summary = {}) {
+    const normalized = Array.isArray(items) ? items.filter(item => item && typeof item === 'object') : [];
+    const shortActive = [];
+    const longActive = [];
+    const completed = [];
+    const failed = [];
+
+    normalized.forEach(item => {
+        const status = normalizeGoalStatus(item.status);
+        const horizon = String(item.horizon || 'short_term').trim().toLowerCase().replace(/-/g, '_');
+        if (status === 'completed') {
+            completed.push(item);
+        } else if (status === 'failed' || status === 'abandoned') {
+            failed.push(item);
+        } else if (horizon === 'long_term') {
+            longActive.push(item);
+        } else {
+            shortActive.push(item);
+        }
+    });
+
+    const stats = [];
+    if (summary.in_progress_count != null) stats.push(`In Progress ${summary.in_progress_count}`);
+    if (summary.queued_count != null) stats.push(`Queued ${summary.queued_count}`);
+    if (summary.completed_count != null) stats.push(`Completed ${summary.completed_count}`);
+    if (summary.blocked_count) stats.push(`Blocked ${summary.blocked_count}`);
+
+    return `
+        ${stats.length ? `<div class="goal-summary">${stats.map(stat => `<span class="goal-summary-stat">${escHtml(stat)}</span>`).join('')}</div>` : ''}
+        ${renderGoalSection('Short-Term Queue', shortActive, 'No short-term goals are active.')}
+        ${renderGoalSection('Long-Term Queue', longActive, 'No long-term goals are active.')}
+        ${renderGoalSection('Completed', completed, 'No completed goals have been recorded yet.')}
+        ${failed.length ? renderGoalSection('Failed / Abandoned', failed) : ''}
+    `;
+}
+
 async function loadMemory(type) {
     try {
         const endpoint = `/api/memory/${type || 'episodic'}?limit=20`;
@@ -2497,14 +3013,15 @@ async function loadMemory(type) {
                     const val = item.value || item.predicate || '';
                     return `<div class="mem-item"><strong>${escHtml(key)}</strong>: ${escHtml(String(val))}</div>`;
                 } else if (type === 'goals') {
-                    const desc = item.description || item.goal || String(item);
-                    const status = item.status || 'active';
-                    const statusCls = status === 'completed' ? 'success' : (status === 'failed' ? 'error' : '');
-                    return `<div class="mem-item"><span class="tag ${statusCls}">${escHtml(status.toUpperCase())}</span> ${escHtml(desc)}</div>`;
+                    return '';
                 }
             }
             return `<div class="mem-item">${escHtml(String(item))}</div>`;
         }).join('');
+        if (type === 'goals') {
+            cont.innerHTML = renderGoalMemory(items, d.summary || {});
+            return;
+        }
     } catch (e) {
         const cont = $('mem-content');
         if (cont) cont.innerHTML = '<div class="mem-empty">Failed to load memories<br><button class="skills-retry-btn" onclick="loadMemory(state.activeMem)">RETRY</button></div>';
@@ -2742,11 +3259,14 @@ async function toggleVoice() {
             await audioContext.audioWorklet.addModule('/static/voice-processor.js');
             const source = audioContext.createMediaStreamSource(stream);
             const voiceNode = new AudioWorkletNode(audioContext, 'voice-capture-processor');
+            resetVoiceSignalAggregation();
 
             voiceNode.port.onmessage = (e) => {
                 if (!state.voiceActive) return;
                 if (e.data.type === 'pcm' && state.ws && state.ws.readyState === WebSocket.OPEN) {
                     state.ws.send(e.data.data);
+                } else if (e.data.type === 'features') {
+                    accumulateVoiceSignal(e.data);
                 }
             };
 
@@ -2764,6 +3284,7 @@ async function toggleVoice() {
         }
     } else {
         orb.className = 'voice-orb';
+        flushVoiceSignal();
         if (state.audioStream) {
             state.audioStream.getTracks().forEach(t => t.stop());
             state.audioStream = null;
@@ -2772,6 +3293,9 @@ async function toggleVoice() {
             audioContext.close();
             audioContext = null;
         }
+        clearTimeout(state.voiceSignalTimer);
+        state.voiceSignalTimer = null;
+        state.voiceSignalAggregation = null;
     }
 }
 $('mic-btn').onclick = toggleVoice;
@@ -3124,10 +3648,12 @@ function dismissSplash(finalStatus = 'Neural link established.') {
     textarea.addEventListener('input', () => {
         textarea.style.height = 'auto';
         textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+        noteTypingSignalInput(textarea);
     });
 
     // Keyboard handling for textarea
     textarea.addEventListener('keydown', (e) => {
+        noteTypingSignalKey(e, textarea);
         // Cmd/Ctrl+Enter = Send
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -3146,6 +3672,7 @@ function dismissSplash(finalStatus = 'Neural link established.') {
         if (e.key === 'Escape') {
             textarea.value = '';
             textarea.style.height = 'auto';
+            flushTypingSignal({ submitted: false, forceInactive: true, messageCharsOverride: 0 });
         }
     });
 

@@ -543,6 +543,18 @@ class IntelligentLLMRouter:
         
         self.stats["calls_by_endpoint"][endpoint.name] = 0
         logger.info("Registered endpoint: %s (%s)", endpoint.name, endpoint.tier.value)
+
+    @staticmethod
+    def _background_deferral_reason(origin: str) -> str:
+        try:
+            from core.container import ServiceContainer
+
+            gate = ServiceContainer.get("inference_gate", default=None)
+            if gate and hasattr(gate, "_background_local_deferral_reason"):
+                return str(gate._background_local_deferral_reason(origin=origin) or "").strip()
+        except Exception as exc:
+            logger.debug("LegacyRouter background deferral probe failed: %s", exc)
+        return ""
     
     async def think(
         self,
@@ -617,6 +629,16 @@ class IntelligentLLMRouter:
             # background routing must pass is_background=True explicitly.
         )
 
+        if is_background:
+            background_deferral = self._background_deferral_reason(origin)
+            if background_deferral:
+                logger.debug(
+                    "LegacyRouter: deferring background inference for origin=%s (%s).",
+                    origin or "background",
+                    background_deferral,
+                )
+                return ""
+
         state = kwargs.pop("state", None)
         prompt, system_prompt_from_payload, _messages, contract, _runtime_state = await prepare_runtime_payload(
             prompt=prompt,
@@ -633,7 +655,11 @@ class IntelligentLLMRouter:
             kwargs.pop("messages", None)
 
         if should_force_tool_handoff(contract, is_background=is_background) and not kwargs.pop("_contract_tool_handoff", False):
-            tools = build_agentic_tool_map(contract.required_skill if contract else None)
+            tools = build_agentic_tool_map(
+                contract.required_skill if contract else None,
+                objective=prompt,
+                max_tools=8,
+            )
             if tools:
                 result = await self.think_and_act(
                     prompt,
@@ -862,7 +888,11 @@ class IntelligentLLMRouter:
             kwargs.pop("messages", None)
 
         if should_force_tool_handoff(contract, is_background=is_background) and not kwargs.pop("_contract_tool_handoff", False):
-            tools = build_agentic_tool_map(contract.required_skill if contract else None)
+            tools = build_agentic_tool_map(
+                contract.required_skill if contract else None,
+                objective=prompt,
+                max_tools=8,
+            )
             if tools:
                 result = await self.think_and_act(
                     prompt,
@@ -1043,6 +1073,15 @@ class IntelligentLLMRouter:
         is_background = bool(kwargs.get("is_background", False)) or any(
             token in origin for token in ("metabolic", "background", "consolidation", "reflex")
         )
+        if is_background:
+            background_deferral = self._background_deferral_reason(origin)
+            if background_deferral:
+                logger.debug(
+                    "think_and_act: background inference deferred for origin=%s (%s).",
+                    origin or "background",
+                    background_deferral,
+                )
+                return {"content": "", "turns": 0, "tool_calls": []}
         state = kwargs.pop("state", None)
         objective, system_prompt, prepared_messages, contract, runtime_state = await prepare_runtime_payload(
             prompt=objective,

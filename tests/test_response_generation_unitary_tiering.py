@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from core.phases.response_contract import ResponseContract
 from core.phases.response_generation_unitary import UnitaryResponsePhase
 from core.state.aura_state import AuraState
 
@@ -26,7 +27,7 @@ def test_background_unitary_response_timeout_is_short():
 async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
     state = AuraState()
     state.cognition.current_origin = "api"
-    state.cognition.current_objective = "Search for the song and tell me what it's about."
+    state.cognition.current_objective = "Explain what that result means."
     state.cognition.working_memory = [
         {
             "role": "system",
@@ -51,6 +52,14 @@ async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
         "core.container.ServiceContainer.get",
         staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
     )
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.build_response_contract",
+        lambda _state, _objective, is_user_facing=False: ResponseContract(
+            is_user_facing=is_user_facing,
+            reason="grounded_followup",
+            tool_evidence_available=True,
+        ),
+    )
 
     new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
 
@@ -60,6 +69,34 @@ async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
     assert kwargs["messages"][-1]["content"] == state.cognition.current_objective
     assert kwargs["state"].cognition.current_objective == state.cognition.current_objective
     assert new_state.cognition.last_response == "I looked into it."
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_uses_direct_clock_skill_reply_without_llm(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "What time is it right now?"
+    state.response_modifiers["last_skill_run"] = "clock"
+    state.response_modifiers["last_skill_ok"] = True
+    state.response_modifiers["last_skill_result_payload"] = {
+        "ok": True,
+        "summary": "It is currently Tuesday, April 07, 2026 06:40 PM.",
+        "readable": "Tuesday, April 07, 2026 06:40 PM",
+    }
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="I should not be called."))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    llm.think.assert_not_awaited()
+    assert new_state.cognition.last_response == "It is currently Tuesday, April 07, 2026 06:40 PM."
 
 
 @pytest.mark.asyncio

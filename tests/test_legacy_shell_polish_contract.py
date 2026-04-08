@@ -52,6 +52,26 @@ def test_legacy_shell_presents_cold_standby_as_ready_shell_state():
     assert "setTimeout(() => dismissSplash(), 8000)" not in js
 
 
+def test_legacy_shell_matches_conversation_lane_timeout_budget():
+    js = (PROJECT_ROOT / "interface" / "static" / "aura.js").read_text(encoding="utf-8")
+
+    assert "function conversationLaneRequestTimeoutMs" in js
+    assert "CHAT_REQUEST_TIMEOUT_READY_MS = 155000" in js
+    assert "CHAT_REQUEST_TIMEOUT_RECOVERING_MS = 185000" in js
+    assert "const requestTimeoutMs = conversationLaneRequestTimeoutMs(state.conversationLane);" in js
+    assert "const requestTimeoutMs = 90000;" not in js
+
+
+def test_legacy_shell_has_neural_feed_backpressure_controls():
+    js = (PROJECT_ROOT / "interface" / "static" / "aura.js").read_text(encoding="utf-8")
+
+    assert "THOUGHT_QUEUE_MAX = 160" in js
+    assert "function normalizeThoughtEvent" in js
+    assert "function buildThoughtFingerprint" in js
+    assert "function coalesceThoughtQueueItem" in js
+    assert "state.thoughtQueue.splice(0, state.thoughtQueue.length - THOUGHT_QUEUE_MAX + 1);" in js
+
+
 def test_server_keeps_legacy_shell_as_default_route():
     server = (PROJECT_ROOT / "interface" / "server.py").read_text(encoding="utf-8")
 

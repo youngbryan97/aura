@@ -164,22 +164,35 @@ class InferenceGate:
             "cortex_recovery_attempts": getattr(self, "_cortex_recovery_attempts", 0),
             "time_since_last_success_s": max(0, time.time() - getattr(self, "_last_successful_generation_at", time.time())),
             "last_transition_at": 0.0,
+            "last_ready_at": 0.0,
+            "last_progress_at": 0.0,
             "warmup_attempted": False,
             "warmup_in_flight": bool(self._prewarm_task and not self._prewarm_task.done()),
         }
+        raw_ready = False
         if self._mlx_client and hasattr(self._mlx_client, "get_lane_status"):
             raw = self._mlx_client.get_lane_status()
             lane["state"] = str(raw.get("state", lane["state"]) or lane["state"])
             lane["last_failure_reason"] = str(raw.get("last_error", "") or lane["last_failure_reason"])
-            lane["conversation_ready"] = bool(raw.get("conversation_ready", False))
+            raw_ready = bool(raw.get("conversation_ready", False))
+            lane["conversation_ready"] = raw_ready
             lane["last_transition_at"] = float(raw.get("last_transition_at", 0.0) or 0.0)
+            lane["last_ready_at"] = float(raw.get("last_ready_at", 0.0) or 0.0)
+            lane["last_progress_at"] = float(raw.get("last_progress_at", 0.0) or 0.0)
             lane["warmup_attempted"] = bool(raw.get("warmup_attempted", False))
             lane["warmup_in_flight"] = bool(raw.get("warmup_in_flight", lane["warmup_in_flight"]))
             if lane["conversation_ready"]:
                 lane["foreground_endpoint"] = PRIMARY_ENDPOINT
         lane_state = str(lane.get("state", "") or "").lower()
         recent_success = (time.time() - getattr(self, "_last_successful_generation_at", time.time())) <= 30.0
-        if lane_state == "ready" and recent_success:
+        recent_ready = any(
+            stamp > 0.0 and (time.time() - stamp) <= 300.0
+            for stamp in (
+                float(lane.get("last_ready_at", 0.0) or 0.0),
+                float(lane.get("last_progress_at", 0.0) or 0.0),
+            )
+        )
+        if raw_ready or (lane_state == "ready" and (recent_success or recent_ready)):
             lane["conversation_ready"] = True
             lane["foreground_endpoint"] = PRIMARY_ENDPOINT
         elif lane_state != "ready":
@@ -200,6 +213,14 @@ class InferenceGate:
             except Exception as exc:
                 logger.debug("Failed to mark cortex lane recovering: %s", exc)
         self._extend_startup_quiet_window(8.0)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        try:
+            self._schedule_background_cortex_prewarm(delay=2.0)
+        except Exception as exc:
+            logger.debug("Failed to schedule deferred cortex re-prewarm after timeout: %s", exc)
 
     def _extend_startup_quiet_window(self, seconds: float) -> None:
         orch = self.orch
@@ -1112,6 +1133,16 @@ class InferenceGate:
 
         # ── Hierarchical Goals ────────────────────────────────────────────────
         try:
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+            if goal_engine and hasattr(goal_engine, "get_context_block"):
+                goal_block = goal_engine.get_context_block(limit=5)
+                if goal_block:
+                    segments.append(goal_block)
+        except Exception as exc:
+            logger.debug("GoalEngine injection unavailable: %s", exc)
+
+        # ── Hierarchical Goals ────────────────────────────────────────────────
+        try:
             from core.agi.hierarchical_planner import get_hierarchical_planner
             _hp = get_hierarchical_planner()
             _hp_block = _hp.get_context_block()
@@ -1312,6 +1343,16 @@ class InferenceGate:
                     segments.append(f"## PHENOMENOLOGY\n{compact_fragment[:180]}")
         except Exception as exc:
             logger.debug("Compact phenomenology injection unavailable: %s", exc)
+
+        try:
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+            if goal_engine and hasattr(goal_engine, "get_context_block"):
+                goal_block = str(goal_engine.get_context_block(limit=3) or "").strip()
+                if goal_block:
+                    compact_goal = " ".join(goal_block.split())
+                    segments.append(f"## GOALS\n{compact_goal[:260]}")
+        except Exception as exc:
+            logger.debug("Compact GoalEngine injection unavailable: %s", exc)
 
         try:
             topic_hint = self._topic_hint_from_prompt(prompt)

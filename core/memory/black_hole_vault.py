@@ -132,7 +132,7 @@ class BlackHoleVault:
         if text is None:
             text = kwargs.pop("content", None)
         if not text or not str(text).strip():
-            return
+            return False
 
         text = str(text)
         metadata = metadata or {}
@@ -162,6 +162,7 @@ class BlackHoleVault:
             
         self._dirty = True
         self._save_vault()
+        return True
         
     def search_similar(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Standard interface matching VectorMemory"""
@@ -242,7 +243,8 @@ class BlackHoleVault:
             found = self.memories
             
         if isinstance(found, list) and limit:
-            found = list(found)[:limit]
+            sequence = list(found)
+            found = sequence[:limit] if ids else sequence[-limit:]
             
         ret: Dict[str, Any] = {
             "ids": [str(m.get("created")) for m in found] if isinstance(found, list) else [],

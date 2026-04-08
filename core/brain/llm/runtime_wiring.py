@@ -242,7 +242,12 @@ async def prepare_runtime_payload(
     return str(prompt or ""), system_prompt, prepared_messages, contract, runtime_state
 
 
-def build_agentic_tool_map(required_skill: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def build_agentic_tool_map(
+    required_skill: Optional[str] = None,
+    *,
+    objective: Optional[str] = None,
+    max_tools: int = 8,
+) -> Optional[Dict[str, Any]]:
     try:
         from core.container import ServiceContainer
 
@@ -250,7 +255,14 @@ def build_agentic_tool_map(required_skill: Optional[str] = None) -> Optional[Dic
         if not cap or not hasattr(cap, "get_tool_definitions"):
             return None
 
-        tool_defs = cap.get_tool_definitions() or []
+        if hasattr(cap, "select_tool_definitions"):
+            tool_defs = cap.select_tool_definitions(
+                objective=str(objective or ""),
+                required_skill=required_skill,
+                max_tools=max_tools,
+            ) or []
+        else:
+            tool_defs = cap.get_tool_definitions() or []
         tools: Dict[str, Any] = {}
         for entry in tool_defs:
             fn = entry.get("function", {}) if isinstance(entry, dict) else {}
@@ -258,7 +270,8 @@ def build_agentic_tool_map(required_skill: Optional[str] = None) -> Optional[Dic
             if not name:
                 continue
             if required_skill and name != required_skill:
-                continue
+                if str(name) != str(required_skill):
+                    continue
             tools[name] = fn
         return tools or None
     except Exception:

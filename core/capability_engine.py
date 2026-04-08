@@ -54,6 +54,10 @@ from core.runtime.service_access import (
 )
 import psutil
 
+_USER_FACING_CONTEXT_ORIGINS = frozenset({
+    "user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external",
+})
+
 
 def _skill_class_name(name: str) -> str:
     """Convert `snake_case` skill ids into their exported class names."""
@@ -438,14 +442,29 @@ class CapabilityEngine(AuraBaseModule):
                 r"your (?:vitals|health|stats)", r"are you (?:okay|running (?:well|smoothly))",
             ],
             "environment_info": [
-                r"what (?:time|date) is it", r"what(?:'s| is) (?:today|the date|the time)",
                 r"what(?:'s| is) (?:the weather|temperature) (?:in|at|for)",
-                r"where am I", r"current (?:location|timezone)",
+                r"weather forecast", r"where am I",
+                r"current (?:location|timezone)", r"what(?:'s| is) my (?:timezone|location)",
+                r"what (?:environment|system) am I (?:in|on)",
             ],
             "clock": [
                 r"what time", r"current time", r"what(?:'s| is) the time",
                 r"set (?:an? )?(?:alarm|timer|reminder)",
                 r"timer for", r"remind me (?:in|at|to)",
+            ],
+            "memory_ops": [
+                r"remember .*future session",
+                r"remember .*later",
+                r"remember .*about me",
+                r"remember that",
+                r"store (?:this|that|it) (?:in|to)? ?memory",
+                r"save (?:this|that|it) (?:for later|for future sessions|to memory)",
+                r"don['’]t forget",
+                r"make note of",
+                r"what do you remember",
+                r"what do you know about me",
+                r"recall ",
+                r"retrieve ",
             ],
             # ── Notifications ─────────────────────────────────────────
             "notify_user": [
@@ -495,6 +514,89 @@ class CapabilityEngine(AuraBaseModule):
                     triggered.append(name)
                     break 
         return triggered
+
+    def select_tool_definitions(
+        self,
+        *,
+        objective: str = "",
+        required_skill: Optional[str] = None,
+        max_tools: int = 8,
+    ) -> List[Dict[str, Any]]:
+        """
+        Return a bounded, relevance-ranked tool subset for agentic LLM calls.
+
+        This is intentionally narrower than `get_tool_definitions()` so local
+        tool-using models do not waste context, latency, and reasoning budget on
+        the full skill catalog.
+        """
+        available = self.get_tool_definitions() or []
+        if not available:
+            return []
+
+        max_tools = max(1, min(int(max_tools or 8), 12))
+        by_name = {
+            str(entry.get("function", {}).get("name") or ""): entry
+            for entry in available
+            if isinstance(entry, dict) and entry.get("function", {}).get("name")
+        }
+        if not by_name:
+            return []
+
+        objective_text = str(objective or "").strip()
+        objective_lower = objective_text.lower()
+        required = self.SKILL_ALIASES.get(required_skill, required_skill) if required_skill else None
+        matched = [
+            self.SKILL_ALIASES.get(name, name)
+            for name in (self.detect_intent(objective_text) if objective_text else [])
+        ]
+
+        heuristic_candidates: List[str] = []
+        heuristic_rules = (
+            (("latest", "news", "price", "search", "look up", "find online"), ("web_search", "search_web", "free_search")),
+            (("remember", "recall", "memory", "future sessions"), ("memory_ops", "memory_sync")),
+            (("time", "clock", "date"), ("clock",)),
+            (("browser", "website", "navigate", "open url", "webpage"), ("sovereign_browser",)),
+            (("terminal", "shell", "command", "cli"), ("sovereign_terminal", "computer_use")),
+            (("click", "type", "screen", "desktop", "mouse", "keyboard"), ("computer_use", "os_manipulation")),
+            (("file", "directory", "folder", "read file", "write file", "repo", "code"), ("file_operation", "computer_use")),
+        )
+        for tokens, names in heuristic_rules:
+            if any(token in objective_lower for token in tokens):
+                heuristic_candidates.extend(names)
+
+        ordered: List[str] = []
+
+        def _push(name: Optional[str]) -> None:
+            if not name:
+                return
+            resolved = self.SKILL_ALIASES.get(name, name)
+            if resolved in by_name and resolved not in ordered:
+                ordered.append(resolved)
+
+        _push(required)
+        for name in matched:
+            _push(name)
+        for name in heuristic_candidates:
+            _push(name)
+
+        if not ordered:
+            for fallback_name in ("web_search", "memory_ops", "clock"):
+                _push(fallback_name)
+
+        if len(ordered) < max_tools:
+            for name, meta in sorted(
+                self.skills.items(),
+                key=lambda item: (item[1].metabolic_cost, item[0]),
+            ):
+                if len(ordered) >= max_tools:
+                    break
+                if name not in by_name or name in ordered:
+                    continue
+                if getattr(meta, "metabolic_cost", 1) > 2:
+                    continue
+                ordered.append(name)
+
+        return [by_name[name] for name in ordered[:max_tools] if name in by_name]
 
     def _load_dependencies(self) -> None:
         """Loads optional dependencies for adaptation and security."""
@@ -955,6 +1057,93 @@ class CapabilityEngine(AuraBaseModule):
         return "\n".join(dormant) if dormant else "None"
 
     @staticmethod
+    def _normalize_context_origin(origin: Any) -> str:
+        normalized = str(origin or "").strip().lower().replace("-", "_")
+        while normalized.startswith("routing_"):
+            normalized = normalized[len("routing_"):]
+        return normalized
+
+    @classmethod
+    def _is_user_facing_origin(cls, origin: Any) -> bool:
+        normalized = cls._normalize_context_origin(origin)
+        if not normalized:
+            return False
+        if normalized in _USER_FACING_CONTEXT_ORIGINS:
+            return True
+        tokens = {token for token in normalized.split("_") if token}
+        return bool(tokens & _USER_FACING_CONTEXT_ORIGINS)
+
+    def _resolve_execution_source(self, context: Optional[Dict[str, Any]]) -> str:
+        ctx = context or {}
+        for key in ("intent_source", "request_origin", "origin", "source"):
+            candidate = self._normalize_context_origin(ctx.get(key))
+            if self._is_user_facing_origin(candidate):
+                return candidate or "user"
+        return "capability_engine"
+
+    def _augment_execution_context(self, context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        ctx = dict(context or {})
+        orchestrator = (
+            ctx.get("orchestrator")
+            or self.orchestrator
+            or ServiceContainer.get("orchestrator", default=None)
+        )
+        brain = (
+            ctx.get("brain")
+            or ServiceContainer.get("cognitive_engine", default=None)
+        )
+        memory_facade = (
+            ctx.get("memory_facade")
+            or ServiceContainer.get("memory_facade", default=None)
+        )
+        memory_store = (
+            ctx.get("memory_store")
+            or ServiceContainer.get("memory", default=None)
+        )
+        semantic_memory = (
+            ctx.get("semantic_memory")
+            or ServiceContainer.get("semantic_memory", default=None)
+        )
+        vector_memory = (
+            ctx.get("vector_memory")
+            or ServiceContainer.get("vector_memory", default=None)
+        )
+        theory_of_mind = (
+            ctx.get("theory_of_mind")
+            or ServiceContainer.get("theory_of_mind", default=None)
+        )
+
+        if orchestrator is not None:
+            ctx.setdefault("orchestrator", orchestrator)
+            ctx.setdefault(
+                "stats",
+                {
+                    "cycle_count": getattr(orchestrator, "cycle_count", 0),
+                    "state": str(getattr(getattr(orchestrator, "status", None), "state", "") or ""),
+                },
+            )
+        if brain is not None:
+            ctx.setdefault("brain", brain)
+        if theory_of_mind is not None:
+            ctx.setdefault("theory_of_mind", theory_of_mind)
+        if memory_facade is not None:
+            ctx.setdefault("memory_facade", memory_facade)
+        if memory_store is not None:
+            ctx.setdefault("memory_store", memory_store)
+        if semantic_memory is not None:
+            ctx.setdefault("semantic_memory", semantic_memory)
+        if vector_memory is not None:
+            ctx.setdefault("vector_memory", vector_memory)
+        if "memory" not in ctx:
+            ctx["memory"] = memory_facade or memory_store or semantic_memory or vector_memory
+
+        if not ctx.get("objective") and ctx.get("message"):
+            ctx["objective"] = ctx["message"]
+        elif not ctx.get("message") and ctx.get("objective"):
+            ctx["message"] = ctx["objective"]
+        return ctx
+
+    @staticmethod
     def _looks_like_unbounded_compute_request(params: Dict[str, Any], context: Optional[Dict[str, Any]]) -> bool:
         ctx = context or {}
         declared = str(ctx.get("resource_intensity", "") or params.get("resource_intensity", "")).strip().lower()
@@ -992,6 +1181,17 @@ class CapabilityEngine(AuraBaseModule):
         "free_search": "web_search",
     }
 
+    @staticmethod
+    def _normalize_execution_params(params: Dict[str, Any]) -> Dict[str, Any]:
+        normalized = dict(params or {})
+        if "params" in normalized and isinstance(normalized["params"], dict):
+            nested_params = dict(normalized["params"])
+            for key, value in normalized.items():
+                if key != "params":
+                    nested_params.setdefault(key, value)
+            return nested_params
+        return normalized
+
     async def execute(self, skill_name: str, params: Dict[str, Any],
                       context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Safe execution wrapper with adaptivity, security, and retries."""
@@ -999,10 +1199,12 @@ class CapabilityEngine(AuraBaseModule):
         # Resolve skill aliases (e.g., "search_web" → "web_search")
         skill_name = self.SKILL_ALIASES.get(skill_name, skill_name)
 
-        # Sanitize double-nested "params" from LLM hallucinations before execution
-        if "params" in params and isinstance(params["params"], dict):
+        # Sanitize double-nested "params" from LLM hallucinations before execution.
+        # Preserve any top-level fields we already inferred instead of discarding them.
+        normalized_params = self._normalize_execution_params(params)
+        if normalized_params != params and "params" in params and isinstance(params["params"], dict):
             self.logger.warning("[%s] Unpacking double-nested params from LLM hallucination.", skill_name)
-            params = params["params"]
+        params = normalized_params
 
         exec_core = None
         executive_intent_id = None
@@ -1012,7 +1214,8 @@ class CapabilityEngine(AuraBaseModule):
         async def _execute_wrapped():
             nonlocal exec_core, executive_intent_id, result
             start_time = time.monotonic()
-            ctx = context or {}
+            ctx = self._augment_execution_context(context)
+            exec_source = self._resolve_execution_source(ctx)
             
             # 1. Verification
             if skill_name not in self.skills:
@@ -1069,7 +1272,7 @@ class CapabilityEngine(AuraBaseModule):
                 intent, record = await exec_core.prepare_tool_intent(
                     skill_name,
                     params,
-                    source="capability_engine",
+                    source=exec_source,
                 )
                 executive_intent_id = intent.intent_id
                 if str(getattr(record.outcome, "value", record.outcome)) not in {"approved", "degraded"}:
@@ -1367,12 +1570,20 @@ class CapabilityEngine(AuraBaseModule):
                 if attempt > 0: 
                     await asyncio.sleep(self.retry_delay * attempt)
                     self.logger.info("Retrying %s (attempt %s)...", skill_name, attempt+1)
-                
-                inputs = self._prepare_inputs(skill, params, context)
-                output = await self._call_method(skill, inputs)
+
+                if hasattr(skill, "safe_execute") and callable(getattr(skill, "safe_execute")):
+                    output = await asyncio.wait_for(skill.safe_execute(params, context), timeout=self.timeout)
+                else:
+                    inputs = self._prepare_inputs(skill, params, context)
+                    output = await self._call_method(skill, inputs)
                 
                 if self._check_success(output):
-                    return {"ok": True, "results": output, "retries": attempt}
+                    if isinstance(output, dict):
+                        payload = dict(output)
+                        payload.setdefault("ok", True)
+                        payload["retries"] = attempt
+                        return payload
+                    return {"ok": True, "result": output, "retries": attempt}
                 
                 last_error = self._extract_error(output)
                 if not self._is_transient(last_error): 
@@ -1404,8 +1615,31 @@ class CapabilityEngine(AuraBaseModule):
         """Maps parameters to the skill's expected signature."""
         method = skill.execute if hasattr(skill, "execute") else skill
         sig = inspect.signature(method)
-        if "goal" in sig.parameters: 
-            return {"goal": {"objective": params}, "context": context}
+        if "goal" in sig.parameters:
+            goal_payload: Dict[str, Any]
+            if isinstance(params, dict):
+                goal_payload = dict(params)
+                nested_params = dict(goal_payload.get("params") or {}) if isinstance(goal_payload.get("params"), dict) else {}
+                for key, value in goal_payload.items():
+                    if key != "params":
+                        nested_params.setdefault(key, value)
+                goal_payload["params"] = nested_params
+            else:
+                goal_payload = {"params": {"value": params}}
+
+            objective = (
+                goal_payload.get("objective")
+                or context.get("objective")
+                or context.get("message")
+                or goal_payload.get("query")
+                or goal_payload.get("content")
+                or goal_payload.get("text")
+                or goal_payload.get("command")
+                or goal_payload.get("path")
+            )
+            if objective:
+                goal_payload["objective"] = str(objective)
+            return {"goal": goal_payload, "context": context}
         if "params" in sig.parameters: 
             return {"params": params, "context": context}
         return params

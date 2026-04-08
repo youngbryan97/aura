@@ -1105,7 +1105,25 @@ main {
 }
 
 .thought-card-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
     min-width: 0;
+}
+
+.thought-repeat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    background: rgba(0, 229, 255, 0.1);
+    border: 1px solid rgba(0, 229, 255, 0.2);
 }
 
 .thought-body {
@@ -1826,6 +1844,101 @@ main {
     background: rgba(0, 255, 163, 0.12);
     color: var(--success);
     border: 1px solid rgba(0, 255, 163, 0.25);
+}
+
+.tag.warn {
+    background: rgba(255, 184, 0, 0.14);
+    color: var(--warn);
+    border: 1px solid rgba(255, 184, 0, 0.25);
+}
+
+.tag.info {
+    background: rgba(0, 229, 255, 0.12);
+    color: var(--accent);
+    border: 1px solid rgba(0, 229, 255, 0.22);
+}
+
+.goal-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px 12px;
+}
+
+.goal-summary-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.63rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.goal-group {
+    margin-bottom: 14px;
+}
+
+.goal-group-title {
+    padding: 6px 12px;
+    font-size: 0.66rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.goal-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.goal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.goal-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.goal-summary-text {
+    color: var(--text-dim);
+    line-height: 1.45;
+}
+
+.goal-meta {
+    font-size: 0.64rem;
+    color: var(--text-dim);
+    opacity: 0.82;
+}
+
+.goal-progress {
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.goal-progress-bar {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), var(--primary));
+}
+
+.goal-empty-inline {
+    color: var(--text-dim);
+    opacity: 0.82;
 }
 
 /* Skill / subsystem classification badges */

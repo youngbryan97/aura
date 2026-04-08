@@ -31,6 +31,11 @@ router = APIRouter()
 # This module provides a getter/setter so system.py can also access it.
 
 _voice_engine_fn: Optional[Callable] = None
+_browser_camera_privacy: Dict[str, Any] = {
+    "enabled": False,
+    "mode": "off",
+    "reason": None,
+}
 
 
 def set_voice_engine_fn(fn: Optional[Callable]) -> None:
@@ -40,6 +45,20 @@ def set_voice_engine_fn(fn: Optional[Callable]) -> None:
 
 def get_voice_engine_fn() -> Optional[Callable]:
     return _voice_engine_fn
+
+
+def set_browser_camera_privacy(*, enabled: bool, mode: str = "off", reason: Optional[str] = None) -> Dict[str, Any]:
+    global _browser_camera_privacy
+    _browser_camera_privacy = {
+        "enabled": bool(enabled),
+        "mode": str(mode or ("browser_only" if enabled else "off")),
+        "reason": reason,
+    }
+    return dict(_browser_camera_privacy)
+
+
+def get_browser_camera_privacy() -> Dict[str, Any]:
+    return dict(_browser_camera_privacy)
 
 
 # ── Models ────────────────────────────────────────────────────
@@ -69,18 +88,38 @@ async def api_privacy_camera(payload: PrivacyPayload, _: None = Depends(_require
                 smc.camera_enabled = False
             if vision_buffer is not None:
                 vision_buffer.camera_enabled = False
-            logger.warning("\U0001f512 Privacy: Camera enable denied: %s", reason)
-            return JSONResponse(
-                {"ok": False, "enabled": False, "reason": reason},
-                status_code=409,
+            browser_state = set_browser_camera_privacy(
+                enabled=True,
+                mode="browser_only",
+                reason=reason,
             )
+            logger.warning(
+                "\U0001f512 Privacy: Main-process camera denied (%s); browser-only camera remains available",
+                reason,
+            )
+            return {
+                "ok": True,
+                "enabled": True,
+                "mode": browser_state["mode"],
+                "reason": browser_state["reason"],
+            }
 
     if smc is not None:
         smc.camera_enabled = enabled
     if vision_buffer is not None:
         vision_buffer.camera_enabled = enabled
+    browser_state = set_browser_camera_privacy(
+        enabled=enabled,
+        mode="full" if enabled else "off",
+        reason=None,
+    )
     logger.info("\U0001f512 Privacy: Camera %s", 'enabled' if enabled else 'disabled')
-    return {"ok": True, "enabled": enabled}
+    return {
+        "ok": True,
+        "enabled": enabled,
+        "mode": browser_state["mode"],
+        "reason": browser_state["reason"],
+    }
 
 
 @router.post("/privacy/microphone")

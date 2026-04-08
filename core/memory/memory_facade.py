@@ -45,6 +45,9 @@ class MemoryFacade:
         "missing": 3,
         "stale": 4,
     }
+    USER_FACING_SOURCES = frozenset({
+        "user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external",
+    })
     
     def __init__(self, orchestrator: Optional[Any] = None):
         """
@@ -63,6 +66,7 @@ class MemoryFacade:
         self._vault = None
         self._cold = None
         self._last_commit_time = None
+        self._last_add_memory_status: Dict[str, Any] = {"ok": True, "reason": "not_attempted"}
         self._repo_root = Path(__file__).resolve().parents[2]
 
     def _refresh_subsystems(self) -> None:
@@ -140,6 +144,76 @@ class MemoryFacade:
         if match:
             return match.group(1)
         return None
+
+    @classmethod
+    def _normalize_source_label(cls, raw: Any) -> str:
+        return str(raw or "").strip().lower().replace("-", "_")
+
+    @classmethod
+    def _is_user_facing_source(cls, raw: Any) -> bool:
+        normalized = cls._normalize_source_label(raw)
+        if not normalized:
+            return False
+        if normalized in cls.USER_FACING_SOURCES:
+            return True
+        tokens = {token for token in normalized.split("_") if token}
+        return bool(tokens & cls.USER_FACING_SOURCES)
+
+    def _resolve_memory_write_source(
+        self,
+        metadata: Optional[Dict[str, Any]] = None,
+        *,
+        fallback: str = "memory_facade",
+    ) -> str:
+        payload = dict(metadata or {})
+        for key in ("intent_source", "origin", "request_origin", "source"):
+            candidate = self._normalize_source_label(payload.get(key))
+            if self._is_user_facing_source(candidate):
+                return candidate or "user"
+        return fallback
+
+    def _should_store_semantic_interaction(
+        self,
+        *,
+        metadata: Optional[Dict[str, Any]],
+        success: bool,
+        importance: float,
+        action: str,
+    ) -> bool:
+        payload = dict(metadata or {})
+        if self._is_user_facing_source(self._resolve_memory_write_source(payload, fallback="")):
+            return True
+        if not success or importance >= 0.75:
+            return True
+        if float(payload.get("memory_salience", 0.0) or 0.0) >= 0.55:
+            return True
+        return str(action or "").startswith(("conversation", "execute_tool("))
+
+    @staticmethod
+    def _build_semantic_interaction_text(
+        *,
+        context: str,
+        action: str,
+        outcome: str,
+        metadata: Optional[Dict[str, Any]],
+    ) -> str:
+        payload = dict(metadata or {})
+        objective = str(payload.get("objective") or context or "").strip()
+        action_text = str(action or "").strip()
+        outcome_text = str(outcome or "").strip()
+
+        if action_text.startswith("execute_tool(") and action_text.endswith(")"):
+            tool_name = action_text[len("execute_tool("):-1]
+            return f"Objective: {objective}\nTool: {tool_name}\nOutcome: {outcome_text[:900]}".strip()
+
+        if action_text.startswith("conversation"):
+            return f"User: {objective}\nAura: {outcome_text[:900]}".strip()
+
+        return (
+            f"Context: {objective}\n"
+            f"Action: {action_text}\n"
+            f"Outcome: {outcome_text[:900]}"
+        ).strip()
 
     def _resolve_candidate_path(self, raw_path: Optional[str]) -> Optional[Path]:
         cleaned = str(raw_path or "").strip().strip("`\"'")
@@ -340,6 +414,7 @@ class MemoryFacade:
                                  importance: float = 0.5,
                                  metadata: Optional[Dict[str, Any]] = None):
         """Unified commit for an interaction across all relevant systems."""
+        resolved_source = self._resolve_memory_write_source(metadata)
         try:
             from core.container import ServiceContainer
             from core.constitution import get_constitutional_core
@@ -347,7 +422,7 @@ class MemoryFacade:
             approved, reason = await get_constitutional_core(self._orchestrator).approve_memory_write(
                 memory_type="interaction_commit",
                 content=f"{context[:160]} -> {action[:80]} -> {outcome[:160]}",
-                source="memory_facade",
+                source=resolved_source,
                 importance=max(0.0, min(1.0, float(importance or 0.0))),
                 metadata={"success": bool(success), **dict(metadata or {})},
             )
@@ -379,13 +454,49 @@ class MemoryFacade:
                     outcome=outcome,
                     success=success,
                     emotional_valence=emotional_valence,
-                    importance=importance
+                    importance=importance,
+                    source=resolved_source,
+                    metadata=metadata,
                 )
             except Exception as e:
                 logger.error("Failed to record episode: %s", e)
 
+        semantic_target = self.semantic if self.semantic is not None else self.vector
+        semantic_write_ok = False
+        if semantic_target and self._should_store_semantic_interaction(
+            metadata=metadata,
+            success=success,
+            importance=importance,
+            action=action,
+        ):
+            semantic_text = self._build_semantic_interaction_text(
+                context=context,
+                action=action,
+                outcome=outcome,
+                metadata=metadata,
+            )
+            semantic_metadata = {
+                "episode_id": episode_id,
+                "success": success,
+                "importance": importance,
+                "memory_type": "interaction_semantic",
+                **dict(metadata or {}),
+            }
+            try:
+                if hasattr(semantic_target, "remember"):
+                    await self._call_maybe_async(semantic_target.remember, semantic_text, semantic_metadata)
+                elif hasattr(semantic_target, "add_memory"):
+                    await self._call_maybe_async(semantic_target.add_memory, semantic_text, semantic_metadata)
+                elif hasattr(semantic_target, "index"):
+                    await self._call_maybe_async(semantic_target.index, semantic_text, semantic_metadata)
+                semantic_write_ok = True
+            except Exception as e:
+                logger.error("Failed to update semantic memory: %s", e)
+
         # 2. Update Vector Memory if important
-        if self.vector and (importance > 0.7 or success is False):
+        if self.vector and (importance > 0.7 or success is False) and (
+            self.vector is not semantic_target or not semantic_write_ok
+        ):
             try:
                 await self._call_maybe_async(
                     self.vector.add_memory,
@@ -524,6 +635,7 @@ class MemoryFacade:
     ) -> bool:
         """Compatibility API for legacy callers expecting async long-term memory writes."""
         payload = dict(metadata or {})
+        self._last_add_memory_status = {"ok": False, "reason": "pending"}
 
         try:
             from core.container import ServiceContainer
@@ -532,11 +644,12 @@ class MemoryFacade:
             approved, reason = await get_constitutional_core(self._orchestrator).approve_memory_write(
                 memory_type="facade_add_memory",
                 content=text,
-                source="memory_facade",
+                source=self._resolve_memory_write_source(payload),
                 importance=max(0.0, min(1.0, float(payload.get("importance", 0.5) or 0.5))),
                 metadata=payload,
             )
             if not approved:
+                self._last_add_memory_status = {"ok": False, "reason": str(reason or "write_rejected")}
                 logger.warning("🚫 MemoryFacade add_memory blocked: %s", reason)
                 return False
         except Exception as exc:
@@ -548,13 +661,18 @@ class MemoryFacade:
                 or ServiceContainer.has("kernel_interface")
             )
             if runtime_live:
+                self._last_add_memory_status = {"ok": False, "reason": "constitutional_gate_unavailable"}
                 logger.warning("🚫 MemoryFacade add_memory blocked: constitutional gate unavailable")
                 return False
 
         if self.vector and hasattr(self.vector, "add_memory"):
             try:
-                return bool(await asyncio.to_thread(self.vector.add_memory, text, payload))
+                raw_result = await asyncio.to_thread(self.vector.add_memory, text, payload)
+                stored = True if raw_result is None else bool(raw_result)
+                self._last_add_memory_status = {"ok": stored, "reason": "stored_via_vector" if stored else "vector_backend_returned_false"}
+                return stored
             except Exception as e:
+                self._last_add_memory_status = {"ok": False, "reason": f"vector_backend_error:{type(e).__name__}"}
                 logger.error("MemoryFacade.add_memory via vector failed: %s", e)
 
         if self.semantic:
@@ -564,19 +682,27 @@ class MemoryFacade:
                         await self.semantic.remember(text, payload)
                     else:
                         await asyncio.to_thread(self.semantic.remember, text, payload)
+                    self._last_add_memory_status = {"ok": True, "reason": "stored_via_semantic.remember"}
                     return True
                 if hasattr(self.semantic, "add_memory"):
                     await asyncio.to_thread(self.semantic.add_memory, text, payload)
+                    self._last_add_memory_status = {"ok": True, "reason": "stored_via_semantic.add_memory"}
                     return True
             except Exception as e:
+                self._last_add_memory_status = {"ok": False, "reason": f"semantic_backend_error:{type(e).__name__}"}
                 logger.error("MemoryFacade.add_memory via semantic failed: %s", e)
 
         if self.vault and hasattr(self.vault, "add_memory"):
             try:
-                return bool(await asyncio.to_thread(self.vault.add_memory, text, payload))
+                raw_result = await asyncio.to_thread(self.vault.add_memory, text, payload)
+                stored = True if raw_result is None else bool(raw_result)
+                self._last_add_memory_status = {"ok": stored, "reason": "stored_via_vault" if stored else "vault_backend_returned_false"}
+                return stored
             except Exception as e:
+                self._last_add_memory_status = {"ok": False, "reason": f"vault_backend_error:{type(e).__name__}"}
                 logger.error("MemoryFacade.add_memory via vault failed: %s", e)
 
+        self._last_add_memory_status = {"ok": False, "reason": "no_writable_memory_backend"}
         return False
 
     async def query_memory(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:

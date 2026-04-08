@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -391,6 +392,44 @@ def test_conversation_status_is_not_ready_after_timeout_mark():
     assert lane["state"] == "recovering"
     assert lane["conversation_ready"] is False
     assert lane["last_failure_reason"] == "foreground_timeout"
+
+
+def test_conversation_status_respects_ready_lane_even_without_recent_generation():
+    gate = InferenceGate()
+    gate._last_successful_generation_at = time.time() - 600.0
+
+    class _ReadyLane:
+        def get_lane_status(self):
+            return {
+                "state": "ready",
+                "last_error": "",
+                "conversation_ready": True,
+                "last_ready_at": time.time() - 45.0,
+                "last_progress_at": time.time() - 45.0,
+                "warmup_attempted": True,
+                "warmup_in_flight": False,
+            }
+
+    gate._mlx_client = _ReadyLane()
+
+    lane = gate.get_conversation_status()
+
+    assert lane["state"] == "ready"
+    assert lane["conversation_ready"] is True
+
+
+def test_note_foreground_timeout_schedules_fast_reprewarm(monkeypatch):
+    gate = InferenceGate()
+    scheduled = {}
+
+    def _record_schedule(delay=12.0):
+        scheduled["delay"] = delay
+
+    monkeypatch.setattr(asyncio, "get_running_loop", lambda: object())
+    gate._schedule_background_cortex_prewarm = _record_schedule
+    gate.note_foreground_timeout("foreground_timeout")
+
+    assert scheduled["delay"] == 2.0
 
 
 @pytest.mark.asyncio

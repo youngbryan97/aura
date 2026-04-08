@@ -80,6 +80,15 @@ class ExecutiveClosureEngine:
 
         prediction_error = self._observe_state_vector(state, closed_loop_status, homeostasis_status)
         pressures = self._compute_pressures(state, homeostasis_status, closed_loop_status, prediction_error)
+        interaction_signals = self._get_interaction_signals_status()
+        fused_interaction = dict(interaction_signals.get("fused", {}) or {})
+        if fused_interaction:
+            engagement = _clamp01(float(fused_interaction.get("engagement", 0.0) or 0.0))
+            hesitation = _clamp01(float(fused_interaction.get("hesitation", 0.0) or 0.0))
+            attention = _clamp01(float(fused_interaction.get("attention_available", 0.5) or 0.5))
+            pressures["social"] = max(float(pressures.get("social", 0.0) or 0.0), engagement * 0.72)
+            pressures["stability"] = max(float(pressures.get("stability", 0.0) or 0.0), hesitation * 0.48)
+            pressures["curiosity"] = max(float(pressures.get("curiosity", 0.0) or 0.0), engagement * attention * 0.45)
         dominant_need, need_pressure = max(
             pressures.items(),
             key=lambda item: item[1],
@@ -137,6 +146,7 @@ class ExecutiveClosureEngine:
             "free_energy": round(state.free_energy, 4),
             "phi_estimate": round(phi_estimate, 4),
             "vitality": round(state.vitality, 4),
+            "interaction_signals": interaction_signals,
         }
 
         if not state.cognition.phenomenal_state:
@@ -471,6 +481,15 @@ class ExecutiveClosureEngine:
                 return dict(workspace.get_snapshot() or {})
             except Exception as exc:
                 logger.debug("ExecutiveClosure: workspace snapshot failed: %s", exc)
+        return {}
+
+    def _get_interaction_signals_status(self) -> Dict[str, Any]:
+        interaction_signals = ServiceContainer.get("interaction_signals", default=None)
+        if interaction_signals and hasattr(interaction_signals, "get_status"):
+            try:
+                return dict(interaction_signals.get_status() or {})
+            except Exception as exc:
+                logger.debug("ExecutiveClosure: interaction signal snapshot failed: %s", exc)
         return {}
 
     def _compute_closure_score(

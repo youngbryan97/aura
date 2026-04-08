@@ -2,9 +2,9 @@ import asyncio
 import logging
 from typing import List, Optional, Union, Dict, Any
 from pydantic import BaseModel, Field
-import pyautogui
 
 from core.skills.base_skill import BaseSkill
+from core.skills._pyautogui_runtime import get_pyautogui
 
 logger = logging.getLogger("Skills.Hands")
 
@@ -39,6 +39,14 @@ class DesktopControlSkill(BaseSkill):
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         action = params.action
+        pyautogui, pyautogui_error = get_pyautogui()
+        if pyautogui is None:
+            detail = f": {pyautogui_error}" if pyautogui_error else ""
+            return {
+                "ok": False,
+                "error": f"PyAutoGUI unavailable{detail}",
+                "status": "unavailable",
+            }
         
         logger.warning("🖐️ OS MANIPULATION: %s %s", action, params)
 

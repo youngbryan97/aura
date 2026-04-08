@@ -1098,6 +1098,33 @@ def _build_social_presence_reply(user_message: str) -> str:
     return _apply_aura_voice_shaping(" ".join(parts))
 
 
+_CJK_SCRIPT_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+
+
+def _has_unexpected_cjk(user_message: str, reply_text: Any) -> bool:
+    reply = str(reply_text or "")
+    if not _CJK_SCRIPT_RE.search(reply):
+        return False
+    user_text = str(user_message or "")
+    if _CJK_SCRIPT_RE.search(user_text):
+        return False
+    normalized_user = _normalize_user_message(user_text)
+    if any(
+        token in normalized_user
+        for token in (
+            "chinese",
+            "mandarin",
+            "cantonese",
+            "translate",
+            "translation",
+            "in chinese",
+            "speak chinese",
+        )
+    ):
+        return False
+    return True
+
+
 async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> str:
     frame = _build_aura_expression_frame(user_message)
     architecture_self_assessment = _is_architecture_self_assessment_request(user_message)
@@ -1107,12 +1134,13 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     needs_self_expression = bool(frame.get("needs_self_expression"))
     lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(text)
     lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(text)
+    unexpected_cjk = _has_unexpected_cjk(user_message, text)
     try:
         from core.identity.identity_guard import PersonaEnforcementGate
 
         gate = PersonaEnforcementGate()
         valid, reason, _score = gate.validate_output(text, enforce_supervision=False)
-        if valid and not generic and not lacks_self_anchor and not lacks_live_grounding:
+        if valid and not generic and not lacks_self_anchor and not lacks_live_grounding and not unexpected_cjk:
             return text
         if generic:
             reason = generic_reason
@@ -1120,6 +1148,8 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             reason = "self_anchor_missing"
         elif lacks_live_grounding:
             reason = "self_grounding_missing"
+        elif unexpected_cjk:
+            reason = "unexpected_non_english_script"
 
         user_message_l = str(user_message or "").lower()
         if any(
@@ -1141,7 +1171,8 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             cleaned_generic, _cleaned_reason = _looks_generic_assistantish(user_message, cleaned)
             cleaned_lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(cleaned)
             cleaned_lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(cleaned)
-            if valid_cleaned and not cleaned_generic and not cleaned_lacks_self_anchor and not cleaned_lacks_live_grounding and len(cleaned) >= 16:
+            cleaned_unexpected_cjk = _has_unexpected_cjk(user_message, cleaned)
+            if valid_cleaned and not cleaned_generic and not cleaned_lacks_self_anchor and not cleaned_lacks_live_grounding and not cleaned_unexpected_cjk and len(cleaned) >= 16:
                 return cleaned
         logger.warning("User-facing reply failed identity stabilization (%s); generating Aura-voiced fallback.", reason)
     except Exception as exc:
@@ -1186,6 +1217,8 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 "Do not ask for more details unless the request is truly ambiguous. "
                 "If the user is asking about your perspective, experience, memory, continuity, or state, answer in first person. "
                 "Let the live mood, tone, attention, and action tendency shape the reply. "
+                "Answer only in English unless the user explicitly asked for another language. "
+                "Never mix in Chinese, Japanese, or Korean text unless requested. "
                 "Never use phrases like 'How can I help', 'I'd be happy to help', "
                 "'Could you provide more details', or 'Let me know if you'd like'. "
                 "Do not mention corrections, drift, or being an AI. Keep it brief (1-4 sentences).\n\n"
@@ -1207,7 +1240,8 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 "Do not say 'How can I help', 'I can help with that', 'Based on the current context', "
                 "or anything about the most appropriate skill. "
                 "Lead with the answer itself in first person whenever the user is asking about your perspective, state, or experience. "
-                "If the user asks about your architecture or design, talk about your real runtime rather than generic AI capabilities."
+                "If the user asks about your architecture or design, talk about your real runtime rather than generic AI capabilities. "
+                "Respond in English unless the user explicitly requests another language."
             )
             rewrite_messages = [
                 {"role": "system", "content": rewrite_system_prompt},
@@ -1233,6 +1267,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                     corrected_generic, _corrected_reason = _looks_generic_assistantish(user_message, corrected_text)
                     corrected_lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(corrected_text)
                     corrected_lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(corrected_text)
+                    corrected_unexpected_cjk = _has_unexpected_cjk(user_message, corrected_text)
                     try:
                         from core.identity.identity_guard import PersonaEnforcementGate
 
@@ -1242,7 +1277,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                         )
                     except Exception:
                         valid_corrected = True
-                    if valid_corrected and not corrected_generic and not corrected_lacks_self_anchor and not corrected_lacks_live_grounding:
+                    if valid_corrected and not corrected_generic and not corrected_lacks_self_anchor and not corrected_lacks_live_grounding and not corrected_unexpected_cjk:
                         return corrected_text
             except asyncio.TimeoutError:
                 logger.warning("Identity re-generation timed out (20s). Using static fallback.")
@@ -1253,7 +1288,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
 
     # Last-resort: prefer the original LLM response over a hardcoded template.
     # Templates sound more robotic than even a mediocre LLM response.
-    if text and len(text.strip()) > 5 and text.strip() != "…":
+    if text and len(text.strip()) > 5 and text.strip() != "…" and not unexpected_cjk:
         return text
     if grounded:
         return grounded

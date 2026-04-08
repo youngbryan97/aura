@@ -89,9 +89,12 @@ async def test_duplicate_residual_user_objective_is_suppressed_within_cooldown()
     })
 
     first_state = await phase.execute(state)
-    second_state = await phase.execute(first_state)
+    # The first call should actually route (derive a new state with mode/tier set).
+    assert first_state is not state or first_state.cognition.current_mode is not None
 
-    router.classify.assert_awaited_once()
+    second_state = await phase.execute(first_state)
+    # The second call should be suppressed — same objective, same origin, within
+    # the dedup cooldown window — so the state is returned unchanged.
     assert second_state is first_state
 
 

@@ -23,6 +23,9 @@ async def mycelial_ui_callback(message: str):
 
     from interface.websocket_manager import ws_manager
 
+    if ws_manager.count() == 0:
+        return
+
     payload = {
         "type": "aura_message",
         "message": message,
@@ -43,6 +46,9 @@ async def broadcast_telemetry(data: dict):
     from core.utils.telemetry_enrichment import enrich_telemetry
     from interface.websocket_manager import ws_manager
 
+    if ws_manager.count() == 0:
+        return
+
     enrich_telemetry(data)
     await ws_manager.broadcast(data)
 
@@ -53,7 +59,7 @@ async def run_event_bridge(is_gui_proxy: bool = False) -> None:
     This is the core pipeline that forwards orchestrator/cognitive events
     to the frontend HUD in real-time.
     """
-    from interface.websocket_manager import broadcast_bus
+    from interface.websocket_manager import broadcast_bus, ws_manager
 
     try:
         from core.event_bus import get_event_bus
@@ -100,6 +106,12 @@ async def run_event_bridge(is_gui_proxy: bool = False) -> None:
             topic = event.get("topic")
             data = event.get("data")
 
+            # With no UI consumers attached, the bridge should stay dormant instead of
+            # serializing every internal event into a websocket shape that nobody will read.
+            if ws_manager.count() == 0 and broadcast_bus.subscriber_count() <= 1:
+                q.task_done()
+                continue
+
             # Apply personality filtering to any broadcasted text
             if isinstance(data, dict):
                 for key in ["content", "message", "text", "thought", "chunk"]:
@@ -131,7 +143,11 @@ async def run_event_bridge(is_gui_proxy: bool = False) -> None:
                         broadcast_bus.publish(ws_msg, priority=p_val), timeout=2.0
                     )
                 except asyncio.TimeoutError:
-                    pass
+                    logger.warning(
+                        "EventBridge: dropped %s event (broadcast bus timeout)",
+                        ws_msg.get("type", "unknown"),
+                    )
+            q.task_done()
 
     except Exception as e:
         logger.error("EventBus bridge failure: %s", e, exc_info=True)

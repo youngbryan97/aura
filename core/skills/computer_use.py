@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 from core.skills.base_skill import BaseSkill
-import pyautogui
+from core.skills._pyautogui_runtime import get_pyautogui
 
 logger = logging.getLogger("Skills.ComputerUse")
 
@@ -36,6 +36,17 @@ class ComputerUseSkill(BaseSkill):
             params = ComputerUseParams(**params)
 
         action = params.action
+        pyautogui = None
+        pyautogui_error = None
+        if action in {"click", "type", "hotkey", "scroll"}:
+            pyautogui, pyautogui_error = get_pyautogui()
+            if pyautogui is None:
+                detail = f": {pyautogui_error}" if pyautogui_error else ""
+                return {
+                    "ok": False,
+                    "error": f"PyAutoGUI unavailable{detail}",
+                    "status": "unavailable",
+                }
 
         # Mycelial root pulse: Agent executing computer control
         try:

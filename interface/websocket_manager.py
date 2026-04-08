@@ -51,6 +51,9 @@ class MessageBroadcastBus:
             if q in self._subs:
                 self._subs.remove(q)
 
+    def subscriber_count(self) -> int:
+        return len(self._subs)
+
     @staticmethod
     def _worse_than(lhs: tuple[Any, ...], rhs: tuple[Any, ...]) -> bool:
         return (lhs[0], -float(lhs[1])) > (rhs[0], -float(rhs[1]))
@@ -222,7 +225,7 @@ class WebSocketManager:
                     try:
                         await websocket.send_text(payload)
                     except BaseException as e:
-                        logger.debug("WS send failed: %s", e)
+                        logger.warning("WS send failed (message lost, type=%s): %s", type(e).__name__, e)
                         break
                     finally:
                         queue.task_done()
@@ -279,6 +282,8 @@ class WebSocketManager:
 
     async def broadcast(self, message: dict):
         """Send a JSON-serializable dict to all clients via their queues."""
+        if not self.active_connections:
+            return
         message = _normalize_ui_event(message)
         msg_type = message.get("type", "")
         priority = 10

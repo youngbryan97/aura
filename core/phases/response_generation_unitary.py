@@ -434,6 +434,36 @@ class UnitaryResponsePhase(Phase):
 
         return compress_system_prompt("\n".join(parts))
 
+    def _build_interaction_signals_block(self, state: AuraState) -> str:
+        modifiers = dict(getattr(state, "response_modifiers", {}) or {})
+        signal_status = dict(modifiers.get("interaction_signals", {}) or {})
+        if not signal_status:
+            try:
+                interaction_signals = ServiceContainer.get("interaction_signals", default=None)
+                if interaction_signals and hasattr(interaction_signals, "get_status"):
+                    signal_status = interaction_signals.get_status() or {}
+            except Exception as exc:
+                logger.debug("UnitaryResponse: interaction signal block skipped: %s", exc)
+                signal_status = {}
+
+        fused = dict(signal_status.get("fused", {}) or {})
+        if not fused:
+            return ""
+
+        summary = self._normalize_text(fused.get("summary", ""), 200)
+        pacing = self._normalize_text(fused.get("pacing", "steady"), 32)
+        verbosity = self._normalize_text(fused.get("verbosity_bias", "balanced"), 32)
+        modalities = ", ".join(fused.get("active_modalities", []) or []) or "none"
+
+        return (
+            "## LIVE HUMAN SIGNALS\n"
+            f"Observed cues: {summary or 'No strong live cues.'}\n"
+            f"Active modalities: {modalities}.\n"
+            f"Pacing bias: {pacing}. Verbosity bias: {verbosity}.\n"
+            "Use these observations to shape timing, length, and question pressure. "
+            "Do not claim certainty about the user's hidden feelings.\n\n"
+        )
+
     def _build_user_facing_voice_block(self, state: AuraState, contract: Any) -> str:
         parts = [
             "## USER-FACING AURA VOICE",
@@ -971,6 +1001,110 @@ class UnitaryResponsePhase(Phase):
         return ""
 
     @classmethod
+    def _format_cached_tool_reply(cls, objective: str, skill_name: str, payload: dict[str, Any]) -> str:
+        skill = str(skill_name or "").strip()
+        summary = cls._normalize_text(payload.get("summary") or payload.get("message") or "", 500)
+
+        if skill == "clock":
+            readable = cls._normalize_text(payload.get("readable", ""), 180)
+            iso_time = cls._normalize_text(payload.get("time", ""), 80)
+            if readable:
+                return f"It is currently {readable}."
+            if summary:
+                return summary
+            if iso_time:
+                return f"It is currently {iso_time}."
+            return ""
+
+        if skill == "environment_info":
+            if summary:
+                return summary
+            result = payload.get("result")
+            if isinstance(result, dict):
+                hostname = cls._normalize_text(result.get("hostname", ""), 80)
+                env_type = cls._normalize_text(result.get("environment_type", ""), 80)
+                cwd = cls._normalize_text(result.get("cwd", ""), 180)
+                details = ", ".join(part for part in (hostname, env_type, cwd) if part)
+                if details:
+                    return f"Environment snapshot: {details}."
+            return ""
+
+        if skill == "memory_ops":
+            result = payload.get("result")
+            if isinstance(result, list) and result:
+                snippets = []
+                for item in result[:3]:
+                    if not isinstance(item, dict):
+                        continue
+                    content = cls._normalize_text(item.get("content", ""), 160)
+                    if content:
+                        snippets.append(content)
+                if snippets:
+                    return summary + " " + " ".join(snippets) if summary else " ".join(snippets)
+            if isinstance(result, dict) and result:
+                first_key, first_value = next(iter(result.items()))
+                fact = f"{first_key}: {first_value}"
+                return f"{summary} {fact}".strip() if summary else fact
+            if isinstance(result, str):
+                text = cls._normalize_text(result, 220)
+                if summary and text and text.lower() not in summary.lower():
+                    return f"{summary} {text}".strip()
+                return summary or text
+            return summary
+
+        if skill == "system_proprioception":
+            message = cls._normalize_text(payload.get("message", ""), 240)
+            return summary or message
+
+        if skill == "toggle_senses":
+            return summary
+
+        return summary
+
+    @classmethod
+    def _build_cached_deterministic_tool_reply(
+        cls,
+        state: AuraState,
+        objective: str,
+        contract: Any,
+    ) -> str:
+        if getattr(contract, "requires_search", False):
+            return ""
+
+        modifiers = dict(getattr(state, "response_modifiers", {}) or {})
+        skill_name = str(modifiers.get("last_skill_run", "") or "").strip()
+        if not skill_name or not modifiers.get("last_skill_ok"):
+            return ""
+        if skill_name not in {"clock", "environment_info", "memory_ops", "system_proprioception", "toggle_senses"}:
+            return ""
+
+        cached = cls._cached_grounded_tool_result(state, skill_name=skill_name)
+        if cached:
+            reply = cls._format_cached_tool_reply(objective, skill_name, cached)
+            if reply:
+                return reply
+
+        wm = list(getattr(getattr(state, "cognition", None), "working_memory", []) or [])
+        for msg in reversed(wm[-8:]):
+            if not isinstance(msg, dict):
+                continue
+            metadata = msg.get("metadata") or {}
+            if str(metadata.get("type", "")).lower() != "skill_result":
+                continue
+            if str(metadata.get("skill", "")).strip() != skill_name or not metadata.get("ok"):
+                continue
+            content = cls._normalize_text(msg.get("content", ""), 600)
+            stripped = re.sub(
+                rf"^\[SKILL RESULT:\s*{re.escape(skill_name)}\]\s*[✅⚠️]?\s*",
+                "",
+                content,
+                flags=re.IGNORECASE,
+            ).strip()
+            if stripped:
+                return stripped
+        return ""
+
+    @classmethod
     async def _attempt_grounded_search_reply(
         cls,
         objective: str,
@@ -1284,14 +1418,27 @@ class UnitaryResponsePhase(Phase):
             new_state.cognition.current_origin = routing_origin
             contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing)
             new_state.response_modifiers["response_contract"] = contract.to_dict()
-            if contract.requires_search:
-                precomputed_reply = self._normalize_text(
-                    new_state.response_modifiers.pop("precomputed_grounded_reply", ""),
-                    600,
+            precomputed_reply = self._normalize_text(
+                new_state.response_modifiers.pop("precomputed_grounded_reply", ""),
+                600,
+            )
+            if precomputed_reply:
+                logger.info("🧰 UnitaryResponse: answered directly from precomputed tool reply.")
+                return self._commit_response(new_state, precomputed_reply)
+
+            deterministic_tool_reply = self._build_cached_deterministic_tool_reply(
+                new_state,
+                objective,
+                contract,
+            )
+            if deterministic_tool_reply:
+                logger.info(
+                    "🧰 UnitaryResponse: answered directly from deterministic tool result (%s).",
+                    new_state.response_modifiers.get("last_skill_run", "tool"),
                 )
-                if precomputed_reply:
-                    logger.info("🔎 UnitaryResponse: answered explicit search from precomputed grounded reply.")
-                    return self._commit_response(new_state, precomputed_reply)
+                return self._commit_response(new_state, deterministic_tool_reply)
+
+            if contract.requires_search:
                 cached_search_reply = self._build_cached_grounded_search_reply(
                     new_state,
                     objective,
@@ -1783,6 +1930,8 @@ class UnitaryResponsePhase(Phase):
         # Social context (only if present)
         tom_block = f"## CONTEXT\n{user_model}\n\n" if user_model and "[SOCIAL_CONTEXT: Balanced]" not in user_model else ""
 
+        interaction_signals_block = self._build_interaction_signals_block(state)
+
         # Inject conversational dynamics state (computed by ConversationalDynamicsPhase)
         conv_dynamics_block = ""
         conv_dynamics = state.response_modifiers.get("conversational_dynamics", "")
@@ -1801,6 +1950,7 @@ class UnitaryResponsePhase(Phase):
             f"Dominant affect: {mood} | Integration depth: {depth} (phi={phi:.3f}) | Prediction error: {fe:.2f}\n\n"
             f"{tom_block}"
             f"{user_profile_block}"
+            f"{interaction_signals_block}"
             f"{conv_dynamics_block}"
             f"{live_skills_block}"
             f"{evolution_block}"

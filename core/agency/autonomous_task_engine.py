@@ -74,6 +74,7 @@ class TaskPlan:
     goal:           str
     steps:          List[TaskStep]
     trace_id:       str             # Observability Fix 5.2
+    context:        Dict[str, Any]  = field(default_factory=dict)
     token_id:       Optional[str]   = None  # Associated CapabilityToken
     is_shadow:      bool            = False # If true, no side effects
     requires_approval: bool         = False # If high cost/complexity
@@ -192,6 +193,21 @@ class AutonomousTaskEngine:
         self._tool_registry[name] = fn
         logger.debug("TaskEngine: registered tool '%s'", name)
 
+    async def execute(
+        self,
+        goal: str,
+        context: Optional[Dict] = None,
+        on_progress: Optional[Callable] = None,
+        is_shadow: bool = False,
+    ) -> TaskResult:
+        """Compatibility alias for older callers."""
+        return await self.execute_goal(
+            goal=goal,
+            context=context,
+            on_progress=on_progress,
+            is_shadow=is_shadow,
+        )
+
     async def execute_goal(
         self,
         goal: str,
@@ -218,6 +234,7 @@ class AutonomousTaskEngine:
         plan = await self._decompose_goal(goal, plan_id, context)
         plan.trace_id = trace_id
         plan.is_shadow = is_shadow
+        plan.context = dict(context or {})
 
         if not plan.steps:
             return TaskResult(
@@ -300,9 +317,15 @@ class AutonomousTaskEngine:
 
         # 3. Synthesize result
         result = await self._synthesize_result(plan, time.time() - plan.created_at)
-        # Issue ATE-007: Update goals BEFORE deleting from active_plans
-        self._update_state_goals(plan)
-        del self._active_plans[plan_id]
+        # Issue ATE-007: Update goals BEFORE deleting from active_plans.
+        # Wrap in try/finally so the plan is always cleaned up even if
+        # the goal engine write fails — prevents zombie active plans.
+        try:
+            self._update_state_goals(plan)
+        except Exception as exc:
+            logger.error("TaskEngine: goal state sync failed for plan %s: %s", plan_id, exc)
+        finally:
+            self._active_plans.pop(plan_id, None)
 
         logger.info(
             "TaskEngine: plan %s complete. Success=%s (%d/%d steps)",
@@ -436,7 +459,7 @@ Respond ONLY with a JSON array, no other text:
             if context and context.get("source_memory"):
                 await self._mycelial.add_edge(context["source_memory"], goal[:40])
 
-            return TaskPlan(plan_id=plan_id, goal=goal, steps=steps, trace_id="")
+            return TaskPlan(plan_id=plan_id, goal=goal, steps=steps, trace_id="", context=dict(context or {}))
 
         except Exception as e:
             logger.error("TaskEngine: decomposition failed: %s", e)
@@ -451,6 +474,7 @@ Respond ONLY with a JSON array, no other text:
                     success_criterion="response is non-empty",
                 )],
                 trace_id="",
+                context=dict(context or {}),
             )
 
     def _normalize_depends_on(self, raw_depends_on: Any, plan_id: str, step_index: int) -> List[str]:
@@ -816,26 +840,47 @@ Respond ONLY with a JSON array, no other text:
     def _update_state_goals(self, plan: TaskPlan) -> None:
         """Keep AuraState.cognition.active_goals in sync with running plans."""
         try:
+            from core.container import ServiceContainer
+
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+            if goal_engine and hasattr(goal_engine, "sync_task_plan"):
+                goal_engine.sync_task_plan(plan, context=getattr(plan, "context", None))
+
             state = self.kernel.state
             if state is None:
                 return
-            # Ensure it is a list
-            if not hasattr(state.cognition, "active_goals") or state.cognition.active_goals is None:
-                state.cognition.active_goals = []
-            
-            # Remove old entry for this plan if present
-            state.cognition.active_goals = [
-                g for g in state.cognition.active_goals
+            cognition = getattr(state, "cognition", None)
+            if cognition is None:
+                return
+
+            if goal_engine and hasattr(goal_engine, "get_active_goals"):
+                try:
+                    cognition.active_goals = goal_engine.get_active_goals(limit=6, include_external=True)
+                    if cognition.active_goals and not getattr(cognition, "current_objective", None):
+                        cognition.current_objective = str(
+                            cognition.active_goals[0].get("objective")
+                            or cognition.active_goals[0].get("goal")
+                            or cognition.active_goals[0].get("name")
+                            or ""
+                        )
+                    return
+                except Exception as exc:
+                    logger.debug("GoalEngine-backed state sync failed: %s", exc)
+
+            if not hasattr(cognition, "active_goals") or cognition.active_goals is None:
+                cognition.active_goals = []
+
+            cognition.active_goals = [
+                g for g in cognition.active_goals
                 if g.get("plan_id") != plan.plan_id
             ]
-            # Add current state if plan is still running
             if plan.plan_id in self._active_plans:
-                state.cognition.active_goals.append({
-                    "plan_id":       plan.plan_id,
-                    "goal":          plan.goal[:80],
-                    "status":        plan.status,
-                    "steps_done":    len(plan.succeeded_steps),
-                    "steps_total":   len(plan.steps),
+                cognition.active_goals.append({
+                    "plan_id": plan.plan_id,
+                    "goal": plan.goal[:80],
+                    "status": plan.status,
+                    "steps_done": len(plan.succeeded_steps),
+                    "steps_total": len(plan.steps),
                 })
         except Exception as e:
             logger.debug("State goal update failed: %s", e)

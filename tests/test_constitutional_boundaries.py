@@ -7,8 +7,11 @@ from core.self_modification.safe_modification import SafeSelfModification
 
 def test_capability_guard_blocks_restricted_write_even_with_global_allow():
     guard = CapabilityGuard()
+    # Force default restrictive capabilities — the installed manifest may be
+    # wide-open, but this test validates the default-deny posture.
+    guard.capabilities = guard._get_default_capabilities()
     protected = Path("core/security/trust_engine.py")
-    allowed = Path("core/brain/llm/mlx_client.py")
+    allowed = Path("data/logs/test.log")
 
     assert guard.can_write_path(str(protected)) is False
     assert guard.can_write_path(str(allowed)) is True

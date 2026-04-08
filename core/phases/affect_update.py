@@ -67,6 +67,7 @@ class AffectUpdatePhase(Phase):
 
         # 3.5. Conversation Feedback — close the loop from discourse state → affect
         self._apply_conversation_feedback(affect, state)
+        self._apply_interaction_signal_feedback(affect, state)
         self._apply_system_pressures(affect, state)
 
         # 4. Somatic Coupling (Heart rate, GSR, etc.)
@@ -326,6 +327,51 @@ class AffectUpdatePhase(Phase):
             affect.curiosity = min(1.0, affect.curiosity + (0.03 * continuity_pressure))
             if reentry_required:
                 affect.social_hunger = min(1.0, affect.social_hunger + (0.02 * continuity_pressure))
+
+    def _apply_interaction_signal_feedback(self, affect: AffectVector, state: AuraState):
+        """Observed interaction cues shape affect without pretending to infer hidden emotion."""
+        signal_status = dict(getattr(state, "response_modifiers", {}) or {}).get("interaction_signals", {}) or {}
+        if not signal_status:
+            try:
+                from core.container import ServiceContainer
+
+                interaction_signals = ServiceContainer.get("interaction_signals", default=None)
+                if interaction_signals and hasattr(interaction_signals, "get_status"):
+                    signal_status = interaction_signals.get_status() or {}
+            except Exception as exc:
+                logger.debug("Interaction signal affect feedback skipped: %s", exc)
+                signal_status = {}
+
+        fused = dict(signal_status.get("fused", {}) or {})
+        voice = dict(signal_status.get("voice", {}) or {})
+        vision = dict(signal_status.get("vision", {}) or {})
+
+        engagement = min(1.0, max(0.0, float(fused.get("engagement", 0.0) or 0.0)))
+        hesitation = min(1.0, max(0.0, float(fused.get("hesitation", 0.0) or 0.0)))
+        attention = min(1.0, max(0.0, float(fused.get("attention_available", 0.5) or 0.5)))
+
+        if engagement > 0.55:
+            affect.emotions["trust"] = min(1.0, affect.emotions.get("trust", 0.0) + (0.05 * engagement))
+            affect.emotions["anticipation"] = min(1.0, affect.emotions.get("anticipation", 0.0) + (0.04 * engagement))
+            affect.social_hunger = max(0.0, affect.social_hunger - (0.04 * engagement))
+
+        if hesitation > 0.55:
+            affect.emotions["fear"] = min(1.0, affect.emotions.get("fear", 0.0) + (0.04 * hesitation))
+            affect.emotions["sadness"] = min(1.0, affect.emotions.get("sadness", 0.0) + (0.03 * hesitation))
+            affect.social_hunger = min(1.0, affect.social_hunger + (0.03 * hesitation))
+
+        if attention < 0.3 and vision.get("face_present"):
+            affect.emotions["sadness"] = min(1.0, affect.emotions.get("sadness", 0.0) + 0.03)
+            affect.social_hunger = min(1.0, affect.social_hunger + 0.03)
+
+        voice_label = str(voice.get("label") or "")
+        if voice_label == "calm":
+            affect.emotions["trust"] = min(1.0, affect.emotions.get("trust", 0.0) + 0.02)
+        elif voice_label == "activated":
+            affect.emotions["anticipation"] = min(1.0, affect.emotions.get("anticipation", 0.0) + 0.03)
+        elif voice_label == "stressed":
+            affect.emotions["fear"] = min(1.0, affect.emotions.get("fear", 0.0) + 0.04)
+            affect.emotions["anger"] = min(1.0, affect.emotions.get("anger", 0.0) + 0.02)
 
     def _check_resilience_surges(self, affect: AffectVector):
         """Detects despair spirals and injects adrenaline (Immune surge)."""

@@ -15,6 +15,8 @@ logger = logging.getLogger("Aura.DegradedEvents")
 _MAX_SUMMARIES = 500
 _MAX_FORWARDED = 500
 _MAX_CONTEXT_KEYS = 20
+_FAILURE_EVENT_HALF_LIFE_S = 120.0
+_FAILURE_EVENT_MAX_AGE_S = 900.0
 
 _EVENTS: deque[Dict[str, Any]] = deque(maxlen=200)
 _SUMMARIES: Dict[Tuple[str, str, str, str], Dict[str, Any]] = {}
@@ -133,34 +135,43 @@ def get_unified_failure_state(limit: int = 25) -> Dict[str, Any]:
         "error": 0.6,
         "critical": 1.0,
     }
-    subsystems: Dict[str, int] = {}
+    now = time.time()
+    subsystems: Dict[str, float] = {}
     weighted = 0.0
-    critical = 0
-    errors = 0
-    warnings = 0
+    critical = 0.0
+    errors = 0.0
+    warnings = 0.0
 
     for event in events:
         severity = str(event.get("severity", "warning") or "warning").lower()
         count = int(event.get("count", 1) or 1)
-        subsystems[str(event.get("subsystem", "unknown"))] = subsystems.get(str(event.get("subsystem", "unknown")), 0) + count
-        weighted += severity_weights.get(severity, 0.25) * min(4, count)
+        last_seen = float(event.get("last_seen", event.get("timestamp", now)) or now)
+        age_s = max(0.0, now - last_seen)
+        if age_s > _FAILURE_EVENT_MAX_AGE_S:
+            continue
+
+        recency = 0.5 ** (age_s / _FAILURE_EVENT_HALF_LIFE_S)
+        active_count = min(4.0, float(count)) * recency
+        subsystem = str(event.get("subsystem", "unknown"))
+        subsystems[subsystem] = subsystems.get(subsystem, 0.0) + active_count
+        weighted += severity_weights.get(severity, 0.25) * active_count
         if severity == "critical":
-            critical += count
+            critical += active_count
         elif severity == "error":
-            errors += count
+            errors += active_count
         else:
-            warnings += count
+            warnings += active_count
 
     pressure = min(1.0, (weighted + (critical * 1.5) + (errors * 0.5)) / 5.0)
     top_subsystems = sorted(subsystems.items(), key=lambda item: item[1], reverse=True)[:5]
     return {
         "pressure": round(pressure, 4),
-        "count": sum(subsystems.values()),
-        "critical": critical,
-        "errors": errors,
-        "warnings": warnings,
+        "count": int(round(sum(subsystems.values()))),
+        "critical": int(round(critical)),
+        "errors": int(round(errors)),
+        "warnings": int(round(warnings)),
         "top_subsystems": [
-            {"subsystem": subsystem, "count": count}
+            {"subsystem": subsystem, "count": round(count, 3)}
             for subsystem, count in top_subsystems
         ],
     }

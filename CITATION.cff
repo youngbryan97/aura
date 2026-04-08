@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+title: "Aura: A Sovereign Cognitive Architecture with IIT 4.0, Contrastive Activation Steering, and Active Inference"
+message: "If you reference this work, please cite it as below."
+type: software
+authors:
+  - given-names: Bryan
+    affiliation: "Independent Researcher"
+keywords:
+  - cognitive-architecture
+  - integrated-information-theory
+  - contrastive-activation-addition
+  - active-inference
+  - global-workspace-theory
+  - attention-schema-theory
+  - affective-computing
+  - consciousness
+  - autonomous-agent
+  - liquid-time-constant-networks
+  - spike-timing-dependent-plasticity
+  - free-energy-principle
+  - apple-silicon
+  - local-llm
+license: "Source Available"

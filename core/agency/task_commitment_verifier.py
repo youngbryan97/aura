@@ -117,6 +117,7 @@ class TaskCommitmentVerifier:
     def __init__(self, kernel: Any):
         self.kernel = kernel
         self._active_tasks: Dict[str, Dict] = {}   # task_id → status record
+        self._background_tasks: Dict[str, asyncio.Task] = {}
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -288,12 +289,28 @@ class TaskCommitmentVerifier:
             "task_id": task_id, "objective": objective[:120],
             "status": "running", "started_at": time.time(),
         }
+        await self._track_goal_dispatch(
+            objective,
+            task_id=task_id,
+            source="commitment_verifier_inline",
+            quick_win=True,
+        )
+        execution_task = asyncio.create_task(
+            task_engine.execute(
+                goal=objective,
+                context={
+                    "task_id": task_id,
+                    "source": "commitment_verifier",
+                    "quick_win": True,
+                    "attention_policy": "interruptible",
+                    "priority": 0.9,
+                    "horizon": "short_term",
+                },
+            )
+        )
         try:
             result = await asyncio.wait_for(
-                task_engine.execute(
-                    goal=objective,
-                    context={"task_id": task_id, "source": "commitment_verifier"},
-                ),
+                asyncio.shield(execution_task),
                 timeout=self.INLINE_TIMEOUT_S,
             )
             succeeded = getattr(result, "succeeded", bool(result))
@@ -304,6 +321,12 @@ class TaskCommitmentVerifier:
                 "completed_at": time.time(),
                 "summary": summary,
             })
+            await self._update_goal_dispatch(
+                task_id=task_id,
+                status=outcome.value,
+                summary=summary,
+                error="" if succeeded else summary,
+            )
             elapsed = (time.monotonic() - t0) * 1000
             logger.info(
                 "TaskCommitmentVerifier: inline task %s → %s in %.0fms: %s",
@@ -317,17 +340,49 @@ class TaskCommitmentVerifier:
                 elapsed_ms=elapsed,
             )
         except asyncio.TimeoutError:
-            # Timed out inline — treat as async-started
+            commitment_id = self._register_commitment(objective)
             self._active_tasks[task_id]["status"] = "running_async"
+            if commitment_id:
+                self._active_tasks[task_id]["commitment_id"] = commitment_id
+            self._background_tasks[task_id] = execution_task
+            execution_task.add_done_callback(
+                lambda fut, _task_id=task_id, _objective=objective, _commitment_id=commitment_id:
+                asyncio.create_task(
+                    self._finalize_background_task(
+                        task_id=_task_id,
+                        objective=_objective,
+                        future=fut,
+                        commitment_id=_commitment_id,
+                    )
+                )
+            )
+            await self._track_goal_dispatch(
+                objective,
+                task_id=task_id,
+                source="commitment_verifier_timeout",
+                commitment_id=commitment_id,
+                quick_win=False,
+            )
             elapsed = (time.monotonic() - t0) * 1000
             return TaskAcceptance(
                 outcome=DispatchOutcome.STARTED,
                 task_id=task_id,
-                summary=f"This task is running in the background (took >={self.INLINE_TIMEOUT_S:.0f}s). I'll update you when it completes.",
+                commitment_id=commitment_id,
+                summary=(
+                    f"This task is still running in the background (took >={self.INLINE_TIMEOUT_S:.0f}s). "
+                    "I'll keep tracking it until it completes."
+                    + (f" Commitment {commitment_id} is attached." if commitment_id else "")
+                ),
                 elapsed_ms=elapsed,
             )
         except Exception as e:
             self._active_tasks[task_id].update({"status": "failed", "error": str(e)})
+            await self._update_goal_dispatch(
+                task_id=task_id,
+                status=DispatchOutcome.FAILED.value,
+                summary=f"Task execution failed: {e}",
+                error=str(e),
+            )
             elapsed = (time.monotonic() - t0) * 1000
             logger.warning("TaskCommitmentVerifier: inline task %s failed: %s", task_id, e)
             return TaskAcceptance(
@@ -347,59 +402,46 @@ class TaskCommitmentVerifier:
     ) -> TaskAcceptance:
         """Launch task in the background and register a CommitmentEngine entry."""
         # Register with CommitmentEngine for cross-session tracking
-        commitment_id = None
-        try:
-            from core.agency.commitment_engine import get_commitment_engine
-            ce = get_commitment_engine()
-            commitment = ce.commit(
-                description=objective[:120],
-                outcome="Task completed successfully with verified result.",
-                deadline_hours=4.0,
-            )
-            commitment_id = commitment.id
-        except Exception as ex:
-            logger.debug("TaskCommitmentVerifier: CommitmentEngine registration failed: %s", ex)
+        commitment_id = self._register_commitment(objective)
 
         self._active_tasks[task_id] = {
             "task_id": task_id, "objective": objective[:120],
             "commitment_id": commitment_id,
             "status": "running_async", "started_at": time.time(),
         }
-
-        # Fire-and-forget background execution with completion callback
-        async def _bg_run():
-            try:
-                result = await task_engine.execute(
-                    goal=objective,
-                    context={"task_id": task_id, "source": "commitment_verifier_async"},
+        await self._track_goal_dispatch(
+            objective,
+            task_id=task_id,
+            source="commitment_verifier_async",
+            commitment_id=commitment_id,
+            quick_win=False,
+        )
+        execution_task = asyncio.create_task(
+            task_engine.execute(
+                goal=objective,
+                context={
+                    "task_id": task_id,
+                    "source": "commitment_verifier_async",
+                    "commitment_id": commitment_id,
+                    "quick_win": False,
+                    "attention_policy": "sustained",
+                    "priority": 0.8,
+                    "horizon": "short_term",
+                },
+            )
+        )
+        self._background_tasks[task_id] = execution_task
+        execution_task.add_done_callback(
+            lambda fut, _task_id=task_id, _objective=objective, _commitment_id=commitment_id:
+            asyncio.create_task(
+                self._finalize_background_task(
+                    task_id=_task_id,
+                    objective=_objective,
+                    future=fut,
+                    commitment_id=_commitment_id,
                 )
-                succeeded = getattr(result, "succeeded", bool(result))
-                summary = getattr(result, "summary", str(result))
-                self._active_tasks[task_id].update({
-                    "status": "completed" if succeeded else "failed",
-                    "completed_at": time.time(),
-                    "summary": summary,
-                })
-                # Fulfil or mark the commitment
-                if commitment_id:
-                    try:
-                        from core.agency.commitment_engine import get_commitment_engine
-                        if succeeded:
-                            get_commitment_engine().fulfill(commitment_id, note=summary[:200])
-                        else:
-                            get_commitment_engine().update_progress(commitment_id, 0.5,
-                                                                     note=f"Partial: {summary[:100]}")
-                    except Exception as _exc:
-                        logger.debug("Suppressed Exception: %s", _exc)
-                logger.info(
-                    "TaskCommitmentVerifier: async task %s %s: %s",
-                    task_id, "completed" if succeeded else "failed", summary[:80],
-                )
-            except Exception as e:
-                self._active_tasks[task_id].update({"status": "failed", "error": str(e)})
-                logger.warning("TaskCommitmentVerifier: async task %s failed: %s", task_id, e)
-
-        asyncio.ensure_future(_bg_run())
+            )
+        )
 
         elapsed = (time.monotonic() - t0) * 1000
         return TaskAcceptance(
@@ -427,6 +469,166 @@ class TaskCommitmentVerifier:
             return ServiceContainer.get("task_engine", default=None)
         except Exception:
             return None
+
+    def _get_goal_engine(self) -> Optional[Any]:
+        try:
+            from core.container import ServiceContainer
+            return ServiceContainer.get("goal_engine", default=None)
+        except Exception:
+            return None
+
+    def _register_commitment(self, objective: str) -> Optional[str]:
+        try:
+            from core.agency.commitment_engine import CommitmentType, get_commitment_engine
+
+            commitment = get_commitment_engine().commit(
+                description=objective[:120],
+                outcome="Task completed successfully with verified result.",
+                deadline_hours=4.0,
+                commitment_type=CommitmentType.AUTONOMOUS,
+            )
+            return commitment.id
+        except Exception as ex:
+            logger.debug("TaskCommitmentVerifier: CommitmentEngine registration failed: %s", ex)
+            return None
+
+    async def _track_goal_dispatch(
+        self,
+        objective: str,
+        *,
+        task_id: str,
+        source: str,
+        commitment_id: Optional[str] = None,
+        quick_win: bool,
+    ) -> None:
+        goal_engine = self._get_goal_engine()
+        if goal_engine and hasattr(goal_engine, "track_dispatch"):
+            try:
+                await goal_engine.track_dispatch(
+                    objective,
+                    task_id=task_id,
+                    source=source,
+                    commitment_id=commitment_id,
+                    quick_win=quick_win,
+                )
+            except Exception as exc:
+                logger.debug("TaskCommitmentVerifier: goal dispatch tracking failed: %s", exc)
+
+    async def _update_goal_dispatch(
+        self,
+        *,
+        task_id: str,
+        status: str,
+        summary: str = "",
+        error: str = "",
+    ) -> None:
+        goal_engine = self._get_goal_engine()
+        if goal_engine and hasattr(goal_engine, "update_task_lifecycle"):
+            try:
+                await goal_engine.update_task_lifecycle(
+                    task_id=task_id,
+                    status=status,
+                    summary=summary,
+                    error=error,
+                )
+            except Exception as exc:
+                logger.debug("TaskCommitmentVerifier: goal lifecycle update failed: %s", exc)
+
+    async def _finalize_background_task(
+        self,
+        *,
+        task_id: str,
+        objective: str,
+        future: asyncio.Future,
+        commitment_id: Optional[str],
+    ) -> None:
+        self._background_tasks.pop(task_id, None)
+        try:
+            if future.cancelled():
+                raise asyncio.CancelledError(f"Background task {task_id} was cancelled")
+            result = future.result()
+            succeeded = getattr(result, "succeeded", bool(result))
+            summary = getattr(result, "summary", str(result))
+            if task_id in self._active_tasks:
+                self._active_tasks[task_id].update({
+                    "status": "completed" if succeeded else "failed",
+                    "completed_at": time.time(),
+                    "summary": summary,
+                })
+            try:
+                await self._update_goal_dispatch(
+                    task_id=task_id,
+                    status=DispatchOutcome.COMPLETED.value if succeeded else DispatchOutcome.FAILED.value,
+                    summary=summary,
+                    error="" if succeeded else summary,
+                )
+            except Exception as goal_exc:
+                logger.error("TaskCommitmentVerifier: goal dispatch failed for %s: %s", task_id, goal_exc)
+            if commitment_id:
+                try:
+                    from core.agency.commitment_engine import get_commitment_engine
+
+                    if succeeded:
+                        get_commitment_engine().fulfill(commitment_id, note=summary[:200])
+                    else:
+                        get_commitment_engine().update_progress(
+                            commitment_id,
+                            0.5,
+                            note=f"Partial: {summary[:100]}",
+                        )
+                except Exception as exc:
+                    logger.debug("TaskCommitmentVerifier: commitment settlement failed: %s", exc)
+            logger.info(
+                "TaskCommitmentVerifier: async task %s %s: %s",
+                task_id,
+                "completed" if succeeded else "failed",
+                summary[:80],
+            )
+        except asyncio.CancelledError:
+            if task_id in self._active_tasks:
+                self._active_tasks[task_id].update({"status": "cancelled", "completed_at": time.time()})
+            try:
+                await self._update_goal_dispatch(
+                    task_id=task_id,
+                    status=DispatchOutcome.FAILED.value,
+                    summary="Task was cancelled",
+                    error="cancelled",
+                )
+            except Exception:
+                pass
+            logger.warning("TaskCommitmentVerifier: async task %s was cancelled", task_id)
+        except Exception as e:
+            if task_id in self._active_tasks:
+                self._active_tasks[task_id].update({"status": "failed", "error": str(e), "completed_at": time.time()})
+            try:
+                await self._update_goal_dispatch(
+                    task_id=task_id,
+                    status=DispatchOutcome.FAILED.value,
+                    summary=f"Task execution failed: {e}",
+                    error=str(e),
+                )
+            except Exception as goal_exc:
+                logger.error("TaskCommitmentVerifier: goal dispatch failed during error handling for %s: %s", task_id, goal_exc)
+            logger.warning("TaskCommitmentVerifier: async task %s failed: %s", task_id, e)
+        finally:
+            # Prevent unbounded _active_tasks growth: clean up terminal entries
+            # after a grace period so callers can still query recent results.
+            entry = self._active_tasks.get(task_id)
+            if entry and entry.get("status") in {"completed", "failed", "cancelled"}:
+                entry.setdefault("cleanup_at", time.time() + 300)
+            self._prune_terminal_tasks()
+
+    def _prune_terminal_tasks(self, max_age: float = 300.0) -> None:
+        """Remove completed/failed/cancelled tasks older than max_age seconds."""
+        now = time.time()
+        to_remove = [
+            tid
+            for tid, entry in self._active_tasks.items()
+            if entry.get("status") in {"completed", "failed", "cancelled"}
+            and now >= float(entry.get("cleanup_at", now + 1))
+        ]
+        for tid in to_remove:
+            self._active_tasks.pop(tid, None)
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────

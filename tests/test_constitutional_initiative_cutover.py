@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from core.consciousness.executive_authority import ExecutiveAuthority
+from core.container import ServiceContainer
 from core.state.aura_state import AuraState
 
 
@@ -59,36 +60,71 @@ def test_kernel_pending_initiative_consumer_is_retired():
 async def test_executive_authority_promotes_and_completes_initiatives():
     state = AuraState()
     authority = ExecutiveAuthority(SimpleNamespace())
+    goal_engine_calls = {"add": [], "update": []}
 
-    state, _ = await authority.propose_initiative_to_state(
-        state,
-        "Investigate runtime drift",
-        source="initiative_generation",
-        urgency=0.7,
-        triggered_by="curiosity",
-    )
-    state, _ = await authority.propose_initiative_to_state(
-        state,
-        "Stabilize thermal load",
-        source="executive_closure",
-        urgency=0.9,
-        triggered_by="stability",
-    )
+    class _FakeGoalEngine:
+        async def add_goal(self, name, objective=None, **kwargs):
+            goal_engine_calls["add"].append((name, objective, kwargs))
+            return {"id": "goal-1", "status": kwargs.get("status", "queued")}
 
-    promoted_state, initiative, decision = await authority.promote_next_initiative(state, source="mind_tick")
+        def get_goal(self, goal_id):
+            assert goal_id == "goal-1"
+            return {"id": goal_id, "status": "in_progress"}
 
-    assert decision["action"] == "promoted"
-    assert initiative is not None
-    assert promoted_state.cognition.current_objective == "Stabilize thermal load"
-    assert promoted_state.cognition.current_origin in {"executive_closure", "mind_tick"}
-    assert len(promoted_state.cognition.pending_initiatives) == 1
+        async def update_goal_status(self, goal_id, **kwargs):
+            goal_engine_calls["update"].append((goal_id, kwargs))
+            return {"id": goal_id, **kwargs}
 
-    completed_state, completion = await authority.complete_current_objective(
-        promoted_state,
-        reason="tick_cycle_complete",
-        source="mind_tick",
+    original_get = ServiceContainer.get
+    ServiceContainer.get = staticmethod(
+        lambda name, default=None: _FakeGoalEngine() if name == "goal_engine" else original_get(name, default)
     )
 
-    assert completion["action"] == "completed"
-    assert completed_state.cognition.current_objective is None
-    assert all(item.get("goal") != "Stabilize thermal load" for item in completed_state.cognition.pending_initiatives)
+    try:
+        state, _ = await authority.propose_initiative_to_state(
+            state,
+            "Investigate runtime drift",
+            source="initiative_generation",
+            urgency=0.7,
+            triggered_by="curiosity",
+        )
+        state, _ = await authority.propose_initiative_to_state(
+            state,
+            "Stabilize thermal load",
+            source="executive_closure",
+            urgency=0.9,
+            triggered_by="stability",
+        )
+
+        promoted_state, initiative, decision = await authority.promote_next_initiative(state, source="mind_tick")
+
+        assert decision["action"] == "promoted"
+        assert initiative is not None
+        assert promoted_state.cognition.current_objective == "Stabilize thermal load"
+        assert promoted_state.cognition.current_origin in {"executive_closure", "mind_tick"}
+        assert len(promoted_state.cognition.pending_initiatives) == 1
+        assert promoted_state.cognition.modifiers["current_objective_binding"]["goal_id"] == "goal-1"
+
+        held_state, held = await authority.complete_current_objective(
+            promoted_state,
+            reason="tick_cycle_complete",
+            source="mind_tick",
+        )
+
+        assert held["action"] == "held"
+        assert held_state.cognition.current_objective == "Stabilize thermal load"
+
+        completed_state, completion = await authority.complete_current_objective(
+            promoted_state,
+            reason="goal_completed",
+            source="mind_tick",
+        )
+
+        assert completion["action"] == "completed"
+        assert completed_state.cognition.current_objective is None
+        assert all(item.get("goal") != "Stabilize thermal load" for item in completed_state.cognition.pending_initiatives)
+        assert goal_engine_calls["add"]
+        assert goal_engine_calls["update"][0][0] == "goal-1"
+        assert goal_engine_calls["update"][0][1]["status"] == "completed"
+    finally:
+        ServiceContainer.get = original_get

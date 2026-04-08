@@ -5,6 +5,7 @@ episodic, semantic, recent, and goal memory.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any, Dict, List
@@ -86,6 +87,98 @@ async def _build_episodic_memory_response(limit: int, offset: int) -> JSONRespon
     )
 
 
+def _semantic_items_from_bulk_result(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    documents = list(payload.get("documents") or [])
+    metadatas = list(payload.get("metadatas") or [])
+    ids = list(payload.get("ids") or [])
+    items: List[Dict[str, Any]] = []
+    for idx, doc in enumerate(documents):
+        items.append(
+            {
+                "id": str(ids[idx]) if idx < len(ids) else "",
+                "content": str(doc or ""),
+                "metadata": dict(metadatas[idx] or {}) if idx < len(metadatas) else {},
+            }
+        )
+    return items
+
+
+async def _build_semantic_memory_response(limit: int, offset: int) -> JSONResponse:
+    safe_limit, safe_offset, window_limit = _normalize_memory_pagination(limit, offset)
+    try:
+        sem = ServiceContainer.get("semantic_memory", default=None)
+        if sem:
+            if hasattr(sem, "get"):
+                raw = await asyncio.to_thread(sem.get, None, window_limit)
+                if isinstance(raw, dict):
+                    items = _semantic_items_from_bulk_result(raw)
+                    if items:
+                        items.reverse()
+                        return JSONResponse(
+                            _memory_page_payload(items, limit=safe_limit, offset=safe_offset, window_limit=window_limit)
+                        )
+            if hasattr(sem, "memories"):
+                raw_memories = list(getattr(sem, "memories", []) or [])[-window_limit:]
+                items = [
+                    {
+                        "id": str(entry.get("created", "")),
+                        "content": str(entry.get("text", "") or ""),
+                        "metadata": dict(entry.get("metadata", {}) or {}),
+                        "timestamp": entry.get("created"),
+                    }
+                    for entry in raw_memories
+                    if isinstance(entry, dict)
+                ]
+                items.reverse()
+                return JSONResponse(
+                    _memory_page_payload(items, limit=safe_limit, offset=safe_offset, window_limit=window_limit)
+                )
+            if hasattr(sem, "search"):
+                raw = await asyncio.to_thread(sem.search, "", window_limit)
+                if isinstance(raw, list):
+                    items = []
+                    for entry in raw:
+                        if isinstance(entry, dict):
+                            items.append(
+                                {
+                                    "id": str(entry.get("id", "")),
+                                    "content": str(entry.get("content") or entry.get("text") or ""),
+                                    "metadata": dict(entry.get("metadata", {}) or {}),
+                                }
+                            )
+                    if items:
+                        return JSONResponse(
+                            _memory_page_payload(items, limit=safe_limit, offset=safe_offset, window_limit=window_limit)
+                        )
+
+        kg = ServiceContainer.get("knowledge_graph", default=None)
+        if kg:
+            if hasattr(kg, "search_knowledge"):
+                results = kg.search_knowledge("*", limit=window_limit)
+                items = []
+                for r in results:
+                    if isinstance(r, dict):
+                        items.append(r)
+                    elif hasattr(r, "items"):
+                        items.append(dict(r))
+                    else:
+                        items.append({"key": str(r), "value": ""})
+                return JSONResponse(
+                    _memory_page_payload(items, limit=safe_limit, offset=safe_offset, window_limit=window_limit)
+                )
+            if hasattr(kg, "get_stats"):
+                stats = kg.get_stats()
+                items = [{"key": k, "value": str(v)} for k, v in stats.items()]
+                return JSONResponse(
+                    _memory_page_payload(items, limit=safe_limit, offset=safe_offset, window_limit=window_limit)
+                )
+    except Exception as exc:
+        logger.debug("Semantic memory failed: %s", exc)
+    return JSONResponse(
+        _memory_page_payload([], limit=safe_limit, offset=safe_offset, window_limit=window_limit)
+    )
+
+
 # ── Routes ────────────────────────────────────────────────────
 
 @router.get("/memory/recent")
@@ -111,35 +204,36 @@ async def api_memory_episodic(
 
 
 @router.get("/memory/semantic")
-async def api_memory_semantic(limit: int = 20, _: None = Depends(_require_internal)):
+async def api_memory_semantic(
+    limit: int = 20,
+    offset: int = 0,
+    _: None = Depends(_require_internal),
+    __: None = Depends(_check_rate_limit),
+):
     """Retrieve semantic knowledge entries."""
-    try:
-        kg = ServiceContainer.get("knowledge_graph", default=None)
-        if kg:
-            if hasattr(kg, "search_knowledge"):
-                results = kg.search_knowledge("*", limit=limit)
-                items = []
-                for r in results:
-                    if isinstance(r, dict):
-                        items.append(r)
-                    elif hasattr(r, "items"):
-                        items.append(dict(r))
-                    else:
-                        items.append({"key": str(r), "value": ""})
-                return JSONResponse({"items": items})
-            elif hasattr(kg, "get_stats"):
-                stats = kg.get_stats()
-                return JSONResponse({"items": [{"key": k, "value": str(v)} for k, v in stats.items()]})
-    except Exception as exc:
-        logger.debug("Semantic memory failed: %s", exc)
-    return JSONResponse({"items": []})
+    return await _build_semantic_memory_response(limit=limit, offset=offset)
 
 
 @router.get("/memory/goals")
 async def api_memory_goals(limit: int = 20, _: None = Depends(_require_internal)):
-    """Retrieve active goals from knowledge graph and strategic planner."""
+    """Retrieve the unified goal lifecycle snapshot."""
     goals: List[Dict[str, Any]] = []
+    summary: Dict[str, Any] = {}
     try:
+        goal_engine = ServiceContainer.get("goal_engine", default=None)
+        if goal_engine and hasattr(goal_engine, "build_snapshot"):
+            snapshot = await asyncio.to_thread(
+                goal_engine.build_snapshot,
+                max(30, int(limit or 20) * 3),
+                include_external=True,
+            )
+            return JSONResponse(
+                {
+                    "items": list(snapshot.get("items") or []),
+                    "summary": dict(snapshot.get("summary") or {}),
+                }
+            )
+
         # 1. Knowledge Graph learning goals
         kg = ServiceContainer.get("knowledge_graph", default=None)
         if kg and hasattr(kg, "get_active_learning_goals"):
@@ -195,4 +289,9 @@ async def api_memory_goals(limit: int = 20, _: None = Depends(_require_internal)
                     })
     except Exception as exc:
         logger.debug("Goals retrieval failed: %s", exc)
-    return JSONResponse({"items": goals[:limit]})
+    summary = {
+        "active_count": sum(1 for item in goals if item.get("status") not in {"completed", "failed"}),
+        "completed_count": sum(1 for item in goals if item.get("status") == "completed"),
+        "failed_count": sum(1 for item in goals if item.get("status") == "failed"),
+    }
+    return JSONResponse({"items": goals[:limit], "summary": summary})

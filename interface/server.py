@@ -477,6 +477,7 @@ from interface.routes import chat as chat_routes
 from interface.routes import system as system_routes
 from interface.routes import subsystems as subsystem_routes
 from interface.routes import memory as memory_routes
+from interface.routes import interaction_signals as interaction_signal_routes
 from interface.routes import privacy as privacy_routes
 from interface.routes import rpc as rpc_routes
 
@@ -486,6 +487,7 @@ app.include_router(chat_routes.router, prefix="/api", tags=["chat"])
 app.include_router(system_routes.router, prefix="/api", tags=["system"])
 app.include_router(subsystem_routes.router, prefix="/api", tags=["subsystems"])
 app.include_router(memory_routes.router, prefix="/api", tags=["memory-api"])
+app.include_router(interaction_signal_routes.router, prefix="/api", tags=["interaction-signals"])
 app.include_router(privacy_routes.router, prefix="/api", tags=["privacy"])
 app.include_router(rpc_routes.router, prefix="/rpc", tags=["rpc"])
 
@@ -518,6 +520,7 @@ def _sync_legacy_system_exports() -> None:
     system_routes._collect_conversation_lane_status = _collect_conversation_lane_status
     system_routes._conversation_lane_is_standby = _conversation_lane_is_standby
     system_routes._collect_liquid_state_payload = _collect_liquid_state_payload
+    system_routes._collect_legacy_shell_status = _collect_legacy_shell_status
     system_routes.build_boot_health_snapshot = build_boot_health_snapshot
     system_routes.get_runtime_state = get_runtime_state
     system_routes.psutil = psutil
@@ -533,9 +536,34 @@ def _collect_runtime_capabilities(conversation_lane: Optional[Dict[str, Any]] = 
     return system_routes._collect_runtime_capabilities(conversation_lane)
 
 
+def _collect_legacy_shell_status() -> Dict[str, Any]:
+    return {
+        "shell": "legacy_shell" if LEGACY_UI_INDEX.exists() else "react_shell",
+        "legacy_fallback_available": LEGACY_UI_INDEX.exists(),
+        "experimental_shell_available": (SHELL_DIST_DIR / "index.html").exists(),
+    }
+
+
+# ── Compatibility re-exports ──────────────────────────────────────
+# These functions were refactored into interface/routes/ but existing tests
+# and internal callers still import them from interface.server.
+
+ChatRequest = chat_routes.ChatRequest
+api_chat = chat_routes.api_chat
+_foreground_timeout_for_lane = chat_routes._foreground_timeout_for_lane
+_conversation_lane_user_message = chat_routes._conversation_lane_user_message
+_log_exchange = chat_routes._log_exchange
+api_action_log = subsystem_routes.api_action_log
+
+
 async def api_health(request: Request):
     _sync_legacy_system_exports()
     return await system_routes.api_health(request)
+
+
+async def api_ui_bootstrap(request: Request = None):
+    _sync_legacy_system_exports()
+    return await system_routes.api_ui_bootstrap(request)
 
 
 async def api_memory_episodic(limit: int = 20, offset: int = 0):
@@ -551,6 +579,10 @@ async def _ws_broadcaster() -> None:
         while True:
             try:
                 ptr, ts, msg = await asyncio.wait_for(q.get(), timeout=10.0)
+
+                if ws_manager.count() == 0:
+                    q.task_done()
+                    continue
 
                 if isinstance(msg, str):
                     try:

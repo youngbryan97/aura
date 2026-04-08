@@ -487,7 +487,11 @@ class HealthAwareLLMRouter:
                 kwargs.pop("messages", None)
 
         if should_force_tool_handoff(contract, is_background=inferred_background) and not kwargs.pop("_contract_tool_handoff", False):
-            tools = build_agentic_tool_map(contract.required_skill if contract else None)
+            tools = build_agentic_tool_map(
+                contract.required_skill if contract else None,
+                objective=prompt,
+                max_tools=8,
+            )
             if tools:
                 result = await self.think_and_act(
                     objective=prompt,

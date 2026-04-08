@@ -9,6 +9,7 @@ from core.executive import executive_core as executive_core_module
 from core.constitution import get_constitutional_core
 from core import constitution as constitution_module
 from core.health.degraded_events import clear_degraded_events, record_degraded_event
+from core.health import degraded_events as degraded_events_module
 from core.state.aura_state import AuraState, CognitiveMode
 from core.state.state_repository import StateRepository
 from core.self_model import SelfModel
@@ -391,6 +392,40 @@ async def test_executive_unifies_failure_pressure_into_global_block(service_cont
 
     assert record.outcome == executive_core_module.DecisionOutcome.REJECTED
     assert record.reason.startswith("unified_failure_lockdown_")
+
+
+@pytest.mark.asyncio
+async def test_executive_keeps_api_requested_tools_user_facing_under_failure_lockdown(service_container):
+    reset_constitutional_singletons()
+    clear_degraded_events()
+    ServiceContainer.register_instance("self_model", object(), required=False)
+    ServiceContainer.lock_registration()
+
+    record_degraded_event("router", "down", severity="critical", classification="foreground_blocking")
+    record_degraded_event("memory", "corrupt", severity="critical", classification="background_degraded")
+    record_degraded_event("scheduler", "stall", severity="critical", classification="background_degraded")
+
+    executive = executive_core_module.get_executive_core()
+    intent, record = await executive.prepare_tool_intent("clock", {}, source="api")
+
+    assert intent.source == executive_core_module.IntentSource.USER
+    assert record.outcome == executive_core_module.DecisionOutcome.APPROVED
+
+
+def test_unified_failure_pressure_decays_stale_events(service_container):
+    reset_constitutional_singletons()
+    clear_degraded_events()
+
+    record_degraded_event("router", "down", severity="critical", classification="foreground_blocking")
+    fresh_state = degraded_events_module.get_unified_failure_state(limit=25)
+    assert fresh_state["pressure"] > 0.0
+
+    for summary in degraded_events_module._SUMMARIES.values():
+        summary["last_seen"] = summary["timestamp"] = degraded_events_module.time.time() - 3600
+
+    stale_state = degraded_events_module.get_unified_failure_state(limit=25)
+
+    assert stale_state["pressure"] == 0.0
 
 
 @pytest.mark.asyncio

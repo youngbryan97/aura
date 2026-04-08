@@ -222,6 +222,8 @@ class EpisodicMemory:
         tools_used: Optional[List[str]] = None,
         lessons: Optional[List[str]] = None,
         importance: float = 0.5,
+        source: str = "episodic_memory",
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         return await asyncio.to_thread(
             self.record_episode,
@@ -232,7 +234,9 @@ class EpisodicMemory:
             emotional_valence,
             tools_used,
             lessons,
-            importance
+            importance,
+            source,
+            metadata,
         )
 
     async def recall_recent_async(self, limit: int = 10) -> List[Episode]:
@@ -273,6 +277,9 @@ class EpisodicMemory:
         action: str,
         outcome: str,
         importance: float,
+        *,
+        source: str = "episodic_memory",
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         preview = f"{context} | {action} | {outcome}".strip()[:240]
         try:
@@ -281,9 +288,13 @@ class EpisodicMemory:
             approved, reason = get_constitutional_core().approve_memory_write_sync(
                 "episodic_episode",
                 preview,
-                source="episodic_memory",
+                source=source or "episodic_memory",
                 importance=max(0.0, min(1.0, float(importance or 0.0))),
-                metadata={"context": str(context or "")[:120], "action": str(action or "")[:120]},
+                metadata={
+                    "context": str(context or "")[:120],
+                    "action": str(action or "")[:120],
+                    **dict(metadata or {}),
+                },
             )
             if not approved:
                 logger.info("EpisodicMemory: deferring episode write: %s", reason)
@@ -315,6 +326,8 @@ class EpisodicMemory:
         tools_used: Optional[List[str]] = None,
         lessons: Optional[List[str]] = None,
         importance: float = 0.5,
+        source: str = "episodic_memory",
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Record a new episode. Returns the episode_id.
         Importance is auto-boosted for failures (we learn more from mistakes).
@@ -323,7 +336,14 @@ class EpisodicMemory:
         import uuid
         if not context and not action and not outcome:
             return ""
-        if not self._approve_memory_write(context, action, outcome, importance):
+        if not self._approve_memory_write(
+            context,
+            action,
+            outcome,
+            importance,
+            source=source,
+            metadata=metadata,
+        ):
             return ""
         episode_id = str(uuid.uuid4())[:12]
 

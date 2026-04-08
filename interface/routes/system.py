@@ -671,6 +671,14 @@ async def api_health(request: Request):
     except Exception as e:
         logger.debug("Executive authority status collection failed: %s", e)
 
+    interaction_signals_data = {}
+    try:
+        interaction_signals = ServiceContainer.get("interaction_signals", default=None)
+        if interaction_signals and hasattr(interaction_signals, "get_status"):
+            interaction_signals_data = interaction_signals.get_status()
+    except Exception as e:
+        logger.debug("Interaction signal status collection failed: %s", e)
+
     # ── Resilience Status ──
     resilience_data: Dict[str, Any] = {"circuit_breakers": {}, "snapshot": "unknown", "llm_tier": "unknown"}
     try:
@@ -890,10 +898,16 @@ async def api_health(request: Request):
     try:
         voice_mod = _voice_engine_fn() if _voice_engine_fn else None
         smc_mod = ServiceContainer.get("sensory_motor_cortex", default=None)
+        from interface.routes.privacy import get_browser_camera_privacy
+
+        browser_camera_privacy = get_browser_camera_privacy()
 
         privacy_data = {
-            "camera_enabled": getattr(smc_mod, "camera_enabled", True),
-            "microphone_enabled": getattr(voice_mod, "microphone_enabled", True)
+            "camera_enabled": bool(browser_camera_privacy.get("enabled", False)),
+            "camera_mode": browser_camera_privacy.get("mode", "off"),
+            "camera_reason": browser_camera_privacy.get("reason"),
+            "continuous_camera_enabled": getattr(smc_mod, "camera_enabled", False),
+            "microphone_enabled": getattr(voice_mod, "microphone_enabled", True),
         }
 
         conversation_ready = bool(conversation_lane.get("conversation_ready", False))
@@ -946,6 +960,7 @@ async def api_health(request: Request):
             "executive_closure": executive_closure_data,
             "consciousness_evidence": consciousness_evidence,
             "executive_authority": executive_authority_data,
+            "interaction_signals": interaction_signals_data,
             "conversation_lane": conversation_lane,
             "diagnostics": diagnostics_data,
             "runtime":        rt,
@@ -1015,6 +1030,14 @@ async def api_ui_bootstrap(request: Request = None):
     except Exception as exc:
         logger.debug("Bootstrap executive snapshot failed: %s", exc)
 
+    interaction_signals_data = {}
+    try:
+        interaction_signals = ServiceContainer.get("interaction_signals", default=None)
+        if interaction_signals and hasattr(interaction_signals, "get_status"):
+            interaction_signals_data = interaction_signals.get_status()
+    except Exception as exc:
+        logger.debug("Bootstrap interaction signal snapshot failed: %s", exc)
+
     tool_catalog = _collect_tool_catalog()
     conversation_lane = _collect_conversation_lane_status()
     boot_snapshot, _status_code = build_boot_health_snapshot(
@@ -1031,6 +1054,20 @@ async def api_ui_bootstrap(request: Request = None):
     STATIC_DIR = config.paths.project_root / "interface" / "static"
     SHELL_DIST_DIR = STATIC_DIR / "shell" / "dist"
     LEGACY_UI_INDEX = STATIC_DIR / "index.html"
+
+    legacy_ui_status = {
+        "shell": "legacy_shell" if LEGACY_UI_INDEX.exists() else "react_shell",
+        "legacy_fallback_available": LEGACY_UI_INDEX.exists(),
+        "experimental_shell_available": (SHELL_DIST_DIR / "index.html").exists(),
+    }
+    shell_status_helper = globals().get("_collect_legacy_shell_status")
+    if callable(shell_status_helper):
+        try:
+            helper_payload = shell_status_helper() or {}
+            if isinstance(helper_payload, dict):
+                legacy_ui_status.update(helper_payload)
+        except Exception as exc:
+            logger.debug("Bootstrap legacy shell status sync failed: %s", exc)
 
     payload = {
         "identity": {
@@ -1056,6 +1093,7 @@ async def api_ui_bootstrap(request: Request = None):
             "lane": conversation_lane,
         },
         "voice": _collect_voice_summary(),
+        "interaction_signals": interaction_signals_data,
         "telemetry": {
             "cpu_usage": psutil.cpu_percent(interval=None),
             "ram_usage": psutil.virtual_memory().percent,
@@ -1067,9 +1105,9 @@ async def api_ui_bootstrap(request: Request = None):
             "recent_degraded_events": _collect_recent_degraded_events(),
         },
         "ui": {
-            "shell": "legacy_shell" if LEGACY_UI_INDEX.exists() else "react_shell",
-            "legacy_fallback_available": LEGACY_UI_INDEX.exists(),
-            "experimental_shell_available": (SHELL_DIST_DIR / "index.html").exists(),
+            "shell": legacy_ui_status.get("shell", "legacy_shell" if LEGACY_UI_INDEX.exists() else "react_shell"),
+            "legacy_fallback_available": bool(legacy_ui_status.get("legacy_fallback_available", LEGACY_UI_INDEX.exists())),
+            "experimental_shell_available": bool(legacy_ui_status.get("experimental_shell_available", (SHELL_DIST_DIR / "index.html").exists())),
             "status_flags": _derive_ui_status_flags(
                 state_summary=state_summary,
                 executive_status=executive_status,

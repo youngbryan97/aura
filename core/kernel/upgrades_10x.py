@@ -27,7 +27,7 @@ def _compact_skill_result_payload(result: object) -> dict[str, object]:
         return {"result": text[:1200] + ("…[result truncated]" if len(text) > 1200 else "")}
 
     payload: dict[str, object] = {}
-    for key in ("ok", "summary", "content", "result", "title", "source", "url"):
+    for key in ("ok", "summary", "content", "result", "title", "source", "url", "message", "time", "readable"):
         value = result.get(key)
         if value in (None, ""):
             continue
@@ -350,6 +350,54 @@ class GodModeToolPhase(Phase):
                 logger.debug("Suppressed Exception: %s", _exc)
         return self._cap_engine
 
+    @staticmethod
+    def _normalize_origin(origin: str) -> str:
+        return str(origin or "").strip().lower().replace("-", "_")
+
+    def _resolve_tool_source(self, state: AuraState) -> str:
+        origin = self._normalize_origin(getattr(state.cognition, "current_origin", "") or "")
+        if origin in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"}:
+            return origin
+        return "godmode_phase"
+
+    @staticmethod
+    def _choose_best_skill(objective: str, matched_skills: List[str]) -> str:
+        if not matched_skills:
+            return ""
+        lower = str(objective or "").lower()
+        if "clock" in matched_skills and any(marker in lower for marker in ("what time", "current time", "the time", "what date", "today", "timer", "remind me")):
+            return "clock"
+        if "web_search" in matched_skills and any(marker in lower for marker in ("search", "look up", "find out", "online", "internet", "current", "latest", "news")):
+            return "web_search"
+        if "sovereign_browser" in matched_skills and any(marker in lower for marker in ("open the browser", "open a browser", "navigate to", "visit ", "open website", "open webpage")):
+            return "sovereign_browser"
+        if "memory_ops" in matched_skills and any(marker in lower for marker in ("remember", "save this", "store this", "don't forget", "make note of")):
+            return "memory_ops"
+        return matched_skills[0]
+
+    @staticmethod
+    def _normalize_skill_params(skill_name: str, objective: str, params: Dict | None) -> Dict:
+        normalized = dict(params or {}) if isinstance(params, dict) else {}
+        lower = str(objective or "").lower()
+
+        if skill_name == "memory_ops":
+            is_recall = any(marker in lower for marker in (
+                "what do you remember",
+                "what do you know about me",
+                "recall",
+                "retrieve",
+            ))
+            normalized.setdefault("action", "recall" if is_recall else "remember")
+            if is_recall:
+                normalized.setdefault("query", objective)
+            else:
+                normalized.setdefault("content", objective)
+
+        if skill_name in {"web_search", "sovereign_browser"}:
+            normalized.setdefault("query", objective)
+
+        return normalized
+
     async def _llm_select_skill(self, objective: str, cap) -> Optional[str]:
         """Ask the LLM to pick the best skill when pattern matching failed.
 
@@ -495,11 +543,13 @@ class GodModeToolPhase(Phase):
                 logger.debug("GodMode: No skill matched (will chat): %s", objective[:60])
                 return state
 
-            skill_name = matched_skills[0]
+            skill_name = self._choose_best_skill(objective, matched_skills)
             logger.info("⚡ GodMode: Dispatching '%s' for: %s", skill_name, objective[:60])
 
             # 4. Extract params
-            params = await self._extract_params(skill_name, objective, cap)
+            params = self._normalize_skill_params(skill_name, objective, await self._extract_params(skill_name, objective, cap))
+
+            tool_source = self._resolve_tool_source(state)
 
             # ── CONSTITUTIONAL CLOSURE: Executive gated tools ──
             constitutional_runtime_live = False
@@ -513,7 +563,7 @@ class GodModeToolPhase(Phase):
                     or bool(getattr(ServiceContainer, "_registration_locked", False))
                 )
                 approved, reason, constraints = await get_executive_core().approve_tool(
-                    skill_name, params, source="godmode_phase"
+                    skill_name, params, source=tool_source
                 )
                 if not approved:
                     logger.warning("🚫 GodMode: Tool execution '%s' blocked by Executive: %s", skill_name, reason)
@@ -557,6 +607,8 @@ class GodModeToolPhase(Phase):
             # 5. Execute the skill
             context = {
                 "objective": objective,
+                "origin": tool_source,
+                "intent_source": tool_source,
                 "state_version": state.version,
                 "affect": {
                     "valence": getattr(state.affect, "valence", 0.0),

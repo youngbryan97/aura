@@ -10,17 +10,11 @@ from typing import Dict, Any, Tuple, Optional
 
 from pydantic import BaseModel, Field
 from core.skills.base_skill import BaseSkill
+from core.skills._pyautogui_runtime import get_pyautogui
 from core.senses.screen_vision import LocalVision
 from core.container import ServiceContainer
 import re
 import time
-
-try:
-    import pyautogui
-    pyautogui.FAILSAFE = True
-    pyautogui.PAUSE = 0.5
-except ImportError:
-    pyautogui = None
 
 logger = logging.getLogger("Skills.VisionActor")
 
@@ -48,15 +42,22 @@ class VisionActorSkill(BaseSkill):
 
     async def execute(self, params: VisionActorInput, context: Dict[str, Any]) -> Dict[str, Any]:
         self._lazy_init()
-        
-        if not pyautogui:
-            return {"ok": False, "summary": "Physical execution skipped: PyAutoGUI is not installed.", "action": params.action}
+
+        pyautogui, pyautogui_error = get_pyautogui()
+        if pyautogui is None:
+            detail = f": {pyautogui_error}" if pyautogui_error else ""
+            return {
+                "ok": False,
+                "summary": f"Physical execution unavailable{detail}.",
+                "action": params.action,
+                "status": "unavailable",
+            }
 
         action = params.action.lower()
         if action == "click":
             if not params.target_desc:
                 return {"ok": False, "message": "Target description required for click.", "action": action}
-            return await self._execute_look_and_click(params.target_desc)
+            return await self._execute_look_and_click(params.target_desc, pyautogui)
         elif action == "look":
             if not params.target_desc:
                 return {"ok": False, "message": "Target description required for look.", "action": action}
@@ -64,7 +65,7 @@ class VisionActorSkill(BaseSkill):
         elif action == "type":
             if not params.text_to_type:
                 return {"ok": False, "message": "Text required for type action.", "action": action}
-            return await self._execute_type(params.text_to_type, params.press_enter)
+            return await self._execute_type(params.text_to_type, params.press_enter, pyautogui)
         else:
             return {"ok": False, "message": f"Unknown action: {action}", "action": action}
 
@@ -127,27 +128,28 @@ class VisionActorSkill(BaseSkill):
             "coordinates": {"x": coords[0], "y": coords[1]}
         }
 
-    async def _execute_look_and_click(self, target_desc: str) -> Dict[str, Any]:
+    async def _execute_look_and_click(self, target_desc: str, pyautogui: Any) -> Dict[str, Any]:
         coords_payload = await self._execute_look(target_desc)
         if not coords_payload["ok"]:
             return coords_payload
-            
+
         x = coords_payload["coordinates"]["x"]
         y = coords_payload["coordinates"]["y"]
-        
+
         try:
-            await asyncio.to_thread(self._physical_click, x, y)
+            await asyncio.to_thread(self._physical_click, x, y, pyautogui)
             return {"ok": True, "summary": f"Successfully clicked '{target_desc}' at ({x}, {y})."}
-        except pyautogui.FailSafeException:
-            return {"ok": False, "summary": "Failsafe triggered. Mouse moving to corner aborted action."}
         except Exception as e:
+            failsafe_exc = getattr(pyautogui, "FailSafeException", None)
+            if failsafe_exc and isinstance(e, failsafe_exc):
+                return {"ok": False, "summary": "Failsafe triggered. Mouse moving to corner aborted action."}
             return {"ok": False, "summary": f"Click execution error: {e}"}
 
-    def _physical_click(self, x: int, y: int):
+    def _physical_click(self, x: int, y: int, pyautogui: Any):
         pyautogui.moveTo(x, y, duration=0.5, tween=pyautogui.easeInOutQuad)
         pyautogui.click()
 
-    async def _execute_type(self, text: str, enter: bool) -> Dict[str, Any]:
+    async def _execute_type(self, text: str, enter: bool, pyautogui: Any) -> Dict[str, Any]:
         try:
             await asyncio.to_thread(pyautogui.write, text, interval=0.05)
             if enter:

@@ -136,6 +136,8 @@ def register_all_services(is_proxy: bool = False):
     )
     container.register('identity_anchor', _create_identity_anchor, lifetime=ServiceLifetime.SINGLETON)
     container.register('goal_engine', _create_goal_engine, lifetime=ServiceLifetime.SINGLETON)
+    container.register('goal_manager', lambda: container.get("goal_engine"), lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('goal_memory', lambda: container.get("goal_engine"), lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('internal_simulator', _create_internal_simulator, lifetime=ServiceLifetime.SINGLETON)
     container.register('meta_cognition_loop', _create_meta_cognition_loop, lifetime=ServiceLifetime.SINGLETON)
 

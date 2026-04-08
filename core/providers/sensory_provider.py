@@ -16,6 +16,11 @@ def register_sensory_services(container):
             return None
     container.register('voice_engine', create_voice_engine, lifetime=ServiceLifetime.SINGLETON, required=False)
 
+    def create_interaction_signals():
+        from core.senses.interaction_signals import InteractionSignalsEngine
+        return InteractionSignalsEngine()
+    container.register('interaction_signals', create_interaction_signals, lifetime=ServiceLifetime.SINGLETON, required=False)
+
     # 27.1 TTS Stream
     def create_tts_stream():
         try:

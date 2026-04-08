@@ -19,6 +19,7 @@ from core.utils.exceptions import capture_and_log
 
 from .function_calling_adapter import FunctionCallingAdapter
 from .llm_router import IntelligentLLMRouter, LLMEndpoint, LLMTier
+from .runtime_wiring import build_agentic_tool_map
 
 logger = logging.getLogger("Aura.AutonomousBrain")
 
@@ -451,12 +452,10 @@ class AutonomousCognitiveEngine:
                     _tools = kwargs.pop("tools", None)
                     if _tools is None:
                         try:
-                            from core.container import ServiceContainer
-                            _cap = ServiceContainer.get("capability_engine", default=None)
-                            if _cap:
-                                _tool_defs = _cap.get_tool_definitions()
-                                if _tool_defs:
-                                    _tools = {t["function"]["name"]: t["function"] for t in _tool_defs}
+                            _tools = build_agentic_tool_map(
+                                objective=objective,
+                                max_tools=8,
+                            )
                         except Exception as _exc:
                             logger.debug("Suppressed Exception: %s", _exc)
                     result = await agentic_endpoint.client.think_and_act(

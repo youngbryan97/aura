@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import site
 import threading
 import time
 from pathlib import Path
@@ -9,6 +10,31 @@ from typing import Optional
 # Setup Path Resolution
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+
+def _inject_project_venv_site_packages() -> None:
+    """Mirror aura_main.py so GUI subprocesses see venv-installed deps."""
+    venv_path = PROJECT_ROOT / ".venv"
+    if not venv_path.exists():
+        venv_path = PROJECT_ROOT / ".venv_aura"
+    if not venv_path.exists():
+        return
+
+    lib_dir = venv_path / "lib"
+    if not lib_dir.exists():
+        return
+
+    current_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    for py_dir in lib_dir.glob("python3.*"):
+        if py_dir.name != current_version:
+            continue
+        site_packages = py_dir / "site-packages"
+        if site_packages.exists() and str(site_packages) not in sys.path:
+            sys.path.insert(0, str(site_packages))
+            site.addsitedir(str(site_packages))
+
+
+_inject_project_venv_site_packages()
 
 logger = logging.getLogger("Aura.GUI")
 

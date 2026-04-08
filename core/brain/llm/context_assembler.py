@@ -117,6 +117,19 @@ class ContextAssembler:
                 f"- Subject thread: {continuity_obligations.get('subject_thread') or 'none'}\n\n"
             )
 
+        goal_execution_block = ""
+        try:
+            from core.container import ServiceContainer
+
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+            if goal_engine and hasattr(goal_engine, "get_context_block"):
+                goal_execution_block = f"{goal_engine.get_context_block(limit=3)}\n\n"
+                # Hard cap: prevent goal context from eating the prompt budget
+                if len(goal_execution_block) > 1200:
+                    goal_execution_block = goal_execution_block[:1200] + "\n...\n\n"
+        except Exception as _e:
+            logger.debug("GoalEngine context injection skipped: %s", _e)
+
         # 4. Somatic & World Context (Simplified if casual)
         world_context = ContextAssembler.build_world_context(state) if not is_casual else ""
         
@@ -246,6 +259,7 @@ class ContextAssembler:
             f"{personality_block}"
             f"{rolling_summary}"
             f"{continuity_block}"
+            f"{goal_execution_block}"
             f"{phenomenal}"
             f"{world_context}"
             f"{somatic_context}"
@@ -538,7 +552,16 @@ class ContextAssembler:
             
         # Add directives or active goals
         goal_text = ""
-        if state.cognition.active_goals:
+        try:
+            from core.container import ServiceContainer
+
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+            if goal_engine and hasattr(goal_engine, "get_context_block"):
+                goal_text = "\n" + str(goal_engine.get_context_block(limit=4) or "").strip()
+        except Exception as e:
+            logger.debug("GoalEngine prompt injection skipped: %s", e)
+
+        if (not goal_text) and state.cognition.active_goals:
             goal_text = "\n## ACTIVE GOALS\n" + "\n".join([g.get("description", str(g)) for g in state.cognition.active_goals])
 
         return (

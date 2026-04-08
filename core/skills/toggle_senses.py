@@ -1,29 +1,29 @@
 """Toggle Senses Skill
 Enables or Disables sensory perception services (Vision/Hearing).
 """
-import json
 import logging
 import os
-import time
+from pathlib import Path
 from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 from core.thought_stream import get_emitter
+from core.container import ServiceContainer
 import subprocess
 
-from ..sovereign.local_sandbox import LocalSandbox
 from core.config import config
 
 logger = logging.getLogger("Skills.ToggleSenses")
 
-# Persist PIDs to disk so they survive server restarts
-SENSE_STATE_DIR = str(config.paths.home_dir / "senses")
-os.makedirs(SENSE_STATE_DIR, exist_ok=True)
+def _sense_state_dir() -> Path:
+    path = config.paths.data_dir / "senses"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 def _get_pid_file(sense_name: str) -> str:
-    return os.path.join(SENSE_STATE_DIR, f"{sense_name}.pid")
+    return str(_sense_state_dir() / f"{sense_name}.pid")
 
 def _save_pid(sense_name: str, pid: int):
     with open(_get_pid_file(sense_name), "w") as f:
@@ -68,12 +68,6 @@ class ToggleParams(BaseModel):
     sense: Literal["vision", "hearing"] = Field(..., description="The sense to toggle.")
     action: Literal["on", "off"] = Field(..., description="Action to perform.")
     pid: Optional[int] = Field(None, description="Specific PID to stop (optional).")
-
-# ... (Logging and PID helpers remain unchanged, assuming imports are fixed)
-# Wait, I need to keep the imports and helpers!
-# I will use replace_file_content carefully.
-# The original file imports `infrastructure.base_skill` on line 12.
-# I should change that to `core.skills.base_skill`.
 
 class ToggleSensesSkill(BaseSkill):
     name = "toggle_senses"

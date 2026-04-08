@@ -140,6 +140,45 @@ class MindTick:
         self._bootstrap_phases()
         logger.info("✅ MindTick: Hot-reload complete. %d phases active.", len(self.phases))
 
+    def _background_reasoning_pause_reason(self, state: Optional[AuraState] = None) -> str:
+        try:
+            flow = getattr(self.orchestrator, "_flow_controller", None)
+            if flow is not None:
+                snap = flow.snapshot(self.orchestrator)
+                if float(getattr(snap, "lag_seconds", 0.0) or 0.0) >= 0.15:
+                    return "event_loop_lag"
+                if bool(getattr(snap, "overloaded", False)) or float(getattr(snap, "load", 0.0) or 0.0) >= 0.65:
+                    return "flow_overload"
+                if str(getattr(snap, "governor_mode", "") or "").upper() == "DEGRADED_CORE_ONLY":
+                    return "degraded_core_only"
+        except Exception as exc:
+            logger.debug("MindTick background flow probe failed: %s", exc)
+
+        try:
+            router = ServiceContainer.get("llm_router", default=None)
+            if router and getattr(router, "high_pressure_mode", False):
+                return "memory_pressure"
+        except Exception as exc:
+            logger.debug("MindTick router pressure probe failed: %s", exc)
+
+        try:
+            gate = ServiceContainer.get("inference_gate", default=None)
+            if gate and hasattr(gate, "_background_local_deferral_reason"):
+                reason = str(gate._background_local_deferral_reason(origin="mind_tick") or "").strip()
+                if reason:
+                    return reason
+        except Exception as exc:
+            logger.debug("MindTick gate pressure probe failed: %s", exc)
+
+        objective = str(getattr(getattr(state, "cognition", None), "current_objective", "") or "").strip() if state is not None else ""
+        active_goals = list(getattr(getattr(state, "cognition", None), "active_goals", []) or []) if state is not None else []
+        last_user = float(getattr(self.orchestrator, "_last_user_interaction_time", 0.0) or 0.0)
+        recent_user_context = last_user > 0.0 and (time.time() - last_user) <= 180.0
+        if not objective and not active_goals and not recent_user_context:
+            return "no_reasoning_context"
+
+        return ""
+
     async def start(self):
         """Start the cognitive rhythm."""
         if self._running:
@@ -243,7 +282,8 @@ class MindTick:
                 prediction_interval = config.autonomous_thought_interval_s if not config.skeletal_mode else 300.0
                 if hasattr(self, 'predictive_engine') and self.predictive_engine:
                     breaker = self.breakers["prediction"]
-                    if breaker.is_available and (time.time() - self._last_prediction_time > prediction_interval):
+                    reasoning_pause = self._background_reasoning_pause_reason(state)
+                    if breaker.is_available and not reasoning_pause and (time.time() - self._last_prediction_time > prediction_interval):
                         try:
                             # Force tertiary tier for background prediction
                             # Phase 33: Increased to 30.0s to accommodate slow CPU inference when Metal/Gemini fails.
@@ -259,10 +299,13 @@ class MindTick:
                             logger.warning("⚠️ MindTick: Prediction failed/stalled: %s", detail)
                             breaker.record_failure()
                             prediction = None
+                    elif reasoning_pause and (self._tick_count % 20 == 0):
+                        logger.debug("💓 MindTick: Skipping predictive background reasoning (%s).", reasoning_pause)
 
                 # [MOTO TRANSIMAL] Trajectory Prediction (Next 3 steps)
                 if hasattr(self, 'trajectory_predictor') and self.trajectory_predictor:
-                    if time.time() - self._last_trajectory_time > 60.0: # Every minute
+                    reasoning_pause = self._background_reasoning_pause_reason(state)
+                    if not reasoning_pause and time.time() - self._last_trajectory_time > 60.0: # Every minute
                         get_task_tracker().track_task(
                             asyncio.create_task(
                                 self.trajectory_predictor.predict_path(
@@ -484,7 +527,8 @@ class MindTick:
                         new_msg = current_state.cognition.working_memory[-1]
                         if new_msg.get("role") == "assistant" and (time.time() - self._last_audit_time > audit_interval):
                             breaker = self.breakers["audit"]
-                            if breaker.is_available:
+                            reasoning_pause = self._background_reasoning_pause_reason(current_state)
+                            if breaker.is_available and not reasoning_pause:
                                 try:
                                     report = await asyncio.wait_for(self.metacognitive_monitor.evaluate(new_msg["content"], current_state), timeout=15.0)  # 32B needs more than 3s
                                     self._last_audit_time = time.time()
@@ -497,6 +541,8 @@ class MindTick:
                                     detail = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
                                     logger.warning("⚠️ MindTick: Metacognitive audit failed: %s", detail)
                                     breaker.record_failure()
+                            elif reasoning_pause and (self._tick_count % 20 == 0):
+                                logger.debug("💓 MindTick: Skipping metacognitive audit (%s).", reasoning_pause)
 
                 # 5. Evaluate Prediction Error (if state changed)
                 if prediction and current_state.state_id != state.state_id and hasattr(self, 'predictive_engine') and self.predictive_engine:
@@ -532,9 +578,23 @@ class MindTick:
                     current_state.health["circuits"][f"phase_{name}"] = breaker.to_dict()
                 
                 # Check sidecar process health
-                from core.brain.llm.mlx_client import get_mlx_client
-                mlx_client = get_mlx_client()
-                current_state.health["capabilities"]["local_runtime"] = "online" if mlx_client.is_alive() else "offline"
+                local_runtime_state = "offline"
+                try:
+                    gate = ServiceContainer.get("inference_gate", default=None)
+                    lane = gate.get_conversation_status() if gate and hasattr(gate, "get_conversation_status") else {}
+                    if isinstance(lane, dict) and lane:
+                        lane_state = str(lane.get("state", "") or "").strip().lower()
+                        if bool(lane.get("conversation_ready", False)):
+                            local_runtime_state = "online"
+                        elif lane_state in {"warming", "recovering", "spawning", "handshaking", "ready"}:
+                            local_runtime_state = "warming"
+                except Exception as exc:
+                    logger.debug("MindTick local runtime health probe via gate failed: %s", exc)
+                if local_runtime_state == "offline":
+                    from core.brain.llm.mlx_client import get_mlx_client
+                    mlx_client = get_mlx_client()
+                    local_runtime_state = "online" if mlx_client.is_alive() else "offline"
+                current_state.health["capabilities"]["local_runtime"] = local_runtime_state
                 
                 from core.senses.sensory_client import get_sensory_client
                 sensory_client = get_sensory_client()

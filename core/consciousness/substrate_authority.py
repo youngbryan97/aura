@@ -161,6 +161,17 @@ class SubstrateAuthority:
 
         logger.info("SubstrateAuthority initialized (mandatory gate)")
 
+    @staticmethod
+    def _is_user_facing_source(source: str) -> bool:
+        normalized = str(source or "").strip().lower().replace("-", "_")
+        if not normalized:
+            return False
+        direct = {"user", "api", "voice", "gui", "websocket", "ws", "external", "direct"}
+        if normalized in direct:
+            return True
+        tokens = {token for token in normalized.split("_") if token}
+        return bool(tokens & direct)
+
     # ── Main authorization ───────────────────────────────────────────────
 
     def authorize(
@@ -209,6 +220,7 @@ class SubstrateAuthority:
         field_coherence = self._get_field_coherence()
         somatic_approach, somatic_confidence, body_budget = self._get_somatic_state(content, source, priority)
         chem_state, chem_constraints = self._get_neurochemical_constraints(category)
+        user_facing_request = self._is_user_facing_source(source)
 
         constraints: List[str] = list(chem_constraints)
         reasons: List[str] = []
@@ -238,10 +250,19 @@ class SubstrateAuthority:
         # ── Gate 3: Neurochemical constraints ────────────────────────
         chem_decision = AuthorizationDecision.ALLOW
         if chem_state in ("cortisol_crisis", "gaba_collapse"):
-            # During crisis, only stabilization/safety actions pass
+            # During crisis, direct user asks can still use tools/memory, but only in a constrained mode.
             if category not in (ActionCategory.STABILIZATION, ActionCategory.RESPONSE):
-                chem_decision = AuthorizationDecision.BLOCK
-                reasons.append(f"neurochemical_{chem_state}: category={category.name} blocked")
+                if user_facing_request and category in (
+                    ActionCategory.TOOL_EXECUTION,
+                    ActionCategory.MEMORY_WRITE,
+                ):
+                    chem_decision = AuthorizationDecision.CONSTRAIN
+                    constraints.append(
+                        f"neurochemical_{chem_state}: user_facing_{category.name.lower()}_constrained"
+                    )
+                else:
+                    chem_decision = AuthorizationDecision.BLOCK
+                    reasons.append(f"neurochemical_{chem_state}: category={category.name} blocked")
             else:
                 constraints.append(f"neurochemical_{chem_state}: constrained to {category.name}")
         elif chem_state == "dopamine_crash":

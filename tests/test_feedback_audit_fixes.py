@@ -1681,3 +1681,16 @@ def test_cognitive_routing_keeps_self_reflection_on_reactive_grounded_lane():
 
     assert routed.cognition.current_mode == CognitiveMode.REACTIVE
     assert routed.response_modifiers["intent_type"] == "CHAT"
+
+
+def test_unexpected_cjk_guard_only_trips_without_language_request():
+    from interface.routes.chat import _has_unexpected_cjk
+
+    assert _has_unexpected_cjk(
+        "talk to me in english",
+        "Let's make it unforgettable. 这样的一次亮相会更震撼。",
+    ) is True
+    assert _has_unexpected_cjk(
+        "say it in chinese",
+        "这样的一次亮相会更震撼。",
+    ) is False

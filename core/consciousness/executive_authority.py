@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import time
@@ -105,6 +106,96 @@ class ExecutiveAuthority:
             reverse=True,
         )
         return initiatives[:10]
+
+    def _goal_runtime_policy(self, initiative: Dict[str, Any]) -> Dict[str, Any]:
+        metadata = dict(initiative.get("metadata", {}) or {})
+        triggered_by = str(initiative.get("triggered_by", "") or metadata.get("triggered_by", "") or "").strip().lower()
+        kind = str(initiative.get("type", "") or metadata.get("kind", "") or "").strip().lower()
+        source = str(initiative.get("source", "") or metadata.get("source", "") or "").strip().lower()
+
+        horizon = str(metadata.get("horizon", "") or "").strip().lower().replace("-", "_")
+        if horizon not in {"short_term", "long_term"}:
+            if (
+                bool(metadata.get("continuity_obligation", False))
+                or bool(initiative.get("continuity_obligation", False))
+                or bool(metadata.get("continuity_restored", False))
+                or bool(initiative.get("continuity_restored", False))
+                or triggered_by in {"continuity", "integrity", "growth", "stability"}
+                or source in {"executive_closure", "motivation_update"}
+                or kind == "motivational_drive"
+            ):
+                horizon = "long_term"
+            else:
+                horizon = "short_term"
+
+        explicit_quick_win = metadata.get("quick_win", None)
+        if explicit_quick_win is None:
+            quick_win = horizon == "short_term" and triggered_by in {"curiosity", "social", "social_hunger", "boredom"}
+        else:
+            quick_win = bool(explicit_quick_win)
+
+        attention_policy = str(
+            metadata.get("attention_policy")
+            or ("interruptible" if quick_win else "sustained")
+        ).strip().lower()
+        if attention_policy not in {"interruptible", "sustained"}:
+            attention_policy = "interruptible" if quick_win else "sustained"
+
+        priority = round(
+            _clamp01(
+                metadata.get("priority", initiative.get("urgency", 0.5))
+            ),
+            4,
+        )
+
+        return {
+            "horizon": horizon,
+            "quick_win": quick_win,
+            "attention_policy": attention_policy,
+            "priority": priority,
+        }
+
+    async def _bind_objective_to_goal_engine(self, initiative: Dict[str, Any]) -> Dict[str, Any]:
+        goal = _normalize_text(initiative.get("goal", ""))
+        if not goal:
+            return {}
+        try:
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+        except Exception:
+            goal_engine = None
+        if goal_engine is None or not hasattr(goal_engine, "add_goal"):
+            return {}
+
+        policy = self._goal_runtime_policy(initiative)
+        metadata = dict(initiative.get("metadata", {}) or {})
+        binding_metadata = {
+            "initiative_source": initiative.get("source"),
+            "initiative_kind": initiative.get("type"),
+            "triggered_by": initiative.get("triggered_by"),
+            "governed": True,
+            **metadata,
+        }
+        try:
+            record = await goal_engine.add_goal(
+                goal,
+                objective=goal,
+                status="in_progress",
+                horizon=policy["horizon"],
+                source="executive_authority",
+                priority=policy["priority"],
+                quick_win=policy["quick_win"],
+                attention_policy=policy["attention_policy"],
+                metadata=binding_metadata,
+            )
+            if isinstance(record, dict):
+                return {
+                    **policy,
+                    "goal_id": str(record.get("id", "") or ""),
+                    "status": str(record.get("status", "") or ""),
+                }
+        except Exception as exc:
+            logger.debug("ExecutiveAuthority goal binding skipped: %s", exc)
+        return policy
 
     async def propose_initiative_to_state(
         self,
@@ -355,6 +446,24 @@ class ExecutiveAuthority:
         new_state.cognition.pending_initiatives = remaining
         new_state.cognition.current_objective = goal or initiative.get("goal")
         new_state.cognition.current_origin = str(initiative.get("source") or initiative.get("type") or source)
+        binding = await self._bind_objective_to_goal_engine(initiative)
+        modifiers = dict(getattr(new_state.cognition, "modifiers", {}) or {})
+        objective_binding = {
+            "goal": goal or str(initiative.get("goal", "") or ""),
+            "source": str(initiative.get("source") or source or ""),
+            "kind": str(initiative.get("type") or ""),
+            "triggered_by": str(initiative.get("triggered_by") or source or ""),
+            "goal_id": str(binding.get("goal_id", "") or ""),
+            "horizon": str(binding.get("horizon", "") or ""),
+            "quick_win": bool(binding.get("quick_win", False)),
+            "attention_policy": str(binding.get("attention_policy", "") or ""),
+            "priority": float(binding.get("priority", initiative.get("urgency", 0.5)) or 0.5),
+            "metadata": dict(initiative.get("metadata", {}) or {}),
+            "promoted_at": time.time(),
+        }
+        modifiers["current_objective_binding"] = objective_binding
+        modifiers["current_goal_id"] = objective_binding["goal_id"]
+        new_state.cognition.modifiers = modifiers
 
         reason = "initiative_promoted"
         if selected and getattr(selected, "rationale", None):
@@ -391,6 +500,41 @@ class ExecutiveAuthority:
         objective = _normalize_text(getattr(state.cognition, "current_objective", ""))
         if not objective:
             return state, self._record("rejected", "no_current_objective", source=source)
+        modifiers = dict(getattr(state.cognition, "modifiers", {}) or {})
+        binding = dict(modifiers.get("current_objective_binding", {}) or {})
+        binding_goal_id = str(binding.get("goal_id", "") or "")
+        binding_meta = dict(binding.get("metadata", {}) or {})
+        binding_horizon = str(binding.get("horizon", "") or "").strip().lower()
+        binding_attention = str(binding.get("attention_policy", "") or "").strip().lower()
+        should_hold = False
+        goal_engine = None
+        bound_goal = None
+        try:
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+            if goal_engine and binding_goal_id and hasattr(goal_engine, "get_goal"):
+                bound_goal = await asyncio.to_thread(goal_engine.get_goal, binding_goal_id)
+        except Exception as exc:
+            logger.debug("ExecutiveAuthority objective binding probe failed: %s", exc)
+            bound_goal = None
+
+        if (
+            reason == "tick_cycle_complete"
+            and binding_goal_id
+            and binding_horizon in {"long_term", "short_term"}
+            and binding_attention == "sustained"
+        ):
+            status = str((bound_goal or {}).get("status", "") or "").strip().lower()
+            should_hold = status in {"queued", "in_progress", "blocked", "paused"}
+
+        if should_hold:
+            return state, self._record(
+                "held",
+                "objective_persistence_active",
+                source=source,
+                goal=objective,
+                queued_initiatives=len(list(getattr(state.cognition, "pending_initiatives", []) or [])),
+                target="current_objective",
+            )
 
         new_state = state.derive("executive_authority_complete", origin=source)
         pending = [
@@ -401,6 +545,10 @@ class ExecutiveAuthority:
         new_state.cognition.pending_initiatives = pending
         new_state.cognition.current_objective = None
         new_state.cognition.current_origin = None
+        next_modifiers = dict(getattr(new_state.cognition, "modifiers", {}) or {})
+        next_modifiers.pop("current_objective_binding", None)
+        next_modifiers.pop("current_goal_id", None)
+        new_state.cognition.modifiers = next_modifiers
 
         # ── Counterfactual outcome recording ─────────────────────────────
         # Close the learning loop: measure the actual hedonic change from
@@ -414,14 +562,12 @@ class ExecutiveAuthority:
 
                 # Pull stashed metadata from the initiative that was active.
                 # We stored _cf_candidate_type / _cf_simulated_gain during promotion.
-                meta = {}
-                # The initiative dict isn't directly available here, but we can
-                # check state cognition metadata or the pending list we just
-                # cleared.  Walk the original pending_initiatives to find it.
-                for item in list(getattr(state.cognition, "pending_initiatives", []) or []):
-                    if isinstance(item, dict) and _normalize_text(item.get("goal", "")) == objective:
-                        meta = dict(item.get("metadata", {}) or {})
-                        break
+                meta = dict(binding_meta)
+                if not meta:
+                    for item in list(getattr(state.cognition, "pending_initiatives", []) or []):
+                        if isinstance(item, dict) and _normalize_text(item.get("goal", "")) == objective:
+                            meta = dict(item.get("metadata", {}) or {})
+                            break
 
                 cf_type = str(meta.get("_cf_candidate_type", "autonomous_thought"))
                 cf_gain = float(meta.get("_cf_simulated_gain", 0.05))
@@ -453,6 +599,20 @@ class ExecutiveAuthority:
         except Exception as exc:
             logger.debug("Counterfactual outcome recording skipped: %s", exc)
         # ── End counterfactual outcome recording ─────────────────────────
+
+        try:
+            if goal_engine and binding_goal_id and hasattr(goal_engine, "update_goal_status"):
+                goal_status = "completed"
+                normalized_reason = str(reason or "").lower()
+                if any(token in normalized_reason for token in ("fail", "error", "reject", "abort")):
+                    goal_status = "failed"
+                await goal_engine.update_goal_status(
+                    binding_goal_id,
+                    status=goal_status,
+                    summary=str(reason or ""),
+                )
+        except Exception as exc:
+            logger.debug("ExecutiveAuthority goal settlement skipped: %s", exc)
 
         self._record_constitutional_decision(
             kind="initiative",

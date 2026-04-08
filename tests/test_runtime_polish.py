@@ -6,6 +6,7 @@ import pytest
 
 from core.affect import heartstone_values as heartstone_module
 from core.world_model import user_model as user_model_module
+from interface import websocket_manager as websocket_module
 from interface.server import MessageBroadcastBus, Response, WebSocketManager, _cache_policy_for_path
 
 
@@ -30,6 +31,13 @@ def test_gui_actor_exits_after_extended_kernel_loss():
     assert "os._exit(1)" in gui_actor
 
 
+def test_gui_actor_bootstraps_project_venv_for_subprocess_launch():
+    gui_actor = (PROJECT_ROOT / "interface" / "gui_actor.py").read_text(encoding="utf-8")
+
+    assert "def _inject_project_venv_site_packages()" in gui_actor
+    assert 'site.addsitedir(str(site_packages))' in gui_actor
+
+
 @pytest.mark.asyncio
 async def test_message_broadcast_bus_replaces_lowest_priority_when_full():
     bus = MessageBroadcastBus(maxsize=2)
@@ -47,6 +55,18 @@ async def test_message_broadcast_bus_replaces_lowest_priority_when_full():
 
 
 @pytest.mark.asyncio
+async def test_message_broadcast_bus_reports_subscriber_count():
+    bus = MessageBroadcastBus(maxsize=2)
+    queue = await bus.subscribe()
+
+    assert bus.subscriber_count() == 1
+
+    await bus.unsubscribe(queue)
+
+    assert bus.subscriber_count() == 0
+
+
+@pytest.mark.asyncio
 async def test_websocket_manager_replaces_lowest_priority_when_full():
     manager = WebSocketManager()
     queue = asyncio.PriorityQueue(maxsize=2)
@@ -60,6 +80,23 @@ async def test_websocket_manager_replaces_lowest_priority_when_full():
     second = await queue.get()
 
     assert [first[0], second[0]] == [0, 0]
+
+
+@pytest.mark.asyncio
+async def test_websocket_manager_skips_serialization_without_clients(monkeypatch):
+    manager = WebSocketManager()
+    serialized = False
+
+    def _should_not_serialize(*args, **kwargs):
+        nonlocal serialized
+        serialized = True
+        raise AssertionError("json.dumps should not run without websocket clients")
+
+    monkeypatch.setattr(websocket_module.json, "dumps", _should_not_serialize)
+
+    await manager.broadcast({"type": "telemetry", "message": "idle"})
+
+    assert serialized is False
 
 
 def test_bryan_model_save_is_debounced(monkeypatch, tmp_path):

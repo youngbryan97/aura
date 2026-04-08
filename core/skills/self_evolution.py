@@ -1,13 +1,11 @@
 import json
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.skills.base_skill import BaseSkill
-from core.common.paths import DATA_DIR, PROJECT_ROOT
-
+from core.config import config
 
 from pydantic import BaseModel, Field
 
@@ -26,14 +24,20 @@ class SelfEvolutionSkill(BaseSkill):
     MAX_PREVIEW = 1000  # Max characters to include in proposal preview
 
     def __init__(self):
+        super().__init__()
         self.logger = logging.getLogger(f"Skills.{self.name}")
-        self.code_base = PROJECT_ROOT
+        self.code_base = config.paths.project_root
         self.error_registry = self._load_error_registry()
+
+    @staticmethod
+    def _evolution_dir() -> Path:
+        path = config.paths.data_dir / "evolution"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     def _load_error_registry(self) -> Dict:
         """Load or initialize error registry for self-correction."""
-        filepath = DATA_DIR / "evolution" / "error_registry.json"
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+        filepath = self._evolution_dir() / "error_registry.json"
         if filepath.exists():
             try:
                 with open(filepath, "r") as f:
@@ -44,8 +48,7 @@ class SelfEvolutionSkill(BaseSkill):
 
     def _save_error_registry(self):
         """Save updated error registry."""
-        filepath = DATA_DIR / "evolution" / "error_registry.json"
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+        filepath = self._evolution_dir() / "error_registry.json"
         with open(filepath, "w") as f:
             json.dump(self.error_registry, f)
 
@@ -107,8 +110,7 @@ class SelfEvolutionSkill(BaseSkill):
         # 3. PROPOSE
         timestamp = int(time.time())
         filename = f"evolution_proposal_{timestamp}.md"
-        filepath = DATA_DIR / "evolution" / filename
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+        filepath = self._evolution_dir() / filename
         try:
             with open(filepath, "w") as f:
                 f.write(f"# Self-Evolution Proposal\n\n**Objective**: {objective}\n\n{proposal}")

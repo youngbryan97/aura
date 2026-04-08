@@ -23,6 +23,7 @@ from core.proactive_communication import (
     ProactiveMessage,
 )
 from core.consciousness.executive_closure import ExecutiveClosureEngine
+from core.consciousness.substrate_authority import ActionCategory, AuthorizationDecision, SubstrateAuthority
 from core.kernel.aura_kernel import AuraKernel, KernelConfig
 from core.kernel.bridge import LegacyPhase
 from core.agency_core import AgencyCore, AgencyState
@@ -154,6 +155,105 @@ async def test_executive_core_convenience_tool_approval_does_not_leak_active_int
     assert reason
     assert isinstance(constraints, dict)
     assert exec_core.get_active_intents() == []
+
+
+def test_compact_skill_result_payload_preserves_clock_fields():
+    from core.kernel.upgrades_10x import _compact_skill_result_payload
+
+    payload = _compact_skill_result_payload({
+        "ok": True,
+        "summary": "It is currently Tuesday, April 07, 2026 06:40 PM.",
+        "readable": "Tuesday, April 07, 2026 06:40 PM",
+        "time": "2026-04-07T18:40:00",
+        "message": "Clock skill completed.",
+    })
+
+    assert payload["readable"] == "Tuesday, April 07, 2026 06:40 PM"
+    assert payload["time"] == "2026-04-07T18:40:00"
+    assert payload["message"] == "Clock skill completed."
+
+
+def test_godmode_normalizes_memory_ops_params():
+    from core.kernel.upgrades_10x import GodModeToolPhase
+
+    remember = GodModeToolPhase._normalize_skill_params(
+        "memory_ops",
+        "Remember for future sessions that my verification codename is glass orchard.",
+        {},
+    )
+    recall = GodModeToolPhase._normalize_skill_params(
+        "memory_ops",
+        "What do you remember about my verification codename?",
+        {},
+    )
+
+    assert remember["action"] == "remember"
+    assert remember["content"] == "Remember for future sessions that my verification codename is glass orchard."
+    assert recall["action"] == "recall"
+    assert recall["query"] == "What do you remember about my verification codename?"
+
+
+def test_capability_engine_preserves_top_level_fields_when_unwrapping_nested_params():
+    params = CapabilityEngine._normalize_execution_params(
+        {
+            "params": {"action": "remember"},
+            "content": "Remember for future sessions that my verification codename is glass orchard.",
+        }
+    )
+
+    assert params["action"] == "remember"
+    assert params["content"] == "Remember for future sessions that my verification codename is glass orchard."
+
+
+def test_capability_engine_detects_memory_ops_for_future_session_requests():
+    engine = CapabilityEngine()
+
+    matched = engine.detect_intent("Remember for future sessions that my verification codename is glass orchard.")
+
+    assert "memory_ops" in matched
+
+
+def test_substrate_authority_constrains_user_memory_write_during_cortisol_crisis():
+    authority = SubstrateAuthority()
+    authority._get_field_coherence = lambda: 0.8
+    authority._get_somatic_state = lambda content, source, priority: (0.2, 0.9, True)
+    authority._get_neurochemical_constraints = lambda category: ("cortisol_crisis", ["cortisol=0.91"])
+
+    verdict = authority.authorize(
+        content="memory:remember my verification codename",
+        source="user",
+        category=ActionCategory.MEMORY_WRITE,
+        priority=0.8,
+    )
+
+    assert verdict.decision == AuthorizationDecision.CONSTRAIN
+    assert any("user_facing_memory_write_constrained" in item for item in verdict.constraints)
+
+
+def test_substrate_authority_still_blocks_autonomous_memory_write_during_cortisol_crisis():
+    authority = SubstrateAuthority()
+    authority._get_field_coherence = lambda: 0.8
+    authority._get_somatic_state = lambda content, source, priority: (0.2, 0.9, True)
+    authority._get_neurochemical_constraints = lambda category: ("cortisol_crisis", ["cortisol=0.91"])
+
+    verdict = authority.authorize(
+        content="memory:background consolidation",
+        source="background_consolidation",
+        category=ActionCategory.MEMORY_WRITE,
+        priority=0.8,
+    )
+
+    assert verdict.decision == AuthorizationDecision.BLOCK
+    assert "neurochemical_cortisol_crisis: category=MEMORY_WRITE blocked" == verdict.reason
+
+
+def test_capability_engine_prefers_clock_for_time_queries():
+    engine = CapabilityEngine()
+
+    matched = engine.detect_intent("What time is it right now?")
+
+    assert "clock" in matched
+    assert "environment_info" not in matched
 
 
 def test_social_imagination_links_private_trouble_to_public_issue(tmp_path):

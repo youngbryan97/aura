@@ -84,6 +84,31 @@ class ConversationalDynamicsPhase(Phase):
             # Mirror conversation_energy from partner intensity
             cog.conversation_energy = dynamics.partner_intensity
 
+            try:
+                from core.container import ServiceContainer
+
+                interaction_signals = ServiceContainer.get("interaction_signals", default=None)
+                if interaction_signals and hasattr(interaction_signals, "get_status"):
+                    signal_status = interaction_signals.get_status() or {}
+                    fused = dict(signal_status.get("fused", {}) or {})
+                    guidance = interaction_signals.get_prompt_guidance() if hasattr(interaction_signals, "get_prompt_guidance") else ""
+                    new_state.response_modifiers["interaction_signals"] = signal_status
+                    if guidance:
+                        new_state.response_modifiers["conversational_dynamics"] = (
+                            f"{engine.get_prompt_injection()}\n\n{guidance}"
+                        )
+                    engagement = float(fused.get("engagement", 0.0) or 0.0)
+                    activation = float(fused.get("activation", 0.0) or 0.0)
+                    cog.conversation_energy = max(
+                        cog.conversation_energy,
+                        min(1.0, (engagement * 0.75) + (activation * 0.25)),
+                    )
+                    cog.modifiers["interaction_summary"] = str(fused.get("summary") or "")
+                    cog.modifiers["interaction_pacing"] = str(fused.get("pacing") or "steady")
+                    cog.modifiers["interaction_verbosity_bias"] = str(fused.get("verbosity_bias") or "balanced")
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: interaction signal integration skipped: %s", exc)
+
             # Store callback topics in discourse_branches
             available_callbacks = [
                 a.topic for a in dynamics.topic_anchors[-5:]

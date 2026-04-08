@@ -31,6 +31,51 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+_PRICE_QUERY_TERMS = {
+    "price",
+    "cost",
+    "worth",
+    "quote",
+    "trading",
+    "ticker",
+    "market",
+}
+
+_PRICE_RESULT_TERMS = {
+    "price",
+    "usd",
+    "quote",
+    "chart",
+    "market cap",
+    "trading at",
+    "live price",
+}
+
+_PROMOTIONAL_TERMS = {
+    "buy",
+    "sell",
+    "exchange",
+    "trade",
+    "wallet",
+    "download app",
+    "sign up",
+    "sign-up",
+    "most trusted",
+    "safe and trusted",
+    "trusted place",
+}
+
+_PRICE_FRIENDLY_DOMAINS = {
+    "coinmarketcap.com",
+    "coingecko.com",
+    "coindesk.com",
+    "finance.yahoo.com",
+    "markets.businessinsider.com",
+    "marketwatch.com",
+    "investing.com",
+    "tradingview.com",
+}
+
 
 class WebSearchInput(BaseModel):
     query: str = Field(..., description="The search query to look up on the web.")
@@ -159,7 +204,62 @@ class EnhancedWebSearchSkill(BaseSkill):
             if real_url and title_clean:
                 results.append({"title": title_clean, "url": real_url, "snippet": snippet})
 
-        return results
+        return self._rerank_results(query, results)
+
+    @staticmethod
+    def _domain_matches(host: str, domain: str) -> bool:
+        return host == domain or host.endswith(f".{domain}")
+
+    @classmethod
+    def _is_price_query(cls, query: str) -> bool:
+        text = f" {query.lower()} "
+        if any(term in text for term in _PRICE_QUERY_TERMS):
+            return True
+        return bool(re.search(r"\b(?:btc|bitcoin|eth|ethereum|sol|solana|stock|shares?)\b", text))
+
+    @classmethod
+    def _score_result(cls, query: str, result: Dict[str, str], index: int) -> int:
+        title = str(result.get("title", "") or "")
+        snippet = str(result.get("snippet", "") or "")
+        url = str(result.get("url", "") or "")
+        host = urllib.parse.urlparse(url).netloc.lower()
+        haystack = f"{title} {snippet} {host}".lower()
+        query_tokens = [token for token in re.split(r"[^a-z0-9]+", query.lower()) if len(token) >= 3]
+
+        score = 100 - index
+        for token in query_tokens[:8]:
+            if token in haystack:
+                score += 2
+
+        if cls._is_price_query(query):
+            if any(term in haystack for term in _PRICE_RESULT_TERMS):
+                score += 12
+            if re.search(r"\$\s?\d", haystack) or re.search(r"\b\d[\d,]*(?:\.\d+)?\s*(?:usd|usdt)\b", haystack):
+                score += 12
+            if any(cls._domain_matches(host, domain) for domain in _PRICE_FRIENDLY_DOMAINS):
+                score += 10
+            if any(term in haystack for term in _PROMOTIONAL_TERMS):
+                score -= 14
+            if cls._domain_matches(host, "coinbase.com") and any(term in haystack for term in _PROMOTIONAL_TERMS):
+                score -= 10
+            if not any(term in haystack for term in _PRICE_RESULT_TERMS) and "$" not in haystack:
+                score -= 6
+
+        return score
+
+    @classmethod
+    def _rerank_results(cls, query: str, results: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        if len(results) < 2:
+            return results
+        indexed_results = list(enumerate(results))
+        return [
+            item
+            for _idx, item in sorted(
+                indexed_results,
+                key=lambda pair: cls._score_result(query, pair[1], pair[0]),
+                reverse=True,
+            )
+        ]
 
     def _extract_ddg_url(self, href: str) -> str:
         """Extract real URL from DDG redirect href."""

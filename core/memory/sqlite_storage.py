@@ -389,7 +389,7 @@ class SQLiteMemory:
         with self._sync_lock: # H-04 FIX: Thread safety for sync wrappers
             try:
                 try:
-                    loop = self.loop or asyncio.get_running_loop()
+                    loop = getattr(self, "loop", None) or asyncio.get_running_loop()
                 except RuntimeError:
                     loop = None
                 if loop and loop.is_running():

@@ -37,6 +37,20 @@ logger = logging.getLogger("Aura.Executive")
 
 def _coerce_intent_source(source: str) -> IntentSource:
     normalized = str(source or "").strip().lower()
+    user_aliases = {
+        "api",
+        "admin",
+        "voice",
+        "gui",
+        "ws",
+        "websocket",
+        "direct",
+        "external",
+        "frontend",
+        "ui",
+    }
+    if normalized in user_aliases:
+        return IntentSource.USER
     for candidate in IntentSource:
         if candidate.value == normalized:
             return candidate
@@ -220,7 +234,7 @@ class ExecutiveCore:
         )
 
         # User-initiated tools always approved
-        if source in ("user", "voice", "admin", "api"):
+        if _coerce_intent_source(source) == IntentSource.USER:
             intent.source = IntentSource.USER
             intent.priority = 0.9
 
@@ -789,6 +803,23 @@ class ExecutiveCore:
                 contradiction_count,
                 int(obligations.get("contradiction_count", 0) or 0),
             )
+        except Exception as _exc:
+            logger.debug("Suppressed Exception: %s", _exc)
+
+        try:
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+            if goal_engine and hasattr(goal_engine, "get_active_goals"):
+                active_goal_items = list(goal_engine.get_active_goals(limit=6, include_external=True) or [])
+                if active_goal_items:
+                    active_goal_count = max(active_goal_count, len(active_goal_items))
+                    if not current_objective:
+                        top_goal = active_goal_items[0]
+                        current_objective = str(
+                            top_goal.get("objective")
+                            or top_goal.get("goal")
+                            or top_goal.get("name")
+                            or ""
+                        )
         except Exception as _exc:
             logger.debug("Suppressed Exception: %s", _exc)
 
