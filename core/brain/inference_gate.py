@@ -1539,6 +1539,21 @@ class InferenceGate:
         # ── Proactive cortex recovery (laptop sleep / MLX worker death) ───
         if not is_background:
             await self._ensure_cortex_recovery()
+            # If cortex recovery was just triggered or is in progress, give it
+            # a short window to complete before the user hits a dead endpoint.
+            # This turns 2-message recovery ("wound up" + real reply) into a
+            # single slightly-longer first response.
+            if (
+                self._cortex_recovery_in_progress
+                and self._mlx_client
+                and hasattr(self._mlx_client, "is_alive")
+                and not self._mlx_client.is_alive()
+            ):
+                for _ in range(10):  # Up to 10s of 1s slices
+                    await asyncio.sleep(1.0)
+                    if self._mlx_client.is_alive():
+                        logger.info("✅ InferenceGate: cortex recovered inline for user request.")
+                        break
             if requested_tier != "secondary" and self._background_memory_pressure_active():
                 await self._shed_background_workers_for_memory_pressure()
 

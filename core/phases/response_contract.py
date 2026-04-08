@@ -6,17 +6,20 @@ from typing import Any, Dict
 
 from core.state.aura_state import AuraState
 
+_SEARCH_NEGATION_RE = re.compile(
+    r"(?:didn'?t|don'?t|not|never|stop|no)\s+(?:\w+\s+){0,3}search",
+    re.IGNORECASE,
+)
+
 _EXPLICIT_SEARCH_PATTERNS = (
-    r"\bsearch(?: the web)?\b",
+    r"^search\b",                              # Imperative "Search X"
+    r"\bsearch (?:the web|online|the internet|reddit|for)\b",
     r"\blook(?: it)? up\b",
     r"\bgoogle\b",
     r"\bweb search\b",
-    r"\bsearch reddit\b",
-    r"\bfind out\b",
+    r"\bfind out (?:about|if|what|who|when|where|why|how)\b",
     r"\bcheck online\b",
-    r"\bsearch for\b",
     r"\buse .*search\b",
-    r"\bprove .*search\b",
     r"\buse (?:the )?web\b",
 )
 
@@ -294,6 +297,13 @@ def build_response_contract(
     explicit_search = _matches_any(lower, _EXPLICIT_SEARCH_PATTERNS)
     factual_lookup = _matches_any(lower, _FACTUAL_LOOKUP_PATTERNS)
     specific_reference = _matches_any(text, _REFERENCE_MARKERS)
+    # Negation guard: "I didn't mean for you to search" should NOT trigger search.
+    # Also suppress for long conversational messages — real search queries are short.
+    if _SEARCH_NEGATION_RE.search(lower):
+        explicit_search = False
+        factual_lookup = False
+    if len(text) > 200 and explicit_search and not factual_lookup:
+        explicit_search = False
     requires_search = bool(is_user_facing and (explicit_search or (factual_lookup and specific_reference)))
 
     requires_memory = bool(is_user_facing and _matches_any(lower, _MEMORY_PATTERNS))

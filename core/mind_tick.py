@@ -625,18 +625,26 @@ class MindTick:
                         await self.orchestrator.state_repo.commit(current_state, "mind_tick")
                         
                         # Autonomous Response Emission
-                        # If a new assistant response was added to working memory, emit it!
+                        # Only emit responses that background ticks actually produced —
+                        # NOT responses from foreground user ticks that were committed
+                        # before this tick read the state.
                         if len(current_state.cognition.working_memory) > len(state.cognition.working_memory):
                             last_msg = current_state.cognition.working_memory[-1]
-                            if last_msg.get("role") == "assistant":
+                            origin = str(last_msg.get("origin", "") or last_msg.get("source", "") or "").lower()
+                            is_foreground_response = origin in (
+                                "user", "voice", "admin", "api", "gui", "ws",
+                                "websocket", "direct", "external", "response_generation",
+                                "response_generation_user", "tick",
+                            )
+                            if last_msg.get("role") == "assistant" and not is_foreground_response:
                                 logger.info("🗣️ MindTick: Routing autonomous response through ExecutiveAuthority.")
-                                
+
                                 content = last_msg.get("content", "")
                                 # Meatiness check: don't emit "null", repetition fragments, or action leakage
                                 is_meaty = len(content.strip()) > 5 or any(c.isalpha() for c in content)
                                 has_null = "null" in content.lower()
                                 has_action = "say '" in content.lower() or "do '" in content.lower()
-                                
+
                                 if is_meaty and not has_null and not has_action:
                                     # [CONSTITUTIONAL] Route through ExecutiveAuthority — not output_gate
                                     try:
