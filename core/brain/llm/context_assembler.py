@@ -257,6 +257,7 @@ class ContextAssembler:
             ("credit_assignment", "OUTCOME AWARENESS"),
             ("narrative_context", "AUTOBIOGRAPHICAL NARRATIVE"),
             ("agency_comparator", "SENSE OF AGENCY"),
+            ("higher_order_thought", "HIGHER-ORDER AWARENESS"),
             ("intersubjectivity", "INTERSUBJECTIVE AWARENESS"),
             ("narrative_gravity", "NARRATIVE SELF"),
         ):
@@ -274,6 +275,25 @@ class ContextAssembler:
                 f"Follow-up type: {fu_type} | Reason: {fu_reason}"
                 + (f" | Hint: {fu_hint}" if fu_hint else "")
             )
+        # Multiple Drafts: inject divergence signal when interpretive ambiguity is notable
+        draft_div = mods.get("draft_divergence")
+        if draft_div:
+            try:
+                div_val = float(draft_div)
+                if div_val > 0.3:
+                    personhood_blocks.append(
+                        f"## INTERPRETIVE DIVERGENCE\n"
+                        f"Draft divergence: {div_val:.2f} -- competing interpretations of this input "
+                        f"pulled in different directions. Consider acknowledging ambiguity."
+                    )
+                elif div_val > 0.15:
+                    personhood_blocks.append(
+                        f"## INTERPRETIVE DIVERGENCE\n"
+                        f"Mild divergence ({div_val:.2f}) -- dominant interpretation exists "
+                        f"but alternative readings are available."
+                    )
+            except (ValueError, TypeError):
+                pass
         personhood_context = "\n\n".join(personhood_blocks) + "\n\n" if personhood_blocks else ""
 
         # 4. Somatic & World Context (Simplified if casual)

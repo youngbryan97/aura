@@ -647,4 +647,15 @@ class QualiaSynthesizer:
             report["gates"]["dissonance"] = True
 
         report["honesty_score"] = len(report["claims"]) / max(1, len(report["gates"]))
+
+        # ── Illusionism annotation (Frankish/Dennett epistemic humility) ──
+        # Every phenomenal claim is annotated with its functional basis and
+        # a phenomenal_certainty < 1.0 so downstream consumers know this is
+        # the system's model, not verified ground truth.
+        try:
+            from core.consciousness.illusionism_layer import get_illusionism_layer
+            report = get_illusionism_layer().annotate_report(report)
+        except Exception as e:
+            logger.debug("Illusionism annotation skipped: %s", e)
+
         return report
