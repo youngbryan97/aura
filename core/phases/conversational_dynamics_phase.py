@@ -136,6 +136,72 @@ class ConversationalDynamicsPhase(Phase):
                 "association_chain": dynamics.association_chain,
             }
 
+            # ── Wire dormant personhood modules into the foreground path ──
+            # These modules exist but were never called during live conversation.
+            # Each provides context that shapes HOW Aura responds, not just WHAT.
+
+            # Humor Engine: adaptive banter calibrated to this specific user
+            try:
+                from core.container import ServiceContainer
+                humor = ServiceContainer.get("humor_engine", default=None)
+                if humor and hasattr(humor, "update_banter_state"):
+                    humor.update_banter_state(objective, dynamics)
+                    guidance = humor.get_humor_guidance("owner") if hasattr(humor, "get_humor_guidance") else ""
+                    banter = humor.get_banter_directive() if hasattr(humor, "get_banter_directive") else ""
+                    if guidance or banter:
+                        new_state.response_modifiers["humor_guidance"] = f"{guidance}\n{banter}".strip()
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: humor engine skipped: %s", exc)
+
+            # Conversation Intelligence: rhythm, pacing, arc awareness
+            try:
+                from core.container import ServiceContainer
+                conv_intel = ServiceContainer.get("conversation_intelligence", default=None)
+                if conv_intel and hasattr(conv_intel, "get_context_injection"):
+                    ci_block = conv_intel.get_context_injection()
+                    if ci_block:
+                        new_state.response_modifiers["conversation_intelligence"] = ci_block
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: conversation intelligence skipped: %s", exc)
+
+            # Relational Intelligence: social modeling of this specific person
+            try:
+                from core.container import ServiceContainer
+                rel_intel = ServiceContainer.get("relational_intelligence", default=None)
+                if rel_intel and hasattr(rel_intel, "get_context_injection"):
+                    ri_block = rel_intel.get_context_injection("owner")
+                    if ri_block:
+                        new_state.response_modifiers["relational_intelligence"] = ri_block
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: relational intelligence skipped: %s", exc)
+
+            # MetaCognition: reasoning strategy selection for this turn
+            try:
+                from core.container import ServiceContainer
+                metacog = ServiceContainer.get("metacognition", default=None)
+                if metacog and hasattr(metacog, "before_reasoning"):
+                    meta_hints = metacog.before_reasoning(objective, {
+                        "origin": origin,
+                        "dynamics": new_state.response_modifiers.get("conv_dynamics_state", {}),
+                    })
+                    if meta_hints and isinstance(meta_hints, dict):
+                        strategy = meta_hints.get("strategy", "")
+                        if strategy:
+                            new_state.response_modifiers["metacognitive_strategy"] = strategy
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: metacognition skipped: %s", exc)
+
+            # Credit Assignment: outcome-aware context from prior actions
+            try:
+                from core.container import ServiceContainer
+                credit = ServiceContainer.get("credit_assignment", default=None)
+                if credit and hasattr(credit, "get_context_block"):
+                    ca_block = credit.get_context_block()
+                    if ca_block:
+                        new_state.response_modifiers["credit_assignment"] = ca_block
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: credit assignment skipped: %s", exc)
+
             logger.debug(
                 "ConversationalDynamics: frame=%s intensity=%.2f speech_act=%s register=%s humor=%s",
                 dynamics.partner_frame,

@@ -246,6 +246,21 @@ class ContextAssembler:
         except Exception as _e:
             logger.debug("MetaQualia context skipped: %s", _e)
 
+        # 3.9 Personhood module context injections
+        # These come from modules wired into ConversationalDynamicsPhase.
+        personhood_blocks: list[str] = []
+        for mod_key, header in (
+            ("humor_guidance", "HUMOR"),
+            ("conversation_intelligence", "CONVERSATIONAL AWARENESS"),
+            ("relational_intelligence", "SOCIAL MODEL"),
+            ("metacognitive_strategy", "REASONING STRATEGY"),
+            ("credit_assignment", "OUTCOME AWARENESS"),
+        ):
+            block = str(mods.get(mod_key, "") or "").strip()
+            if block:
+                personhood_blocks.append(f"## {header}\n{block}")
+        personhood_context = "\n\n".join(personhood_blocks) + "\n\n" if personhood_blocks else ""
+
         # 4. Somatic & World Context (Simplified if casual)
         world_context = ContextAssembler.build_world_context(state) if not is_casual else ""
         
@@ -378,6 +393,7 @@ class ContextAssembler:
             f"{goal_execution_block}"
             f"{temporal_finitude_block}"
             f"{meta_qualia_block}"
+            f"{personhood_context}"
             f"{phenomenal}"
             f"{world_context}"
             f"{somatic_context}"
