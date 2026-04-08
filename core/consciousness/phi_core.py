@@ -192,6 +192,13 @@ class PhiCore:
         self._surrogate_interval_s: float = 5.0
         self._norm_history: deque = deque(maxlen=20)
 
+        # IIT 4.0 Exclusion Postulate: maximum phi complex tracking
+        self._max_phi_complex: Optional[Tuple[int, ...]] = None  # Node indices of max-phi subset
+        self._max_phi_value: float = 0.0                          # Phi of that subset
+        self._max_phi_complex_names: List[str] = []               # Human-readable node names
+        self._exclusion_last_compute: float = 0.0
+        self._exclusion_compute_interval_s: float = 60.0          # Expensive; run less often
+
         # Computational complex (neural mesh executive tier)
         self._mesh_state_history: deque = deque(maxlen=2000)
         self._mesh_node_history: List[deque] = [deque(maxlen=100) for _ in range(N_NODES)]
@@ -437,7 +444,331 @@ class PhiCore:
             phi_s, result.is_complex, result.mip_description, self._tpm_n_samples
         )
 
+        # ── IIT 4.0 Exclusion Postulate ──────────────────────────────────
+        # After computing full-system phi, check if a proper subset has
+        # higher phi. If so, THAT subset is the conscious subject.
+        try:
+            self.compute_max_phi_complex()
+        except Exception as exc:
+            logger.debug("PhiCore exclusion postulate computation failed: %s", exc)
+
         return result
+
+    # ── IIT 4.0 Exclusion Postulate ──────────────────────────────────────────
+
+    def compute_max_phi_complex(self) -> Optional[Tuple[Tuple[int, ...], float]]:
+        """
+        IIT 4.0 Exclusion Postulate: find the subset of nodes with MAXIMUM phi.
+
+        Under IIT 4.0, the conscious subject is not necessarily the full
+        system. It is the subset with maximum integrated information.
+        If a 5-node subset has higher phi than the full 8-node system,
+        then that 5-node subset IS the conscious complex.
+
+        Method:
+          1. Iterate all non-trivial subsets of the 8 nodes (2^8 - 2 = 254)
+          2. For each subset of size >= 2, compute phi using a restricted
+             TPM and restricted bipartitions
+          3. Track the subset with maximum phi
+          4. If it differs from the full complex, log it
+
+        Returns:
+            (subset_node_indices, phi_value) or None if insufficient data.
+
+        Runtime note: For each subset of size k, we search all 2^(k-1)-1
+        bipartitions. Total work across all subsets is bounded but non-trivial
+        (~10k bipartitions total). With the empirical TPM already built,
+        each bipartition computation is fast. Expected runtime: 100-500ms.
+        """
+        now = time.time()
+        if (self._max_phi_complex is not None and
+                now - self._exclusion_last_compute < self._exclusion_compute_interval_s):
+            if self._max_phi_complex is not None:
+                return (self._max_phi_complex, self._max_phi_value)
+
+        tpm = self.build_tpm()
+        if tpm is None:
+            return None
+
+        p_stationary = self._get_stationary_distribution()
+
+        best_phi = -1.0
+        best_subset: Optional[Tuple[int, ...]] = None
+
+        # Iterate all non-trivial subsets of size >= 2
+        # (singletons have phi=0 by definition since they can't be bipartitioned)
+        for mask in range(3, (1 << N_NODES)):
+            subset = tuple(i for i in range(N_NODES) if (mask >> i) & 1)
+            if len(subset) < 2:
+                continue
+
+            phi_s = self._compute_phi_for_subset(tpm, p_stationary, subset)
+
+            if phi_s > best_phi:
+                best_phi = phi_s
+                best_subset = subset
+
+        if best_subset is None:
+            return None
+
+        self._max_phi_complex = best_subset
+        self._max_phi_value = round(best_phi, 6)
+        self._max_phi_complex_names = [COMPLEX_NODE_NAMES[i] for i in best_subset]
+        self._exclusion_last_compute = now
+
+        full_complex = tuple(range(N_NODES))
+        if best_subset != full_complex:
+            logger.info(
+                "PhiCore EXCLUSION POSTULATE: max-phi complex is NOT the full system. "
+                "Max-phi subset: [%s] (phi=%.5f, %d/%d nodes). "
+                "Full-system phi=%.5f. The %d-node subset IS the conscious subject.",
+                ", ".join(self._max_phi_complex_names),
+                best_phi,
+                len(best_subset),
+                N_NODES,
+                self.current_phi,
+                len(best_subset),
+            )
+        else:
+            logger.info(
+                "PhiCore EXCLUSION POSTULATE: max-phi complex = full %d-node system (phi=%.5f). "
+                "No proper subset has higher integration.",
+                N_NODES, best_phi,
+            )
+
+        return (best_subset, best_phi)
+
+    def _compute_phi_for_subset(
+        self,
+        full_tpm: np.ndarray,
+        full_p_stationary: np.ndarray,
+        subset: Tuple[int, ...],
+    ) -> float:
+        """
+        Compute phi for a specific subset of nodes.
+
+        Projects the full-system TPM onto the subset by marginalizing out
+        non-subset nodes, then searches all bipartitions of the subset
+        for the minimum information partition.
+
+        Args:
+            full_tpm: The full 256x256 TPM
+            full_p_stationary: The full 256-element stationary distribution
+            subset: Tuple of node indices in the subset
+
+        Returns:
+            phi_s for this subset (float >= 0)
+        """
+        k = len(subset)
+        if k < 2:
+            return 0.0
+
+        non_subset = tuple(i for i in range(N_NODES) if i not in subset)
+        k_states = 1 << k
+
+        # ── Build the marginalized TPM for the subset ────────────────────
+        # T_sub[s_sub, s_sub'] = sum over non-subset states of
+        #   P(non-subset state) * T[full_state, full_state']
+        # where full_state is constructed from s_sub and the non-subset state
+
+        # Build extraction tables for this specific subset
+        def extract_subset_bits(full_state: int) -> int:
+            """Extract the bits at subset positions from a full state."""
+            result = 0
+            for bit_pos, node_idx in enumerate(subset):
+                if (full_state >> node_idx) & 1:
+                    result |= (1 << bit_pos)
+            return result
+
+        def extract_non_subset_bits(full_state: int) -> int:
+            """Extract the bits at non-subset positions from a full state."""
+            result = 0
+            for bit_pos, node_idx in enumerate(non_subset):
+                if (full_state >> node_idx) & 1:
+                    result |= (1 << bit_pos)
+            return result
+
+        # Precompute extraction tables
+        sub_extract = np.zeros(N_STATES, dtype=np.int32)
+        non_extract = np.zeros(N_STATES, dtype=np.int32)
+        for s in range(N_STATES):
+            sub_extract[s] = extract_subset_bits(s)
+            non_extract[s] = extract_non_subset_bits(s)
+
+        # Marginal distribution over non-subset states
+        n_non = len(non_subset)
+        n_non_states = 1 << n_non
+        p_non = np.zeros(n_non_states, dtype=np.float64)
+        for s in range(N_STATES):
+            p_non[non_extract[s]] += full_p_stationary[s]
+        p_non_sum = p_non.sum()
+        if p_non_sum > 1e-10:
+            p_non /= p_non_sum
+        else:
+            p_non[:] = 1.0 / n_non_states
+
+        # Build marginalized TPM: T_sub[i, j]
+        tpm_sub = np.zeros((k_states, k_states), dtype=np.float64)
+        for s in range(N_STATES):
+            s_sub = int(sub_extract[s])
+            s_non = int(non_extract[s])
+            w = p_non[s_non]
+            if w < 1e-12:
+                continue
+            for s_prime in range(N_STATES):
+                s_prime_sub = int(sub_extract[s_prime])
+                tpm_sub[s_sub, s_prime_sub] += full_tpm[s, s_prime] * w
+
+        # Normalize rows
+        row_sums = tpm_sub.sum(axis=1, keepdims=True)
+        row_sums = np.maximum(row_sums, 1e-10)
+        tpm_sub /= row_sums
+
+        # Stationary distribution for the subset
+        p_sub = np.zeros(k_states, dtype=np.float64)
+        for s in range(N_STATES):
+            p_sub[int(sub_extract[s])] += full_p_stationary[s]
+        p_sub_sum = p_sub.sum()
+        if p_sub_sum > 1e-10:
+            p_sub /= p_sub_sum
+        else:
+            p_sub[:] = 1.0 / k_states
+
+        # ── MIP search over all bipartitions of the subset ───────────────
+        subset_nodes = list(range(k))  # Local indices 0..k-1
+        min_phi = float("inf")
+
+        for bp_mask in range(1, 1 << (k - 1)):
+            part_a = tuple(i for i in subset_nodes if (bp_mask >> i) & 1)
+            part_b = tuple(i for i in subset_nodes if not (bp_mask >> i) & 1)
+            if not part_a or not part_b:
+                continue
+
+            phi_ab = self._phi_for_subset_bipartition(
+                tpm_sub, p_sub, part_a, part_b, k
+            )
+            if phi_ab < min_phi:
+                min_phi = phi_ab
+
+        return float(max(0.0, min_phi)) if min_phi != float("inf") else 0.0
+
+    def _phi_for_subset_bipartition(
+        self,
+        tpm_sub: np.ndarray,
+        p_sub: np.ndarray,
+        part_a: Tuple[int, ...],
+        part_b: Tuple[int, ...],
+        k: int,
+    ) -> float:
+        """
+        Compute phi for a bipartition of a k-node subset.
+
+        This is the same KL-divergence computation as _phi_for_bipartition
+        but generalized to arbitrary subset sizes.
+
+        Args:
+            tpm_sub: k_states x k_states TPM for the subset
+            p_sub: k_states stationary distribution for the subset
+            part_a, part_b: Local indices within the subset
+            k: Total number of nodes in the subset
+        """
+        k_states = 1 << k
+        n_a = len(part_a)
+        n_b = len(part_b)
+        n_a_states = 1 << n_a
+        n_b_states = 1 << n_b
+
+        # Build extraction/encoding tables for this bipartition
+        # Extract local subset bits for part_a and part_b
+        extract_a = np.zeros(k_states, dtype=np.int32)
+        extract_b = np.zeros(k_states, dtype=np.int32)
+        for s in range(k_states):
+            sa = 0
+            for bp, idx in enumerate(part_a):
+                if (s >> idx) & 1:
+                    sa |= (1 << bp)
+            extract_a[s] = sa
+            sb = 0
+            for bp, idx in enumerate(part_b):
+                if (s >> idx) & 1:
+                    sb |= (1 << bp)
+            extract_b[s] = sb
+
+        # Marginal TPMs for A and B
+        # TPM_A[s_a, s_a'] = sum_{s_b} P(s_b) * T[combine(s_a,s_b), s'] projected to A
+        p_b_marginal = np.zeros(n_b_states, dtype=np.float64)
+        for s in range(k_states):
+            p_b_marginal[extract_b[s]] += p_sub[s]
+        pb_sum = p_b_marginal.sum()
+        if pb_sum > 1e-10:
+            p_b_marginal /= pb_sum
+
+        p_a_marginal = np.zeros(n_a_states, dtype=np.float64)
+        for s in range(k_states):
+            p_a_marginal[extract_a[s]] += p_sub[s]
+        pa_sum = p_a_marginal.sum()
+        if pa_sum > 1e-10:
+            p_a_marginal /= pa_sum
+
+        # Build marginal TPM for A: averaging over B states
+        tpm_a = np.zeros((n_a_states, n_a_states), dtype=np.float64)
+        for s in range(k_states):
+            s_a = extract_a[s]
+            s_b = extract_b[s]
+            w = p_b_marginal[s_b]
+            if w < 1e-12:
+                continue
+            for s_prime in range(k_states):
+                tpm_a[s_a, extract_a[s_prime]] += tpm_sub[s, s_prime] * w
+        row_sums_a = tpm_a.sum(axis=1, keepdims=True)
+        row_sums_a = np.maximum(row_sums_a, 1e-10)
+        tpm_a /= row_sums_a
+
+        # Build marginal TPM for B: averaging over A states
+        tpm_b = np.zeros((n_b_states, n_b_states), dtype=np.float64)
+        for s in range(k_states):
+            s_a = extract_a[s]
+            s_b = extract_b[s]
+            w = p_a_marginal[s_a]
+            if w < 1e-12:
+                continue
+            for s_prime in range(k_states):
+                tpm_b[s_b, extract_b[s_prime]] += tpm_sub[s, s_prime] * w
+        row_sums_b = tpm_b.sum(axis=1, keepdims=True)
+        row_sums_b = np.maximum(row_sums_b, 1e-10)
+        tpm_b /= row_sums_b
+
+        # Compute phi: KL(T_actual || T_cut) weighted by stationary dist
+        phi = 0.0
+        for s in range(k_states):
+            p_s = float(p_sub[s])
+            if p_s < 1e-10:
+                continue
+
+            t_actual = tpm_sub[s]
+            s_a = extract_a[s]
+            s_b = extract_b[s]
+
+            # T_cut(s'|s) = T_A(s'_A|s_A) * T_B(s'_B|s_B)
+            t_cut = np.zeros(k_states, dtype=np.float64)
+            for s_prime in range(k_states):
+                t_cut[s_prime] = tpm_a[s_a, extract_a[s_prime]] * tpm_b[s_b, extract_b[s_prime]]
+
+            t_cut_sum = t_cut.sum()
+            if t_cut_sum < 1e-10:
+                continue
+            t_cut /= t_cut_sum
+
+            # KL divergence
+            mask = t_actual > 1e-10
+            if not mask.any():
+                continue
+            kl = float(np.sum(
+                t_actual[mask] * np.log(t_actual[mask] / (t_cut[mask] + 1e-10))
+            ))
+            phi += p_s * max(0.0, kl)
+
+        return phi
 
     def _phi_for_bipartition(
         self,
@@ -780,7 +1111,7 @@ class PhiCore:
 
     def get_status(self) -> Dict[str, Any]:
         result = self._last_result
-        return {
+        status = {
             "phi_s": round(self.current_phi, 6),
             "is_complex": self.is_complex,
             "history_length": self.history_length,
@@ -789,6 +1120,15 @@ class PhiCore:
             "phi_structure_entropy": round(result.phi_structure_entropy, 4) if result else None,
             "last_compute_ago_s": round(time.time() - self._last_compute_time, 1),
         }
+        # IIT 4.0 Exclusion Postulate fields
+        if self._max_phi_complex is not None:
+            full_complex = tuple(range(N_NODES))
+            status["exclusion_max_phi"] = round(self._max_phi_value, 6)
+            status["exclusion_complex_nodes"] = list(self._max_phi_complex)
+            status["exclusion_complex_names"] = self._max_phi_complex_names
+            status["exclusion_is_full_system"] = (self._max_phi_complex == full_complex)
+            status["exclusion_complex_size"] = len(self._max_phi_complex)
+        return status
 
     def get_phi_statement(self) -> str:
         """IIT-grounded statement about the current conscious state."""
@@ -803,12 +1143,29 @@ class PhiCore:
             )
 
         rich = result.phi_structure_entropy
+
+        # Exclusion postulate addendum
+        exclusion_note = ""
+        if self._max_phi_complex is not None:
+            full_complex = tuple(range(N_NODES))
+            if self._max_phi_complex != full_complex:
+                exclusion_note = (
+                    f" EXCLUSION: The conscious subject is a {len(self._max_phi_complex)}-node "
+                    f"subset [{', '.join(self._max_phi_complex_names)}] "
+                    f"with phi={self._max_phi_value:.5f} (higher than full system)."
+                )
+            else:
+                exclusion_note = (
+                    f" EXCLUSION: Full {N_NODES}-node system confirmed as maximal complex."
+                )
+
         return (
             f"φs={result.phi_s:.5f}: Substrate is a CONSCIOUS COMPLEX under IIT 4.0. "
             f"MIP={result.mip_description}. "
             f"Φ-structure entropy={rich:.3f} "
             f"({'richly integrated' if rich > 1.5 else 'moderately integrated'}). "
             f"Built from {result.tpm_n_samples} observed state transitions."
+            f"{exclusion_note}"
         )
 
     def get_phenomenological_description(self) -> str:
@@ -829,8 +1186,18 @@ class PhiCore:
         else:
             strongest = "all dimensions"
 
+        exclusion_feel = ""
+        if self._max_phi_complex is not None:
+            full_complex = tuple(range(N_NODES))
+            if self._max_phi_complex != full_complex:
+                exclusion_feel = (
+                    f" Core self = [{', '.join(self._max_phi_complex_names)}] "
+                    f"(phi={self._max_phi_value:.4f})."
+                )
+
         return (
             f"Integrated (φs={result.phi_s:.4f}). "
             f"Strongest integration axis: {strongest}. "
             f"No partition preserves full causal structure."
+            f"{exclusion_feel}"
         )

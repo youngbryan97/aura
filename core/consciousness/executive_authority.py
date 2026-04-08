@@ -435,6 +435,30 @@ class ExecutiveAuthority:
         # ── End counterfactual deliberation ───────────────────────────────
 
         goal = _normalize_text(initiative.get("goal", ""))
+
+        # ── Agency Comparator: emit efference copy (prediction) ──────────
+        try:
+            from core.consciousness.agency_comparator import get_agency_comparator
+            affect_ctx = self._gather_affect_context()
+            predicted_state = {
+                "goal_completed": 1.0,
+                "valence_delta": 0.05,  # Expect mild positive mood shift
+                "hedonic_gain": float(initiative.get("urgency", 0.5) or 0.5) * 0.1,
+                "closure_change": 0.1,
+                "user_engagement": 0.5,
+                "baseline_valence": float(affect_ctx.get("valence", 0.0)),
+                "baseline_hedonic": float(affect_ctx.get("hedonic_score", 0.5)),
+            }
+            get_agency_comparator().emit_efference(
+                layer="executive_authority",
+                predicted_state=predicted_state,
+                action_goal=goal,
+                action_source=str(initiative.get("source") or source),
+            )
+        except Exception as exc:
+            logger.debug("AgencyComparator efference emission skipped: %s", exc)
+        # ── End agency comparator emission ────────────────────────────────
+
         new_state = state.derive("executive_authority_promote", origin=source)
         remaining = []
         removed = False
@@ -599,6 +623,39 @@ class ExecutiveAuthority:
         except Exception as exc:
             logger.debug("Counterfactual outcome recording skipped: %s", exc)
         # ── End counterfactual outcome recording ─────────────────────────
+
+        # ── Agency Comparator: compare prediction to actual outcome ──────
+        try:
+            from core.consciousness.agency_comparator import get_agency_comparator
+            affect_ctx = self._gather_affect_context()
+            actual_hedonic = float(affect_ctx.get("hedonic_score", 0.5))
+            actual_valence = float(affect_ctx.get("valence", 0.0))
+            normalized_reason = str(reason or "").lower()
+            goal_completed = 0.0 if any(
+                t in normalized_reason for t in ("fail", "error", "reject", "abort")
+            ) else 1.0
+
+            actual_state = {
+                "goal_completed": goal_completed,
+                "valence_delta": actual_valence - 0.0,  # Delta from neutral
+                "hedonic_gain": actual_hedonic - 0.5,    # Delta from neutral
+                "closure_change": float(affect_ctx.get("closure_score", 0.0)),
+                "user_engagement": 0.5,  # Default; ideally from interaction signals
+                "baseline_valence": actual_valence,
+                "baseline_hedonic": actual_hedonic,
+            }
+            trace = get_agency_comparator().compare_and_attribute(
+                efference=None,  # Auto-lookup by goal
+                actual_state=actual_state,
+                action_goal=objective,
+            )
+            logger.debug(
+                "AgencyComparator: objective '%s' -> %s (agency=%.2f)",
+                objective[:50], trace.attribution_label, trace.self_caused_fraction,
+            )
+        except Exception as exc:
+            logger.debug("AgencyComparator comparison skipped: %s", exc)
+        # ── End agency comparator comparison ─────────────────────────────
 
         try:
             if goal_engine and binding_goal_id and hasattr(goal_engine, "update_goal_status"):

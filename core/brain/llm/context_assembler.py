@@ -256,6 +256,7 @@ class ContextAssembler:
             ("metacognitive_strategy", "REASONING STRATEGY"),
             ("credit_assignment", "OUTCOME AWARENESS"),
             ("narrative_context", "AUTOBIOGRAPHICAL NARRATIVE"),
+            ("agency_comparator", "SENSE OF AGENCY"),
         ):
             block = str(mods.get(mod_key, "") or "").strip()
             if block:
