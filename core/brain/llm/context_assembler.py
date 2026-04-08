@@ -260,6 +260,8 @@ class ContextAssembler:
             ("higher_order_thought", "HIGHER-ORDER AWARENESS"),
             ("intersubjectivity", "INTERSUBJECTIVE AWARENESS"),
             ("narrative_gravity", "NARRATIVE SELF"),
+            ("peripheral_awareness", "PERIPHERAL AWARENESS"),
+            ("multiple_drafts", "INTERPRETIVE AMBIGUITY"),
         ):
             block = str(mods.get(mod_key, "") or "").strip()
             if block:
