@@ -244,13 +244,18 @@ class MindTick:
                     self._missing_state_streak = 0
 
                 # ── BINDING ENGINE: Run coherence tick before phases ──
-                try:
-                    from core.coherence.binding_engine import get_binding_engine
-                    _binding = get_binding_engine()
-                    _coherence_report = await asyncio.wait_for(_binding.tick(state), timeout=5.0)
-                except Exception as _be:
-                    logger.debug("MindTick: BindingEngine tick skipped: %s", _be)
-                    _coherence_report = None
+                _coherence_report = None
+                _bg_pause_pre = self._background_reasoning_pause_reason(state)
+                if not _bg_pause_pre:
+                    try:
+                        from core.coherence.binding_engine import get_binding_engine
+                        _binding = get_binding_engine()
+                        _coherence_report = await asyncio.wait_for(_binding.tick(state), timeout=3.0)
+                    except Exception as _be:
+                        logger.debug("MindTick: BindingEngine tick skipped: %s", _be)
+                else:
+                    if self._tick_count % 30 == 0:
+                        logger.debug("MindTick: BindingEngine deferred (%s).", _bg_pause_pre)
 
                 # ── INITIATIVE ARBITRATION: Replace FIFO with scored selection ──
                 if not state.cognition.current_objective and state.cognition.pending_initiatives:
@@ -366,6 +371,13 @@ class MindTick:
                         # The user's tick will run as soon as the lock is free.
                         if getattr(kernel, "_user_priority_pending", None) and kernel._user_priority_pending.is_set():
                             logger.debug("💓 MindTick: Skipping background tick — user priority message pending.")
+                            return current_state
+                        # [EVENT LOOP PRESSURE GUARD] If the loop is already lagging,
+                        # don't add a full kernel tick (which invokes the LLM).
+                        _bg_pause = self._background_reasoning_pause_reason(current_state)
+                        if _bg_pause:
+                            if self._tick_count % 30 == 0:
+                                logger.debug("💓 MindTick: Deferring background kernel tick (%s).", _bg_pause)
                             return current_state
                         try:
                             entry = await kernel.tick(objective, priority=False)
@@ -715,10 +727,12 @@ class MindTick:
                 except Exception:
                     pass  # Non-critical; never let this block the loop
                 
-                # Wait for the next tick based on mode
+                # Wait for the next tick based on mode.
+                # Floor at 0.5s to prevent CPU saturation when tick work
+                # approaches the interval — the event loop needs breathing room.
                 interval = sleep_time_override or TICK_INTERVALS.get(self.mode, 1.0)
                 elapsed = asyncio.get_running_loop().time() - start_time
-                sleep_time = max(0.1, interval - elapsed)
+                sleep_time = max(0.5, interval - elapsed)
                 await asyncio.sleep(sleep_time)
 
     def _get_actual_from_state(self, state: AuraState) -> Optional[str]:
