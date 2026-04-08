@@ -51,6 +51,32 @@ class NarrativeEngine:
                 logger.error("Narrative loop error: %s", e)
                 await asyncio.sleep(60)
 
+    def get_narrative_context(self) -> str:
+        """Return a brief narrative context block for the current conversation.
+
+        Pulls the most recent journal entry or narrative arc from vector memory
+        to give the response generator awareness of Aura's ongoing story.
+        """
+        try:
+            vector_mem = ServiceContainer.get("memory_facade", default=None)
+            if not vector_mem or not hasattr(vector_mem, "query_memory_sync"):
+                return ""
+            # Try narrative arc first, fall back to journal
+            results = vector_mem.query_memory_sync("type:narrative_arc", limit=1)
+            if not results:
+                results = vector_mem.query_memory_sync("type:narrative_journal", limit=1)
+            if not results:
+                return ""
+            text = results[0].get("text", "") if isinstance(results[0], dict) else str(results[0])
+            if not text:
+                return ""
+            # Truncate to keep context injection concise
+            snippet = text[:400].rstrip()
+            return f"[Narrative Context] {snippet}"
+        except Exception as exc:
+            logger.debug("Narrative context retrieval failed: %s", exc)
+            return ""
+
     async def consolidate_episodes(self):
         """
         Tiered Consolidation:

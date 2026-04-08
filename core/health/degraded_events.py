@@ -15,8 +15,8 @@ logger = logging.getLogger("Aura.DegradedEvents")
 _MAX_SUMMARIES = 500
 _MAX_FORWARDED = 500
 _MAX_CONTEXT_KEYS = 20
-_FAILURE_EVENT_HALF_LIFE_S = 120.0
-_FAILURE_EVENT_MAX_AGE_S = 900.0
+_FAILURE_EVENT_HALF_LIFE_S = 150.0   # pressure halves every 2.5 minutes of no new failures
+_FAILURE_EVENT_MAX_AGE_S = 300.0     # events expire after 5 minutes — prevents lockdown spiral
 
 _EVENTS: deque[Dict[str, Any]] = deque(maxlen=200)
 _SUMMARIES: Dict[Tuple[str, str, str, str], Dict[str, Any]] = {}
@@ -162,7 +162,13 @@ def get_unified_failure_state(limit: int = 25) -> Dict[str, Any]:
         else:
             warnings += active_count
 
-    pressure = min(1.0, (weighted + (critical * 1.5) + (errors * 0.5)) / 5.0)
+    # Severity-weighted sum forms the base.  Critical events add a bonus to
+    # ensure genuine critical failures still trigger lockdown quickly, but the
+    # normalizer (8.0) prevents a handful of recurring warnings/errors from
+    # spiraling into permanent lockdown.  The old formula (divider=5.0 with
+    # double-counted critical+error terms) saturated to 1.0 from routine
+    # transient errors, causing the "unified_failure_lockdown_1.00" spiral.
+    pressure = min(1.0, (weighted + critical * 1.5) / 8.0)
     top_subsystems = sorted(subsystems.items(), key=lambda item: item[1], reverse=True)[:5]
     return {
         "pressure": round(pressure, 4),

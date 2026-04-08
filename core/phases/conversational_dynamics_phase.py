@@ -202,6 +202,58 @@ class ConversationalDynamicsPhase(Phase):
             except Exception as exc:
                 logger.debug("ConversationalDynamics: credit assignment skipped: %s", exc)
 
+            # Agency Comparator: sense of authorship over recent actions
+            try:
+                from core.consciousness.agency_comparator import get_agency_comparator
+                agency = get_agency_comparator()
+                agency_block = agency.get_context_block()
+                if agency_block:
+                    new_state.response_modifiers["agency_comparator"] = agency_block
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: agency comparator skipped: %s", exc)
+
+            # Narrative Memory: autobiographical narrative context from journal/arcs
+            try:
+                from core.container import ServiceContainer
+                narrative = ServiceContainer.get("narrative_engine", default=None)
+                if narrative and hasattr(narrative, "get_narrative_context"):
+                    nm_block = narrative.get_narrative_context()
+                    if nm_block:
+                        new_state.response_modifiers["narrative_context"] = nm_block
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: narrative memory skipped: %s", exc)
+
+            # Natural Follow-up: whether Aura should ask a follow-up, make a statement, or stay quiet
+            try:
+                from core.container import ServiceContainer
+                sve = ServiceContainer.get("substrate_voice_engine", default=None)
+                if sve and hasattr(sve, "_followup_engine"):
+                    followup_engine = sve._followup_engine
+                    profile = sve.get_current_profile() if hasattr(sve, "get_current_profile") else None
+                    if followup_engine and profile:
+                        last_assistant = ""
+                        for msg in reversed(state.cognition.working_memory or []):
+                            if msg.get("role") == "assistant":
+                                last_assistant = msg.get("content", "")
+                                break
+                        decision = followup_engine.decide(
+                            profile=profile,
+                            user_message=objective,
+                            aura_response=last_assistant,
+                            conversation_history=list(state.cognition.working_memory or []),
+                        )
+                        if decision and decision.should_followup:
+                            new_state.response_modifiers["natural_followup"] = {
+                                "should_followup": True,
+                                "followup_type": decision.followup_type,
+                                "delay_seconds": decision.delay_seconds,
+                                "context_hint": decision.context_hint,
+                                "word_budget": decision.word_budget,
+                                "reason": decision.reason,
+                            }
+            except Exception as exc:
+                logger.debug("ConversationalDynamics: natural followup skipped: %s", exc)
+
             logger.debug(
                 "ConversationalDynamics: frame=%s intensity=%.2f speech_act=%s register=%s humor=%s",
                 dynamics.partner_frame,

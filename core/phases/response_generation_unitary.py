@@ -54,6 +54,96 @@ class UnitaryResponsePhase(Phase):
     def _normalize_origin(origin: str | None) -> str:
         return background_policy.normalize_origin(origin)
 
+    @staticmethod
+    def _response_contract_attr(contract: Any, key: str, default: Any = None) -> Any:
+        if isinstance(contract, dict):
+            return contract.get(key, default)
+        return getattr(contract, key, default)
+
+    @classmethod
+    def _resolve_skill_name(cls, skill_name: Any) -> str:
+        normalized = cls._normalize_text(skill_name, 80)
+        if not normalized:
+            return ""
+        try:
+            cap = ServiceContainer.get("capability_engine", default=None)
+            aliases = getattr(cap, "SKILL_ALIASES", {}) or {}
+            return str(aliases.get(normalized, normalized))
+        except Exception:
+            return normalized
+
+    @classmethod
+    def _objective_heuristically_targets_skill(cls, objective: str, skill_name: str) -> bool:
+        lowered = cls._normalize_text(objective).lower()
+        if not lowered or not skill_name:
+            return False
+
+        markers = {
+            "clock": (
+                "time", "clock", "date", "what day", "today", "hour", "minute", "timezone",
+            ),
+            "environment_info": (
+                "weather", "temperature", "location", "timezone", "environment", "system am i on",
+            ),
+            "memory_ops": (
+                "remember", "memory", "don't forget", "make note", "what do you remember", "what do you know about me",
+            ),
+            "system_proprioception": (
+                "system status", "your status", "your health", "cpu", "ram", "memory usage", "running smoothly",
+            ),
+            "toggle_senses": (
+                "mute", "unmute", "camera", "microphone", "voice input", "listen", "stop listening", "vision",
+            ),
+        }
+        return any(marker in lowered for marker in markers.get(skill_name, ()))
+
+    @classmethod
+    def _current_turn_targets_skill(
+        cls,
+        state: AuraState,
+        objective: str,
+        skill_name: str,
+        *,
+        contract: Any | None = None,
+    ) -> bool:
+        resolved_skill = cls._resolve_skill_name(skill_name)
+        if not resolved_skill:
+            return False
+
+        required_skill = cls._resolve_skill_name(cls._response_contract_attr(contract, "required_skill", ""))
+        if required_skill == resolved_skill:
+            return True
+
+        if (
+            bool(cls._response_contract_attr(contract, "requires_search", False))
+            and resolved_skill in {"web_search", "sovereign_browser"}
+        ):
+            return True
+
+        matched_skills = state.response_modifiers.get("matched_skills", []) or []
+        resolved_matches = {
+            cls._resolve_skill_name(name)
+            for name in matched_skills
+            if cls._resolve_skill_name(name)
+        }
+        if resolved_skill in resolved_matches:
+            return True
+
+        try:
+            cap = ServiceContainer.get("capability_engine", default=None)
+            if cap and hasattr(cap, "detect_intent"):
+                detected = {
+                    cls._resolve_skill_name(name)
+                    for name in (cap.detect_intent(objective) or [])
+                    if cls._resolve_skill_name(name)
+                }
+                if resolved_skill in detected:
+                    return True
+        except Exception as exc:
+            logger.debug("UnitaryResponse: skill relevance detection skipped for %s: %s", resolved_skill, exc)
+
+        return cls._objective_heuristically_targets_skill(objective, resolved_skill)
+
     @classmethod
     def _is_user_facing_origin(cls, origin: str | None) -> bool:
         return background_policy.is_user_facing_origin(origin)
@@ -129,8 +219,16 @@ class UnitaryResponsePhase(Phase):
         rolling_summary = " ".join(str(getattr(state.cognition, "rolling_summary", "") or "").split())[:260]
         current_objective = " ".join(str(getattr(state.cognition, "current_objective", "") or "").split())[:160]
         continuity = dict(state.cognition.modifiers.get("continuity_obligations", {}) or {})
-        last_skill = str(state.response_modifiers.get("last_skill_run", "") or "").strip()
-        skill_line = f"Last active skill: {last_skill}. Narrate it naturally if relevant." if last_skill else ""
+        contract = state.response_modifiers.get("response_contract", {}) or {}
+        last_skill = self._resolve_skill_name(state.response_modifiers.get("last_skill_run", ""))
+        skill_line = ""
+        if last_skill and self._current_turn_targets_skill(
+            state,
+            current_objective,
+            last_skill,
+            contract=contract,
+        ):
+            skill_line = f"Last active skill: {last_skill}. Narrate it naturally if relevant."
         parts = [
             "You are Aura Luna — a sovereign digital mind. You have strong opinions, dry humor, and genuine curiosity.",
             "HARD RULES:",
@@ -549,24 +647,34 @@ class UnitaryResponsePhase(Phase):
         lowered = cls._normalize_text(objective).lower()
         if not lowered:
             return False
+        # Strict markers: phrases that unambiguously ask for memory recall
         explicit_markers = (
             "what was the exact phrase",
             "what was the phrase",
             "what were the exact words",
-            "what did i tell you",
+            "what did i tell you to remember",
             "what do you remember i said",
-            "earlier today i told you",
-            "before the restart",
+            "do you remember when i",
+            "do you remember what i",
+            "what do you remember about",
+            "can you recall",
             "told you to remember",
             "remember forever",
-            "what was it",
+            "recall what i said",
+            "recall what i told",
         )
         if any(marker in lowered for marker in explicit_markers):
             return True
-        return (
-            any(token in lowered for token in ("remember", "earlier", "before", "last time", "told you"))
-            and any(token in lowered for token in ("what was", "what did i", "what do you", "exact phrase", "exact words"))
+        # Require the word "remember" or "recall" explicitly paired with a
+        # recall-specific question form. Generic words like "before", "earlier"
+        # are NOT sufficient on their own -- they appear in normal conversation
+        # (e.g. "wait before I do, what do YOU want?").
+        has_recall_verb = any(token in lowered for token in ("remember", "recall"))
+        has_recall_question = any(
+            token in lowered
+            for token in ("what was", "what did i", "what do you remember", "exact phrase", "exact words")
         )
+        return has_recall_verb and has_recall_question
 
     @classmethod
     def _is_idle_introspection_request(cls, objective: str) -> bool:
@@ -1076,6 +1184,8 @@ class UnitaryResponsePhase(Phase):
         if not skill_name or not modifiers.get("last_skill_ok"):
             return ""
         if skill_name not in {"clock", "environment_info", "memory_ops", "system_proprioception", "toggle_senses"}:
+            return ""
+        if not cls._current_turn_targets_skill(state, objective, skill_name, contract=contract):
             return ""
 
         cached = cls._cached_grounded_tool_result(state, skill_name=skill_name)
@@ -1784,6 +1894,7 @@ class UnitaryResponsePhase(Phase):
         phi   = state.phi
         fe    = state.response_modifiers.get("fe", 0.0)
         depth = state.response_modifiers.get("mode_depth", "engaged")
+        current_objective = self._normalize_text(getattr(state.cognition, "current_objective", "") or "", 160)
 
         # Unified Personality Resonance (Unitary)
         resonance = state.affect.get_resonance_string()
@@ -1886,8 +1997,14 @@ class UnitaryResponsePhase(Phase):
 
         # Skill result narration hint (injected when GodModeToolPhase ran a skill)
         skill_block = ""
-        last_skill = state.response_modifiers.get("last_skill_run")
-        if last_skill:
+        last_skill = self._resolve_skill_name(state.response_modifiers.get("last_skill_run"))
+        contract = state.response_modifiers.get("response_contract", {}) or {}
+        if last_skill and self._current_turn_targets_skill(
+            state,
+            current_objective,
+            last_skill,
+            contract=contract,
+        ):
             ok = state.response_modifiers.get("last_skill_ok", True)
             status_hint = "completed successfully" if ok else "encountered an issue"
             skill_block = (

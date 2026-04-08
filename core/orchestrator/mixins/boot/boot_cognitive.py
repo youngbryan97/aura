@@ -298,6 +298,8 @@ class BootCognitiveMixin:
             from core.brain.narrative_memory import NarrativeEngine
 
             self.narrative_engine = NarrativeEngine(self)
+            from core.container import ServiceContainer
+            ServiceContainer.register_instance("narrative_engine", self.narrative_engine)
             logger.info("✓ Narrative Engine initialized")
         except Exception as e:
             logger.error("Failed to init Narrative Memory: %s", e)
