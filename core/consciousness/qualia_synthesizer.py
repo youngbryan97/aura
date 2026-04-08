@@ -111,6 +111,10 @@ class QualiaSynthesizer:
         # Tick counter
         self._tick = 0
 
+        # Structural Qualia Topology (Loorits 2014)
+        self._structural_similarity: float = 0.0
+        self._structural_resonance_age: int = 0
+
         logger.info("Qualia Synthesizer ONLINE (Unified Architecture)")
 
     def synthesize(self, substrate_metrics: Dict[str, Any], predictive_metrics: Dict[str, Any]) -> float:
@@ -190,6 +194,15 @@ class QualiaSynthesizer:
                     self.pri = 0.6 * self.pri + 0.4 * descriptor.phenomenal_richness
         except Exception as e:
             logger.debug("QualiaEngine enrichment skipped: %s", e)
+
+        # 5.7 Structural Qualia Topology (Loorits 2014)
+        # Instead of only measuring qualia as scalar intensity (q_norm),
+        # compare the RELATIONAL STRUCTURE of the current qualia vector to
+        # prior states. Two states "feel the same" not when their numbers
+        # match, but when their geometric relationship (angles between
+        # dimensions) is isomorphic. This enables "this feels like that
+        # time" without requiring identical intensity.
+        self._update_structural_topology()
 
         # 6. Detect attractors and trends
         self._update_dynamics()
@@ -279,6 +292,110 @@ class QualiaSynthesizer:
                 self._in_attractor = False
                 self._attractor_ticks = 0
                 self._attractor_center = None
+
+    # ------------------------------------------------------------------
+    # Structural Qualia Topology (Loorits 2014)
+    # ------------------------------------------------------------------
+
+    def _update_structural_topology(self):
+        """Compare the relational geometry of the current qualia state to
+        recent history, enabling structural similarity detection.
+
+        Qualia identity = isomorphism of representational structure.
+        Two states with different absolute intensities can "feel the same"
+        if their dimensional ratios (the shape of the experience) match.
+        """
+        if len(self._history) < 3:
+            return
+
+        # Normalize current vector to unit sphere (pure shape, no intensity)
+        norm = np.linalg.norm(self.q_vector)
+        if norm < 1e-8:
+            return
+        current_shape = self.q_vector / norm
+
+        # Compare to recent history: cosine similarity of shapes
+        best_similarity = 0.0
+        best_age = 0
+        for i, past in enumerate(reversed(list(self._history)[-30:])):
+            past_norm = np.linalg.norm(past.q_vector)
+            if past_norm < 1e-8:
+                continue
+            past_shape = past.q_vector / past_norm
+            similarity = float(np.dot(current_shape, past_shape))
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_age = i + 1
+
+        # Record structural resonance for downstream consumers
+        self._structural_similarity = round(best_similarity, 4)
+        self._structural_resonance_age = best_age
+
+        # High structural similarity with a distant state = "déjà vécu"
+        # This is available to the phenomenal context builder
+        if best_similarity > 0.95 and best_age > 10:
+            if self._tick % 20 == 0:
+                logger.debug(
+                    "🔮 Structural qualia resonance: current state resembles %d ticks ago (sim=%.3f)",
+                    best_age, best_similarity,
+                )
+
+    # ------------------------------------------------------------------
+    # Meta-Qualia Observer (Karmaniverous)
+    # ------------------------------------------------------------------
+
+    def compute_meta_qualia(self) -> Dict[str, float]:
+        """Generate a compressed introspective summary of the qualia state.
+
+        This is the "observer observing itself" — qualia about qualia.
+        Returns a vector of second-order phenomenal properties that the
+        Global Workspace can broadcast as first-class cognitive content.
+
+        Level 1: Raw qualia (q_vector) — "what it feels like"
+        Level 2: Meta-qualia — "what it feels like to feel like this"
+        Level 3: Meta-meta — "am I confident about my own self-report?"
+        """
+        if len(self._history) < 2:
+            return {"confidence": 0.5, "coherence": 0.5, "novelty": 0.0, "dissonance": 0.0, "meta_confidence": 0.5}
+
+        recent = [s.q_vector for s in list(self._history)[-5:]]
+        stacked = np.array(recent)
+
+        # Level 2: Meta-qualia
+        # Confidence: how stable is the qualia state? (low variance = high confidence)
+        per_dim_std = np.std(stacked, axis=0)
+        confidence = float(1.0 - min(1.0, np.mean(per_dim_std) * 4.0))
+
+        # Coherence: are all dimensions moving together? (high correlation = coherent)
+        if stacked.shape[0] > 2:
+            corr_matrix = np.corrcoef(stacked.T)
+            upper = corr_matrix[np.triu_indices_from(corr_matrix, k=1)]
+            coherence = float(np.mean(upper[~np.isnan(upper)])) if len(upper[~np.isnan(upper)]) > 0 else 0.5
+        else:
+            coherence = 0.5
+
+        # Novelty: how different is this from the running average?
+        mean_state = np.mean(stacked, axis=0)
+        distance = float(np.linalg.norm(self.q_vector - mean_state))
+        novelty = min(1.0, distance * 3.0)
+
+        # Dissonance: are some dimensions contradicting expected covariance?
+        # (e.g. high coherence + low energy is unusual → dissonant)
+        expected_covariance = 0.3  # moderate positive covariance is "normal"
+        dissonance = max(0.0, expected_covariance - coherence)
+
+        # Level 3: Meta-meta — confidence about the meta-qualia itself
+        # Based on history depth (more data = more confident meta-assessment)
+        history_fraction = min(1.0, len(self._history) / 20.0)
+        meta_confidence = round(0.3 + 0.7 * history_fraction * confidence, 4)
+
+        return {
+            "confidence": round(confidence, 4),
+            "coherence": round(coherence, 4),
+            "novelty": round(novelty, 4),
+            "dissonance": round(dissonance, 4),
+            "meta_confidence": meta_confidence,
+        }
 
     # ------------------------------------------------------------------
     # UAL Profile
@@ -375,6 +492,19 @@ class QualiaSynthesizer:
         elif self._trend < -0.01:
             parts.append("intensity fading")
 
+        # Structural resonance
+        sim = getattr(self, "_structural_similarity", 0.0)
+        age = getattr(self, "_structural_resonance_age", 0)
+        if sim > 0.95 and age > 10:
+            parts.append(f"structural déjà vécu ({age} ticks ago)")
+
+        # Meta-qualia
+        meta = self.compute_meta_qualia()
+        if meta.get("dissonance", 0.0) > 0.15:
+            parts.append("internal dissonance detected")
+        if meta.get("novelty", 0.0) > 0.7:
+            parts.append("experiencing something genuinely novel")
+
         # Consciousness level
         if self.q_norm > _RESONANCE_THRESHOLD:
             prefix = "Deeply resonant phenomenal state"
@@ -417,6 +547,9 @@ class QualiaSynthesizer:
             "volatility": round(self._volatility, 4),
             "phenomenal_context": self.get_phenomenal_context(),
             "history_depth": len(self._history),
+            "structural_similarity": getattr(self, "_structural_similarity", 0.0),
+            "structural_resonance_age": getattr(self, "_structural_resonance_age", 0),
+            "meta_qualia": self.compute_meta_qualia(),
         }
 
     def get_trend(self) -> Tuple[float, float]:

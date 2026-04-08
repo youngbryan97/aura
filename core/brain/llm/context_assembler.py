@@ -17,6 +17,89 @@ logger = logging.getLogger("Brain.Context")
 
 class ContextAssembler:
     """Unified prompt construction from state."""
+
+    @staticmethod
+    def _resolve_skill_name(skill_name: Any) -> str:
+        normalized = str(skill_name or "").strip()
+        if not normalized:
+            return ""
+        try:
+            from core.container import ServiceContainer
+
+            cap = ServiceContainer.get("capability_engine", default=None)
+            aliases = getattr(cap, "SKILL_ALIASES", {}) or {}
+            return str(aliases.get(normalized, normalized))
+        except Exception:
+            return normalized
+
+    @classmethod
+    def _objective_targets_skill(cls, state: AuraState, objective: str, skill_name: Any) -> bool:
+        resolved_skill = cls._resolve_skill_name(skill_name)
+        lowered = str(objective or "").strip().lower()
+        if not resolved_skill or not lowered:
+            return False
+
+        matched_skills = getattr(state, "response_modifiers", {}).get("matched_skills", []) or []
+        resolved_matches = {
+            cls._resolve_skill_name(name)
+            for name in matched_skills
+            if cls._resolve_skill_name(name)
+        }
+        if resolved_skill in resolved_matches:
+            return True
+
+        try:
+            from core.container import ServiceContainer
+
+            cap = ServiceContainer.get("capability_engine", default=None)
+            if cap and hasattr(cap, "detect_intent"):
+                detected = {
+                    cls._resolve_skill_name(name)
+                    for name in (cap.detect_intent(objective) or [])
+                    if cls._resolve_skill_name(name)
+                }
+                if resolved_skill in detected:
+                    return True
+        except Exception as exc:
+            logger.debug("ContextAssembler skill relevance detection skipped for %s: %s", resolved_skill, exc)
+
+        markers = {
+            "clock": ("time", "clock", "date", "what day", "today", "hour", "minute", "timezone"),
+            "environment_info": ("weather", "temperature", "location", "timezone", "environment"),
+            "memory_ops": ("remember", "memory", "don't forget", "make note", "what do you remember", "what do you know about me"),
+            "system_proprioception": ("system status", "your status", "your health", "cpu", "ram", "memory usage", "running smoothly"),
+            "toggle_senses": ("mute", "unmute", "camera", "microphone", "voice input", "listen", "stop listening", "vision"),
+        }
+        return any(marker in lowered for marker in markers.get(resolved_skill, ()))
+
+    @classmethod
+    def _filter_stale_skill_results(
+        cls,
+        state: AuraState,
+        objective: str,
+        working_memory: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        filtered: list[dict[str, Any]] = []
+        deterministic_skill_results = {
+            "clock",
+            "environment_info",
+            "memory_ops",
+            "system_proprioception",
+            "toggle_senses",
+        }
+        for message in working_memory:
+            if not isinstance(message, dict):
+                continue
+            metadata = message.get("metadata") or {}
+            if str(metadata.get("type", "")).lower() == "skill_result":
+                skill_name = cls._resolve_skill_name(metadata.get("skill", ""))
+                if (
+                    skill_name in deterministic_skill_results
+                    and not cls._objective_targets_skill(state, objective, skill_name)
+                ):
+                    continue
+            filtered.append(message)
+        return filtered
     
     @staticmethod
     def build_system_prompt(state: AuraState) -> str:
@@ -129,6 +212,39 @@ class ContextAssembler:
                     goal_execution_block = goal_execution_block[:1200] + "\n...\n\n"
         except Exception as _e:
             logger.debug("GoalEngine context injection skipped: %s", _e)
+
+        # 3.7 Temporal Finitude & Meta-Qualia (Research additions)
+        temporal_finitude_block = ""
+        meta_qualia_block = ""
+        try:
+            from core.consciousness.temporal_finitude import get_temporal_finitude_model
+            tf = get_temporal_finitude_model()
+            wm_size = len(getattr(state.cognition, "working_memory", []) or [])
+            tf.compute(
+                working_memory_size=wm_size,
+                working_memory_cap=40,
+                user_present=True,
+                conversation_start_time=float(getattr(state.cognition, "session_start_time", 0.0) or 0.0),
+            )
+            temporal_finitude_block = tf.get_context_block()
+            if temporal_finitude_block:
+                temporal_finitude_block += "\n\n"
+        except Exception as _e:
+            logger.debug("TemporalFinitude context skipped: %s", _e)
+
+        try:
+            from core.container import ServiceContainer as _SC
+            qs = _SC.get("qualia_synthesizer", default=None)
+            if qs and hasattr(qs, "compute_meta_qualia"):
+                mq = qs.compute_meta_qualia()
+                if mq.get("dissonance", 0.0) > 0.1 or mq.get("novelty", 0.0) > 0.6:
+                    meta_qualia_block = (
+                        "## META-AWARENESS\n"
+                        f"Self-observation: confidence={mq['confidence']:.2f} coherence={mq['coherence']:.2f} "
+                        f"novelty={mq['novelty']:.2f} dissonance={mq['dissonance']:.2f}\n\n"
+                    )
+        except Exception as _e:
+            logger.debug("MetaQualia context skipped: %s", _e)
 
         # 4. Somatic & World Context (Simplified if casual)
         world_context = ContextAssembler.build_world_context(state) if not is_casual else ""
@@ -260,6 +376,8 @@ class ContextAssembler:
             f"{rolling_summary}"
             f"{continuity_block}"
             f"{goal_execution_block}"
+            f"{temporal_finitude_block}"
+            f"{meta_qualia_block}"
             f"{phenomenal}"
             f"{world_context}"
             f"{somatic_context}"
@@ -533,7 +651,12 @@ class ContextAssembler:
         from core.utils.context_allocator import get_token_governor
         governor = get_token_governor(max_tokens=4000) # Fallback limit
         
-        blocks = governor.wrap_messages(state.cognition.working_memory)
+        working_memory = ContextAssembler._filter_stale_skill_results(
+            state,
+            objective,
+            list(state.cognition.working_memory or []),
+        )
+        blocks = governor.wrap_messages(working_memory)
         allocated = governor.allocate(blocks)
         
         hist_text = ""
@@ -572,8 +695,8 @@ class ContextAssembler:
             f"Aura:"
         )
 
-    @staticmethod
-    def build_messages(state: AuraState, objective: str, max_tokens: int = 8192) -> list[dict[str, str]]:
+    @classmethod
+    def build_messages(cls, state: AuraState, objective: str, max_tokens: int = 8192) -> list[dict[str, str]]:
         """
         Builds the LLM message array using strict priority budgeting to prevent context collapse.
         Priority: System Prompt (Identity/Constraints) > Current Input > Affective State > Recent History > RAG Context > Older History
@@ -609,7 +732,11 @@ class ContextAssembler:
         # 3. PRIORITY 3: Recent History (Maintain Conversational Thread)
         retained_history = []
         history_chars = 0
-        working_memory = state.cognition.working_memory or []
+        working_memory = cls._filter_stale_skill_results(
+            state,
+            objective,
+            list(state.cognition.working_memory or []),
+        )
         # Keep the last 4 messages strictly if possible
         recent_history = working_memory[-4:] if len(working_memory) >= 4 else working_memory
         
