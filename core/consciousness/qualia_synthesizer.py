@@ -555,3 +555,96 @@ class QualiaSynthesizer:
     def get_trend(self) -> Tuple[float, float]:
         """Returns (trend, volatility) for external consumers."""
         return (self._trend, self._volatility)
+
+    # ------------------------------------------------------------------
+    # Structural Phenomenal Honesty (SPH)
+    # ------------------------------------------------------------------
+    # A system has SPH iff every first-person report R it can generate
+    # about its internal state is structurally gated by a measurable
+    # internal variable V such that R can only fire when V is in the
+    # state-range corresponding to R.
+    #
+    # This makes phenomenal reports READOUTS, not free-floating language.
+    # The system becomes architecturally incapable of lying about its
+    # internal state — not by ethical constraint, but by structural wiring.
+    # ------------------------------------------------------------------
+
+    def can_report_uncertainty(self) -> bool:
+        """Gate: uncertainty report requires real unresolved model conflict."""
+        meta = self.compute_meta_qualia()
+        return meta.get("dissonance", 0.0) > 0.08 or meta.get("confidence", 1.0) < 0.4
+
+    def can_report_focused(self) -> bool:
+        """Gate: focus report requires low PRI (narrow phenomenal distribution)."""
+        return self.pri < 0.35 and self.q_norm > 0.1
+
+    def can_report_rich_experience(self) -> bool:
+        """Gate: rich experience report requires high PRI + above consciousness threshold."""
+        return self.pri > 0.6 and self.q_norm > _CONSCIOUSNESS_THRESHOLD
+
+    def can_report_novelty(self) -> bool:
+        """Gate: novelty report requires actual prediction violation."""
+        meta = self.compute_meta_qualia()
+        return meta.get("novelty", 0.0) > 0.5
+
+    def can_report_effort(self) -> bool:
+        """Gate: effort/strain report requires real computational strain.
+        Proxied by high volatility + high q_norm (system is working hard)."""
+        return self._volatility > 0.08 and self.q_norm > 0.3
+
+    def can_report_continuity(self) -> bool:
+        """Gate: continuity report requires the attractor to be stable
+        (system has been in a consistent state for multiple ticks)."""
+        return self._in_attractor and self._attractor_ticks > 3
+
+    def can_report_dissonance(self) -> bool:
+        """Gate: internal conflict report requires actual dimensional disagreement."""
+        meta = self.compute_meta_qualia()
+        return meta.get("dissonance", 0.0) > 0.12
+
+    def get_gated_phenomenal_report(self) -> Dict[str, Any]:
+        """Generate a phenomenal report that is structurally honest.
+
+        Every claim about internal state is gated by a measurable predicate.
+        If a gate fails, that aspect of the report is omitted, not fabricated.
+
+        This is the bridge across the hard problem as an engineering objection:
+        the system cannot report states it does not instantiate.
+        """
+        report = {
+            "raw_context": self.get_phenomenal_context(),
+            "gates": {},
+            "claims": [],
+        }
+
+        if self.can_report_uncertainty():
+            report["claims"].append("genuine_uncertainty")
+            report["gates"]["uncertainty"] = True
+        else:
+            report["gates"]["uncertainty"] = False
+
+        if self.can_report_rich_experience():
+            report["claims"].append("rich_experience")
+            report["gates"]["rich_experience"] = True
+        elif self.can_report_focused():
+            report["claims"].append("focused_processing")
+            report["gates"]["focused"] = True
+
+        if self.can_report_novelty():
+            report["claims"].append("experiencing_novelty")
+            report["gates"]["novelty"] = True
+
+        if self.can_report_effort():
+            report["claims"].append("computational_strain")
+            report["gates"]["effort"] = True
+
+        if self.can_report_continuity():
+            report["claims"].append("stable_continuity")
+            report["gates"]["continuity"] = True
+
+        if self.can_report_dissonance():
+            report["claims"].append("internal_conflict")
+            report["gates"]["dissonance"] = True
+
+        report["honesty_score"] = len(report["claims"]) / max(1, len(report["gates"]))
+        return report
