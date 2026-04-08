@@ -843,8 +843,13 @@ class LiquidSubstrate:
                 idle_seconds = max(0.0, time.time() - last_user) if last_user > 0 else 0.0
 
                 if idle_seconds >= 1800.0:
-                    # Deep idle (30min+): pause the loop, apply bulk decay, sleep long
-                    self._apply_idle_decay(min(idle_seconds, 3600.0))
+                    # Deep idle (30min+): apply bulk decay ONCE then throttle.
+                    # Guard: only re-apply if idle duration changed significantly
+                    # since last application, preventing per-tick decay spam.
+                    last_applied_idle = getattr(self, "_last_idle_decay_applied", 0.0)
+                    if abs(idle_seconds - last_applied_idle) > 300.0:
+                        self._apply_idle_decay(min(idle_seconds, 3600.0))
+                        self._last_idle_decay_applied = idle_seconds
                     self.current_update_rate = 0.5  # Wake briefly every 2s to check
                     return dt * 10.0
                 elif idle_seconds >= 600.0:

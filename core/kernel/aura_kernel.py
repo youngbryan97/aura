@@ -561,8 +561,16 @@ class AuraKernel:
             
             # Initial derivation for the tick itself
             state = await state.derive_async(f"tick_start: {objective[:50]}", origin="tick")
+            # Clear stale skill modifiers from previous ticks so prior skill
+            # results (e.g. clock) don't leak into unrelated messages.
+            for _stale_key in (
+                "last_skill_run", "last_skill_ok", "last_skill_result_payload",
+                "matched_skills", "intent_type", "precomputed_grounded_reply",
+                "last_task_outcome", "last_task_id",
+            ):
+                state.response_modifiers.pop(_stale_key, None)
             self.state = state
-            
+
             # CASIE: Score user objective for strategy
             tricorder = self.organs.get("tricorder")
             if tricorder and tricorder.instance:

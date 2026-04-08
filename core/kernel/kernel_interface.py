@@ -204,6 +204,21 @@ class KernelInterface:
             logger.warning("KernelInterface.process() called before boot.")
             return "I'm still initializing. Give me a moment."
 
+        # Update the orchestrator's user-interaction timestamp so idle
+        # detectors (substrate decay, sleep triggers, proactive presence)
+        # know the user is present. Without this, the kernel path bypasses
+        # the orchestrator entirely and the system thinks it's been idle
+        # for the entire session.
+        if origin in ("user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"):
+            import time as _time
+            try:
+                from core.container import ServiceContainer
+                orch = ServiceContainer.get("orchestrator", default=None)
+                if orch is not None:
+                    orch._last_user_interaction_time = _time.time()
+            except Exception:
+                pass
+
         # Inject user turn into working memory before tick so history builds
         if inject_to_working_memory and self._kernel.state is not None:
             import time
