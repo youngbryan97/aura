@@ -226,6 +226,18 @@ class CognitiveHeartbeat:
             actual_focus_source=actual_focus,
         )
 
+        # ── 5a+. HIERARCHICAL PREDICTIVE CODING ────────────────────────
+        # Full Friston hierarchy: every level generates predictions downward
+        # and sends errors upward.  The hierarchy's total free energy feeds
+        # into the FreeEnergyEngine via accept_surprise_signal().
+        try:
+            from core.consciousness.predictive_hierarchy import get_predictive_hierarchy
+            ph = get_predictive_hierarchy()
+            ph_inputs = ph.gather_inputs_from_services()
+            ph.tick(**ph_inputs)
+        except Exception as e:
+            logger.debug("Predictive hierarchy tick failed: %s", e)
+
         # ── 5b. FREE ENERGY COMPUTATION ─────────────────────────────────
         # Close the loop: PredictiveEngine surprise → FreeEnergy → action tendency
         try:
