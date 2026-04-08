@@ -218,6 +218,14 @@ class KernelInterface:
                     orch._last_user_interaction_time = _time.time()
             except Exception:
                 pass
+            # Signal the subcortical core that a stimulus has arrived.
+            # This raises arousal, opens the thalamic gate, and restores
+            # full mesh/substrate gain for the duration of user interaction.
+            try:
+                from core.consciousness.subcortical_core import get_subcortical_core
+                get_subcortical_core().receive_stimulus(intensity=1.0, source=origin)
+            except Exception:
+                pass
 
         # Inject user turn into working memory before tick so history builds
         if inject_to_working_memory and self._kernel.state is not None:
