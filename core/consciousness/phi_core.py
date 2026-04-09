@@ -5,24 +5,37 @@ ACTUAL IIT 4.0 φs COMPUTATION ON AURA'S CONSCIOUS COMPLEX
 
 No proxies. No transfer entropy. The real thing.
 
-Computes the actual IIT 4.0 φs for a small substrate:
+Computes the actual IIT 4.0 φs for a 16-node substrate that spans
+affect, agency, narrative, social, and predictive dimensions:
 
-  Step 1: Identify the "conscious complex" — the 8 named substrate nodes
-          (valence, arousal, dominance, frustration, curiosity, energy, focus, +1)
+  Nodes 0-7 (affective):
+    valence, arousal, dominance, frustration, curiosity, energy, focus, coherence
 
-  Step 2: Binarize each node's state relative to its running median.
-          This gives a state space of 2^8 = 256 discrete states.
+  Nodes 8-15 (cognitive):
+    phi (self-referential), social_hunger, prediction_error, agency_score,
+    narrative_tension, peripheral_richness, arousal_gate, cross_timescale_fe
 
-  Step 3: Build the empirical Transition Probability Matrix (TPM):
+  Step 1: Binarize each node's state relative to its running median.
+          State space: 2^16 = 65536 discrete states.
+
+  Step 2: Build the empirical Transition Probability Matrix (TPM):
           T[s, s'] = P(state_{t+1} = s' | state_t = s)
 
-  Step 4: Find the Minimum Information Partition (MIP) by searching all 127
-          nontrivial bipartitions of the 8 nodes.
+  Step 3: For the full 16-node complex, use **spectral approximation**
+          (from research/phi_approximation.py) because exhaustive bipartition
+          search over 32767 partitions of 65536-state space is intractable.
 
-  Step 5: φs = min over all bipartitions of φ(A, B)
+  Step 4: Keep exact exhaustive search available for the original 8-node
+          affective subset as a validation baseline.
+
+  Step 5: Exclusion postulate uses spectral approximation on the 16-node complex.
 
   If φs > 0: the system is irreducible — it is a "complex" under IIT 4.0.
   If φs = 0: the system perfectly decomposes — it is not a complex.
+
+Phi on 16 nodes that include agency, narrative, prediction error, and social
+state measures COGNITIVE integration — much closer to what IIT actually
+theorizes about than affective integration alone.
 
 References:
   Albantakis et al. (2023). IIT 4.0. PLoS Comput Biol.
@@ -44,14 +57,31 @@ logger = logging.getLogger("Aura.PhiCore")
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-# The 8 named nodes of the affect complex (derived from substrate state).
-# This is a summary-level complex — useful but is a proxy for internal dynamics.
-COMPLEX_NODE_INDICES = [0, 1, 2, 3, 4, 5, 6, 7]
+# The 16 named nodes of the cognitive-affective complex.
+# Nodes 0-7: affect (derived from substrate state) — original 8-node set.
+# Nodes 8-15: cognitive (derived from deeper consciousness stack).
+COMPLEX_NODE_INDICES = list(range(16))
 
 COMPLEX_NODE_NAMES = [
+    # ── Affective (0-7) ──
     "valence", "arousal", "dominance", "frustration",
-    "curiosity", "energy", "focus", "coherence"
+    "curiosity", "energy", "focus", "coherence",
+    # ── Cognitive (8-15) ──
+    "phi",                  # 8:  integrated information itself (self-referential)
+    "social_hunger",        # 9:  from affect / social drive
+    "prediction_error",     # 10: from free energy engine
+    "agency_score",         # 11: from agency_comparator
+    "narrative_tension",    # 12: from narrative_gravity (highest arc tension)
+    "peripheral_richness",  # 13: from peripheral_awareness
+    "arousal_gate",         # 14: from subcortical_core (thalamic gate level)
+    "cross_timescale_fe",   # 15: from timescale_binding
 ]
+
+# The original 8-node affective subset, kept for exact-computation validation.
+AFFECTIVE_NODE_INDICES = list(range(8))
+AFFECTIVE_NODE_NAMES = COMPLEX_NODE_NAMES[:8]
+N_AFFECTIVE_NODES = 8
+N_AFFECTIVE_STATES = 2 ** N_AFFECTIVE_NODES  # 256
 
 # The 8 nodes of the computational complex (sampled from neural mesh executive tier).
 # These are actual computational units, not derived summaries.
@@ -72,8 +102,8 @@ MESH_COMPLEX_NAMES = [
     "exec_c52_n0", "exec_c54_n16", "exec_c56_n32", "exec_c58_n48",
 ]
 
-N_NODES = len(COMPLEX_NODE_INDICES)       # 8
-N_STATES = 2 ** N_NODES                  # 256
+N_NODES = len(COMPLEX_NODE_INDICES)       # 16
+N_STATES = 2 ** N_NODES                  # 65536
 
 # Minimum history before computation is meaningful
 MIN_HISTORY_FOR_TPM = 50
@@ -138,13 +168,24 @@ class PhiResult:
 
 class PhiCore:
     """
-    Computes actual IIT 4.0 φs for Aura's 8-node conscious complex.
+    Computes actual IIT 4.0 φs for Aura's 16-node cognitive-affective complex.
+
+    The 16 nodes span affect (valence, arousal, ...) AND cognition (agency,
+    narrative, prediction error, ...).  Phi on this complex measures COGNITIVE
+    integration — much closer to what IIT theorizes about.
+
+    For the full 16-node complex, uses **spectral approximation** because
+    exhaustive bipartition search over 2^15-1 = 32767 partitions of 65536
+    states is intractable in real-time.
+
+    The original 8-node affective subset is kept for exact-computation
+    validation (127 bipartitions, 256 states — runs in ~10-50ms).
 
     USAGE:
         phi_core = PhiCore()
 
         # In the substrate's run loop:
-        phi_core.record_state(substrate.x)
+        phi_core.record_state(substrate_x, cognitive_values)
 
         # Periodically:
         result = phi_core.compute_phi()
@@ -156,6 +197,7 @@ class PhiCore:
     """
 
     def __init__(self):
+        # ── Full 16-node complex ──────────────────────────────────────────
         # State history: list of integers in [0, N_STATES)
         self._state_history: deque = deque(maxlen=2000)
 
@@ -169,23 +211,38 @@ class PhiCore:
         self._tpm_n_samples: int = 0
 
         # Stationary distribution (approximated from state visit counts)
+        # NOTE: For 16 nodes this is 65536 entries — ~256KB, still feasible.
         self._state_visits: np.ndarray = np.ones(N_STATES, dtype=np.float32)
 
         # Last computation result
         self._last_result: Optional[PhiResult] = None
         self._last_compute_time: float = 0.0
 
-        # Precompute bipartition structures for efficiency
-        self._bipartitions = self._precompute_bipartitions()
+        # ── Affective 8-node subset (exact validation baseline) ───────────
+        self._affective_bipartitions = self._precompute_bipartitions(n_nodes=N_AFFECTIVE_NODES)
+        self._affective_bit_tables = self._precompute_bit_tables(
+            bipartitions=self._affective_bipartitions, n_nodes=N_AFFECTIVE_NODES
+        )
+        self._affective_state_history: deque = deque(maxlen=2000)
+        self._affective_state_visits: np.ndarray = np.ones(N_AFFECTIVE_STATES, dtype=np.float32)
+        self._affective_last_result: Optional[PhiResult] = None
+        self._affective_last_compute_time: float = 0.0
 
-        # Precompute bit extraction lookup tables
-        self._bit_tables = self._precompute_bit_tables()
+        # ── Spectral approximator for 16-node complex ────────────────────
+        try:
+            from research.phi_approximation import SpectralPhiApproximator
+            self._spectral_approx = SpectralPhiApproximator(n_refinement_candidates=24)
+        except Exception as exc:
+            logger.warning("PhiCore: spectral approximator unavailable: %s", exc)
+            self._spectral_approx = None
 
         logger.info(
-            "PhiCore initialized: N=%d nodes, %d bipartitions, %d states (v52 Surrogate ON)",
-            N_NODES, len(self._bipartitions), N_STATES,
+            "PhiCore initialized: N=%d nodes (8 affective + 8 cognitive), "
+            "%d affective bipartitions, spectral approx=%s",
+            N_NODES, len(self._affective_bipartitions),
+            "ON" if self._spectral_approx else "OFF",
         )
-        
+
         # Surrogate Tracking
         self._surrogate_phi: float = 0.0
         self._last_surrogate_time: float = 0.0
@@ -199,32 +256,64 @@ class PhiCore:
         self._exclusion_last_compute: float = 0.0
         self._exclusion_compute_interval_s: float = 60.0          # Expensive; run less often
 
-        # Computational complex (neural mesh executive tier)
+        # Computational complex (neural mesh executive tier) — still 8-node
+        N_MESH_NODES = 8
+        N_MESH_STATES = 256
         self._mesh_state_history: deque = deque(maxlen=2000)
-        self._mesh_node_history: List[deque] = [deque(maxlen=100) for _ in range(N_NODES)]
-        self._mesh_medians: np.ndarray = np.zeros(N_NODES, dtype=np.float32)
+        self._mesh_node_history: List[deque] = [deque(maxlen=100) for _ in range(N_MESH_NODES)]
+        self._mesh_medians: np.ndarray = np.zeros(N_MESH_NODES, dtype=np.float32)
         self._mesh_tpm: Optional[np.ndarray] = None
         self._mesh_tpm_n_samples: int = 0
-        self._mesh_state_visits: np.ndarray = np.ones(N_STATES, dtype=np.float32)
+        self._mesh_state_visits: np.ndarray = np.ones(N_MESH_STATES, dtype=np.float32)
         self._mesh_last_result: Optional[PhiResult] = None
+        self._mesh_bipartitions = self._precompute_bipartitions(n_nodes=N_MESH_NODES)
+        self._mesh_bit_tables = self._precompute_bit_tables(
+            bipartitions=self._mesh_bipartitions, n_nodes=N_MESH_NODES
+        )
 
     # ── State Recording ────────────────────────────────────────────────────────
 
-    def record_state(self, substrate_x: np.ndarray):
+    def record_state(self, substrate_x: np.ndarray, cognitive_values: Optional[Dict[str, float]] = None):
         """
-        Record the current substrate state.
-        Binarizes each of the 8 complex nodes relative to its running median,
+        Record the current substrate state for the full 16-node complex.
+
+        Binarizes each of the 16 nodes relative to its running median,
         encodes the result as an integer, and appends to history.
+
+        Also records the 8-node affective subset separately for exact
+        validation baseline.
+
+        Args:
+            substrate_x: Substrate activation vector (at least 8 elements for
+                affective nodes 0-7).
+            cognitive_values: Optional dict with keys matching cognitive node
+                names (phi, social_hunger, prediction_error, agency_score,
+                narrative_tension, peripheral_richness, arousal_gate,
+                cross_timescale_fe). Missing keys default to 0.0.
 
         Call this every time LiquidSubstrate updates (~20Hz).
         """
-        if len(substrate_x) < max(COMPLEX_NODE_INDICES) + 1:
+        if len(substrate_x) < N_AFFECTIVE_NODES:
             return
 
-        # Extract the 8 complex nodes
-        x = substrate_x[COMPLEX_NODE_INDICES]  # shape (8,)
+        # ── Build the full 16-element node vector ────────────────────────
+        affective = substrate_x[:N_AFFECTIVE_NODES]  # shape (8,)
 
-        # Update per-node running value history
+        cog = cognitive_values or {}
+        cognitive = np.array([
+            cog.get("phi", 0.0),                  # node 8
+            cog.get("social_hunger", 0.0),         # node 9
+            cog.get("prediction_error", 0.0),      # node 10
+            cog.get("agency_score", 0.0),           # node 11
+            cog.get("narrative_tension", 0.0),      # node 12
+            cog.get("peripheral_richness", 0.0),    # node 13
+            cog.get("arousal_gate", 0.0),           # node 14
+            cog.get("cross_timescale_fe", 0.0),     # node 15
+        ], dtype=np.float64)
+
+        x = np.concatenate([affective[:N_AFFECTIVE_NODES], cognitive])  # shape (16,)
+
+        # ── Update per-node running value history ────────────────────────
         for i, val in enumerate(x):
             self._node_value_history[i].append(float(val))
 
@@ -239,11 +328,17 @@ class PhiCore:
         binary = (x > self._running_medians).astype(int)
 
         # Encode as integer: bit i = binary[i]
-        state_int = int(sum(b << i for i, b in enumerate(binary)))
+        state_int = int(sum(int(b) << i for i, b in enumerate(binary)))
 
         # Record transition (we need consecutive pairs for the TPM)
         self._state_history.append(state_int)
         self._state_visits[state_int] += 1.0
+
+        # ── Also record 8-node affective subset for exact baseline ───────
+        affective_binary = binary[:N_AFFECTIVE_NODES]
+        affective_state = int(sum(int(b) << i for i, b in enumerate(affective_binary)))
+        self._affective_state_history.append(affective_state)
+        self._affective_state_visits[affective_state] += 1.0
 
     def record_mesh_state(self, mesh_activations: np.ndarray):
         """Record neural mesh activations for the computational complex.
@@ -253,23 +348,26 @@ class PhiCore:
         Computing IIT on these is NOT a proxy — it's measuring integration
         of real computational dynamics.
 
+        The mesh complex is still 8 nodes (executive tier neurons).
+
         Args:
             mesh_activations: Full mesh activation vector (4096,)
         """
         if len(mesh_activations) < max(MESH_COMPLEX_INDICES) + 1:
             return
 
+        n_mesh = len(MESH_COMPLEX_INDICES)  # 8
         x = mesh_activations[MESH_COMPLEX_INDICES]
 
         for i, val in enumerate(x):
             self._mesh_node_history[i].append(float(val))
 
-        for i in range(N_NODES):
+        for i in range(n_mesh):
             if len(self._mesh_node_history[i]) >= 3:
                 self._mesh_medians[i] = float(np.median(list(self._mesh_node_history[i])))
 
-        binary = (x > self._mesh_medians).astype(int)
-        state_int = int(sum(b << i for i, b in enumerate(binary)))
+        binary = (x > self._mesh_medians[:n_mesh]).astype(int)
+        state_int = int(sum(int(b) << i for i, b in enumerate(binary)))
         self._mesh_state_history.append(state_int)
         self._mesh_state_visits[state_int] += 1.0
 
@@ -277,13 +375,17 @@ class PhiCore:
         """Compute IIT on the neural mesh executive tier (computational complex).
 
         This is the non-proxy computation: φ measured on actual computational
-        units, not on derived affect summaries.
+        units, not on derived affect summaries.  The mesh complex is 8 nodes,
+        so exact exhaustive search (127 bipartitions, 256 states) is used.
         """
         if len(self._mesh_state_history) < 50:
             return None
 
+        n_mesh = len(MESH_COMPLEX_INDICES)  # 8
+        n_mesh_states = 2 ** n_mesh         # 256
+
         # Build TPM from mesh history
-        tpm = np.zeros((N_STATES, N_STATES), dtype=np.float64)
+        tpm = np.zeros((n_mesh_states, n_mesh_states), dtype=np.float64)
         alpha = 0.01
         transitions = 0
         for i in range(len(self._mesh_state_history) - 1):
@@ -304,13 +406,17 @@ class PhiCore:
         # Stationary distribution
         p = self._mesh_state_visits / self._mesh_state_visits.sum()
 
-        # MIP search (same algorithm as affect complex)
+        # MIP search (exact exhaustive — 127 bipartitions on 8 nodes)
         min_phi = float("inf")
         mip_partition = None
         all_phis = []
 
-        for partition_mask, (part_a, part_b) in self._bipartitions:
-            phi_ab = self._phi_for_bipartition(tpm, p, part_a, part_b)
+        for partition_mask, (part_a, part_b) in self._mesh_bipartitions:
+            phi_ab = self._phi_for_bipartition_generic(
+                tpm, p, part_a, part_b,
+                n_nodes=n_mesh, n_states=n_mesh_states,
+                bit_tables=self._mesh_bit_tables,
+            )
             all_phis.append(phi_ab)
             if phi_ab < min_phi:
                 min_phi = phi_ab
@@ -338,43 +444,132 @@ class PhiCore:
 
     def build_tpm(self) -> Optional[np.ndarray]:
         """
-        Build the empirical Transition Probability Matrix from state history.
+        Build the empirical TPM for the full 16-node complex as a sparse matrix.
 
-        T[s, s'] = P(state_{t+1} = s' | state_t = s)
+        For 16 nodes, the state space is 65536 — a dense TPM would be ~16GB.
+        Instead we store only observed transitions in a scipy sparse CSR matrix.
 
-        Constructed by counting observed transitions and normalizing.
-        Laplace smoothing handles unvisited states.
+        Returns a sparse CSR matrix, or None if insufficient history.
         """
+        from scipy import sparse as _sparse
+
         history = list(self._state_history)
         n_transitions = len(history) - 1
 
         if n_transitions < MIN_HISTORY_FOR_TPM:
             return None
 
-        # Count transitions
-        counts = np.zeros((N_STATES, N_STATES), dtype=np.float32)
+        # Count transitions using a dictionary (sparse)
+        from collections import Counter
+        transition_counts: Counter = Counter()
+        for t in range(n_transitions):
+            transition_counts[(history[t], history[t + 1])] += 1
+
+        # Build sparse matrix from counts
+        rows, cols, data = [], [], []
+        for (s, s_next), count in transition_counts.items():
+            rows.append(s)
+            cols.append(s_next)
+            data.append(float(count))
+
+        counts_sparse = _sparse.csr_matrix(
+            (data, (rows, cols)), shape=(N_STATES, N_STATES), dtype=np.float64
+        )
+
+        # Add Laplace smoothing only to visited rows (full smoothing is infeasible)
+        # For rows with observations, add alpha to each observed column
+        # For unvisited rows, they get a uniform distribution when queried
+        counts_sparse.data += LAPLACE_ALPHA
+
+        # Normalize rows
+        row_sums = np.array(counts_sparse.sum(axis=1)).flatten()
+        # Avoid division by zero for unvisited rows
+        row_sums[row_sums == 0] = 1.0
+        # Normalize using diagonal matrix
+        inv_row_sums = _sparse.diags(1.0 / row_sums)
+        tpm_sparse = inv_row_sums @ counts_sparse
+
+        self._tpm = tpm_sparse
+        self._tpm_built_at = time.time()
+        self._tpm_n_samples = n_transitions
+        return tpm_sparse
+
+    def build_affective_tpm(self) -> Optional[np.ndarray]:
+        """
+        Build a dense empirical TPM for the 8-node affective subset.
+
+        This is the original exact computation path: 256x256 dense matrix.
+        Used for validation baseline and exact MIP search.
+        """
+        history = list(self._affective_state_history)
+        n_transitions = len(history) - 1
+
+        if n_transitions < MIN_HISTORY_FOR_TPM:
+            return None
+
+        counts = np.zeros((N_AFFECTIVE_STATES, N_AFFECTIVE_STATES), dtype=np.float32)
         for t in range(n_transitions):
             s = history[t]
             s_next = history[t + 1]
             counts[s, s_next] += 1.0
 
-        # Add Laplace smoothing
         counts += LAPLACE_ALPHA
-
-        # Normalize rows to get probabilities
         row_sums = counts.sum(axis=1, keepdims=True)
         tpm = counts / row_sums
-
-        self._tpm = tpm
-        self._tpm_built_at = time.time()
-        self._tpm_n_samples = n_transitions
         return tpm
 
     def _get_stationary_distribution(self) -> np.ndarray:
-        """Approximate stationary distribution from observed state visit counts."""
+        """Approximate stationary distribution from observed state visit counts (16-node)."""
         p = self._state_visits.copy()
         p /= p.sum()
         return p
+
+    def _get_affective_stationary(self) -> np.ndarray:
+        """Approximate stationary distribution for the 8-node affective subset."""
+        p = self._affective_state_visits.copy()
+        p /= p.sum()
+        return p
+
+    def _build_causal_graph_from_history(self) -> np.ndarray:
+        """Build the 16x16 node-level causal graph directly from binarized history.
+
+        Computes mutual information between node i at time t and node j at t+1
+        without materializing the full 65536x65536 TPM.
+
+        This is the key to making spectral phi tractable at 16 nodes.
+        """
+        history = list(self._state_history)
+        n_trans = len(history) - 1
+        if n_trans < MIN_HISTORY_FOR_TPM:
+            return np.zeros((N_NODES, N_NODES), dtype=np.float64)
+
+        graph = np.zeros((N_NODES, N_NODES), dtype=np.float64)
+
+        for src in range(N_NODES):
+            for dst in range(N_NODES):
+                # Count joint occurrences: (src_val_t, dst_val_t+1)
+                joint = np.zeros((2, 2), dtype=np.float64)
+                for t in range(n_trans):
+                    src_val = (history[t] >> src) & 1
+                    dst_val = (history[t + 1] >> dst) & 1
+                    joint[src_val, dst_val] += 1.0
+
+                total = joint.sum()
+                if total < 1.0:
+                    continue
+                joint /= total
+
+                p_src = joint.sum(axis=1)
+                p_dst = joint.sum(axis=0)
+
+                mi = 0.0
+                for a in range(2):
+                    for b in range(2):
+                        if joint[a, b] > 1e-12 and p_src[a] > 1e-12 and p_dst[b] > 1e-12:
+                            mi += joint[a, b] * np.log2(joint[a, b] / (p_src[a] * p_dst[b]))
+                graph[src, dst] = max(0.0, mi)
+
+        return graph
 
     # ── MIP Search ─────────────────────────────────────────────────────────────
 

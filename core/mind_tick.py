@@ -278,17 +278,15 @@ class MindTick:
                                     # Don't re-promote if we just tried this goal
                                     if objective == self._last_initiative_goal:
                                         continue
-                                    state.cognition.pending_initiatives.append({
-                                        "goal": objective,
-                                        "source": "goal_engine",
-                                        "type": "goal_pursuit",
-                                        "urgency": float(goal.get("priority", 0.5)),
-                                        "triggered_by": "proactive_goal_pursuit",
-                                        "metadata": {
-                                            "goal_id": goal.get("id", ""),
-                                            "horizon": goal.get("horizon", "short_term"),
-                                        },
-                                    })
+                                    # Use governed proposal path (constitutional compliance)
+                                    from core.runtime.proposal_governance import propose_governed_initiative_to_state
+                                    state, _ = await propose_governed_initiative_to_state(
+                                        state,
+                                        objective,
+                                        source="goal_engine",
+                                        urgency=float(goal.get("priority", 0.5)),
+                                        triggered_by="proactive_goal_pursuit",
+                                    )
                                     break  # Only inject one goal per cycle
                         except Exception as _ge:
                             logger.debug("MindTick: goal-driven initiative generation failed: %s", _ge)
