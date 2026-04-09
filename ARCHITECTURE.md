@@ -89,6 +89,94 @@ The Will is **free within its identity constraints**. It can proceed, constrain,
 
 ---
 
+## 0.1 Initiative Synthesizer: Single Origin for All Impulses
+
+**File**: `core/initiative_synthesis.py`
+
+Before unification, Aura had multiple independent sources of autonomous action: AgencyCore, VolitionEngine, DriveEngine, GoalEngine, ContinuousPerceptionEngine, CommitmentEngine, and the Swarm. These generated impulses in parallel and converged after the fact — creating a multi-origin system that was fundamentally fragmented.
+
+The InitiativeSynthesizer is the single funnel:
+
+```
+AgencyCore    ──┐
+VolitionEngine──┤
+DriveEngine   ──┤
+GoalEngine    ──┼──→ InitiativeSynthesizer ──→ InitiativeArbiter ──→ UnifiedWill ──→ Execution
+Sensors       ──┤         (collect, dedup,         (score on 8         (authorize)
+Commitments   ──┤          merge, rank)             dimensions)
+WorldState    ──┘
+```
+
+The synthesizer: collects impulses from all sources, deduplicates within a 2-minute window, caps at 15 per cycle, converts to initiative format, scores via the 8-dimensional InitiativeArbiter, runs the top candidate through InternalSimulator for counterfactual evaluation, and finally sends the winner through UnifiedWill for authorization.
+
+**The rule**: `impulse → synthesis → arbiter → simulation → will → execution → memory`
+
+## 0.2 World State: Live Perceptual Feed
+
+**File**: `core/world_state.py`
+
+Separate from the EpistemicState knowledge graph (which stores conceptual relationships), the WorldState tracks what is happening RIGHT NOW:
+
+- **User activity**: last interaction timestamp, idle duration, message count, estimated mood
+- **System telemetry**: CPU, RAM, thermal pressure, battery (via psutil, updated every 10s)
+- **Environment**: time of day, session duration, active app context
+- **Salient event queue**: recent changes worth noticing, scored by salience, with TTLs
+- **Standing beliefs**: environment facts with expiration (e.g., "user is likely frustrated")
+
+The WorldState feeds into initiative scoring. When the user has been idle for 3 hours and it's late at night, the system knows this. When CPU pressure spikes, the system knows this. When the user encounters a terminal error, the WorldState marks it as a salient event and updates the mood estimate.
+
+## 0.3 Drive Cross-Coupling
+
+**File**: `core/drive_engine.py` (enhanced)
+
+The DriveEngine manages five resource budgets: energy, curiosity, social, competence, and uptime_value. Previously, these were independent timers. Now they cross-couple:
+
+- **Low energy** → increases `resource_cost` weight in the arbiter (prefer cheap actions)
+- **Low curiosity** → boosts `novelty` weight (crave new information)
+- **Low social** → boosts `social_appropriateness` weight (crave connection)
+- **Low competence** → boosts `tension_resolution` weight (crave achievement)
+
+The `get_drive_vector()` method returns normalized (0-1) drive levels as a single read point for any subsystem. The `get_arbiter_weight_modifiers()` returns dynamic weight adjustments that the InitiativeArbiter applies during scoring.
+
+Drive satisfaction feedback is now wired: when the user sends a message, the social drive is satisfied (+15). When a goal completes, the competence drive is satisfied.
+
+## 0.4 Counterfactual Action Simulation
+
+**File**: `core/simulation/internal_simulator.py` (enhanced)
+
+The InternalSimulator previews consequences before action. It evaluates candidates across five dimensions:
+
+1. **Valence** (0.3 weight) — emotional desirability of the predicted state
+2. **Energy cost** (0.2 weight) — resource impact
+3. **Cortisol risk** (0.15 weight, inverted) — stress cost
+4. **Identity alignment** (0.2 weight) — does this match who Aura is?
+5. **Commitment compatibility** (0.15 weight) — does this conflict with active promises?
+
+Identity violations (e.g., "as an AI") are checked axiomatically before service lookup. Commitment compatibility checks against the CommitmentEngine's active promises.
+
+## 0.5 Goal Resumption at Boot
+
+At boot, after CanonicalSelf loads, the orchestrator reads GoalEngine's SQLite database for IN_PROGRESS and PAUSED goals and injects them into `pending_initiatives` with `continuity_restored=True` and urgency ≥ 0.6. This means: after a restart, Aura's first autonomous initiative is to continue what she was doing. Goals survive process death.
+
+## 0.6 Proof Surface
+
+**Endpoint**: `GET /api/inner-state`
+
+Returns a JSON object containing:
+- Last 5 WillDecision receipts with full provenance
+- CanonicalSelf snapshot (identity, condition)
+- DriveEngine levels (all 5 budgets)
+- WorldState status (telemetry, user activity, salient events)
+- InitiativeSynthesizer status (recent syntheses)
+- Last selected initiative (score, rationale, dimension breakdown)
+- Substrate coherence (phi, field coherence)
+- Active goals
+- Affect state
+
+Receipt verification: `GET /api/inner-state/will-receipt/{receipt_id}` — proves that a specific action passed through the Will.
+
+---
+
 ## 1. System Model
 
 Aura is a discrete-time cognitive architecture. The fundamental unit of computation is the **tick** — a locked, linear pipeline of phases that reads state, transforms it, and commits the result atomically.

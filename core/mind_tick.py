@@ -253,6 +253,13 @@ class MindTick:
                     if self._tick_count <= 1:
                         logger.debug("MindTick: Unified Will boot deferred: %s", _will_boot)
 
+                # ── WORLD STATE: Update telemetry every tick ──
+                try:
+                    from core.world_state import get_world_state
+                    get_world_state().update()
+                except Exception:
+                    pass
+
                 # ── BINDING ENGINE: Run coherence tick before phases ──
                 _coherence_report = None
                 _bg_pause_pre = self._background_reasoning_pause_reason(state)

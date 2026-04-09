@@ -172,6 +172,21 @@ class IncomingLogicMixin:
             if agency:
                 agency.on_user_message()
 
+            # WorldState: Track user activity for environment awareness
+            try:
+                from core.world_state import get_world_state
+                get_world_state().on_user_message(message=safe_msg if isinstance(safe_msg, str) else "")
+            except Exception:
+                pass
+
+            # DriveEngine: Satisfy social drive on user contact
+            try:
+                drive = ServiceContainer.get("drive_engine", default=None)
+                if drive:
+                    self._fire_and_forget(drive.satisfy("social", 15.0), name="drive_social_satisfy")
+            except Exception:
+                pass
+
             # Zenith Hardening: Reset boredom and learning cooldowns
             if hasattr(self, 'volition') and self.volition:
                 self.volition.notify_activity()

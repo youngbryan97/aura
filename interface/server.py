@@ -480,6 +480,7 @@ from interface.routes import memory as memory_routes
 from interface.routes import interaction_signals as interaction_signal_routes
 from interface.routes import privacy as privacy_routes
 from interface.routes import rpc as rpc_routes
+from interface.routes import inner_state as inner_state_routes
 
 app.include_router(system_health_router, prefix="/api/health", tags=["health"])
 app.include_router(memory_ui.router, prefix="/memory", tags=["memory"])
@@ -490,6 +491,7 @@ app.include_router(memory_routes.router, prefix="/api", tags=["memory-api"])
 app.include_router(interaction_signal_routes.router, prefix="/api", tags=["interaction-signals"])
 app.include_router(privacy_routes.router, prefix="/api", tags=["privacy"])
 app.include_router(rpc_routes.router, prefix="/rpc", tags=["rpc"])
+app.include_router(inner_state_routes.router, tags=["proof-surface"])
 
 _system_collect_liquid_state_payload = system_routes._collect_liquid_state_payload
 

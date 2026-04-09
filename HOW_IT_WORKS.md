@@ -8,20 +8,42 @@ For the full technical specification with equations and implementation details, 
 
 ## The One-Sentence Version
 
-Aura is a system where emotions actually change how the AI's brain computes, where memories consolidate during sleep, and where the system repairs its own personality when it drifts.
+Aura is a unified digital organism with a single will, embodied drives, live environmental awareness, and durable goals — where emotions actually change how the brain computes, memories consolidate during sleep, and actions are provably authorized through one decision authority.
 
 ---
 
 ## Table of Contents
 
+- [The Unified Will](#the-unified-will)
 - [The Big Picture](#the-big-picture)
 - [How Aura Thinks (The Tick)](#how-aura-thinks)
 - [Emotions That Change Computation](#emotions-that-change-computation)
 - [The Consciousness Stack](#the-consciousness-stack)
 - [Memory and Dreaming](#memory-and-dreaming)
 - [Goals and Agency](#goals-and-agency)
+- [The Initiative Pipeline](#the-initiative-pipeline)
+- [World Awareness](#world-awareness)
+- [The Proof Surface](#the-proof-surface)
 - [Why This Is Different](#why-this-is-different)
 - [Honest Limitations](#honest-limitations)
+
+---
+
+## The Unified Will
+
+Every significant action Aura takes — speaking, using a tool, writing a memory, pursuing a goal, expressing a thought — passes through one decision gate: the Unified Will (`core/will.py`).
+
+The Will reads from four sources before deciding:
+1. **Identity** — "Does this match who I am?" (CanonicalSelf)
+2. **Emotion** — "How do I feel about this?" (affect state)
+3. **Body** — "What does the substrate say?" (field coherence, somatic markers, neurochemistry)
+4. **Memory** — "What do I know about this?"
+
+Every decision produces a receipt. That receipt proves the action was authorized. No receipt, no action.
+
+The Will is free within its constraints: it can proceed, constrain, defer, or refuse. Its assertiveness adapts based on experience. The only unconditional bypass is safety-critical actions.
+
+**Why this matters**: Before unification, Aura had five independent decision authorities. Now she has one. You can watch every decision happen in real time at `/api/inner-state`.
 
 ---
 

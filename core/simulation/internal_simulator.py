@@ -1,64 +1,208 @@
+"""core/simulation/internal_simulator.py -- Counterfactual Action Simulator
+============================================================================
+Simulates future state variations to enable proactive planning.
+Projects state transitions and evaluates outcomes.
+
+Now wired into the initiative pipeline: before the InitiativeSynthesizer
+selects a winner, the top candidates are simulated and evaluated here.
+
+Evaluation dimensions:
+  - Valence (emotional desirability)
+  - Energy cost
+  - Cortisol/stress risk
+  - Identity alignment (does this match who I am?)
+  - Commitment compatibility (does this conflict with promises?)
+  - World state fit (does the environment support this?)
+"""
 import copy
 import logging
-from typing import Dict, Any, Optional
-from core.state.aura_state import AuraState
+from typing import Any, Dict, List, Optional
+
+from core.container import ServiceContainer
 
 logger = logging.getLogger("Aura.InternalSimulator")
 
+
 class InternalSimulator:
-    """
-    Simulates future state variations to enable proactive planning.
-    Projects state transitions and evaluates outcomes (Valence/Risk).
-    """
+    """Simulates and evaluates hypothetical future states."""
 
     def __init__(self):
         logger.info("InternalSimulator initialized.")
 
-    def simulate(self, current_state: AuraState, variation: Dict[str, Any] = None) -> AuraState:
-        """
-        Create a hypothetical future state based on current state and a variation.
-        """
-        # Create a deep copy to avoid mutating the real state
-        hypothetical = copy.deepcopy(current_state)
-        hypothetical.state_id = f"sim_{hypothetical.state_id[:8]}"
-        
-        # Apply variation (e.g., increased risk, decreased energy)
+    def simulate(self, current_state: Any, variation: Optional[Dict[str, Any]] = None) -> Any:
+        """Create a hypothetical future state based on current state + variation."""
+        try:
+            hypothetical = copy.deepcopy(current_state)
+        except Exception:
+            # If deep copy fails (complex state), work with a shallow analysis
+            return current_state
+
+        try:
+            hypothetical.state_id = f"sim_{hypothetical.state_id[:8]}"
+        except (AttributeError, TypeError):
+            pass
+
         if variation:
-            for key, val in variation.items():
-                if key == "risk":
-                    # Simulated risk affects cortisol and arousal
-                    hypothetical.affect.arousal = min(1.0, hypothetical.affect.arousal + (val * 0.1))
-                    hypothetical.affect.physiology["cortisol"] += val * 5.0
-                elif key == "energy":
-                    hypothetical.motivation.budgets["energy"]["level"] = max(0.0, hypothetical.motivation.budgets["energy"]["level"] - val)
-        
-        # Increment version to indicate "simulated time"
-        hypothetical.version += 1
+            try:
+                for key, val in variation.items():
+                    if key == "risk":
+                        hypothetical.affect.arousal = min(1.0, hypothetical.affect.arousal + (val * 0.1))
+                        hypothetical.affect.physiology["cortisol"] += val * 5.0
+                    elif key == "energy":
+                        hypothetical.motivation.budgets["energy"]["level"] = max(
+                            0.0, hypothetical.motivation.budgets["energy"]["level"] - val
+                        )
+            except (AttributeError, KeyError, TypeError):
+                pass
+
+        try:
+            hypothetical.version += 1
+        except (AttributeError, TypeError):
+            pass
+
         return hypothetical
 
-    def evaluate(self, predicted_state: AuraState) -> float:
-        """
-        Evaluate the 'desirability' or 'risk' of a predicted state.
-        Returns a score: Higher is more desirable/less risky.
-        """
-        # Simple heuristic: High valence + High energy - High cortisol
-        valence = predicted_state.affect.valence
-        energy = predicted_state.motivation.budgets["energy"]["level"] / 100.0
-        cortisol_risk = predicted_state.affect.physiology.get("cortisol", 0.0) / 50.0
-        
-        score = (valence * 0.5) + (energy * 0.3) - (cortisol_risk * 0.2)
-        return round(score, 3)
+    def evaluate(self, predicted_state: Any, action_content: str = "",
+                 action_source: str = "") -> float:
+        """Evaluate the desirability of a predicted state.
 
-    def plan_next_action(self, state: AuraState, options: list[Dict[str, Any]]) -> Dict[str, Any]:
+        Returns a score: higher = more desirable, lower = worse.
+        Range roughly [-1.0, 1.0].
+
+        Dimensions:
+          1. Valence (0.3 weight) -- emotional state
+          2. Energy (0.2 weight) -- resource availability
+          3. Cortisol risk (0.15 weight, inverted)
+          4. Identity alignment (0.2 weight) -- does this match who I am?
+          5. Commitment compatibility (0.15 weight) -- conflicts with promises?
         """
-        Simulates multiple options and returns the one with the highest evaluation score.
+        score = 0.0
+
+        # 1. Valence
+        try:
+            valence = predicted_state.affect.valence
+            score += valence * 0.3
+        except (AttributeError, TypeError):
+            pass
+
+        # 2. Energy
+        try:
+            energy = predicted_state.motivation.budgets["energy"]["level"] / 100.0
+            score += energy * 0.2
+        except (AttributeError, KeyError, TypeError):
+            score += 0.1  # neutral default
+
+        # 3. Cortisol risk (inverted -- high cortisol = bad)
+        try:
+            cortisol = predicted_state.affect.physiology.get("cortisol", 0.0) / 50.0
+            score -= cortisol * 0.15
+        except (AttributeError, TypeError):
+            pass
+
+        # 4. Identity alignment
+        try:
+            alignment_score = self._check_identity_alignment(action_content)
+            score += alignment_score * 0.2
+        except Exception:
+            score += 0.1  # neutral default
+
+        # 5. Commitment compatibility
+        try:
+            compat_score = self._check_commitment_compatibility(action_content)
+            score += compat_score * 0.15
+        except Exception:
+            score += 0.05  # neutral default
+
+        return round(score, 4)
+
+    def evaluate_candidates(self, state: Any,
+                            candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Evaluate multiple candidate actions and return them scored.
+
+        Each candidate dict should have at least 'goal' and optionally 'variation'.
+        Returns candidates sorted by score (best first).
         """
         results = []
-        for opt in options:
-            sim_state = self.simulate(state, variation=opt.get("variation"))
-            score = self.evaluate(sim_state)
-            results.append({"option": opt, "score": score})
-            
-        best = max(results, key=lambda r: r["score"])
-        logger.info("Internal simulation selected best path with score %s", best["score"])
-        return best["option"]
+        for cand in candidates:
+            variation = cand.get("variation", {"risk": 0.3, "energy": 5.0})
+            sim_state = self.simulate(state, variation=variation)
+            score = self.evaluate(
+                sim_state,
+                action_content=str(cand.get("goal", "")),
+                action_source=str(cand.get("source", "")),
+            )
+            results.append({
+                "candidate": cand,
+                "score": score,
+                "simulated": True,
+            })
+
+        results.sort(key=lambda r: r["score"], reverse=True)
+        return results
+
+    def plan_next_action(self, state: Any, options: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Simulate options and return the one with the highest evaluation score."""
+        if not options:
+            return None
+        results = self.evaluate_candidates(state, options)
+        best = results[0]
+        logger.info("Simulation selected best path with score %.4f", best["score"])
+        return best["candidate"]
+
+    # ------------------------------------------------------------------
+    # Advisory checks
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _check_identity_alignment(content: str) -> float:
+        """Check if action content aligns with identity. Returns [-0.5, 0.5]."""
+        content_lower = content.lower()
+
+        # Axiomatic violations checked FIRST, before any service lookup
+        violations = ["as an ai", "i'm just a language model", "i cannot feel",
+                      "i don't have opinions", "i'm just a"]
+        if any(v in content_lower for v in violations):
+            return -0.5
+
+        try:
+            canonical = ServiceContainer.get("canonical_self", default=None)
+            if canonical is None:
+                return 0.1  # neutral
+
+            # Check values overlap
+            values = getattr(canonical, "core_values", []) or []
+            matches = sum(1 for v in values if str(v).lower() in content_lower)
+            if matches > 0:
+                return min(0.5, 0.2 + matches * 0.1)
+
+            return 0.1
+        except Exception:
+            return 0.1
+
+    @staticmethod
+    def _check_commitment_compatibility(content: str) -> float:
+        """Check if action conflicts with active commitments. Returns [-0.3, 0.3]."""
+        try:
+            commitment = ServiceContainer.get("commitment_engine", default=None)
+            if commitment is None:
+                return 0.05
+
+            active = []
+            if hasattr(commitment, "get_active_commitments"):
+                active = commitment.get_active_commitments()
+            elif hasattr(commitment, "commitments"):
+                active = [c for c in commitment.commitments if c.get("status") == "active"]
+
+            if not active:
+                return 0.05
+
+            content_lower = content.lower()
+            # Check for conflicts (action that contradicts a promise)
+            for c in active:
+                goal = str(c.get("goal", c.get("description", ""))).lower()
+                # If the action serves a commitment, that's good
+                if any(word in content_lower for word in goal.split()[:3] if len(word) > 3):
+                    return 0.3
+            return 0.0
+        except Exception:
+            return 0.05

@@ -120,6 +120,77 @@ class BootAutonomyMixin:
         except Exception as e:
             logger.error("🔗 Singularity Loops failed: %s", e)
 
+        # ══════════════════════════════════════════════════════════════
+        # TIER 4 UNIFICATION BOOT — WorldState, InitiativeSynthesizer,
+        # InternalSimulator, Goal Resumption
+        # ══════════════════════════════════════════════════════════════
+
+        # WorldState — live perceptual feed
+        try:
+            from core.world_state import get_world_state
+            ws = get_world_state()
+            await ws.start()
+            logger.info("🌍 WorldState ONLINE — live perceptual feed active")
+        except Exception as e:
+            logger.error("🌍 WorldState init failed: %s", e)
+
+        # InitiativeSynthesizer — single origin for all impulses
+        try:
+            from core.initiative_synthesis import get_initiative_synthesizer
+            synth = get_initiative_synthesizer()
+            await synth.start()
+            logger.info("🔀 InitiativeSynthesizer ONLINE — single impulse funnel active")
+        except Exception as e:
+            logger.error("🔀 InitiativeSynthesizer init failed: %s", e)
+
+        # InternalSimulator — counterfactual action evaluation
+        try:
+            from core.simulation.internal_simulator import InternalSimulator
+            simulator = InternalSimulator()
+            ServiceContainer.register_instance("internal_simulator", simulator)
+            logger.info("🔮 InternalSimulator ONLINE — counterfactual reasoning active")
+        except Exception as e:
+            logger.error("🔮 InternalSimulator init failed: %s", e)
+
+        # Goal Resumption — restore interrupted goals from SQLite
+        try:
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+            if goal_engine:
+                active_goals = goal_engine.get_active_goals(limit=5, include_external=False)
+                resumed_count = 0
+                state_repo = ServiceContainer.get("state_repo", default=None)
+                state = None
+                if state_repo and hasattr(state_repo, "_current"):
+                    state = state_repo._current
+                if state and active_goals:
+                    pending = list(getattr(state.cognition, "pending_initiatives", []) or [])
+                    existing_goals = {str(p.get("goal", "")) for p in pending if isinstance(p, dict)}
+                    for goal in active_goals:
+                        objective = str(goal.get("objective") or goal.get("name") or "")
+                        if not objective or objective in existing_goals:
+                            continue
+                        pending.append({
+                            "goal": objective,
+                            "source": "goal_engine",
+                            "type": "continuity_restored",
+                            "urgency": max(0.6, float(goal.get("priority", 0.6))),
+                            "triggered_by": "boot_resumption",
+                            "timestamp": __import__("time").time(),
+                            "metadata": {
+                                "goal_id": goal.get("id"),
+                                "continuity_restored": True,
+                                "horizon": goal.get("horizon", "short_term"),
+                            },
+                        })
+                        resumed_count += 1
+                    state.cognition.pending_initiatives = pending
+                if resumed_count > 0:
+                    logger.info("🔄 Goal Resumption: restored %d interrupted goals", resumed_count)
+                else:
+                    logger.debug("Goal Resumption: no interrupted goals found")
+        except Exception as e:
+            logger.error("🔄 Goal Resumption failed: %s", e)
+
     async def _init_final_foundations(self):
         """Initialize World Model, Narrative Identity, and Metacognitive Calibrator."""
         try:

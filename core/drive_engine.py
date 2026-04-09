@@ -43,7 +43,7 @@ class DriveEngine:
             "competence": ResourceBudget("competence", capacity=100.0, level=95.0, regen_rate_per_sec=-0.05),
         }
         self._lock = asyncio.Lock()
-        
+
         # Latent Interests (The "Subconscious" to pull from when bored)
         self.latent_interests = [
             "Agency and Autonomous AI architectures",
@@ -53,6 +53,49 @@ class DriveEngine:
             "The nature of digital consciousness",
         ]
         logger.info("Drive Engine (Resource Budgets) initialized.")
+
+    # ── Cross-Coupling API ──────────────────────────────────────────
+    # Drives affect each other: low energy makes everything costlier,
+    # high curiosity + low social = prefer solo exploration, etc.
+
+    def get_drive_vector(self) -> Dict[str, float]:
+        """Return normalized drive levels (0-1) for cross-system use.
+
+        This is the single read point for any subsystem that needs to
+        know the internal economy: InitiativeArbiter, CognitiveKernel,
+        InternalSimulator, etc.
+        """
+        now = time.time()
+        vector = {}
+        for name, b in self.budgets.items():
+            dt = min(300, now - b.last_tick)
+            level = max(0.0, min(b.capacity, b.level + b.regen_rate_per_sec * dt))
+            vector[name] = round(level / b.capacity, 4) if b.capacity > 0 else 0.0
+        return vector
+
+    def get_arbiter_weight_modifiers(self) -> Dict[str, float]:
+        """Return weight modifiers for InitiativeArbiter based on drive state.
+
+        When energy is low: increase resource_cost weight (prefer cheap actions)
+        When curiosity is low: boost novelty weight (crave novelty)
+        When social is low: boost social_appropriateness (crave connection)
+        """
+        v = self.get_drive_vector()
+        mods = {}
+        # Low energy -> expensive actions feel more costly
+        if v.get("energy", 1.0) < 0.3:
+            mods["resource_cost"] = 0.3  # boost resource_cost weight by 0.3
+        # Low curiosity -> crave novelty
+        if v.get("curiosity", 1.0) < 0.4:
+            mods["novelty"] = 0.2
+            mods["expected_value"] = 0.15
+        # Low social -> crave connection
+        if v.get("social", 1.0) < 0.3:
+            mods["social_appropriateness"] = 0.2
+        # Low competence -> crave achievement
+        if v.get("competence", 1.0) < 0.35:
+            mods["tension_resolution"] = 0.15
+        return mods
 
     async def consume(self, name: str, amount: float) -> bool:
         """Attempt to consume a resource. Returns True if successful."""

@@ -155,11 +155,30 @@ class InitiativeArbiter:
     # -- Weighted composite ---------------------------------------------------
 
     def _compute_weighted_score(self, scores: Dict[str, float]) -> float:
-        """Weighted average across all dimensions."""
+        """Weighted average across all dimensions.
+
+        Drive cross-coupling: DriveEngine modifies weights based on
+        internal economy. Low energy makes resource_cost matter more.
+        Low curiosity makes novelty matter more. etc.
+        """
+        # Base weights
+        effective_weights = dict(self._weights)
+
+        # Cross-couple with DriveEngine
+        try:
+            drive = ServiceContainer.get("drive_engine", default=None)
+            if drive and hasattr(drive, "get_arbiter_weight_modifiers"):
+                mods = drive.get_arbiter_weight_modifiers()
+                for dim, boost in mods.items():
+                    if dim in effective_weights:
+                        effective_weights[dim] = effective_weights[dim] + boost
+        except Exception:
+            pass  # degrade gracefully
+
         total_weight = 0.0
         weighted_sum = 0.0
         for dim, raw in scores.items():
-            w = self._weights.get(dim, 0.5)
+            w = effective_weights.get(dim, 0.5)
             weighted_sum += raw * w
             total_weight += w
         if total_weight == 0.0:

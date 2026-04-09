@@ -66,20 +66,45 @@ class AutonomousOutputGate:
                 return True
         return False
         
-    async def emit(self, content: str, 
-             origin: str = "system", 
+    async def emit(self, content: str,
+             origin: str = "system",
              target: str = "primary",
              metadata: Optional[Dict[str, Any]] = None,
              timeout: float = 5.0):
         """Route a message to the appropriate sink.
-        
+
         Targets:
         - primary: The main user chat (reply_queue)
         - secondary: Background logs/process trace (secondary_queue)
         - both: Send to both
+
+        INVARIANT: Every primary emission passes through the Unified Will.
         """
         if not content:
             return
+
+        # ── UNIFIED WILL HARD GATE ────────────────────────────────────
+        # Nothing user-visible happens without a WillReceipt.
+        if target in ("primary", "both"):
+            try:
+                from core.will import ActionDomain, get_will
+                _will = get_will()
+                _domain = ActionDomain.RESPONSE if origin in ("user", "voice", "admin") else ActionDomain.EXPRESSION
+                _decision = _will.decide(
+                    content=content[:200],
+                    source=f"output_gate:{origin}",
+                    domain=_domain,
+                    priority=0.9 if origin in ("user", "voice", "admin") else 0.5,
+                )
+                if not _decision.is_approved():
+                    logger.info("OutputGate: Unified Will blocked emission from %s: %s", origin, _decision.reason)
+                    return
+                # Attach receipt to metadata for provenance
+                metadata = metadata or {}
+                metadata["will_receipt_id"] = _decision.receipt_id
+            except Exception as _will_err:
+                logger.debug("OutputGate: Will gate degraded: %s", _will_err)
+        # ──────────────────────────────────────────────────────────────
 
         current_task = asyncio.current_task()
         if current_task is not None and not getattr(current_task, "_aura_supervised", False):
