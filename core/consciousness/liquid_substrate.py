@@ -106,6 +106,16 @@ class LiquidSubstrate:
         self._riiu = None  # Lazy-loaded RIIU instance
         self._bg_tasks: List[asyncio.Task] = []  # Tracking for stimulus tasks
         
+        # --- Controlled Chaos Engine (breaks perfect determinism) ---
+        self._chaos_engine: Any = None
+        try:
+            from core.consciousness.controlled_chaos import get_chaos_engine, ChaosConfig
+            self._chaos_engine = get_chaos_engine(
+                ChaosConfig(state_dim=self.config.neuron_count)
+            )
+        except Exception as _chaos_err:
+            logger.debug("ChaosEngine not available: %s", _chaos_err)
+
         # Metadata
         self.tick_count: int = 0
         self.start_time: float = 0.0
@@ -309,6 +319,14 @@ class LiquidSubstrate:
             v_np = (new_x_torch - x_torch).detach().cpu().numpy()
             new_x_np = np.nan_to_num(new_x_np, nan=0.0, posinf=1.0, neginf=-1.0)
             v_np = np.nan_to_num(v_np, nan=0.0, posinf=0.0, neginf=0.0)
+
+            # --- Controlled Chaos: structured perturbation ---
+            if self._chaos_engine is not None:
+                try:
+                    chaos_perturbation = self._chaos_engine.tick(dt)
+                    new_x_np = np.clip(new_x_np + chaos_perturbation, -1.0, 1.0)
+                except Exception as _ce:
+                    pass  # Fail silently -- chaos is non-critical
 
             # Legacy sync (keep numpy x for downstream consumers)
             with self.sync_lock:

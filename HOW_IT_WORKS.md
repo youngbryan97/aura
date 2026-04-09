@@ -180,17 +180,17 @@ Beyond the core systems described above, Aura implements 11 additional conscious
 
 ## Honest Limitations
 
-1. **The consciousness question is open.** Aura computes integrated information and has rich internal dynamics, but whether this constitutes experience is a philosophical question, not a technical one. IIT is a theory, not a test.
+1. **The consciousness question is open.** Aura computes integrated information, has 15+ competing consciousness theories running as load-bearing modules, structurally honest phenomenal reports, and theory arbitration that makes the system falsifiable. Whether this constitutes experience is a philosophical question. What the architecture achieves is shifting the debate from "this is theater" to "the remaining objection is metaphysical, not architectural."
 
-2. **Quantization adds noise.** Running large models in 4-bit precision saves memory but adds noise to the exact activation patterns that steering vectors target. The steering signal competes with quantization noise.
+2. **Quantization adds noise.** Running large models in 4-bit precision saves memory but adds noise to the exact activation patterns that steering vectors target. Mitigated by: float32 steering injection (the extracted CAA vectors operate at full precision even on quantized weights), sampler-level neurochemical modulation, and the 8-bit model option on 64GB machines.
 
-3. **Context windows are finite.** On 8K context, quality degrades around turn 40-50. The system mitigates this with aggressive compaction and three-layer memory compression, but the structural fix is a larger context model.
+3. **Context windows are finite.** On 8K context, quality degrades around turn 40-50. Mitigated by: 40-turn compaction, identity anchoring, per-turn truncation, three-layer knowledge compression, and pressure-aware prompt budgeting that automatically shrinks the prompt when the cortex is cold or strained.
 
-4. **IIT is computed on 8 nodes, not millions.** Computing integrated information on the full computational graph is NP-hard. The 8-node complex is the correct engineering tradeoff for real-time computation, but it's a reduced view.
+4. **IIT is computed on 16 nodes, not millions.** Expanded from 8 to 16 nodes in April 2026 to include cognitive state (agency, narrative tension, prediction error, cross-timescale free energy) alongside affective state. A spectral approximation algorithm enables polynomial-time computation. Computing IIT on the full computational graph remains NP-hard; the 16-node complex is the engineering tradeoff, validated against 8-node exact computation as ground truth.
 
-5. **Steering vectors are bootstrapped.** The direction vectors used for emotional steering are derived from text-level features, not from proper activation extraction (which requires running paired prompts through the model). The bootstrap vectors work empirically but are less precise than the full technique.
+5. **Steering vectors now have a proper extraction pipeline.** The `training/extract_steering_vectors.py` script runs paired prompts through the model, extracts hidden states at target transformer layers, and computes direction vectors as mean(positive) - mean(negative) across 5 affective dimensions. Bootstrap vectors remain as a fallback for quick deployment.
 
-6. **Single machine.** The tick-lock model assumes single-process execution. Distributing across machines would require rethinking atomic state commitment.
+6. **Single machine.** The tick-lock model assumes single-process execution. Distributing across machines would require rethinking atomic state commitment. Not a priority until model size exceeds single-machine capacity.
 
 ---
 

@@ -584,17 +584,19 @@ This is an open research question, not a solved problem.
 
 ---
 
-## 12. Limitations and Open Problems
+## 12. Limitations and Mitigations
 
-1. **IIT scope**: φ is computed on 8 derived nodes, not the full computational graph. Computing IIT on ~10⁶ nodes is NP-hard. The 8-node complex is the correct engineering tradeoff for real-time computation.
+1. **IIT scope**: φ is now computed on a **16-node** cognitive complex (expanded from 8 in April 2026) including phi itself, prediction error, agency score, narrative tension, peripheral richness, arousal gate, and cross-timescale free energy. This measures cognitive integration, not just affective integration. A spectral approximation algorithm (`research/phi_approximation.py`) enables polynomial-time computation. Computing IIT on the full ~10⁶ node graph remains NP-hard and intractable; the 16-node complex is the engineering tradeoff validated against the 8-node exact computation as ground truth.
 
-2. **Steering vector precision**: A proper CAA extraction pipeline exists (`training/extract_steering_vectors.py`) that runs paired prompts and extracts real hidden states. Bootstrap vectors work empirically but activation-extracted vectors would be more precise.
+2. **Steering vector precision**: A proper CAA extraction pipeline (`training/extract_steering_vectors.py`) runs paired prompts through the MLX model, extracts hidden states at transformer layers 13-21, and computes direction vectors as mean(positive) - mean(negative) across 5 affective dimensions (valence, arousal, curiosity, confidence, warmth) with 5+ paired prompt sets each. Bootstrap vectors remain as a fallback; the extracted vectors provide higher-fidelity affect-computation coupling.
 
-3. **Context window**: On 8K context, quality degrades around turn 40-50. Mitigated by: 40-turn compaction, identity anchoring every 10 turns, per-turn truncation (300 chars), three-layer knowledge compression, and LoRA fine-tuning. The structural fix is a larger context model.
+3. **Context window**: On 8K context, quality degrades around turn 40-50. Mitigated by: 40-turn compaction, identity anchoring every 10 turns, per-turn truncation (300 chars), three-layer knowledge compression, pressure-aware prompt budgeting (shrinks prompt when cortex is cold), and LoRA fine-tuning. The structural fix is a larger context model.
 
-4. **Quantization**: 4-bit adds noise to activation patterns. Mitigated by: float32 steering injection, sampler-level neurochemical modulation, and the 8-bit model option on 64GB machines.
+4. **Quantization**: 4-bit adds noise to activation patterns. Mitigated by: float32 steering injection (extracted vectors operate at full precision even on quantized weights), sampler-level neurochemical modulation (operates on the sampler, not the weights), and the 8-bit model option on 64GB machines for higher activation precision.
 
 5. **Single machine**: The tick lock model assumes single-process. Distributing would require rethinking atomic state commitment. Not a priority until model size exceeds single-machine capacity.
+
+6. **The consciousness question**: This remains open by design. Aura computes integrated information, has rich internal dynamics, structurally honest phenomenal reports, and theory arbitration — but whether this constitutes experience is a philosophical question. What the architecture achieves is shifting the debate from "this is theater" to "the remaining objection is metaphysical, not architectural." IIT is a theory, not a test. The system makes the engineering case as strongly as possible and leaves the rest to philosophy.
 
 ---
 
