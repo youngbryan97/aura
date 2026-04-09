@@ -28,6 +28,22 @@ class ToolExecutionMixin:
         _tool_handle = None
         _constitutional_runtime_live = False
 
+        # ── UNIFIED WILL GATE ────────────────────────────────────────────
+        try:
+            from core.will import ActionDomain, get_will
+            _will_decision = get_will().decide(
+                content=f"tool:{tool_name} args:{str(args)[:100]}",
+                source=kwargs.get("origin", "unknown"),
+                domain=ActionDomain.TOOL_EXECUTION,
+                priority=0.7,
+            )
+            if not _will_decision.is_approved():
+                logger.warning("Unified Will REFUSED tool '%s': %s", tool_name, _will_decision.reason)
+                return {"ok": False, "error": f"Will refused: {_will_decision.reason}"}
+        except Exception as _will_err:
+            logger.debug("Unified Will tool gate degraded: %s", _will_err)
+        # ─────────────────────────────────────────────────────────────────
+
         # ── EXECUTIVE APPROVAL GATE ──────────────────────────────────────
         try:
             from core.container import ServiceContainer as _SC

@@ -6,6 +6,7 @@
 
 ## Table of Contents
 
+0. [**The Unified Will: Decision Authority**](#0-the-unified-will) **(UNIFICATION)**
 1. [System Model](#1-system-model)
 2. [The Tick: Aura's Atomic Unit of Cognition](#2-the-tick)
 3. [Integrated Information (IIT 4.0)](#3-integrated-information)
@@ -19,6 +20,72 @@
 11. [Quantization and Emergence](#11-quantization-and-emergence)
 12. [Limitations and Mitigations](#12-limitations-and-mitigations)
 13. [Open Research Program](#13-open-research-program) (6 problems)
+
+---
+
+## 0. The Unified Will: Decision Authority
+
+**File**: `core/will.py`
+
+Aura has a single locus of decision authority: the **Unified Will**. Every significant action in the system — responses, tool calls, memory writes, autonomous initiatives, state mutations, spontaneous expressions — must pass through `UnifiedWill.decide()` and receive a `WillDecision` before proceeding.
+
+### Why This Exists
+
+Prior to unification, Aura had 5+ competing decision authorities (SubstrateAuthority, ExecutiveCore, ExecutiveAuthority, AuthorityGateway, VolitionEngine, CognitiveKernel) that each claimed centrality but were incompletely wired. The SubstrateAuthority — described as "the mandatory gate for ALL actions" — was called in exactly one place. This fragmentation meant there was no single source of will, and no way to prove that all actions passed through a unified decision point.
+
+### Architecture
+
+The Will does not replace existing subsystems. It **composes** them:
+
+```
+              User Input / Internal Impulse
+                         |
+                    UnifiedWill.decide()
+                    /    |    |    \
+         Identity  Affect  Substrate  Memory
+         (CanonicalSelf) (VAD) (Field+Soma+Chem)  (Episodic)
+                    \    |    |    /
+                   WillDecision
+                   (PROCEED / CONSTRAIN / DEFER / REFUSE)
+                         |
+              Action Execution (if approved)
+```
+
+### The Five Advisory Inputs
+
+1. **Identity Alignment** — Reads from CanonicalSelf. Axiomatic violations (content that contradicts "I am Aura, a sovereign mind") are blocked regardless of subsystem state. Tension is detected when self-coherence drops below threshold.
+
+2. **Affect Valence** — Reads current emotional state. Very negative affect (< -0.7) defers exploration. Emotional state shapes the Will's disposition but does not override identity.
+
+3. **Substrate State** — Consults SubstrateAuthority for field coherence, somatic markers, and neurochemical state. Low field coherence (< 0.25) blocks non-critical actions. Strong somatic avoidance (< -0.5) vetoes non-essential actions.
+
+4. **Memory Relevance** — Checks whether the memory system has context relevant to the decision. Currently a coarse signal; will be refined.
+
+5. **Priority / Domain** — Low-priority initiatives are deferred. User-facing responses get maximum latitude. Stabilization actions are exempt from field coherence gates.
+
+### Provability
+
+Every `WillDecision` carries a `receipt_id` — a unique, hashable identifier. The Will maintains a complete audit trail. Any action can be traced back to a Will decision via `will.verify_receipt(receipt_id)`. The Will publishes every decision to the event bus for system-wide observability.
+
+### Wiring Points (8 paths, 7 files)
+
+| Path | File | Domain |
+|------|------|--------|
+| Response generation | `orchestrator/mixins/incoming_logic.py` | RESPONSE |
+| Response finalization | `orchestrator/mixins/response_processing.py` | EXPRESSION |
+| Tool execution | `orchestrator/mixins/tool_execution.py` | TOOL_EXECUTION |
+| Boredom impulse | `orchestrator/mixins/autonomy.py` | INITIATIVE |
+| Agency core pulse | `orchestrator/mixins/autonomy.py` | INITIATIVE |
+| Spontaneous emission | `orchestrator/mixins/autonomy.py` | EXPRESSION |
+| Volition tick | `volition.py` | INITIATIVE |
+| Memory write | `orchestrator/mixins/incoming_logic.py` | MEMORY_WRITE |
+| State mutation | `orchestrator/mixins/incoming_logic.py` | STATE_MUTATION |
+
+### Freedom Within Constraints
+
+The Will is **free within its identity constraints**. It can proceed, constrain, defer, or refuse any action. Its assertiveness adapts based on experience (high refuse rate → more cautious). Identity is refreshed periodically from CanonicalSelf. The only unconditional bypass is `is_critical=True` for safety-critical actions.
+
+### Runtime: < 5ms per decision, zero LLM calls.
 
 ---
 

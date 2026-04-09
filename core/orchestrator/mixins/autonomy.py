@@ -20,6 +20,22 @@ class AutonomyMixin:
 
     def _trigger_boredom_impulse(self):
         """Inject a curiosity-driven autonomous goal based on personality."""
+        # ── UNIFIED WILL GATE ────────────────────────────────────────
+        try:
+            from core.will import ActionDomain, get_will
+            _will_decision = get_will().decide(
+                content="boredom_curiosity_impulse",
+                source="autonomy_boredom",
+                domain=ActionDomain.INITIATIVE,
+                priority=0.3,
+            )
+            if not _will_decision.is_approved():
+                logger.debug("Unified Will deferred boredom impulse: %s", _will_decision.reason)
+                return
+        except Exception as _will_err:
+            logger.debug("Unified Will boredom gate degraded: %s", _will_err)
+        # ─────────────────────────────────────────────────────────────
+
         # AgencyBus gate — prevents triple-fire with VolitionEngine/AgencyCore
         from core.agency_bus import AgencyBus
         if not AgencyBus.get().submit({'origin': 'orchestrator_boredom', 'priority_class': 'boredom'}):
@@ -99,7 +115,23 @@ class AutonomyMixin:
     # ── Deep Agency Pulse ──────────────────────────
     async def _pulse_agency_core(self):
         """Evaluate all 7 agency pathways and dispatch the winning action."""
-        # 📵 Permanent Evolution 4: Spontaneous Contact Guard
+        # ── UNIFIED WILL GATE ────────────────────────────────────────
+        try:
+            from core.will import ActionDomain, get_will
+            _will_decision = get_will().decide(
+                content="agency_core_pulse",
+                source="agency_core",
+                domain=ActionDomain.INITIATIVE,
+                priority=0.4,
+            )
+            if not _will_decision.is_approved():
+                logger.debug("Unified Will deferred agency pulse: %s", _will_decision.reason)
+                return
+        except Exception as _will_err:
+            logger.debug("Unified Will agency gate degraded: %s", _will_err)
+        # ─────────────────────────────────────────────────────────────
+
+        # Spontaneous Contact Guard
         # Only allow spontaneity if hunger/curiosity is high AND it's been > 4h
         ls = getattr(self, 'liquid_state', None)
         high_arousal = False
@@ -567,6 +599,22 @@ class AutonomyMixin:
 
     async def emit_spontaneous_message(self, message: str, modality: str = "chat", origin: str = "system"):
         """Eject a message to the user outside of the standard prompt-response loop."""
+        # ── UNIFIED WILL GATE — All spontaneous expressions pass through ──
+        try:
+            from core.will import ActionDomain, get_will
+            _will_decision = get_will().decide(
+                content=message[:200],
+                source=f"spontaneous:{origin}",
+                domain=ActionDomain.EXPRESSION,
+                priority=0.5,
+            )
+            if not _will_decision.is_approved():
+                logger.debug("Unified Will refused spontaneous emission: %s", _will_decision.reason)
+                return
+        except Exception as _will_err:
+            logger.debug("Unified Will spontaneous gate degraded: %s", _will_err)
+        # ───────────────────────────────────────────────────────────────────
+
         # ── CONSTITUTIONAL APPROVAL GATE ──
         autonomous_origin = origin not in ("user", "voice", "admin")
         if autonomous_origin:

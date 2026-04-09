@@ -228,17 +228,17 @@ class IncomingLogicMixin:
                     if affect and hasattr(affect, 'get_state_sync'):
                         emotional_context = affect.get_state_sync()
 
-                    # Non-blocking store — gated by substrate authority
+                    # Non-blocking store — gated by Unified Will
                     _mem_allowed = True
                     try:
-                        _sa = ServiceContainer.get("substrate_authority", default=None)
-                        if _sa:
-                            from core.consciousness.substrate_authority import ActionCategory, AuthorizationDecision
-                            _mv = _sa.authorize(content=message[:80], source="vector_memory",
-                                                category=ActionCategory.MEMORY_WRITE, priority=0.3)
-                            if _mv.decision == AuthorizationDecision.BLOCK:
-                                _mem_allowed = False
-                                logger.debug("Vector memory store blocked by substrate authority")
+                        from core.will import ActionDomain, get_will
+                        _mem_decision = get_will().decide(
+                            content=message[:80], source="vector_memory",
+                            domain=ActionDomain.MEMORY_WRITE, priority=0.3,
+                        )
+                        if not _mem_decision.is_approved():
+                            _mem_allowed = False
+                            logger.debug("Vector memory store blocked by Unified Will: %s", _mem_decision.reason)
                     except Exception:
                         pass  # fail-open for safety
 
@@ -270,17 +270,17 @@ class IncomingLogicMixin:
             _live_state = getattr(self.state_repo, "_current", None) if hasattr(self, "state_repo") else None
 
             # Update discourse state (topic thread, user emotional trend, conversation energy)
-            # Gated by substrate authority — internal model updates are STATE_MUTATION
+            # Gated by Unified Will — internal model updates are STATE_MUTATION
             _internal_update_allowed = True
             try:
-                _sa = ServiceContainer.get("substrate_authority", default=None)
-                if _sa:
-                    from core.consciousness.substrate_authority import ActionCategory, AuthorizationDecision
-                    _iv = _sa.authorize(content="internal_model_update", source="cognitive_background",
-                                        category=ActionCategory.STATE_MUTATION, priority=0.2)
-                    if _iv.decision == AuthorizationDecision.BLOCK:
-                        _internal_update_allowed = False
-                        logger.debug("Background cognitive updates blocked by substrate authority")
+                from core.will import ActionDomain, get_will
+                _state_decision = get_will().decide(
+                    content="internal_model_update", source="cognitive_background",
+                    domain=ActionDomain.STATE_MUTATION, priority=0.2,
+                )
+                if not _state_decision.is_approved():
+                    _internal_update_allowed = False
+                    logger.debug("Background cognitive updates blocked by Unified Will: %s", _state_decision.reason)
             except Exception:
                 pass  # fail-open
 
@@ -400,6 +400,35 @@ class IncomingLogicMixin:
             async def _execute_and_reply():
                 successful_tools = []
                 priority = 1.0 if origin in ("user", "voice", "admin") else 0.1
+
+                # ══════════════════════════════════════════════════════
+                # UNIFIED WILL GATE — Every response passes through here
+                # ══════════════════════════════════════════════════════
+                try:
+                    from core.will import ActionDomain, get_will
+                    _will = get_will()
+                    _will_decision = _will.decide(
+                        content=message[:200] if isinstance(message, str) else str(message)[:200],
+                        source=origin,
+                        domain=ActionDomain.RESPONSE,
+                        priority=priority,
+                        context=payload_context,
+                    )
+                    # Store the will decision for downstream use
+                    payload_context["will_decision"] = _will_decision
+                    payload_context["will_receipt_id"] = _will_decision.receipt_id
+                    if not _will_decision.is_approved():
+                        logger.warning("Unified Will REFUSED response: %s", _will_decision.reason)
+                        if origin in ("user", "voice", "admin"):
+                            await self.output_gate.emit(
+                                "I need a moment to collect myself before I can respond properly.",
+                                origin=origin, target="primary",
+                            )
+                        return
+                    if _will_decision.constraints:
+                        payload_context["will_constraints"] = _will_decision.constraints
+                except Exception as _will_err:
+                    logger.debug("Unified Will gate degraded: %s", _will_err)
 
                 # Task Registry Integration
                 task_id = self._task_registry.register_task(

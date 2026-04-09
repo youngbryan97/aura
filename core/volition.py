@@ -101,10 +101,27 @@ class VolitionEngine:
         # Check if we should even process this tick
         if self._should_skip_tick(current_goal):
             return None
-            
+
+        # ── UNIFIED WILL GATE ────────────────────────────────────────
+        # All volition-driven actions must pass through the Will
+        try:
+            from core.will import ActionDomain, get_will
+            _will_decision = get_will().decide(
+                content="volition_tick",
+                source="volition_engine",
+                domain=ActionDomain.INITIATIVE,
+                priority=0.4,
+            )
+            if not _will_decision.is_approved():
+                logger.debug("Unified Will deferred volition tick: %s", _will_decision.reason)
+                return None
+        except Exception as _will_err:
+            logger.debug("Unified Will volition gate degraded: %s", _will_err)
+        # ─────────────────────────────────────────────────────────────
+
         # 1. Search for potential autonomous goals
         potential_goals = await self._search_for_autonomous_goals()
-        
+
         # 2. Select and parse the best goal
         return self._select_and_parse_goal(potential_goals)
 

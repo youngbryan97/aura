@@ -35,9 +35,28 @@ class ResponseProcessingMixin:
     """Handles response finalization, reflexes, fast-path routing, and message history."""
 
     async def _finalize_response(self, message: str, response: str, origin: str, trace, successful_tools: list[str]) -> str:
-        """Apply final touches: Fallback, Security, Social Drive, Meta-Learning."""
+        """Apply final touches: Unified Will identity check, Security, Social Drive, Meta-Learning."""
         from infrastructure.watchdog import get_watchdog
         get_watchdog().heartbeat("orchestrator")
+
+        # ── UNIFIED WILL: Identity alignment check on outgoing response ──
+        try:
+            from core.will import ActionDomain, IdentityAlignment, get_will
+            _will = get_will()
+            _emit_decision = _will.decide(
+                content=(response or "")[:200],
+                source=f"response_finalize:{origin}",
+                domain=ActionDomain.EXPRESSION,
+                priority=0.8 if origin in ("user", "voice", "admin") else 0.3,
+            )
+            if _emit_decision.identity_alignment == IdentityAlignment.VIOLATION:
+                logger.warning("Will identity violation in response -- applying correction")
+                response = (response or "").replace("As an AI", "From my perspective")
+                response = response.replace("as an AI", "from my perspective")
+                response = response.replace("I'm just a language model", "I'm Aura")
+                response = response.replace("I don't have opinions", "I have my own perspective")
+        except Exception as _will_err:
+            logger.debug("Will finalization check degraded: %s", _will_err)
 
         # --- FIX A-3: Logic Gap Guard ---
         # Gating the reflex path: ensure response is a proper string

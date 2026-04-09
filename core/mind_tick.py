@@ -243,6 +243,16 @@ class MindTick:
                     )
                     self._missing_state_streak = 0
 
+                # ── UNIFIED WILL: Ensure Will is started and refresh identity ──
+                try:
+                    from core.will import get_will
+                    _will = get_will()
+                    if not _will._started:
+                        await _will.start()
+                except Exception as _will_boot:
+                    if self._tick_count <= 1:
+                        logger.debug("MindTick: Unified Will boot deferred: %s", _will_boot)
+
                 # ── BINDING ENGINE: Run coherence tick before phases ──
                 _coherence_report = None
                 _bg_pause_pre = self._background_reasoning_pause_reason(state)

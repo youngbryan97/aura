@@ -218,6 +218,16 @@ class ConsciousnessBridge:
             self._boot_errors.append(("substrate_authority", str(e)))
             self.substrate_authority = None
 
+        # ── 9. Unified Will (THE SINGLE LOCUS OF DECISION AUTHORITY) ─
+        try:
+            from core.will import get_will
+            self.unified_will = get_will()
+            await self.unified_will.start()
+            logger.info("🧬 Bridge Layer 9: UnifiedWill ONLINE (single locus of authority)")
+        except Exception as e:
+            logger.error("Failed to boot UnifiedWill: %s", e, exc_info=True)
+            self._boot_errors.append(("unified_will", str(e)))
+
         # ── Start integration loop ───────────────────────────────────
         self._running = True
         self._task = asyncio.create_task(self._integration_loop(), name="ConsciousnessBridge")
@@ -228,9 +238,9 @@ class ConsciousnessBridge:
         # ── Hook neurochemical events into existing systems ──────────
         self._hook_neurochemical_events()
 
-        boot_count = 7 - len(self._boot_errors)
+        boot_count = 8 - len(self._boot_errors)
         logger.info(
-            "🧬 ConsciousnessBridge ONLINE — %d/7 layers active, %d errors",
+            "🧬 ConsciousnessBridge ONLINE — %d/8 layers active, %d errors (Will: single locus)",
             boot_count, len(self._boot_errors),
         )
         if self._boot_errors:
