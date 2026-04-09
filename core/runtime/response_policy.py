@@ -73,3 +73,20 @@ def clear_background_generation(state: Any, objective: Any) -> None:
     state.cognition.last_response = ""
     if is_low_value_background_objective(objective):
         state.cognition.current_objective = ""
+
+        # ── Drive satisfaction on objective completion ──
+        # Close the homeostatic loop: completing a goal satisfies the drive
+        try:
+            from core.container import ServiceContainer
+            drive = ServiceContainer.get("drive_engine", default=None)
+            if drive:
+                import asyncio
+                # Satisfy competence (completed a task) and curiosity (learned something)
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(drive.satisfy("competence", 10.0))
+                    loop.create_task(drive.satisfy("curiosity", 5.0))
+                except RuntimeError:
+                    pass  # no event loop — skip
+        except Exception:
+            pass

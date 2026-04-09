@@ -257,7 +257,13 @@ class UnifiedWill:
         # ── 4. MEMORY CHECK: What do I know about this? ─────────────
         memory_relevance = self._check_memory_relevance(content, context)
 
-        # ── 5. COMPOSE THE DECISION ─────────────────────────────────
+        # ── 5. PHENOMENOLOGICAL INPUT: What is my experiential state? ─
+        self._apply_phenomenological_modulation()
+
+        # ── 6. WORLD STATE INPUT: What is happening in the environment? ─
+        self._apply_world_state_modulation(domain, context)
+
+        # ── 7. COMPOSE THE DECISION ─────────────────────────────────
         outcome, reason, constraints = self._compose_decision(
             domain=domain,
             source=source,
@@ -430,6 +436,78 @@ class UnifiedWill:
         except Exception as e:
             logger.debug("Will: memory check failed (degraded): %s", e)
             return 0.0
+
+    # ------------------------------------------------------------------
+    # Phenomenological & World-State Modulation
+    # ------------------------------------------------------------------
+
+    def _apply_phenomenological_modulation(self) -> None:
+        """Read qualia synthesizer and unified field to modulate Will state.
+
+        High qualia norm → increased assertiveness (vivid state → bias toward action)
+        In-attractor state → increased confidence (settled state)
+        Attractor transition → temporarily reduced identity_coherence
+        """
+        try:
+            # Qualia synthesizer
+            qualia = ServiceContainer.get("qualia_synthesizer", default=None)
+            if qualia and hasattr(qualia, "get_qualia_norm"):
+                norm = float(qualia.get_qualia_norm())
+                if norm > 0.7:
+                    self._state.assertiveness = min(0.95, self._state.assertiveness + 0.05)
+                elif norm < 0.2:
+                    self._state.assertiveness = max(0.2, self._state.assertiveness - 0.03)
+
+            # Unified field coherence → confidence
+            field = ServiceContainer.get("unified_field", default=None)
+            if field and hasattr(field, "get_coherence"):
+                coherence = float(field.get_coherence())
+                self._state.confidence = max(0.3, min(0.95, coherence))
+
+                # Detect attractor transitions (coherence drops)
+                if coherence < 0.3:
+                    self._state.identity_coherence = max(0.4,
+                        self._state.identity_coherence - 0.1)
+                else:
+                    # Recover toward baseline
+                    self._state.identity_coherence = min(0.9,
+                        self._state.identity_coherence + 0.02)
+        except Exception as e:
+            logger.debug("Will: phenomenological modulation failed: %s", e)
+
+    def _apply_world_state_modulation(self, domain: ActionDomain,
+                                       context: Dict[str, Any]) -> None:
+        """Read WorldState to inform decisions about timing and context.
+
+        Late night + user frustrated → increase urgency for helpful actions
+        User idle long → permit autonomous exploration
+        High system load → constrain expensive operations
+        """
+        try:
+            from core.world_state import get_world_state
+            ws = get_world_state()
+            ws.update()
+
+            # Late night + frustrated user → boost assertiveness for help
+            if ws.time_of_day in ("night", "late_night"):
+                if ws.get_belief("user_likely_frustrated"):
+                    if domain in (ActionDomain.RESPONSE, ActionDomain.TOOL_EXECUTION):
+                        self._state.assertiveness = min(0.95,
+                            self._state.assertiveness + 0.1)
+
+            # User idle long → permit exploration
+            if ws.user_idle_seconds > 1800:  # 30 min
+                if domain == ActionDomain.EXPLORATION:
+                    self._state.assertiveness = min(0.9,
+                        self._state.assertiveness + 0.05)
+
+            # High thermal pressure → constrain
+            if ws.thermal_pressure > 0.7:
+                if domain in (ActionDomain.TOOL_EXECUTION, ActionDomain.EXPLORATION):
+                    self._state.assertiveness = max(0.3,
+                        self._state.assertiveness - 0.1)
+        except Exception as e:
+            logger.debug("Will: world state modulation failed: %s", e)
 
     # ------------------------------------------------------------------
     # Decision composition

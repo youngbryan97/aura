@@ -166,6 +166,27 @@ class TerminalMonitor:
         self._seen[entry.fingerprint] = now
         self._error_buffer.append(entry)
 
+        # ── WORLD STATE INTEGRATION ──────────────────────────────────
+        # Feed errors to WorldState so the initiative pipeline can react
+        # to user-relevant errors (the sci-fi scenario: Aura sees errors
+        # and proactively helps)
+        try:
+            from core.world_state import get_world_state
+            ws = get_world_state()
+            # Only feed actionable errors, not internal noise
+            for pattern in self._actionable_patterns:
+                if re.search(pattern, entry.message, re.IGNORECASE):
+                    ws.on_user_error(entry.message[:200])
+                    ws.record_event(
+                        f"Actionable error detected: {entry.message[:100]}",
+                        source="terminal_monitor",
+                        salience=0.8,
+                        ttl=1800,
+                    )
+                    break
+        except Exception:
+            pass  # WorldState not booted yet — degrade gracefully
+
     def ingest_degraded_event(self, event: Dict[str, Any]):
         """Accept structured degraded events from subsystems without requiring ERROR logs."""
         try:

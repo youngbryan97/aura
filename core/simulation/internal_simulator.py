@@ -113,6 +113,13 @@ class InternalSimulator:
         except Exception:
             score += 0.05  # neutral default
 
+        # 6. World-state fit (environment supports this action?)
+        try:
+            world_score = self._check_world_state_fit(action_content, action_source)
+            score += world_score * 0.1
+        except Exception:
+            pass
+
         return round(score, 4)
 
     def evaluate_candidates(self, state: Any,
@@ -178,6 +185,47 @@ class InternalSimulator:
             return 0.1
         except Exception:
             return 0.1
+
+    @staticmethod
+    def _check_world_state_fit(content: str, source: str = "") -> float:
+        """Check if the environment supports this action. Returns [-0.3, 0.3].
+
+        Late night + frustrated user + error = high value for helpful action
+        High thermal pressure = penalize expensive operations
+        User active = penalize interruptions
+        """
+        try:
+            from core.world_state import get_world_state
+            ws = get_world_state()
+            ws.update()
+            score = 0.0
+
+            content_lower = content.lower()
+
+            # Late night + error detected → helpful actions score high
+            if ws.time_of_day in ("night", "late_night"):
+                if ws.get_belief("user_likely_frustrated"):
+                    if any(w in content_lower for w in ["fix", "help", "repair", "patch", "error"]):
+                        score += 0.3  # maximum boost for proactive help
+
+            # User has been idle → exploration/research is appropriate
+            if ws.user_idle_seconds > 1800:
+                if any(w in content_lower for w in ["research", "explore", "learn", "investigate"]):
+                    score += 0.15
+
+            # High thermal pressure → penalize heavy operations
+            if ws.thermal_pressure > 0.6:
+                if any(w in content_lower for w in ["search", "compute", "analyze", "generate"]):
+                    score -= 0.15
+
+            # User recently active → penalize interruptions
+            if ws.user_idle_seconds < 60:
+                if source not in ("user", "voice", "admin"):
+                    score -= 0.1  # don't interrupt
+
+            return max(-0.3, min(0.3, score))
+        except Exception:
+            return 0.0
 
     @staticmethod
     def _check_commitment_compatibility(content: str) -> float:

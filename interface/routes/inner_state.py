@@ -169,7 +169,14 @@ async def get_inner_state() -> JSONResponse:
     except Exception as e:
         result["goals"] = {"error": str(e)}
 
-    # 9. Affect state
+    # 9. Governance enforcement status
+    try:
+        from core.governance_context import get_governance_status
+        result["governance"] = get_governance_status()
+    except Exception as e:
+        result["governance"] = {"error": str(e)}
+
+    # 10. Affect state
     try:
         affect = ServiceContainer.get("affect_engine", default=None) or ServiceContainer.get("affect_facade", default=None)
         if affect:
