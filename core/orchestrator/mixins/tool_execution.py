@@ -199,12 +199,35 @@ class ToolExecutionMixin:
                 **kwargs
             }
 
+            # 2.5 Resistance Sandbox — emit prediction before execution
+            _sandbox = None
+            _sandbox_predicted = "success"
+            try:
+                from core.embodiment.resistance_sandbox import get_resistance_sandbox
+                _sandbox = get_resistance_sandbox()
+                _sandbox_predicted = "success" if tool_name not in ("browser", "shell", "file_write") else "success_with_side_effects"
+            except Exception:
+                _sandbox = None
+
             # 3. Literal Execution (Async)
             result = await self.router.execute(tool_name, args, context)
 
             success = result.get('ok', False)
             elapsed_ms = (time.time() - _start) * 1000
             logger.info("Tool %s execution completed: %s", tool_name, success)
+
+            # 3.5 Resistance Sandbox — compare prediction to actual outcome
+            if _sandbox is not None:
+                try:
+                    _actual_outcome = "success" if success else f"failure:{str(result.get('error', 'unknown'))[:80]}"
+                    _sandbox.execute_with_prediction(
+                        action_type="tool_exec",
+                        target=tool_name,
+                        predicted_outcome=_sandbox_predicted,
+                        action_fn=lambda: _actual_outcome,
+                    )
+                except Exception as _sbx_err:
+                    logger.debug("Resistance sandbox feedback failed: %s", _sbx_err)
 
             # 5. Tool Learning
             if hasattr(self, 'tool_learner') and self.tool_learner:

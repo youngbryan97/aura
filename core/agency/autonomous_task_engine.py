@@ -322,6 +322,20 @@ class AutonomousTaskEngine:
         # the goal engine write fails — prevents zombie active plans.
         try:
             self._update_state_goals(plan)
+            # Mark the associated goal as completed via lifecycle when plan succeeded
+            if result.succeeded:
+                try:
+                    from core.container import ServiceContainer as _SC
+                    _ge = _SC.get("goal_engine", default=None)
+                    if _ge and hasattr(_ge, "update_task_lifecycle"):
+                        await _ge.update_task_lifecycle(
+                            task_id=plan_id,
+                            status="completed",
+                            summary=result.summary or "",
+                            evidence=result.evidence or [],
+                        )
+                except Exception as _lc_err:
+                    logger.debug("TaskEngine: goal lifecycle completion failed for plan %s: %s", plan_id, _lc_err)
         except Exception as exc:
             logger.error("TaskEngine: goal state sync failed for plan %s: %s", plan_id, exc)
         finally:

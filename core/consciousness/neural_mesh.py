@@ -380,6 +380,12 @@ class NeuralMesh:
         dt = self.cfg.dt
         cfg = self.cfg
         gain = cfg.activation_gain * self._modulatory_gain
+        # Apply subcortical arousal gating to mesh gain
+        try:
+            from core.consciousness.subcortical_core import get_subcortical_core
+            gain *= get_subcortical_core().get_mesh_gain_multiplier()
+        except Exception:
+            pass  # Degrade gracefully if subcortical core unavailable
         noise_sigma = cfg.noise_sigma * self._modulatory_noise
 
         # ── 1. Distribute injection buffers to tier columns ──────────

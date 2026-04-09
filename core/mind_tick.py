@@ -581,6 +581,17 @@ class MindTick:
                         except Exception as cwm_e:
                             logger.error(f"Failed to record causal observation in MindTick: {cwm_e}")
 
+                # 5.5 Goal evaluation — check for goal completion every ~30 ticks
+                if self._tick_count % 30 == 0:
+                    try:
+                        goal_engine = ServiceContainer.get("goal_engine", default=None)
+                        if goal_engine and hasattr(goal_engine, "evaluate_goals"):
+                            await asyncio.wait_for(goal_engine.evaluate_goals(), timeout=5.0)
+                    except asyncio.TimeoutError:
+                        logger.debug("MindTick: Goal evaluation timed out.")
+                    except Exception as _ge_err:
+                        logger.debug("MindTick: Goal evaluation failed: %s", _ge_err)
+
                 # 6. Synchronize Persistence Metrics
                 # Save all circuit breaker states into the state object before commit
                 current_state.health["circuits"] = {

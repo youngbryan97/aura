@@ -206,6 +206,13 @@ class LiquidSubstrate:
                     if self.config.adaptive_mode:
                         dt = await self._apply_battery_throttling()
 
+                    # 0.5 Apply subcortical arousal gating to integration rate
+                    try:
+                        from core.consciousness.subcortical_core import get_subcortical_core
+                        dt *= get_subcortical_core().get_substrate_gain_multiplier()
+                    except Exception:
+                        pass  # Degrade gracefully if subcortical core unavailable
+
                     # 1. Integrate Dynamics (ODE)
                     # Fix Issue 72: Ensure await is outside torch.inference_mode (moved math to sync method)
                     await asyncio.to_thread(self._step_torch_math, dt)
