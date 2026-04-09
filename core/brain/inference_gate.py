@@ -1578,6 +1578,21 @@ class InferenceGate:
                     if self._mlx_client.is_alive():
                         logger.info("✅ InferenceGate: cortex recovered inline for user request.")
                         break
+            # If cortex is STILL dead after recovery wait, downgrade to secondary
+            # tier rather than sending the user a fallback/"wound up" response.
+            # A real answer from the 7B is better than no answer from the 32B.
+            if (
+                self._mlx_client
+                and hasattr(self._mlx_client, "is_alive")
+                and not self._mlx_client.is_alive()
+                and requested_tier == "primary"
+            ):
+                logger.warning(
+                    "⚠️ InferenceGate: Primary cortex still dead after recovery wait. "
+                    "Downgrading to secondary tier for user responsiveness."
+                )
+                requested_tier = "tertiary"  # Use 7B brainstem — fast, always available
+
             if requested_tier != "secondary" and self._background_memory_pressure_active():
                 await self._shed_background_workers_for_memory_pressure()
 

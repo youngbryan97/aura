@@ -257,6 +257,42 @@ class MindTick:
                     if self._tick_count % 30 == 0:
                         logger.debug("MindTick: BindingEngine deferred (%s).", _bg_pause_pre)
 
+                # ── GOAL-DRIVEN INITIATIVE GENERATION ────────────────────────
+                # If there are active goals but no pending initiatives, generate
+                # an initiative from the highest-priority goal. This is what makes
+                # Aura proactively pursue her goals during idle background ticks
+                # instead of only reacting to user input.
+                if not state.cognition.current_objective and not state.cognition.pending_initiatives:
+                    if self._tick_count % 10 == 0:  # Check every 10 ticks, not every tick
+                        try:
+                            goal_engine = ServiceContainer.get("goal_engine", default=None)
+                            if goal_engine and hasattr(goal_engine, "get_active_goals"):
+                                active = goal_engine.get_active_goals(limit=3, include_external=False)
+                                for goal in active:
+                                    objective = str(goal.get("objective") or goal.get("name") or "")
+                                    if not objective:
+                                        continue
+                                    status = str(goal.get("status", "")).lower()
+                                    if status not in ("queued", "in_progress"):
+                                        continue
+                                    # Don't re-promote if we just tried this goal
+                                    if objective == self._last_initiative_goal:
+                                        continue
+                                    state.cognition.pending_initiatives.append({
+                                        "goal": objective,
+                                        "source": "goal_engine",
+                                        "type": "goal_pursuit",
+                                        "urgency": float(goal.get("priority", 0.5)),
+                                        "triggered_by": "proactive_goal_pursuit",
+                                        "metadata": {
+                                            "goal_id": goal.get("id", ""),
+                                            "horizon": goal.get("horizon", "short_term"),
+                                        },
+                                    })
+                                    break  # Only inject one goal per cycle
+                        except Exception as _ge:
+                            logger.debug("MindTick: goal-driven initiative generation failed: %s", _ge)
+
                 # ── INITIATIVE ARBITRATION: Replace FIFO with scored selection ──
                 if not state.cognition.current_objective and state.cognition.pending_initiatives:
                     # Cooldown: don't re-promote the same initiative within 30s
