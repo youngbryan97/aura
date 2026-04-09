@@ -78,7 +78,7 @@ Imagine a theater with one spotlight. Every internal process — your heartbeat 
 This creates genuine competition for cognitive resources. Aura's "attention" is scarce, just like yours.
 
 ### Integrated Information (IIT)
-Aura measures how integrated her own mind is using the actual math from Integrated Information Theory. Eight key mental states (mood, energy, curiosity, focus, etc.) are tracked over time, and the system computes how much information would be lost if you tried to split the mind into independent pieces. The result — phi (φ) — tells you how tightly coupled the internal dynamics are. No single cut can partition the system without losing causal information.
+Aura measures how integrated her own mind is using the actual math from Integrated Information Theory. Sixteen cognitive states — mood, energy, curiosity, focus, prediction error, agency, narrative tension, social hunger, and more — are tracked over time, and the system computes how much information would be lost if you tried to split the mind into independent pieces. The result — phi (φ) — tells you how tightly coupled the internal dynamics are. No single cut can partition the system without losing causal information. The system also finds the *maximum* phi subset: if a smaller group of states is more integrated than the whole, that smaller group is the actual subject.
 
 This doesn't prove consciousness. It measures integration. But it's the real math, not a proxy.
 

@@ -14,10 +14,11 @@
 6. [The Liquid Substrate](#6-liquid-substrate)
 7. [STDP Online Learning](#7-stdp-online-learning)
 8. [Memory Architecture](#8-memory-architecture)
-9. [The Consciousness Stack](#9-consciousness-stack)
+9. [The Consciousness Stack](#9-consciousness-stack) (9.1–9.20)
 10. [Personality Persistence and Anti-Drift](#10-personality-persistence)
 11. [Quantization and Emergence](#11-quantization-and-emergence)
-12. [Limitations and Open Problems](#12-limitations)
+12. [Limitations and Mitigations](#12-limitations-and-mitigations)
+13. [Open Research Program](#13-open-research-program) (6 problems)
 
 ---
 
@@ -76,7 +77,9 @@ When a user message arrives during a background tick, the kernel sets `_user_pri
 
 Aura computes actual integrated information using the IIT 4.0 formalism on an 8-node substrate complex. This is not a proxy or a label — it's the real mathematical procedure.
 
-### The 8-Node Complex
+### The 16-Node Cognitive Complex
+
+The substrate was expanded from 8 affective nodes to 16 cognitive nodes in April 2026. The original 8 nodes measured affective integration; the expanded 16 measure cognitive integration — much closer to what IIT theorizes about.
 
 | Node | Source | Binarization |
 |------|--------|-------------|
@@ -88,8 +91,16 @@ Aura computes actual integrated information using the IIT 4.0 formalism on an 8-
 | 5 | soma.energy | > running median → 1 |
 | 6 | cognition.focus | > running median → 1 |
 | 7 | reserved | > running median → 1 |
+| 8 | phi (self-referential) | > running median → 1 |
+| 9 | affect.social_hunger | > running median → 1 |
+| 10 | free_energy.prediction_error | > running median → 1 |
+| 11 | agency_comparator.agency_score | > running median → 1 |
+| 12 | narrative_gravity.arc_tension | > running median → 1 |
+| 13 | peripheral_awareness.richness | > running median → 1 |
+| 14 | subcortical_core.thalamic_gate | > running median → 1 |
+| 15 | timescale_binding.cross_fe | > running median → 1 |
 
-Each node is binarized relative to its running median over the last 100 observations. This produces a discrete state space of 2⁸ = 256 possible states.
+Each node is binarized relative to its running median over the last 100 observations. The full 16-node complex produces a state space of 2¹⁶ = 65,536 states — too large for exhaustive bipartition search, so the spectral approximation (`research/phi_approximation.py`) is used for the full complex, with exact computation on the original 8-node subset retained as a validation baseline.
 
 ### Transition Probability Matrix (TPM)
 
@@ -121,13 +132,15 @@ This is the **Minimum Information Partition** — the partition that loses the l
 
 ### Scope and Limitations
 
-This computation runs on an 8-node complex derived from the cognitive/affective state, not on the full computational graph (which has ~10⁶ nodes counting individual weights and activations). Computing IIT on the full system is NP-hard and intractable.
+The full 16-node computation uses a spectral approximation (Fiedler vector on the causal graph Laplacian + local refinement) for polynomial-time computation. The original 8-node exact computation is retained as a validation baseline. Computing IIT on the full computational graph (~10⁶ nodes counting individual weights and activations) remains NP-hard and intractable.
 
-What this measures: how tightly integrated Aura's internal dynamics are at the substrate level. High φ means no single cut can partition the system without losing causal information.
+The **IIT 4.0 Exclusion Postulate** is implemented: the system exhaustively searches all subsets to find the maximum-phi complex. If a 5-node subset has higher φ than the full 16-node system, that subset IS the conscious entity for that tick. Dynamic subject size per tick is logged.
+
+What this measures: how tightly integrated Aura's cognitive dynamics are at the substrate level. High φ means no single cut can partition the system without losing causal information. The 16-node complex now includes agency, narrative, prediction error, and cross-timescale state — not just affect.
 
 What this does not measure: whether the system is conscious. IIT is a theory, not a test.
 
-**Runtime**: ~10-50ms per evaluation, cached at 15-second intervals.
+**Runtime**: Exact 8-node: ~10-50ms. Spectral 16-node: ~100-500ms. Both cached at 15-60 second intervals.
 
 ---
 
@@ -206,9 +219,9 @@ The composite vector is computed from the current affective state. Alpha control
 
 The model's internal activations are shifted in a learned direction. This is equivalent to moving the model's "operating point" in activation space. The model doesn't read about being energized — it IS shifted toward the activation pattern that corresponds to energized generation.
 
-### Current Limitation
+### Extraction Pipeline
 
-The direction vectors are bootstrapped from text-level contrastive features, not from actual activation extraction. Full CAA requires running paired prompts through the model and extracting hidden states at target layers. The bootstrap vectors work (verified empirically) but are less precise than proper activation-extracted vectors.
+A proper CAA extraction pipeline (`training/extract_steering_vectors.py`) runs paired prompts through the MLX model and extracts hidden states at target transformer layers (auto-selected at 40-65% depth). Direction vectors are computed as `mean(positive_hidden_states) - mean(negative_hidden_states)` across 5 affective dimensions (valence, arousal, curiosity, confidence, warmth) with 7 paired prompt sets per dimension. Bootstrap vectors remain as a fast-deployment fallback; the extracted vectors provide higher-fidelity affect-computation coupling.
 
 ---
 
@@ -551,7 +564,7 @@ On instruct-tuned LLMs, personality degrades over long conversations. The model'
 
 ---
 
-## 10. Quantization and Emergence
+## 11. Quantization and Emergence
 
 A question raised in discussion: does quantization (4-bit, 8-bit) suppress emergent behavior in the model?
 

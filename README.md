@@ -107,13 +107,15 @@ The precision sampler (`core/consciousness/precision_sampler.py`) further modula
 
 ## IIT 4.0 Implementation
 
-`core/consciousness/phi_core.py` implements Integrated Information Theory on an 8-node substrate complex:
+`core/consciousness/phi_core.py` implements Integrated Information Theory on a **16-node cognitive complex** (expanded from 8 in April 2026):
 
-1. **State binarization**: 8 substrate nodes (valence, arousal, dominance, frustration, curiosity, energy, focus, +1) binarized relative to running median. State space: 2^8 = 256 discrete states.
+1. **State binarization**: 16 substrate nodes — the original 8 affective nodes (valence, arousal, dominance, frustration, curiosity, energy, focus) plus 8 cognitive nodes (phi itself, social hunger, prediction error, agency score, narrative tension, peripheral richness, arousal gate, cross-timescale free energy). Each binarized relative to running median. State space: 2^16 = 65,536 discrete states.
 2. **Empirical TPM**: Transition probability matrix `T[s, s'] = P(state_{t+1} = s' | state_t = s)` built from observed transitions with Laplace smoothing. Requires 50+ observations.
-3. **Exhaustive MIP search**: All 127 nontrivial bipartitions tested (every possible way to split 8 nodes into two non-empty groups).
+3. **Spectral MIP approximation**: Full 16-node system uses polynomial-time Fiedler vector spectral partitioning (`research/phi_approximation.py`). 8-node exact computation retained as validation baseline with all 127 nontrivial bipartitions.
 4. **KL-divergence**: `phi(A,B) = sum_s p(s) * KL(T(.|s) || T_cut(.|s))` where `T_cut` assumes partitions A and B evolve independently.
-5. **Minimum Information Partition**: `phi_s = min over all bipartitions of phi(A,B)` — the partition that loses the least information identifies the system's "weakest seam."
+5. **Exclusion Postulate**: Exhaustive subset search identifies the maximum-phi complex. If a subset beats the full system, that subset IS the conscious entity for that tick.
+
+**This is real IIT 4.0 math** — applied to a 16-node complex derived from the full cognitive stack, not just the affective state. The spectral approximation is validated against exact computation on the 8-node subset.
 
 **Runtime**: ~10-50ms per evaluation, cached at 15s intervals. This is real IIT math on a small system, not a proxy metric.
 
