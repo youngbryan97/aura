@@ -1628,6 +1628,15 @@ class InferenceGate:
             )
         )
 
+        # ── Resource Stakes: scale token budget by computational survival state ──
+        try:
+            from core.consciousness.resource_stakes import get_resource_stakes
+            token_mult = get_resource_stakes().get_token_budget_multiplier()
+            if token_mult < 0.95:
+                max_tokens = max(64, int(max_tokens * token_mult))
+        except Exception:
+            pass
+
         # ── Affective Circumplex: let somatic state modulate generation params ──
         # Only applies on user-facing, non-background requests. Background tasks
         # run at fixed params to avoid thermal feedback loops.

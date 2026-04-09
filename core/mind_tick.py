@@ -592,6 +592,13 @@ class MindTick:
                     except Exception as _ge_err:
                         logger.debug("MindTick: Goal evaluation failed: %s", _ge_err)
 
+                # 5.6 Resource stakes — tick the digital mortality engine
+                try:
+                    from core.consciousness.resource_stakes import get_resource_stakes
+                    get_resource_stakes().tick()
+                except Exception:
+                    pass
+
                 # 6. Synchronize Persistence Metrics
                 # Save all circuit breaker states into the state object before commit
                 current_state.health["circuits"] = {
