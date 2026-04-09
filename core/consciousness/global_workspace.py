@@ -271,6 +271,24 @@ class GlobalWorkspace:
 
             self.last_winner = winner
 
+        # --- Peripheral Awareness (Attention/Consciousness Dissociation) ---
+        # Feed losers into the peripheral field so content that didn't win
+        # broadcast can still be phenomenally present at low intensity.
+        try:
+            from core.consciousness.peripheral_awareness import get_peripheral_awareness_engine
+            all_candidates_data = [
+                {"source": winner.source, "priority": winner.effective_priority, "content": str(winner.content)[:200]}
+            ] + [
+                {"source": l.source, "priority": l.effective_priority, "content": str(l.content)[:200]}
+                for l in losers
+            ]
+            get_peripheral_awareness_engine().process_workspace_results(
+                winner_source=winner.source,
+                all_candidates=all_candidates_data,
+            )
+        except Exception as _pa_exc:
+            logger.debug("GW peripheral awareness feed skipped: %s", _pa_exc)
+
         # --- Ignition Detection ---
         winner_priority = winner.effective_priority
         self.ignition_level = min(1.0, winner_priority / self._IGNITION_THRESHOLD)
