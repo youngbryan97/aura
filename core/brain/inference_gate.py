@@ -600,13 +600,37 @@ class InferenceGate:
         deep_handoff: bool,
         is_background: bool,
     ) -> float:
+        """Adaptive timeout based on tier and recent cortex health.
+
+        Base timeouts are generous but scale down when the cortex is
+        warm and healthy (fast first-token latency), and scale up when
+        the cortex is cold or recovering (needs more time to respond).
+        """
         if is_background or requested_tier == "tertiary":
             return 12.0
         if deep_handoff or requested_tier == "secondary":
             return 135.0
-        if cls._origin_is_user_facing(origin):
-            return 75.0
-        return 75.0
+
+        # Adaptive: check if cortex is warm and responsive
+        base = 75.0
+        try:
+            inst = cls._instance_ref() if hasattr(cls, "_instance_ref") else None
+            if inst is not None:
+                lane = inst.get_conversation_status()
+                if lane.get("conversation_ready"):
+                    # Cortex is warm — tighter timeout
+                    time_since_success = float(lane.get("time_since_last_success_s", 999.0) or 999.0)
+                    if time_since_success < 30.0:
+                        base = 45.0  # Recently successful — expect fast response
+                    elif time_since_success < 120.0:
+                        base = 60.0
+                elif not lane.get("conversation_ready"):
+                    # Cortex cold/recovering — longer timeout
+                    base = 120.0
+        except Exception:
+            pass
+
+        return base
 
     @staticmethod
     def _should_use_rich_context(
@@ -1735,8 +1759,21 @@ class InferenceGate:
             living_mind_context = await self._build_living_mind_context(prompt, origin)
         if living_mind_context:
             system_prompt = f"{system_prompt}\n\n{living_mind_context}"
-        if use_compact_foreground_context and len(system_prompt) > 2400:
-            system_prompt = system_prompt[:2400].rstrip()
+        # Pressure-aware prompt budgeting: when the cortex is unhealthy or
+        # recovering, aggressively shrink the prompt to reduce first-token latency.
+        prompt_budget = 4000  # default generous budget
+        if use_compact_foreground_context:
+            prompt_budget = 2400
+        try:
+            lane = self.get_conversation_status()
+            if not lane.get("conversation_ready"):
+                prompt_budget = min(prompt_budget, 1500)  # Cold cortex — minimal prompt
+            elif float(lane.get("time_since_last_success_s", 0.0) or 0.0) > 60.0:
+                prompt_budget = min(prompt_budget, 2000)  # Stale cortex — reduced prompt
+        except Exception:
+            pass
+        if len(system_prompt) > prompt_budget:
+            system_prompt = system_prompt[:prompt_budget].rstrip()
 
         # ── Somatic narrative: brief felt-state line in the system prompt ────────
         if somatic_temperature is not None:
