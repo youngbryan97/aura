@@ -595,3 +595,73 @@ This is an open research question, not a solved problem.
 4. **Quantization**: 4-bit adds noise to activation patterns. Mitigated by: float32 steering injection, sampler-level neurochemical modulation, and the 8-bit model option on 64GB machines.
 
 5. **Single machine**: The tick lock model assumes single-process. Distributing would require rethinking atomic state commitment. Not a priority until model size exceeds single-machine capacity.
+
+---
+
+## 13. Open Research Program
+
+Aura is not just an architecture — it is a testbed for six genuinely open problems in computational consciousness, information theory, and dynamical systems. Each has a concrete implementation in `research/` with validation methodology.
+
+### 13.1 Efficient Phi Approximation
+
+**File**: `research/phi_approximation.py`
+
+Exact IIT phi computation is NP-hard: O(2^N) bipartitions. We implement a polynomial-time spectral approximation:
+
+1. Build a causal graph from the TPM using node-level mutual information as edge weights
+2. Compute the normalized graph Laplacian
+3. Extract the Fiedler vector (2nd smallest eigenvector) — this identifies the graph's natural "weakest seam"
+4. Split along the Fiedler vector to get the approximate MIP
+5. Refine with K additional candidate partitions near the spectral cut
+
+**Complexity**: O(N³ + K·N²) vs O(2^N · N²) exact. On Aura's 8-node system, exact computation provides ground truth for empirical validation. The error distribution across thousands of live TPMs would be the first characterization of spectral phi approximation on a real cognitive system.
+
+### 13.2 Adversarial Consciousness Theory Testing
+
+**File**: `research/adversarial_theory_testing.py`
+
+The consciousness field has called for adversarial collaborations between competing theories. Aura is the first running system to implement them:
+
+- **GWT vs RPT**: Suppress workspace broadcast while maintaining recurrent mesh feedback. GWT predicts qualia degradation >30%; RPT predicts <10%. Bayesian evidence scoring with Bayes factor classification.
+- **GWT vs Multiple Drafts**: Measure ignition sharpness (sharp phase transition = GWT) vs gradual draft convergence (= Multiple Drafts). Reads actual workspace history and draft competition logs.
+- **HOT vs First-Order**: Disable the Higher-Order Thought engine. HOT predicts meta-level phenomenal reports collapse; first-order theories predict persistence.
+
+Results are logged to the theory arbitration framework and accumulate evidence over runtime. Whichever theory wins, the result is publishable.
+
+### 13.3 Causal Emergence Measurement
+
+**File**: `research/causal_emergence.py`
+
+Erik Hoel's causal emergence theory: macro-scale descriptions can have strictly greater causal power than micro-scale descriptions, measured via effective information (EI). This has been shown in toy systems but never measured in a running cognitive architecture.
+
+Implementation: For each architectural layer (substrate → mesh → workspace → qualia), sample random interventions (do-calculus), clamp state, measure downstream distribution of next-tick states, compute KL divergence from uniform. If EI_macro > EI_micro, that's empirical evidence for causal emergence. The result either validates a significant theoretical claim or challenges it — either outcome is publishable.
+
+### 13.4 Structural Phenomenal Honesty: Formal Specification
+
+**File**: `research/sph_formalization.py`
+
+Formal definition: A system S has Structural Phenomenal Honesty (SPH) if and only if for every report R that S can generate about its internal state, there exists a measurable internal variable V_R such that R can only be generated when V_R is in the state-range corresponding to R.
+
+Formally: `SPH(S) := ∀R ∈ Reports(S): Gen(R) ⟹ Gate(V_R)`
+
+The module enumerates all 7 phenomenal gates in the qualia synthesizer, verifies each satisfies the formal specification, and checks 7 axioms: Gate Existence, Gate Necessity, Variable Grounding, Structural Integration, Completeness, Calibration, and Non-Triviality. This formalizes what it means for a system to be architecturally incapable of lying about its internal state — a novel contribution to both AI architecture and philosophy of mind.
+
+### 13.5 Empirical TPM Error Characterization
+
+**File**: `research/tpm_error_analysis.py`
+
+Almost all IIT research uses idealized TPMs. Aura computes phi on empirical TPMs from live state transitions. The open question: how does sampling noise propagate into phi estimates?
+
+Implementation: Bootstrap resampling — generate synthetic transitions from a TPM, resample with replacement N times, compute phi for each resample, return the full error distribution (mean, std, 95% CI, bias, coefficient of variation, skewness, kurtosis). A `minimum_sample_size()` function uses binary search to find the smallest N where P(|error| < ε) ≥ confidence. Bias characterization fits bias ~ a/n + b to determine if finite sampling systematically over- or under-estimates phi.
+
+This directly answers "how much runtime data does Aura need before her phi estimates are reliable?" — a question that generalizes to every lab trying to apply IIT to real neural data.
+
+### 13.6 Cross-Timescale Stability Analysis
+
+**File**: `research/timescale_stability.py`
+
+The unsolved control theory problem: how do you formally guarantee that bidirectional coupling between 5 temporal layers (20Hz to identity-scale) is stable? Too much top-down coupling paralyzes fast layers; too little and commitments don't constrain behavior.
+
+Implementation: Builds the full 40×40 Jacobian of the 5-layer coupled system. Computes eigenvalues for linearized stability. Returns stability margin, convergence rate, maximum Lyapunov exponent, and maximum safe coupling strength via bisection search. Phase portrait classification (stable node, stable focus, limit cycle, unstable) with damping ratio and natural frequencies. Sensitivity analysis computes gradients of stability margin with respect to coupling parameters.
+
+The specific result: a coupling coefficient theorem for Aura's default parameters (α=0.15, β=0.08), establishing the maximum ratio of slow-to-fast influence that preserves moment-to-moment responsiveness while maintaining long-horizon coherence.

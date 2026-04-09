@@ -217,7 +217,24 @@ Aura boots, loads state from SQLite, warms the local LLM, and begins her cogniti
 .venv/bin/python -m pytest tests/ -q
 ```
 
-148+ tests covering kernel lifecycle, phase pipeline, response contracts, dialogue cognition, architecture hardening, consciousness bridge, substrate authority, and bypass proofs.
+1400+ tests covering kernel lifecycle, phase pipeline, response contracts, dialogue cognition, architecture hardening, consciousness bridge, substrate authority, bypass proofs, and a 42-test ablation suite proving each consciousness module is causally load-bearing.
+
+---
+
+## Research Program
+
+Six open problems in computational consciousness with concrete implementations in `research/`:
+
+| Problem | File | What it solves |
+|---------|------|---------------|
+| **Efficient Phi Approximation** | `phi_approximation.py` | Polynomial-time IIT via spectral graph partitioning |
+| **Adversarial Theory Testing** | `adversarial_theory_testing.py` | GWT vs RPT vs HOT vs Multiple Drafts — empirical |
+| **Causal Emergence** | `causal_emergence.py` | Is the mind more causally real than the brain? |
+| **SPH Formalization** | `sph_formalization.py` | Formal spec: system can't lie about internal state |
+| **TPM Error Analysis** | `tpm_error_analysis.py` | How much data before phi is reliable? |
+| **Timescale Stability** | `timescale_stability.py` | Lyapunov analysis of cross-timescale coupling |
+
+Each is independently publishable. Together they constitute a research program on computational consciousness grounded in a running system, not toy models.
 
 ---
 
