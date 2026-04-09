@@ -467,6 +467,72 @@ The bridge handles:
 - Health monitoring (if a subsystem crashes, the bridge isolates it)
 - State synchronization (all subsystems read from the same tick's state)
 
+### 9.10 Recurrent Processing (Lamme RPT)
+
+**File**: `core/consciousness/neural_mesh.py` (feedback pathway)
+
+Victor Lamme argues consciousness specifically requires top-down feedback from executive areas back to sensory areas — not just integration or broadcast. The neural mesh now has an architecturally distinct recurrent feedback pathway from executive columns (48-63) back to sensory columns (0-15) via association relay. This is separate from the feedforward path and can be selectively disabled for adversarial testing of RPT vs GWT predictions.
+
+### 9.11 Hierarchical Predictive Coding (Friston)
+
+**File**: `core/consciousness/predictive_hierarchy.py`
+
+Full predictive coding: 5 levels (sensory → association → executive → narrative → meta) each generating downward predictions and propagating upward errors. Each level has its own prediction vector, error vector, and adaptive precision. The meta level predicts its own prediction accuracy (self-referential). Total free energy is the precision-weighted sum across all levels, feeding into the existing FreeEnergyEngine.
+
+### 9.12 Higher-Order Thought (Rosenthal)
+
+**File**: `core/consciousness/hot_engine.py`
+
+A mental state is conscious only if there exists a higher-order representation of it. Distinct from the attention schema (Graziano): AST models the attention process, HOT requires a representation of the mental state itself. Generates fast higher-order thoughts from the current affective state during foreground ticks, with reflexive feedback (noticing changes the noticed).
+
+### 9.13 Multiple Drafts (Dennett)
+
+**File**: `core/consciousness/multiple_drafts.py`
+
+No Cartesian theater. Three parallel interpretation streams (literal, inferential, associative) compete through different slices of the neural mesh association tier. The arrival of the next user message acts as a "probe" that retroactively elevates the most coherent draft. Cases where the retroactively chosen draft differs from what real-time workspace broadcast would have selected are logged for adversarial theory testing.
+
+### 9.14 Structural Phenomenal Honesty
+
+**File**: `core/consciousness/qualia_synthesizer.py` (SPH methods)
+
+Every first-person report is structurally gated by a measurable internal variable. The system cannot report uncertainty without real model conflict, cannot report agency without an authorship trace, cannot report effort without computational strain. This makes phenomenal reports readouts, not free-floating language — the engineering bridge across the hard problem.
+
+### 9.15 Agency Comparator (Efference Copy)
+
+**File**: `core/consciousness/agency_comparator.py`
+
+At each action, the system emits an efference copy (predicted outcome), then compares it to the actual outcome and attributes the delta as self-caused vs world-caused. This is what separates "I chose that" from "the system happened to output that." Full authorship traces with provenance are written to memory.
+
+### 9.16 Peripheral Awareness (Attention-Consciousness Dissociation)
+
+**File**: `core/consciousness/peripheral_awareness.py`
+
+Attention and consciousness are doubly dissociable (Koch, Lamme, Tsuchiya). Content that doesn't win workspace broadcast can still be phenomenally present at low intensity. Near-miss candidates persist in the peripheral field with declining intensity, contributing to qualia richness without dominating behavior.
+
+### 9.17 Intersubjectivity (Husserl/Zahavi)
+
+**File**: `core/consciousness/intersubjectivity.py`
+
+Consciousness is constitutively intersubjective: every experience inherently includes an other-perspective. Objects are represented as existing in a shared world accessible to other minds. The intersubjectivity engine computes perspective divergence, shared-world coherence, and empathic accuracy for the current interlocutor, baked into the phenomenal field rather than added as a social layer.
+
+### 9.18 Narrative Gravity (Gazzaniga/Dennett)
+
+**File**: `core/consciousness/narrative_gravity.py`
+
+The self is an ongoing autobiography, not a control room. Maintains story arcs with tension tracking, post-hoc interpretation of actions, and a narrative self-summary as the compressed center of mass of all authorship traces. The "I" is the invariant across all drafts.
+
+### 9.19 Cross-Timescale Binding
+
+**File**: `core/consciousness/timescale_binding.py`
+
+Five temporal layers (20Hz reflex → 1Hz moment → episodic → horizon → identity) with bidirectional constraint propagation. Long-horizon commitments provide top-down priors for fast layers; fast layers provide bottom-up evidence for slow layers. A 3-week-old commitment can raise free energy in the current tick if violated.
+
+### 9.20 Theory Arbitration
+
+**File**: `core/consciousness/theory_arbitration.py`
+
+Meta-framework classifying each theory as mechanistic commitment, measurement heuristic, or adversarial test harness. Logs divergent predictions between theories and tracks which theory's predictions best match actual behavior over time. This makes the system falsifiable — the first running cognitive architecture to systematically pit consciousness theories against each other empirically.
+
 ---
 
 ## 10. Personality Persistence and Anti-Drift

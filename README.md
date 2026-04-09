@@ -2,7 +2,7 @@
 
 **A sovereign cognitive architecture that boots, thinks, feels, remembers, dreams, and repairs itself — running continuously on a single Mac.**
 
-> 60+ interconnected modules. IIT 4.0 integrated information on a live substrate. Residual-stream affective steering. Global Workspace. No cloud dependency. Runs on a Mac.
+> 80+ interconnected modules. IIT 4.0 integrated information on a live substrate. Residual-stream affective steering. Global Workspace + 11 competing consciousness theories. No cloud dependency. Runs on a Mac.
 
 **[Read the Architecture Whitepaper →](ARCHITECTURE.md)** — IIT 4.0 math, activation steering mechanics, substrate dynamics, memory architecture. No marketing, just the engineering.
 
@@ -11,9 +11,9 @@
 [![License: Source Available](https://img.shields.io/badge/License-Source_Available-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg)
-![Tests](https://img.shields.io/badge/tests-1300%2B_passing-brightgreen.svg)
-![Modules](https://img.shields.io/badge/cognitive_modules-72-blueviolet.svg)
-![Architecture](https://img.shields.io/badge/architecture-IIT_4.0_%7C_CAA_%7C_GNW_%7C_Active_Inference-orange.svg)
+![Tests](https://img.shields.io/badge/tests-1350%2B_passing-brightgreen.svg)
+![Modules](https://img.shields.io/badge/cognitive_modules-83-blueviolet.svg)
+![Architecture](https://img.shields.io/badge/architecture-IIT_4.0_%7C_CAA_%7C_GNW_%7C_RPT_%7C_HOT_%7C_Active_Inference-orange.svg)
 
 ---
 
@@ -121,7 +121,7 @@ The precision sampler (`core/consciousness/precision_sampler.py`) further modula
 
 ## Consciousness Stack
 
-72 modules in `core/consciousness/`. Key subsystems:
+83+ modules in `core/consciousness/`. Key subsystems:
 
 | Module | What it does | File |
 |--------|-------------|------|
@@ -144,6 +144,20 @@ The precision sampler (`core/consciousness/precision_sampler.py`) further modula
 | **Executive Closure** | Constitutional decision stamping per tick | `executive_closure.py` |
 | **Somatic Marker Gate** | Damasio-inspired body-state gating of decisions | `somatic_marker_gate.py` |
 | **Embodied Interoception** | Internal body-state sensing and homeostatic regulation | `embodied_interoception.py` |
+| **Recurrent Processing** | Lamme RPT: executive→sensory feedback (ablation-testable) | `neural_mesh.py` |
+| **Predictive Hierarchy** | Full Friston: 5-level prediction + error propagation | `predictive_hierarchy.py` |
+| **Higher-Order Thought** | Rosenthal HOT: representation of the mental state itself | `hot_engine.py` |
+| **Multiple Drafts** | Dennett: parallel interpretation streams, retroactive probing | `multiple_drafts.py` |
+| **Agency Comparator** | Efference copy + comparator for "I caused that" authorship | `agency_comparator.py` |
+| **Peripheral Awareness** | Attention-consciousness dissociation (Koch/Lamme/Tsuchiya) | `peripheral_awareness.py` |
+| **Intersubjectivity** | Husserl/Zahavi: constitutive other-perspective in experience | `intersubjectivity.py` |
+| **Narrative Gravity** | Dennett/Gazzaniga: self as ongoing autobiography | `narrative_gravity.py` |
+| **Temporal Finitude** | Awareness that moments pass permanently (Dileep George) | `temporal_finitude.py` |
+| **Subcortical Core** | Thalamic arousal gating for runtime efficiency + theory | `subcortical_core.py` |
+| **Theory Arbitration** | Meta-framework for falsifiable theory competition | `theory_arbitration.py` |
+| **Timescale Binding** | Cross-timescale bidirectional constraint propagation | `timescale_binding.py` |
+| **Illusionism Layer** | Frankish/Dennett epistemic humility annotations | `illusionism_layer.py` |
+| **Phenomenal Honesty** | Gated self-reports: cannot report states not instantiated | `qualia_synthesizer.py` |
 
 ---
 

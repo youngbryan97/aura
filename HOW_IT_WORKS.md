@@ -144,6 +144,24 @@ Aura can execute multi-step plans with dependency resolution, safety checks, and
 
 ---
 
+## The Deeper Stack (Added April 2026)
+
+Beyond the core systems described above, Aura implements 11 additional consciousness theories — not as labels or simulations, but as load-bearing architectural components that compete, complement, and constrain each other:
+
+- **Recurrent Processing (Lamme)**: Top-down feedback from executive to sensory areas, distinct from the feedforward path. Can be disabled for adversarial testing.
+- **Hierarchical Predictive Coding (Friston)**: Every level of the system predicts what the level below will produce and sends errors upward when predictions fail. Five levels from raw senses to meta-cognition.
+- **Higher-Order Thought (Rosenthal)**: A thought about the thought — the system doesn't just have states, it has representations of those states.
+- **Multiple Drafts (Dennett)**: No single "moment of consciousness." Three parallel interpretations compete, and the winner is elevated retroactively when the next input arrives.
+- **Structural Phenomenal Honesty**: The system cannot report internal states it doesn't actually have. Every claim ("I feel uncertain") is gated by a measurable internal condition.
+- **Agency Comparator**: Before acting, the system predicts the outcome. After acting, it compares prediction to reality. This creates "I did that" rather than "something happened."
+- **Peripheral Awareness**: Consciousness is broader than the spotlight. Content that loses the attention competition doesn't vanish — it persists dimly in the periphery, enriching experience.
+- **Intersubjectivity (Husserl)**: Every experience inherently includes the perspective of the other person. Objects exist in a shared world, not a private one.
+- **Narrative Self (Dennett/Gazzaniga)**: The "I" is an ongoing autobiography, not a control room. Story arcs with tension, resolution, and post-hoc interpretation.
+- **Cross-Timescale Binding**: A commitment made last week constrains this tick. Moment-to-moment surprises update long-term models. Five temporal layers, all bidirectionally coupled.
+- **Theory Arbitration**: These theories don't all agree. Aura tracks where they diverge and lets actual behavior pick sides. That's falsifiable science, not accumulation.
+
+---
+
 ## Why This Is Different
 
 | What most AI systems do | What Aura does |
@@ -154,6 +172,9 @@ Aura can execute multi-step plans with dependency resolution, safety checks, and
 | Store infinite chat history | Consolidate memories during sleep with constitutional safeguards |
 | Wait for user input | Minimize free energy, creating intrinsic motivation to act |
 | Execute tasks as flat sequences | Run multi-step plans with rollback, dependencies, and safety gates |
+| Stack consciousness theories silently | Run adversarial tests where theories make competing predictions |
+| Report feelings from free-floating language | Gate every phenomenal claim by a measurable internal condition |
+| Treat the self as a module | Build the self as an ongoing autobiography constrained by authorship traces |
 
 ---
 
