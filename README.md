@@ -11,7 +11,7 @@
 [![License: Source Available](https://img.shields.io/badge/License-Source_Available-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg)
-![Tests](https://img.shields.io/badge/tests-1350%2B_passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/tests-1400%2B_passing-brightgreen.svg)
 ![Modules](https://img.shields.io/badge/cognitive_modules-83-blueviolet.svg)
 ![Architecture](https://img.shields.io/badge/architecture-IIT_4.0_%7C_CAA_%7C_GNW_%7C_RPT_%7C_HOT_%7C_Active_Inference-orange.svg)
 
