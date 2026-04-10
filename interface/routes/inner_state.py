@@ -169,7 +169,15 @@ async def get_inner_state() -> JSONResponse:
     except Exception as e:
         result["goals"] = {"error": str(e)}
 
-    # 9. Governance enforcement status
+    # 9. Continuous cognition loop
+    try:
+        from core.continuous_cognition import get_continuous_cognition
+        ccl = get_continuous_cognition()
+        result["cognition_loop"] = ccl.get_status()
+    except Exception as e:
+        result["cognition_loop"] = {"error": str(e)}
+
+    # 10. Governance enforcement status
     try:
         from core.governance_context import get_governance_status
         result["governance"] = get_governance_status()

@@ -152,6 +152,15 @@ class BootAutonomyMixin:
         except Exception as e:
             logger.error("🔮 InternalSimulator init failed: %s", e)
 
+        # ContinuousCognitionLoop — non-LLM brainstem (exists between prompts)
+        try:
+            from core.continuous_cognition import get_continuous_cognition
+            ccl = get_continuous_cognition()
+            await ccl.start()
+            logger.info("🧠 ContinuousCognitionLoop ONLINE — brainstem active at 2Hz")
+        except Exception as e:
+            logger.error("🧠 ContinuousCognitionLoop init failed: %s", e)
+
         # Goal Resumption — restore interrupted goals from SQLite
         try:
             goal_engine = ServiceContainer.get("goal_engine", default=None)
