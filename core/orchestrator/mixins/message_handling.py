@@ -530,8 +530,29 @@ class MessageHandlingMixin:
                 # DR-3: InferenceGate.generate() ALWAYS returns a string (error message at worst).
                 # But even if somehow it returns None/empty, we catch it here. NO FALLTHROUGH.
                 if not response:
-                    logger.error("🛑 InferenceGate returned None/empty despite DR-3! Returning error.")
-                    response = "I'm having trouble with my cognitive engine right now. Please try again."
+                    logger.error("InferenceGate returned None/empty. Attempting emergency recovery.")
+                    # STABILITY FIX: Instead of a generic error, try one more time with
+                    # a forced cortex recovery, then give a real response
+                    try:
+                        gate = self._get_service("inference_gate")
+                        if gate and hasattr(gate, "_respawn_cortex_if_needed"):
+                            await gate._respawn_cortex_if_needed()
+                            # Wait briefly for cortex to come up
+                            await asyncio.sleep(3.0)
+                            # Retry once
+                            response = await gate.generate(
+                                message,
+                                context={"history": history, "origin": origin, "is_background": False},
+                            )
+                    except Exception as retry_err:
+                        logger.debug("Emergency retry failed: %s", retry_err)
+
+                    if not response:
+                        # Last resort: acknowledge the user naturally
+                        response = (
+                            "I heard you, but my thinking engine is restarting right now. "
+                            "Give me a moment and try again — I'll be back."
+                        )
 
                 # ── Silence Protocol ──────────────────────────────────────────
                 # If the model chose to emit <|SILENCE|>, the InferenceGate

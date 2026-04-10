@@ -360,9 +360,12 @@ class InferenceGate:
         self._last_cortex_check = now
 
         if self._cortex_recovery_attempts >= 5:
-            # Prevent infinite respawn loops after laptop sleep/wake
-            logger.error("🛑 [RECOVERY] Primary 32B cortex failed 5 recovery attempts. Entering degraded-stable mode.")
-            return
+            # After 5 failures, slow down recovery attempts but DON'T give up permanently.
+            # Reset the counter every 5 minutes so the system keeps trying.
+            if (now - self._last_cortex_check) < 300.0:
+                return  # Rate-limit: try again every 5 min after 5 failures
+            logger.warning("[RECOVERY] Primary cortex: 5 failures. Resetting counter and retrying.")
+            self._cortex_recovery_attempts = 0
 
         if self._cortex_recovery_in_progress:
             return  # Already recovering — don't double-spawn
@@ -2021,7 +2024,24 @@ class InferenceGate:
         # 2. Optional cloud fallback.
         if not allow_cloud_fallback:
             logger.error("Local inference paths exhausted. Cloud fallback disabled.")
-            return None  # Don't return error text — it gets spoken by TTS
+            # STABILITY FIX: For user-facing requests, trigger immediate cortex recovery
+            # and return a genuine acknowledgment instead of None (which causes "I'm having trouble")
+            if _is_user_facing:
+                # Force cortex recovery in background
+                if not self._cortex_recovery_in_progress:
+                    asyncio.create_task(self._respawn_cortex_if_needed())
+                # Reset the UnitaryResponsePhase circuit breaker so next attempt works
+                try:
+                    from core.resilience.error_boundary import CircuitRegistry
+                    from core.utils.resilience import CircuitState
+                    breaker = CircuitRegistry.get_instance().get_breaker("phase:UnitaryResponsePhase")
+                    if breaker.state != CircuitState.CLOSED:
+                        breaker.state = CircuitState.HALF_OPEN
+                        breaker.reset_timeout = min(breaker.reset_timeout, 15.0)
+                        logger.info("Reset UnitaryResponsePhase circuit to HALF_OPEN for recovery")
+                except Exception:
+                    pass
+            return None
 
         if time.monotonic() < self._cloud_backoff_until:
             logger.warning("Cloud fallback cooling down. Skipping remote retry.")

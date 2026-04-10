@@ -66,21 +66,27 @@ class CircuitBreaker:
         self.state = CircuitState.CLOSED
         self.last_failure_time = None
 
-    def record_failure(self):
+    def record_failure(self, error: Any = None):
         """Track failures and trip the circuit if threshold met."""
         self.failure_count += 1
         self.last_failure_time = time.time()
-        
+
+        # User-facing response phases get gentler backoff (max 30s)
+        # to prevent long periods where Aura can't speak
+        is_response_critical = "response" in self.name.lower() or "unitary" in self.name.lower()
+        max_backoff = 30.0 if is_response_critical else 300.0
+
         if self.state == CircuitState.HALF_OPEN:
-            # Any failure in half-open immediately trips back to open
             self.state = CircuitState.OPEN
-            # Exponential backoff on reset timeout
-            self.reset_timeout = min(self.reset_timeout * 2, 300) # Max 5 mins
-            logger.warning("💥 Circuit [%s] Half-Open Failure. Tripping back to OPEN. New timeout: %ds", self.name, self.reset_timeout)
-        
+            self.reset_timeout = min(self.reset_timeout * 1.5, max_backoff)
+            logger.warning("Circuit [%s] Half-Open Failure. Back to OPEN. Timeout: %ds", self.name, self.reset_timeout)
+
         elif self.failure_count >= self.max_failures:
             self.state = CircuitState.OPEN
-            logger.critical("🚨 Circuit [%s] TRIPPED! Status: OPEN. Max failures reached (%d).", self.name, self.max_failures)
+            # Don't let response-critical circuits stay open long
+            if is_response_critical:
+                self.reset_timeout = min(self.reset_timeout, 15.0)
+            logger.critical("Circuit [%s] TRIPPED! OPEN. Failures: %d.", self.name, self.failure_count)
 
 async def run_with_watchdog(task_name: str, coro_or_fn: Any, timeout: float = 5.0, fallback: Any = None):
     """Executes a task with a strict timeout and logging."""

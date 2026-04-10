@@ -260,6 +260,15 @@ class MindTick:
                 except Exception:
                     pass
 
+                # ── CORTEX HEALTH: Proactive recovery every 10 ticks ──
+                if self._tick_count % 10 == 0:
+                    try:
+                        gate = ServiceContainer.get("inference_gate", default=None)
+                        if gate and hasattr(gate, "_ensure_cortex_recovery"):
+                            await gate._ensure_cortex_recovery()
+                    except Exception:
+                        pass
+
                 # ── BINDING ENGINE: Run coherence tick before phases ──
                 _coherence_report = None
                 _bg_pause_pre = self._background_reasoning_pause_reason(state)

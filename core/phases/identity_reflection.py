@@ -26,9 +26,15 @@ class IdentityReflectionPhase(BasePhase):
         logger.debug("🛡️ CognitiveGuard: Validating state transition integrity.")
         
         # 1. Identity Consistency Check
-        if state.identity.name != "Aura":
-             logger.critical("🚨 IDENTITY BREACH: Identity name altered. COGNITIVE HARD STOP.")
-             return state # Rollback to parent state
+        identity_name = str(getattr(state.identity, "name", "Aura") or "Aura").strip()
+        if identity_name and identity_name.lower() not in ("aura", "aura luna"):
+            logger.critical("IDENTITY BREACH: Identity name altered to '%s'. COGNITIVE HARD STOP.", identity_name)
+            # Repair: force identity name back to Aura
+            try:
+                state.identity.name = "Aura"
+            except (AttributeError, TypeError):
+                pass
+            return state
              
         # 2. Output Characterization (Anti-Hallucination)
         if state.cognition.working_memory:

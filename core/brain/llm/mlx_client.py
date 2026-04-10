@@ -844,10 +844,34 @@ class MLXLocalClient:
 
         if request_is_background and _foreground_owner_active():
             logger.info(
-                "⏸️ [MLX] Skipping background generation for %s while foreground lane is active.",
+                "[MLX] Skipping background generation for %s while foreground lane is active.",
                 os.path.basename(self.model_path),
             )
             return None
+
+        # ── PREVENTIVE: Memory pressure check before generation ──────
+        # If RAM is critically low, reduce max_tokens to prevent OOM kill.
+        # This is the #1 cause of cortex death on 64GB machines under load.
+        try:
+            vm = psutil.virtual_memory()
+            if vm.percent >= 88:
+                # Critical pressure: hard-limit tokens to prevent OOM
+                current_max = kwargs.get("max_tokens", self.max_tokens)
+                kwargs["max_tokens"] = min(current_max, 128)
+                logger.warning(
+                    "[MLX] MEMORY PRESSURE (%.1f%%): Capping max_tokens to 128 to prevent OOM",
+                    vm.percent,
+                )
+            elif vm.percent >= 80:
+                # High pressure: reduce tokens
+                current_max = kwargs.get("max_tokens", self.max_tokens)
+                kwargs["max_tokens"] = min(current_max, 256)
+            # Proactive GC under pressure
+            if vm.percent >= 82:
+                import gc
+                gc.collect()
+        except Exception:
+            pass
 
         acquired = await asyncio.to_thread(self._request_lock.acquire, True, 15.0)
         if not acquired:
