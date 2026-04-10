@@ -365,9 +365,43 @@ class LocalServerClient:
         self._set_lane_state("failed", reason)
 
     def is_alive(self) -> bool:
+        """Check if the inference server is actually responding.
+
+        The old check trusted _lane_state, which could get stuck at 'failed'
+        even when the server had recovered. Now we do a real HTTP health check
+        as a fallback when the state says dead but the process is running.
+        """
         if self._external_only:
-            return self._lane_state == "ready"
-        return self._process is not None and self._process.poll() is None and self._lane_state == "ready"
+            if self._lane_state == "ready":
+                return True
+            # Server might have recovered — do a real health check
+            return self._http_health_check()
+
+        if self._process is not None and self._process.poll() is None:
+            if self._lane_state == "ready":
+                return True
+            # Process is running but lane_state is stale — verify via HTTP
+            if self._http_health_check():
+                # Server is actually healthy! Fix the stale state.
+                logger.info("[%s] is_alive: server healthy but lane_state was '%s'. Repairing to 'ready'.",
+                           self._lane_name, self._lane_state)
+                self._set_lane_state("ready")
+                return True
+        return False
+
+    def _http_health_check(self) -> bool:
+        """Quick synchronous HTTP health check to the inference server."""
+        try:
+            import urllib.request
+            url = f"{self._runtime_url}/health"
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=2.0) as resp:
+                if resp.status == 200:
+                    data = resp.read().decode()
+                    return '"ok"' in data or '"status":"ok"' in data.replace(" ", "")
+        except Exception:
+            pass
+        return False
 
     async def _client(self) -> httpx.AsyncClient:
         if self._http is None:
@@ -690,6 +724,28 @@ class LocalServerClient:
                 return False
         return True
 
+    async def _restart_server(self):
+        """Kill and restart the llama-server process to recover from compute errors."""
+        logger.warning("[%s] Restarting server due to compute error...", self._lane_name)
+        try:
+            if self._process and self._process.poll() is None:
+                self._process.kill()
+                self._process.wait(timeout=5)
+                logger.info("[%s] Old server process killed.", self._lane_name)
+        except Exception as e:
+            logger.debug("[%s] Kill failed: %s", self._lane_name, e)
+
+        self._process = None
+        self._lane_state = "cold"
+        self._warmup_attempted = False
+
+        # Re-warmup
+        try:
+            await self.warmup()
+            logger.info("[%s] Server restarted successfully.", self._lane_name)
+        except Exception as e:
+            logger.error("[%s] Server restart failed: %s", self._lane_name, e)
+
     async def warmup(self):
         self._warmup_attempted = True
         self._warmup_in_flight = True
@@ -875,13 +931,34 @@ class LocalServerClient:
                 if foreground_request:
                     self.note_lane_recovering("context_overflow")
                 return None
+
+            # 500 "Compute error" is a fatal server issue — needs restart
+            if response.status_code == 500 and "compute error" in response_text.lower():
+                logger.error("[%s] COMPUTE ERROR from server. Triggering restart.", self._lane_name)
+                self._record_degraded_event(
+                    "compute_error",
+                    detail=f"{self._lane_name}:server_compute_error",
+                    severity="critical",
+                    foreground_request=foreground_request,
+                )
+                # Don't mark entire lane as recovering for a server bug —
+                # try restarting the server process instead
+                try:
+                    import asyncio
+                    asyncio.get_event_loop().create_task(self._restart_server())
+                except Exception:
+                    pass
+                return None
+
             self._record_degraded_event(
                 "request_failed",
                 detail=f"{self._lane_name}:{detail}",
                 severity="error",
                 foreground_request=foreground_request,
             )
-            self.note_lane_recovering(detail)
+            # Don't mark lane as dead for transient errors — only for persistent failures
+            if not foreground_request:
+                self.note_lane_recovering(detail)
             return None
 
         try:
