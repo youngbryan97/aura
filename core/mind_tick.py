@@ -260,11 +260,16 @@ class MindTick:
                 except Exception:
                     pass
 
-                # ── CORTEX HEALTH: Proactive recovery every 10 ticks ──
+                # ── LLM HEALTH: Proactive recovery for ALL tiers every 10 ticks ──
                 if self._tick_count % 10 == 0:
                     try:
                         gate = ServiceContainer.get("inference_gate", default=None)
-                        if gate and hasattr(gate, "_ensure_cortex_recovery"):
+                        if gate and hasattr(gate, "ensure_all_tiers_healthy"):
+                            tier_statuses = await gate.ensure_all_tiers_healthy()
+                            dead_tiers = [t for t, s in tier_statuses.items() if s == "dead"]
+                            if dead_tiers and self._tick_count % 30 == 0:
+                                logger.warning("LLM health: dead tiers=%s", dead_tiers)
+                        elif gate and hasattr(gate, "_ensure_cortex_recovery"):
                             await gate._ensure_cortex_recovery()
                     except Exception:
                         pass

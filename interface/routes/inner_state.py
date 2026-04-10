@@ -169,7 +169,28 @@ async def get_inner_state() -> JSONResponse:
     except Exception as e:
         result["goals"] = {"error": str(e)}
 
-    # 9. Continuous cognition loop
+    # 9. LLM tier health
+    try:
+        gate = ServiceContainer.get("inference_gate", default=None)
+        if gate:
+            if hasattr(gate, "ensure_all_tiers_healthy"):
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        result["llm_tiers"] = {"status": "check_via_tick"}
+                    else:
+                        result["llm_tiers"] = loop.run_until_complete(gate.ensure_all_tiers_healthy())
+                except RuntimeError:
+                    result["llm_tiers"] = {"status": "async_context"}
+            if hasattr(gate, "get_conversation_status"):
+                result["cortex_lane"] = gate.get_conversation_status()
+        else:
+            result["llm_tiers"] = {"status": "not_booted"}
+    except Exception as e:
+        result["llm_tiers"] = {"error": str(e)}
+
+    # 10. Continuous cognition loop
     try:
         from core.continuous_cognition import get_continuous_cognition
         ccl = get_continuous_cognition()

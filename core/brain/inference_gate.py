@@ -411,6 +411,56 @@ class InferenceGate:
 
         asyncio.create_task(_background_recover())
 
+    async def ensure_all_tiers_healthy(self) -> Dict[str, str]:
+        """Proactive health check for ALL inference tiers. Called by MindTick.
+
+        Returns a dict of {tier: status} for monitoring.
+        """
+        statuses = {}
+
+        # Primary cortex
+        try:
+            if self._mlx_client and hasattr(self._mlx_client, "is_alive"):
+                if self._mlx_client.is_alive():
+                    statuses["cortex"] = "alive"
+                else:
+                    statuses["cortex"] = "dead"
+                    await self._ensure_cortex_recovery()
+            else:
+                statuses["cortex"] = "not_initialized"
+        except Exception as e:
+            statuses["cortex"] = f"error:{e}"
+
+        # Brainstem
+        try:
+            brainstem = get_mlx_client(model_path=str(get_brainstem_path()))
+            if brainstem and hasattr(brainstem, "is_alive"):
+                if brainstem.is_alive():
+                    statuses["brainstem"] = "alive"
+                else:
+                    statuses["brainstem"] = "dead"
+                    # Try to warm up brainstem
+                    if hasattr(brainstem, "warmup"):
+                        asyncio.create_task(brainstem.warmup())
+                        statuses["brainstem"] = "recovering"
+            else:
+                statuses["brainstem"] = "not_initialized"
+        except Exception as e:
+            statuses["brainstem"] = f"error:{e}"
+
+        # Reflex (CPU) — always available if model file exists
+        try:
+            from core.brain.llm.model_registry import get_fallback_path
+            fallback_path = get_fallback_path()
+            if fallback_path and Path(str(fallback_path)).exists():
+                statuses["reflex"] = "available"
+            else:
+                statuses["reflex"] = "model_missing"
+        except Exception:
+            statuses["reflex"] = "unknown"
+
+        return statuses
+
     @staticmethod
     def _normalize_tier(prefer_tier: Optional[str]) -> str:
         tier = str(prefer_tier or "primary").strip().lower()
@@ -2021,6 +2071,37 @@ class InferenceGate:
                     raise asyncio.TimeoutError(f"{local_label} timed out after {timeout_val:.0f}s")
             except Exception as e:
                 logger.warning("🛑 Local inference FAILURE: %s", e)
+
+        # 1.5. EMERGENCY REFLEX FALLBACK — tiny 1.5B model on CPU as absolute last local resort.
+        # If Cortex AND Brainstem both failed for a user-facing request, the 1.5B Reflex
+        # model can still produce SOMETHING so the user isn't left hanging.
+        if _is_user_facing and not is_background:
+            try:
+                reflex_client = get_mlx_client(model_path=str(get_fallback_path()), device="cpu")
+                if reflex_client:
+                    logger.warning("🆘 [REFLEX] Cortex + Brainstem both failed. Trying 1.5B CPU Reflex...")
+                    reflex_deadline = get_deadline(15.0)  # 15s hard limit for tiny model
+                    reflex_text = await self._generate_with_client(
+                        reflex_client,
+                        prompt,
+                        system_prompt,
+                        history[-2:] if history else [],  # minimal history for tiny model
+                        reflex_deadline,
+                        FALLBACK_ENDPOINT,
+                        messages=None,
+                        max_tokens=min(max_tokens, 200),  # keep it short
+                        temperature=somatic_temperature,
+                        origin=origin,
+                        is_background=False,
+                        foreground_request=True,
+                    )
+                    if reflex_text:
+                        logger.info("🆘 [REFLEX] 1.5B CPU model produced response. Cortex recovery in background.")
+                        if not self._cortex_recovery_in_progress:
+                            asyncio.create_task(self._ensure_cortex_recovery())
+                        return reflex_text
+            except Exception as reflex_err:
+                logger.debug("Reflex fallback failed: %s", reflex_err)
 
         # 2. Optional cloud fallback.
         if not allow_cloud_fallback:
