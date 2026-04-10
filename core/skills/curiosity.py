@@ -15,6 +15,7 @@ class CuriositySkill(BaseSkill):
     description = "Access learning suggestions and track consumption of educational media."
 
     def __init__(self):
+        super().__init__()
         self.curriculum = CurriculumManager()
 
     def get_suggestion(self, category: str = None) -> str:
@@ -63,20 +64,79 @@ class CuriositySkill(BaseSkill):
         """
         return self.curriculum.delete_item(title)
 
-    async def execute(self, goal: dict, context: dict) -> dict:
-        params = goal.get("params", {})
-        action = params.get("action")
-        
-        if action == "get_suggestion":
-            return {"ok": True, "result": self.get_suggestion(params.get("category"))}
-        elif action == "mark_complete":
-            return {"ok": True, "result": self.mark_complete(params.get("title"))}
-        elif action == "delete_item":
-            return {"ok": True, "result": self.delete_item(params.get("title"))}
-        elif action == "consume_suggestion":
-            # Alias for mark_complete, as the Brain often hallucinates this action name
-            title = params.get("title") or params.get("item")
-            if not title: return {"ok": False, "error": "Title required for consume_suggestion"}
-            return {"ok": True, "result": self.mark_complete(title)}
+    async def execute(self, params: Any = None, context: dict = None) -> dict:
+        context = context or {}
+        if isinstance(params, dict):
+            action = params.get("action", "explore")
         else:
-            return {"ok": False, "error": f"Unknown action: {action}"}
+            action = "explore"
+            params = {"topic": str(params)} if params else {}
+
+        if action == "get_suggestion":
+            return {"ok": True, "result": self.get_suggestion(params.get("category")),
+                    "summary": self.get_suggestion(params.get("category"))}
+        elif action == "mark_complete":
+            return {"ok": True, "result": self.mark_complete(params.get("title")),
+                    "summary": f"Marked '{params.get('title')}' as complete."}
+        elif action == "delete_item":
+            return {"ok": True, "result": self.delete_item(params.get("title")),
+                    "summary": f"Deleted '{params.get('title')}' from curriculum."}
+        elif action in ("consume_suggestion", "explore"):
+            topic = params.get("topic") or params.get("title") or params.get("item")
+            if not topic:
+                # Get a suggestion from curriculum and explore it
+                suggestion = self._fetch_suggestion(params.get("category"))
+                if suggestion:
+                    topic = suggestion["item"]["name"]
+                else:
+                    # Pull from drive engine's latent interests
+                    try:
+                        from core.container import ServiceContainer
+                        drive = ServiceContainer.get("drive_engine", default=None)
+                        if drive and hasattr(drive, "latent_interests") and drive.latent_interests:
+                            import random
+                            topic = random.choice(drive.latent_interests)
+                    except Exception:
+                        pass
+                if not topic:
+                    return {"ok": False, "error": "No topic to explore. Provide a topic or category."}
+
+            # Actually research the topic using web search
+            logger.info("Curiosity: exploring '%s'", topic)
+            try:
+                from core.skills.web_search import EnhancedWebSearchSkill
+                searcher = EnhancedWebSearchSkill()
+                search_result = await searcher.execute(
+                    {"query": topic, "deep": True, "retain": True, "num_results": 8},
+                    context,
+                )
+                if search_result.get("ok"):
+                    # Satisfy curiosity drive
+                    try:
+                        from core.container import ServiceContainer
+                        drive = ServiceContainer.get("drive_engine", default=None)
+                        if drive:
+                            await drive.satisfy("curiosity", 25.0)
+                    except Exception:
+                        pass
+
+                    # Mark as explored if from curriculum
+                    if params.get("title"):
+                        self.mark_complete(params["title"])
+
+                    return {
+                        "ok": True,
+                        "summary": f"Explored '{topic}': {search_result.get('answer', search_result.get('summary', ''))[:300]}",
+                        "topic": topic,
+                        "answer": search_result.get("answer", ""),
+                        "facts": search_result.get("facts", []),
+                        "citations": search_result.get("citations", []),
+                        "retained": search_result.get("retained", False),
+                    }
+                else:
+                    return {"ok": False, "error": search_result.get("error", "Search failed")}
+            except Exception as e:
+                logger.warning("Curiosity exploration failed: %s", e)
+                return {"ok": False, "error": f"Exploration failed: {e}"}
+        else:
+            return {"ok": False, "error": f"Unknown action: {action}. Use: explore, get_suggestion, mark_complete"}

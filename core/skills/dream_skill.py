@@ -73,8 +73,35 @@ class DreamSkill(BaseSkill):
             except Exception as e:
                 results["heuristic_synthesis"] = {"status": "failed", "error": str(e)}
 
+        # 5. Drive restoration (dreaming restores energy)
+        try:
+            drive = ServiceContainer.get("drive_engine", default=None)
+            if drive:
+                await drive.satisfy("energy", 20.0)
+                results["drive_restoration"] = "energy +20"
+        except Exception as e:
+            results["drive_restoration"] = f"failed: {e}"
+
+        # 6. WorldState event
+        try:
+            from core.world_state import get_world_state
+            get_world_state().record_event(
+                "Dream cycle completed",
+                source="dream_skill",
+                salience=0.3,
+                ttl=14400,
+            )
+        except Exception:
+            pass
+
+        completed = [k for k, v in results.items()
+                     if isinstance(v, dict) and v.get("status") == "completed"
+                     or isinstance(v, str) and v not in ("unavailable", "skipped")]
+        summary = f"Dream cycle: {len(completed)}/{len(results)} subsystems engaged."
+
         return {
             "ok": True,
-            "message": "Dream cycle complete. My substrate consolidated memories, synthesized a dream, and extracted new heuristics.",
+            "summary": summary,
+            "message": summary,
             "subsystems": results,
         }

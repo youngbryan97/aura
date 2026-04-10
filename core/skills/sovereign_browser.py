@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 from core.phantom_browser import PhantomBrowser
+from core.thought_stream import get_emitter
 
 logger = logging.getLogger("Skills.SovereignBrowser")
 
@@ -128,24 +129,28 @@ class SovereignBrowserSkill(BaseSkill):
         for url in engines:
             if await self.browser.browse(url):
                 # Detect block/CAPTCHA
-                if await self.browser.is_blocked():
+                if self._check_blocked(await self.browser.read_content() if hasattr(self.browser, 'read_content') else ""):
                     logger.warning("🚫 Search engine blocked. Rotating UA and trying next engine...")
                     await self.browser.rotate_user_agent()
                     continue
 
                 await self.browser._human_delay(2, 3)
                 if deep:
+                    get_emitter().emit("🔍 Deep Search", f"Analyzing search results for organic targets...", category="Browser")
                     links = await self.browser.get_links()
                     target = self._select_search_result(links)
                     if target:
+                        get_emitter().emit("🌊 Deep-Diving", f"Navigating to exact source: {target}", category="Browser")
                         logger.info("🌊 Deep-diving into: %s", target)
                         try:
                             if await self.browser.browse(target):
                                 # Check if target site is blocked too
-                                if await self.browser.is_blocked():
+                                if self._check_blocked(await self.browser.read_content() if hasattr(self.browser, 'read_content') else ""):
+                                    get_emitter().emit("🔒 Security Block", "Target site is blocking access. Attempting rotation...", level="warning", category="Browser")
                                     await self.browser.rotate_user_agent()
                                     if not await self.browser.browse(target):
                                         continue
+                                get_emitter().emit("📄 Extracting Content", f"Reading content from {target}", category="Browser")
                                 content = await self.browser.read_content()
                                 # Phase 39: Deep Synthesis — Provide major content for the LLM
                                 snippet_size = 5000
@@ -160,6 +165,7 @@ class SovereignBrowserSkill(BaseSkill):
                             logger.error("Deep dive into %s failed: %s", target, e)
                             continue
                 
+                get_emitter().emit("📄 Reading Search Results", f"Extracting immediate snippets from {url}", category="Browser")
                 content = await self.browser.read_content()
                 # Increase snippet size for non-deep search too
                 snippet_size = 2000
@@ -177,7 +183,9 @@ class SovereignBrowserSkill(BaseSkill):
         if not url:
             return {"ok": False, "error": "Browse mode requires a 'url'."}
         
+        get_emitter().emit("🌐 Navigating", f"Opening {url}", category="Browser")
         if await self.browser.browse(url):
+            get_emitter().emit("📄 Reading Document", f"Extracting content from {url}", category="Browser")
             content = await self.browser.read_content()
             return {"ok": True, "source": url, "content": content, "message": f"I've navigated to {url} and captured the content."}
         return {"ok": False, "error": f"Failed to load {url}"}
@@ -222,6 +230,19 @@ class SovereignBrowserSkill(BaseSkill):
             "action_report": results,
             "message": "I've completed the sequence of interactions on the page."
         }
+
+    @staticmethod
+    def _check_blocked(content: str) -> bool:
+        """Heuristic check for CAPTCHA, 403, or bot-blocking pages."""
+        if not content:
+            return False
+        lower = content[:2000].lower()
+        block_signals = [
+            "captcha", "robot", "blocked", "access denied",
+            "403 forbidden", "please verify you are a human",
+            "cf-challenge", "cloudflare", "rate limit",
+        ]
+        return sum(1 for s in block_signals if s in lower) >= 2
 
     def _select_search_result(self, links: List[Dict[str, str]]) -> Optional[str]:
         """Heuristic to find the first real organic search result."""
