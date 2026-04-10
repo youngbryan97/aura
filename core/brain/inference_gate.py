@@ -118,9 +118,10 @@ class InferenceGate:
             if total_gb >= 60.0:
                 # On 64GB-class machines the conversation lane is a core desktop
                 # feature, not an opportunistic luxury. Only defer under truly
-                # critical pressure, regardless of legacy conservative defaults.
-                max_pressure = 70.0
-                min_available_gb = 18.0
+                # critical pressure. The 32B model needs ~20GB; we want to keep
+                # the cortex alive unless we're genuinely about to OOM.
+                max_pressure = 82.0   # was 70 — much more generous
+                min_available_gb = 12.0  # was 18 — 12GB is enough for 32B Q4
             else:
                 max_pressure = float(os.environ.get("AURA_BOOT_WARMUP_MAX_PRESSURE_PCT", "72"))
                 min_available_gb = float(os.environ.get("AURA_BOOT_WARMUP_MIN_AVAILABLE_GB", "24"))

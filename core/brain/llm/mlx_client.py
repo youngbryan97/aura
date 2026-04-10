@@ -854,20 +854,28 @@ class MLXLocalClient:
         # This is the #1 cause of cortex death on 64GB machines under load.
         try:
             vm = psutil.virtual_memory()
-            if vm.percent >= 88:
-                # Critical pressure: hard-limit tokens to prevent OOM
+            total_gb = vm.total / (1024 ** 3)
+            # On 64GB+ machines, be much more lenient — the cortex needs room to work
+            if total_gb >= 60:
+                critical_pct = 92.0
+                high_pct = 87.0
+                gc_pct = 90.0
+            else:
+                critical_pct = 88.0
+                high_pct = 80.0
+                gc_pct = 82.0
+
+            if vm.percent >= critical_pct:
                 current_max = kwargs.get("max_tokens", self.max_tokens)
                 kwargs["max_tokens"] = min(current_max, 128)
                 logger.warning(
                     "[MLX] MEMORY PRESSURE (%.1f%%): Capping max_tokens to 128 to prevent OOM",
                     vm.percent,
                 )
-            elif vm.percent >= 80:
-                # High pressure: reduce tokens
+            elif vm.percent >= high_pct:
                 current_max = kwargs.get("max_tokens", self.max_tokens)
                 kwargs["max_tokens"] = min(current_max, 256)
-            # Proactive GC under pressure
-            if vm.percent >= 82:
+            if vm.percent >= gc_pct:
                 import gc
                 gc.collect()
         except Exception:
