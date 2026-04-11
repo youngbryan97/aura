@@ -15,6 +15,7 @@ logger = logging.getLogger("Skills.AutoRefactor")
 
 class AutoRefactorParams(BaseModel):
     path: str = Field(".", description="The directory path to scan for code issues.")
+    run_tests: bool = Field(False, description="Whether to run pytest dynamically inside the sandbox to verify the codebase.")
 
 class AutoRefactorSkill(BaseSkill):
     name = "auto_refactor"
@@ -42,7 +43,25 @@ class AutoRefactorSkill(BaseSkill):
         # 2. Limit to top 3 issues for reporting
         top_issues = report[:3]
         
-        # 3. Autonomous Refactoring (v14.5 Stage: Reporting Only)
+        # 3. Dynamic Compilation Context (SWE-agent emulation)
+        test_results = None
+        if params.run_tests:
+            try:
+                from core.skills.active_coding import get_sandbox
+                sandbox = get_sandbox()
+                import asyncio
+                # Run tests in the ephemeral sandbox rather than local shell
+                pytest_res = await sandbox.run_command(f"python3 -m pytest {target_path}")
+                test_results = {
+                    "ok": pytest_res.exit_code == 0,
+                    "stdout": pytest_res.stdout[-2000:], # keep tail
+                    "stderr": pytest_res.stderr[-2000:]
+                }
+            except Exception as e:
+                logger.warning("Dynamic test execution failed: %s", e)
+                test_results = {"ok": False, "error": str(e)}
+        
+        # 4. Autonomous Refactoring (v14.5 Stage: Reporting Only)
         # Publish to EventBus for Orchestrator review
         self._publish_proposals(top_issues)
                 
@@ -50,7 +69,8 @@ class AutoRefactorSkill(BaseSkill):
             "ok": True,
             "issues_found": len(report),
             "top_issues": top_issues,
-            "message": f"Scanned {target_path}. Found {len(report)} issues. Published {len(top_issues)} proposals to EventBus."
+            "test_results": test_results,
+            "message": f"Scanned {target_path}. Found {len(report)} issues." + (" Tests passed." if test_results and test_results.get("ok") else "")
         }
 
     def _scan_codebase(self, path_str: str) -> List[Dict[str, Any]]:

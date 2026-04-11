@@ -29,6 +29,29 @@ class DesktopControlSkill(BaseSkill):
     name = "os_manipulation"
     description = "Manipulate the mouse and keyboard to interact with the OS using PyAutoGUI."
     input_model = OSManipulationInput
+
+    async def _require_accessibility(self, capability: str) -> Optional[Dict[str, Any]]:
+        try:
+            from core.container import ServiceContainer
+            from core.security.permission_guard import PermissionType
+        except Exception:
+            return None
+
+        guard = ServiceContainer.get("permission_guard", default=None)
+        if guard is None:
+            return None
+
+        check = await guard.check_permission(PermissionType.ACCESSIBILITY, force=True)
+        if check.get("granted"):
+            return None
+        return {
+            "ok": False,
+            "status": check.get("status", "denied"),
+            "error": f"Accessibility permission is required for {capability}.",
+            "permission": "accessibility",
+            "guidance": check.get("guidance", ""),
+            "detail": check.get("detail", ""),
+        }
     
     async def execute(self, params: OSManipulationInput, context: Dict[str, Any]) -> Dict[str, Any]:
         """Router for physical actions."""
@@ -47,6 +70,10 @@ class DesktopControlSkill(BaseSkill):
                 "error": f"PyAutoGUI unavailable{detail}",
                 "status": "unavailable",
             }
+
+        blocked = await self._require_accessibility("desktop mouse and keyboard control")
+        if blocked:
+            return blocked
         
         logger.warning("🖐️ OS MANIPULATION: %s %s", action, params)
 

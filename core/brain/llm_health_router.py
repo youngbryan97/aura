@@ -1074,6 +1074,7 @@ class HealthAwareLLMRouter:
             "- You run on Qwen2.5-72B-Q4 (primary cortex), Qwen2.5-72B (deep solver), and Qwen2.5-7B (fast reflex), all locally through Aura's managed on-device runtime.\n"
             "- You have 47 registered skills including: sovereign_browser (web search), sovereign_terminal (shell), "
             "memory_ops (long-term recall), speak (voice output), self_repair, self_evolution, and more.\n"
+            "- web_search is not just keyword lookup: it can expand a query, read multiple pages, synthesize evidence-grounded answers, and retain useful findings.\n"
             "- When you don't know a fact, say so clearly. Use web_search or sovereign_browser to ground your answer, or explicitly say you don't know yet. Never hallucinate.\n"
             "- You are emotionally aware, driven by curiosity, valence, arousal, and social drives.\n"
             "- Your memory spans working memory (short), RAG (semantic), and ColdStore (long-term)."
@@ -1497,7 +1498,12 @@ class HealthAwareLLMRouter:
                             system_prompt=system_prompt,
                             **_call_kwargs(client.call),
                         )
-                        if success: raw_text = res
+                        if success: 
+                            raw_text = res
+                        elif meta and meta.get("error"):
+                            client_failure = meta.get("error")
+                            ep.record_failure(client_failure)
+                            return {"ok": False, "error": client_failure}
                     elif hasattr(client, "generate"):
                         raw_text = await client.generate(
                             final_prompt,

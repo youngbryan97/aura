@@ -241,6 +241,32 @@ def _read_repo_probe_reply(user_message: str) -> Optional[Dict[str, str]]:
 _idempotency_cache: collections.OrderedDict = collections.OrderedDict()
 _idempotency_lock = asyncio.Lock()
 
+# ── Stale Response Detection ─────────────────────────────────
+# Track the last N responses to detect when the cortex is stuck returning the
+# same cached output. This prevents the "Dark Matter" loop where a stale
+# identity prompt produces identical text on every turn.
+_recent_responses: collections.deque = collections.deque(maxlen=5)
+_STALE_REPEAT_THRESHOLD = 2  # same text seen this many times = stale
+
+
+def _response_fingerprint(text: str) -> str:
+    """Normalize whitespace and truncate for comparison."""
+    return " ".join(str(text or "").split())[:200].strip().lower()
+
+
+def _record_recent_response(text: str) -> None:
+    fp = _response_fingerprint(text)
+    if fp:
+        _recent_responses.append(fp)
+
+
+def _is_stale_repeated_response(text: str) -> bool:
+    fp = _response_fingerprint(text)
+    if not fp:
+        return False
+    count = sum(1 for r in _recent_responses if r == fp)
+    return count >= _STALE_REPEAT_THRESHOLD
+
 
 # ── Conversation Lane Helpers ─────────────────────────────────
 
@@ -302,6 +328,10 @@ def _conversation_lane_is_standby(lane: Optional[Dict[str, Any]]) -> bool:
 
 def _mark_conversation_lane_timeout(reason: str = "foreground_timeout") -> Dict[str, Any]:
     from core.brain.llm.model_registry import PRIMARY_ENDPOINT
+
+    # Activate recovery cooldown so rapid follow-up messages are fast-rejected
+    # instead of piling into the inference pipeline.
+    _enter_recovery_cooldown()
 
     try:
         gate = ServiceContainer.get("inference_gate", default=None)
@@ -366,6 +396,21 @@ def _conversation_lane_user_message(
     if state == "failed":
         return "My conversation lane is unavailable right now. Please try again in a moment."
     return "My conversation lane is still warming up. Please try again in a moment."
+
+
+_last_recovery_cooldown_at: float = 0.0
+_RECOVERY_COOLDOWN_SECONDS: float = 15.0  # fast-reject for 15s after a timeout
+
+
+def _enter_recovery_cooldown() -> None:
+    global _last_recovery_cooldown_at
+    _last_recovery_cooldown_at = time.monotonic()
+
+
+def _in_recovery_cooldown() -> bool:
+    if _last_recovery_cooldown_at <= 0:
+        return False
+    return (time.monotonic() - _last_recovery_cooldown_at) < _RECOVERY_COOLDOWN_SECONDS
 
 
 def _conversation_lane_blocks_fallback(lane: Dict[str, Any]) -> bool:
@@ -1286,10 +1331,19 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     except Exception as _e:
         logger.debug("Fallback re-generation failed (non-fatal): %s", _e)
 
-    # Last-resort: prefer the original LLM response over a hardcoded template.
-    # Templates sound more robotic than even a mediocre LLM response.
+    # Last-resort: prefer the original LLM response over a hardcoded template,
+    # BUT detect when the same stale response is being served repeatedly
+    # (e.g. cortex stuck, cached identity prompt producing identical output).
     if text and len(text.strip()) > 5 and text.strip() != "…" and not unexpected_cjk:
-        return text
+        if not _is_stale_repeated_response(text):
+            _record_recent_response(text)
+            return text
+        # Stale repeat detected — fall through to voice reflex instead of
+        # echoing the same cached response again.
+        logger.warning(
+            "Suppressed stale repeated response (len=%d). Falling through to voice reflex.",
+            len(text),
+        )
     if grounded:
         return grounded
     if architecture_self_assessment:
@@ -1908,6 +1962,23 @@ async def api_chat(
         except Exception as _bg_exc:
             logger.debug("Background diagnostic launch skipped: %s", _bg_exc)
 
+        # ── Recovery cooldown gate ────────────────────────────────────
+        # If the cortex recently timed out, fast-reject instead of queuing
+        # another 150s+ request that will just time out again. This prevents
+        # message floods from cascading through the circuit breaker.
+        if not bool(lane.get("conversation_ready", False)):
+            lane_state = str(lane.get("state", "") or "").lower()
+            if lane_state == "recovering" and _in_recovery_cooldown():
+                logger.info("🛡️ Recovery cooldown: fast-rejecting message while cortex recovers.")
+                return JSONResponse(
+                    {
+                        "response": _conversation_lane_user_message(lane),
+                        "status": "recovery_cooldown",
+                        "conversation_lane": lane,
+                    },
+                    status_code=503,
+                )
+
         if not bool(lane.get("conversation_ready", False)):
             gate = ServiceContainer.get("inference_gate", default=None)
             if gate and hasattr(gate, "ensure_foreground_ready"):
@@ -2144,10 +2215,23 @@ async def api_chat(
                 reply_text = "Message dispatched (Kernel and Orchestrator offline)."
 
         reply_text = await _stabilize_user_facing_reply(body.message, reply_text)
+
+        # Retrieve thought metadata from the live cognitive state
+        thought_text = ""
+        try:
+            live_state = _resolve_live_aura_state()
+            if live_state and hasattr(live_state, "response_modifiers"):
+                thought_text = str(live_state.response_modifiers.pop("last_thought", "") or "")
+        except Exception as _thought_exc:
+            logger.debug("Thought metadata retrieval skipped: %s", _thought_exc)
+
         response_data = {
             "response": reply_text or "…",
             "conversation_lane": _collect_conversation_lane_status(),
         }
+        if thought_text:
+            response_data["thought"] = thought_text
+
         await _log_exchange(body.message, reply_text or "…")
 
         # Cache idempotent response

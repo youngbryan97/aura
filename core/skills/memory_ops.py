@@ -1,8 +1,11 @@
 import logging
-from typing import Any, Dict, Optional
+import os
+import json
+from pathlib import Path
+from typing import Any, Dict, Optional, List
 
 from pydantic import BaseModel, Field
-
+from core.config import config
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.MemoryOps")
@@ -10,210 +13,131 @@ logger = logging.getLogger("Skills.MemoryOps")
 
 class MemoryOpsInput(BaseModel):
     action: str = Field(
-        "remember",
-        description="One of: remember, learn_fact, retrieve, or recall.",
+        ...,
+        description="Letta-based function: 'core_append', 'core_replace', 'archival_insert', 'archival_search'.",
     )
-    key: Optional[str] = Field(None, description="Optional fact key for structured storage.")
-    value: Optional[str] = Field(None, description="Optional fact value for structured storage.")
-    content: Optional[str] = Field(None, description="Free-form text to store in long-term memory.")
-    query: Optional[str] = Field(None, description="What to recall from memory.")
+    block: Optional[str] = Field(None, description="The Core Memory block name (e.g., 'persona', 'user') for core_* ops.")
+    content: Optional[str] = Field(None, description="Data to append, insert, or replace.")
+    old_content: Optional[str] = Field(None, description="Exact prior string to replace. Used only in 'core_replace'.")
+    query: Optional[str] = Field(None, description="Search term for 'archival_search'.")
 
 
 class MemoryOpsSkill(BaseSkill):
     name = "memory_ops"
-    description = "Store and recall long-term facts, preferences, and important conversation details."
+    description = "Hierarchical memory management (RAM vs Disk) modeled after Letta. Edit Core memory blocks or search Archival storage."
     input_model = MemoryOpsInput
+    
+    def __init__(self):
+        super().__init__()
+        # Initialize MemFS (Memory File System) in the workspace
+        self.mem_fs_dir = Path(getattr(config.paths, "base_dir", ".")) / ".aura" / "memfs"
+        self.mem_fs_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize default blocks if missing
+        self.core_blocks = ["persona", "user", "system"]
+        for block in self.core_blocks:
+            path = self.mem_fs_dir / f"{block}.txt"
+            if not path.exists():
+                path.write_text(f"// Core Memory Block: {block}\n", encoding="utf-8")
 
-    @staticmethod
-    def _extract_objective(raw: Any, context: Dict[str, Any]) -> str:
-        if isinstance(raw, dict):
-            return str(
-                raw.get("objective")
-                or raw.get("query")
-                or raw.get("content")
-                or context.get("objective")
-                or context.get("message")
-                or ""
-            ).strip()
-        return str(context.get("objective") or context.get("message") or "").strip()
+    async def execute(self, params: Any, context: Dict[str, Any]) -> Dict[str, Any]:
+        if isinstance(params, dict):
+            try:
+                params = MemoryOpsInput(**params)
+            except Exception as e:
+                return {"ok": False, "error": f"Invalid input: {e}"}
 
-    @staticmethod
-    def _normalize_fact_key(raw_key: str) -> Optional[str]:
-        normalized = "_".join(token for token in str(raw_key or "").replace("'", "").split() if token)
-        return normalized[:80] if normalized else None
-
-    @classmethod
-    def _derive_structured_fact(cls, text: str) -> tuple[Optional[str], Optional[str]]:
-        import re
-
-        cleaned = str(text or "").strip().strip(". ")
-        patterns = (
-            r"^(?:remember|store|save)(?:\s+for\s+(?:future\s+)?sessions?)?(?:\s+that)?\s+my\s+(.+?)\s+is\s+(.+)$",
-            r"^my\s+(.+?)\s+is\s+(.+)$",
-            r"^(?:remember|store|save)(?:\s+for\s+(?:future\s+)?sessions?)?(?:\s+that)?\s+(.+?)\s+is\s+(.+)$",
-        )
-        for pattern in patterns:
-            match = re.match(pattern, cleaned, flags=re.IGNORECASE)
-            if match:
-                key = cls._normalize_fact_key(match.group(1).strip().lower())
-                raw_value = match.group(2).strip()
-                if key and raw_value:
-                    return key, raw_value[:400]
-        return None, None
-
-    @classmethod
-    def _derive_query_key(cls, text: str) -> Optional[str]:
-        import re
-
-        cleaned = str(text or "").strip().strip("?!. ")
-        patterns = (
-            r"^(?:what\s+do\s+you\s+(?:remember|know)\s+about)\s+my\s+(.+)$",
-            r"^(?:recall|retrieve)\s+my\s+(.+)$",
-            r"^my\s+(.+)$",
-        )
-        for pattern in patterns:
-            match = re.match(pattern, cleaned, flags=re.IGNORECASE)
-            if match:
-                return cls._normalize_fact_key(match.group(1).strip().lower())
-        return None
-
-    def _coerce_input(self, raw: Any, context: Dict[str, Any]) -> MemoryOpsInput:
-        if isinstance(raw, MemoryOpsInput):
-            source = raw.model_dump(exclude_none=True)
-        elif isinstance(raw, dict):
-            source = dict(raw.get("params") or {}) if isinstance(raw.get("params"), dict) else dict(raw)
-        else:
-            source = {}
-
-        objective = self._extract_objective(raw, context)
-        action = str(source.get("action") or "").strip().lower()
-        key = source.get("key")
-        value = source.get("value")
-        content = source.get("content")
-        query = source.get("query")
-
-        if not action:
-            lowered = objective.lower()
-            if any(marker in lowered for marker in ("what do you remember", "recall", "retrieve", "what do you know")):
-                action = "recall"
+        action = params.action.lower()
+        
+        try:
+            if action.startswith("core_"):
+                return await self._execute_core_memory(params, context, action)
+            elif action.startswith("archival_"):
+                return await self._execute_archival_memory(params, context, action)
             else:
-                action = "remember"
+                return {"ok": False, "error": f"Unknown memory action: {action}"}
+        except Exception as e:
+            logger.error("MemoryOps failed: %s", e)
+            return {"ok": False, "error": str(e)}
 
-        if not content and action in {"remember", "learn_fact"}:
-            content = objective
-        if not query and action in {"retrieve", "recall"}:
-            query = objective or key
-        if not key and action in {"retrieve", "recall"} and query:
-            key = self._derive_query_key(query)
+    async def _execute_core_memory(self, params: MemoryOpsInput, context: Dict[str, Any], action: str) -> Dict[str, Any]:
+        """RAM: Immediate context window blocks."""
+        block = params.block or "user"
+        if not block.isalnum() and "_" not in block:
+            return {"ok": False, "error": "Invalid block name. Must be alphanumeric."}
+            
+        block_path = self.mem_fs_dir / f"{block}.txt"
+        
+        if action == "core_append":
+            if not params.content:
+                return {"ok": False, "error": "Missing 'content' to append."}
+            with open(block_path, "a", encoding="utf-8") as f:
+                f.write(params.content + "\n")
+            return {"ok": True, "summary": f"Appended to core memory block '{block}'."}
 
-        if (not key or value is None) and content:
-            derived_key, derived_value = self._derive_structured_fact(content)
-            key = key or derived_key
-            value = value if value is not None else derived_value
+        elif action == "core_replace":
+            if not params.content or not params.old_content:
+                return {"ok": False, "error": "Missing 'content' or 'old_content' for replacing."}
+            
+            with open(block_path, "r", encoding="utf-8") as f:
+                data = f.read()
+                
+            if params.old_content not in data:
+                return {"ok": False, "error": f"Text to replace not found in block '{block}'."}
+                
+            new_data = data.replace(params.old_content, params.content)
+            with open(block_path, "w", encoding="utf-8") as f:
+                f.write(new_data)
+                
+            return {"ok": True, "summary": f"Replaced content in core memory block '{block}'."}
+            
+        return {"ok": False, "error": f"Unknown core action: {action}"}
 
-        return MemoryOpsInput(
-            action=action,
-            key=key,
-            value=value,
-            content=content,
-            query=query,
-        )
-
-    @staticmethod
-    async def _call_optional(method: Any, *args: Any, **kwargs: Any) -> Any:
-        if method is None:
-            return None
-        if callable(method):
-            result = method(*args, **kwargs)
-            if hasattr(result, "__await__"):
-                return await result
-            return result
-        return None
-
-    async def execute(self, params: Any, context: Dict) -> Dict:
-        request = self._coerce_input(params, context or {})
-        action = request.action.lower().strip()
-
+    async def _execute_archival_memory(self, params: MemoryOpsInput, context: Dict[str, Any], action: str) -> Dict[str, Any]:
+        """Disk: Long-term archival Vector / DB storage."""
         memory_facade = context.get("memory_facade")
-        memory_store = context.get("memory_store") or context.get("memory")
-        semantic_memory = context.get("semantic_memory")
+        if not memory_facade:
+            return {"ok": False, "error": "Archival backend (memory_facade) is not wired to context."}
 
-        if action in {"remember", "learn_fact"}:
-            content = str(request.content or request.value or "").strip()
-            key = str(request.key or "").strip()
-            value = request.value
-            metadata = {
-                "source": "memory_ops",
-                "origin": context.get("intent_source") or context.get("origin") or "memory_ops",
-                "explicit_memory_request": True,
-            }
+        if action == "archival_insert":
+            if not params.content:
+                return {"ok": False, "error": "Missing 'content' to archive."}
+            
+            try:
+                # Assuming standard facade pattern
+                import asyncio
+                if hasattr(memory_facade, "add_memory"):
+                    # Use async or sync dynamically
+                    res = memory_facade.add_memory(params.content, metadata={"source": "archival_insert"})
+                    if hasattr(res, "__await__"):
+                        await res
+                elif hasattr(memory_facade, "update_semantic_async"):
+                    await memory_facade.update_semantic_async("archival_" + str(len(params.content)), params.content)
+                else:
+                    return {"ok": False, "error": "Facade missing insertion capability."}
+                return {"ok": True, "summary": "Committed to archival storage."}
+            except Exception as e:
+                return {"ok": False, "error": f"Archival insertion failed: {e}"}
 
-            if key and value is not None and memory_store is not None:
-                if hasattr(memory_store, "update_semantic_async"):
-                    ok = await self._call_optional(memory_store.update_semantic_async, key, value)
-                    if ok:
-                        return {
-                            "ok": True,
-                            "summary": f"Stored fact: {key}.",
-                            "result": {key: value},
-                        }
-                elif hasattr(memory_store, "update_semantic"):
-                    ok = await self._call_optional(memory_store.update_semantic, key, value)
-                    if ok:
-                        return {
-                            "ok": True,
-                            "summary": f"Stored fact: {key}.",
-                            "result": {key: value},
-                        }
+        elif action == "archival_search":
+            if not params.query:
+                return {"ok": False, "error": "Missing 'query' to search."}
+            
+            try:
+                if hasattr(memory_facade, "search_memories"):
+                    res = memory_facade.search_memories(params.query, limit=5)
+                    results = await res if hasattr(res, "__await__") else res
+                else:
+                    return {"ok": False, "error": "Facade missing 'search_memories' capability."}
+                
+                # Format Letta style
+                formatted = [f"[{res.get('score', 0):.2f}] {res.get('content')}" for res in (results or []) if isinstance(res, dict)]
+                return {
+                    "ok": True, 
+                    "results": formatted if formatted else ["No archival memories found."],
+                    "summary": f"Found {len(formatted)} artifacts."
+                }
+            except Exception as e:
+                return {"ok": False, "error": f"Archival search failed: {e}"}
 
-            if not content:
-                return {"ok": False, "error": "No memory content provided."}
-
-            if memory_facade and hasattr(memory_facade, "add_memory"):
-                ok = await memory_facade.add_memory(content, metadata={**metadata, "key": key or None, "value": value})
-                if ok:
-                    return {
-                        "ok": True,
-                        "summary": "Stored that in long-term memory.",
-                        "result": content,
-                    }
-                status = getattr(memory_facade, "_last_add_memory_status", {}) or {}
-                reason = str(status.get("reason") or "memory_write_rejected").strip()
-                return {"ok": False, "error": f"Memory write declined: {reason}."}
-
-            if semantic_memory is not None:
-                if hasattr(semantic_memory, "remember"):
-                    await self._call_optional(semantic_memory.remember, content, metadata)
-                    return {"ok": True, "summary": "Stored that in semantic memory.", "result": content}
-                if hasattr(semantic_memory, "add_memory"):
-                    await self._call_optional(semantic_memory.add_memory, content, metadata)
-                    return {"ok": True, "summary": "Stored that in semantic memory.", "result": content}
-
-            return {"ok": False, "error": "No writable memory backend is available."}
-
-        if action in {"retrieve", "recall"}:
-            key = str(request.key or "").strip()
-            query = str(request.query or key or "").strip()
-
-            if key and memory_store is not None:
-                if hasattr(memory_store, "get_semantic_async"):
-                    value = await self._call_optional(memory_store.get_semantic_async, key, None)
-                    if value is not None:
-                        return {"ok": True, "summary": f"Recalled {key}.", "result": value}
-                elif hasattr(memory_store, "get_semantic"):
-                    value = await self._call_optional(memory_store.get_semantic, key, None)
-                    if value is not None:
-                        return {"ok": True, "summary": f"Recalled {key}.", "result": value}
-
-            if query and memory_facade and hasattr(memory_facade, "query_memory"):
-                results = await memory_facade.query_memory(query, limit=3)
-                if results:
-                    return {
-                        "ok": True,
-                        "summary": f"Found {len(results)} memory match(es).",
-                        "result": results,
-                    }
-
-            return {"ok": False, "error": f"No memory found for '{query or key}'."}
-
-        return {"ok": False, "error": f"Unknown action: {request.action}"}
+        return {"ok": False, "error": f"Unknown archival action: {action}"}

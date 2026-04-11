@@ -5,14 +5,14 @@ import logging
 
 logger = logging.getLogger("Consciousness.SemanticBridge")
 
-# 🔒 [M1 PRO SURVIVAL] Force CPU and limit threads
-torch.set_num_threads(2)
+# 🔒 [M5 64GB] CPU threads for semantic bridge operations
+torch.set_num_threads(6)
 DEVICE = torch.device("cpu")
 
 class LatentProjector(nn.Module):
     """
     Projector that maps high-dim embeddings into the latent manifold.
-    Evolution 23.1: Stabilized for M1 memory bursts.
+    Evolution 23.1: Stabilized for Apple Silicon unified memory.
     """
     def __init__(self, input_dim=764, latent_dim=128):
         super().__init__()

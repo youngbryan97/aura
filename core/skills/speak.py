@@ -22,6 +22,7 @@ class SpeakSkill(BaseSkill):
     input_model = SpeakInput
     
     def __init__(self):
+        super().__init__()
         self._voice_engine = None
         self._fallback_engine = None
         if sys.platform != "darwin":

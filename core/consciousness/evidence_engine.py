@@ -129,9 +129,18 @@ class ConsciousnessEvidenceEngine:
             1.0 if phenom_fragment else 0.0,
             1.0 if dominant_emotions else 0.3,
         ])
+        # Inference gate scoring: alive=1.0, recovering=0.7, exists-but-dead=0.4, missing=0.0
+        if inference_gate and getattr(inference_gate, "is_alive", lambda: False)():
+            _ig_score = 1.0
+        elif inference_gate and getattr(inference_gate, "_cortex_recovery_in_progress", False):
+            _ig_score = 0.7  # actively recovering is better than dead
+        elif inference_gate:
+            _ig_score = 0.4
+        else:
+            _ig_score = 0.0
         reliability_factors = [
             1.0 if reply_queue and reply_queue.__class__.__name__ == "TaggedReplyQueue" else 0.35 if reply_queue else 0.0,
-            1.0 if inference_gate and getattr(inference_gate, "is_alive", lambda: False)() else 0.4 if inference_gate else 0.0,
+            _ig_score,
             1.0 if orch and not getattr(getattr(orch, "status", None), "last_error", None) else 0.6 if orch else 0.0,
         ]
         if closure_score is not None:

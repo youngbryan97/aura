@@ -149,6 +149,20 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(client._init_future.done())
         self.assertEqual(client._lane_state, "recovering")
 
+    async def test_warmup_precompile_accepts_empty_text_as_successful_compile(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client._warmup_in_flight = True
+
+        with patch.object(client, "_generate_inner", new=AsyncMock(return_value="")):
+            await client._run_warmup_precompile(
+                request_is_background=False,
+                foreground_request=True,
+                owner_name="warmup:test",
+                warmup_timeout=1.0,
+            )
+
+        self.assertEqual(client.get_lane_status()["state"], "ready")
+
     async def test_heavy_model_swap_respects_cooldown_window(self):
         import core.brain.llm.mlx_client as mlx_module
 

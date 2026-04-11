@@ -39,28 +39,32 @@ class LurkerSkill(BaseSkill):
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=config.browser.headless)
-                page = await browser.new_page()
-                await page.goto(url)
-                
-                # Heuristic for HN/Reddit
-                if "ycombinator" in url:
-                    selector = ".titleline > a"
-                elif "reddit" in url:
-                    selector = "shreddit-post a[slot='title']"
-                else:
-                    selector = "a" # Fallback
+                try:
+                    page = await browser.new_page()
+                    await page.goto(url, timeout=15000)
+                    
+                    # Heuristic for HN/Reddit
+                    if "ycombinator" in url:
+                        selector = ".titleline > a"
+                    elif "reddit" in url:
+                        selector = "shreddit-post a[slot='title']"
+                    else:
+                        selector = "a" # Fallback
 
-                await page.wait_for_load_state("domcontentloaded")
-                elements = (await page.query_selector_all(selector))[:limit]
-                
-                headlines = []
-                for el in elements:
-                    text = await el.inner_text()
-                    link = await el.get_attribute("href")
-                    if text and len(text) > 5:
-                        headlines.append(f"{text} ({link})")
-
-                await browser.close()
+                    await page.wait_for_load_state("domcontentloaded")
+                    elements = (await page.query_selector_all(selector))[:limit]
+                    
+                    headlines = []
+                    for el in elements:
+                        text = await el.inner_text()
+                        link = await el.get_attribute("href")
+                        if text and len(text) > 5:
+                            headlines.append(f"{text} ({link})")
+                finally:
+                    try:
+                        await browser.close()
+                    except Exception:
+                        pass
                 
                 if not headlines:
                     return {"ok": False, "error": "No headlines found."}

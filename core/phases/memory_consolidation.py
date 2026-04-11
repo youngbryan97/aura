@@ -239,7 +239,7 @@ class MemoryConsolidationPhase(BasePhase):
         # Pass 1: Drop verbose tool/skill results first (they're already in episodic memory)
         # Pass 2: If still over limit, drop oldest non-user messages
         # Always preserve: most recent user message, system messages, high-importance episodes
-        MAX_WORKING_MEMORY: int = 15
+        MAX_WORKING_MEMORY: int = 30
         wm = new_state.cognition.working_memory
         if len(wm) > MAX_WORKING_MEMORY:
             # Pass 1: Remove tool/skill result messages (most verbose, already persisted)
@@ -265,15 +265,27 @@ class MemoryConsolidationPhase(BasePhase):
                 wm = trimmed
 
             # Pass 2: If still over, keep most recent messages with bias toward user turns
+            # IMPORTANT: Messages with >2000 chars of user content are treated as
+            # "high-importance" (stories, code blocks, etc.) and are exempt from pruning
             if len(wm) > MAX_WORKING_MEMORY:
                 # Always keep last 4 messages (current conversation turn)
                 tail = wm[-4:]
                 older = wm[:-4]
-                # From older, prefer user messages and high-importance ones
-                keep_older = [m for m in older if isinstance(m, dict) and m.get("role") == "user"]
+                # From older, prefer user messages AND large content messages
+                keep_older = [
+                    m for m in older
+                    if isinstance(m, dict) and (
+                        m.get("role") == "user"
+                        or len(str(m.get("content", ""))) > 2000
+                    )
+                ]
                 remaining = MAX_WORKING_MEMORY - len(tail) - len(keep_older)
                 if remaining > 0:
-                    non_user = [m for m in older if isinstance(m, dict) and m.get("role") != "user"]
+                    non_user = [
+                        m for m in older
+                        if isinstance(m, dict) and m.get("role") != "user"
+                        and len(str(m.get("content", ""))) <= 2000
+                    ]
                     keep_older.extend(non_user[-remaining:])
                 wm = keep_older + tail
                 logger.info("🧹 Context trim pass 2: %d messages retained", len(wm))

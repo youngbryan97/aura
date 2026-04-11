@@ -16,7 +16,12 @@ _sandbox = None
 
 def get_sandbox():
     global _sandbox
-    if not _sandbox:
+    if not _sandbox or not getattr(_sandbox, 'is_alive', lambda: True)():
+        if _sandbox and hasattr(_sandbox, 'stop'):
+            try:
+                _sandbox.stop()
+            except Exception:
+                pass
         _sandbox = LocalSandbox("aura_main")
         _sandbox.start()
     return _sandbox
@@ -25,6 +30,7 @@ logger = logging.getLogger("Skills.RunCode")
 
 class RunCodeParams(BaseModel):
     code: str = Field(..., description="Python code to execute.")
+    stateful: bool = Field(True, description="Keep variables and functions in memory for the next run.")
 
 class RunCodeSkill(BaseSkill):
     name = "run_code"
@@ -53,13 +59,26 @@ class RunCodeSkill(BaseSkill):
         try:
             sandbox = get_sandbox()
             import asyncio
-            result = await asyncio.to_thread(sandbox.run_code, code)
+            if params.stateful:
+                result = await sandbox.run_stateful_code(code)
+            else:
+                # Need to use an async wrapper for run_code natively if it is async
+                result = await sandbox.run_code(code)
+            
+            # If the output is massive, truncate it smartly
+            out_str = result.stdout
+            err_str = result.stderr
+            if len(out_str) > 5000:
+                out_str = out_str[:2500] + "\n... [TRUNCATED] ...\n" + out_str[-2500:]
+            if len(err_str) > 5000:
+                err_str = err_str[:2500] + "\n... [TRUNCATED] ...\n" + err_str[-2500:]
             
             return {
                 "ok": result.exit_code == 0,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "exit_code": result.exit_code
+                "stdout": out_str,
+                "stderr": err_str,
+                "exit_code": result.exit_code,
+                "stateful": params.stateful
             }
         except Exception as e:
             return {"ok": False, "error": str(e)}

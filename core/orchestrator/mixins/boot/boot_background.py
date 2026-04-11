@@ -149,7 +149,7 @@ class BootBackgroundMixin:
 
             # Phase 5: OptimizationEngine replaced by AutonomicCore
 
-            monitor = MetabolicMonitor(ram_threshold_mb=3072, cpu_threshold=85.0)
+            monitor = MetabolicMonitor(ram_threshold_mb=8192, cpu_threshold=85.0)
             monitor.start()  # Phase 21: Decoupled ANS Thread
 
             # Use top-level import to avoid shadowing

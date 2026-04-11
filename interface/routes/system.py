@@ -335,17 +335,111 @@ def _collect_voice_summary() -> Dict[str, Any]:
     summary = {
         "available": voice_available,
         "microphone_enabled": True,
+        "speaking_enabled": True,
         "streaming_available": True,
         "state": "ready" if voice_available else "unavailable",
     }
     try:
         voice = _voice_engine_fn() if _voice_engine_fn else None
         if voice is not None:
-            summary["microphone_enabled"] = bool(getattr(voice, "microphone_enabled", True))
-            summary["state"] = "listening" if getattr(voice, "is_listening", False) else "ready"
+            microphone_enabled = bool(getattr(voice, "microphone_enabled", True))
+            speaking_enabled = bool(getattr(voice, "speaking_enabled", True))
+            summary["microphone_enabled"] = microphone_enabled
+            summary["speaking_enabled"] = speaking_enabled
+            if not microphone_enabled and not speaking_enabled:
+                summary["state"] = "muted"
+            else:
+                voice_state = getattr(getattr(voice, "state", None), "name", "") or ""
+                if voice_state:
+                    summary["state"] = str(voice_state).lower()
+                else:
+                    summary["state"] = "listening" if getattr(voice, "is_listening", False) else "ready"
     except Exception as exc:
         logger.debug("Voice summary collection failed: %s", exc)
     return summary
+
+
+async def _collect_desktop_access_summary() -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "screen_recording": {"granted": False, "status": "unknown", "guidance": ""},
+        "accessibility": {"granted": False, "status": "unknown", "guidance": ""},
+        "automation": {"granted": False, "status": "unknown", "guidance": ""},
+        "screen_capture_ready": False,
+        "desktop_control_ready": False,
+        "screen_text_ready": False,
+        "menu_clock_ready": False,
+        "menu_clock_text": "",
+        "menu_clock_error": "",
+        "frontmost_app": "",
+        "pyautogui_ready": False,
+        "pyautogui_error": "",
+    }
+    try:
+        from core.security.permission_guard import PermissionGuard, PermissionType
+        from core.skills._pyautogui_runtime import get_pyautogui
+
+        guard = ServiceContainer.get("permission_guard", default=None) or PermissionGuard()
+        if guard:
+            screen = await guard.check_permission(PermissionType.SCREEN, force=True)
+            accessibility = await guard.check_permission(PermissionType.ACCESSIBILITY, force=True)
+            automation = await guard.check_permission(PermissionType.AUTOMATION, force=True)
+            payload["screen_recording"] = screen
+            payload["accessibility"] = accessibility
+            payload["automation"] = automation
+            payload["frontmost_app"] = str(automation.get("detail", "") or "")
+
+        pyautogui, pyautogui_error = get_pyautogui()
+        payload["pyautogui_ready"] = pyautogui is not None
+        if pyautogui_error:
+            payload["pyautogui_error"] = str(pyautogui_error)[:240]
+
+        screen_granted = bool((payload["screen_recording"] or {}).get("granted"))
+        accessibility_granted = bool((payload["accessibility"] or {}).get("granted"))
+        automation_granted = bool((payload["automation"] or {}).get("granted"))
+        payload["screen_capture_ready"] = screen_granted
+        payload["desktop_control_ready"] = accessibility_granted and bool(payload["pyautogui_ready"])
+        payload["screen_text_ready"] = automation_granted and accessibility_granted
+        payload["menu_clock_ready"] = automation_granted and accessibility_granted
+        if payload["menu_clock_ready"]:
+            from core.skills.computer_use import ComputerUseSkill
+
+            def _probe_menu_clock() -> Dict[str, Any]:
+                skill = ComputerUseSkill()
+                try:
+                    text = skill._read_menu_clock_macos()
+                    return {"ready": True, "text": text[:240]}
+                except Exception as exc:
+                    return {"ready": False, "error": str(exc)[:240]}
+
+            menu_clock_probe = await asyncio.to_thread(_probe_menu_clock)
+            payload["menu_clock_ready"] = bool(menu_clock_probe.get("ready"))
+            payload["menu_clock_text"] = str(menu_clock_probe.get("text", "") or "")
+            payload["menu_clock_error"] = str(menu_clock_probe.get("error", "") or "")
+        primary_ready = [
+            payload["screen_capture_ready"],
+            payload["desktop_control_ready"],
+            payload["screen_text_ready"],
+        ]
+        payload["blocking_permissions"] = [
+            name for name, granted in (
+                ("screen_recording", screen_granted),
+                ("accessibility", accessibility_granted),
+                ("automation", automation_granted),
+            ) if not granted
+        ]
+        payload["overall_status"] = (
+            "ready"
+            if all(primary_ready) else
+            "partial"
+            if any(primary_ready) or any(
+                bool((payload[key] or {}).get("granted"))
+                for key in ("screen_recording", "accessibility", "automation")
+            ) else
+            "blocked"
+        )
+    except Exception as exc:
+        logger.debug("Desktop access summary collection failed: %s", exc)
+    return payload
 
 
 def _collect_runtime_capabilities(conversation_lane: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -894,6 +988,8 @@ async def api_health(request: Request):
     except Exception as e:
         logger.debug("Terminal fallback status collection failed: %s", e)
 
+    desktop_access_data = await _collect_desktop_access_summary()
+
     # ── Final Response Assembly ──
     try:
         voice_mod = _voice_engine_fn() if _voice_engine_fn else None
@@ -908,6 +1004,7 @@ async def api_health(request: Request):
             "camera_reason": browser_camera_privacy.get("reason"),
             "continuous_camera_enabled": getattr(smc_mod, "camera_enabled", False),
             "microphone_enabled": getattr(voice_mod, "microphone_enabled", True),
+            "speaking_enabled": getattr(voice_mod, "speaking_enabled", True),
         }
 
         conversation_ready = bool(conversation_lane.get("conversation_ready", False))
@@ -955,6 +1052,7 @@ async def api_health(request: Request):
             "circadian":      circadian_data,
             "substrate":      substrate_data,
             "terminal":       terminal_data,
+            "desktop_access": desktop_access_data,
             "transcendence": transcendence_data,
             "privacy":        privacy_data,
             "executive_closure": executive_closure_data,
@@ -1087,6 +1185,7 @@ async def api_ui_bootstrap(request: Request = None):
         "commitments": _collect_commitment_summary(),
         "tools": tool_catalog,
         "capabilities": _collect_runtime_capabilities(conversation_lane),
+        "desktop_access": await _collect_desktop_access_summary(),
         "conversation": {
             "recent": recent_conversation,
             "count": len(recent_conversation),

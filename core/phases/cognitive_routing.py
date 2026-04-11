@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import time
 from typing import Any, Optional
 from . import BasePhase
@@ -8,6 +9,12 @@ from ..cognitive.parallel_thought import ParallelThoughtStream
 from ..consciousness.executive_authority import get_executive_authority
 from core.runtime.turn_analysis import analyze_turn
 from core.utils.queues import decode_stringified_priority_message, role_for_origin
+
+# Regex to detect URLs in user input for auto-browser invocation
+_URL_PATTERN = re.compile(
+    r'https?://[^\s<>\"\')\]]+',
+    re.IGNORECASE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +168,30 @@ class CognitiveRoutingPhase(BasePhase):
                     return new_state
         except Exception as exc:
             logger.debug("🧭 Routing: detect_intent fast path failed: %s", exc)
+
+        # ── URL Auto-Detection ────────────────────────────────────────
+        # When the user pastes a URL, auto-invoke sovereign_browser to FETCH
+        # the page content. Without this, URLs are treated as plain text and
+        # Aura hallucinates about content she never accessed.
+        if routing_origin in user_origins and not matched_skills:
+            url_matches = _URL_PATTERN.findall(input_text)
+            if url_matches:
+                logger.info("🧭 Routing: URL detected in user input → auto-matching sovereign_browser: %s", url_matches[0][:80])
+                new_state.cognition.current_mode = CognitiveMode.REACTIVE
+                new_state.cognition.current_objective = input_text
+                new_state.cognition.current_origin = routing_origin
+                new_state.response_modifiers["intent_type"] = "SKILL"
+                new_state.response_modifiers["matched_skills"] = ["sovereign_browser"]
+                new_state.response_modifiers["model_tier"] = "primary"
+                new_state.response_modifiers["deep_handoff"] = False
+                new_state.response_modifiers["auto_browse_urls"] = url_matches[:3]
+                get_executive_authority().record_user_objective(
+                    new_state,
+                    input_text,
+                    source=f"cognitive_routing:{routing_origin}",
+                    mode=str(CognitiveMode.REACTIVE.value),
+                )
+                return new_state
 
         analysis = analyze_turn(input_text, matched_skills=bool(matched_skills))
         cognitive_mode = CognitiveMode.REACTIVE

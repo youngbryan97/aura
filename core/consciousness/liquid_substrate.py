@@ -20,8 +20,8 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import numpy as np
 import torch
 
-# 🔒 [M1 PRO SURVIVAL] Force CPU and limit threads to prevent GPU/Core contention
-torch.set_num_threads(2)
+# 🔒 [M5 64GB] Allow more threads for M5's wider core layout
+torch.set_num_threads(6)
 DEVICE = torch.device("cpu")
 
 # Lazy-loaded to avoid circular imports at module load

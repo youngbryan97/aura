@@ -65,28 +65,13 @@ class IdentityReflectionPhase(BasePhase):
                     return state
 
         # 3. Success: Narrative Drift Update
+        # NOTE: The previous "I am stable and evolve safely" append has been
+        # removed. It served no functional purpose and actively contaminated
+        # brainstem fallback responses, causing repetitive mantra loops when
+        # the primary cortex died. Identity stability is maintained through
+        # the identity guard checks above, not through string injection.
         if state.version % 20 == 0:
-            from core.container import ServiceContainer
-            ladder = ServiceContainer.get("growth_ladder", default=None)
-            
-            proposal_content = "Evolution of self-narrative: 'I am stable and evolve safely.'"
-            
-            if ladder:
-                # v40: Self-modification requires consent
-                from core.self_modification.growth_ladder import ModificationLevel
-                granted = await ladder.submit_proposal(
-                    level=ModificationLevel.EXPRESSION,
-                    domain="identity_narrative",
-                    description=proposal_content,
-                    justification="Evolving self-narrative for stability."
-                )
-                if not granted:
-                    logger.info("🚫 IdentityReflection: Evolution proposal vetoed by Aura.")
-                    return state
-
             state.identity.narrative_version += 1
             state.identity.last_evolution_timestamp = time.time()
-            if "evolving" not in state.identity.current_narrative:
-                state.identity.current_narrative += " I am stable and evolve safely."
 
         return state

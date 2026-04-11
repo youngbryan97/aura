@@ -119,25 +119,42 @@ class LocalBrain:
             logger.error("Circuit breaker OPENED after %s failures. Cooldown: 30s", self._consecutive_failures)
     
     # --- Generation ---
-    # --- Helper: DeepSeek Think Filtering ---
+    # --- Helper: DeepSeek Think Extraction ---
+    THOUGHT_STREAM_PREFIX = "__THOUGHT__:"
+    THOUGHT_STREAM_SUFFIX = ":__ENDTHOUGHT__"
+
     def _strip_think_tags(self, text: str) -> str:
-        """Remove <think>...</think> blocks from static text."""
+        """Remove <think>...</think> blocks from static text (legacy compat)."""
+        return self._extract_think_segments(text)[0]
+
+    @staticmethod
+    def _extract_think_segments(text: str) -> tuple[str, str]:
+        """Extract thinking content and cleaned response from <think> tagged text.
+
+        Returns:
+            (cleaned_response, thought_content)
+        """
         import re
+        thoughts: list[str] = []
+        for m in re.finditer(r'<think>(.*?)</think>', text, flags=re.DOTALL):
+            thought_text = m.group(1).strip()
+            if thought_text:
+                thoughts.append(thought_text)
         # Remove balanced tags
         cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
         # Remove stray closing tags if any
         cleaned = cleaned.replace('</think>', '')
         # Remove stray opening tags if at the end (incomplete thought)
         cleaned = cleaned.replace('<think>', '')
-        return cleaned.strip()
+        return cleaned.strip(), "\n\n".join(thoughts)
 
     # --- Generation ---
-    async def generate(self, prompt: str, system_prompt: Optional[str] = None, options: Optional[Dict[str, Any]] = None, **kwargs) -> str:
+    async def generate(self, prompt: str, system_prompt: Optional[str] = None, options: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, str]:
         """Send a generation request to the local Ollama instance (Async).
-        v13B: Auto-strips <think> tags for DeepSeek R1.
+        v14: Returns {"response": ..., "thought": ...} with extracted thinking.
         """
         if not self._check_circuit():
-            return "Error: Local brain temporarily unavailable (circuit breaker open)."
+            return {"response": "Error: Local brain temporarily unavailable (circuit breaker open).", "thought": ""}
         
         # v26 FIX: Hard Memory Ceiling (4k Context / 512 Predict)
         final_options = {
@@ -168,9 +185,10 @@ class LocalBrain:
                 data = response.json()
                 self._record_success()
                 
-                # Filter DeepSeek thinking
+                # Extract thinking segments
                 raw_response = data.get("response", "").strip()
-                return self._strip_think_tags(raw_response)
+                cleaned, thought = self._extract_think_segments(raw_response)
+                return {"response": cleaned, "thought": thought}
                 
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
                 last_error = e
@@ -184,7 +202,7 @@ class LocalBrain:
         
         self._record_failure()
         logger.error("Local LLM Error: %s", last_error)
-        return f"Error: Local brain (Ollama) is unreachable. {str(last_error)}"
+        return {"response": f"Error: Local brain (Ollama) is unreachable. {str(last_error)}", "thought": ""}
 
     async def generate_text_stream_async(self, prompt: str, system_prompt: Optional[str] = None, cancel_event=None, options: Optional[Dict[str, Any]] = None, **kwargs):
         """Stream tokens from the local Ollama instance.
@@ -217,7 +235,7 @@ class LocalBrain:
         try:
             # Thinking State Machine
             in_think_block = False
-            buffer = ""
+            thought_buffer = []
             
             async with self.client.stream("POST", url, json=payload, timeout=_DEFAULT_TIMEOUT) as response:
                 response.raise_for_status()
@@ -232,29 +250,34 @@ class LocalBrain:
                         token = data.get("response", "")
                         
                         if data.get("done"):
+                            # Emit collected thought at the end as a protocol token
+                            if thought_buffer:
+                                yield f"{self.THOUGHT_STREAM_PREFIX}{''.join(thought_buffer)}{self.THOUGHT_STREAM_SUFFIX}"
                             break
                             
                         # Stream Filtering Logic for <think>
                         if in_think_block:
                             if "</think>" in token:
                                 in_think_block = False
-                                # Emit whatever follows the closing tag
                                 parts = token.split("</think>")
-                                if len(parts) > 1:
+                                # Capture the thinking content
+                                thought_buffer.append(parts[0])
+                                # Emit whatever follows the closing tag
+                                if len(parts) > 1 and parts[1]:
                                     yield parts[1]
-                            continue # Skip token while thinking
+                            else:
+                                thought_buffer.append(token)
+                            continue
                             
                         if "<think>" in token:
                             in_think_block = True
-                            # If there was content before the tag, emit it
                             parts = token.split("<think>")
                             if parts[0]:
                                 yield parts[0]
+                            # Capture any text after the opening tag
+                            if len(parts) > 1 and parts[1]:
+                                thought_buffer.append(parts[1])
                             continue
-
-                        # Check for split tags (simple heuristic: buffering)
-                        # For R1, <think> is almost always at the start or distinct tokens.
-                        # Complex split-tag handling omitted for performance, relying on token boundaries.
                             
                         if token:
                             # UX Tuning: 50% slower stream for readability
@@ -270,12 +293,12 @@ class LocalBrain:
             yield f" [Error: Sovereign stream interrupted: {str(e)}]"
 
     # --- Chat ---
-    async def chat(self, messages: List[Dict[str, str]], options: Optional[Dict[str, Any]] = None, **kwargs) -> str:
+    async def chat(self, messages: List[Dict[str, str]], options: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, str]:
         """Async chat interface for the orchestrator.
-        v13B: Auto-strips <think> tags.
+        v14: Returns {"response": ..., "thought": ...} with extracted thinking.
         """
         if not self._check_circuit():
-            return "Error: Local brain temporarily unavailable (circuit breaker open)."
+            return {"response": "Error: Local brain temporarily unavailable (circuit breaker open).", "thought": ""}
         
         # v26 FIX: Hard Memory Ceiling (4k Context / 512 Predict)
         final_options = {
@@ -303,9 +326,10 @@ class LocalBrain:
                 data = response.json()
                 self._record_success()
                 
-                # Filter DeepSeek thinking
+                # Extract thinking segments
                 raw_response = data.get("message", {}).get("content", "").strip()
-                return self._strip_think_tags(raw_response)
+                cleaned, thought = self._extract_think_segments(raw_response)
+                return {"response": cleaned, "thought": thought}
                 
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
                 last_error = e
@@ -319,7 +343,7 @@ class LocalBrain:
         
         self._record_failure()
         logger.error("Local Chat Error: %s", last_error)
-        return "Internal Error: Sovereign cognitive stream interrupted."
+        return {"response": "Internal Error: Sovereign cognitive stream interrupted.", "thought": ""}
 
     async def chat_stream_async(self, messages: List[Dict[str, str]], cancel_event=None, options: Optional[Dict[str, Any]] = None, **kwargs):
         """Stream chat tokens from the local Ollama instance.
@@ -350,6 +374,7 @@ class LocalBrain:
         try:
             # Thinking State Machine
             in_think_block = False
+            thought_buffer = []
             
             async with self.client.stream("POST", url, json=payload, timeout=_DEFAULT_TIMEOUT) as response:
                 response.raise_for_status()
@@ -364,31 +389,30 @@ class LocalBrain:
                         token = data.get("message", {}).get("content", "")
                         
                         if data.get("done"):
+                            # Emit collected thought at the end as a protocol token
+                            if thought_buffer:
+                                yield f"{self.THOUGHT_STREAM_PREFIX}{''.join(thought_buffer)}{self.THOUGHT_STREAM_SUFFIX}"
                             break
                             
                         # Stream Filtering Logic for <think>
                         if in_think_block:
                             if "</think>" in token:
                                 in_think_block = False
-                                # Emit a clearing signal or just continue (UI appends, so we can't delete)
-                                # Strategy: Just let the real text follow.
-                                # Future: Emit a special "clear_thought" event if UI supports it.
-                                
-                                # Emit whatever follows the closing tag
                                 parts = token.split("</think>")
-                                if len(parts) > 1:
+                                thought_buffer.append(parts[0])
+                                if len(parts) > 1 and parts[1]:
                                     yield parts[1]
-                            continue # Skip token while thinking
+                            else:
+                                thought_buffer.append(token)
+                            continue
                             
                         if "<think>" in token:
                             in_think_block = True
-                            # Signal to user that work is happening
-                            yield "*Thinking...* " 
-                            
-                            # If there was content before the tag, emit it
                             parts = token.split("<think>")
                             if parts[0]:
                                 yield parts[0]
+                            if len(parts) > 1 and parts[1]:
+                                thought_buffer.append(parts[1])
                             continue
                             
                         if token:

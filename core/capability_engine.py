@@ -449,6 +449,8 @@ class CapabilityEngine(AuraBaseModule):
             ],
             "clock": [
                 r"what time", r"current time", r"what(?:'s| is) the time",
+                r"what(?:'s| is) (?:the )?date", r"what day is it", r"\btoday\b",
+                r"what(?:'s| is) my timezone", r"current timezone",
                 r"set (?:an? )?(?:alarm|timer|reminder)",
                 r"timer for", r"remind me (?:in|at|to)",
             ],

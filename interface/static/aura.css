@@ -387,6 +387,68 @@ header {
     background: var(--accent);
 }
 
+/* ── Thought Block: Chain-of-Thought Expansion ────────────── */
+.thought-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--primary-bright);
+    background: rgba(138, 43, 226, 0.08);
+    border: 1px solid rgba(138, 43, 226, 0.18);
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    margin: 6px 0 2px 0;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+.thought-toggle:hover {
+    background: rgba(138, 43, 226, 0.16);
+    border-color: var(--primary-bright);
+    color: #fff;
+}
+.thought-toggle .thought-chevron {
+    display: inline-block;
+    transition: transform 0.25s ease;
+    font-size: 0.7rem;
+}
+.thought-toggle.expanded .thought-chevron {
+    transform: rotate(90deg);
+}
+
+.thought-block {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, padding 0.25s ease;
+    background: rgba(138, 43, 226, 0.04);
+    border-left: 2px solid rgba(138, 43, 226, 0.25);
+    border-radius: 0 4px 4px 0;
+    margin: 4px 0 6px 0;
+    padding: 0 10px;
+    font-size: 0.72rem;
+    line-height: 1.55;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+}
+.thought-block.expanded {
+    max-height: 600px;
+    opacity: 1;
+    padding: 8px 10px;
+    overflow-y: auto;
+}
+.thought-block::-webkit-scrollbar {
+    width: 3px;
+}
+.thought-block::-webkit-scrollbar-thumb {
+    background: rgba(138, 43, 226, 0.3);
+    border-radius: 3px;
+}
+
 .hdr-btn {
     background: rgba(138, 43, 226, 0.08);
     border: 1px solid var(--border);
@@ -607,6 +669,9 @@ main {
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     clear: both;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
 }
 
 @keyframes fadeIn {
@@ -1059,6 +1124,87 @@ main {
     50% {
         opacity: 0.4;
     }
+}
+
+.neural-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.neural-toolbar-label {
+    margin-bottom: 0;
+}
+
+.neural-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.neural-toggle-btn,
+.neural-mode-state {
+    border-radius: 999px;
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.neural-toggle-btn {
+    border: 1px solid rgba(0, 229, 255, 0.22);
+    background: rgba(0, 229, 255, 0.08);
+    color: var(--text-dim);
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.neural-toggle-btn:hover,
+.neural-toggle-btn:focus-visible {
+    color: #fff;
+    border-color: rgba(0, 229, 255, 0.45);
+    background: rgba(0, 229, 255, 0.16);
+}
+
+.neural-toggle-btn.active {
+    color: #031114;
+    background: rgba(0, 229, 255, 0.9);
+    border-color: rgba(0, 229, 255, 0.95);
+    box-shadow: 0 0 18px rgba(0, 229, 255, 0.18);
+}
+
+.neural-mode-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 26px;
+    min-width: 72px;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    transition: background 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+}
+
+.neural-mode-state.readable {
+    color: #031114;
+    background: rgba(0, 255, 163, 0.92);
+    border-color: rgba(0, 255, 163, 0.95);
+}
+
+.neural-mode-state.catchup {
+    color: #1c1200;
+    background: rgba(255, 184, 77, 0.92);
+    border-color: rgba(255, 184, 77, 0.95);
+}
+
+.neural-backlog {
+    margin-bottom: 12px;
+    font-size: 0.68rem;
+    line-height: 1.4;
+    color: var(--text-dim);
 }
 
 /* Progress bar (used in neural feed) */
@@ -2135,6 +2281,102 @@ main {
 .settings-row label {
     font-size: 0.75rem;
     color: var(--text);
+}
+.desktop-access-banner {
+    margin: 6px 0 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+    font-size: 0.74rem;
+    line-height: 1.5;
+}
+.desktop-access-banner.ready {
+    border-color: rgba(0,255,163,0.32);
+    background: rgba(0,255,163,0.09);
+}
+.desktop-access-banner.partial {
+    border-color: rgba(255,184,77,0.3);
+    background: rgba(255,184,77,0.08);
+}
+.desktop-access-banner.blocked {
+    border-color: rgba(255,62,94,0.32);
+    background: rgba(255,62,94,0.08);
+}
+.desktop-access-banner.pending {
+    border-color: rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-dim);
+}
+.desktop-access-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.desktop-access-card {
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    padding: 12px;
+}
+.desktop-access-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.desktop-access-card-label {
+    font-size: 0.74rem;
+    color: var(--text);
+}
+.desktop-access-card-meta,
+.desktop-access-card-detail {
+    font-size: 0.68rem;
+    line-height: 1.45;
+    color: var(--text-dim);
+}
+.desktop-access-card-detail {
+    margin-top: 6px;
+}
+.desktop-access-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 74px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text-dim);
+}
+.desktop-access-pill.ready {
+    background: rgba(0,255,163,0.9);
+    border-color: rgba(0,255,163,0.92);
+    color: #031114;
+}
+.desktop-access-pill.partial {
+    background: rgba(255,184,77,0.9);
+    border-color: rgba(255,184,77,0.92);
+    color: #201300;
+}
+.desktop-access-pill.blocked {
+    background: rgba(255,62,94,0.88);
+    border-color: rgba(255,62,94,0.9);
+    color: #fff5f7;
+}
+.desktop-access-pill.pending {
+    background: rgba(255,255,255,0.06);
+}
+@media (max-width: 720px) {
+    .desktop-access-grid {
+        grid-template-columns: 1fr;
+    }
 }
 .settings-help {
     margin: 8px 0 18px;

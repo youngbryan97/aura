@@ -25,6 +25,7 @@ class LocalSandbox(Sandbox):
         self._work_dir = work_dir
         self._temp_dir: Optional[tempfile.TemporaryDirectory] = None
         self._active = False
+        self._code_history = []  # Emulates Jupyter statefulness
 
     @property
     def work_path(self) -> Path:
@@ -55,6 +56,7 @@ class LocalSandbox(Sandbox):
                 logger.warning("Sandbox cleanup failed: %s", e)
             self._temp_dir = None
         self._active = False
+        self._code_history.clear()
         logger.info("LocalSandbox stopped.")
 
     async def run_code(self, code: str, timeout: int = 30) -> ExecutionResult:
@@ -66,7 +68,7 @@ class LocalSandbox(Sandbox):
         try:
             result = await asyncio.to_thread(
                 subprocess.run,
-                ["python3", str(script_path)],
+                ["python3", script_path.name],
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -93,6 +95,21 @@ class LocalSandbox(Sandbox):
             return ExecutionResult(
                 stdout="", stderr=str(e), exit_code=-1, duration=duration
             )
+
+    async def run_stateful_code(self, code: str, timeout: int = 30) -> ExecutionResult:
+        """Executes code persistently, retaining variables and imports if successful.
+        If the execution fails, the state is rolled back.
+        """
+        self._code_history.append(code)
+        full_code = "\n".join(self._code_history)
+        
+        result = await self.run_code(full_code, timeout)
+        
+        if result.exit_code != 0:
+            # Revert state if the code crashed (emulating a failed notebook cell)
+            self._code_history.pop()
+        
+        return result
 
     async def run_command(self, command: str, timeout: int = 30) -> ExecutionResult:
         """Execute a shell command in the sandbox (Async Offload)."""

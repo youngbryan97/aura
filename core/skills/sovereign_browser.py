@@ -29,74 +29,161 @@ class BrowserInput(BaseModel):
 class SovereignBrowserSkill(BaseSkill):
     """The unified, high-fidelity web capability for Aura.
     Handles searching, navigation, and complex interactions using PhantomBrowser.
+
+    HARDENING (2026-04):
+    - Ephemeral browser sessions: each execute() gets a fresh browser, closed in a
+      finally block. No more process leaks across conversation turns.
+    - Per-operation timeouts on all Playwright calls (read_content, browse, etc.)
+    - Resource lock integration to pause background inference during heavy browsing.
     """
-    
+
     name = "sovereign_browser"
     description = "Browse the web, search for information, or interact with websites (click, type, etc.)."
     input_model = BrowserInput
-    
+
+    # Timeouts for Playwright operations (seconds)
+    BROWSE_TIMEOUT = 25.0
+    READ_TIMEOUT = 15.0
+    INTERACTION_TIMEOUT = 45.0
+    SEARCH_TIMEOUT = 40.0
+
     def __init__(self):
         super().__init__()
         # User requested: capable of using any browser (Chrome, Firefox, Safari)
-        engines = ["chromium", "firefox", "webkit"]
-        self.browser_type = random.choice(engines)
-        self.browser = PhantomBrowser(visible=False, browser_type=self.browser_type)
+        self._browser_types = ["chromium", "firefox", "webkit"]
+
+    def _pick_browser_type(self) -> str:
+        return random.choice(self._browser_types)
+
+    async def _create_browser(self) -> PhantomBrowser:
+        """Create a fresh, ephemeral PhantomBrowser instance."""
+        browser_type = self._pick_browser_type()
+        browser = PhantomBrowser(visible=False, browser_type=browser_type)
+        await asyncio.wait_for(browser.ensure_ready(), timeout=30.0)
+        return browser
+
+    async def _safe_close(self, browser: Optional[PhantomBrowser]) -> None:
+        """Guaranteed browser teardown — never raises."""
+        if browser is None:
+            return
+        try:
+            await asyncio.wait_for(browser.close(), timeout=10.0)
+        except Exception as close_exc:
+            logger.debug("Browser close error (suppressed): %s", close_exc)
+            # Force-kill if close() hangs
+            try:
+                if browser.browser:
+                    await browser.browser.close()
+            except Exception:
+                pass
+            try:
+                if browser.playwright:
+                    await browser.playwright.stop()
+            except Exception:
+                pass
+            browser.is_active = False
+            browser.page = None
+            browser.context = None
+            browser.browser = None
+            browser.playwright = None
+
+    async def _safe_read_content(self, browser: PhantomBrowser) -> str:
+        """Read page content with a timeout to prevent hung-page stalls."""
+        try:
+            return await asyncio.wait_for(browser.read_content(), timeout=self.READ_TIMEOUT)
+        except asyncio.TimeoutError:
+            logger.warning("🕐 read_content() timed out after %.0fs", self.READ_TIMEOUT)
+            return ""
+        except Exception as e:
+            logger.warning("read_content() error: %s", e)
+            return ""
+
+    async def _safe_browse(self, browser: PhantomBrowser, url: str) -> bool:
+        """Navigate with a timeout."""
+        try:
+            return await asyncio.wait_for(browser.browse(url), timeout=self.BROWSE_TIMEOUT)
+        except asyncio.TimeoutError:
+            logger.warning("🕐 browse(%s) timed out after %.0fs", url[:80], self.BROWSE_TIMEOUT)
+            return False
+        except Exception as e:
+            logger.warning("browse(%s) error: %s", url[:80], e)
+            return False
 
     async def execute(self, params: BrowserInput, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Unified entry point for all web activities."""
+        """Unified entry point for all web activities.
+
+        HARDENING: Each invocation creates an ephemeral browser session that is
+        guaranteed to be closed in a finally block, preventing Playwright process
+        leaks that accumulate across conversation turns.
+        """
         if isinstance(params, dict):
             try:
                 params = BrowserInput(**params)
             except Exception as e:
                 return {"ok": False, "error": f"Invalid input schema: {e}"}
 
+        browser: Optional[PhantomBrowser] = None
         try:
             # 1. Try High-Fidelity Playwright (Phantom)
             try:
-                if not self.browser.is_active:
-                    await self.browser.ensure_ready()
-                
+                browser = await self._create_browser()
+
                 if params.mode == "search":
-                    return await self._handle_search(params.query, params.deep)
+                    return await asyncio.wait_for(
+                        self._handle_search(browser, params.query, params.deep),
+                        timeout=self.SEARCH_TIMEOUT,
+                    )
                 elif params.mode == "browse":
-                    return await self._handle_browse(params.url)
+                    return await asyncio.wait_for(
+                        self._handle_browse(browser, params.url),
+                        timeout=self.BROWSE_TIMEOUT + self.READ_TIMEOUT,
+                    )
                 elif params.mode == "interact":
-                    return await self._handle_interact(params.url, params.actions)
+                    return await asyncio.wait_for(
+                        self._handle_interact(browser, params.url, params.actions),
+                        timeout=self.INTERACTION_TIMEOUT,
+                    )
                 else:
                     return {"ok": False, "error": f"Unsupported browser mode: {params.mode}"}
+            except asyncio.TimeoutError as te:
+                logger.warning("Browser operation timed out: %s", te)
+                return {"ok": False, "error": f"Browser operation timed out: {params.mode}"}
             except Exception as e:
-                logger.warning("Primary Playwright strategy failed, attempting Selenium/UC fallback: %s", e)
+                logger.warning("Primary Playwright strategy failed, attempting fallback: %s", e)
                 return await self._execute_fallback(params)
-                
+
         except Exception as e:
             logger.error("Browser skill failed completely: %s", e)
             return {"ok": False, "error": str(e)}
+        finally:
+            # CRITICAL: Always tear down the browser to prevent process leaks
+            await self._safe_close(browser)
 
     async def _execute_fallback(self, params: BrowserInput) -> Dict[str, Any]:
         """Technically difficult sites often require Undetected Chromedriver."""
         try:
             import undetected_chromedriver as uc
             from selenium.webdriver.common.by import By
-            
+
             options = uc.ChromeOptions()
             options.add_argument('--headless')
             options.add_argument('--no-sandbox')
-            
+
             # Start ephemeral driver
             driver = uc.Chrome(options=options)
             try:
                 url = params.url
                 if params.mode == "search" and params.query:
                     url = f"https://www.google.com/search?q={urllib.parse.quote_plus(params.query)}"
-                
+
                 if not url: return {"ok": False, "error": "No URL for fallback."}
-                
+
                 driver.get(url)
                 await asyncio.sleep(3) # Wait for JS/stealth
-                
+
                 content = driver.find_element(By.TAG_NAME, "body").text
                 title = driver.title
-                
+
                 return {
                     "ok": True,
                     "engine": "selenium_uc_fallback",
@@ -111,13 +198,11 @@ class SovereignBrowserSkill(BaseSkill):
         except Exception as e:
             return {"ok": False, "error": f"Fallback failed: {e}"}
 
-    async def _handle_search(self, query: str, deep: bool) -> Dict[str, Any]:
+    async def _handle_search(self, browser: PhantomBrowser, query: str, deep: bool) -> Dict[str, Any]:
         if not query:
             return {"ok": False, "error": "Search mode requires a 'query'."}
-            
+
         logger.info("🔍 Searching: %s (Deep: %s)", query, deep)
-        # Phase 36: Always do deep search for real content
-        import random
         # User requested: doesn't have to be duckduckgo
         engines = [
             f"https://duckduckgo.com/?q={urllib.parse.quote_plus(query)}",
@@ -125,37 +210,50 @@ class SovereignBrowserSkill(BaseSkill):
             f"https://www.bing.com/search?q={urllib.parse.quote_plus(query)}"
         ]
         random.shuffle(engines)
-        
+
         for url in engines:
-            if await self.browser.browse(url):
+            if await self._safe_browse(browser, url):
                 # Detect block/CAPTCHA
-                if self._check_blocked(await self.browser.read_content() if hasattr(self.browser, 'read_content') else ""):
+                preview = await self._safe_read_content(browser)
+                if self._check_blocked(preview):
                     logger.warning("🚫 Search engine blocked. Rotating UA and trying next engine...")
-                    await self.browser.rotate_user_agent()
+                    try:
+                        await asyncio.wait_for(browser.rotate_user_agent(), timeout=10.0)
+                    except Exception as rot_exc:
+                        logger.debug("UA rotation failed: %s", rot_exc)
                     continue
 
-                await self.browser._human_delay(2, 3)
+                await browser._human_delay(2, 3)
                 if deep:
                     get_emitter().emit("🔍 Deep Search", f"Analyzing search results for organic targets...", category="Browser")
-                    links = await self.browser.get_links()
+                    try:
+                        links = await asyncio.wait_for(browser.get_links(), timeout=10.0)
+                    except Exception:
+                        links = []
                     target = self._select_search_result(links)
                     if target:
                         get_emitter().emit("🌊 Deep-Diving", f"Navigating to exact source: {target}", category="Browser")
                         logger.info("🌊 Deep-diving into: %s", target)
                         try:
-                            if await self.browser.browse(target):
+                            if await self._safe_browse(browser, target):
                                 # Check if target site is blocked too
-                                if self._check_blocked(await self.browser.read_content() if hasattr(self.browser, 'read_content') else ""):
+                                target_content = await self._safe_read_content(browser)
+                                if self._check_blocked(target_content):
                                     get_emitter().emit("🔒 Security Block", "Target site is blocking access. Attempting rotation...", level="warning", category="Browser")
-                                    await self.browser.rotate_user_agent()
-                                    if not await self.browser.browse(target):
+                                    try:
+                                        await asyncio.wait_for(browser.rotate_user_agent(), timeout=10.0)
+                                    except Exception:
                                         continue
+                                    if not await self._safe_browse(browser, target):
+                                        continue
+                                    target_content = await self._safe_read_content(browser)
+
                                 get_emitter().emit("📄 Extracting Content", f"Reading content from {target}", category="Browser")
-                                content = await self.browser.read_content()
+                                content = target_content or await self._safe_read_content(browser)
                                 # Phase 39: Deep Synthesis — Provide major content for the LLM
                                 snippet_size = 5000
                                 snippet = content[:snippet_size].strip() if content else "Content could not be extracted."
-                                
+
                                 logger.info("✅ Deep synthesized %d chars from %s", len(snippet), target)
                                 return {
                                     "ok": True, "source": target, "content": content, "mode": "deep_search",
@@ -164,69 +262,87 @@ class SovereignBrowserSkill(BaseSkill):
                         except Exception as e:
                             logger.error("Deep dive into %s failed: %s", target, e)
                             continue
-                
+
                 get_emitter().emit("📄 Reading Search Results", f"Extracting immediate snippets from {url}", category="Browser")
-                content = await self.browser.read_content()
+                content = await self._safe_read_content(browser)
                 # Increase snippet size for non-deep search too
                 snippet_size = 2000
                 snippet = content[:snippet_size].strip() if content else "No content extracted."
-                
+
                 logger.info("✅ Extracted %d chars from %s", len(snippet), url)
                 return {
                     "ok": True, "source": url, "content": content, "mode": "search",
                     "message": f"I searched for '{query}' and here's what I found:\n\n{snippet}"
                 }
-                
+
         return {"ok": False, "error": "Search engines unreachable or blocked."}
 
-    async def _handle_browse(self, url: str) -> Dict[str, Any]:
+    async def _handle_browse(self, browser: PhantomBrowser, url: str) -> Dict[str, Any]:
         if not url:
             return {"ok": False, "error": "Browse mode requires a 'url'."}
-        
+
         get_emitter().emit("🌐 Navigating", f"Opening {url}", category="Browser")
-        if await self.browser.browse(url):
+        if await self._safe_browse(browser, url):
             get_emitter().emit("📄 Reading Document", f"Extracting content from {url}", category="Browser")
-            content = await self.browser.read_content()
+            content = await self._safe_read_content(browser)
             return {"ok": True, "source": url, "content": content, "message": f"I've navigated to {url} and captured the content."}
         return {"ok": False, "error": f"Failed to load {url}"}
 
-    async def _handle_interact(self, url: str, actions: List[BrowserAction]) -> Dict[str, Any]:
-        if url and not await self.browser.browse(url):
+    async def _handle_interact(self, browser: PhantomBrowser, url: str, actions: List[BrowserAction]) -> Dict[str, Any]:
+        if url and not await self._safe_browse(browser, url):
             return {"ok": False, "error": f"Failed to load start URL: {url}"}
-            
+
         if not actions:
             return {"ok": False, "error": "Interact mode requires 'actions'."}
 
         results = []
         for action in actions:
             logger.info("🎬 Action: %s | Sel: %s", action.type, action.selector)
-            if action.type == "click":
-                success = await self.browser.click(selector=action.selector)
-            elif action.type == "type":
-                success = await self.browser.type(action.selector, action.value)
-            elif action.type == "scroll":
-                await self.browser.scroll(direction=action.value or "down")
-                success = True
-            elif action.type == "wait":
-                await asyncio.sleep(float(action.value or 1))
-                success = True
-            elif action.type == "get_html":
-                results.append({"type": "html", "content": await self.browser.page.content()})
-                success = True
-            elif action.type == "screenshot":
-                results.append({"type": "screenshot", "data": await self.browser.screenshot()})
-                success = True
-            else:
+            try:
+                if action.type == "click":
+                    success = await asyncio.wait_for(browser.click(selector=action.selector), timeout=10.0)
+                elif action.type == "type":
+                    success = await asyncio.wait_for(browser.type(action.selector, action.value), timeout=10.0)
+                elif action.type == "scroll":
+                    await asyncio.wait_for(browser.scroll(direction=action.value or "down"), timeout=5.0)
+                    success = True
+                elif action.type == "wait":
+                    await asyncio.sleep(min(float(action.value or 1), 10.0))  # Cap wait at 10s
+                    success = True
+                elif action.type == "get_html":
+                    if browser.page:
+                        html = await asyncio.wait_for(browser.page.content(), timeout=10.0)
+                        results.append({"type": "html", "content": html[:60000]})
+                    success = True
+                elif action.type == "screenshot":
+                    ss = await asyncio.wait_for(browser.screenshot(), timeout=10.0)
+                    results.append({"type": "screenshot", "data": ss})
+                    success = True
+                else:
+                    success = False
+                    logger.warning("Unsupported action type: %s", action.type)
+            except asyncio.TimeoutError:
+                logger.warning("Action '%s' timed out", action.type)
                 success = False
-                logger.warning("Unsupported action type: %s", action.type)
-            
+            except Exception as action_exc:
+                logger.warning("Action '%s' failed: %s", action.type, action_exc)
+                success = False
+
             results.append({"action": action.type, "ok": success})
             if not success: break
 
+        final_content = await self._safe_read_content(browser)
+        final_url = ""
+        try:
+            if browser.page:
+                final_url = browser.page.url
+        except Exception:
+            pass
+
         return {
-            "ok": True, 
-            "url": self.browser.page.url, 
-            "content": await self.browser.read_content(),
+            "ok": True,
+            "url": final_url,
+            "content": final_content,
             "action_report": results,
             "message": "I've completed the sequence of interactions on the page."
         }
@@ -257,4 +373,5 @@ class SovereignBrowserSkill(BaseSkill):
         return None
 
     async def on_stop_async(self):
-        await self.browser.close()
+        """No-op: browsers are now ephemeral per-invocation."""
+        pass

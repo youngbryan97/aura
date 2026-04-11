@@ -124,13 +124,22 @@ async def api_privacy_camera(payload: PrivacyPayload, _: None = Depends(_require
 
 @router.post("/privacy/microphone")
 async def api_privacy_microphone(payload: PrivacyPayload, _: None = Depends(_require_internal)):
-    """Toggle the voice engine microphone processing."""
+    """Toggle voice I/O without forcing the always-listening path."""
     enabled = payload.enabled
     voice = _voice_engine_fn() if _voice_engine_fn else None
     if voice:
         voice.microphone_enabled = enabled
-        logger.info("\U0001f512 Privacy: Microphone %s", 'enabled' if enabled else 'disabled')
-        return {"ok": True, "enabled": enabled}
+        if hasattr(voice, "speaking_enabled"):
+            voice.speaking_enabled = enabled
+        if not enabled and hasattr(voice, "stop_listening"):
+            voice.stop_listening()
+        logger.info("\U0001f512 Privacy: Voice I/O %s", 'enabled' if enabled else 'disabled')
+        return {
+            "ok": True,
+            "enabled": enabled,
+            "microphone_enabled": getattr(voice, "microphone_enabled", enabled),
+            "speaking_enabled": getattr(voice, "speaking_enabled", enabled),
+        }
     return JSONResponse({"error": "VoiceEngine unavailable"}, status_code=503)
 
 

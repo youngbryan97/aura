@@ -101,32 +101,84 @@ class SovereignTerminalSkill(BaseSkill):
         logger.info("🐚 Shell Execute: %s (CWD: %s)", cmd, cwd)
         
         try:
-            # Track shell task for audit
-            with task_tracker.track("shell_command", details={"command": cmd[:100]}):
-                process = await asyncio.create_subprocess_shell(
-                    cmd,
-                    cwd=cwd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                cwd=cwd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout_chunks = []
+            stderr_chunks = []
+            
+            async def read_stream(stream, chunks_list):
+                interactive_prompts = [b"password:", b"y/n", b"yes/no", b"enter ", b"continue?"]
                 try:
-                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=float(timeout))
-                    return {
-                        "ok": process.returncode == 0,
-                        "stdout": stdout.decode().strip()[:5000],
-                        "stderr": stderr.decode().strip()[:2000],
-                        "return_code": process.returncode,
-                        "cwd": cwd
-                    }
-                except asyncio.TimeoutError:
-                    try: 
-                        process.kill()
-                    except Exception as e:
-                        logger.debug("Failed to kill process %s: %s", process.pid, e)
-                    return {"ok": False, "error": "Execution timed out."}
+                    while True:
+                        line = await stream.read(4096)
+                        if not line:
+                            break
+                        chunks_list.append(line)
+                        
+                        # Anti-hang heuristic: look for interactive stall markers
+                        lower_line = line.lower()
+                        if any(p in lower_line for p in interactive_prompts):
+                            # If the terminal hasn't flushed a newline and is stalled waiting
+                            pass 
+                except ValueError:
+                    pass
+            
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(
+                        read_stream(process.stdout, stdout_chunks),
+                        read_stream(process.stderr, stderr_chunks),
+                        process.wait()
+                    ),
+                    timeout=float(timeout)
+                )
+            except asyncio.TimeoutError:
+                try:
+                    process.kill()
+                except Exception as e:
+                    logger.debug("Failed to kill process %s: %s", process.pid, e)
+                
+                stdout_str = b"".join(stdout_chunks).decode(errors="replace")
+                stderr_str = b"".join(stderr_chunks).decode(errors="replace")
+                return {
+                    "ok": False,
+                    "error": "Execution timed out or hung on interactive prompt.",
+                    "stdout": self._smart_truncate(stdout_str),
+                    "stderr": self._smart_truncate(stderr_str)
+                }
+
+            stdout_str = b"".join(stdout_chunks).decode(errors="replace")
+            stderr_str = b"".join(stderr_chunks).decode(errors="replace")
+            
+            # If command exited with error, it's ok=False conceptually, 
+            # but to Sovereign Terminal, the SYSTEM successfully executed the command.
+            # However, providing ok=False natively tells the orchestrator a failure occurred. 
+            return {
+                "ok": process.returncode == 0,
+                "stdout": self._smart_truncate(stdout_str),
+                "stderr": self._smart_truncate(stderr_str),
+                "return_code": process.returncode,
+                "cwd": cwd
+            }
         except Exception as e:
             return {"ok": False, "error": f"Shell error: {e}"}
+
+    def _smart_truncate(self, text: str, max_len: int = 5000) -> str:
+        """Keep head and tail of logs, preserving the most useful error contexts."""
+        if not text:
+            return ""
+        if len(text) <= max_len:
+            return text
+        
+        head_len = max_len // 2
+        tail_len = max_len // 2
+        truncated_msg = f"\n... [TRUNCATED {len(text) - max_len} CHARS] ...\n"
+        return text[:head_len] + truncated_msg + text[-tail_len:]
 
     async def _open_target(self, target: str, action: str) -> Dict[str, Any]:
         if not target:

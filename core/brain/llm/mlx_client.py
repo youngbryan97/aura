@@ -15,6 +15,7 @@ import subprocess
 import uuid
 from pathlib import Path
 from typing import Optional, List, Any, Dict, Tuple
+import psutil
 
 from core.utils.deadlines import Deadline, get_deadline
 from core.utils.concurrency import run_io_bound
@@ -1240,8 +1241,10 @@ class MLXLocalClient:
                     ),
                     timeout=warmup_timeout + (10.0 * attempt),
                 )
-                if not str(warmup_text or "").strip():
+                if warmup_text is None:
                     raise RuntimeError("warmup_precompile_no_text")
+                if not str(warmup_text).strip():
+                    logger.info("🔥 [MLX] Warmup returned no visible text — treating shader precompile as successful.")
                 self._set_lane_state("ready")
                 logger.info("🔥 [MLX] Warmup complete — Metal shaders compiled.")
                 return

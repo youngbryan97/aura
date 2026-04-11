@@ -39,8 +39,8 @@ class SecureDockerSandbox:
                 image=self.image_name,
                 command=["python3", "-c", code],
                 network_disabled=True,      # KEY REQUIREMENT: Zero network access
-                mem_limit="256m",           # Resource limit: Memory
-                nano_cpus=500000000,        # Resource limit: 0.5 CPU
+                mem_limit="1g",             # Resource limit: Memory (M5/64GB)
+                nano_cpus=2000000000,       # Resource limit: 2.0 CPU (M5)
                 detach=True,
                 remove=False,
                 stderr=True,

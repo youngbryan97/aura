@@ -300,7 +300,12 @@ class WebSocketManager:
                     return obj.value
                 return super().default(obj)
 
-        payload = json.dumps(message, cls=_EnumEncoder)
+        payload = await asyncio.to_thread(
+            json.dumps,
+            message,
+            cls=_EnumEncoder,
+            separators=(",", ":"),
+        )
         item = (priority, time.monotonic(), payload)
 
         disconnect_later: List[WebSocket] = []

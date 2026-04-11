@@ -5,7 +5,7 @@ import psutil
 logger = logging.getLogger("Aura.MemoryMonitor")
 
 class AppleSiliconMemoryMonitor:
-    """Monitors Unified Memory pressure on Apple Silicon (M1/M2/M3).
+    """Monitors Unified Memory pressure on Apple Silicon (M1/M2/M3/M4/M5).
     
     Aura uses this to throttle background reasoning (ReasoningQueue)
     when memory pressure is high to avoid system swap lag.

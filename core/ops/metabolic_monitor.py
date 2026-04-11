@@ -26,7 +26,7 @@ class MetabolicMonitor:
     telemetry remains active even if the main asyncio loop stalls.
     """
     
-    def __init__(self, ram_threshold_mb: int = 2048, cpu_threshold: float = 80.0):
+    def __init__(self, ram_threshold_mb: int = 8192, cpu_threshold: float = 80.0):
         self.process = psutil.Process(os.getpid())
         self.ram_threshold_mb = ram_threshold_mb
         self.cpu_threshold = cpu_threshold

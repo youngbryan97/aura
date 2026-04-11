@@ -15,8 +15,8 @@ class FileOpInput(BaseModel):
     path: str = Field(..., description="Target file or directory path.")
     content: Optional[str] = Field(None, description="Content for write, append, or patch actions.")
     destination: Optional[str] = Field(None, description="Destination path for move or copy actions.")
-    target: Optional[str] = Field(None, description="Text to find for the 'patch' action.")
-    replacement: Optional[str] = Field(None, description="Text to replace with for the 'patch' action.")
+    start_line: Optional[int] = Field(None, description="Starting line number for 'patch' action (inclusive, 1-indexed).")
+    end_line: Optional[int] = Field(None, description="Ending line number for 'patch' action (inclusive, 1-indexed).")
 
 class FileOperationSkill(BaseSkill):
     name = "file_operation"
@@ -84,10 +84,13 @@ class FileOperationSkill(BaseSkill):
                 
                 def _read():
                     with open(full_path, "r", encoding='utf-8', errors='ignore') as f:
-                        return f.read()
+                        lines = f.readlines()
+                        # Output semantic line-indexed text
+                        indexed_lines = [f"{i+1:04d}: {line}" for i, line in enumerate(lines)]
+                        return "".join(indexed_lines)
                 
                 data = await asyncio.to_thread(_read)
-                return {"ok": True, "content": data[:5000], "truncated": len(data) > 5000, "path": path}
+                return {"ok": True, "content": data[:60000], "truncated": len(data) > 60000, "path": path}
                 
             elif action == "write":
                 def _write():
@@ -184,24 +187,54 @@ class FileOperationSkill(BaseSkill):
                 return {"ok": True, "summary": f"Copied {path} to {dest_path}", "path": path, "destination": dest_path}
 
             elif action == "patch":
-                target_text = params.target
-                replacement = params.replacement
-                if target_text is None or replacement is None:
-                    return {"ok": False, "error": "Missing 'target' or 'replacement' for patch action"}
+                start_line = params.start_line
+                end_line = params.end_line
+                replacement = params.content
+                if start_line is None or end_line is None or replacement is None:
+                    return {"ok": False, "error": "Missing 'start_line', 'end_line', or 'content' for patch action"}
                 
                 def _patch():
                     with open(full_path, "r", encoding='utf-8', errors='ignore') as f:
-                        data = f.read()
+                        lines = f.readlines()
                     
-                    # Issue 65: Use a lambda to prevent backreference injection
-                    new_data = re.sub(re.escape(target_text), lambda m: replacement, data)
+                    if start_line < 1 or end_line > len(lines) or start_line > end_line:
+                        raise ValueError(f"Invalid line range [{start_line}, {end_line}] for file with {len(lines)} lines")
+                    
+                    new_lines = replacement.splitlines(keepends=True)
+                    # Ensure last line has a newline if original had one
+                    if new_lines and not new_lines[-1].endswith("\n"):
+                        new_lines[-1] += "\n"
+                        
+                    lines[start_line - 1 : end_line] = new_lines
+                    new_data = "".join(lines)
+                    
+                    # Syntax validation pre-commit
+                    if full_path.endswith(".py"):
+                        import py_compile
+                        with open(full_path + ".tmp", "w", encoding='utf-8') as f:
+                            f.write(new_data)
+                        try:
+                            py_compile.compile(full_path + ".tmp", doraise=True)
+                        except py_compile.PyCompileError as e:
+                            os.remove(full_path + ".tmp")
+                            raise ValueError(f"Syntax Error introduced by patch: {e}")
+                        os.remove(full_path + ".tmp")
+                    elif full_path.endswith(".json"):
+                        import json
+                        try:
+                            json.loads(new_data)
+                        except json.JSONDecodeError as e:
+                            raise ValueError(f"JSON Syntax Error introduced by patch: {e}")
                     
                     with open(full_path, "w", encoding='utf-8') as f:
                         f.write(new_data)
                     return new_data
 
-                await asyncio.to_thread(_patch)
-                return {"ok": True, "summary": f"Patched {path}: replaced '{target_text}' with '{replacement}'", "path": path}
+                try:
+                    await asyncio.to_thread(_patch)
+                    return {"ok": True, "summary": f"Patched {path}: Replaced lines {start_line}-{end_line}", "path": path}
+                except ValueError as ve:
+                    return {"ok": False, "error": str(ve), "path": path}
 
         except Exception as e:
             self.logger.error("File Op failed: %s", e)

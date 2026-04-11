@@ -5,13 +5,13 @@ from typing import List, Dict
 logger = logging.getLogger(__name__)
 
 class ConversationalMemoryGuard:
-    def __init__(self, max_cloud_turns: int = 15, max_local_turns: int = 3):
+    def __init__(self, max_cloud_turns: int = 15, max_local_turns: int = 8):
         self.working_memory: List[Dict[str, str]] = []
         self.compressed_context = ""  # The rolling summary of older events
         
         # Thresholds
         self.max_cloud_turns = max_cloud_turns  # For Gemini API (massive context)
-        self.max_local_turns = max_local_turns  # For MLX (ruthless pruning)
+        self.max_local_turns = max_local_turns  # For MLX local (M5/64GB = generous)
 
     async def append_turn(self, role: str, content: str, cognitive_engine):
         """Adds a new conversation turn and triggers compression if getting too long."""
@@ -74,23 +74,21 @@ class ConversationalMemoryGuard:
             return f"{base_system_prompt}\n{history}\nUSER: {current_user_input}"
             
         elif tier == "LOCAL":
-            # 🚨 RUTHLESS PRUNING MODE FOR M1 INFERENCE 🚨
-            # Strip out almost everything to keep it under ~2000 characters.
+            # M5/64GB: Local models have generous context windows.
+            # Include summary and recent turns without aggressive truncation.
             
             history = ""
-            # Only include the highly dense summary, skip the verbatim history
             if self.compressed_context:
-                # Truncate even the summary if it's too long
-                history += f"\n[CONTEXT]: {self.compressed_context[:500]}...\n"
+                history += f"\n[CONTEXT]: {self.compressed_context[:4000]}\n"
             
-            # ONLY grab the last 2 turns so she has immediate conversational context
+            # Include recent turns for conversational context
             recent_turns = self.working_memory[-self.max_local_turns:]
             for turn in recent_turns:
                 history += f"\n{turn['role'].upper()}: {turn['content']}"
                 
             mlx_prompt = f"{base_system_prompt}\n{history}\nUSER: {current_user_input}"
             
-            logger.warning(f"LOCAL Fallback: Context aggressively pruned to {len(mlx_prompt)} chars.")
+            logger.info(f"LOCAL tier: Context assembled at {len(mlx_prompt)} chars.")
             return mlx_prompt
         
         return f"{base_system_prompt}\nUSER: {current_user_input}"

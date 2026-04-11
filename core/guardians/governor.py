@@ -49,10 +49,10 @@ class SystemGovernor:
         avg_llm_latency = self._calculate_average("llm_api_latency")
         avg_db_latency = self._calculate_average("db_latency")
         
-        # Thresholds configured for local M1 LLM generation times
-        if avg_llm_latency > 8000 or avg_db_latency > 1000: # 8s LLM, 1s DB
+        # Thresholds configured for local M5/64GB LLM generation times
+        if avg_llm_latency > 15000 or avg_db_latency > 2000: # 15s LLM, 2s DB
             new_mode = OperationalMode.DEGRADED_CORE_ONLY
-        elif avg_llm_latency > 3000 or avg_db_latency > 500: # 3s LLM, 0.5s DB
+        elif avg_llm_latency > 6000 or avg_db_latency > 1000: # 6s LLM, 1s DB
             new_mode = OperationalMode.DEGRADED_NO_PROACTIVE
         else:
             new_mode = OperationalMode.FULL_CAPABILITY

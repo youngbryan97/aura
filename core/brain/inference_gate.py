@@ -725,12 +725,12 @@ class InferenceGate:
         is_background: bool,
     ) -> int:
         if is_background or requested_tier == "tertiary":
-            return 256
+            return 384
         if deep_handoff or requested_tier == "secondary":
-            return 1536
+            return 2048
         if cls._origin_is_user_facing(origin):
-            return 512
-        return 384
+            return 1536
+        return 768
 
     @staticmethod
     def _split_attempt_timeouts(total_timeout: float, requested_tier: str) -> tuple[float, float]:
@@ -1510,15 +1510,16 @@ class InferenceGate:
 
     @staticmethod
     def _compact_prebuilt_message_content(role: str, content: Any) -> str:
-        clean = " ".join(str(content or "").split()).strip()
+        clean = str(content or "").strip()
         if not clean:
             return ""
+        # Dramatically raise limits to allow high-fidelity, full-page ingestion for M5 hardware
         limits = {
-            "system": 1800,
-            "user": 700,
-            "assistant": 500,
+            "system": 128000,
+            "user": 128000,
+            "assistant": 32000,
         }
-        limit = limits.get(role, 420)
+        limit = limits.get(role, 8000)
         if len(clean) <= limit:
             return clean
         return clean[: limit - 1].rstrip() + "…"
@@ -1702,7 +1703,7 @@ class InferenceGate:
             from core.consciousness.resource_stakes import get_resource_stakes
             token_mult = get_resource_stakes().get_token_budget_multiplier()
             if token_mult < 0.95:
-                max_tokens = max(64, int(max_tokens * token_mult))
+                max_tokens = max(384, int(max_tokens * token_mult))
         except Exception:
             pass
 
@@ -1715,9 +1716,9 @@ class InferenceGate:
                 from core.affect.affective_circumplex import get_circumplex
                 circumplex_params = get_circumplex().get_llm_params()
                 if not context.get("max_tokens"):
-                    max_tokens = min(
-                        max_tokens,
-                        int(circumplex_params["max_tokens"]),
+                    max_tokens = max(
+                        384,
+                        min(max_tokens, int(circumplex_params["max_tokens"])),
                     )
                 somatic_temperature = circumplex_params["temperature"]
                 logger.debug(
@@ -1752,7 +1753,7 @@ class InferenceGate:
                     _mods = _homeo_coupling.get_modifiers()
                     if somatic_temperature is not None:
                         somatic_temperature = round(somatic_temperature * _mods.temperature_mod, 3)
-                    max_tokens = max(64, int(max_tokens * _mods.depth_mod))
+                    max_tokens = max(384, int(max_tokens * _mods.depth_mod))
                     logger.debug(
                         "🫀 HomeostaticCoupling: temp_mod=%.2f depth_mod=%.2f → temp=%.3f tokens=%d",
                         _mods.temperature_mod, _mods.depth_mod,
@@ -1774,7 +1775,7 @@ class InferenceGate:
                             somatic_temperature + _h_mods["temperature_mod"], 3
                         )
                         somatic_temperature = max(0.1, min(1.5, somatic_temperature))
-                    max_tokens = max(64, int(max_tokens * _h_mods["token_multiplier"]))
+                    max_tokens = max(384, int(max_tokens * _h_mods["token_multiplier"]))
                     logger.debug(
                         "🫀 Homeostasis: temp_mod=%+.3f token_mult=%.2f caution=%.2f",
                         _h_mods["temperature_mod"], _h_mods["token_multiplier"],
@@ -1837,21 +1838,8 @@ class InferenceGate:
             living_mind_context = await self._build_living_mind_context(prompt, origin)
         if living_mind_context:
             system_prompt = f"{system_prompt}\n\n{living_mind_context}"
-        # Pressure-aware prompt budgeting: when the cortex is unhealthy or
-        # recovering, aggressively shrink the prompt to reduce first-token latency.
-        prompt_budget = 4000  # default generous budget
-        if use_compact_foreground_context:
-            prompt_budget = 2400
-        try:
-            lane = self.get_conversation_status()
-            if not lane.get("conversation_ready"):
-                prompt_budget = min(prompt_budget, 1500)  # Cold cortex — minimal prompt
-            elif float(lane.get("time_since_last_success_s", 0.0) or 0.0) > 60.0:
-                prompt_budget = min(prompt_budget, 2000)  # Stale cortex — reduced prompt
-        except Exception:
-            pass
-        if len(system_prompt) > prompt_budget:
-            system_prompt = system_prompt[:prompt_budget].rstrip()
+        # Removed artificial prompt budget constraints that prevented high-fidelity document reading
+        # Let the dynamic model context limits (128k+) govern ingestion size naturally.
 
         # ── Somatic narrative: brief felt-state line in the system prompt ────────
         if somatic_temperature is not None:
@@ -2123,6 +2111,7 @@ class InferenceGate:
                         logger.info("Reset UnitaryResponsePhase circuit to HALF_OPEN for recovery")
                 except Exception:
                     pass
+                return "My cognitive engine is currently recovering. Give me a moment to gather my thoughts and try again."
             return None
 
         if time.monotonic() < self._cloud_backoff_until:
@@ -2177,6 +2166,8 @@ class InferenceGate:
         # All inference paths exhausted. Return None so callers can handle
         # gracefully without the error text leaking to TTS or the user.
         logger.error("All inference paths exhausted (Local + Cloud)")
+        if _is_user_facing:
+             return "My connection to the cognitive engine failed. Give me a moment to reconnect."
         return None
 
     def _post_inference_update(self, response_text: str):

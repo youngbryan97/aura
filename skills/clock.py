@@ -16,10 +16,11 @@ class ClockSkill(BaseSkill):
         return any(kw in obj for kw in time_keywords)
 
     async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-        now = datetime.now()
+        now = datetime.now().astimezone()
+        readable = now.strftime("%A, %B %d, %Y %I:%M %p %Z").strip()
         return {
             "ok": True,
             "time": now.isoformat(),
-            "readable": now.strftime("%A, %B %d, %Y %I:%M %p"),
-            "summary": f"It is currently {now.strftime('%A, %B %d, %Y %I:%M %p')}."
+            "readable": readable,
+            "summary": f"It is currently {readable}."
         }

@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 # Try to import Playwright, but don't crash if not installed yet
 try:
     from playwright.async_api import Browser, ElementHandle, Page, async_playwright, Error as PlaywrightError
-    from playwright_stealth import stealth_async
+    from playwright_stealth import Stealth
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
@@ -100,7 +100,7 @@ class PhantomBrowser:
 
             # Apply Stealth for anti-detection (2026 upgrade)
             try:
-                await stealth_async(self.page)
+                await Stealth().apply_stealth_async(self.page)
             except Exception as se:
                 logger.warning("Stealth application failed: %s", se)
 
@@ -130,17 +130,27 @@ class PhantomBrowser:
             user_agent=ua
         )
         old_context = self.context
+        old_page = self.page
         self.context = new_context
         self.page = await self.context.new_page()
 
         # Apply Stealth to new context/page
         try:
-            await stealth_async(self.page)
+            await Stealth().apply_stealth_async(self.page)
         except Exception as e:
             capture_and_log(e, {'module': __name__})
         
+        # Properly close old page and context to prevent resource leaks
+        if old_page:
+            try:
+                await old_page.close()
+            except Exception:
+                pass
         if old_context:
-            await old_context.close()
+            try:
+                await old_context.close()
+            except Exception:
+                pass
         logger.info("✓ User Agent rotated to: %s...", ua[:30])
 
     async def is_blocked(self) -> bool:
@@ -343,21 +353,20 @@ class PhantomBrowser:
             
             # Advanced cleaning: Remove excessive whitespace, normalize line breaks
             lines = []
-            for line in main_text.split('\\n'):
+            for line in main_text.split('\n'):
                 line = line.strip()
                 if line and len(line) > 20: # Filter out short fragments
                     lines.append(line)
             
-            cleaned_text = '\\n\\n'.join(lines)
+            cleaned_text = '\n\n'.join(lines)
             
-            # Final sanity check: if too small, fallback
+            # Final sanity check: if too small, fallback to raw innerText
             if len(cleaned_text) < 200:
-                cleaned_text = await self.page.evaluate("() => document.body.innerText")
+                fallback_text = await self.page.evaluate("() => document.body.innerText")
+                if fallback_text and len(fallback_text) > len(cleaned_text):
+                    cleaned_text = fallback_text
             
-            return f"# {title}\\n\\n{cleaned_text[:10000]}" # Increased buffer to 10k
-        except Exception as e:
-            logger.error("Semantic read failed: %s", e)
-            return ""
+            return f"# {title}\n\n{cleaned_text[:60000]}"
         except Exception as e:
             logger.error("Read content failed: %s", e)
             return ""
@@ -389,11 +398,43 @@ class PhantomBrowser:
             return None
 
     async def close(self):
-        """Close browser resources"""
-        if self.browser:
-            await self.browser.close()
-        if self.playwright:
-            await self.playwright.stop()
+        """Close browser resources with per-step timeouts to prevent hangs."""
+        try:
+            if self.page:
+                try:
+                    await asyncio.wait_for(self.page.close(), timeout=3.0)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("Page close error: %s", e)
+        try:
+            if self.context:
+                try:
+                    await asyncio.wait_for(self.context.close(), timeout=5.0)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("Context close error: %s", e)
+        try:
+            if self.browser:
+                try:
+                    await asyncio.wait_for(self.browser.close(), timeout=5.0)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("Browser close error: %s", e)
+        try:
+            if self.playwright:
+                try:
+                    await asyncio.wait_for(self.playwright.stop(), timeout=5.0)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("Playwright stop error: %s", e)
+        self.page = None
+        self.context = None
+        self.browser = None
+        self.playwright = None
         self.is_active = False
         self._release_resource_lock()
         logger.info("Browser closed")

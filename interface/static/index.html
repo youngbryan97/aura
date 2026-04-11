@@ -84,7 +84,7 @@
             </div>
         </div>
         <div class="hdr-actions">
-            <button class="hdr-btn privacy-btn" id="btn-mute" title="Toggle Microphone">● MUTE</button>
+            <button class="hdr-btn privacy-btn" id="btn-mute" title="Toggle Voice">● MUTE</button>
             <button class="hdr-btn privacy-btn" id="btn-cam" title="Toggle Camera">● CAM</button>
             <button class="hdr-btn" id="btn-apk" title="Download Mobile App">↓ APK</button>
             <button class="hdr-btn" id="btn-brain" title="Retry cognitive engine">◇ BRAIN</button>
@@ -153,11 +153,18 @@
             <div class="sidebar-body">
                 <!-- Neural Tab -->
                 <div id="pane-neural" class="tab-pane active">
-                    <div class="section-label">LIVE NEURAL FEED <div class="live-dot" id="neural-dot"></div>
+                    <div class="neural-toolbar">
+                        <div class="section-label neural-toolbar-label">LIVE NEURAL FEED <div class="live-dot" id="neural-dot"></div>
+                        </div>
+                        <div class="neural-toolbar-actions">
+                            <button id="neural-readable-toggle" class="neural-toggle-btn" type="button" aria-pressed="false">READABLE</button>
+                            <span id="neural-mode-state" class="neural-mode-state">LIVE</span>
+                        </div>
                     </div>
                     <div class="bar-wrap">
                         <div class="bar-fill neural" id="neural-bar"></div>
                     </div>
+                    <div id="neural-backlog" class="neural-backlog" hidden></div>
                     <div class="section-label">THOUGHT CARDS</div>
                     <div id="neural-feed"></div>
                 </div>
@@ -530,6 +537,19 @@
                         Examples: <code>MEGAJUMP</code>, <code>TIMERUSH</code>, <code>TOONAMIPLANE</code>, <code>ALLPSI</code>,
                         <code>MAXRANK</code>, <code>SECRETARY</code>, <code>RARECANDY</code>, <code>MASTERBALL</code>, or your owner code.
                     </div>
+
+                    <div class="section-label">DESKTOP ACCESS</div>
+                    <div id="desktop-access-state" class="desktop-access-banner pending">Checking macOS permissions…</div>
+                    <div id="desktop-access-grid" class="desktop-access-grid">
+                        <div class="desktop-access-card pending">
+                            <div class="desktop-access-card-head">
+                                <span class="desktop-access-card-label">Desktop Readiness</span>
+                                <span class="desktop-access-pill pending">PENDING</span>
+                            </div>
+                            <div class="desktop-access-card-meta">Aura is probing screen capture, control, and desktop text access.</div>
+                        </div>
+                    </div>
+                    <div id="desktop-access-help" class="settings-help">Grant Screen Recording, Accessibility, and Automation in macOS Privacy &amp; Security to unlock full desktop control.</div>
 
                     <div class="section-label">SYSTEM</div>
                     <div class="settings-row">

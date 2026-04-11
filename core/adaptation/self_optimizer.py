@@ -45,9 +45,9 @@ class SelfOptimizer:
             return {"ok": False, "error": "Optimization already in progress"}
             
         mem = psutil.virtual_memory()
-        if mem.available < 4 * 1024**3:  # <4 GB free -> abort
-            logger.warning("🧠 Nucleus: Insufficient RAM for LoRA. Requires 4GB free.")
-            return {"ok": False, "error": "insufficient RAM (need 4 GB free)"}
+        if mem.available < 8 * 1024**3:  # <8 GB free -> abort
+            logger.warning("🧠 Nucleus: Insufficient RAM for LoRA. Requires 8GB free.")
+            return {"ok": False, "error": "insufficient RAM (need 8 GB free)"}
             
         if not self.dataset_path.exists():
             return {"ok": False, "error": f"Dataset missing: {self.dataset_path}"}
@@ -101,9 +101,9 @@ class SelfOptimizer:
                 "--iters", str(iters),
                 "--batch-size", str(batch_size),
                 "--num-layers", "16",           # updated from --lora-layers
-                "--grad-checkpoint",            # critical M1 memory saver
+                "--grad-checkpoint",            # memory saver for large models
                 "--adapter-path", str(self.adapter_output.parent),
-                "--max-seq-length", "2048",
+                "--max-seq-length", "4096",
                 "--steps-per-report", "5",      # Less chatty for 64GB
                 "--save-every", str(iters) 
             ]

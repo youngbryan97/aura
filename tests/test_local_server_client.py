@@ -126,6 +126,57 @@ async def test_message_payload_sanitization_drops_non_json_metadata():
     ]
 
 
+def test_is_alive_repairs_adopted_runtime_without_owned_process():
+    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client._lane_state = "recovering"
+    client._runtime_identity_ok = True
+    client._http_health_check = lambda: True
+
+    assert client.is_alive() is True
+    assert client.get_lane_status()["state"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_response_parser_handles_part_arrays_and_reasoning_fallback():
+    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client._lane_state = "ready"
+    client._ensure_runtime_ready = AsyncMock(return_value=True)
+
+    responses = deque([
+        httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"content": [{"type": "text", "text": "Hello"}, {"type": "text", "text": " world"}]}}
+                ]
+            },
+        ),
+        httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"content": "", "reasoning_content": "I can still answer here."}}
+                ]
+            },
+        ),
+    ])
+
+    class _FakeHttpClient:
+        async def post(self, _url, json=None, timeout=None):
+            return responses.popleft()
+
+    async def _fake_client():
+        return _FakeHttpClient()
+
+    client._client = _fake_client
+
+    first = await client.generate_text_async("hello", foreground_request=False)
+    second = await client.generate_text_async("hello", foreground_request=False)
+
+    assert first == "Hello world"
+    assert second == "I can still answer here."
+
+
 @pytest.mark.asyncio
 async def test_server_health_detects_wrong_model_on_reserved_lane_port():
     client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")

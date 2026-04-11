@@ -621,7 +621,7 @@ class ResearchSearchPipeline:
         return SearchPage(
             url=hit.url,
             title=title,
-            text=text[:12000],
+            text=text[:60000],
             snippet=hit.snippet,
             source_engine=hit.source_engine,
             position=hit.position,
@@ -638,7 +638,7 @@ class ResearchSearchPipeline:
                 if not ok:
                     return None
                 text = await browser.read_content()
-                cleaned = _normalize_text(text, limit=12000)
+                cleaned = _normalize_text(text, limit=60000)
                 if len(cleaned) < 200:
                     return None
                 title = hit.title
@@ -777,8 +777,8 @@ class ResearchSearchPipeline:
             f"Question: {query}",
             "Evidence:",
         ]
-        # Use much more content per source — 1500 chars for deep, 800 for standard
-        chars_per_source = 1500 if len(top_chunks) <= 3 else 800
+        # Use much more content per source for M5/64GB — 8000 chars for deep, 4000 for standard
+        chars_per_source = 8000 if len(top_chunks) <= 3 else 4000
         for index, item in enumerate(top_chunks, start=1):
             prompt_lines.append(
                 f"[{index}] {item['title']} | {item['url']}\n{item['text'][:chars_per_source]}"
@@ -814,10 +814,10 @@ class ResearchSearchPipeline:
             if start == -1 or end <= start:
                 return None
             data = json.loads(raw[start:end])
-            answer = _normalize_text(str(data.get("answer") or ""), limit=500)
+            answer = _normalize_text(str(data.get("answer") or ""), limit=25000)
             facts = [
-                _normalize_text(str(item or ""), limit=220)
-                for item in list(data.get("facts") or [])[:5]
+                _normalize_text(str(item or ""), limit=2000)
+                for item in list(data.get("facts") or [])[:8]
                 if _normalize_text(str(item or ""))
             ]
             confidence = float(data.get("confidence", 0.55) or 0.55)
@@ -1022,24 +1022,24 @@ class ResearchSearchPipeline:
             artifact_id=artifact_id,
             query=query,
             normalized_query=_normalize_query(query),
-            answer=_normalize_text(str(result.get("answer") or ""), limit=500),
-            summary=_normalize_text(str(result.get("summary") or ""), limit=500),
+            answer=_normalize_text(str(result.get("answer") or ""), limit=25000),
+            summary=_normalize_text(str(result.get("summary") or ""), limit=25000),
             facts=[
-                _normalize_text(str(item or ""), limit=220)
-                for item in list(result.get("facts") or [])[:5]
+                _normalize_text(str(item or ""), limit=2000)
+                for item in list(result.get("facts") or [])[:8]
             ],
             citations=[
                 {
-                    "title": _normalize_text(str(item.get("title") or ""), limit=220),
-                    "url": _normalize_text(str(item.get("url") or ""), limit=500),
+                    "title": _normalize_text(str(item.get("title") or ""), limit=500),
+                    "url": _normalize_text(str(item.get("url") or ""), limit=1000),
                 }
-                for item in citations[:5]
+                for item in citations[:8]
             ],
             evidence=[
                 {
-                    "title": _normalize_text(str(item.get("title") or ""), limit=220),
-                    "url": _normalize_text(str(item.get("url") or ""), limit=500),
-                    "text": _normalize_text(str(item.get("text") or ""), limit=500),
+                    "title": _normalize_text(str(item.get("title") or ""), limit=500),
+                    "url": _normalize_text(str(item.get("url") or ""), limit=1000),
+                    "text": _normalize_text(str(item.get("text") or ""), limit=15000),
                     "score": float(item.get("score", 0.0) or 0.0),
                 }
                 for item in list(result.get("chunks") or [])[:5]

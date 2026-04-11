@@ -60,11 +60,23 @@ Internet Awareness:
                 
                 if registry:
                     # Query for top headlines via the unified CapabilityEngine path
-                    result = await registry.execute("search_web", {"query": "top world news today"}, {})
+                    result = await registry.execute(
+                        "search_web",
+                        {"query": "top world news today", "deep": True, "retain": True},
+                        {"origin": "world_monitor"},
+                    )
                     if result.get("ok"):
-                        content = result.get("message", "")
-                        # Simple summarization: first 1000 chars of search results
-                        self.world_context = content[:1500]
+                        content = (
+                            result.get("answer")
+                            or result.get("summary")
+                            or result.get("message", "")
+                        )
+                        citations = list(result.get("citations") or [])
+                        source_lines = "\n".join(
+                            f"- {item.get('title', '')}: {item.get('url', '')}"
+                            for item in citations[:3]
+                        )
+                        self.world_context = f"{content[:1200]}\n{source_lines}".strip()
                         self.last_update = time.time()
                         logger.info("✅ World state updated.")
                     else:

@@ -16,6 +16,8 @@ Architecture:
 TTS uses pyttsx3 (macOS native NSSpeechSynthesizer under the hood).
 """
 
+import base64
+
 from core.utils.exceptions import capture_and_log
 from core.utils.concurrency import RobustLock
 import subprocess
@@ -956,6 +958,40 @@ class SovereignVoiceEngine:
         loop = getattr(self, "loop", None) or asyncio.get_running_loop()
         await loop.run_in_executor(None, _play)
 
+    async def _emit_tts_audio(self, audio_data: bytes):
+        """Mirror generated audio to browser subscribers and optional callbacks."""
+        if not audio_data:
+            return
+
+        raw_pcm = audio_data[44:] if audio_data.startswith(b"RIFF") else audio_data
+
+        if self._on_tts_audio:
+            result = self._on_tts_audio(raw_pcm)
+            if asyncio.iscoroutine(result) or asyncio.isfuture(result) or hasattr(result, "__await__"):
+                await result
+
+        if not self._sse_queues:
+            return
+
+        payload = {
+            "type": "audio",
+            "data": base64.b64encode(raw_pcm).decode("ascii"),
+            "timestamp": time.time(),
+        }
+        stale_queues: List[asyncio.Queue] = []
+        for queue_ref in list(self._sse_queues):
+            try:
+                queue_ref.put_nowait(payload)
+            except asyncio.QueueFull:
+                stale_queues.append(queue_ref)
+            except Exception as exc:
+                logger.debug("Voice SSE delivery failed: %s", exc)
+                stale_queues.append(queue_ref)
+
+        for queue_ref in stale_queues:
+            if queue_ref in self._sse_queues:
+                self._sse_queues.remove(queue_ref)
+
     async def _synthesize_xtts(self, text: str):
         """High-fidelity voice cloning via XTTS-v2."""
         def _get_audio():
@@ -988,10 +1024,8 @@ class SovereignVoiceEngine:
         
         if not audio_data:
             return
-            
-        if self._on_tts_audio:
-            raw_pcm = audio_data[44:] if audio_data.startswith(b'RIFF') else audio_data
-            await self._on_tts_audio(raw_pcm)
+
+        await self._emit_tts_audio(audio_data)
 
         await self._play_locally(audio_data)
 
@@ -1072,16 +1106,8 @@ class SovereignVoiceEngine:
         # Issue 35: Guard against None audio
         if not audio_data:
             return
-
+        await self._emit_tts_audio(audio_data)
         await self._play_locally(audio_data)
-
-        # If we have a browser callback, send it there
-        if self._on_tts_audio:
-            # Strip WAV header for browser (standard 44-byte skip)
-            raw_pcm = audio_data[44:] if audio_data.startswith(b'RIFF') else audio_data
-            res = self._on_tts_audio(raw_pcm)
-            if asyncio.iscoroutine(res) or asyncio.isfuture(res) or hasattr(res, "__await__"):
-                await res
         
         # ALSO play locally for "server-side" voice consistency
         # Note: This uses standard system 'play' or similar if needed,
@@ -1179,6 +1205,7 @@ class SovereignVoiceEngine:
             "stt": "Whisper (Direct)" if self._stt_initialized else "Not loaded",
             "tts": tts_type,
             "mic": self.microphone_enabled,
+            "speaking": self.speaking_enabled,
             "auto_listen": self.auto_listen_enabled,
             "listening": self._mic_listening,
             "server_capture": True,

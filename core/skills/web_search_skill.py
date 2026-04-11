@@ -7,6 +7,9 @@ from core.skills.web_search import EnhancedWebSearchSkill
 
 class SearchInput(BaseModel):
     query: str = Field(..., description="The search query to execute. Be specific.")
+    deep: bool = Field(False, description="Whether to fetch and synthesize multiple result pages.")
+    num_results: int = Field(5, ge=1, le=20, description="Number of results to return.")
+    retain: bool | None = Field(None, description="Whether Aura should retain what she learned.")
 
 class WebSearchSkill(EnhancedWebSearchSkill):
     """Compatibility alias for the modern resilient web-search skill."""
@@ -23,5 +26,8 @@ class WebSearchSkill(EnhancedWebSearchSkill):
             except Exception as e:
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
-        query = params.query if isinstance(params, SearchInput) else str(params)
-        return await super().execute({"query": query}, context)
+        if isinstance(params, SearchInput):
+            payload = params.model_dump(exclude_none=True)
+        else:
+            payload = {"query": str(params)}
+        return await super().execute(payload, context)

@@ -83,6 +83,8 @@ async def conversation_loop():
             loop.set_exception_handler(_handle_exception)
             
             # Note: We keep print("YOU: ") or input() if it's the intended CLI interface
+            print("\n>>> AGI CONVERSATION ENGINE READY <<<")
+            sys.stdout.flush()
             user_input = await loop.run_in_executor(None, input, "YOU: ")
 
             if user_input.lower() in ["exit", "quit", "sleep"]:

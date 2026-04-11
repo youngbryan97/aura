@@ -12,6 +12,9 @@ const state = {
     cycleCount: 0,
     startTime: Date.now(),
     thoughtQueue: [],
+    thoughtDrainTimer: null,
+    neuralFeedReadable: false,
+    neuralFeedMode: 'live',
     pendingOutboundMessages: [], // ZENITH: Message queueing during disconnect
     processedMessageFingerprints: new Set(), // ZENITH: Chat deduplication
     pacingActive: false,
@@ -27,6 +30,7 @@ const state = {
     lastToolEvent: null,
     commitments: null,
     voiceSummary: null,
+    desktopAccess: null,
     bootstrapLoaded: false,
     bootstrapTimer: null,
     conversationReady: true,
@@ -331,6 +335,12 @@ const DOM = {
     typingLabel: $('typing-label'),
     neuralFeed: $('neural-feed'),
     neuralBar: $('neural-bar'),
+    neuralReadableToggle: $('neural-readable-toggle'),
+    neuralModeState: $('neural-mode-state'),
+    neuralBacklog: $('neural-backlog'),
+    desktopAccessState: $('desktop-access-state'),
+    desktopAccessGrid: $('desktop-access-grid'),
+    desktopAccessHelp: $('desktop-access-help'),
     metricGuide: {
         toggle: $('metric-guide-toggle'),
         panel: $('metric-guide-panel'),
@@ -1040,6 +1050,123 @@ function applyVoiceSummary(voice) {
     }
 }
 
+function compactGuidance(guidance) {
+    return String(guidance || '')
+        .split('\n')
+        .map(line => line.replace(/^\d+\.\s*/, '').trim())
+        .filter(Boolean)
+        .join(' > ');
+}
+
+function desktopAccessTone(granted, status = '') {
+    if (granted) return 'ready';
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'unknown' || normalized === 'deferred' || normalized === 'assumed') return 'pending';
+    return 'blocked';
+}
+
+function desktopAccessCapabilityTone(ready) {
+    return ready ? 'ready' : 'partial';
+}
+
+function applyDesktopAccessSummary(summary) {
+    state.desktopAccess = summary || {};
+    const banner = DOM.desktopAccessState || $('desktop-access-state');
+    const grid = DOM.desktopAccessGrid || $('desktop-access-grid');
+    const help = DOM.desktopAccessHelp || $('desktop-access-help');
+    if (!banner || !grid || !help) return;
+
+    const access = summary || {};
+    const overall = String(
+        access.overall_status || (
+            access.screen_capture_ready && access.desktop_control_ready && access.screen_text_ready
+                ? 'ready'
+                : (access.screen_capture_ready || access.desktop_control_ready || access.screen_text_ready)
+                    ? 'partial'
+                    : 'blocked'
+        )
+    ).toLowerCase();
+    const blockers = Array.isArray(access.blocking_permissions) ? access.blocking_permissions : [];
+    const frontmostApp = escText(access.frontmost_app, '');
+    const pyautoguiDetail = access.pyautogui_ready
+        ? 'PyAutoGUI runtime loaded for mouse and keyboard actions.'
+        : escText(access.pyautogui_error, 'PyAutoGUI runtime is unavailable.');
+
+    banner.className = `desktop-access-banner ${overall === 'ready' ? 'ready' : overall === 'blocked' ? 'blocked' : 'partial'}`;
+    banner.textContent =
+        overall === 'ready'
+            ? 'Desktop access ready. Aura can capture the screen, drive the desktop, and read frontmost-app text.'
+            : overall === 'blocked'
+                ? 'Desktop access blocked. macOS permissions still prevent Aura from acting beyond her own window.'
+                : 'Desktop access is partial. Some desktop capabilities are live, but macOS permissions are still gating parts of the stack.';
+
+    const cards = [
+        {
+            label: 'Screen Recording',
+            tone: desktopAccessTone(access.screen_recording && access.screen_recording.granted, access.screen_recording && access.screen_recording.status),
+            state: access.screen_recording && access.screen_recording.granted ? 'Active' : escText(access.screen_recording && access.screen_recording.status, 'Unknown'),
+            meta: 'Needed for screen capture, OCR, and live visual awareness.',
+            detail: compactGuidance(access.screen_recording && access.screen_recording.guidance),
+        },
+        {
+            label: 'Accessibility',
+            tone: desktopAccessTone(access.accessibility && access.accessibility.granted, access.accessibility && access.accessibility.status),
+            state: access.accessibility && access.accessibility.granted ? 'Active' : escText(access.accessibility && access.accessibility.status, 'Unknown'),
+            meta: 'Needed for mouse, keyboard, and deeper UI inspection.',
+            detail: compactGuidance(access.accessibility && access.accessibility.guidance),
+        },
+        {
+            label: 'Automation',
+            tone: desktopAccessTone(access.automation && access.automation.granted, access.automation && access.automation.status),
+            state: access.automation && access.automation.granted ? 'Active' : escText(access.automation && access.automation.status, 'Unknown'),
+            meta: 'Needed to query System Events and menu bar content.',
+            detail: compactGuidance(access.automation && access.automation.guidance) || (frontmostApp ? `Frontmost app visible: ${frontmostApp}` : ''),
+        },
+        {
+            label: 'Desktop Control',
+            tone: desktopAccessCapabilityTone(!!access.desktop_control_ready),
+            state: access.desktop_control_ready ? 'Ready' : 'Blocked',
+            meta: 'Mouse and keyboard control through the computer-use stack.',
+            detail: access.desktop_control_ready ? pyautoguiDetail : (blockers.includes('accessibility') ? 'Grant Accessibility to unlock mouse and keyboard actions.' : pyautoguiDetail),
+        },
+        {
+            label: 'Screen Text',
+            tone: desktopAccessCapabilityTone(!!access.screen_text_ready),
+            state: access.screen_text_ready ? 'Ready' : 'Blocked',
+            meta: 'Read text from the current frontmost app via System Events.',
+            detail: access.screen_text_ready ? (frontmostApp ? `Frontmost app detected: ${frontmostApp}` : 'Desktop text access is live.') : 'Requires both Accessibility and Automation.',
+        },
+        {
+            label: 'Menu Bar Clock',
+            tone: desktopAccessCapabilityTone(!!access.menu_clock_ready),
+            state: access.menu_clock_ready ? 'Ready' : 'Blocked',
+            meta: 'Read the live macOS menu bar clock instead of only local process time.',
+            detail: access.menu_clock_ready
+                ? (escText(access.menu_clock_text, '') ? `Latest probe: ${escText(access.menu_clock_text, '')}` : 'Aura can query the menu bar clock when needed.')
+                : (escText(access.menu_clock_error, '') || 'Requires both Accessibility and Automation.'),
+        },
+    ];
+
+    grid.innerHTML = cards.map(card => `
+        <div class="desktop-access-card ${escHtml(card.tone)}">
+            <div class="desktop-access-card-head">
+                <span class="desktop-access-card-label">${escHtml(card.label)}</span>
+                <span class="desktop-access-pill ${escHtml(card.tone)}">${escHtml(String(card.state).toUpperCase())}</span>
+            </div>
+            <div class="desktop-access-card-meta">${escHtml(card.meta)}</div>
+            ${card.detail ? `<div class="desktop-access-card-detail">${escHtml(card.detail)}</div>` : ''}
+        </div>
+    `).join('');
+
+    const helperLines = [];
+    if (frontmostApp) helperLines.push(`Automation currently sees the frontmost app as ${frontmostApp}.`);
+    helperLines.push(pyautoguiDetail);
+    if (blockers.length) {
+        helperLines.push(`Blocked permissions: ${blockers.map(name => name.replace(/_/g, ' ')).join(', ')}.`);
+    }
+    help.textContent = helperLines.join(' ');
+}
+
 function applyStateSummary(summary, commitments) {
     const s = summary || {};
     if ($('hud-goals')) $('hud-goals').textContent = String(s.active_goals || 0);
@@ -1161,6 +1288,7 @@ function applyBootstrapPayload(payload, { hydrateConversationHistory = false } =
     applyStateSummary(payload.state, payload.commitments);
     renderToolCatalog(payload.tools || []);
     applyVoiceSummary(payload.voice || {});
+    applyDesktopAccessSummary(payload.desktop_access || {});
     renderStatusFlags(payload.ui && payload.ui.status_flags);
     if (payload.interaction_signals) {
         state.interactionSignals = payload.interaction_signals;
@@ -1553,7 +1681,83 @@ function queueThought(data) {
         state.thoughtQueue.splice(0, state.thoughtQueue.length - THOUGHT_QUEUE_MAX + 1);
     }
     state.thoughtQueue.push(item);
+    syncNeuralFeedMode();
     if (!state.pacingActive) processThoughtQueue();
+}
+
+function syncNeuralFeedMode() {
+    const targetMode = state.neuralFeedReadable
+        ? 'readable'
+        : (state.thoughtQueue.length > 0 ? 'catchup' : 'live');
+
+    // Debounce the catchup→live transition to prevent rapid flickering.
+    // Only commit to 'live' after the queue has been empty for 600ms.
+    if (targetMode === 'live' && state.neuralFeedMode === 'catchup') {
+        if (!state._neuralLiveDebounce) {
+            state._neuralLiveDebounce = setTimeout(() => {
+                state._neuralLiveDebounce = null;
+                if (state.thoughtQueue.length === 0 && !state.neuralFeedReadable) {
+                    state.neuralFeedMode = 'live';
+                    renderNeuralFeedMode();
+                }
+            }, 600);
+        }
+        return; // Don't render yet — wait for debounce
+    }
+
+    // Any other transition (live→catchup, etc.) is immediate
+    if (state._neuralLiveDebounce) {
+        clearTimeout(state._neuralLiveDebounce);
+        state._neuralLiveDebounce = null;
+    }
+    if (state.neuralFeedMode !== targetMode) {
+        state.neuralFeedMode = targetMode;
+    }
+    renderNeuralFeedMode();
+}
+
+function renderNeuralFeedMode() {
+    const toggle = DOM.neuralReadableToggle || $('neural-readable-toggle');
+    const status = DOM.neuralModeState || $('neural-mode-state');
+    const backlog = DOM.neuralBacklog || $('neural-backlog');
+    const queueLen = state.thoughtQueue.length;
+
+    if (toggle) {
+        toggle.classList.toggle('active', state.neuralFeedReadable);
+        toggle.setAttribute('aria-pressed', state.neuralFeedReadable ? 'true' : 'false');
+        toggle.title = state.neuralFeedReadable
+            ? 'Return to live speed with a smooth catch-up'
+            : 'Slow the visible neural feed to a readable pace';
+    }
+
+    if (status) {
+        status.textContent =
+            state.neuralFeedMode === 'readable' ? 'READABLE' :
+            state.neuralFeedMode === 'catchup' ? 'CATCHING UP' :
+            'LIVE';
+        status.className = `neural-mode-state${state.neuralFeedMode === 'live' ? '' : ` ${state.neuralFeedMode}`}`;
+    }
+
+    if (backlog) {
+        if (queueLen > 0) {
+            backlog.hidden = false;
+            backlog.textContent =
+                state.neuralFeedMode === 'readable'
+                    ? `${queueLen} thought card${queueLen === 1 ? '' : 's'} buffered behind live.`
+                    : `Returning to live speed. ${queueLen} buffered thought card${queueLen === 1 ? '' : 's'} remaining.`;
+        } else {
+            backlog.hidden = true;
+            backlog.textContent = '';
+        }
+    }
+}
+
+function toggleNeuralReadableMode() {
+    state.neuralFeedReadable = !state.neuralFeedReadable;
+    syncNeuralFeedMode();
+    if (state.thoughtQueue.length > 0 && !state.pacingActive) {
+        processThoughtQueue();
+    }
 }
 
 function normalizeThoughtTimestamp(rawTimestamp) {
@@ -1639,24 +1843,52 @@ function saveImageToDevice(url) {
 async function processThoughtQueue() {
     if (state.thoughtQueue.length === 0) {
         state.pacingActive = false;
+        clearTimeout(state.thoughtDrainTimer);
+        state.thoughtDrainTimer = null;
+        syncNeuralFeedMode();
         return;
     }
+
+    syncNeuralFeedMode();
     state.pacingActive = true;
-    const batchSize =
-        state.thoughtQueue.length > 100 ? 4 :
-        state.thoughtQueue.length > 40 ? 3 :
-        state.thoughtQueue.length > 12 ? 2 :
-        1;
+    const { batchSize, delay } =
+        state.neuralFeedMode === 'readable'
+            ? {
+                batchSize: 1,
+                delay: state.thoughtQueue.length > 24 ? 680 : 920
+            }
+            : state.neuralFeedMode === 'catchup'
+                ? {
+                    batchSize:
+                        state.thoughtQueue.length > 100 ? 8 :
+                        state.thoughtQueue.length > 40 ? 6 :
+                        state.thoughtQueue.length > 12 ? 4 :
+                        2,
+                    delay:
+                        state.thoughtQueue.length > 100 ? 32 :
+                        state.thoughtQueue.length > 40 ? 52 :
+                        state.thoughtQueue.length > 12 ? 82 :
+                        118
+                }
+                : {
+                    batchSize:
+                        state.thoughtQueue.length > 100 ? 4 :
+                        state.thoughtQueue.length > 40 ? 3 :
+                        state.thoughtQueue.length > 12 ? 2 :
+                        1,
+                    delay:
+                        state.thoughtQueue.length > 100 ? 70 :
+                        state.thoughtQueue.length > 40 ? 110 :
+                        state.thoughtQueue.length > 12 ? 170 :
+                        320
+                };
+
     for (let i = 0; i < batchSize && state.thoughtQueue.length > 0; i++) {
         addThoughtCard(state.thoughtQueue.shift());
     }
-
-    const delay =
-        state.thoughtQueue.length > 100 ? 70 :
-        state.thoughtQueue.length > 40 ? 110 :
-        state.thoughtQueue.length > 12 ? 170 :
-        320;
-    setTimeout(processThoughtQueue, delay);
+    syncNeuralFeedMode();
+    clearTimeout(state.thoughtDrainTimer);
+    state.thoughtDrainTimer = setTimeout(processThoughtQueue, delay);
 }
 
 function updateMood(mood) {
@@ -1937,7 +2169,9 @@ $('chat-form').onsubmit = async e => {
         if (data.response && data.response !== "Message dispatched to cognitive core.") {
             // Deduplicate the final HTTP response if it was already streamed into the DOM
             if (typeof activeStreamContentRaw === 'undefined' || activeStreamContentRaw.trim() !== data.response.trim()) {
-                appendMsg('aura', data.response);
+                const chatMeta = {};
+                if (data.thought) chatMeta.thought = data.thought;
+                appendMsg('aura', data.response, false, chatMeta);
             }
         }
     } catch (err) {
@@ -1950,7 +2184,13 @@ $('chat-form').onsubmit = async e => {
             });
             applyConversationLane(timedOutLane, 'degraded');
             const streamedReplyInFlight = !!(activeStreamDiv || (activeStreamContentRaw && activeStreamContentRaw.trim()));
-            if (!streamedReplyInFlight) {
+            // Deduplicate: don't spam the same "recovering" message on every timeout.
+            // Check if the last Aura message already says the lane is recovering.
+            const msgs = (DOM.messages || $('messages'));
+            const lastAuraMsg = msgs ? msgs.querySelector('.msg.aura:last-of-type') : null;
+            const lastAuraText = lastAuraMsg ? (lastAuraMsg.textContent || '').trim() : '';
+            const alreadyShowingRecovery = lastAuraText.includes('recovering from a long turn') || lastAuraText.includes('conversation lane');
+            if (!streamedReplyInFlight && !alreadyShowingRecovery) {
                 appendMsg('aura', 'My 32B conversation lane is still recovering from a long turn. Please try again in a moment.');
             }
         } else {
@@ -2048,6 +2288,14 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
         return h;
     };
 
+    // Build thought toggle HTML if thought metadata is present
+    const thoughtHtml = (() => {
+        const thought = metadata.thought;
+        if (!thought || typeof thought !== 'string' || thought.trim().length < 5) return '';
+        const tid = 'thought-' + Math.random().toString(36).slice(2, 8);
+        return `<div class="thought-toggle" onclick="(function(el){var b=document.getElementById('${tid}');b.classList.toggle('expanded');el.classList.toggle('expanded')})(this)"><span class="thought-chevron">▶</span> Show thinking</div><div id="${tid}" class="thought-block">${escHtml(thought.trim())}</div>`;
+    })();
+
     // Timestamp element (shows on hover)
     const tsStr = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -2070,7 +2318,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
                 lastTypeTime = timestamp;
 
                 const badgeHtml = (metadata.reflex ? `<span class="aura-badge reflex">Reflex</span>` : (metadata.autonomic ? `<span class="aura-badge autonomic">Autonomic</span>` : ''));
-                div.innerHTML = `<div class="aura-avatar"></div>` + badgeHtml + render(currentWordRaw) + `<span class="msg-timestamp">${tsStr}</span>`;
+                div.innerHTML = `<div class="aura-avatar"></div>` + badgeHtml + render(currentWordRaw) + thoughtHtml + `<span class="msg-timestamp">${tsStr}</span>`;
                 if (!state.userScrolledUp) messages.scrollTop = messages.scrollHeight;
             }
 
@@ -2083,7 +2331,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
         requestAnimationFrame(typeChunk);
     } else {
         if (isAura) {
-            div.innerHTML = `<div class="aura-avatar"></div>` + (div.innerHTML || '') + render(text) + `<span class="msg-timestamp">${tsStr}</span>`;
+            div.innerHTML = `<div class="aura-avatar"></div>` + (div.innerHTML || '') + render(text) + thoughtHtml + `<span class="msg-timestamp">${tsStr}</span>`;
         } else {
             div.innerHTML += render(text) + `<span class="msg-timestamp">${tsStr}</span>`;
         }
@@ -2728,15 +2976,16 @@ async function pollHealth() {
             const muteBtn = $('btn-mute');
             const camBtn = $('btn-cam');
             if (muteBtn) {
-                if (p.microphone_enabled !== false) {
+                const voiceEnabled = p.microphone_enabled !== false && p.speaking_enabled !== false;
+                if (voiceEnabled) {
                     muteBtn.classList.remove('disabled');
                     muteBtn.innerHTML = '<span>● MUTE</span>';
                 } else {
                     muteBtn.classList.add('disabled');
                     muteBtn.innerHTML = '<span>● MUTED</span>';
                 }
-                muteBtn.onclick = () => togglePrivacy('microphone', p.microphone_enabled, muteBtn);
-                if (p.microphone_enabled === false && state.voiceActive) {
+                muteBtn.onclick = () => togglePrivacy('microphone', voiceEnabled, muteBtn);
+                if (!voiceEnabled && state.voiceActive) {
                     toggleVoice();
                 }
             }
@@ -2754,6 +3003,10 @@ async function pollHealth() {
                     stopCameraSignals();
                 }
             }
+        }
+
+        if (d.desktop_access) {
+            applyDesktopAccessSummary(d.desktop_access);
         }
 
         refreshMetricGuide();
@@ -3343,6 +3596,10 @@ if ('serviceWorker' in navigator) {
 setConnectionVisual('booting');
 hydrateBootstrap({ hydrateConversationHistory: true, quiet: true });
 initializeMetricGuide();
+renderNeuralFeedMode();
+if (DOM.neuralReadableToggle) {
+    DOM.neuralReadableToggle.addEventListener('click', toggleNeuralReadableMode);
+}
 connect();
 pollHealth();
 voicePlayer.init();

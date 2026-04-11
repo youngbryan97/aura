@@ -223,17 +223,22 @@ class CuriosityExplorer:
 
             # Try the skill system (sovereign_browser) which is what actually exists
             try:
-                if orchestrator and hasattr(orchestrator, "agency"):
+                if orchestrator and hasattr(orchestrator, "execute_tool"):
                     result = await asyncio.wait_for(
-                        orchestrator.agency.execute_skill(
-                            "sovereign_browser",
-                            {"query": question, "mode": "search", "deep": False},
-                            {},
+                        orchestrator.execute_tool(
+                            "web_search",
+                            {"query": question, "deep": False, "retain": True},
+                            origin="curiosity_explorer",
                         ),
-                        timeout=15.0,
+                        timeout=20.0,
                     )
                     if isinstance(result, dict):
-                        summary = result.get("summary") or result.get("content") or result.get("message", "")
+                        summary = (
+                            result.get("answer")
+                            or result.get("summary")
+                            or result.get("content")
+                            or result.get("message", "")
+                        )
                         if summary:
                             result_text = str(summary)[:200]
                             success = True

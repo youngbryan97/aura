@@ -13,6 +13,7 @@ import re
 import threading
 import time
 import multiprocessing
+import psutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union, List, Dict
@@ -1457,8 +1458,15 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         # Original logic continues...
 
     async def process_event(self, event: Any, origin: str = "internal", priority: int = 20):
-        """Compatibility alias for legacy subsystems."""
-        self.enqueue_from_thread(event, origin=origin, priority=priority)
+        """Compatibility alias for legacy subsystems.
+
+        Uses the async-native enqueue_message path since callers are
+        coroutines running in the same event loop.  The old
+        enqueue_from_thread path would incorrectly resolve the loop
+        and trigger RuntimeError when the async loop was already
+        running.
+        """
+        self.enqueue_message(event, priority=priority, origin=origin)
 
     async def _ensure_inference_gate_ready(self, context: str = "runtime") -> bool:
         """Ensure the unified inference gate is ready before user-facing chat begins."""

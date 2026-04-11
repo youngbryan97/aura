@@ -52,7 +52,7 @@ def _get_default_input_device():
         return sd.default.device[0]
     except Exception as e:
         logger.error("Error querying audio devices: %s", e)
-        return None
+        raise RuntimeError(f"No audio input device available. Ensure a microphone is connected. Details: {e}") from e
 
 # ----------------------------------------------------
 # Recording (Thread Safe)

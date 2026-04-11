@@ -26,6 +26,9 @@ class SovereignNetworkSkill(BaseSkill):
     description = "Monitor connectivity, discover local devices, and audit network services."
     input_model = NetworkInput
     
+    def __init__(self):
+        super().__init__()
+    
     async def execute(self, params: NetworkInput, context: Dict[str, Any]) -> Dict[str, Any]:
         """Unified entry point for all network activities."""
         if isinstance(params, dict):
@@ -85,8 +88,8 @@ class SovereignNetworkSkill(BaseSkill):
         devices = []
         # Attempt ARP cache check (Max Stealth)
         try:
-            cmd = "arp -a" if platform.system() != "Windows" else "arp -g"
-            output = await asyncio.to_thread(subprocess.check_output, cmd, shell=True)
+            cmd_args = ["arp", "-a"] if platform.system() != "Windows" else ["arp", "-g"]
+            output = await asyncio.to_thread(subprocess.check_output, cmd_args)
             output = output.decode()
             for line in output.split('\n'):
                 match = re.search(r"\(([\d\.]+)\) at ([\w:]+)", line) # macOS/Linux format

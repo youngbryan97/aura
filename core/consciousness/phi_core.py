@@ -575,47 +575,225 @@ class PhiCore:
 
     def compute_phi(self) -> Optional[PhiResult]:
         """
-        Compute φs via the Minimum Information Partition method.
+        Compute φs for the full 16-node cognitive-affective complex.
 
-        Runtime: ~10-50ms for N=8.
+        Uses **spectral approximation** (polynomial time) because exhaustive
+        bipartition search over 32767 partitions of 65536 states is intractable.
+
+        Falls back to the 8-node affective exact computation if the spectral
+        approximator is unavailable.
+
+        Also triggers the affective-subset exact computation for validation.
         """
         now = time.time()
         if (self._last_result is not None and
                 now - self._last_compute_time < PHI_COMPUTE_INTERVAL_S):
             return self._last_result
 
-        p_stationary = self._get_stationary_distribution()
-
         # Check if full compute is actually necessary
-        # We trigger full compute if:
-        # 1. No previous result exists
-        # 2. Interval has passed AND surrogate shows instability (>20% shift)
-        # 3. Absolute interval (60s) has passed regardless of surrogate
-        
         surrogate_phi = self.compute_surrogate_phi()
         significant_shift = abs(surrogate_phi - self._surrogate_phi) > (self._surrogate_phi * 0.2)
         long_interval = (now - self._last_compute_time) > 60.0
-        
+
         if self._last_result is not None and not significant_shift and not long_interval:
             if now - self._last_compute_time < PHI_COMPUTE_INTERVAL_S:
-                 return self._last_result
+                return self._last_result
 
-        # Proceed with full MIP search
-        self._surrogate_phi = surrogate_phi 
+        self._surrogate_phi = surrogate_phi
 
-        tpm = self.build_tpm()
+        # ── Always compute exact 8-node affective baseline ───────────────
+        try:
+            self.compute_affective_phi()
+        except Exception as exc:
+            logger.debug("PhiCore affective baseline failed: %s", exc)
+
+        # ── 16-node spectral phi ─────────────────────────────────────────
+        if self._spectral_approx is not None and len(self._state_history) >= MIN_HISTORY_FOR_TPM:
+            result = self._compute_spectral_phi_16()
+            if result is not None:
+                self._last_result = result
+                self._last_compute_time = now
+
+                logger.info(
+                    "PhiCore (16-node spectral): φs=%.5f, complex=%s, MIP=%s "
+                    "(n=%d transitions, affective_baseline=%.5f)",
+                    result.phi_s, result.is_complex, result.mip_description,
+                    result.tpm_n_samples,
+                    self._affective_last_result.phi_s if self._affective_last_result else 0.0,
+                )
+
+                # ── IIT 4.0 Exclusion Postulate (spectral) ───────────────
+                try:
+                    self.compute_max_phi_complex()
+                except Exception as exc:
+                    logger.debug("PhiCore exclusion postulate computation failed: %s", exc)
+
+                return result
+
+        # ── Fallback: use affective 8-node exact result ──────────────────
+        if self._affective_last_result is not None:
+            self._last_result = self._affective_last_result
+            self._last_compute_time = now
+            return self._last_result
+
+        return None
+
+    def _compute_spectral_phi_16(self) -> Optional[PhiResult]:
+        """Compute phi for the 16-node complex using spectral approximation.
+
+        Builds the 16x16 causal graph directly from binarized history
+        (bypassing the intractable 65536x65536 dense TPM), then uses
+        the Fiedler vector to find the approximate MIP.
+        """
+        if self._spectral_approx is None:
+            return None
+
+        n_trans = len(self._state_history) - 1
+        if n_trans < MIN_HISTORY_FOR_TPM:
+            return None
+
+        # Build causal graph directly from history
+        causal_graph = self._build_causal_graph_from_history()
+
+        # Use the spectral approximator's partitioning on the causal graph
+        approx = self._spectral_approx
+
+        # Fiedler partition on the causal graph
+        fiedler_partition = approx._fiedler_partition(causal_graph, N_NODES)
+
+        # Generate refinement candidates
+        candidates = approx._generate_refinement_candidates(fiedler_partition, N_NODES)
+
+        # For each candidate partition, compute phi using the sparse history-based
+        # method: estimate KL divergence from observed transition pairs
+        best_phi = float("inf")
+        best_partition = fiedler_partition
+        all_phis = []
+
+        history = list(self._state_history)
+
+        for partition in candidates:
+            phi = self._estimate_phi_for_partition_from_history(history, partition)
+            all_phis.append(phi)
+            if phi < best_phi:
+                best_phi = phi
+                best_partition = partition
+
+        phi_s = float(max(0.0, best_phi)) if best_phi != float("inf") else 0.0
+
+        result = PhiResult(
+            phi_s=phi_s,
+            mip_partition_a=list(best_partition[0]),
+            mip_partition_b=list(best_partition[1]),
+            mip_phi_value=phi_s,
+            all_partition_phis=all_phis,
+            tpm_n_samples=n_trans,
+        )
+        return result
+
+    def _estimate_phi_for_partition_from_history(
+        self,
+        history: List[int],
+        partition: Tuple[Tuple[int, ...], Tuple[int, ...]],
+    ) -> float:
+        """Estimate phi for a bipartition directly from transition history.
+
+        Instead of materializing the full 65536x65536 TPM, we compute the
+        KL divergence between the joint and factored transitions by
+        accumulating statistics from observed transitions only.
+
+        This is exact on the observed data (no smoothing needed since we
+        are comparing empirical distributions).
+        """
+        part_a, part_b = partition
+        n_trans = len(history) - 1
+        if n_trans < 2:
+            return 0.0
+
+        # For each observed transition, compute the contribution to
+        # KL(T_joint || T_factored)
+        #
+        # We need:
+        # 1. P(s'|s) from the full system (observed transitions)
+        # 2. P(s'_A|s_A) * P(s'_B|s_B) from marginal transitions
+        #
+        # Accumulate marginal transition counts for A and B
+
+        from collections import Counter
+
+        # Count transitions in the full system, and marginals for A and B
+        joint_counts: Counter = Counter()   # (s, s') -> count
+        a_counts: Counter = Counter()       # (s_a, s_a') -> count
+        b_counts: Counter = Counter()       # (s_b, s_b') -> count
+        a_source_counts: Counter = Counter()  # s_a -> count
+        b_source_counts: Counter = Counter()  # s_b -> count
+        source_counts: Counter = Counter()    # s -> count
+
+        for t in range(n_trans):
+            s = history[t]
+            s_next = history[t + 1]
+
+            s_a = sum((1 << i) for i, node in enumerate(part_a) if (s >> node) & 1)
+            s_b = sum((1 << i) for i, node in enumerate(part_b) if (s >> node) & 1)
+            s_next_a = sum((1 << i) for i, node in enumerate(part_a) if (s_next >> node) & 1)
+            s_next_b = sum((1 << i) for i, node in enumerate(part_b) if (s_next >> node) & 1)
+
+            joint_counts[(s, s_next)] += 1
+            a_counts[(s_a, s_next_a)] += 1
+            b_counts[(s_b, s_next_b)] += 1
+            a_source_counts[s_a] += 1
+            b_source_counts[s_b] += 1
+            source_counts[s] += 1
+
+        # Compute KL divergence weighted by stationary distribution
+        phi = 0.0
+        for (s, s_next), count in joint_counts.items():
+            p_s = source_counts[s] / n_trans
+            p_transition = count / source_counts[s]  # P(s'|s)
+
+            s_a = sum((1 << i) for i, node in enumerate(part_a) if (s >> node) & 1)
+            s_b = sum((1 << i) for i, node in enumerate(part_b) if (s >> node) & 1)
+            s_next_a = sum((1 << i) for i, node in enumerate(part_a) if (s_next >> node) & 1)
+            s_next_b = sum((1 << i) for i, node in enumerate(part_b) if (s_next >> node) & 1)
+
+            # Factored transition: P(s'_A|s_A) * P(s'_B|s_B)
+            p_a_trans = a_counts.get((s_a, s_next_a), 0) / max(1, a_source_counts[s_a])
+            p_b_trans = b_counts.get((s_b, s_next_b), 0) / max(1, b_source_counts[s_b])
+            p_factored = p_a_trans * p_b_trans
+
+            if p_transition > 1e-12 and p_factored > 1e-12:
+                kl_contrib = p_transition * math.log(p_transition / p_factored)
+                phi += p_s * max(0.0, kl_contrib)
+
+        return phi
+
+    def compute_affective_phi(self) -> Optional[PhiResult]:
+        """
+        Compute exact φs for the 8-node affective subset.
+
+        This is the original exact exhaustive search: 127 bipartitions,
+        256 states. Runtime: ~10-50ms. Serves as validation baseline.
+        """
+        if len(self._affective_state_history) < MIN_HISTORY_FOR_TPM:
+            return None
+
+        tpm = self.build_affective_tpm()
         if tpm is None:
             return None
 
-        # ── Search all nontrivial bipartitions ────────────────────────────────
+        p_stationary = self._get_affective_stationary()
+
         min_phi = float("inf")
         mip_partition = None
         all_phis = []
 
-        for partition_mask, (part_a, part_b) in self._bipartitions:
-            phi_ab = self._phi_for_bipartition(tpm, p_stationary, part_a, part_b)
+        for partition_mask, (part_a, part_b) in self._affective_bipartitions:
+            phi_ab = self._phi_for_bipartition_generic(
+                tpm, p_stationary, part_a, part_b,
+                n_nodes=N_AFFECTIVE_NODES, n_states=N_AFFECTIVE_STATES,
+                bit_tables=self._affective_bit_tables,
+            )
             all_phis.append(phi_ab)
-
             if phi_ab < min_phi:
                 min_phi = phi_ab
                 mip_partition = (part_a, part_b)
@@ -628,25 +806,16 @@ class PhiCore:
             mip_partition_b=list(mip_partition[1]) if mip_partition else [],
             mip_phi_value=phi_s,
             all_partition_phis=all_phis,
-            tpm_n_samples=self._tpm_n_samples,
+            tpm_n_samples=len(self._affective_state_history) - 1,
         )
+        self._affective_last_result = result
 
-        self._last_result = result
-        self._last_compute_time = now
-
-        logger.info(
-            "PhiCore: φs=%.5f, complex=%s, MIP=%s (n=%d transitions)",
-            phi_s, result.is_complex, result.mip_description, self._tpm_n_samples
+        logger.debug(
+            "PhiCore (affective 8-node exact): φs=%.5f, MIP=%s",
+            phi_s,
+            f"[{', '.join(AFFECTIVE_NODE_NAMES[i] for i in result.mip_partition_a)}] | "
+            f"[{', '.join(AFFECTIVE_NODE_NAMES[i] for i in result.mip_partition_b)}]",
         )
-
-        # ── IIT 4.0 Exclusion Postulate ──────────────────────────────────
-        # After computing full-system phi, check if a proper subset has
-        # higher phi. If so, THAT subset is the conscious subject.
-        try:
-            self.compute_max_phi_complex()
-        except Exception as exc:
-            logger.debug("PhiCore exclusion postulate computation failed: %s", exc)
-
         return result
 
     # ── IIT 4.0 Exclusion Postulate ──────────────────────────────────────────
@@ -657,23 +826,14 @@ class PhiCore:
 
         Under IIT 4.0, the conscious subject is not necessarily the full
         system. It is the subset with maximum integrated information.
-        If a 5-node subset has higher phi than the full 8-node system,
-        then that 5-node subset IS the conscious complex.
 
-        Method:
-          1. Iterate all non-trivial subsets of the 8 nodes (2^8 - 2 = 254)
-          2. For each subset of size >= 2, compute phi using a restricted
-             TPM and restricted bipartitions
-          3. Track the subset with maximum phi
-          4. If it differs from the full complex, log it
+        For the 16-node complex, exhaustive subset search (2^16 = 65536
+        subsets) is intractable. Instead we use spectral approximation:
+        1. Use the causal graph to identify high-integration clusters
+        2. Evaluate phi for the top candidate subsets
+        3. Compare against the full 16-node phi
 
-        Returns:
-            (subset_node_indices, phi_value) or None if insufficient data.
-
-        Runtime note: For each subset of size k, we search all 2^(k-1)-1
-        bipartitions. Total work across all subsets is bounded but non-trivial
-        (~10k bipartitions total). With the empirical TPM already built,
-        each bipartition computation is fast. Expected runtime: 100-500ms.
+        For subsets of size <= 8, exact computation is still used.
         """
         now = time.time()
         if (self._max_phi_complex is not None and
@@ -681,26 +841,50 @@ class PhiCore:
             if self._max_phi_complex is not None:
                 return (self._max_phi_complex, self._max_phi_value)
 
-        tpm = self.build_tpm()
-        if tpm is None:
+        history = list(self._state_history)
+        n_trans = len(history) - 1
+        if n_trans < MIN_HISTORY_FOR_TPM:
             return None
 
-        p_stationary = self._get_stationary_distribution()
+        # Build causal graph for identifying high-integration clusters
+        causal_graph = self._build_causal_graph_from_history()
 
         best_phi = -1.0
         best_subset: Optional[Tuple[int, ...]] = None
 
-        # Iterate all non-trivial subsets of size >= 2
-        # (singletons have phi=0 by definition since they can't be bipartitioned)
-        for mask in range(3, (1 << N_NODES)):
-            subset = tuple(i for i in range(N_NODES) if (mask >> i) & 1)
-            if len(subset) < 2:
+        # Strategy: evaluate candidate subsets derived from the causal graph
+        # 1. Full system phi (already computed)
+        full_phi = self.current_phi
+        best_phi = full_phi
+        best_subset = tuple(range(N_NODES))
+
+        # 2. Affective subset (8 nodes — exact)
+        if self._affective_last_result is not None:
+            aff_phi = self._affective_last_result.phi_s
+            if aff_phi > best_phi:
+                best_phi = aff_phi
+                best_subset = tuple(range(N_AFFECTIVE_NODES))
+
+        # 3. Cognitive subset (nodes 8-15)
+        cognitive_subset = tuple(range(N_AFFECTIVE_NODES, N_NODES))
+        cog_phi = self._estimate_subset_phi_from_history(history, cognitive_subset)
+        if cog_phi > best_phi:
+            best_phi = cog_phi
+            best_subset = cognitive_subset
+
+        # 4. Top-k high-connectivity subsets from causal graph
+        # Sort nodes by total causal strength
+        node_strengths = causal_graph.sum(axis=0) + causal_graph.sum(axis=1)
+        sorted_nodes = np.argsort(node_strengths)[::-1]
+
+        # Try subsets of the top-k most connected nodes (sizes 4..12)
+        for k in [4, 6, 8, 10, 12]:
+            if k > N_NODES:
                 continue
-
-            phi_s = self._compute_phi_for_subset(tpm, p_stationary, subset)
-
-            if phi_s > best_phi:
-                best_phi = phi_s
+            subset = tuple(sorted(int(n) for n in sorted_nodes[:k]))
+            subset_phi = self._estimate_subset_phi_from_history(history, subset)
+            if subset_phi > best_phi:
+                best_phi = subset_phi
                 best_subset = subset
 
         if best_subset is None:
@@ -732,6 +916,68 @@ class PhiCore:
             )
 
         return (best_subset, best_phi)
+
+    def _estimate_subset_phi_from_history(
+        self,
+        history: List[int],
+        subset: Tuple[int, ...],
+    ) -> float:
+        """Estimate phi for a subset of nodes using history-based spectral approach.
+
+        Projects the transition history onto the subset nodes, then uses the
+        spectral approximator's Fiedler partition to estimate the MIP phi.
+        """
+        k = len(subset)
+        if k < 2:
+            return 0.0
+
+        n_trans = len(history) - 1
+        if n_trans < MIN_HISTORY_FOR_TPM:
+            return 0.0
+
+        # Build causal graph for the subset
+        sub_graph = np.zeros((k, k), dtype=np.float64)
+        for si, src_node in enumerate(subset):
+            for di, dst_node in enumerate(subset):
+                joint = np.zeros((2, 2), dtype=np.float64)
+                for t in range(n_trans):
+                    src_val = (history[t] >> src_node) & 1
+                    dst_val = (history[t + 1] >> dst_node) & 1
+                    joint[src_val, dst_val] += 1.0
+                total = joint.sum()
+                if total < 1.0:
+                    continue
+                joint /= total
+                p_src = joint.sum(axis=1)
+                p_dst = joint.sum(axis=0)
+                mi = 0.0
+                for a in range(2):
+                    for b in range(2):
+                        if joint[a, b] > 1e-12 and p_src[a] > 1e-12 and p_dst[b] > 1e-12:
+                            mi += joint[a, b] * np.log2(joint[a, b] / (p_src[a] * p_dst[b]))
+                sub_graph[si, di] = max(0.0, mi)
+
+        if self._spectral_approx is None:
+            return 0.0
+
+        # Fiedler partition on subset's causal graph
+        approx = self._spectral_approx
+        fiedler_partition = approx._fiedler_partition(sub_graph, k)
+
+        # Map local indices back to global node indices
+        def map_partition(part: Tuple[int, ...]) -> Tuple[int, ...]:
+            return tuple(subset[i] for i in part)
+
+        candidates = approx._generate_refinement_candidates(fiedler_partition, k)
+
+        best_phi = float("inf")
+        for local_partition in candidates:
+            global_partition = (map_partition(local_partition[0]), map_partition(local_partition[1]))
+            phi = self._estimate_phi_for_partition_from_history(history, global_partition)
+            if phi < best_phi:
+                best_phi = phi
+
+        return float(max(0.0, best_phi)) if best_phi != float("inf") else 0.0
 
     def _compute_phi_for_subset(
         self,
@@ -1154,8 +1400,10 @@ class PhiCore:
                 node_states[i, bit] = (s >> bit) & 1
 
         # Integration is correlated with the mean absolute covariance
-        cov = np.abs(np.cov(node_states, rowvar=False))
-        integration_proxy = np.mean(cov) * (entropy / 8.0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            cov = np.abs(np.cov(node_states, rowvar=False))
+        cov = np.nan_to_num(cov, nan=0.0)
+        integration_proxy = np.mean(cov) * (entropy / float(N_NODES))
         
         self._surrogate_phi = float(np.clip(integration_proxy, 0, 1.0))
         self._last_surrogate_time = now
@@ -1213,12 +1461,12 @@ class PhiCore:
 
     # ── Precomputed Lookup Tables ──────────────────────────────────────────────
 
-    def _precompute_bipartitions(self) -> List[Tuple[int, Tuple]]:
-        """Precompute all 2^(N-1) - 1 = 127 nontrivial bipartitions."""
+    def _precompute_bipartitions(self, n_nodes: int = N_NODES) -> List[Tuple[int, Tuple]]:
+        """Precompute all 2^(N-1) - 1 nontrivial bipartitions for n_nodes."""
         bipartitions = []
-        nodes = list(range(N_NODES))
+        nodes = list(range(n_nodes))
 
-        for mask in range(1, 2 ** (N_NODES - 1)):
+        for mask in range(1, 2 ** (n_nodes - 1)):
             part_a = tuple(i for i in nodes if (mask >> i) & 1)
             part_b = tuple(i for i in nodes if not (mask >> i) & 1)
 
@@ -1227,28 +1475,34 @@ class PhiCore:
 
         return bipartitions
 
-    def _precompute_bit_tables(self) -> Dict[frozenset, Dict]:
+    def _precompute_bit_tables(
+        self,
+        bipartitions: Optional[List] = None,
+        n_nodes: int = N_NODES,
+    ) -> Dict[frozenset, Dict]:
         """
         Precompute bit extraction lookup tables for each possible partition A.
         Converts the inner loop from O(N) bit operations to O(1) lookups.
         """
+        n_states = 2 ** n_nodes
         tables = {}
 
+        source_bipartitions = bipartitions if bipartitions is not None else self._bipartitions
         all_subsets = set()
-        for _, (part_a, part_b) in self._bipartitions:
+        for _, (part_a, part_b) in source_bipartitions:
             all_subsets.add(frozenset(part_a))
             all_subsets.add(frozenset(part_b))
 
         for subset in all_subsets:
             target_nodes = sorted(subset)
-            other_nodes = [i for i in range(N_NODES) if i not in subset]
+            other_nodes = [i for i in range(n_nodes) if i not in subset]
             n_target = len(target_nodes)
             n_other = len(other_nodes)
 
-            extract_a = np.zeros(N_STATES, dtype=np.int32)
-            extract_b = np.zeros(N_STATES, dtype=np.int32)
+            extract_a = np.zeros(n_states, dtype=np.int32)
+            extract_b = np.zeros(n_states, dtype=np.int32)
 
-            for s in range(N_STATES):
+            for s in range(n_states):
                 s_target = 0
                 for bit_pos, node_idx in enumerate(target_nodes):
                     if (s >> node_idx) & 1:

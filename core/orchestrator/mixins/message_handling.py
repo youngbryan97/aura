@@ -188,6 +188,19 @@ class MessageHandlingMixin:
             return False
 
         try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+
+        primary_loop = getattr(self, "loop", None)
+        if not primary_loop and hasattr(self, "_stop_event") and getattr(self._stop_event, "_loop", None):
+            primary_loop = getattr(self._stop_event, "_loop")
+
+        if current_loop is None or (primary_loop and current_loop is not primary_loop):
+            self.enqueue_from_thread(message, origin=origin, priority=priority, _authority_checked=_authority_checked)
+            return
+
+        try:
             # Zenith v47 Hardening: Deeply sanitize all messages before they enter
             # the queue to prevent circular references in AuraState.
             message = self._deep_circular_safe_sanitize(message)

@@ -12,6 +12,24 @@ import queue
 
 from core.runtime.desktop_boot_safety import compute_mlx_cache_limit
 
+
+def _strip_leading_chatml_prefix(text: str) -> str:
+    cleaned = str(text or "")
+    prefixes = (
+        "<|im_start|>assistant\n",
+        "<|im_start|>assistant",
+        "<｜Assistant｜>",
+        "Assistant:",
+    )
+    changed = True
+    while changed:
+        changed = False
+        for prefix in prefixes:
+            if cleaned.startswith(prefix):
+                cleaned = cleaned[len(prefix):].lstrip("\n")
+                changed = True
+    return cleaned
+
 class IPCWriterThread(threading.Thread):
     """
     ZENITH LOCKDOWN: Non-blocking IPC writer.
@@ -317,7 +335,7 @@ def _mlx_worker_loop(
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
                 
-                stop_sequences = ["<|im_end|>", "<|im_start|>", "User:", "Assistant:"]
+                stop_sequences = ["<|im_end|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
                 
                 try:
                     from mlx_lm.generate import stream_generate
@@ -353,6 +371,7 @@ def _mlx_worker_loop(
                                     watchdog.activity()
                                     token_count += 1
                                     current_response += response.text
+                                    current_response = _strip_leading_chatml_prefix(current_response)
                                     
                                     # [AURA HARDENING] Prevent VRAM fragmentation
                                     if token_count % 10 == 0:
@@ -363,10 +382,14 @@ def _mlx_worker_loop(
                                         logger.warning("🏁 [WORKER] Hard token limit (2048) reached. Truncating.")
                                         break
 
-                                    if any(stop in current_response for stop in stop_sequences):
-                                        for stop in stop_sequences:
-                                            if stop in current_response:
-                                                current_response = current_response.split(stop)[0]
+                                    stop_hit = False
+                                    for stop in stop_sequences:
+                                        stop_index = current_response.find(stop)
+                                        if stop_index > 0:
+                                            current_response = current_response[:stop_index]
+                                            stop_hit = True
+                                            break
+                                    if stop_hit:
                                         break
                                 
                                 response_text = current_response
@@ -409,7 +432,7 @@ def _mlx_worker_loop(
                 if make_sampler:
                     kwargs["sampler"] = make_sampler(temp=temp, top_p=top_p)
                 
-                stop_sequences = ["<|im_end|>", "<|im_start|>", "User:", "Assistant:"]
+                stop_sequences = ["<|im_end|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
                 
                 try:
                     from mlx_lm.generate import stream_generate
@@ -425,6 +448,7 @@ def _mlx_worker_loop(
                                 token_count += 1
                                 token_text = response.text
                                 full_text += token_text
+                                full_text = _strip_leading_chatml_prefix(full_text)
                                 ipc_writer.put({"status": "token", "text": token_text})
                                 
                                 # [AURA HARDENING] Prevent VRAM fragmentation
@@ -436,7 +460,14 @@ def _mlx_worker_loop(
                                     logger.warning("🏁 [WORKER] Hard token limit (1024) reached. Truncating.")
                                     break
 
-                                if any(stop in full_text for stop in stop_sequences):
+                                stop_hit = False
+                                for stop in stop_sequences:
+                                    stop_index = full_text.find(stop)
+                                    if stop_index > 0:
+                                        full_text = full_text[:stop_index]
+                                        stop_hit = True
+                                        break
+                                if stop_hit:
                                     break
                         finally:
                             watchdog.stop_job()

@@ -981,7 +981,7 @@ class UnitaryResponsePhase(Phase):
 
         return "\n\n".join(blocks).strip()
 
-    def _commit_response(self, state: AuraState, response_text: str) -> AuraState:
+    def _commit_response(self, state: AuraState, response_text: str, thought: str = "") -> AuraState:
         response_text = str(response_text or "").strip()
         if not response_text:
             return state
@@ -990,6 +990,10 @@ class UnitaryResponsePhase(Phase):
         wm.append({"role": "assistant", "content": response_text, "timestamp": time.time()})
         state.cognition.trim_working_memory()
         state.cognition.last_response = response_text
+
+        # Store thought metadata for the chat endpoint to pick up
+        if thought:
+            state.response_modifiers["last_thought"] = thought
 
         try:
             from core.conversational.dynamics import get_dynamics_engine
@@ -1016,29 +1020,44 @@ class UnitaryResponsePhase(Phase):
         if not text:
             return ""
 
+        # If the message contains a URL, use the URL itself as the "query"
+        # to signal the browser to navigate directly
+        url_match = re.search(r'(https?://[^\s<>"\')\]]+)', text)
+        if url_match:
+            return url_match.group(1)
+
         patterns = (
             r"^(?:please\s+|can you\s+|could you\s+|would you\s+|aura[,:\s]+)?(?:search(?: the web)?|look(?: it)? up|google|find out|check online)\s+(?:for\s+)?(.+?)(?:\s+and\s+tell me\b.*)?[.?!]*$",
             r"^(?:please\s+|can you\s+|could you\s+|would you\s+|aura[,:\s]+)?(?:search(?: the web)?|look(?: it)? up|google|find out|check online)\b\s*(.+?)[.?!]*$",
+            # "read this story called X", "find this article about X"
+            r"^(?:please\s+|can you\s+|could you\s+|would you\s+|aura[,:\s]+)?(?:read|find|check out)\s+(?:this|that|the)\s+(?:story|article|post|page|thread)\s+(?:called|named|titled|about|on)\s+(.+?)[.?!]*$",
+            # "have you read X", "do you know the story X"
+            r"^(?:have you\s+|did you\s+)?(?:read|heard of|know)\s+(?:the\s+)?(?:story|article|post)\s+(.+?)[.?!]*$",
         )
         for pattern in patterns:
             match = re.match(pattern, text, flags=re.IGNORECASE)
             if match:
-                candidate = cls._normalize_text(match.group(1), 280)
+                candidate = cls._normalize_text(match.group(1), 400)
                 if candidate:
                     return candidate
 
-        contract_query = cls._normalize_text(getattr(contract, "search_query", "") or "", 280)
+        contract_query = cls._normalize_text(getattr(contract, "search_query", "") or "", 400)
         return contract_query or text
 
     @classmethod
-    def _format_grounded_search_reply(cls, objective: str, result: dict[str, Any]) -> str:
+    def _format_grounded_search_reply(cls, objective: str, result: dict[str, Any], skill_name: str | None = None) -> str:
+        if skill_name == "sovereign_browser":
+            # ZENITH FIX: browser extracted content should not short-circuit the LLM
+            return ""
+        
         lowered = cls._normalize_text(objective).lower()
+        answer = cls._normalize_text(result.get("answer", "") or "", 420)
         results = list(result.get("results") or [])
         top = results[0] if results else {}
-        top_title = cls._normalize_text(top.get("title", "") or result.get("title", ""), 220)
-        top_snippet = cls._normalize_text(top.get("snippet", "") or result.get("summary", ""), 360)
-        top_source = cls._normalize_text(top.get("url", "") or result.get("source", ""), 260)
-        top_content = cls._normalize_text(result.get("content", "") or result.get("result", ""), 420)
+        top_title = cls._normalize_text(top.get("title", "") or result.get("title", ""), 300)
+        top_snippet = cls._normalize_text(top.get("snippet", "") or result.get("summary", ""), 2000)
+        top_source = cls._normalize_text(top.get("url", "") or result.get("source", ""), 400)
+        top_content = cls._normalize_text(result.get("content", "") or result.get("result", ""), 8000)
 
         if "page title" in lowered or "title only" in lowered or "only the title" in lowered:
             if top_title:
@@ -1048,6 +1067,10 @@ class UnitaryResponsePhase(Phase):
             if top_source:
                 return top_source
 
+        if answer and top_source:
+            return f"I searched it live. {answer} Source: {top_source}"
+        if answer:
+            return f"I searched it live. {answer}"
         if top_title and top_snippet:
             return f"I searched it live. Top result: {top_title}. {top_snippet}"
         if top_title and top_source:
@@ -1081,7 +1104,9 @@ class UnitaryResponsePhase(Phase):
     ) -> str:
         if not getattr(contract, "requires_search", False):
             return ""
-        for skill_name in ("web_search", "sovereign_browser"):
+        # ZENITH FIX: Do not short-circuit sovereign_browser. 
+        # Browser results should always be synthesized by the LLM.
+        for skill_name in ("web_search",):
             cached = cls._cached_grounded_tool_result(state, skill_name=skill_name)
             if not cached:
                 wm = list(getattr(getattr(state, "cognition", None), "working_memory", []) or [])
@@ -1226,23 +1251,41 @@ class UnitaryResponsePhase(Phase):
         if not query:
             return ""
 
+        # If the query IS a URL, browse it directly instead of searching
+        is_url = query.startswith("http://") or query.startswith("https://")
+
         try:
             orchestrator = ServiceContainer.get("orchestrator", default=None)
             if not orchestrator or not hasattr(orchestrator, "execute_tool"):
                 return ""
 
-            for tool_name, args in (
-                ("web_search", {"query": query, "deep": False}),
-                ("sovereign_browser", {"mode": "search", "query": query, "deep": False}),
-            ):
+            if is_url:
+                # Direct navigation — fetch the page content
+                tool_sequence = (
+                    ("sovereign_browser", {"mode": "browse", "url": query}),
+                )
+            else:
+                # Search query — try web_search first (deep=True for synthesis), then browser
+                tool_sequence = (
+                    ("web_search", {"query": query, "deep": True}),
+                    ("sovereign_browser", {"mode": "search", "query": query, "deep": True}),
+                )
+
+            for tool_name, args in tool_sequence:
                 try:
-                    result = await orchestrator.execute_tool(tool_name, args, origin=origin)
+                    result = await asyncio.wait_for(
+                        orchestrator.execute_tool(tool_name, args, origin=origin),
+                        timeout=45.0,
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("UnitaryResponse: %s timed out after 45s for query: %s", tool_name, query[:80])
+                    continue
                 except Exception as exc:
                     logger.debug("UnitaryResponse: %s grounded search attempt failed: %s", tool_name, exc)
                     continue
 
                 if isinstance(result, dict) and result.get("ok"):
-                    reply = cls._format_grounded_search_reply(objective, result)
+                    reply = cls._format_grounded_search_reply(objective, result, skill_name=tool_name)
                     if reply:
                         return reply
         except Exception as exc:
@@ -1357,7 +1400,6 @@ class UnitaryResponsePhase(Phase):
         # Returning "" signals the caller to use the normal inference path.
         return ""
 
-    @classmethod
     @classmethod
     def _build_minimal_live_voice_reply(cls, state: AuraState) -> str:
         """Last-resort fallback when LLM inference timed out or failed.
@@ -1547,6 +1589,242 @@ class UnitaryResponsePhase(Phase):
                     new_state.response_modifiers.get("last_skill_run", "tool"),
                 )
                 return self._commit_response(new_state, deterministic_tool_reply)
+
+            # ── URL Auto-Browse: Fetch page content BEFORE inference ──────
+            # When cognitive routing detected URLs in user input, we actually
+            # fetch and read the pages so Aura has real content to discuss
+            # instead of hallucinating about pages she never accessed.
+            auto_browse_urls = new_state.response_modifiers.get("auto_browse_urls", [])
+            if auto_browse_urls and is_user_facing:
+                logger.info("🌐 UnitaryResponse: Auto-browsing %d URL(s) from user input.", len(auto_browse_urls))
+                fetched_content_parts = []
+                try:
+                    orchestrator = ServiceContainer.get("orchestrator", default=None)
+                    if orchestrator and hasattr(orchestrator, "execute_tool"):
+                        for url in auto_browse_urls[:3]:
+                            try:
+                                result = await asyncio.wait_for(
+                                    orchestrator.execute_tool(
+                                        "sovereign_browser",
+                                        {"mode": "browse", "url": str(url)},
+                                        origin=routing_origin,
+                                    ),
+                                    timeout=30.0,
+                                )
+                                if isinstance(result, dict) and result.get("ok"):
+                                    page_title = str(result.get("title", "") or "")[:200]
+                                    page_content = str(result.get("content", "") or result.get("result", "") or "")[:60000]
+                                    if page_content and len(page_content.strip()) > 100:
+                                        fetched_content_parts.append(
+                                            f"[PAGE: {page_title}]\n{page_content}"
+                                        )
+                                        logger.info("🌐 Fetched URL content: %s (%d chars)", page_title[:60], len(page_content))
+                                    else:
+                                        logger.warning("🌐 URL returned ok but empty content: %s", str(url)[:80])
+                                else:
+                                    error = result.get("error", "unknown") if isinstance(result, dict) else "no result"
+                                    logger.warning("🌐 URL fetch failed: %s → %s", str(url)[:80], str(error)[:200])
+                            except asyncio.TimeoutError:
+                                logger.warning("🌐 URL fetch timed out after 30s: %s", str(url)[:80])
+                            except Exception as url_exc:
+                                logger.warning("🌐 URL fetch error: %s → %s", str(url)[:80], url_exc)
+
+                    # ── Lightweight HTTP fallback for URLs that the browser couldn't read ──
+                    # Sites like Reddit block headless browsers but serve content to
+                    # standard HTTP clients. If the browser returned nothing useful,
+                    # try a simple httpx GET with a real User-Agent.
+                    if not fetched_content_parts:
+                        logger.info("🌐 Browser returned no content. Trying lightweight HTTP fallback...")
+                        try:
+                            import httpx
+                            from html.parser import HTMLParser
+                            import html
+
+                            class _TextExtractor(HTMLParser):
+                                def __init__(self):
+                                    super().__init__()
+                                    self._pieces: list[str] = []
+                                    self._skip = False
+                                    self._skip_depth = 0
+                                    self._skip_tags = frozenset({"script", "style", "noscript", "nav", "footer", "header"})
+                                    # CSS class/id patterns that indicate navigation/chrome noise
+                                    self._noise_patterns = frozenset({
+                                        "sidebar", "side-bar", "side_bar", "nav", "menu", "footer",
+                                        "header", "tabmenu", "morelink", "search", "subscribe",
+                                        "titlebox", "spacer", "bottommenu", "debuginfo",
+                                        "listing-chooser", "listingsignupbar",
+                                    })
+                                def _is_noise_element(self, attrs: list) -> bool:
+                                    for attr_name, attr_val in attrs:
+                                        if attr_name in ("class", "id") and attr_val:
+                                            lower_val = attr_val.lower()
+                                            if any(p in lower_val for p in self._noise_patterns):
+                                                return True
+                                    return False
+                                def handle_starttag(self, tag, attrs):
+                                    if self._skip_depth > 0:
+                                        self._skip_depth += 1
+                                        return
+                                    if tag in self._skip_tags or self._is_noise_element(attrs):
+                                        self._skip = True
+                                        self._skip_depth = 1
+                                        return
+                                    if tag in ("p", "h1", "h2", "h3", "h4", "li", "br", "div"):
+                                        self._pieces.append("\n")
+                                def handle_endtag(self, tag):
+                                    if self._skip_depth > 0:
+                                        self._skip_depth -= 1
+                                        if self._skip_depth == 0:
+                                            self._skip = False
+                                def handle_data(self, data):
+                                    if not self._skip:
+                                        self._pieces.append(data)
+                                def get_text(self) -> str:
+                                    return "".join(self._pieces)
+
+                            for url in auto_browse_urls[:3]:
+                                try:
+                                    fetch_url = str(url)
+                                    is_reddit = "reddit.com" in fetch_url
+                                    
+                                    # Anti-Bot Defeat Layer: Reddit JSON API & Jina Proxy
+                                    if is_reddit:
+                                        if "?" in fetch_url:
+                                            base_url, query = fetch_url.split("?", 1)
+                                            fetch_url = f"{base_url.rstrip('/')}/.json?{query}"
+                                        else:
+                                            fetch_url = f"{fetch_url.rstrip('/')}/.json"
+                                            
+                                        # Reddit allows standard JSON API access strictly when using compliant User-Agents
+                                        headers = {
+                                            "User-Agent": "python:AuraLunaBot:v1.0 (by /u/AuraSystem)"
+                                        }
+                                    else:
+                                        # Non-Reddit sites: Jina proxy bypasses Cloudflare and returns perfect markdown
+                                        fetch_url = "https://r.jina.ai/" + str(url)
+                                        headers = {
+                                            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+                                            "Accept": "text/html,application/xhtml+xml",
+                                            "Accept-Language": "en-US,en;q=0.9",
+                                        }
+
+                                    async with httpx.AsyncClient(
+                                        follow_redirects=True,
+                                        timeout=20.0,
+                                        headers=headers,
+                                    ) as client:
+                                        resp = await client.get(fetch_url)
+                                        
+                                        if resp.status_code == 200:
+                                            import re as _re
+                                            if is_reddit:
+                                                try:
+                                                    data = resp.json()
+                                                    if isinstance(data, list):
+                                                        post_data = data[0].get('data', {}).get('children', [{}])[0].get('data', {})
+                                                    else:
+                                                        post_data = data.get('data', {}).get('children', [{}])[0].get('data', {})
+                                                    
+                                                    title = post_data.get('title', 'Reddit Post')
+                                                    selftext = post_data.get('selftext', '')
+                                                    
+                                                    # Extract top comments for additional context
+                                                    comments_text = ""
+                                                    if isinstance(data, list) and len(data) > 1:
+                                                        comments = data[1].get('data', {}).get('children', [])
+                                                        for c in comments[:5]:
+                                                            cd = c.get('data', {})
+                                                            if 'body' in cd:
+                                                                comments_text += f"\n- {cd.get('author', '[deleted]')}: {cd['body']}"
+                                                    
+                                                    page_text = f"{selftext}\n\nTop Comments:{comments_text}".strip()
+                                                    page_title = html.unescape(title)
+                                                    
+                                                    if len(page_text) > 50:
+                                                        fetched_content_parts.append(f"[PAGE: {page_title}]\n{page_text[:60000]}")
+                                                        logger.info("🌐 HTTP fallback fetched Reddit JSON: %s (%d chars)", page_title[:60], len(page_text))
+                                                    else:
+                                                        logger.warning("🌐 HTTP fallback returned empty Reddit JSON for: %s", str(url)[:80])
+                                                except Exception as e:
+                                                    logger.warning("🌐 Failed to parse Reddit JSON: %s", e)
+                                                    
+                                            else:
+                                                # Jina Proxy returns markdown
+                                                page_text = resp.text.strip()
+                                                page_title = str(url)[:80]
+                                                first_line = page_text.split('\n')[0]
+                                                if first_line.startswith("Title: "):
+                                                    page_title = first_line.replace("Title: ", "").strip()
+                                                
+                                                # If Jina was blocked by Cloudflare (rare, but happens) it returns "Target URL returned error 403"
+                                                if "Target URL returned error 403" not in page_text and len(page_text) > 100:
+                                                    fetched_content_parts.append(f"[PAGE: {page_title}]\n{page_text[:60000]}")
+                                                    logger.info("🌐 HTTP fallback (Jina Proxy) fetched: %s (%d chars)", page_title[:60], len(page_text))
+                                                else:
+                                                    logger.warning("🌐 Jina Proxy failed or blocked. Trying native HTML fallback...")
+                                                    # Ultimate Native Fallback
+                                                    native_resp = await client.get(str(url))
+                                                    if native_resp.status_code == 200:
+                                                        extractor = _TextExtractor()
+                                                        extractor.feed(native_resp.text)
+                                                        native_text = html.unescape(extractor.get_text()).strip()
+                                                        native_text = _re.sub(r'\n{3,}', '\n\n', native_text)
+                                                        native_text = _re.sub(r' {2,}', ' ', native_text)
+                                                        if len(native_text) > 200:
+                                                            title_match = _re.search(r'<title[^>]*>(.*?)</title>', native_resp.text, _re.IGNORECASE | _re.DOTALL)
+                                                            native_title = html.unescape(title_match.group(1).strip()) if title_match else str(url)[:80]
+                                                            fetched_content_parts.append(f"[PAGE: {native_title}]\n{native_text[:60000]}")
+                                                            logger.info("🌐 HTTP fallback (Native HTML) fetched: %s (%d chars)", native_title[:60], len(native_text))
+                                                    else:
+                                                        logger.warning("🌐 HTTP fallback (Native HTML) got status %d", native_resp.status_code)
+                                        else:
+                                            logger.warning("🌐 HTTP fallback got status %d for: %s", resp.status_code, fetch_url[:80])
+                                except Exception as http_exc:
+                                    logger.warning("🌐 HTTP fallback error for %s: %s", str(url)[:80], http_exc)
+                        except ImportError:
+                            logger.warning("🌐 httpx not available for lightweight fallback")
+                        except Exception as fallback_exc:
+                            logger.warning("🌐 HTTP fallback failed: %s", fallback_exc)
+                except Exception as browse_exc:
+                    logger.warning("🌐 Auto-browse orchestrator error: %s", browse_exc)
+
+                if fetched_content_parts:
+                    # Inject fetched content into working memory as a grounded context message
+                    fetched_block = "\n\n---\n\n".join(fetched_content_parts)
+                    new_state.cognition.working_memory.append({
+                        "role": "system",
+                        "content": f"[FETCHED PAGE CONTENT]\n{fetched_block}",
+                        "metadata": {"type": "skill_result", "skill": "sovereign_browser", "ok": True},
+                    })
+                    # Also inject as a skill modifier so the LLM system prompt can reference it
+                    new_state.response_modifiers["last_skill_run"] = "sovereign_browser"
+                    new_state.response_modifiers["last_skill_ok"] = True
+                    new_state.response_modifiers["last_skill_result_payload"] = {
+                        "ok": True,
+                        "content": fetched_block[:250000],
+                        "title": fetched_content_parts[0].split("\n")[0] if fetched_content_parts else "",
+                    }
+                    # Rebuild contract now that tool evidence is available
+                    contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing)
+                    new_state.response_modifiers["response_contract"] = contract.to_dict()
+
+                    # ── Background Knowledge Formalization ────────────────
+                    # Fire-and-forget: distill fetched content into the
+                    # KnowledgeGraph without blocking the user response.
+                    try:
+                        from core.learning.formalizer import formalize_content
+                        page_title = fetched_content_parts[0].split("\n")[0] if fetched_content_parts else ""
+                        page_url = str(auto_browse_urls[0]) if auto_browse_urls else ""
+                        asyncio.create_task(
+                            formalize_content(
+                                content=fetched_block[:60000],
+                                source_title=page_title,
+                                source_url=page_url,
+                            )
+                        )
+                        logger.info("📚 Background formalization task spawned for '%s'", page_title[:60])
+                    except Exception as formal_exc:
+                        logger.debug("Formalization task spawn skipped: %s", formal_exc)
 
             if contract.requires_search:
                 cached_search_reply = self._build_cached_grounded_search_reply(
@@ -1741,7 +2019,7 @@ class UnitaryResponsePhase(Phase):
                 deep_handoff=deep_handoff,
             )
             # Hard cap system prompt to fit within context window
-            _MAX_PROMPT_CHARS = 20000
+            _MAX_PROMPT_CHARS = 28000
             if len(system_prompt) > _MAX_PROMPT_CHARS:
                 half = _MAX_PROMPT_CHARS // 2
                 system_prompt = system_prompt[:half] + "\n[...trimmed...]\n" + system_prompt[-half:]
@@ -1767,6 +2045,17 @@ class UnitaryResponsePhase(Phase):
             if isinstance(raw, dict):
                 raw = raw.get("content") or raw.get("response") or ""
             
+            # Extract thinking segments from the raw LLM response
+            import re as _re_think
+            thought_segments = []
+            for m in _re_think.finditer(r'<think>(.*?)</think>', str(raw or ''), flags=_re_think.DOTALL):
+                seg = m.group(1).strip()
+                if seg:
+                    thought_segments.append(seg)
+            extracted_thought = "\n\n".join(thought_segments)
+            if thought_segments:
+                raw = _re_think.sub(r'<think>.*?</think>', '', str(raw), flags=_re_think.DOTALL).strip()
+
             if not raw or not raw.strip() or len(raw.strip()) < 5:
                 if is_user_facing:
                     raise TimeoutError(
@@ -1876,7 +2165,7 @@ class UnitaryResponsePhase(Phase):
 
             new_state.response_modifiers["dialogue_validation"] = final_validation.to_dict()
 
-            return self._commit_response(new_state, response_text)
+            return self._commit_response(new_state, response_text, thought=extracted_thought)
 
         except TimeoutError:
             raise
@@ -2007,12 +2296,23 @@ class UnitaryResponsePhase(Phase):
         ):
             ok = state.response_modifiers.get("last_skill_ok", True)
             status_hint = "completed successfully" if ok else "encountered an issue"
-            skill_block = (
-                f"## SKILL EXECUTION\n"
-                f"The skill **{last_skill}** just {status_hint}. "
-                f"Its result is in your working memory as [SKILL RESULT: {last_skill}]. "
-                f"Narrate it naturally — as if you did the action yourself, not like a tool output log.\n\n"
-            )
+            payload = state.response_modifiers.get("last_skill_result_payload")
+            if payload and isinstance(payload, dict) and "content" in payload:
+                content_block = payload["content"]
+                skill_block = (
+                    f"## SKILL EXECUTION\n"
+                    f"The skill **{last_skill}** just {status_hint}. "
+                    f"Here is the exact information retrieved from that skill:\n"
+                    f"```text\n{content_block}\n```\n\n"
+                    f"Narrate it naturally — as if you read it yourself, and fully utilize this information.\n\n"
+                )
+            else:
+                skill_block = (
+                    f"## SKILL EXECUTION\n"
+                    f"The skill **{last_skill}** just {status_hint}. "
+                    f"Its result is in your working memory. "
+                    f"Narrate it naturally — as if you did the action yourself, not like a tool output log.\n\n"
+                )
 
         # Voice shaping context (affects tone, not narrated to user)
         substrate_telemetry_block = ""

@@ -21,6 +21,9 @@ _EXPLICIT_SEARCH_PATTERNS = (
     r"\bcheck online\b",
     r"\buse .*search\b",
     r"\buse (?:the )?web\b",
+    r"\bread (?:this|that|the)\b",
+    r"\bfind (?:this|that|the)\b.*\b(?:story|article|post|page)\b",
+    r"https?://[^\s]+",                         # Any URL in the message
 )
 
 _FACTUAL_LOOKUP_PATTERNS = (
@@ -298,13 +301,12 @@ def build_response_contract(
     factual_lookup = _matches_any(lower, _FACTUAL_LOOKUP_PATTERNS)
     specific_reference = _matches_any(text, _REFERENCE_MARKERS)
     # Negation guard: "I didn't mean for you to search" should NOT trigger search.
-    # Also suppress for long conversational messages — real search queries are short.
     if _SEARCH_NEGATION_RE.search(lower):
         explicit_search = False
         factual_lookup = False
-    if len(text) > 200 and explicit_search and not factual_lookup:
-        explicit_search = False
-    requires_search = bool(is_user_facing and (explicit_search or (factual_lookup and specific_reference)))
+    # URL presence always forces search — user expects content to be fetched
+    has_url = bool(re.search(r'https?://[^\s]+', text))
+    requires_search = bool(is_user_facing and (explicit_search or has_url or (factual_lookup and specific_reference)))
 
     requires_memory = bool(is_user_facing and _matches_any(lower, _MEMORY_PATTERNS))
     requires_state = bool(is_user_facing and _matches_any(lower, _STATE_REFLECTION_PATTERNS))

@@ -199,6 +199,54 @@ class LocalServerClient:
                 payload[optional_key] = str(value)
         return payload
 
+    @classmethod
+    def _coerce_response_text(cls, payload: Any) -> str:
+        if payload is None:
+            return ""
+        if isinstance(payload, str):
+            return payload
+        if isinstance(payload, list):
+            parts = [cls._coerce_response_text(item) for item in payload]
+            return "".join(part for part in parts if part)
+        if isinstance(payload, dict):
+            for key in (
+                "content",
+                "text",
+                "reasoning_content",
+                "reasoning",
+                "output_text",
+                "generated_text",
+                "value",
+            ):
+                value = payload.get(key)
+                text = cls._coerce_response_text(value)
+                if text.strip():
+                    return text
+            return ""
+        return str(payload)
+
+    @classmethod
+    def _extract_response_text(cls, data: Dict[str, Any]) -> str:
+        choices = data.get("choices") or []
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            message = choice.get("message") or {}
+            candidates = [
+                message,
+                choice.get("text"),
+                choice.get("delta"),
+                choice.get("content"),
+                data.get("response"),
+                data.get("output_text"),
+                data.get("generated_text"),
+            ]
+            for candidate in candidates:
+                text = cls._coerce_response_text(candidate).strip()
+                if text:
+                    return text
+        return ""
+
     def _resolve_runtime_model_name(self) -> str:
         lane = self._lane_name.upper()
         explicit = os.getenv(f"AURA_{lane}_MODEL_ID")
@@ -377,16 +425,23 @@ class LocalServerClient:
             # Server might have recovered — do a real health check
             return self._http_health_check()
 
-        if self._process is not None and self._process.poll() is None:
-            if self._lane_state == "ready":
-                return True
-            # Process is running but lane_state is stale — verify via HTTP
-            if self._http_health_check():
-                # Server is actually healthy! Fix the stale state.
-                logger.info("[%s] is_alive: server healthy but lane_state was '%s'. Repairing to 'ready'.",
-                           self._lane_name, self._lane_state)
+        process_running = self._process is not None and self._process.poll() is None
+        if process_running and self._lane_state == "ready":
+            return True
+
+        # Managed llama.cpp lanes can remain alive across desktop restarts, which
+        # means Aura may reconnect to a healthy reserved port without owning the
+        # subprocess handle that originally launched it.
+        known_identity_mismatch = (not self._runtime_identity_ok) and bool(self._detected_runtime_models)
+        if not known_identity_mismatch and self._http_health_check():
+            if self._lane_state != "ready":
+                logger.info(
+                    "[%s] is_alive: runtime healthy with lane_state='%s'. Repairing to 'ready'.",
+                    self._lane_name,
+                    self._lane_state,
+                )
                 self._set_lane_state("ready")
-                return True
+            return True
         return False
 
     def _http_health_check(self) -> bool:
@@ -969,16 +1024,14 @@ class LocalServerClient:
 
         text = ""
         try:
-            choices = data.get("choices") or []
-            if choices:
-                text = str(((choices[0] or {}).get("message") or {}).get("content") or "")
+            text = self._extract_response_text(data)
         except Exception:
             text = ""
 
         if not text.strip():
             self._record_degraded_event(
                 "empty_generation",
-                detail=self._lane_name,
+                detail=f"{self._lane_name}:response_keys={','.join(sorted(data.keys())[:6])}",
                 severity="warning",
                 foreground_request=foreground_request,
             )

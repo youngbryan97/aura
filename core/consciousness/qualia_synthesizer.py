@@ -368,9 +368,21 @@ class QualiaSynthesizer:
 
         # Coherence: are all dimensions moving together? (high correlation = coherent)
         if stacked.shape[0] > 2:
-            corr_matrix = np.corrcoef(stacked.T)
-            upper = corr_matrix[np.triu_indices_from(corr_matrix, k=1)]
-            coherence = float(np.mean(upper[~np.isnan(upper)])) if len(upper[~np.isnan(upper)]) > 0 else 0.5
+            # Filter out zero-variance columns before calling corrcoef.
+            # np.corrcoef divides by stddev internally; zero-variance columns
+            # produce divide-by-zero warnings that flood the logs.
+            col_std = np.std(stacked, axis=0)
+            varying_mask = col_std > 1e-10
+            if np.sum(varying_mask) >= 2:
+                filtered = stacked[:, varying_mask]
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    corr_matrix = np.corrcoef(filtered.T)
+                corr_matrix = np.nan_to_num(corr_matrix, nan=0.5)
+                upper = corr_matrix[np.triu_indices_from(corr_matrix, k=1)]
+                coherence = float(np.mean(upper)) if len(upper) > 0 else 0.5
+            else:
+                # All dimensions are static — coherence is trivially perfect
+                coherence = 1.0
         else:
             coherence = 0.5
 
