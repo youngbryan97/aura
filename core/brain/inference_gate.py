@@ -1650,6 +1650,23 @@ class InferenceGate:
                 )
                 requested_tier = "tertiary"  # Use 7B brainstem — fast, always available
 
+            # RAM-aware inference routing (v50): when RAM > 88%, prefer the 7B
+            # brainstem over the 32B cortex. The 32B model's KV cache and
+            # activations consume significant unified memory — switching to 7B
+            # prevents hitting the 94% throttle wall during conversation.
+            if requested_tier == "primary":
+                try:
+                    import psutil
+                    ram_pct = psutil.virtual_memory().percent
+                    if ram_pct >= 88.0:
+                        logger.warning(
+                            "InferenceGate: RAM at %.1f%% — downgrading primary to brainstem "
+                            "to preserve headroom.", ram_pct,
+                        )
+                        requested_tier = "tertiary"
+                except Exception:
+                    pass
+
             if requested_tier != "secondary" and self._background_memory_pressure_active():
                 await self._shed_background_workers_for_memory_pressure()
 

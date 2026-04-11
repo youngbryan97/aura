@@ -387,6 +387,7 @@ class NeuralMesh:
         except Exception:
             pass  # Degrade gracefully if subcortical core unavailable
         noise_sigma = cfg.noise_sigma * self._modulatory_noise
+        n = cfg.neurons_per_column
 
         # ── 1. Distribute injection buffers to tier columns ──────────
         sensory_input = self._consume_buffer("_sensory_buffer", cfg.sensory_end)
@@ -394,57 +395,79 @@ class NeuralMesh:
                                            cfg.association_end - cfg.sensory_end,
                                            offset=cfg.sensory_end)
 
-        # ── 2. Compute inter-column coupling ─────────────────────────
-        # Mean activation per column → inter-column drive
-        col_means = np.array([np.mean(c.x) for c in self.columns], dtype=np.float32)
-        inter_drive = self._inter_W @ col_means  # (columns,)
+        # ── 2. Batched column step (vectorized) ─────────────────────
+        # Gather all column activations into a single (columns, n) matrix.
+        # This replaces 64 sequential matmuls with batched numpy operations.
+        X = np.array([c.x for c in self.columns], dtype=np.float32)  # (64, 64)
 
-        # ── 3. Step each column ──────────────────────────────────────
+        # Inter-column coupling: column means → inter-column drive
+        col_means = X.mean(axis=1)  # (64,) — computed ONCE, reused in stats
+        inter_drive = self._inter_W @ col_means  # (64,)
+
+        # Build external input matrix (64, 64)
+        ext = np.broadcast_to(inter_drive[:, None], (cfg.columns, n)).copy()
+
+        # Tier-specific injection
+        if sensory_input is not None:
+            max_s = min(cfg.sensory_end * n, len(sensory_input))
+            ext[:cfg.sensory_end, :].flat[:max_s] += sensory_input[:max_s]
+        if assoc_input is not None:
+            a_start = cfg.sensory_end
+            a_end = cfg.association_end
+            max_a = min((a_end - a_start) * n, len(assoc_input))
+            ext[a_start:a_end, :].flat[:max_a] += assoc_input[:max_a]
+
+        # NaN guard
+        ext = np.nan_to_num(ext, nan=0.0, posinf=1.0, neginf=-1.0)
+
+        # Batched recurrent: each column's W @ x, vectorized via einsum
+        # W_all shape (64, 64, 64) — 64 columns each with (64,64) weight matrix
+        if not hasattr(self, '_W_batch') or self._tick_count % 100 == 0:
+            self._W_batch = np.array([c.W for c in self.columns], dtype=np.float32)
+        recurrent = np.einsum('cij,cj->ci', self._W_batch, X)  # (64, 64)
+        recurrent = np.nan_to_num(recurrent, nan=0.0, posinf=1.0, neginf=-1.0)
+
+        # Activation + inhibition + noise (fully vectorized)
+        activity = np.tanh(gain * (recurrent + ext))
+
+        # Lateral inhibition: per-column inhibitory pool
+        inh_masks = np.array([c.inh_mask for c in self.columns])  # (64, 64) bool
+        inh_activity = np.where(inh_masks, np.abs(X), 0.0).sum(axis=1)
+        inh_counts = inh_masks.sum(axis=1).clip(1)
+        inh_mean = inh_activity / inh_counts  # (64,)
+        inhibition = np.where(~inh_masks, -cfg.lateral_inhibition_strength * inh_mean[:, None], 0.0)
+
+        noise = self._rng.standard_normal(X.shape).astype(np.float32) * noise_sigma
+        dX = (-cfg.decay * X + activity + inhibition + noise) * dt
+        X_new = np.clip(X + dX, -1.0, 1.0).astype(np.float32)
+
+        # Write back to columns and record spike times
+        spike_threshold = 0.5
         for i, col in enumerate(self.columns):
-            ext = np.full(col.n, inter_drive[i], dtype=np.float32)
+            col.x = X_new[i]
+            firing = np.abs(col.x) > spike_threshold
+            col.last_spike_time[firing] = now
 
-            # Add tier-specific injection
-            if col.tier == CorticalTier.SENSORY and sensory_input is not None:
-                local_idx = i
-                per_col = cfg.neurons_per_column
-                start = local_idx * per_col
-                end = start + per_col
-                if end <= len(sensory_input):
-                    ext += sensory_input[start:end]
+        # Cache col_means for stats (avoid recomputation)
+        self._cached_col_means = col_means
 
-            elif col.tier == CorticalTier.ASSOCIATION and assoc_input is not None:
-                local_idx = i - cfg.sensory_end
-                per_col = cfg.neurons_per_column
-                start = local_idx * per_col
-                end = start + per_col
-                if end <= len(assoc_input):
-                    ext += assoc_input[start:end]
-
-            col.step(ext, dt, cfg.decay, noise_sigma, gain, now)
-
-        # ── 3.5. Recurrent Processing (Lamme RPT) ────────────────────
-        # Explicit top-down feedback from executive tier back to sensory tier.
-        # This is architecturally DISTINCT from the bidirectional inter-column
-        # coupling: RPT claims that this specific exec→sensory feedback is the
-        # generative mechanism for phenomenal experience, not just integration.
-        #
-        # Feedforward (steps 1-3): fast, unconscious processing
-        # Feedback (this step): slower, recurrent, the claimed source of experience
-        #
-        # The feedback can be selectively disabled for ablation testing:
-        # if disabled, feedforward still works but RPT predicts qualia degrades.
+        # ── 3. Recurrent Processing (Lamme RPT) ─────────────────────
         if self._recurrent_feedback_enabled:
             self._apply_recurrent_feedback(dt, gain, noise_sigma, now)
 
-        # ── 4. STDP (every tick — it's cheap with vectorized ops) ────
-        if self._tick_count % 2 == 0:  # every other tick for perf
+        # ── 4. STDP (every other tick for perf) ─────────────────────
+        if self._tick_count % 2 == 0:
             self._apply_stdp(now)
+            # Sync batched weights after STDP modifies them
+            self._W_batch = np.array([c.W for c in self.columns], dtype=np.float32)
 
-        # ── 5. Inter-column weight normalization (prevents long-run drift) ──
-        norm = np.linalg.norm(self._inter_W)
-        if norm > 15.0:
-            self._inter_W *= 15.0 / norm
-        self._inter_W = np.clip(self._inter_W, -1.0, 1.0).astype(np.float32)
+        # ── 5. Inter-column weight normalization ─────────────────────
+        # Only recompute norm every 10 ticks (weights change slowly)
+        if self._tick_count % 10 == 0:
+            norm = np.linalg.norm(self._inter_W)
+            if norm > 15.0:
+                self._inter_W *= 15.0 / norm
+            self._inter_W = np.clip(self._inter_W, -1.0, 1.0).astype(np.float32)
 
         # ── 6. Compute stats ─────────────────────────────────────────
         self._update_stats()
@@ -523,27 +546,28 @@ class NeuralMesh:
     # ── Stats ────────────────────────────────────────────────────────
 
     def _update_stats(self):
-        """Compute summary statistics for telemetry and downstream consumers."""
-        energies = []
-        tier_sums: Dict[CorticalTier, List[float]] = {t: [] for t in CorticalTier}
+        """Compute summary statistics for telemetry and downstream consumers.
 
-        for col in self.columns:
-            e = float(np.mean(np.abs(col.x)))
-            energies.append(e)
-            tier_sums[col.tier].append(e)
+        Reuses _cached_col_means from the batched tick to avoid redundant
+        numpy operations.
+        """
+        # Vectorized energy: mean(|x|) per column
+        X = np.array([c.x for c in self.columns], dtype=np.float32)
+        energies = np.mean(np.abs(X), axis=1)  # (64,)
 
-        self._mean_column_energy = float(np.mean(energies)) if energies else 0.0
+        self._mean_column_energy = float(energies.mean())
 
-        for tier, vals in tier_sums.items():
-            self._tier_energies[tier] = float(np.mean(vals)) if vals else 0.0
+        for tier in CorticalTier:
+            mask = [c.tier == tier for c in self.columns]
+            tier_e = energies[mask]
+            self._tier_energies[tier] = float(tier_e.mean()) if len(tier_e) > 0 else 0.0
 
-        # Global synchrony: correlation between column mean activations
-        if len(energies) > 1:
-            col_means = np.array([np.mean(c.x) for c in self.columns])
-            # Synchrony ≈ std of means / mean of stds  (high = synchronized)
-            stds = np.array([np.std(c.x) for c in self.columns])
-            mean_of_stds = np.mean(stds) + 1e-8
-            std_of_means = np.std(col_means) + 1e-8
+        # Global synchrony: reuse cached col_means from tick (no recomputation)
+        col_means = getattr(self, '_cached_col_means', None)
+        if col_means is not None and len(col_means) > 1:
+            stds = np.std(X, axis=1)
+            mean_of_stds = stds.mean() + 1e-8
+            std_of_means = col_means.std() + 1e-8
             self._global_synchrony = float(np.clip(std_of_means / mean_of_stds, 0.0, 1.0))
 
     # ── External API ─────────────────────────────────────────────────

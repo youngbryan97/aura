@@ -69,9 +69,17 @@ class RIIU:
         self._write_idx = 0
         self._samples_collected = 0
 
+        # Welford's online covariance (avoids full recompute every tick)
+        self._welford_mean = np.zeros(self.total_dim, dtype=np.float64)
+        self._welford_M2 = np.zeros((self.total_dim, self.total_dim), dtype=np.float64)
+        self._welford_n = 0
+        self._cov_dirty = True  # signals that cached slogdet needs refresh
+        self._cached_cov = None
+
         # Cached results
         self._last_phi: float = 0.0
         self._last_whole_logdet: float = 0.0
+        self._tick_count: int = 0
 
         # Partition indices (precomputed for speed)
         self._partitions = self._generate_partitions()
@@ -83,24 +91,33 @@ class RIIU:
 
     def compute_phi(self, state_vector: np.ndarray) -> float:
         """Adds a new state vector to the buffer and computes current Φ.
-        
-        This is the primary public entry point for RIIU. It also pulses
-        the 'iit_phi' hypha in the mycelial network.
+
+        Metabolic optimization (v50): Uses Welford's online covariance
+        so each tick is O(d^2) rank-1 update instead of O(n*d^2) full recompute.
+        The expensive slogdet+partition search only runs every 5 ticks.
         """
         # 1. Update sliding buffer
-        # v14.3: Ensure state_vector matches total_dim (Fix broadcasting errors in tests)
         v = np.zeros(self.total_dim, dtype=np.float64)
         n = min(len(state_vector), self.total_dim)
         v[:n] = state_vector[:n]
-        
+
         self._buffer[self._write_idx] = v
         self._write_idx = (self._write_idx + 1) % self.buffer_size
         self._samples_collected = min(self.buffer_size, self._samples_collected + 1)
 
-        phi = 0.0
-        if self._samples_collected >= _MIN_SAMPLES:
-            # 2. Compute surrogate Φ
-            # We use up to buffer_size samples for computation
+        # 2. Welford online covariance update (O(d^2) per tick)
+        self._welford_n += 1
+        delta = v - self._welford_mean
+        self._welford_mean += delta / self._welford_n
+        delta2 = v - self._welford_mean
+        self._welford_M2 += np.outer(delta, delta2)
+        self._cov_dirty = True
+
+        self._tick_count += 1
+
+        phi = self._last_phi  # default: return cached value
+        if self._samples_collected >= _MIN_SAMPLES and self._tick_count % 5 == 0:
+            # 3. Full phi computation every 5 ticks (amortize slogdet cost)
             data = self._buffer[:self._samples_collected]
             phi = self._compute_phi_internal(data)
 

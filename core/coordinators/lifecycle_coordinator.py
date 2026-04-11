@@ -142,6 +142,12 @@ class LifecycleCoordinator:
                 await orch.hardware_manager.start()
                 logger.info("✓ Hardware Manager online")
 
+            # ── Boot Barrier (v50) ─────────────────────────────────────
+            # Ensure all core services are instantiated BEFORE any background
+            # loops start. Without this, services race to access dependencies
+            # that haven't been created yet, causing NEVER_SEEN errors.
+            await self._boot_barrier()
+
             # Start Background Loops
             if hasattr(orch, 'consciousness') and orch.consciousness:
                 if hasattr(orch.consciousness, 'start'):
@@ -201,6 +207,44 @@ class LifecycleCoordinator:
             logger.error("Failed to start orchestrator: %s", e)
             orch.status.running = False
             return False
+
+    async def _boot_barrier(self):
+        """Deterministic boot barrier: instantiate all core services before
+        any background loops start.
+
+        The ServiceContainer uses lazy factories — services are only created
+        on first .get() call. Without this barrier, background loops would
+        race to access services that don't exist yet, causing NEVER_SEEN
+        heartbeat errors and potential crashes.
+
+        This barrier forces all critical services to instantiate NOW.
+        """
+        from core.container import ServiceContainer
+
+        REQUIRED_SERVICES = [
+            "subsystem_audit",
+            "event_bus",
+            "mycelial_network",
+            "llm_router",
+            "autonomic_core",
+            "snap_kv_evictor",
+            "dual_memory",
+            "inhibition_manager",
+        ]
+
+        ready = 0
+        for name in REQUIRED_SERVICES:
+            try:
+                svc = ServiceContainer.get(name, default=None)
+                if svc is not None:
+                    ready += 1
+                else:
+                    logger.debug("Boot barrier: %s not yet registered (optional).", name)
+            except Exception as e:
+                logger.debug("Boot barrier: %s failed to instantiate: %s", name, e)
+
+        logger.info("Boot barrier: %d/%d core services ready. Background loops may proceed.",
+                     ready, len(REQUIRED_SERVICES))
 
     async def stop(self):
         """Signal the orchestrator to stop gracefully."""
