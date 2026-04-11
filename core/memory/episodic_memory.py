@@ -528,6 +528,89 @@ class EpisodicMemory:
         
         return {"pruned": pruned, "boosted": boosted}
 
+    async def compact_to_semantic(self, batch_size: int = 20) -> dict:
+        """Compress old low-strength episodes into semantic summaries.
+
+        This is the episodic→semantic bridge for Zero-Touch memory management.
+        Instead of just deleting weak episodes, we extract their essential insight
+        and store it in vector memory, then delete the originals.
+
+        Called by AutonomicCore during substrate defrag (every 30 min or at 85% RAM).
+        """
+        compacted = 0
+        try:
+            with self._lock:
+                with self._get_conn() as conn:
+                    # Find episodes that are near-death but haven't been compacted yet
+                    rows = conn.execute(
+                        """SELECT * FROM episodes
+                           WHERE importance < 0.5
+                           ORDER BY timestamp ASC
+                           LIMIT ?""",
+                        (batch_size,)
+                    ).fetchall()
+
+                    if not rows:
+                        return {"compacted": 0}
+
+                    # Build batch summary from the episodes
+                    episodes = [self._row_to_episode(r) for r in rows]
+                    weak_episodes = [e for e in episodes if e.current_strength() < 0.15]
+
+                    if not weak_episodes:
+                        return {"compacted": 0}
+
+                    # Create a single consolidated summary (no LLM needed — just structured text)
+                    summaries = []
+                    delete_ids = []
+                    for ep in weak_episodes:
+                        ctx = (ep.context or "")[:100]
+                        act = (ep.action or "")[:100]
+                        out = (ep.outcome or "")[:100]
+                        success_str = "succeeded" if ep.success else "failed"
+                        summaries.append(f"- {ctx}: {act} ({success_str}: {out})")
+                        delete_ids.append(ep.episode_id)
+
+                    if not delete_ids:
+                        return {"compacted": 0}
+
+                    # Store consolidated summary in vector memory
+                    try:
+                        from core.container import ServiceContainer
+                        dual_memory = ServiceContainer.get("dual_memory", default=None)
+                        if dual_memory and hasattr(dual_memory, 'store'):
+                            consolidated_text = (
+                                f"[COMPACTED] {len(delete_ids)} episodic memories consolidated:\n"
+                                + "\n".join(summaries[:20])
+                            )
+                            await dual_memory.store(
+                                consolidated_text,
+                                metadata={
+                                    "type": "episodic_compaction",
+                                    "source_count": len(delete_ids),
+                                    "timestamp": time.time(),
+                                }
+                            )
+                    except Exception as store_err:
+                        logger.debug("Episodic compaction: vector store skipped: %s", store_err)
+
+                    # Delete compacted episodes
+                    placeholders = ",".join("?" for _ in delete_ids)
+                    conn.execute(
+                        f"DELETE FROM episodes WHERE episode_id IN ({placeholders})",
+                        delete_ids
+                    )
+                    conn.commit()
+                    compacted = len(delete_ids)
+
+            if compacted:
+                logger.info("Episodic compaction: %d weak episodes compressed to semantic summary.", compacted)
+
+        except Exception as e:
+            logger.error("Episodic compaction failed: %s", e)
+
+        return {"compacted": compacted}
+
     def recall_recent(self, limit: int = 10) -> List[Episode]:
         """Retrieve the most recent episodes, ranked by memory strength.
         

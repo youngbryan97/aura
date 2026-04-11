@@ -228,6 +228,14 @@ class IncomingLogicMixin:
         # v47: Track user interaction time for dream cooldown
         if origin in ("user", "voice", "admin"):
             self._last_user_interaction_time = time.time()
+            # v50: Reset idle model swap flag so AutonomicCore knows to
+            # re-warm the 32B cortex if it was hibernated.
+            try:
+                autonomic = ServiceContainer.get("autonomic_core", default=None)
+                if autonomic and hasattr(autonomic, '_reset_idle_swap'):
+                    autonomic._reset_idle_swap()
+            except Exception:
+                pass
             # Standardize: Always append to conversation history early for traceability
             if not hasattr(self, 'conversation_history'):
                 self.conversation_history = []

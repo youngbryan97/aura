@@ -57,6 +57,7 @@ class AutonomicCore:
                 await self._manage_metabolism()
                 await self._enforce_governance()
                 await self._check_survival()
+                await self._check_idle_model_swap()
                 
                 # Deterministic 10-second heartbeat to minimize CPU overhead
                 await asyncio.sleep(10.0) 
@@ -144,16 +145,22 @@ class AutonomicCore:
             except Exception as e:
                 logger.debug("Substrate Defrag: SnapKV eviction skipped: %s", e)
 
-            # 3. Evict oldest episodic memories
+            # 3. Episodic memory compaction: compress weak episodes into semantic
+            # summaries instead of just deleting them. Preserves knowledge while
+            # freeing the SQLite store.
             try:
                 from core.container import ServiceContainer
                 dual_memory = ServiceContainer.get("dual_memory", default=None)
                 if dual_memory and hasattr(dual_memory, 'episodic'):
-                    if hasattr(dual_memory.episodic, 'evict_oldest'):
+                    if hasattr(dual_memory.episodic, 'compact_to_semantic'):
+                        result = await dual_memory.episodic.compact_to_semantic(batch_size=30)
+                        if result.get("compacted", 0) > 0:
+                            logger.info("Substrate Defrag: Compacted %d episodes to semantic.", result["compacted"])
+                    elif hasattr(dual_memory.episodic, 'evict_oldest'):
                         await dual_memory.episodic.evict_oldest(0.2)
                         logger.info("Substrate Defrag: Evicted oldest 20%% of episodic memories.")
             except Exception as e:
-                logger.debug("Substrate Defrag: Episodic eviction skipped: %s", e)
+                logger.debug("Substrate Defrag: Episodic compaction skipped: %s", e)
 
             # 4. Force garbage collection
             gc.collect()
@@ -183,6 +190,75 @@ class AutonomicCore:
 
         except Exception as e:
             logger.error("Zero-Touch auto-recovery error: %s", e)
+
+    async def _check_idle_model_swap(self):
+        """Model hot-swap budget: unload 32B cortex when idle to reclaim ~15GB.
+
+        After 5 minutes with no user interaction, automatically swap the 32B
+        model for the 7B brainstem. The inference gate will lazy-reload the 32B
+        when the next user message arrives.
+
+        This is the single biggest RAM reclamation available — the 32B model
+        alone consumes ~20GB vs ~5GB for the 7B.
+        """
+        if not self.orchestrator:
+            return
+
+        try:
+            last_user = getattr(self.orchestrator, '_last_user_interaction_time', 0)
+            if last_user == 0:
+                return
+
+            idle_seconds = time.time() - last_user
+            IDLE_THRESHOLD = 300.0  # 5 minutes
+
+            if idle_seconds < IDLE_THRESHOLD:
+                return
+
+            # Only swap if the 32B is actually loaded
+            from core.container import ServiceContainer
+            mlx_client = ServiceContainer.get("mlx_client", default=None)
+            if not mlx_client or not hasattr(mlx_client, 'is_alive') or not mlx_client.is_alive():
+                return
+
+            # Check if we already swapped (avoid re-triggering)
+            if getattr(self, '_idle_swap_done', False):
+                return
+
+            import psutil
+            ram_pct = psutil.virtual_memory().percent
+            # Only swap if RAM is above 70% — if plenty of room, let the model stay warm
+            if ram_pct < 70.0:
+                return
+
+            logger.info(
+                "Idle model swap: No user interaction for %.0fs, RAM at %.1f%%. "
+                "Unloading 32B cortex to reclaim memory.",
+                idle_seconds, ram_pct,
+            )
+
+            await mlx_client.reboot_worker(reason="idle_budget_swap")
+            import gc
+            gc.collect()
+
+            # Warm up brainstem (7B) so it's ready for the next request
+            try:
+                brainstem = ServiceContainer.get("brainstem_client", default=None)
+                if brainstem and hasattr(brainstem, 'warmup'):
+                    await brainstem.warmup()
+                    logger.info("Idle model swap: 7B brainstem warmed up.")
+            except Exception as bs_err:
+                logger.debug("Brainstem warmup after idle swap skipped: %s", bs_err)
+
+            self._idle_swap_done = True
+            await self._emit_status("Cortex hibernated (idle). Brainstem active.")
+
+        except Exception as e:
+            logger.debug("Idle model swap check failed: %s", e)
+
+    def _reset_idle_swap(self):
+        """Called when a user message arrives to clear the idle swap flag."""
+        self._idle_swap_done = False
 
     async def _enforce_governance(self):
         """Immune system watchdog: detect runaway threads and hung processes."""
