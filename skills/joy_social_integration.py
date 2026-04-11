@@ -439,15 +439,15 @@ def integrate_joy_social(
         ctx_mgr.register_context_provider("joy_social", coordinator.get_context_injection)
         logger.info("✅ JoySocial: context injection registered with CognitiveContextManager")
     else:
-        # Fallback: monkey-patch get_context_injection into an existing method
-        _patch_context_method(orchestrator, coordinator)
+        # Hook-based registration (no monkey-patching)
+        _register_context_hook(orchestrator, coordinator)
 
     # ── 3. AgencyCore pathway enhancement ───────────────────────────────────
     agency = getattr(orchestrator, "agency_core", None)
     if agency:
-        _patch_agency_pathways(agency, coordinator)
+        _register_agency_hooks(agency, coordinator)
     else:
-        logger.warning("JoySocial: AgencyCore not found — pathways not patched (harmless)")
+        logger.warning("JoySocial: AgencyCore not found — pathway hooks not registered (harmless)")
 
     # ── 4. Attach to orchestrator ────────────────────────────────────────────
     orchestrator.joy_social = coordinator
@@ -456,62 +456,63 @@ def integrate_joy_social(
     return coordinator
 
 # ────────────────────────────────────────────────────────────────────────────
-# Internal Patching Helpers
+# Integration Helpers (Hook-Based, No Monkey-Patching)
 # ────────────────────────────────────────────────────────────────────────────
 
-def _patch_context_method(orchestrator: Any, coordinator: JoySocialCoordinator) -> None:
+def _register_context_hook(orchestrator: Any, coordinator: JoySocialCoordinator) -> None:
+    """Register JoySocial context injection via the orchestrator's hook registry.
+
+    Uses the event bus or a context_hooks list instead of monkey-patching
+    orchestrator methods with setattr.
     """
-    If no CognitiveContextManager exists, prepend joy/social context to any
-    existing get_context_injection() or get_system_context() on the orchestrator.
-    """
-    for attr in ("get_context_injection", "get_system_context", "get_context"):
-        original = getattr(orchestrator, attr, None)
-        if callable(original):
-            def _wrapped(orig=original):
-                base = orig() or ""
-                joy_ctx = coordinator.get_context_injection()
-                if joy_ctx:
-                    return f"{joy_ctx}\n{base}"
-                return base
-            setattr(orchestrator, attr, _wrapped)
-            logger.info("✅ JoySocial: context patched into orchestrator.%s", attr)
+    # Preferred: use the mycelium event bus for context injection
+    try:
+        from core.container import ServiceContainer
+        bus = ServiceContainer.get("mycelium", default=None)
+        if bus and hasattr(bus, "on"):
+            async def _joy_context_hook(event_data: dict) -> None:
+                ctx = coordinator.get_context_injection()
+                if ctx and isinstance(event_data, dict):
+                    event_data.setdefault("context_blocks", []).append(ctx)
+            bus.on("context_assembly", _joy_context_hook)
+            logger.info("✅ JoySocial: context registered via event bus hook")
             return
+    except Exception as exc:
+        logger.debug("JoySocial: event bus registration failed: %s", exc)
 
-def _patch_agency_pathways(agency: Any, coordinator: JoySocialCoordinator) -> None:
+    # Fallback: register in orchestrator's context_hooks list if available
+    hooks = getattr(orchestrator, "_context_hooks", None)
+    if isinstance(hooks, list):
+        hooks.append(coordinator.get_context_injection)
+        logger.info("✅ JoySocial: context registered via orchestrator._context_hooks")
+        return
+
+    logger.info("⚠ JoySocial: no context hook mechanism available — context injection inactive")
+
+
+def _register_agency_hooks(agency: Any, coordinator: JoySocialCoordinator) -> None:
+    """Register hobby/social proposals as agency pathway hooks.
+
+    Instead of replacing agency methods with setattr, we register proposal
+    callbacks that the agency system can call during pathway evaluation.
     """
-    Enhance AgencyCore's aesthetic_creation and social_hunger pathways so they
-    first check whether a real hobby/social proposal is available.
-    """
-    # ── Aesthetic / curiosity pathway ────────────────────────────────────────
-    original_aesthetic = getattr(agency, "_pathway_aesthetic_creation", None)
-    if callable(original_aesthetic):
-        def _enhanced_aesthetic(now: float, idle_seconds: float):
-            proposal = coordinator.propose_hobby_action()
-            if proposal:
-                return proposal
-            return original_aesthetic(now, idle_seconds)
-        agency._pathway_aesthetic_creation = _enhanced_aesthetic
-        logger.info("✅ JoySocial: AgencyCore._pathway_aesthetic_creation enhanced")
+    # Register as proposal providers if the agency supports hooks
+    if hasattr(agency, "register_pathway_hook"):
+        agency.register_pathway_hook("aesthetic_creation", coordinator.propose_hobby_action)
+        agency.register_pathway_hook("curiosity_drive", coordinator.propose_hobby_action)
+        agency.register_pathway_hook("social_hunger", coordinator.propose_social_action)
+        logger.info("✅ JoySocial: agency pathway hooks registered")
+        return
 
-    # Also patch curiosity drive with the same hobby proposal
-    original_curiosity = getattr(agency, "_pathway_curiosity_drive", None)
-    if callable(original_curiosity):
-        def _enhanced_curiosity(now: float, idle_seconds: float):
-            if idle_seconds > 900:  # only if quiet for 15+ min
-                proposal = coordinator.propose_hobby_action()
-                if proposal:
-                    return proposal
-            return original_curiosity(now, idle_seconds)
-        agency._pathway_curiosity_drive = _enhanced_curiosity
-        logger.info("✅ JoySocial: AgencyCore._pathway_curiosity_drive enhanced")
+    # Fallback: register as proposal sources in the agency's provider list
+    providers = getattr(agency, "_proposal_providers", None)
+    if isinstance(providers, list):
+        providers.append({
+            "source": "joy_social",
+            "hobby": coordinator.propose_hobby_action,
+            "social": coordinator.propose_social_action,
+        })
+        logger.info("✅ JoySocial: agency proposal providers registered")
+        return
 
-    # ── Social hunger pathway ─────────────────────────────────────────────────
-    original_social = getattr(agency, "_pathway_social_hunger", None)
-    if callable(original_social):
-        def _enhanced_social(now: float, idle_seconds: float):
-            proposal = coordinator.propose_social_action()
-            if proposal:
-                return proposal
-            return original_social(now, idle_seconds)
-        agency._pathway_social_hunger = _enhanced_social
-        logger.info("✅ JoySocial: AgencyCore._pathway_social_hunger enhanced")
+    logger.info("⚠ JoySocial: no agency hook mechanism — proposals inactive")

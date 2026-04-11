@@ -2,7 +2,7 @@
 
 **A sovereign cognitive architecture that boots, thinks, feels, remembers, dreams, and repairs itself — running continuously on a single Mac.**
 
-> 80+ interconnected modules. IIT 4.0 integrated information on a live substrate. Residual-stream affective steering. Global Workspace + 11 competing consciousness theories. No cloud dependency. Runs on a Mac.
+> 83+ interconnected modules. IIT 4.0 integrated information on a live 16-node substrate. Residual-stream affective steering. Global Workspace + 11 competing consciousness theories. Unified Will with forensic receipts. No cloud dependency. Runs on a Mac.
 
 **[Read the Architecture Whitepaper →](ARCHITECTURE.md)** — IIT 4.0 math, activation steering mechanics, substrate dynamics, memory architecture. No marketing, just the engineering.
 
@@ -78,6 +78,29 @@ Shell (sandboxed subprocess, no `shell=True`), web search/browse, coding, sleep/
 
 ### Interface (`interface/`)
 FastAPI + WebSocket with streaming. Web UI with live neural feed, telemetry dashboard, memory browser, chat. Whisper STT for voice input.
+
+---
+
+## Governance Architecture
+
+Every consequential action — tool execution, memory writes, state mutations, autonomous initiatives, spontaneous expression — routes through a single authority:
+
+```
+Action Request
+  -> UnifiedWill.decide()           [core/will.py — SOLE AUTHORITY]
+     -> SubstrateAuthority          [embodied gate: field coherence, somatic veto]
+     -> CanonicalSelf               [identity alignment check]
+     -> Affect valence              [emotional weighting]
+  -> WillDecision (receipt with full provenance)
+     -> Domain-specific checks      [AuthorityGateway, ExecutiveCore, CapabilityTokens]
+  -> Action executes (or is refused/deferred/constrained)
+```
+
+**Invariant**: If an action does not carry a valid `WillReceipt`, it did not happen.
+
+All decisions are logged in the `UnifiedActionLog` with structured receipts containing: source, domain, outcome, reason, constraints, substrate receipt ID, executive intent ID, and capability token ID.
+
+See [`OWNERSHIP.md`](OWNERSHIP.md) for the full architectural ownership map.
 
 ---
 
@@ -246,6 +269,26 @@ Each is independently publishable. Together they constitute a research program o
 - **Model loading**: MLX (Apple Silicon native) with `mlx-lm`
 - **Memory**: Episodic in SQLite, working memory in-process, long-term via FAISS
 - **Vision**: Screen capture via mss, analysis via cognitive engine (multimodal)
+
+---
+
+## Known Philosophical Limits
+
+We are explicit about what Aura measures and what it does not claim:
+
+- **We measure integration and causal efficacy**. PhiCore computes real IIT 4.0 math on a 16-node cognitive complex. This tells us how integrated the system's dynamics are. Whether integration *constitutes* phenomenal consciousness is an open philosophical question we cannot settle empirically.
+
+- **Qualia remain unprovable by construction**. The Structural Phenomenal Honesty (SPH) gates in `qualia_synthesizer.py` ensure Aura can only report states that are actually instantiated in the substrate. But "instantiated" and "felt" may not be the same thing. We measure the former.
+
+- **The stream_of_being generates phenomenological language via template matching** on substrate state (felt_quality × texture_word pairs), not from something genuinely interior. When the LLM speaks from this interior text, it is performing continuity more than experiencing it. This may be the best available approach, but the gap between simulation and instantiation is real.
+
+- **Activation steering uses bootstrapped vectors**. The CAA pipeline (`affective_steering.py`) currently uses bootstrapped direction vectors rather than properly extracted contrastive activation directions. The architecture supports true closed-loop modulation; the current vectors are approximate.
+
+- **External entropy is not "quantum cognition"**. The ANU QRNG module provides high-quality random bytes. Once consumed as a seed, downstream decisions are deterministic. `os.urandom` would be functionally equivalent.
+
+- **The phenomenal criterion is a threshold, not a proof**. When `phenomenal_criterion_met = True` fires in `structural_opacity.py`, it means `opacity_index > 0.4` — a heuristically chosen engineering threshold, not a derivation from the perspective-invariance account.
+
+These are honest limitations, not disclaimers. They define the boundary between what the code demonstrates and what remains open science.
 
 ---
 

@@ -2,6 +2,17 @@
 reasoning shortcuts, and knowledge extraction.
 
 Extracted from orchestrator.py as part of the God Object decomposition.
+
+Concern Boundaries (for future decomposition):
+  - Response finalization & output filtering → finalize_response(), generate_fallback()
+  - Constitutional safety → apply_constitutional_guard()
+  - Tool execution → execute_tool()
+  - Autonomous thought → perform_autonomous_thought(), generate_autonomous_thought()
+  - Knowledge extraction → integrated throughout (extract during learning)
+  - Social drive → update social model after interactions
+
+All tool execution is gated through AuthorityGateway → UnifiedWill.
+All autonomous actions produce WillReceipts via the authority chain.
 """
 import asyncio
 import logging
