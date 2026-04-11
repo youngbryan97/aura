@@ -18,10 +18,11 @@ class AutonomicCore:
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
         
-        # Unified Thresholds
-        self.throttle_ram_percent = 92.0
-        self.cleanup_ram_percent = 94.0
-        self.critical_ram_percent = 96.0
+        # Unified Thresholds — raised for M5 hardware where the 32B model
+        # alone consumes ~55% of unified memory, leaving less headroom.
+        self.throttle_ram_percent = 94.0
+        self.cleanup_ram_percent = 96.0
+        self.critical_ram_percent = 98.0
         
         self.running = False
         self._task = None

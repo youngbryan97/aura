@@ -292,7 +292,7 @@ class InferenceGate:
 
     async def ensure_foreground_ready(self, timeout: Optional[float] = None) -> Dict[str, Any]:
         """Ensure the 32B conversation lane has actually attempted warmup for this turn."""
-        timeout = max(15.0, float(timeout or 75.0))
+        timeout = max(15.0, float(timeout or 90.0))
         lane = self.get_conversation_status()
         if lane.get("conversation_ready"):
             return lane
@@ -666,7 +666,7 @@ class InferenceGate:
             return 135.0
 
         # Adaptive: check if cortex is warm and responsive
-        base = 75.0
+        base = 90.0
         try:
             inst = cls._instance_ref() if hasattr(cls, "_instance_ref") else None
             if inst is not None:
@@ -675,12 +675,13 @@ class InferenceGate:
                     # Cortex is warm — tighter timeout
                     time_since_success = float(lane.get("time_since_last_success_s", 999.0) or 999.0)
                     if time_since_success < 30.0:
-                        base = 45.0  # Recently successful — expect fast response
+                        base = 55.0  # Recently successful — expect fast response
                     elif time_since_success < 120.0:
-                        base = 60.0
+                        base = 75.0
                 elif not lane.get("conversation_ready"):
-                    # Cortex cold/recovering — longer timeout
-                    base = 120.0
+                    # Cortex cold/recovering — generous timeout to avoid
+                    # cascading "conversation lane timed out" failures
+                    base = 150.0
         except Exception:
             pass
 

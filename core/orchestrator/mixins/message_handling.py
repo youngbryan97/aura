@@ -25,16 +25,22 @@ class MessageHandlingMixin:
 
             # v48 RECURSION GUARD: If the payload itself is a stringified tuple
             # (the "Russian Doll" bug), recursively unpack it to reach the raw content.
+            # v49: Added length cap (2000 chars) to prevent ast.literal_eval from
+            # blocking on huge payloads, and reduced max depth from 5 to 3.
+            _MAX_DOLL_LEN = 2000
             recursion_depth = 0
-            while isinstance(message, str) and message.startswith("(") and message.endswith(")") and recursion_depth < 5:
+            while (isinstance(message, str)
+                   and len(message) <= _MAX_DOLL_LEN
+                   and message.startswith("(") and message.endswith(")")
+                   and recursion_depth < 3):
                 try:
                     import ast
 
                     possible_tuple = ast.literal_eval(message)
                     if isinstance(possible_tuple, tuple):
                         message, nested_origin = unpack_priority_message(possible_tuple)
-                        recursion_depth = recursion_depth + 1
-                        logger.info("🪆 Russian Doll: Decoded nested tuple at depth %d", recursion_depth)
+                        recursion_depth += 1
+                        logger.info("Russian Doll: Decoded nested tuple at depth %d", recursion_depth)
                         if nested_origin and isinstance(message, dict) and "origin" not in message:
                             message = {**message, "origin": nested_origin}
                     else:

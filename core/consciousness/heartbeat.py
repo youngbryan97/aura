@@ -539,13 +539,16 @@ class CognitiveHeartbeat:
 
         # --- Baseline cognitive continuity candidate ---
         # Even when nothing is urgent, there should be something in consciousness
-        # This prevents empty ticks — ensures there is ALWAYS a cognitive state
-        await self.workspace.submit(CognitiveCandidate(
-            content=f"Cognitive baseline tick {tick}: monitoring internal state",
-            source="baseline_continuity",
-            priority=0.1,   # Very low — only wins if nothing else is happening
-            affect_weight=0.0,
-        ))
+        # This prevents empty ticks — ensures there is ALWAYS a cognitive state.
+        # Gate to every 5 ticks to prevent flooding the neural feed when other
+        # subsystems are slow and baseline wins unchallenged repeatedly.
+        if tick % 5 == 0:
+            await self.workspace.submit(CognitiveCandidate(
+                content=f"Cognitive baseline tick {tick}: monitoring internal state",
+                source="baseline_continuity",
+                priority=0.1,   # Very low — only wins if nothing else is happening
+                affect_weight=0.0,
+            ))
 
     async def _emit_thought(
         self,
