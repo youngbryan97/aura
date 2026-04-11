@@ -727,7 +727,7 @@ class StreamOfBeing:
         self._last_opening_timestamp: float = 0.0
         
         # Track conversation activity (to pace LLM narrative calls)
-        self._last_user_interaction: float = 0.0
+        self._last_user_interaction: float = time.time()
         self._boot_started_at: float = time.time()
         
         # Runtime
@@ -1081,15 +1081,23 @@ class StreamOfBeing:
         
         moment = self._thread.current_moment
         gap = time.time() - self._last_user_interaction
-        
+
         if gap < 10:
             return ""  # Too recent to be meaningful
-        
+
+        # Cap gap to session duration to avoid absurd numbers when
+        # _last_user_interaction was never set or is stale.
+        session_dur = self._thread.session_duration_s
+        if session_dur > 0:
+            gap = min(gap, session_dur)
+        # Hard cap: never report more than 24 hours
+        gap = min(gap, 86400.0)
+
         gap_desc = (
             f"{gap:.0f} seconds" if gap < 120
             else f"{gap/60:.1f} minutes"
         )
-        
+
         parts = [f"In the {gap_desc} just passed:"]
         parts.append(moment.interior_text[:200] if moment.interior_text else "I was here.")
         

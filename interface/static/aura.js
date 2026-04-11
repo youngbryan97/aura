@@ -1609,10 +1609,12 @@ function handleWsEvent(data) {
             if (meta.reflex) badge = '<span class="badge badge-reflex">[Reflex]</span> ';
             if (meta.diagnostic) badge = '<span class="badge badge-diagnostic">⚠️</span> ';
             
-            // ZENITH: ID/Fingerprint Deduplication
-            const fingerprint = `${data.id || ''}:${msg.trim()}`;
+            // ZENITH: Content-based deduplication.
+            // Use content-only fingerprint — the same response can arrive
+            // via HTTP and via WebSocket with different IDs.
+            const fingerprint = msg.trim().substring(0, 200);
             if (state.processedMessageFingerprints.has(fingerprint)) {
-                // duplicate message skipped
+                // duplicate message skipped (same content via different channel)
                 return;
             }
             state.processedMessageFingerprints.add(fingerprint);
@@ -2167,8 +2169,13 @@ $('chat-form').onsubmit = async e => {
 
         // If it's just a dispatch confirmation, don't clutter the chat
         if (data.response && data.response !== "Message dispatched to cognitive core.") {
-            // Deduplicate the final HTTP response if it was already streamed into the DOM
-            if (typeof activeStreamContentRaw === 'undefined' || activeStreamContentRaw.trim() !== data.response.trim()) {
+            // Deduplicate: check both stream content AND the global fingerprint set
+            // to catch responses that arrived via WebSocket before the HTTP response.
+            const httpFp = data.response.trim().substring(0, 200);
+            const alreadyDelivered = state.processedMessageFingerprints.has(httpFp);
+            const alreadyStreamed = (typeof activeStreamContentRaw !== 'undefined' && activeStreamContentRaw.trim() === data.response.trim());
+            if (!alreadyDelivered && !alreadyStreamed) {
+                state.processedMessageFingerprints.add(httpFp);
                 const chatMeta = {};
                 if (data.thought) chatMeta.thought = data.thought;
                 appendMsg('aura', data.response, false, chatMeta);

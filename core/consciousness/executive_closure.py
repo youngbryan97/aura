@@ -120,8 +120,13 @@ class ExecutiveClosureEngine:
             )
             logger.debug("ExecutiveClosure: queued selected objective via executive authority (%s).", decision.get("reason"))
 
-        if workspace_snapshot.get("last_content"):
-            state.cognition.attention_focus = workspace_snapshot["last_content"]
+        _ws_content = str(workspace_snapshot.get("last_content") or "")
+        _ws_source = str(workspace_snapshot.get("last_winner") or "")
+        # Never promote internal housekeeping (baseline ticks, drive alerts)
+        # into attention_focus — it leaks into user-facing fallback responses.
+        _internal_sources = {"baseline_continuity", "drive_growth", "drive_social"}
+        if _ws_content and _ws_source not in _internal_sources and "baseline tick" not in _ws_content.lower():
+            state.cognition.attention_focus = _ws_content
 
         if selected_objective:
             state.cognition.modifiers["executive_objective"] = selected_objective

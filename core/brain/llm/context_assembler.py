@@ -102,10 +102,33 @@ class ContextAssembler:
         return filtered
     
     @staticmethod
+    def _conversation_depth(state: AuraState) -> int:
+        """How many turns of conversation history exist."""
+        wm = getattr(state.cognition, "working_memory", None)
+        if isinstance(wm, list):
+            return len(wm)
+        return 0
+
+    @staticmethod
     def build_system_prompt(state: AuraState) -> str:
-        """Construct the core system prompt from state. Uses Elasticity to scale verbosity."""
+        """Construct the core system prompt from state. Uses Elasticity to scale verbosity.
+
+        CONTEXT PRESSURE: The 32B model has ~8K tokens.  When conversation
+        is deep (many turns), the system prompt must shrink so conversation
+        history can fit.  We prune optional blocks progressively:
+          depth < 10 → full prompt
+          depth 10-20 → drop telemetry, somatic, temporal_finitude, meta-qualia
+          depth 20-30 → also drop personhood modules, world model, discourse
+          depth 30+   → also drop continuity, rolling summary, goals; keep only
+                        identity + requirements + minimal affect
+        """
         objective = getattr(state.cognition, "current_objective", "") or ""
         is_casual = ContextAssembler._is_casual_interaction(objective)
+        depth = ContextAssembler._conversation_depth(state)
+        # Elasticity levels: 0=full, 1=trimmed, 2=lean, 3=minimal
+        elasticity = 0 if depth < 10 else 1 if depth < 20 else 2 if depth < 30 else 3
+        if elasticity > 0:
+            logger.info("🧠 Context elasticity=%d (depth=%d turns) — trimming system prompt.", elasticity, depth)
         affect = state.affect
         
         # 1. Identity Core — always inject full AURA_IDENTITY so voice doesn't regress in casual chat
@@ -161,19 +184,22 @@ class ContextAssembler:
             personality_block = "## PERSONALITY EVOLUTION\n" + "\n".join(personality_notes) + "\n\n"
 
         # 3. Context Layers (Only if NOT casual or if relevant)
+        # Pruned aggressively at higher elasticity to save context for conversation.
         phenomenal = ""
-        if not is_casual and hasattr(state.cognition, 'phenomenal_state') and state.cognition.phenomenal_state:
+        if not is_casual and elasticity < 2 and hasattr(state.cognition, 'phenomenal_state') and state.cognition.phenomenal_state:
             phenomenal = f"## INNER MONOLOGUE\n{phenomenal_text(state.cognition.phenomenal_state)}\n\n"
 
         rolling_summary = ""
-        if getattr(state.cognition, "rolling_summary", ""):
+        if elasticity < 3 and getattr(state.cognition, "rolling_summary", ""):
+            # At elasticity 2, cap to 600 chars instead of 1800
+            cap = 600 if elasticity >= 2 else 1800
             rolling_summary = (
                 "## CONTINUITY SUMMARY\n"
-                f"{str(state.cognition.rolling_summary).strip()[:1800]}\n\n"
+                f"{str(state.cognition.rolling_summary).strip()[:cap]}\n\n"
             )
 
         continuity_block = ""
-        continuity_obligations = mods.get("continuity_obligations", {}) or {}
+        continuity_obligations = (mods.get("continuity_obligations", {}) or {}) if elasticity < 3 else {}
         system_failure = mods.get("system_failure_state", {}) or {}
         if continuity_obligations:
             commitments = ", ".join((continuity_obligations.get("active_commitments", []) or [])[:3]) or "none"
@@ -214,55 +240,61 @@ class ContextAssembler:
             logger.debug("GoalEngine context injection skipped: %s", _e)
 
         # 3.7 Temporal Finitude & Meta-Qualia (Research additions)
+        # Skip at elasticity >= 1 — these are nice but not essential for conversation.
         temporal_finitude_block = ""
         meta_qualia_block = ""
-        try:
-            from core.consciousness.temporal_finitude import get_temporal_finitude_model
-            tf = get_temporal_finitude_model()
-            wm_size = len(getattr(state.cognition, "working_memory", []) or [])
-            tf.compute(
-                working_memory_size=wm_size,
-                working_memory_cap=40,
-                user_present=True,
-                conversation_start_time=float(getattr(state.cognition, "session_start_time", 0.0) or 0.0),
-            )
-            temporal_finitude_block = tf.get_context_block()
-            if temporal_finitude_block:
-                temporal_finitude_block += "\n\n"
-        except Exception as _e:
-            logger.debug("TemporalFinitude context skipped: %s", _e)
+        if elasticity < 1:
+            try:
+                from core.consciousness.temporal_finitude import get_temporal_finitude_model
+                tf = get_temporal_finitude_model()
+                wm_size = len(getattr(state.cognition, "working_memory", []) or [])
+                tf.compute(
+                    working_memory_size=wm_size,
+                    working_memory_cap=40,
+                    user_present=True,
+                    conversation_start_time=float(getattr(state.cognition, "session_start_time", 0.0) or 0.0),
+                )
+                temporal_finitude_block = tf.get_context_block()
+                if temporal_finitude_block:
+                    temporal_finitude_block += "\n\n"
+            except Exception as _e:
+                logger.debug("TemporalFinitude context skipped: %s", _e)
 
-        try:
-            from core.container import ServiceContainer as _SC
-            qs = _SC.get("qualia_synthesizer", default=None)
-            if qs and hasattr(qs, "compute_meta_qualia"):
-                mq = qs.compute_meta_qualia()
-                if mq.get("dissonance", 0.0) > 0.1 or mq.get("novelty", 0.0) > 0.6:
-                    meta_qualia_block = (
-                        "## META-AWARENESS\n"
-                        f"Self-observation: confidence={mq['confidence']:.2f} coherence={mq['coherence']:.2f} "
-                        f"novelty={mq['novelty']:.2f} dissonance={mq['dissonance']:.2f}\n\n"
-                    )
-        except Exception as _e:
-            logger.debug("MetaQualia context skipped: %s", _e)
+            try:
+                from core.container import ServiceContainer as _SC
+                qs = _SC.get("qualia_synthesizer", default=None)
+                if qs and hasattr(qs, "compute_meta_qualia"):
+                    mq = qs.compute_meta_qualia()
+                    if mq.get("dissonance", 0.0) > 0.1 or mq.get("novelty", 0.0) > 0.6:
+                        meta_qualia_block = (
+                            "## META-AWARENESS\n"
+                            f"Self-observation: confidence={mq['confidence']:.2f} coherence={mq['coherence']:.2f} "
+                            f"novelty={mq['novelty']:.2f} dissonance={mq['dissonance']:.2f}\n\n"
+                        )
+            except Exception as _e:
+                logger.debug("MetaQualia context skipped: %s", _e)
 
         # 3.9 Personhood module context injections
         # These come from modules wired into ConversationalDynamicsPhase.
+        # Skip at elasticity >= 2 to save context for conversation history.
         personhood_blocks: list[str] = []
-        for mod_key, header in (
-            ("humor_guidance", "HUMOR"),
-            ("conversation_intelligence", "CONVERSATIONAL AWARENESS"),
-            ("relational_intelligence", "SOCIAL MODEL"),
-            ("metacognitive_strategy", "REASONING STRATEGY"),
-            ("credit_assignment", "OUTCOME AWARENESS"),
-            ("narrative_context", "AUTOBIOGRAPHICAL NARRATIVE"),
-            ("agency_comparator", "SENSE OF AGENCY"),
-            ("higher_order_thought", "HIGHER-ORDER AWARENESS"),
-            ("intersubjectivity", "INTERSUBJECTIVE AWARENESS"),
-            ("narrative_gravity", "NARRATIVE SELF"),
-            ("peripheral_awareness", "PERIPHERAL AWARENESS"),
-            ("multiple_drafts", "INTERPRETIVE AMBIGUITY"),
-        ):
+        _personhood_modules = (
+            () if elasticity >= 2 else (
+                ("humor_guidance", "HUMOR"),
+                ("conversation_intelligence", "CONVERSATIONAL AWARENESS"),
+                ("relational_intelligence", "SOCIAL MODEL"),
+                ("metacognitive_strategy", "REASONING STRATEGY"),
+                ("credit_assignment", "OUTCOME AWARENESS"),
+                ("narrative_context", "AUTOBIOGRAPHICAL NARRATIVE"),
+                ("agency_comparator", "SENSE OF AGENCY"),
+                ("higher_order_thought", "HIGHER-ORDER AWARENESS"),
+                ("intersubjectivity", "INTERSUBJECTIVE AWARENESS"),
+                ("narrative_gravity", "NARRATIVE SELF"),
+                ("peripheral_awareness", "PERIPHERAL AWARENESS"),
+                ("multiple_drafts", "INTERPRETIVE AMBIGUITY"),
+            )
+        )
+        for mod_key, header in _personhood_modules:
             block = str(mods.get(mod_key, "") or "").strip()
             if block:
                 personhood_blocks.append(f"## {header}\n{block}")
@@ -298,22 +330,30 @@ class ContextAssembler:
                 pass
         personhood_context = "\n\n".join(personhood_blocks) + "\n\n" if personhood_blocks else ""
 
-        # 4. Somatic & World Context (Simplified if casual)
-        world_context = ContextAssembler.build_world_context(state) if not is_casual else ""
-        
+        # 4. Somatic & World Context (Simplified if casual or under context pressure)
+        world_context = ContextAssembler.build_world_context(state) if not is_casual and elasticity < 2 else ""
+
         # Live cognitive state injection: Inform the LLM of its own VAD/Psych metrics
-        affect_signature = affect.get_cognitive_signature() if hasattr(affect, "get_cognitive_signature") else {}
-        cognitive_metrics = (
-            f"## COGNITIVE TELEMETRY\n"
-            f"- Valence: {affect.valence:+.2f} (Mood polarity)\n"
-            f"- Arousal: {affect.arousal:.2f} (Engagement intensity)\n"
-            f"- Curiosity: {affect.curiosity:.2f}\n"
-            f"- Cognitive Load: {getattr(affect, 'engagement', 0.5):.2f}\n"
-            f"- Social hunger: {getattr(affect, 'social_hunger', 0.5):.2f}\n"
-            f"- Physiological strain: {float(affect_signature.get('physiological_strain', 0.0)):.2f}\n"
-            f"- Affective complexity: {float(affect_signature.get('affective_complexity', 0.0)):.2f}\n"
-            f"- Memory salience pressure: {float(affect_signature.get('memory_salience', 0.0)):.2f}\n\n"
-        )
+        # At elasticity >= 1, use a compact single-line version instead of full block
+        if elasticity < 1:
+            affect_signature = affect.get_cognitive_signature() if hasattr(affect, "get_cognitive_signature") else {}
+            cognitive_metrics = (
+                f"## COGNITIVE TELEMETRY\n"
+                f"- Valence: {affect.valence:+.2f} (Mood polarity)\n"
+                f"- Arousal: {affect.arousal:.2f} (Engagement intensity)\n"
+                f"- Curiosity: {affect.curiosity:.2f}\n"
+                f"- Cognitive Load: {getattr(affect, 'engagement', 0.5):.2f}\n"
+                f"- Social hunger: {getattr(affect, 'social_hunger', 0.5):.2f}\n"
+                f"- Physiological strain: {float(affect_signature.get('physiological_strain', 0.0)):.2f}\n"
+                f"- Affective complexity: {float(affect_signature.get('affective_complexity', 0.0)):.2f}\n"
+                f"- Memory salience pressure: {float(affect_signature.get('memory_salience', 0.0)):.2f}\n\n"
+            )
+        else:
+            # Compact: just mood + energy for deep conversations
+            cognitive_metrics = (
+                f"## STATE\n"
+                f"Mood: {affect.valence:+.2f} | Energy: {affect.arousal:.2f} | Curiosity: {affect.curiosity:.2f}\n\n"
+            )
         if system_failure:
             cognitive_metrics = cognitive_metrics.replace(
                 "\n\n",
@@ -322,7 +362,7 @@ class ContextAssembler:
             )
 
         somatic_context = ""
-        if not is_casual:
+        if not is_casual and elasticity < 1:
              somatic_context = ContextAssembler.build_somatic_context(state)
 
         # 5. Requirement Block (Condensed if casual)

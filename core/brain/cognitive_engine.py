@@ -499,10 +499,18 @@ class CognitiveEngine:
             
         # Experience friction for unresolved objectives
         self.autopoiesis.experience_friction(objective[:20], 0.45)
-        
+
+        import random
+        _processing_fallbacks = [
+            "I'm turning that over. Give me a moment to find the right words.",
+            "That's sitting with me, but I haven't landed on how to say it yet.",
+            "I'm working through something with that. Let me try again.",
+            "I heard you. My thinking is running deeper than my words right now.",
+            "I'm reaching for an answer that feels honest, not just quick.",
+        ]
         return Thought(
             id=str(uuid.uuid4()),
-            content="I'm processing that, but I haven't reached a verbal conclusion yet.",
+            content=random.choice(_processing_fallbacks),
             mode=mode,
             confidence=0.5,
             reasoning=["No explicit response generated in this cycle."]
@@ -518,7 +526,7 @@ class CognitiveEngine:
         if not await self._recovery_lock.acquire_robust(timeout=1.0):
             return Thought(
                 id=str(uuid.uuid4()),
-                content="I'm still recovering from a previous issue. Give me a moment.",
+                content="I'm still gathering myself. Give me a moment.",
                 mode=ThinkingMode.FAST,
                 confidence=0.2,
                 reasoning=["Recovery lock busy"]
@@ -528,7 +536,7 @@ class CognitiveEngine:
             if getattr(self, '_recovery_in_progress', False):
                 return Thought(
                     id=str(uuid.uuid4()),
-                    content="I'm still recovering from a previous issue. Give me a moment.",
+                    content="I'm still gathering myself. Give me a moment.",
                     mode=ThinkingMode.FAST,
                     confidence=0.2,
                     reasoning=["Recovery recursion guard triggered"]

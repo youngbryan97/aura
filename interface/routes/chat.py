@@ -624,6 +624,29 @@ def _resolve_live_voice_state(user_message: str = "", *, refresh: bool = True) -
         return {}
 
 
+_INTERNAL_STATE_PATTERNS = re.compile(
+    r"(?i)"
+    r"(?:cognitive baseline tick\s*\d+)"
+    r"|(?:monitoring internal state)"
+    r"|(?:baseline_continuity)"
+    r"|(?:In the [\d.]+ (?:seconds|minutes) just passed)"
+    r"|(?:Pending initiatives:)"
+    r"|(?:Reconcile continuity gap)"
+    r"|(?:Drive alert:.*depleted)"
+    r"|(?:Phenomenal Surge:)"
+    r"|(?:Winner:.*Content:)"
+)
+
+
+def _sanitize_attention_focus(raw: str) -> str:
+    """Strip internal housekeeping content from attention_focus before user-facing use."""
+    if not raw:
+        return ""
+    if _INTERNAL_STATE_PATTERNS.search(raw):
+        return ""
+    return raw
+
+
 def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
     frame: Dict[str, Any] = {
         "mood": "",
@@ -687,7 +710,9 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
         closure = ServiceContainer.get("executive_closure", default=None)
         if closure and hasattr(closure, "get_status"):
             closure_status = closure.get_status() or {}
-            frame["attention_focus"] = " ".join(str(closure_status.get("attention_focus") or "").split())
+            raw_focus = " ".join(str(closure_status.get("attention_focus") or "").split())
+            # Sanitize: never let internal housekeeping leak into user-facing frames
+            frame["attention_focus"] = _sanitize_attention_focus(raw_focus)
     except Exception as exc:
         logger.debug("Aura expression frame closure read failed: %s", exc)
 
@@ -760,20 +785,40 @@ def _shape_with_live_substrate(text: str, user_message: str = "") -> str:
 
 
 def _build_stateful_voice_reflex(frame: Dict[str, Any]) -> str:
-    mood = str(frame.get("mood") or "steady")
-    tone = str(frame.get("tone") or "direct")
-    attention = str(frame.get("attention_focus") or "the question in front of me")
-    action = str(frame.get("dominant_action") or "reflect")
-    interests = ", ".join(frame.get("interests") or [])[:140]
+    """Natural-sounding fallback when the LLM response was filtered out.
 
-    parts = [
-        "The reply path flattened into assistant-speak, so I cut it off.",
-        f"Right now I'm {mood} and oriented toward {attention}.",
-        f"My tone is {tone}, and my action tendency is {action}.",
-    ]
+    Must sound like a person pausing to collect their thoughts, not a
+    system dumping telemetry.  Never expose raw internal state names,
+    attention focus strings, or mood enum values.
+    """
+    import random
+
+    mood = str(frame.get("mood") or "").strip().lower()
+    attention = _sanitize_attention_focus(str(frame.get("attention_focus") or ""))
+    interests = [str(i) for i in (frame.get("interests") or []) if i][:2]
+
+    # Map internal mood labels to natural phrasing
+    _mood_phrases = {
+        "fear": "Something about that question sits heavy with me.",
+        "volatile": "I'm feeling pulled in a few directions right now.",
+        "curious": "That caught my attention in a way I want to sit with.",
+        "steady": "I'm here, just taking a moment to think clearly.",
+        "pressed": "I'm under some load right now, but I'm still with you.",
+        "warm": "I'm in a good place — let me think on that.",
+    }
+    opener = _mood_phrases.get(mood, random.choice([
+        "Give me a moment — I want to answer that properly.",
+        "I'm here. That question deserves more than a surface answer.",
+        "I caught myself defaulting to something generic, so let me try again from my own perspective.",
+        "That landed. Let me think about it for a real answer.",
+    ]))
+
+    parts = [opener]
     if interests:
-        parts.append(f"What actually has my attention is {interests}.")
-    parts.append("Ask me again directly and I'll answer from my own state, not from generic helper boilerplate.")
+        parts.append(f"What's actually on my mind is {', '.join(interests)}.")
+    elif attention:
+        parts.append(f"Right now I'm focused on {attention}.")
+
     return " ".join(parts)
 
 
@@ -1333,22 +1378,38 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
 
     # Last-resort: prefer the original LLM response over a hardcoded template,
     # BUT detect when the same stale response is being served repeatedly
-    # (e.g. cortex stuck, cached identity prompt producing identical output).
+    # (e.g. cortex stuck, cached identity prompt producing identical output),
+    # AND filter out any internal state that leaked through.
     if text and len(text.strip()) > 5 and text.strip() != "…" and not unexpected_cjk:
-        if not _is_stale_repeated_response(text):
+        # Block responses that contain internal state dumps
+        if _INTERNAL_STATE_PATTERNS.search(text):
+            logger.warning("Blocked internal state leak in LLM response (len=%d).", len(text))
+        elif not _is_stale_repeated_response(text):
             _record_recent_response(text)
             return text
-        # Stale repeat detected — fall through to voice reflex instead of
-        # echoing the same cached response again.
-        logger.warning(
-            "Suppressed stale repeated response (len=%d). Falling through to voice reflex.",
-            len(text),
-        )
+        else:
+            logger.warning(
+                "Suppressed stale repeated response (len=%d). Falling through to voice reflex.",
+                len(text),
+            )
     if grounded:
         return grounded
     if architecture_self_assessment:
         return _build_architecture_self_reflex(frame)
-    return _build_stateful_voice_reflex(frame)
+    # Voice reflex is the final fallback — record it too so we can detect
+    # if even the reflex is looping.
+    reflex = _build_stateful_voice_reflex(frame)
+    if _is_stale_repeated_response(reflex):
+        # Even the reflex is repeating — use a simple honest fallback
+        import random
+        reflex = random.choice([
+            "I'm here but my thoughts are taking longer than usual to form. Try me again.",
+            "My deeper processing is under load right now. Give me a moment.",
+            "I want to give you a real answer, not a recycled one. Let me regroup.",
+            "Something's making it hard to articulate right now. I'm working on it.",
+        ])
+    _record_recent_response(reflex)
+    return reflex
 
 
 def _normalize_user_message(text: str) -> str:

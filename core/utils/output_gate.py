@@ -45,6 +45,14 @@ class AutonomousOutputGate:
             r"^Execute Goal:",
             r"Still with me\? Sometimes quiet",
             r"Would you like to dive into",
+            # v48: Block internal cognitive state leaking into chat
+            r"Cognitive baseline tick\s*\d+",
+            r"monitoring internal state",
+            r"baseline_continuity",
+            r"Winner:\s*\w+\s*\|\s*Content:",
+            r"In the \d[\d.]*\s*minutes just passed:",
+            r"Pending initiatives:",
+            r"Reconcile continuity gap",
         ]
 
     def _sanitize_autonomous_output(self, text: str) -> str:
