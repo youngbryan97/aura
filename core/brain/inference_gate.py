@@ -665,7 +665,9 @@ class InferenceGate:
         if deep_handoff or requested_tier == "secondary":
             return 135.0
 
-        # Adaptive: check if cortex is warm and responsive
+        # Adaptive: check if cortex is warm and responsive.
+        # Hard ceiling of 90s — if Cortex can't answer in 90s, fall through to
+        # Brainstem (7B) immediately rather than making the user wait 150s.
         base = 90.0
         try:
             inst = cls._instance_ref() if hasattr(cls, "_instance_ref") else None
@@ -678,10 +680,8 @@ class InferenceGate:
                         base = 55.0  # Recently successful — expect fast response
                     elif time_since_success < 120.0:
                         base = 75.0
-                elif not lane.get("conversation_ready"):
-                    # Cortex cold/recovering — generous timeout to avoid
-                    # cascading "conversation lane timed out" failures
-                    base = 150.0
+                # Cold/recovering cortex: keep the 90s ceiling — brainstem
+                # takes over after that. No 150s wait.
         except Exception:
             pass
 
@@ -741,8 +741,9 @@ class InferenceGate:
         elif requested_tier == "tertiary":
             primary_budget = min(60.0, total_timeout * 0.7)
         else:
-            # Give the 32B foreground lane enough time to cold-start and still answer.
-            primary_budget = min(90.0, max(60.0, total_timeout * 0.85))
+            # Cap primary at 60s so the Brainstem (7B) gets at least 30s of the
+            # 90s total budget. Prevents the user from waiting 90s with no answer.
+            primary_budget = min(60.0, max(45.0, total_timeout * 0.65))
 
         fallback_budget = max(5.0, total_timeout - primary_budget)
         return primary_budget, fallback_budget

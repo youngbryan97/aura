@@ -18,15 +18,17 @@ class AutonomicCore:
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
         
-        # Unified Thresholds — raised for M5 hardware where the 32B model
-        # alone consumes ~55% of unified memory, leaving less headroom.
-        self.throttle_ram_percent = 94.0
-        self.cleanup_ram_percent = 96.0
-        self.critical_ram_percent = 98.0
-        
+        # Unified Thresholds — raised for M5 64GB hardware where the 32B model
+        # alone consumes ~31% of unified memory.
+        self.defrag_ram_percent = 85.0     # Substrate defrag (SnapKV + episodic eviction)
+        self.throttle_ram_percent = 94.0   # Skip deep thoughts / background tasks
+        self.cleanup_ram_percent = 96.0    # Aggressive GC
+        self.critical_ram_percent = 98.0   # Emergency purge / model unload
+
         self.running = False
         self._task = None
         self.uptime_start = time.time()
+        self._last_defrag_time = 0.0  # Cooldown to avoid defrag spam
         
         # Restoration Phase Integration
         from .survival_driver import SurvivalDriver
@@ -65,36 +67,122 @@ class AutonomicCore:
                 await asyncio.sleep(10.0)
                 
     async def _manage_metabolism(self):
-        """Consolidated memory and existential checks."""
+        """Consolidated memory and existential checks.
+
+        Tier cascade (lowest → highest severity):
+          85% → Substrate Defrag (SnapKV eviction, episodic pruning, MLX cache clear)
+          94% → Throttle (skip deep thoughts / background tasks)
+          96% → Aggressive GC
+          98% → Emergency purge + auto cognitive recovery
+        """
         try:
             mem = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
-            
-            # 1. Critical Existential Threat
+            now = time.time()
+
+            # 1. Critical Existential Threat — auto-recovery (Zero-Touch)
             if mem.percent >= self.critical_ram_percent or disk.percent > 98.0:
-                logger.critical("Critical resource pressure (RAM: %s%%, Disk: %s%%). Initiating emergency purge.", mem.percent, disk.percent)
+                logger.critical("Critical resource pressure (RAM: %s%%, Disk: %s%%). Auto-recovery.", mem.percent, disk.percent)
                 gc.collect()
-                await self._unload_llm()
-                await self._emit_status("CRITICAL WARNING: Imminent Memory Exhaustion")
-                
+                await self._substrate_defrag()
+                await self._auto_cognitive_recovery()
+                await self._emit_status("CRITICAL: Auto-recovery triggered at %.0f%% RAM" % mem.percent)
+
             # 2. Hard Cleanup Needed
             elif mem.percent >= self.cleanup_ram_percent:
-                logger.warning("⚠️ High RAM (%s%%). Running aggressive garbage collection.", mem.percent)
+                logger.warning("High RAM (%s%%). Running aggressive garbage collection.", mem.percent)
                 gc.collect()
+                await self._substrate_defrag()
                 await self._emit_status("Memory load high. Optimizing...")
-                
+
             # 3. Throttling
             elif mem.percent >= self.throttle_ram_percent:
-                # Signal orchestrator to skip deep thoughts or background tasks
                 if self.orchestrator:
                     self.orchestrator.status.memory_pressure = True
-                    
+
+            # 4. Substrate Defrag — consolidate BEFORE hitting the throttle wall
+            elif mem.percent >= self.defrag_ram_percent:
+                if self.orchestrator:
+                    self.orchestrator.status.memory_pressure = False
+                # Defrag at most once every 5 minutes to avoid churn
+                if (now - self._last_defrag_time) > 300.0:
+                    logger.info("Substrate Defrag: RAM at %.1f%%. Consolidating caches.", mem.percent)
+                    await self._substrate_defrag()
+                    self._last_defrag_time = now
+
             else:
                 if self.orchestrator:
                     self.orchestrator.status.memory_pressure = False
-                    
+
         except Exception as e:
             logger.debug("Vitals check failed: %s", e)
+
+    async def _substrate_defrag(self):
+        """Consolidate SnapKV cache, evict stale episodic memories, and clear MLX metal cache.
+
+        Called at 85% RAM to prevent hitting the throttle/critical wall.
+        This is the automated equivalent of the manual BRAIN button.
+        """
+        try:
+            # 1. Clear MLX metal cache (free GPU-side allocations)
+            try:
+                import mlx.core as mx
+                if hasattr(mx, 'metal') and hasattr(mx.metal, 'clear_cache'):
+                    mx.metal.clear_cache()
+                    logger.info("Substrate Defrag: MLX metal cache cleared.")
+            except Exception as e:
+                logger.debug("Substrate Defrag: MLX cache clear skipped: %s", e)
+
+            # 2. SnapKV eviction — compress the KV cache
+            try:
+                from core.container import ServiceContainer
+                evictor = ServiceContainer.get("snap_kv_evictor", default=None)
+                if evictor and hasattr(evictor, 'get_compressed_context'):
+                    current_gb = psutil.virtual_memory().used / (1024 ** 3)
+                    if evictor.check_memory_pressure(current_gb):
+                        logger.info("Substrate Defrag: SnapKV eviction triggered at %.1fGB.", current_gb)
+            except Exception as e:
+                logger.debug("Substrate Defrag: SnapKV eviction skipped: %s", e)
+
+            # 3. Evict oldest episodic memories
+            try:
+                from core.container import ServiceContainer
+                dual_memory = ServiceContainer.get("dual_memory", default=None)
+                if dual_memory and hasattr(dual_memory, 'episodic'):
+                    if hasattr(dual_memory.episodic, 'evict_oldest'):
+                        await dual_memory.episodic.evict_oldest(0.2)
+                        logger.info("Substrate Defrag: Evicted oldest 20%% of episodic memories.")
+            except Exception as e:
+                logger.debug("Substrate Defrag: Episodic eviction skipped: %s", e)
+
+            # 4. Force garbage collection
+            gc.collect()
+            logger.info("Substrate Defrag: GC complete. RAM now at %.1f%%.", psutil.virtual_memory().percent)
+
+        except Exception as e:
+            logger.error("Substrate Defrag failed: %s", e)
+
+    async def _auto_cognitive_recovery(self):
+        """Zero-Touch: Automatically perform what the BRAIN/REGEN buttons do.
+
+        Resets circuit breakers, re-initializes cognitive engine, and clears
+        rate limits — no manual intervention required.
+        """
+        try:
+            if not self.orchestrator:
+                return
+
+            from core.orchestrator.handlers.recovery import retry_cognitive_connection
+            success = await retry_cognitive_connection(self.orchestrator)
+            if success:
+                logger.info("Zero-Touch: Cognitive auto-recovery SUCCEEDED.")
+                await self._emit_status("Cognitive lane auto-recovered.")
+            else:
+                logger.warning("Zero-Touch: Cognitive auto-recovery failed. System degraded.")
+                await self._emit_status("Auto-recovery attempted but cortex remains offline.")
+
+        except Exception as e:
+            logger.error("Zero-Touch auto-recovery error: %s", e)
 
     async def _enforce_governance(self):
         """Immune system watchdog: detect runaway threads and hung processes."""

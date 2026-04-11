@@ -1389,10 +1389,19 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     except Exception as e:
                         logger.error("Failed to dump dropped messages to DLQ file: %s", e)
 
-            # 3. Soft-restart cognitive connection
+            # 3. Substrate Defrag — clear caches before re-initializing brain
+            try:
+                from core.container import ServiceContainer
+                autonomic = ServiceContainer.get("autonomic_core", default=None)
+                if autonomic and hasattr(autonomic, '_substrate_defrag'):
+                    await autonomic._substrate_defrag()
+            except Exception as df_err:
+                logger.debug("Substrate defrag during recovery skipped: %s", df_err)
+
+            # 3.5 Soft-restart cognitive connection
             await self.retry_cognitive_connection()
 
-            # 3.5 Lazarus Brainstem Intervention
+            # 3.75 Lazarus Brainstem Intervention
             if self._recovery_attempts >= 2 and hasattr(self, 'lazarus') and self.lazarus:
                 logger.warning("🚨 [RECOVERY] Escalating to Lazarus Brainstem...")
                 await self.lazarus.attempt_recovery()

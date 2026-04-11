@@ -724,15 +724,16 @@ class AutonomousSelfModificationEngine:
     async def _health_watcher_loop(self):
         """Monitor SubsystemAudit and trigger repairs for failing components (v18).
 
-        v49 hardening:
-        - 120s boot grace period (subsystems still initializing)
-        - Per-subsystem injection cooldown (5min) to prevent cascading noise
+        v50 hardening:
+        - 300s boot grace before ANY health checks (covers slowest subsystem: identity)
+        - NEVER_SEEN is silenced entirely — only STALE triggers repair injection
+        - Per-subsystem injection cooldown raised to 5min to prevent cascading noise
         - Only inject when staleness exceeds 2x the expected heartbeat interval
         """
-        await asyncio.sleep(120)  # Boot grace: subsystems need time to initialize
-        logger.info("Health Watcher starting...")
+        await asyncio.sleep(300)  # Boot grace: all subsystems need time to register first heartbeat
+        logger.info("Health Watcher starting (boot grace complete).")
         _injection_cooldowns: dict[str, float] = {}  # subsystem → last injection time
-        _INJECTION_COOLDOWN = 60.0  # 1 minute between injections per subsystem
+        _INJECTION_COOLDOWN = 300.0  # 5 minutes between injections per subsystem
 
         while self.monitoring_enabled:
             try:
@@ -745,7 +746,10 @@ class AutonomousSelfModificationEngine:
                     now = time.time()
                     for name, info in health.get("subsystems", {}).items():
                         status = info.get("status")
-                        if status not in ("STALE", "NEVER_SEEN"):
+
+                        # Hard-silence NEVER_SEEN — subsystem hasn't booted yet,
+                        # not a failure. Only act on genuinely STALE subsystems.
+                        if status != "STALE":
                             continue
 
                         # Rate limit: don't re-inject for the same subsystem within cooldown
@@ -755,15 +759,15 @@ class AutonomousSelfModificationEngine:
 
                         # Staleness threshold: only inject if stale for >2x expected interval
                         stale_secs = info.get("stale_seconds")
-                        if status == "STALE" and stale_secs is not None:
+                        if stale_secs is not None:
                             from core.subsystem_audit import SubsystemAudit
                             expected = SubsystemAudit.SUBSYSTEMS.get(name, 300)
                             if stale_secs < expected * 2:
                                 continue  # Not stale enough to warrant a repair injection
 
                         logger.warning(
-                            "💉 Health Watcher detected issues in %s (%s, stale=%ss). Injecting repair requirement.",
-                            name, status, stale_secs,
+                            "Health Watcher: %s is STALE (stale=%ss). Injecting repair.",
+                            name, stale_secs,
                         )
                         self.on_error(
                             RuntimeError(f"Subsystem {name} is {status}"),
