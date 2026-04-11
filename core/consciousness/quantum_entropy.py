@@ -1,13 +1,24 @@
 """core/consciousness/quantum_entropy.py
 
-Quantum Entropy Bridge — True Random Number Generation via ANU QRNG API.
+External Entropy Bridge — High-Quality Random Number Generation via ANU QRNG API.
 
-Provides non-deterministic entropy sourced from quantum vacuum fluctuations.
+Sources random bytes from the ANU Quantum Random Number Generator, which
+produces genuine quantum random numbers from vacuum fluctuations.  This
+provides a high-quality external entropy source that improves unpredictability
+compared to purely algorithmic seeds.
+
+Important: Once the entropy is consumed as a seed, downstream computations
+are deterministic given that seed.  This module provides high-quality
+randomness at the point of injection — it does not make the entire decision
+pipeline non-deterministic.  os.urandom would be functionally equivalent
+for the system's purposes; ANU QRNG is used for entropy quality, not for
+any claimed quantum effect on cognition.
+
 Falls back gracefully to OS urandom when the network is unavailable.
 Maintains a local cache to amortize API latency.
 
 Integration: Enhances ManagedEntropy as a backend source. Also usable directly
-via collapse_decision() for weighted quantum-random selection.
+via collapse_decision() for weighted random selection.
 """
 
 import logging
@@ -28,13 +39,16 @@ _MIN_REFILL_INTERVAL = 30.0  # Don't hammer the API
 
 
 class QuantumEntropyBridge:
-    """True random entropy from quantum vacuum fluctuations.
+    """High-quality external entropy source backed by ANU QRNG.
 
     Architecture:
     - Fetches batches of random bytes from ANU QRNG API
     - Maintains a thread-safe local pool for low-latency reads
-    - Falls back to os.urandom on network failure
-    - Tracks source provenance (quantum vs fallback) for telemetry
+    - Falls back to os.urandom on network failure (functionally equivalent)
+    - Tracks source provenance (external vs fallback) for telemetry
+
+    Note: The value here is entropy quality and external sourcing, not any
+    claimed quantum effect on the decision-making process itself.
     """
 
     def __init__(self, pool_size: int = _POOL_SIZE):

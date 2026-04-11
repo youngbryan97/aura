@@ -57,6 +57,10 @@ bindings = "pyo3"
 manifest-path = "rust_extensions/aura_m1_ext/Cargo.toml"
 features = ["universal2"]  # M1 Pro native + Rosetta fallback
 
+[tool.bandit]
+exclude_dirs = ["tests", "scripts", "research", "archive", ".venv"]
+skips = ["B101", "B311"]  # B101=assert, B311=random (used intentionally for non-crypto)
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

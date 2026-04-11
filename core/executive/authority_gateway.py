@@ -36,12 +36,60 @@ class AuthorityDecision:
 
 
 class AuthorityGateway:
-    """Single narrow-waist runtime gate over substrate, executive, and tokens."""
+    """Narrow-waist runtime gate over substrate, executive, and tokens.
+
+    All consequential actions are first routed through the Unified Will
+    (core/will.py) for a canonical WillDecision, then through the
+    domain-specific checks (substrate, executive, capability tokens).
+    This ensures a single audit trail for all authority decisions.
+    """
 
     TOOL_TOKEN_TTL_S = 900
 
     def __init__(self) -> None:
         self._capabilities = get_capability_manager()
+
+    @staticmethod
+    def _will_gate(
+        content: str,
+        source: str,
+        domain_str: str,
+        priority: float,
+        is_critical: bool = False,
+    ) -> Optional["AuthorityDecision"]:
+        """Route through UnifiedWill first.  Returns a blocking AuthorityDecision
+        if the Will refuses, or None if the Will approves (let domain checks proceed).
+        """
+        try:
+            from core.will import ActionDomain, get_will
+
+            domain_map = {
+                "tool_execution": ActionDomain.TOOL_EXECUTION,
+                "state_mutation": ActionDomain.STATE_MUTATION,
+                "memory_write": ActionDomain.MEMORY_WRITE,
+                "initiative": ActionDomain.INITIATIVE,
+                "expression": ActionDomain.EXPRESSION,
+                "response": ActionDomain.RESPONSE,
+            }
+            domain = domain_map.get(domain_str, ActionDomain.STATE_MUTATION)
+            will = get_will()
+            decision = will.decide(
+                content=content[:200],
+                source=source,
+                domain=domain,
+                priority=priority,
+                is_critical=is_critical,
+            )
+            if not decision.is_approved():
+                return AuthorityDecision(
+                    approved=False,
+                    outcome=f"will_{decision.outcome.value}",
+                    reason=decision.reason,
+                )
+        except Exception as exc:
+            # Will unavailable — degrade gracefully, let domain checks decide
+            logger.debug("UnifiedWill gate unavailable: %s", exc)
+        return None  # Will approved or unavailable — proceed with domain checks
 
     async def authorize_tool_execution(
         self,
@@ -52,6 +100,13 @@ class AuthorityGateway:
         priority: float = 0.7,
         is_critical: bool = False,
     ) -> AuthorityDecision:
+        # ── Unified Will gate (canonical decision authority) ──
+        will_block = self._will_gate(
+            f"tool:{tool_name}", source, "tool_execution", priority, is_critical
+        )
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=f"tool:{tool_name} args:{str(args)[:100]}",
             source=source,
@@ -94,6 +149,10 @@ class AuthorityGateway:
         *,
         priority: float = 0.5,
     ) -> AuthorityDecision:
+        will_block = self._will_gate(f"state_mutation:{cause}", origin, "state_mutation", priority)
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=f"state_mutation:{cause}",
             source=origin or "system",
@@ -129,6 +188,10 @@ class AuthorityGateway:
         *,
         priority: float = 0.5,
     ) -> AuthorityDecision:
+        will_block = self._will_gate(f"state_mutation:{cause}", origin, "state_mutation", priority)
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=f"state_mutation:{cause}",
             source=origin or "system",
@@ -166,6 +229,12 @@ class AuthorityGateway:
         importance: float = 0.5,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> AuthorityDecision:
+        will_block = self._will_gate(
+            f"memory:{memory_type}:{str(content)[:80]}", source, "memory_write", importance
+        )
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=f"memory:{memory_type}:{str(content)[:80]}",
             source=source or "system",
@@ -209,6 +278,12 @@ class AuthorityGateway:
         importance: float = 0.5,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> AuthorityDecision:
+        will_block = self._will_gate(
+            f"memory:{memory_type}:{str(content)[:80]}", source, "memory_write", importance
+        )
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=f"memory:{memory_type}:{str(content)[:80]}",
             source=source or "system",
@@ -253,6 +328,10 @@ class AuthorityGateway:
         priority: float = 0.7,
     ) -> AuthorityDecision:
         content = f"belief:{key}:{str(value)[:80]}"
+        will_block = self._will_gate(content, source, "memory_write", priority)
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=content,
             source=source or "system",
@@ -293,6 +372,10 @@ class AuthorityGateway:
         source: str = "unknown",
         priority: float = 0.5,
     ) -> AuthorityDecision:
+        will_block = self._will_gate(str(summary)[:200], source, "initiative", priority)
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=str(summary or "")[:240],
             source=source or "autonomous",
@@ -328,6 +411,10 @@ class AuthorityGateway:
         source: str = "unknown",
         priority: float = 0.5,
     ) -> AuthorityDecision:
+        will_block = self._will_gate(str(summary)[:200], source, "initiative", priority)
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=str(summary or "")[:240],
             source=source or "autonomous",
@@ -364,6 +451,10 @@ class AuthorityGateway:
         urgency: float = 0.5,
         is_critical: bool = False,
     ) -> AuthorityDecision:
+        will_block = self._will_gate(str(content)[:200], source, "expression", urgency, is_critical)
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=content[:240],
             source=source or "system",
@@ -401,6 +492,10 @@ class AuthorityGateway:
         urgency: float = 0.5,
         is_critical: bool = False,
     ) -> AuthorityDecision:
+        will_block = self._will_gate(str(content)[:200], source, "expression", urgency, is_critical)
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=content[:240],
             source=source or "system",
@@ -438,6 +533,10 @@ class AuthorityGateway:
         priority: float = 0.4,
         is_critical: bool = False,
     ) -> AuthorityDecision:
+        will_block = self._will_gate(str(content)[:200], source, "response", priority, is_critical)
+        if will_block is not None:
+            return will_block
+
         blocked, substrate_constraints, receipt_id = self._substrate_preflight(
             content=content[:240],
             source=source or "user",

@@ -174,6 +174,10 @@ class UnifiedField:
         # External ref for phase coupling
         self._binding_ref = None  # OscillatoryBinding
 
+        # Thread safety for get_world_model_predictions (called from outside the tick loop)
+        import threading
+        self._lock = threading.Lock()
+
         logger.info("UnifiedField initialized (dim=%d, recurrent_sparsity=%.2f)",
                      self.cfg.dim, self.cfg.recurrent_sparsity)
 

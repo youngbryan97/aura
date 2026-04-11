@@ -207,22 +207,6 @@ class AutonomousConversationLoop:
                 "type": "conversation",
                 "plan": ["Fallback to direct generation"]
             }
-        
-        # Execute the plan
-        logger.info("Executing plan with %d tool calls", len(plan['tool_calls']))
-        results = await self._execute_plan(plan)
-        
-        # Generate response from results
-        response = await self._synthesize_response(user_message, plan, results)
-        await self._add_to_history(self.AI_ROLE, response)
-        
-        return {
-            "ok": True,
-            "response": response,
-            "type": "action",
-            "plan": plan.get("plan", []),
-            "results": results
-        }
     
     async def _background_loop(self):
         """Background task for autonomous behavior.
