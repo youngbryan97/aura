@@ -369,11 +369,24 @@ class SteeringVectorLibrary:
 
     def __init__(self, cache_dir: Optional[Path] = None):
         if cache_dir is None:
-            try:
-                from core.config import config as aura_config
-                cache_dir = aura_config.paths.data_dir / "steering_vectors"
-            except Exception:
-                cache_dir = Path.home() / ".aura" / "steering_vectors"
+            # Check for extracted vectors first (from training/extract_steering_vectors.py).
+            # These are properly extracted via contrastive prompts and are higher quality
+            # than the on-demand derived vectors.
+            env_dir = os.environ.get("AURA_STEERING_DIR")
+            if env_dir and Path(env_dir).exists():
+                cache_dir = Path(env_dir)
+                logger.info("🎯 Steering vectors: using AURA_STEERING_DIR=%s", cache_dir)
+            else:
+                extracted_dir = Path(__file__).parent.parent.parent / "training" / "vectors"
+                if extracted_dir.exists() and any(extracted_dir.glob("*.npy")):
+                    cache_dir = extracted_dir
+                    logger.info("🎯 Steering vectors: using extracted vectors from training/vectors/")
+                else:
+                    try:
+                        from core.config import config as aura_config
+                        cache_dir = aura_config.paths.data_dir / "steering_vectors"
+                    except Exception:
+                        cache_dir = Path.home() / ".aura" / "steering_vectors"
         self._cache_dir = cache_dir
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._vectors: Dict[str, SteeringVector] = {}

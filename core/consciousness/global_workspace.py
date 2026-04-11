@@ -302,6 +302,27 @@ class GlobalWorkspace:
                 self._ignition_count, winner.source, winner_priority, self._current_phi,
             )
 
+            # ── Theory Arbitration: GWT predicts broadcast improves accessibility ──
+            try:
+                from core.consciousness.theory_arbitration import get_theory_arbitration
+                arb = get_theory_arbitration()
+                event_id = f"gw_ignition_{self._ignition_count}"
+                arb.log_prediction(
+                    theory="gwt",
+                    event_id=event_id,
+                    prediction="broadcast_improves_coherence",
+                    confidence=min(1.0, winner_priority),
+                )
+                # IIT counter-prediction: integration matters more than broadcast
+                arb.log_prediction(
+                    theory="iit_4_0",
+                    event_id=event_id,
+                    prediction="phi_determines_coherence_not_broadcast",
+                    confidence=0.6,
+                )
+            except Exception:
+                pass  # Theory arbitration is optional
+
         # 4. Neural Feed Transparency (Phase 13)
         try:
             from core.thought_stream import get_emitter

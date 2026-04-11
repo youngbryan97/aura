@@ -163,3 +163,9 @@ def register_consciousness_services(container):
         world_model = resolve_epistemic_state(default=None)
         return PredictiveEngine(world_model=world_model)
     container.register('predictive_engine', create_predictive_engine, lifetime=ServiceLifetime.SINGLETON, required=False)
+
+    # 56. Theory Arbitration Framework
+    def create_theory_arbitration():
+        from core.consciousness.theory_arbitration import get_theory_arbitration
+        return get_theory_arbitration()
+    container.register('theory_arbitration', create_theory_arbitration, lifetime=ServiceLifetime.SINGLETON, required=False)

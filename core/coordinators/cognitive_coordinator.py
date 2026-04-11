@@ -27,10 +27,22 @@ logger = logging.getLogger(__name__)
 
 
 class CognitiveCoordinator:
-    """Handles the agentic cognitive loop, tool execution, reasoning, and learning."""
+    """Handles the agentic cognitive loop, tool execution, reasoning, and learning.
+
+    Delegates focused concerns to extracted modules:
+    - ToolExecutor: tool execution, forge, learning, ACG recording
+    - KnowledgeExtractor: conversation learning, autonomous insights, name detection
+    """
 
     def __init__(self, orch):
         self.orch = orch
+
+        # Extracted focused modules
+        from core.coordinators.tool_executor import ToolExecutor
+        from core.coordinators.knowledge_extractor import KnowledgeExtractor
+
+        self._tool_executor = ToolExecutor(orch)
+        self._knowledge_extractor = KnowledgeExtractor(orch)
 
     # ------------------------------------------------------------------
     # Response Finalization & Output Filtering
@@ -642,8 +654,8 @@ class CognitiveCoordinator:
     # Knowledge Extraction & Learning
     # ------------------------------------------------------------------
 
-    async def store_autonomous_insight(self, internal_msg: str, response: str):
-        """Store knowledge from autonomous cognition."""
+    async def _legacy_store_autonomous_insight(self, internal_msg: str, response: str):
+        """LEGACY: Store knowledge from autonomous cognition (kept for reference)."""
         try:
             orch = self.orch
             kg = getattr(orch, 'knowledge_graph', None)
@@ -681,8 +693,8 @@ class CognitiveCoordinator:
         except Exception as e:
             logger.debug("Autonomous insight storage failed: %s", e)
 
-    async def learn_from_exchange(self, user_message: str, aura_response: str):
-        """Extract knowledge from conversation exchanges and store in knowledge graph."""
+    async def _legacy_learn_from_exchange(self, user_message: str, aura_response: str):
+        """LEGACY: Extract knowledge from conversation (kept for reference)."""
         try:
             orch = self.orch
             if not user_message or not aura_response:
@@ -769,11 +781,11 @@ class CognitiveCoordinator:
             logger.debug("Learning from exchange failed: %s", e)
 
     # ------------------------------------------------------------------
-    # Plan & Tool Execution
+    # Plan & Tool Execution (legacy — active path delegates to _tool_executor above)
     # ------------------------------------------------------------------
 
-    async def execute_plan(self, plan: Dict[str, Any]) -> List[Any]:
-        """Execute a plan of actions. Overridden/Patched by Behavior Controller."""
+    async def _legacy_execute_plan(self, plan: Dict[str, Any]) -> List[Any]:
+        """LEGACY: Execute a plan of actions (kept for reference)."""
         results = []
         for call in plan.get("tool_calls", []):
             result = await self.orch.execute_tool(call["name"], call.get("arguments", {}))
@@ -786,7 +798,28 @@ class CognitiveCoordinator:
         return await self.orch.execute_tool("browser", {"url": url, "task": task})
 
     async def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
-        """Execute a single tool with feedback reporting, episodic recording, and tool learning."""
+        """Execute a single tool — delegates to ToolExecutor."""
+        return await self._tool_executor.execute_tool(tool_name, args)
+
+    async def execute_plan(self, plan: Dict[str, Any]) -> List[Any]:
+        """Batch tool execution — delegates to ToolExecutor."""
+        return await self._tool_executor.execute_plan(plan)
+
+    async def store_autonomous_insight(self, internal_msg: str, response: str):
+        """Store autonomous insight — delegates to KnowledgeExtractor."""
+        return await self._knowledge_extractor.store_autonomous_insight(internal_msg, response)
+
+    async def learn_from_exchange(self, user_message: str, aura_response: str):
+        """Learn from conversation — delegates to KnowledgeExtractor."""
+        return await self._knowledge_extractor.learn_from_exchange(user_message, aura_response)
+
+    # ── LEGACY: Original implementations below kept for reference during
+    # transition. The delegating methods above are the active code path.
+    # Remove these once extraction is validated in production.
+    # ──────────────────────────────────────────────────────────────────
+
+    async def _legacy_execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
+        """LEGACY: Original execute_tool implementation (kept for reference)."""
         from core.utils.task_tracker import task_tracker
         from core.world_model.acg import acg as _acg_module
         orch = self.orch
