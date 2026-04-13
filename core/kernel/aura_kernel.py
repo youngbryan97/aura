@@ -25,6 +25,7 @@ from core.kernel.upgrades_10x import (
 )
 from core.phases.affect_update import AffectUpdatePhase
 from core.phases.bonding_phase import BondingPhase
+from core.phases.cognitive_integration_phase import CognitiveIntegrationPhase
 from core.phases.cognitive_routing_unitary import CognitiveRoutingPhase
 from core.phases.conversational_dynamics_phase import ConversationalDynamicsPhase
 from core.phases.inference_phase import InferencePhase
@@ -123,6 +124,7 @@ class AuraKernel:
         # Core Kernel Phases
         self.phi_phase = PhiConsciousnessPhase(self)
         self.affect_phase = AffectUpdatePhase(self)
+        self.cognitive_integration = CognitiveIntegrationPhase(self)
         self.motivation_phase = MotivationUpdatePhase(self)
         self.routing_phase = CognitiveRoutingPhase(self)
         self.response_phase = UnitaryResponsePhase(self)
@@ -157,9 +159,16 @@ class AuraKernel:
         # Priority preemption: background ticks yield when a user message is waiting
         import threading as _threading
         self._user_priority_pending: _threading.Event = _threading.Event()
+        self._last_tick_completed_at: float = 0.0  # telemetry: set after each tick()
 
     def _phase_timeout_seconds(self, phase_name: str, *, priority: bool) -> float:
-        """Give foreground response generation enough headroom without letting background stalls monopolize the lock."""
+        """Give foreground response generation enough headroom without letting background stalls monopolize the lock.
+
+        [STABILITY v49] Priority timeouts raised to accommodate 32B model inference
+        on M5 hardware. Previous 85s cap caused premature phase aborts during
+        complex turns (skill dispatch, research), leading to empty responses
+        and downstream 504 cascades in the chat endpoint.
+        """
         if not priority:
             if phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}:
                 return 12.0
@@ -176,9 +185,9 @@ class AuraKernel:
         if phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}:
             response_modifiers = getattr(self.state, "response_modifiers", {}) if self.state else {}
             if bool(response_modifiers.get("deep_handoff", False)):
-                return 145.0
-            return 85.0
-        return 60.0
+                return 180.0
+            return 120.0
+        return 75.0
 
     def _should_skip_priority_phase(self, phase_name: str, *, priority: bool) -> bool:
         """Keep user-facing ticks lean without suppressing explicit tool/task execution."""
@@ -541,8 +550,9 @@ class AuraKernel:
             self._user_priority_pending.set()
 
         # [DEADLOCK PREVENTION] Use robust lock for the tick
-        # v31.1: Increased timeout to 90s to accommodate slow LLM/ASI review cycles
-        if not await self._lock.acquire_robust(timeout=90.0, max_retries=3):
+        # v49: Raised to 135s — must be >= largest phase timeout (120s priority response)
+        # to avoid false deadlock detection while 32B inference is running.
+        if not await self._lock.acquire_robust(timeout=135.0, max_retries=3):
             logger.error("🛑 CRITICAL: Could not acquire Kernel lock for tick. Possible deadlock. Objective: '%s'", objective)
             if self.status:
                 logger.error("Kernel Status: %s, Cycle: %s", self.status.message, self.status.cycle_count)
@@ -767,6 +777,9 @@ class AuraKernel:
                 )
             except Exception as e:
                 logger.debug("Tracer failed: %s", e)
+
+            # Record completion timestamp for telemetry staleness detection
+            self._last_tick_completed_at = time.time()
 
             return entry
         finally:

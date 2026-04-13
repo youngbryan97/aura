@@ -47,9 +47,17 @@ class StrategyResult:
 
 class ReasoningStrategies:
     """Coordinator for advanced reasoning strategies.
-    
+
     Sits on top of a raw LLM `generate()` function and applies
     cognitive enhancements based on the nature of the query.
+
+    When a question is complex enough, the Tree of Thoughts engine is
+    engaged: it generates multiple response drafts, critiques them
+    against quality dimensions (factual grounding, emotional congruence,
+    relevance, identity coherence, novelty), and synthesizes the best
+    elements into a final response.  This means Aura actually *thinks*
+    before speaking on hard questions, rather than firing off a single
+    prediction.  Simple/casual messages bypass ToT entirely.
     """
 
     # Patterns that suggest multi-perspective reasoning would help.
@@ -82,6 +90,7 @@ class ReasoningStrategies:
         self._strategy_stats: Dict[str, Dict[str, Any]] = {
             s.name: {"used": 0, "avg_confidence": 0.0} for s in list(StrategyType)
         }
+        self._tree_of_thoughts = None  # Lazy-loaded
 
     @staticmethod
     def _normalize_generated_text(value: Any) -> str:
@@ -130,23 +139,87 @@ class ReasoningStrategies:
         
         return StrategyType.DIRECT
 
+    def _get_tree_of_thoughts(self):
+        """Lazy-load the Tree of Thoughts engine."""
+        if self._tree_of_thoughts is None:
+            try:
+                from core.cognitive.tree_of_thoughts import TreeOfThoughts
+
+                async def _llm_fn(system_prompt: str, user_prompt: str, temperature: float) -> str:
+                    """Bridge between ToT's interface and the raw generate function."""
+                    return self._normalize_generated_text(
+                        await self._generate(user_prompt, system_prompt=system_prompt, temperature=temperature)
+                    )
+
+                self._tree_of_thoughts = TreeOfThoughts(llm_fn=_llm_fn)
+            except ImportError:
+                logger.debug("TreeOfThoughts not available — using legacy strategies.")
+        return self._tree_of_thoughts
+
     async def execute(self, query: str, strategy: Optional[StrategyType] = None, **kwargs) -> StrategyResult:
         """Execute a reasoning strategy on the given query.
-        
+
+        For DEBATE-class questions, tries the Tree of Thoughts engine first.
+        ToT generates multiple drafts, critiques them, and synthesizes the
+        best elements into a final answer.  Falls back to legacy strategies
+        if ToT is unavailable or returns None (simple question).
+
         Args:
             query: The user's question or objective.
             strategy: Override automatic classification. If None, auto-classifies.
             **kwargs: Passed through to the underlying generate function.
-            
+
         Returns:
             StrategyResult with the answer and metadata.
         """
         if strategy is None:
             strategy = self.classify(query)
-        
+
         logger.info("🧠 Reasoning strategy: %s for query: %s...", strategy.name, query[:60])
-        
+
         try:
+            # Tree of Thoughts upgrade: for complex questions, use multi-draft
+            # reasoning with internal critique before falling back to legacy.
+            if strategy in (StrategyType.DEBATE, StrategyType.CHAIN_OF_THOUGHT):
+                tot = self._get_tree_of_thoughts()
+                if tot:
+                    try:
+                        context = kwargs.get("context", [])
+                        emotional_state = kwargs.get("emotional_state")
+                        tot_result = await tot.deliberate(
+                            objective=query,
+                            context=context if isinstance(context, list) else [],
+                            emotional_state=emotional_state,
+                        )
+                        if tot_result and tot_result.final_response:
+                            logger.info(
+                                "🌳 Tree of Thoughts: synthesized from %d drafts in %.0fms",
+                                len(tot_result.drafts),
+                                tot_result.elapsed_ms,
+                            )
+                            result = StrategyResult(
+                                content=tot_result.final_response,
+                                strategy_used=strategy,
+                                confidence=0.90,
+                                reasoning_steps=[
+                                    f"Draft {i+1}: {d[:100]}..."
+                                    for i, d in enumerate(tot_result.drafts)
+                                ] + [f"Synthesis: {tot_result.synthesis_notes[:200]}"],
+                                metadata={
+                                    "engine": "tree_of_thoughts",
+                                    "drafts": len(tot_result.drafts),
+                                    "elapsed_ms": tot_result.elapsed_ms,
+                                },
+                            )
+                            # Track stats
+                            stats = self._strategy_stats[strategy.name]
+                            stats["used"] += 1
+                            n = stats["used"]
+                            stats["avg_confidence"] = stats["avg_confidence"] + (result.confidence - stats["avg_confidence"]) / n
+                            return result
+                    except Exception as tot_exc:
+                        logger.debug("Tree of Thoughts failed, falling back to legacy: %s", tot_exc)
+
             if strategy == StrategyType.DEBATE:
                 result = await self._debate(query, **kwargs)
             elif strategy == StrategyType.DECOMPOSE:

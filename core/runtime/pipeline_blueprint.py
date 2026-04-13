@@ -58,6 +58,7 @@ _KERNEL_PIPELINE_ATTRIBUTE_ORDER: tuple[str, ...] = (
     "affect_phase",
     "phi_phase",
     "motivation_phase",
+    "cognitive_integration",  # Learned cognitive systems (sentiment, anomaly, self-model, RL, plasticity)
     "executive_closure_phase",
     "evolution_guard",
     "growth",

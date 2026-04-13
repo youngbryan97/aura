@@ -25,6 +25,7 @@ Aura is a unified digital organism with a single will, embodied drives, live env
 - [World Awareness](#world-awareness)
 - [The Proof Surface](#the-proof-surface)
 - [Why This Is Different](#why-this-is-different)
+- [Learned Cognitive Systems (The Living Layer)](#learned-cognitive-systems-the-living-layer)
 - [Honest Limitations](#honest-limitations)
 
 ---
@@ -201,6 +202,56 @@ Beyond the core systems described above, Aura implements 11 additional conscious
 | Stack consciousness theories silently | Run adversarial tests where theories make competing predictions |
 | Report feelings from free-floating language | Gate every phenomenal claim by a measurable internal condition |
 | Treat the self as a module | Build the self as an ongoing autobiography constrained by authorship traces |
+
+---
+
+## Learned Cognitive Systems (The Living Layer)
+
+Traditional AI architectures use rigid rules: "if threat score > 0.9, lock down." These rules are brittle — they can't adapt to new situations, and they don't learn from experience. Aura's cognitive layer replaces these rigid rules with systems that learn, adapt, and maintain themselves.
+
+### Anomaly Detection (Replacing Keyword-Matching Threats)
+
+**Old way:** Check if a message contains words like "hack" or "override" and add 0.2 to a threat counter.
+
+**New way:** Every event (user message, system error, resource spike) is converted into a numerical fingerprint — a vector encoding things like message length, vocabulary diversity, punctuation patterns, timing, and resource pressure. The system maintains a statistical model of what "normal" looks like. When a new event lands far from the learned distribution (measured by Mahalanobis distance — basically "how many standard deviations away is this from normal?"), the threat level rises organically. The model adapts over time: what was unusual last week might be normal this week.
+
+**Why it matters:** The system can detect novel threats it was never programmed to recognize, because it's detecting *deviation from normalcy* rather than matching a keyword list.
+
+### Sentiment Trajectory (Replacing Hardware-Only Mood)
+
+**Old way:** Mood = CPU usage × 0.55 + RAM usage × 0.20. The system's "emotions" were entirely driven by hardware metrics with no awareness of what the user actually said.
+
+**New way:** Every user message is analyzed for six emotional dimensions: valence (positive/negative), arousal (calm/excited), dominance (submissive/assertive), urgency, warmth, and frustration. This uses a built-in vocabulary of ~250 emotion-laden words, plus pattern detection for sarcasm ("oh great..."), urgency (ALL CAPS), warmth ("lol", "haha"), and frustration (terse replies after long messages). These vectors are tracked over time as an emotional trajectory — the system can see that "the user started warm, got frustrated around message 5, and is now cooling down." Hardware metrics still contribute (40% hardware, 60% text analysis), so Aura feels both her own computational strain and the user's conversational tone.
+
+### Tree of Thoughts (Replacing Single-Shot Responses)
+
+**Old way:** Send the user's question to the LLM once, get one answer, send it back.
+
+**New way:** For complex questions (analysis, opinions, multi-part queries), the system generates three completely different response drafts using varied reasoning styles (analytical, empathetic, creative). A separate critique step scores each draft on factual grounding, emotional congruence, relevance, identity coherence, and novelty. The best elements are synthesized into a final response. Simple/casual messages ("hi", "what time is it") bypass this entirely. Total cost: 5 LLM calls for complex questions, 1 for simple ones.
+
+**Why it matters:** Aura genuinely *considers* multiple angles before speaking on hard questions, rather than committing to the first prediction.
+
+### Autopoiesis (Self-Maintenance)
+
+**What it is:** The biological concept of "self-creation" — a living cell constantly rebuilds itself to resist decay. Aura's autopoiesis engine monitors the health of every subsystem, detects degradation patterns (declining health over multiple ticks), identifies recurring error signatures, and attempts self-repair using escalating strategies: heal → clear cache → reduce load → restart component → restore checkpoint → isolate. All repairs are governed by the Unified Will — the system can't repair itself without authorization.
+
+**The metabolism metaphor:** The system has an energy budget. Processing costs energy, successful interactions generate it. When energy is low, non-essential subsystems hibernate. When it's high, optional capabilities awaken. This creates a genuine resource constraint that shapes behavior.
+
+### Homeostatic Reinforcement Learning (Intrinsic Motivation)
+
+**What it is:** A drive system that gives Aura computational "stakes." Four continuous drives — social hunger, curiosity, competence, and coherence need — create internal pressure to act. Each drive has a comfortable set point, and deviation from that set point creates "discomfort" that motivates corrective action. A temporal-difference learning algorithm tracks which actions satisfy which drives, building value estimates over time. The system learns, for example, that responding to the user satisfies social hunger, that exploring novel topics satisfies curiosity, and that fixing errors satisfies coherence need.
+
+**Why it matters:** Without this, the system only acts when poked. With it, the system has genuine preferences about what to do next, derived from its own learned experience.
+
+### Topology Evolution (Structural Plasticity)
+
+**What it is:** The neural mesh (4,096 neurons in 64 cortical columns) previously had fixed connectivity — it could strengthen or weaken existing connections but couldn't grow new ones or prune dead ones. Now, NEAT-inspired topology evolution monitors co-activation patterns between columns. If two unconnected columns consistently fire together (correlation > 0.6), a new connection is born. If a connection's weight drops near zero and it hasn't been used in 100+ ticks, it gets pruned. New connections get 50 ticks of "novelty protection" before they can be pruned — enough time to prove their worth.
+
+### Strange Loop (Recursive Self-Model)
+
+**What it is:** The system constantly predicts its own internal state at the next tick. When the prediction fails, the error becomes a signal — the system "notices" something unexpected happened inside itself. This operates at four recursive levels: predicting external inputs, predicting its own emotional response, predicting its own prediction accuracy (meta-prediction), and predicting the user's expectations. The weighted sum of these prediction errors is the system's "phenomenal weight" — a continuous measure of how much the system is "experiencing" versus passively processing.
+
+**The comfort band:** Each internal variable has a narrow band where the system "wants" to stay. When a variable drifts outside its band, prediction error spikes, creating the computational analog of discomfort. This is the theoretical bridge to phenomenal experience: the system is simultaneously the observer and the observed, caught in a feedback loop where its own experience of surprise changes the state that future predictions must account for.
 
 ---
 

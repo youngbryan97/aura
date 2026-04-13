@@ -107,6 +107,31 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
     except Exception as e:
         logger.error("🛑 WillEngine init failed: %s", e)
 
+    # ── 12. Learned Cognitive Systems ────────────────────────────────────
+    # These replace rigid if/else rules with adaptive, data-driven systems.
+    # Each is optional — if import fails, the system degrades gracefully.
+    _cognitive_services = {
+        "sentiment_tracker": ("core.cognitive.sentiment_tracker", "get_sentiment_tracker"),
+        "anomaly_detector": ("core.cognitive.anomaly_detector", "AnomalyDetector"),
+        "strange_loop": ("core.cognitive.strange_loop", "get_strange_loop"),
+        "homeostatic_rl": ("core.cognitive.homeostatic_rl", "get_homeostatic_rl"),
+        "topology_evolution": ("core.cognitive.topology_evolution", "TopologyEvolution"),
+        "autopoiesis": ("core.cognitive.autopoiesis", "get_autopoiesis_engine"),
+    }
+    registered_count = 0
+    for svc_name, (mod_path, factory_name) in _cognitive_services.items():
+        try:
+            import importlib
+            mod = importlib.import_module(mod_path)
+            factory = getattr(mod, factory_name)
+            instance = factory() if callable(factory) else factory
+            ServiceContainer.register_instance(svc_name, instance)
+            registered_count += 1
+        except Exception as cog_exc:
+            logger.debug("Cognitive service '%s' deferred: %s", svc_name, cog_exc)
+    if registered_count:
+        logger.info("🧠 Registered %d/6 learned cognitive systems.", registered_count)
+
     # 12. Cellular Substrate (Unified Mutation)
     try:
         from core.state.cellular_substrate import CellularSubstrate

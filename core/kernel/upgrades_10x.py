@@ -394,7 +394,15 @@ class GodModeToolPhase(Phase):
                 normalized.setdefault("content", objective)
 
         if skill_name in {"web_search", "sovereign_browser"}:
-            normalized.setdefault("query", objective)
+            # Detect URLs in the objective — if present, BROWSE the URL directly
+            # instead of searching the entire message text on a search engine.
+            import re as _re
+            url_match = _re.search(r'https?://[^\s<>\"\')\]]+', objective)
+            if skill_name == "sovereign_browser" and url_match:
+                normalized.setdefault("mode", "browse")
+                normalized.setdefault("url", url_match.group(0))
+            else:
+                normalized.setdefault("query", objective)
 
         return normalized
 
@@ -635,7 +643,12 @@ class GodModeToolPhase(Phase):
             state.response_modifiers["last_skill_run"] = skill_name
             state.response_modifiers["last_skill_ok"] = ok
             state.response_modifiers["last_skill_result_payload"] = _compact_skill_result_payload(result)
-            if ok and skill_name in {"web_search", "sovereign_browser"} and getattr(contract, "requires_search", False):
+            # Only precompute a grounded reply for explicit SEARCH results, not
+            # for URL browse operations.  When the user pasted a URL, the full
+            # page content is injected into working memory and the LLM should
+            # synthesize a thoughtful response — not parrot raw search snippets.
+            is_browse_op = (params or {}).get("mode") == "browse"
+            if ok and skill_name in {"web_search", "sovereign_browser"} and getattr(contract, "requires_search", False) and not is_browse_op:
                 try:
                     from core.phases.response_generation_unitary import UnitaryResponsePhase
 
