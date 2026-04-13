@@ -7,13 +7,13 @@ import psutil
 logger = logging.getLogger("Aura.Governor")
 
 class SystemGovernor:
-    def __init__(self, cpu_limit=95, ram_limit=95):
+    def __init__(self, cpu_limit: float = 95, ram_limit: float = 95) -> None:
         self.cpu_limit = cpu_limit
         self.ram_limit = ram_limit
         # Track Aura's OWN process, not system-wide
         self._process = psutil.Process(os.getpid())
         self._process.cpu_percent()  # prime the counter (first call always 0)
-        self._last_check = 0
+        self._last_check = 0.0
         self._cached_result = True
         self._check_interval = 5.0  # only re-check every 5 seconds
 

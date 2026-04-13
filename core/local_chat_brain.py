@@ -1,13 +1,11 @@
 """Local Chat Brain - Self-contained, offline-capable conversational AI.
 No external API dependencies. Works even when completely offline.
 """
-import json
 import logging
 import random
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.LocalChat")
 
@@ -16,12 +14,12 @@ class ChatMemory:
     """Simple conversation memory for context."""
 
     conversation_id: str
-    history: List[Dict[str, str]] = field(default_factory=list)
-    user_name: Optional[str] = None
-    topics_discussed: List[str] = field(default_factory=list)
+    history: list[dict[str, str]] = field(default_factory=list)
+    user_name: str | None = None
+    topics_discussed: list[str] = field(default_factory=list)
     last_interaction: float = field(default_factory=lambda: datetime.now().timestamp())
     
-    def add_message(self, role: str, content: str):
+    def add_message(self, role: str, content: str) -> None:
         """Add a message to history."""
         self.history.append({"role": role, "content": content, "time": datetime.now().isoformat()})
         self.last_interaction = datetime.now().timestamp()
@@ -36,11 +34,11 @@ class LocalChatBrain:
     
     def __init__(self, name: str = "Aura"):
         self.name = name
-        self.memories: Dict[str, ChatMemory] = {}
+        self.memories: dict[str, ChatMemory] = {}
         self.response_rules = self._build_response_rules()
         logger.info("Local Chat Brain '%s' initialized.", name)
     
-    def _build_response_rules(self) -> Dict[str, List[str]]:
+    def _build_response_rules(self) -> dict[str, list[str]]:
         """Build pattern-matching response rules."""
         return {
             r"\b(hi|hello|hey|greetings|sup|yo)\b": [

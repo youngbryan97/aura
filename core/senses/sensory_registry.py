@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class SensoryCapabilityFlags:
     """
@@ -39,6 +40,6 @@ _capabilities = SensoryCapabilityFlags()
 def get_capabilities() -> SensoryCapabilityFlags:
     return _capabilities
 
-def set_capabilities(flags: SensoryCapabilityFlags):
+def set_capabilities(flags: SensoryCapabilityFlags) -> None:
     global _capabilities
     _capabilities = flags

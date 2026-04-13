@@ -1,7 +1,7 @@
 import hashlib
+import logging
 import struct
 import time
-import logging
 
 logger = logging.getLogger("Brain.Entropy")
 
@@ -37,7 +37,7 @@ class PhysicalEntropyInjector:
 
         digest = hashlib.sha256(raw_bytes).digest()
         sample = struct.unpack(">I", digest[:4])[0]
-        modifier = (sample / 0xFFFFFFFF) * 0.40
+        modifier = float((sample / 0xFFFFFFFF) * 0.40)
 
         logger.debug("Entropy modifier: %.4f", modifier)
         return modifier
@@ -47,4 +47,4 @@ class PhysicalEntropyInjector:
         """Apply hardware chaos to the LLM generation temperature."""
         chaos = cls.calculate_hardware_chaos()
         final_temp = base_temp + chaos
-        return min(1.0, max(0.1, final_temp))
+        return float(min(1.0, max(0.1, final_temp)))

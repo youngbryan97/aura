@@ -3,7 +3,6 @@ Defines how Aura executes code in isolated environments.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -18,12 +17,12 @@ class Sandbox(ABC):
     """
     
     @abstractmethod
-    def start(self):
+    def start(self) -> None:
         """Initialize the environment (e.g. create venv, start container)."""
         pass
         
     @abstractmethod
-    def stop(self):
+    def stop(self) -> None:
         """Teardown the environment."""
         pass
         
@@ -43,6 +42,6 @@ class Sandbox(ABC):
         pass
         
     @abstractmethod
-    def write_file(self, path: str, content: str):
+    def write_file(self, path: str, content: str) -> None:
         """Write a file to the sandbox."""
         pass

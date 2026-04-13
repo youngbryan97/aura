@@ -5,14 +5,14 @@ A peer doesn't just respond to you — they have a theory of you.
 """
 
 import json
-import os
-import time
 import logging
+import os
 import tempfile
 import threading
-from dataclasses import dataclass, field, asdict
+import time
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 _USER_MODEL_PATH = Path.home() / ".aura" / "data" / "user_model.json"
@@ -44,9 +44,9 @@ class UserPattern:
 
 @dataclass
 class UserModel:
-    known_domains: Dict[str, DomainReliability] = field(default_factory=dict)
-    observed_patterns: List[UserPattern] = field(default_factory=list)
-    stated_values: List[str] = field(default_factory=list)
+    known_domains: dict[str, DomainReliability] = field(default_factory=dict)
+    observed_patterns: list[UserPattern] = field(default_factory=list)
+    stated_values: list[str] = field(default_factory=list)
     conversation_count: int = 0
     total_messages: int = 0
     last_updated: float = field(default_factory=time.time)
@@ -57,19 +57,21 @@ class BryanModelEngine:
     Aura's dynamic model of Bryan.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._model = self._load()
         self._last_saved = 0.0
         self._save_lock = threading.Lock()
-        self._save_timer: Optional[threading.Timer] = None
+        self._save_timer: threading.Timer | None = None
         logger.info("🧠 Bryan model loaded: %d domain records, %d patterns",
                     len(self._model.known_domains), len(self._model.observed_patterns))
 
     def _load(self) -> UserModel:
         if _USER_MODEL_PATH.exists():
             try:
-                with open(_USER_MODEL_PATH) as f:
+                with open(_USER_MODEL_PATH, encoding="utf-8") as f:
                     data = json.load(f)
+                    if not isinstance(data, dict):
+                        raise ValueError("User model payload must be a JSON object")
                     # Reconstruct nested dataclasses
                     domains = {
                         k: DomainReliability(**v)
@@ -87,7 +89,7 @@ class BryanModelEngine:
                 logger.warning("User model load failed: %s", e)
         return UserModel()
 
-    def _serialize(self) -> dict:
+    def _serialize(self) -> dict[str, Any]:
         return {
             "known_domains": {k: asdict(v) for k, v in self._model.known_domains.items()},
             "observed_patterns": [asdict(p) for p in self._model.observed_patterns],
@@ -97,7 +99,7 @@ class BryanModelEngine:
             "last_updated": time.time(),
         }
 
-    def _write_now(self):
+    def _write_now(self) -> None:
         try:
             _USER_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
             payload = self._serialize()
@@ -115,12 +117,12 @@ class BryanModelEngine:
         except Exception as e:
             logger.error("User model save failed: %s", e)
 
-    def _flush_pending_save(self):
+    def _flush_pending_save(self) -> None:
         with self._save_lock:
             self._save_timer = None
         self._write_now()
 
-    def save(self, force: bool = False):
+    def save(self, force: bool = False) -> None:
         should_write_now = False
         with self._save_lock:
             now = time.time()
@@ -143,15 +145,15 @@ class BryanModelEngine:
         dr = self._model.known_domains.get(domain)
         return dr.reliability if dr else 0.7
 
-    def record_correct_claim(self, domain: str):
+    def record_correct_claim(self, domain: str) -> None:
         self._get_or_create_domain(domain).correct_count += 1
         self.save()
 
-    def record_challenged_claim(self, domain: str):
+    def record_challenged_claim(self, domain: str) -> None:
         self._get_or_create_domain(domain).challenged_count += 1
         self.save()
 
-    def record_stated_value(self, value: str):
+    def record_stated_value(self, value: str) -> None:
         if value not in self._model.stated_values:
             self._model.stated_values.append(value)
             # Cap to prevent unbounded growth over months
@@ -159,7 +161,7 @@ class BryanModelEngine:
                 self._model.stated_values = self._model.stated_values[-150:]
             self.save()
 
-    def observe_pattern(self, description: str):
+    def observe_pattern(self, description: str) -> None:
         """Note a recurring behavioral pattern."""
         for p in self._model.observed_patterns:
             if description.lower() in p.description.lower():

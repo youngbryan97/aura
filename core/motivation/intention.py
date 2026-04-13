@@ -3,7 +3,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
+
 
 class DriveType(Enum):
     CURIOSITY = "CURIOSITY"
@@ -19,15 +20,15 @@ class Intention:
     """
     drive: DriveType
     goal: str
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
     urgency: float = 0.5  # 0.0 to 1.0
     timestamp: datetime = field(default_factory=datetime.now)
-    meta: Dict[str, Any] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"[{self.drive.value}] Urgency: {self.urgency:.2f} | Goal: {self.goal}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "drive": self.drive.value,
             "goal": self.goal,

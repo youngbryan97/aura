@@ -3,6 +3,7 @@ These methods are intended for future integration with the NeuroWeb CNS.
 Currently unused — the main orchestrator handles all message processing.
 """
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -10,11 +11,16 @@ logger = logging.getLogger(__name__)
 class OrchestratorCNSMixin:
     """Mixin for CNS-based orchestrator processing (future use)."""
 
-    async def process_user_input_cns(self, message: str):
+    cns: Any
+    emitter: Any
+    cognitive_engine: Any
+    _execute_task: Any
+
+    async def process_user_input_cns(self, message: str) -> None:
         """Public alias for _process_message_cns to satisfy Server API."""
         return await self._process_message_cns(message)
 
-    async def _process_message_cns(self, message: str):
+    async def _process_message_cns(self, message: str) -> None:
         """Process a user message through the CNS.
         """
         try:

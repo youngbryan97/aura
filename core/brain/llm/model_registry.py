@@ -6,10 +6,10 @@ This module is the single source of truth for:
   - the active local backend selection
 """
 import os
-import shutil
 import re
+import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 BASE_DIR = Path(os.getenv("AURA_ROOT", Path(__file__).resolve().parents[3]))
 LOCAL_BACKEND = str(os.getenv("AURA_LOCAL_BACKEND", "llama_cpp")).strip().lower()
@@ -29,7 +29,7 @@ LEGACY_ENDPOINT_ALIASES = {
 
 # ── Change these lines to upgrade Aura's brain ──
 # Auto-detect: Use 72B Q4 if downloaded, otherwise fall back to stable 32B Q5
-def _detect_72b_q4():
+def _detect_72b_q4() -> bool:
     shard1 = BASE_DIR / "models_gguf" / "qwen2.5-72b-instruct-q4_k_m-00001-of-00012.gguf"
     try:
         return shard1.exists() and shard1.stat().st_size > 3_500_000_000
@@ -130,7 +130,7 @@ GGUF_DOWNLOAD_TARGETS = {
 ADAPTER_PATH = BASE_DIR / "data" / "adapters"
 
 
-def get_model_path(model_name: Optional[str] = None) -> str:
+def get_model_path(model_name: str | None = None) -> str:
     """Resolve the path for a model. Returns absolute path if local, else HF repo ID."""
     name = model_name or ACTIVE_MODEL
     
@@ -163,7 +163,7 @@ def get_local_backend() -> str:
     return LOCAL_BACKEND
 
 
-def find_llama_server_bin() -> Optional[str]:
+def find_llama_server_bin() -> str | None:
     explicit = os.getenv("AURA_LLAMA_SERVER_BIN")
     if explicit:
         return explicit
@@ -176,7 +176,7 @@ def find_llama_server_bin() -> Optional[str]:
     return None
 
 
-def normalize_endpoint_name(endpoint_name: Optional[str]) -> Optional[str]:
+def normalize_endpoint_name(endpoint_name: str | None) -> str | None:
     if endpoint_name is None:
         return None
     normalized = str(endpoint_name).strip()
@@ -185,12 +185,12 @@ def normalize_endpoint_name(endpoint_name: Optional[str]) -> Optional[str]:
     return LEGACY_ENDPOINT_ALIASES.get(normalized, normalized)
 
 
-def _extract_size_tag(value: Optional[str]) -> str:
+def _extract_size_tag(value: str | None) -> str:
     match = re.search(r"(\d+\.?\d*b)", str(value or "").lower())
     return match.group(1) if match else ""
 
 
-def get_lane_model_name(endpoint_name: Optional[str]) -> str:
+def get_lane_model_name(endpoint_name: str | None) -> str:
     normalized = normalize_endpoint_name(endpoint_name) or PRIMARY_ENDPOINT
     if normalized == PRIMARY_ENDPOINT:
         return ACTIVE_MODEL
@@ -201,15 +201,15 @@ def get_lane_model_name(endpoint_name: Optional[str]) -> str:
     return FALLBACK_MODEL
 
 
-def get_lane_runtime_model_path(endpoint_name: Optional[str]) -> str:
+def get_lane_runtime_model_path(endpoint_name: str | None) -> str:
     return get_runtime_model_path(get_lane_model_name(endpoint_name))
 
 
 def guard_solver_request(
-    prefer_endpoint: Optional[str],
+    prefer_endpoint: str | None,
     *,
     deep_handoff: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     normalized = normalize_endpoint_name(prefer_endpoint)
     if normalized != DEEP_ENDPOINT or deep_handoff:
         return {
@@ -224,7 +224,7 @@ def guard_solver_request(
     }
 
 
-def get_endpoint_name_for_model(model_name: Optional[str]) -> str:
+def get_endpoint_name_for_model(model_name: str | None) -> str:
     """Map a model name to its logical lane based on the configured tier layout."""
     name = str(model_name or ACTIVE_MODEL)
     lowered = name.lower()
@@ -263,7 +263,7 @@ def get_endpoint_name_for_model(model_name: Optional[str]) -> str:
     return PRIMARY_ENDPOINT
 
 
-def get_runtime_model_path(model_name: Optional[str] = None) -> str:
+def get_runtime_model_path(model_name: str | None = None) -> str:
     """Resolve the active local-runtime artifact for a lane."""
     name = model_name or ACTIVE_MODEL
     if local_backend_is_mlx():
@@ -283,7 +283,7 @@ def get_runtime_model_path(model_name: Optional[str] = None) -> str:
     return str(path)
 
 
-def get_runtime_download_target(model_name: Optional[str] = None) -> dict[str, str]:
+def get_runtime_download_target(model_name: str | None = None) -> dict[str, str]:
     name = model_name or ACTIVE_MODEL
     return dict(GGUF_DOWNLOAD_TARGETS.get(name, {}))
 
@@ -308,7 +308,7 @@ def get_active_model() -> str:
     return ACTIVE_MODEL
 
 
-def audit_lane_assignments() -> Dict[str, Any]:
+def audit_lane_assignments() -> dict[str, Any]:
     """Detect role drift so callers can surface it in health before runtime churn begins."""
 
     def _artifact_key(value: str) -> str:
@@ -317,7 +317,7 @@ def audit_lane_assignments() -> Dict[str, Any]:
             return ""
         return os.path.realpath(text) if text.startswith("/") else text.lower()
 
-    lanes: Dict[str, Dict[str, Any]] = {}
+    lanes: dict[str, dict[str, Any]] = {}
     for endpoint_name in (
         PRIMARY_ENDPOINT,
         DEEP_ENDPOINT,
@@ -332,9 +332,9 @@ def audit_lane_assignments() -> Dict[str, Any]:
             "size_tag": _extract_size_tag(model_name),
         }
 
-    issues: list[Dict[str, Any]] = []
-    seen_models: Dict[str, str] = {}
-    seen_paths: Dict[str, str] = {}
+    issues: list[dict[str, Any]] = []
+    seen_models: dict[str, str] = {}
+    seen_paths: dict[str, str] = {}
 
     for endpoint_name, payload in lanes.items():
         model_key = str(payload["model"]).strip().lower()

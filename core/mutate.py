@@ -1,13 +1,11 @@
 import ast
+import asyncio
 import logging
-import os
-import shutil
-import subprocess
 from pathlib import Path
 
 logger = logging.getLogger("Kernel.Mutate")
 
-async def _run_tests_async():
+async def _run_tests_async() -> tuple[bool, str]:
     """Return (ok, msg)."""
     try:
         # Runs pytest in the current environment asynchronously.

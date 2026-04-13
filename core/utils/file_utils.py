@@ -1,12 +1,13 @@
-import os
 import json
-import tempfile
 import logging
+import os
+import tempfile
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-def atomic_write_json(file_path: str, data: Any, indent: int = 2):
+
+def atomic_write_json(file_path: str, data: Any, indent: int = 2) -> None:
     """
     Writes JSON data to a file atomically using a temporary file and os.replace.
     Ensures that partial writes don't corrupt the target file.
@@ -20,7 +21,7 @@ def atomic_write_json(file_path: str, data: Any, indent: int = 2):
         
     fd, temp_path = tempfile.mkstemp(dir=dir_name or ".", prefix=".tmp-")
     try:
-        with os.fdopen(fd, 'w') as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=indent)
             f.flush()
             # Ensure data is written to disk

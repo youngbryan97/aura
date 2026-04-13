@@ -1,9 +1,12 @@
 """Aura Zenith Unified Exception Hierarchy.
 """
 
+from typing import Any
+
+
 class AuraError(Exception):
     """Base exception for all Aura-specific errors."""
-    def __init__(self, message: str, context: dict = None):
+    def __init__(self, message: str, context: dict[str, Any] | None = None):
         super().__init__(message)
         self.context = context or {}
 

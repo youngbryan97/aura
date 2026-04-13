@@ -9,14 +9,13 @@ Hierarchy (highest priority first):
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("Aura.Secrets")
 
 _KEYCHAIN_SERVICE = "AuraAutonomyEngine"
 
 
-def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
+def get_secret(key: str, default: str | None = None) -> str | None:
     """
     Retrieve a secret by key. Never logs the value.
     """
@@ -35,7 +34,7 @@ def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
     return default
 
 
-def set_secret(key: str, value: str, store: str = "keychain"):
+def set_secret(key: str, value: str, store: str = "keychain") -> None:
     """
     Persist a secret. Default target is macOS Keychain.
     """
@@ -49,7 +48,7 @@ def set_secret(key: str, value: str, store: str = "keychain"):
     os.environ[key] = value
 
 
-def _keychain_get(key: str) -> Optional[str]:
+def _keychain_get(key: str) -> str | None:
     """Retrieve from macOS Keychain using Security framework."""
     try:
         import subprocess
@@ -89,13 +88,13 @@ def _keychain_set(key: str, value: str) -> bool:
         return False
 
 
-def load_dotenv(path: Optional[str] = None):
+def load_dotenv(path: str | None = None) -> None:
     """Load a .env file into environment variables. Dev convenience only."""
     dot_env = Path(path or ".env")
     if not dot_env.exists():
         return
     logger.info("Loading .env from %s (dev mode)", dot_env)
-    with open(dot_env) as f:
+    with open(dot_env, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:

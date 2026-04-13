@@ -28,6 +28,8 @@ Usage:
 
 from __future__ import annotations
 
+import logging
+
 # ── Canonical Version ────────────────────────────────────────
 
 MAJOR: int = 2026
@@ -77,7 +79,6 @@ def as_tuple() -> tuple[int, int, int]:
 def is_at_least(major: int, minor: int = 0, patch: int = 0) -> bool:
     """Return True if this version is >= the given version."""
     return as_tuple() >= (major, minor, patch)
-
 
 # ── Migration Reference ──────────────────────────────────────
 # Update these strings when you find them in the codebase and

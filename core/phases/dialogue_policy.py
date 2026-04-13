@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import re
-from typing import Awaitable, Callable, List, Optional, Tuple
-
+from collections.abc import Awaitable, Callable
+from dataclasses import asdict, dataclass, field
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _FIRST_PERSON = re.compile(r"\b(?:i|i'm|i’ve|i've|i’d|i'd|my|me|for me|to me)\b", re.IGNORECASE)
@@ -66,13 +65,13 @@ _LIVE_GROUNDING_MARKERS = (
 @dataclass(frozen=True)
 class DialogueValidation:
     ok: bool
-    violations: List[str] = field(default_factory=list)
+    violations: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
-def _sentences(text: str) -> List[str]:
+def _sentences(text: str) -> list[str]:
     parts = [part.strip() for part in _SENTENCE_SPLIT.split(str(text or "").strip())]
     return [part for part in parts if part]
 
@@ -119,7 +118,7 @@ def _contains_live_aura_grounding(text: str) -> bool:
     return any(marker in lowered for marker in _LIVE_GROUNDING_MARKERS)
 
 
-def _requires_live_aura_voice(contract: Optional[object]) -> bool:
+def _requires_live_aura_voice(contract: object | None) -> bool:
     if contract is None:
         return False
     checker = getattr(contract, "requires_live_aura_voice", None)
@@ -138,7 +137,7 @@ def _requires_live_aura_voice(contract: Optional[object]) -> bool:
     )
 
 
-def _requires_non_generic_aura_voice(contract: Optional[object]) -> bool:
+def _requires_non_generic_aura_voice(contract: object | None) -> bool:
     if contract is None:
         return False
     if bool(getattr(contract, "is_user_facing", False)):
@@ -146,12 +145,12 @@ def _requires_non_generic_aura_voice(contract: Optional[object]) -> bool:
     return _requires_live_aura_voice(contract)
 
 
-def validate_dialogue_response(text: str, contract: Optional[object]) -> DialogueValidation:
+def validate_dialogue_response(text: str, contract: object | None) -> DialogueValidation:
     body = str(text or "").strip()
     if not body:
         return DialogueValidation(ok=False, violations=["empty_response"])
 
-    violations: List[str] = []
+    violations: list[str] = []
     sentences = _sentences(body)
 
     if getattr(contract, "avoid_question_fishing", False):
@@ -186,7 +185,7 @@ def validate_dialogue_response(text: str, contract: Optional[object]) -> Dialogu
     return DialogueValidation(ok=not violations, violations=violations)
 
 
-def repair_dialogue_surface(text: str, contract: Optional[object]) -> str:
+def repair_dialogue_surface(text: str, contract: object | None) -> str:
     body = str(text or "").strip()
     if not body:
         return body
@@ -201,7 +200,7 @@ def repair_dialogue_surface(text: str, contract: Optional[object]) -> str:
     return body
 
 
-def build_dialogue_repair_block(contract: Optional[object], validation: DialogueValidation, failed_text: str) -> str:
+def build_dialogue_repair_block(contract: object | None, validation: DialogueValidation, failed_text: str) -> str:
     lines = [
         "## DIALOGUE REPAIR",
         f"- The last draft violated the live dialogue contract: {', '.join(validation.violations) or 'unspecified dialogic failure'}.",
@@ -232,10 +231,10 @@ def build_dialogue_repair_block(contract: Optional[object], validation: Dialogue
 
 async def enforce_dialogue_contract(
     text: str,
-    contract: Optional[object],
+    contract: object | None,
     *,
-    retry_generate: Optional[Callable[[str], Awaitable[str]]] = None,
-) -> Tuple[str, DialogueValidation, bool]:
+    retry_generate: Callable[[str], Awaitable[str]] | None = None,
+) -> tuple[str, DialogueValidation, bool]:
     validation = validate_dialogue_response(text, contract)
     if validation.ok:
         return text, validation, False

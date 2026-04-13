@@ -3,12 +3,12 @@
 A thread-safe, ring-buffered registry for Aura's real-time sensory metadata.
 Acts as the intermediate layer between raw hardware perception and cognitive agency.
 """
-import time
 import logging
+import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 from threading import Lock
+from typing import Any
 
 logger = logging.getLogger("Aura.Senses.PerceptualBuffer")
 
@@ -17,23 +17,23 @@ class SensoryMoment:
     source: str
     content: Any
     timestamp: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 class PerceptualBuffer:
     """A rolling buffer of Aura's sensory experiences."""
     
-    def __init__(self, maxsize: int = 100):
-        self._buffer = deque(maxlen=maxsize)
+    def __init__(self, maxsize: int = 100) -> None:
+        self._buffer: deque[SensoryMoment] = deque(maxlen=maxsize)
         self._lock = Lock()
         logger.info("📡 Perceptual Buffer initialized (capacity: %d moments)", maxsize)
 
-    def append(self, source: str, content: Any, metadata: Optional[Dict[str, Any]] = None):
+    def append(self, source: str, content: Any, metadata: dict[str, Any] | None = None) -> None:
         """Add a new sensory moment to the buffer."""
         moment = SensoryMoment(source=source, content=content, metadata=metadata or {})
         with self._lock:
             self._buffer.append(moment)
 
-    def get_recent(self, seconds: float = 60.0) -> List[SensoryMoment]:
+    def get_recent(self, seconds: float = 60.0) -> list[SensoryMoment]:
         """Retrieve moments from the last N seconds."""
         now = time.time()
         start_time = now - seconds
@@ -47,7 +47,7 @@ class PerceptualBuffer:
             return "No recent sensory input."
             
         summary_lines = []
-        by_source = {}
+        by_source: dict[str, list[SensoryMoment]] = {}
         for m in moments:
             if m.source not in by_source:
                 by_source[m.source] = []
@@ -61,6 +61,6 @@ class PerceptualBuffer:
             
         return "\n".join(summary_lines)
 
-    def clear(self):
+    def clear(self) -> None:
         with self._lock:
             self._buffer.clear()

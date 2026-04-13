@@ -1,13 +1,20 @@
 import logging
-import time
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 class OrchestratorStateMixin:
     """Mixin handling state persistence and restoration."""
 
-    async def _save_state_async(self, reason: str = "periodic"):
+    conversation_history: list[Any]
+    state_manager: Any
+    status: Any
+    cognitive_engine: Any
+    boredom: float
+    stats: dict[str, Any]
+    planner: Any
+
+    async def _save_state_async(self, reason: str = "periodic") -> None:
         """Asynchronously save current system state."""
         try:
             state = self._compile_state_data()
@@ -15,7 +22,7 @@ class OrchestratorStateMixin:
         except Exception as e:
             logger.error("Error in async state save: %s", e)
 
-    def _compile_state_data(self) -> Dict[str, Any]:
+    def _compile_state_data(self) -> dict[str, Any]:
         """Gather state data for snapshotting."""
         return {
             "conversation_history": self.conversation_history[-20:], # Keep last 20 messages
@@ -24,7 +31,7 @@ class OrchestratorStateMixin:
             "thoughts_snapshot": [t.to_dict() for t in self.cognitive_engine.thoughts] if self.cognitive_engine else []
         }
 
-    def _save_state(self, reason: str = "periodic"):
+    def _save_state(self, reason: str = "periodic") -> None:
         """Save current system state via StateManager (Synchronous)."""
         try:
             state = self._compile_state_data()
@@ -32,7 +39,7 @@ class OrchestratorStateMixin:
         except Exception as e:
             logger.error("Error saving state: %s", e)
 
-    def _load_state(self):
+    def _load_state(self) -> None:
         """Restore system state from StateManager."""
         try:
             # Try LATEST snapshot first
@@ -52,7 +59,7 @@ class OrchestratorStateMixin:
         except Exception as e:
             logger.error("Error loading state: %s", e)
 
-    def _restore_core_metrics(self, data: Dict[str, Any]):
+    def _restore_core_metrics(self, data: dict[str, Any]) -> None:
         """Restores core system metrics from snapshot."""
         try:
             metrics = data.get("metrics", {})
@@ -63,7 +70,7 @@ class OrchestratorStateMixin:
         except Exception as e:
             logger.warning("Failed to restore core metrics: %s", e)
 
-    def _restore_history(self, data: Dict[str, Any]):
+    def _restore_history(self, data: dict[str, Any]) -> None:
         """Restores conversation history from snapshot."""
         try:
             history = data.get("conversation_history", [])
@@ -75,7 +82,7 @@ class OrchestratorStateMixin:
         except Exception as e:
             logger.warning("Failed to restore history: %s", e)
 
-    def _restore_cognition(self, data: Dict[str, Any]):
+    def _restore_cognition(self, data: dict[str, Any]) -> None:
         """Restores cognitive thought state from a previous snapshot."""
         try:
             thoughts = data.get("thoughts_snapshot", [])
@@ -87,7 +94,7 @@ class OrchestratorStateMixin:
         except Exception as e:
             logger.warning("Failed to restore cognition: %s", e)
 
-    def _restore_active_plans(self, data: Dict[str, Any]):
+    def _restore_active_plans(self, data: dict[str, Any]) -> None:
         """Restores active goals and plans from snapshot (v13: implemented)."""
         try:
             # Restore goal hierarchy if present
@@ -114,4 +121,3 @@ class OrchestratorStateMixin:
                 logger.info("Plan restoration complete: %d goals recovered", len(goals))
         except Exception as e:
             logger.warning("Failed to restore active plans: %s", e)
-

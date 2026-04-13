@@ -1,7 +1,5 @@
 import logging
-import shlex
 import subprocess
-from typing import Optional
 
 logger = logging.getLogger("Senses.Notifications")
 
@@ -10,7 +8,7 @@ class DesktopNotifier:
     """Handles native OS desktop notifications (macOS focuses)."""
 
     @staticmethod
-    def send(title: str, message: str, subtitle: Optional[str] = None, sound: str = "Tink"):
+    def send(title: str, message: str, subtitle: str | None = None, sound: str = "Tink") -> None:
         """Send a native macOS desktop notification.
         
         Args:
@@ -46,7 +44,7 @@ class DesktopNotifier:
             logger.error(f"Failed to send desktop notification: {e}")
 
     @staticmethod
-    def push_insight(message: str):
+    def push_insight(message: str) -> None:
         """Helper to push a standard Aura insight notification."""
         DesktopNotifier.send(
             title="Aura Insight",

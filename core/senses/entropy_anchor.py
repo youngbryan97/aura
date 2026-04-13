@@ -5,14 +5,14 @@ Tethers Aura's cognitive and affective states to true physical reality
 by reading hardware-level thermal and quantum entropy from the local machine.
 """
 
+import logging
 import os
 import struct
-import logging
 
 logger = logging.getLogger("Aura.EntropyAnchor")
 
 class PhysicalEntropyAnchor:
-    def __init__(self):
+    def __init__(self) -> None:
         logger.info("🌌 Physical Entropy Anchor online. System is now non-deterministic.")
 
     def get_raw_bytes(self, num_bytes: int = 4) -> bytes:
@@ -33,7 +33,7 @@ class PhysicalEntropyAnchor:
         entropy_int = struct.unpack("I", raw_bytes)[0]
         
         # Normalize to a float between 0.0 and 1.0
-        return entropy_int / (2**32 - 1)
+        return float(entropy_int / (2**32 - 1))
         
     def get_vad_drift(self, volatility_multiplier: float = 0.02) -> float:
         """

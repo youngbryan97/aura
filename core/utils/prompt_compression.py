@@ -11,8 +11,6 @@ References:
 - User-facing text and conversation history should NOT be compressed
 """
 import re
-from typing import Optional
-
 
 # Common verbose phrases -> shorthand equivalents
 # The LLM understands these abbreviations in context
@@ -100,7 +98,7 @@ def compress_history_block(history: str, max_chars: int = 3000) -> str:
         return history[:max_chars]
 
     # Binary search for how many recent turns fit
-    kept = []
+    kept: list[str] = []
     total = len(header) + 1
     for turn in reversed(turns):
         if total + len(turn) + 1 > max_chars - 40:  # Reserve space for summary

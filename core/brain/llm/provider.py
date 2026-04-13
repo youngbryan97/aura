@@ -1,24 +1,37 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from collections.abc import AsyncIterator
+from typing import Any
 
 
 class LLMProvider(ABC):
     """Abstract base class for LLM providers."""
     
     @abstractmethod
-    def generate_text(self, prompt: str, system_prompt: Optional[str] = None, model: Optional[str] = None) -> str:
+    def generate_text(self, prompt: str, system_prompt: str | None = None, model: str | None = None) -> str:
         """Generate a text response from the LLM."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def generate_json(self, prompt: str, schema: Dict[str, Any], system_prompt: Optional[str] = None, model: Optional[str] = None) -> Dict[str, Any]:
+    def generate_json(
+        self,
+        prompt: str,
+        schema: dict[str, Any],
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
         """Generate a structured JSON response from the LLM."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    async def generate_stream(self, prompt: str, system_prompt: Optional[str] = None, model: Optional[str] = None, **kwargs):
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[Any]:
         """Generate a stream of ChatStreamEvent objects."""
-        pass
+        raise NotImplementedError
 
     def check_health(self) -> bool:
         """Check if the provider is available and working."""

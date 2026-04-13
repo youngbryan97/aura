@@ -1,6 +1,6 @@
 # core/app_context.py
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 # Forward references to avoid circular imports during type checking at runtime
 # In a real scenario, use actual types or Protocol definitions
@@ -16,5 +16,5 @@ class AppContext:
     memory: Any # MemoryStoreV2
     
     # Optional shared resources
-    config: Optional[dict] = None
-    logger: Optional[Any] = None
+    config: dict[str, Any] | None = None
+    logger: Any | None = None

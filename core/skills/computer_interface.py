@@ -6,27 +6,34 @@ Selenium, Cloud) so the Computer Use agent can swap backends without
 logic changes.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from types import TracebackType
 
 
 @dataclass
 class ComputerAction:
     action: str
-    coordinate: Optional[Tuple[int, int]] = None
-    text: Optional[str] = None
+    coordinate: tuple[int, int] | None = None
+    text: str | None = None
 
 
 class ComputerInterface(ABC):
     """Abstract base class for computer control interfaces."""
 
     @abstractmethod
-    async def __aenter__(self):
+    async def __aenter__(self) -> ComputerInterface:
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         pass
 
     @abstractmethod

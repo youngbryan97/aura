@@ -1,6 +1,5 @@
 import ast
 import logging
-from typing import List
 
 logger = logging.getLogger("Aura.ASTGuard")
 
@@ -20,8 +19,8 @@ class ASTGuard:
         '__import__', 'help'
     }
 
-    def __init__(self):
-        self.errors = []
+    def __init__(self) -> None:
+        self.errors: list[str] = []
 
     def validate(self, code: str) -> bool:
         """Analyzes the code for security violations."""
@@ -85,7 +84,7 @@ class ASTGuard:
                             self.errors.append("AEGIS VIOLATION: Cannot fetch Ring-0 Root from ServiceContainer")
 
             # 5. Check for OOM / Resource Exhaustion (Issue 61)
-            if isinstance(node, (ast.BinOp, ast.AugAssign)) and isinstance(node.op, ast.Mult):
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult):
                 # Detect large list/string repetitions: [0] * 10**9 or "A" * 10**9
                 if isinstance(node.right, ast.Constant) and isinstance(node.right.value, int):
                     if node.right.value > 1000000:
@@ -106,5 +105,5 @@ class ASTGuard:
             
         return True
 
-    def get_errors(self) -> List[str]:
+    def get_errors(self) -> list[str]:
         return self.errors

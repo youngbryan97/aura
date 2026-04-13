@@ -22,7 +22,7 @@ from __future__ import annotations
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 # ── MemoryType ───────────────────────────────────────────────
 
@@ -53,10 +53,10 @@ class MemoryEvent:
 
     event_type: str
     timestamp:  float                              = field(default_factory=time.time)
-    goal:       Optional[str]                      = None
-    outcome:    Optional[Union[str, Dict[str, Any]]] = None
+    goal:       str | None                      = None
+    outcome:    str | dict[str, Any] | None = None
     cost:       float                              = 0.0
-    metadata:   Dict[str, Any]                     = field(default_factory=dict)
+    metadata:   dict[str, Any]                     = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # Sanitise timestamp
@@ -71,14 +71,14 @@ class MemoryEvent:
 
     # ── Serialisation ────────────────────────────────────────
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dict (timestamp aliased to 't' for compactness)."""
         d = asdict(self)
         d["t"] = d.pop("timestamp")
         return d
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MemoryEvent":
+    def from_dict(cls, data: dict[str, Any]) -> MemoryEvent:
         """Reconstruct from a dict.  Handles both the legacy 't' key
         and the canonical 'timestamp' key.
         """
@@ -86,7 +86,7 @@ class MemoryEvent:
         if "t" in d and "timestamp" not in d:
             d["timestamp"] = d.pop("t")
         # Drop unknown fields gracefully (future-proofing)
-        known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+        known = {f.name for f in cls.__dataclass_fields__.values()}
         d = {k: v for k, v in d.items() if k in known}
         return cls(**d)
 

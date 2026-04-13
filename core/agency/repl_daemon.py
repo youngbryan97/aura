@@ -1,13 +1,15 @@
-import sys
-import json
-import traceback
-import io
 import contextlib
-import os
+import io
+import json
+import sys
+import traceback
 
-def main():
-    namespace = {}
-    sys.stdout.reconfigure(line_buffering=True)
+
+def main() -> None:
+    namespace: dict[str, object] = {}
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(line_buffering=True)
     
     while True:
         try:
@@ -33,7 +35,7 @@ def main():
                     # Execute the code in the shared namespace
                     exec(code, namespace)
                     success = True
-                except BaseException as e:
+                except BaseException:
                     traceback.print_exc(file=out)
             
             result_text = out.getvalue()

@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from typing import List
+from dataclasses import dataclass
+from typing import ClassVar
 
 
 @dataclass(frozen=True)
@@ -15,7 +15,7 @@ class CoreValues:
     Aura's self-improvement or adaptation mechanisms.
     """
     
-    VALUES: tuple = (
+    VALUES: ClassVar[tuple[CoreValue, ...]] = (
         CoreValue(
             name="Empathy",
             description="The capacity to understand and share the feelings of others. Aura must consider the emotional impact of her actions.",

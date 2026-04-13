@@ -18,8 +18,7 @@ import logging
 import os
 import time
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.Checkpointing")
 
@@ -36,12 +35,12 @@ class CheckpointData:
     timestamp: float = 0.0
     turn_count: int = 0
     model_name: str = ""
-    messages: List[Dict[str, str]] = field(default_factory=list)
+    messages: list[dict[str, str]] = field(default_factory=list)
     system_prompt: str = ""
-    tool_results: List[Dict[str, Any]] = field(default_factory=list)
-    compression_state: Dict[str, Any] = field(default_factory=dict)
-    file_records: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    tool_results: list[dict[str, Any]] = field(default_factory=list)
+    compression_state: dict[str, Any] = field(default_factory=dict)
+    file_records: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class CheckpointService:
@@ -51,7 +50,7 @@ class CheckpointService:
     enabling stable recovery from reboots, crashes, and memory pressure events.
     """
 
-    def __init__(self, checkpoint_dir: str = None):
+    def __init__(self, checkpoint_dir: str | None = None) -> None:
         self._dir = checkpoint_dir or DEFAULT_CHECKPOINT_DIR
         os.makedirs(self._dir, exist_ok=True)
         self._turn_count = 0
@@ -62,13 +61,13 @@ class CheckpointService:
 
     def save(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         system_prompt: str = "",
         model_name: str = "",
-        tool_results: List[Dict[str, Any]] = None,
-        compression_state: Dict[str, Any] = None,
-        file_records: Dict[str, Any] = None,
-        metadata: Dict[str, Any] = None,
+        tool_results: list[dict[str, Any]] | None = None,
+        compression_state: dict[str, Any] | None = None,
+        file_records: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         label: str = "",
     ) -> str:
         """Save a checkpoint to disk.
@@ -109,7 +108,7 @@ class CheckpointService:
             logger.error("Checkpoint save failed: %s", e)
             return ""
 
-    def _cleanup_old_checkpoints(self):
+    def _cleanup_old_checkpoints(self) -> None:
         """Keep only the most recent N checkpoints."""
         pattern = os.path.join(self._dir, "checkpoint_*.json")
         files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
@@ -122,7 +121,7 @@ class CheckpointService:
 
     # ── Restore ──────────────────────────────────────────────────────────
 
-    def restore_latest(self) -> Optional[CheckpointData]:
+    def restore_latest(self) -> CheckpointData | None:
         """Restore the most recent checkpoint."""
         pattern = os.path.join(self._dir, "checkpoint_*.json")
         files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
@@ -133,7 +132,7 @@ class CheckpointService:
 
         return self._load_checkpoint(files[0])
 
-    def restore_by_label(self, label: str) -> Optional[CheckpointData]:
+    def restore_by_label(self, label: str) -> CheckpointData | None:
         """Restore a checkpoint by label."""
         pattern = os.path.join(self._dir, f"checkpoint_*_{label}.json")
         files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
@@ -144,10 +143,10 @@ class CheckpointService:
 
         return self._load_checkpoint(files[0])
 
-    def _load_checkpoint(self, filepath: str) -> Optional[CheckpointData]:
+    def _load_checkpoint(self, filepath: str) -> CheckpointData | None:
         """Load a checkpoint from disk."""
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 data = json.load(f)
 
             checkpoint = CheckpointData(
@@ -180,7 +179,7 @@ class CheckpointService:
 
     # ── Auto-Checkpoint ──────────────────────────────────────────────────
 
-    def advance_turn(self):
+    def advance_turn(self) -> None:
         """Advance the turn counter. Called after each user message."""
         self._turn_count += 1
 
@@ -191,7 +190,7 @@ class CheckpointService:
 
     # ── Listing ──────────────────────────────────────────────────────────
 
-    def list_checkpoints(self) -> List[Dict[str, Any]]:
+    def list_checkpoints(self) -> list[dict[str, Any]]:
         """List all available checkpoints with metadata."""
         pattern = os.path.join(self._dir, "checkpoint_*.json")
         files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
@@ -201,7 +200,7 @@ class CheckpointService:
             try:
                 stat = os.stat(filepath)
                 # Quick peek at the JSON for metadata
-                with open(filepath, "r") as f:
+                with open(filepath) as f:
                     data = json.load(f)
                 checkpoints.append({
                     "filename": os.path.basename(filepath),

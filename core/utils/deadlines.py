@@ -1,17 +1,17 @@
 import time
-from typing import Optional
+
 
 class Deadline:
     """Enterprise Deadline management for Aura.
     Ensures a single, consistent expiration time across multiple call layers.
     """
-    def __init__(self, timeout: Optional[float] = None, start_time: Optional[float] = None):
+    def __init__(self, timeout: float | None = None, start_time: float | None = None) -> None:
         self._start_time = start_time or time.monotonic()
         self._timeout = timeout
         self._expiration = self._start_time + timeout if timeout is not None else None
 
     @property
-    def remaining(self) -> Optional[float]:
+    def remaining(self) -> float | None:
         """Returns remaining seconds until expiration."""
         if self._expiration is None:
             return None
@@ -31,11 +31,11 @@ class Deadline:
             return 300.0 # Default fallback for unshielded tasks
         return max(0.1, rem - buffer)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         rem = self.remaining
         rem_str = f"{rem:.2f}s" if rem is not None else "INF"
         return f"<Deadline rem={rem_str}>"
 
-def get_deadline(timeout: Optional[float] = None) -> Deadline:
+def get_deadline(timeout: float | None = None) -> Deadline:
     """Factory to create a new deadline."""
     return Deadline(timeout)

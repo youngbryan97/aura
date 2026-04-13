@@ -8,11 +8,8 @@ instructions, constraints, and knowledge.
 Hierarchy: workspace → parent → global (~/.aura/AURA.md)
 """
 
-import hashlib
 import logging
 import os
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("Aura.ContextInjection")
 
@@ -36,10 +33,10 @@ class ContextInjectionService:
     unchanged files.
     """
 
-    def __init__(self):
-        self._cache: Dict[str, Tuple[str, str]] = {}  # path -> (hash, content)
+    def __init__(self) -> None:
+        self._cache: dict[str, tuple[str, str]] = {}  # path -> (hash, content)
 
-    def _read_if_changed(self, filepath: str) -> Optional[str]:
+    def _read_if_changed(self, filepath: str) -> str | None:
         """Read a file only if it has changed since last read."""
         if not os.path.exists(filepath):
             self._cache.pop(filepath, None)
@@ -54,7 +51,7 @@ class ContextInjectionService:
             if cached and cached[0] == change_key:
                 return cached[1]
 
-            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+            with open(filepath, encoding="utf-8", errors="ignore") as f:
                 content = f.read(50000)  # Cap at 50KB per file
 
             self._cache[filepath] = (change_key, content)
@@ -64,7 +61,7 @@ class ContextInjectionService:
             logger.debug("Failed to read context file %s: %s", filepath, e)
             return None
 
-    def discover_context_files(self, workspace_dir: str) -> List[Tuple[str, str]]:
+    def discover_context_files(self, workspace_dir: str) -> list[tuple[str, str]]:
         """Discover context files in the workspace hierarchy.
 
         Returns: List of (filepath, content) tuples, ordered from
@@ -129,7 +126,7 @@ class ContextInjectionService:
 
 
 # Global singleton
-_service: Optional[ContextInjectionService] = None
+_service: ContextInjectionService | None = None
 
 def get_context_injection_service() -> ContextInjectionService:
     global _service

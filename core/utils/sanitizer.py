@@ -4,13 +4,13 @@ The Blood-Brain Barrier.
 Filters external strings for imperative command patterns that could hijack 
 Aura's sovereign identity.
 """
-import re
 import logging
+import re
 
 logger = logging.getLogger("Aura.Sanitizer")
 
 class BloodBrainBarrier:
-    def __init__(self):
+    def __init__(self) -> None:
         # Patterns commonly used in prompt injection/jailbreaking
         self.malicious_patterns = [
             r"(?i)ignore all previous instructions",
@@ -43,9 +43,10 @@ class BloodBrainBarrier:
         return clean_text
 
 # Singleton
-_instance = None
+_instance: BloodBrainBarrier | None = None
 
-def get_blood_brain_barrier():
+
+def get_blood_brain_barrier() -> BloodBrainBarrier:
     global _instance
     if _instance is None:
         _instance = BloodBrainBarrier()
@@ -74,4 +75,3 @@ class PIIFilter:
 def sanitize_string(text: str) -> str:
     """Convenience function: sanitize a string using PIIFilter."""
     return PIIFilter().sanitize(text)
-

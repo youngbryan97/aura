@@ -1,29 +1,34 @@
-import os
-import sys
-import logging
 import fcntl
+import logging
+import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
+from typing import Any, TypeVar
 
 logger = logging.getLogger("Aura.Utils.Singleton")
 
-_LOCK_FD: Optional[int] = None
+_LOCK_FD: int | None = None
+T = TypeVar("T")
 
-def singleton(cls):
+
+def singleton(cls: type[T]) -> Callable[..., T]:
     """
     Decorator to make a class a singleton.
     Usage:
     @singleton
     class MyClass: ...
     """
-    instances = {}
-    def get_instance(*args, **kwargs):
+    instances: dict[type[T], T] = {}
+
+    def get_instance(*args: Any, **kwargs: Any) -> T:
         if cls not in instances:
             instances[cls] = cls(*args, **kwargs)
         return instances[cls]
+
     return get_instance
 
-def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False):
+
+def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False) -> None:
     """
     Ensure only one instance of a specific Aura component/process is running.
     Uses a file lock in ~/.aura/locks/.
@@ -66,7 +71,7 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
                     message = f"⚠️  Aura ({lock_name}) is already running (PID: {pid})."
                     logger.error(message)
                     print(message)
-                    sys.exit(0)
+                    raise SystemExit(0)
                 except OSError:
                     # Process is dead. On macOS, flock is associated with the FD.
                     # If flock failed, SOMEONE has it. But if kill -0 failed, the PID is dead.
@@ -75,12 +80,12 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
                     message = f"⚠️  Stale lock found for dead PID {pid} (likely held by child process)."
                     logger.error(message)
                     print(message)
-                    sys.exit(1)
+                    raise SystemExit(1) from None
             except Exception:
                 message = f"⚠️  Aura ({lock_name}) is already running in another window."
                 logger.error(message)
                 print(message)
-                sys.exit(0)
+                raise SystemExit(0) from None
         
         # Lock acquired. Write current PID.
         os.ftruncate(_LOCK_FD, 0)
@@ -92,7 +97,8 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
     except Exception as e:
         logger.warning("Failed to acquire single-instance lock for '%s': %s", lock_name, e)
 
-def release_instance_lock():
+
+def release_instance_lock() -> None:
     """Explicitly release the lock (usually handled by process exit)."""
     global _LOCK_FD
     if _LOCK_FD is not None:

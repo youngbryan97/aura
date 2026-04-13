@@ -1,7 +1,6 @@
 import hashlib
 import logging
 from collections import deque
-from typing import Any, List
 
 logger = logging.getLogger("Cognition.LoopDetector")
 
@@ -10,10 +9,10 @@ class LoopDetector:
     """
     
     def __init__(self, window_size: int = 10):
-        self.history = deque(maxlen=window_size)
+        self.history: deque[str] = deque(maxlen=window_size)
         self.threshold = 3 
         
-    def add_event(self, content: str):
+    def add_event(self, content: str) -> None:
         """Add an event (thought content or action) to history."""
         # Normalize content to catch slight variations
         content_hash = hashlib.md5(content.strip().lower().encode()).hexdigest()
@@ -33,7 +32,7 @@ class LoopDetector:
             
         return False
 
-    def clear(self):
+    def clear(self) -> None:
         self.history.clear()
 
 loop_detector = LoopDetector()

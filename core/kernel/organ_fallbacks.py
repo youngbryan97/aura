@@ -9,11 +9,13 @@ These are NOT stubs. They're the offline tier of a graceful degradation
 system. Once the real subsystem comes online, it replaces the fallback.
 """
 
+from typing import Any
+
 
 class FallbackLLM:
     """Returns a minimal response until the real model finishes loading."""
 
-    async def think(self, prompt: str, **kwargs) -> str:
+    async def think(self, prompt: str, **kwargs: Any) -> str:
         return "I'm Aura."
 
     async def classify(self, prompt: str) -> str:
@@ -23,41 +25,41 @@ class FallbackLLM:
 class FallbackVision:
     """No-op vision when no camera or vision model is available."""
 
-    async def capture(self):
+    async def capture(self) -> None:
         return None
 
-    async def capture_desktop(self):
+    async def capture_desktop(self) -> None:
         return None
 
-    async def load(self):
+    async def load(self) -> None:
         pass
 
 
 class FallbackNeural:
     """Lightweight stand-in when NeuralBridge can't initialize."""
 
-    async def load(self):
+    async def load(self) -> None:
         pass
 
-    def get_status(self):
+    def get_status(self) -> dict[str, bool]:
         return {"is_running": False, "lightweight_mode": True}
 
 
 class FallbackVoice:
     """Silent voice when TTS engine isn't available."""
 
-    async def speak(self, text):
+    async def speak(self, text: str) -> None:
         pass
 
-    async def say(self, text):
+    async def say(self, text: str) -> None:
         pass
 
-    async def load(self):
+    async def load(self) -> None:
         pass
 
 
 class FallbackOrgan:
     """Generic fallback for any organ that failed to load."""
 
-    async def load(self):
+    async def load(self) -> None:
         pass

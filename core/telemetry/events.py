@@ -8,9 +8,10 @@ for all critical operations with structured JSON logging.
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.Telemetry")
 
@@ -36,9 +37,9 @@ class TelemetryEvent:
     """Base telemetry event."""
     event_type: EventType
     timestamp: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["event_type"] = self.event_type.value
         return d
@@ -53,9 +54,9 @@ class LLMRequestEvent(TelemetryEvent):
     model: str = ""
     task_tier: str = ""
     prompt_tokens: int = 0
-    options: Dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.event_type = EventType.LLM_REQUEST
 
 
@@ -67,7 +68,7 @@ class LLMResponseEvent(TelemetryEvent):
     latency_ms: float = 0.0
     had_thought: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.event_type = EventType.LLM_RESPONSE
 
 
@@ -79,7 +80,7 @@ class ChatCompressionEvent(TelemetryEvent):
     status: str = ""
     duration_ms: float = 0.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.event_type = EventType.CHAT_COMPRESSION
 
 
@@ -92,7 +93,7 @@ class RetryAttemptEvent(TelemetryEvent):
     delay_ms: float = 0.0
     operation: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.event_type = EventType.RETRY_ATTEMPT
 
 
@@ -105,7 +106,7 @@ class ToolOutputEvent(TelemetryEvent):
     method: str = ""  # "passthrough", "structural", "llm_summary"
     saved_path: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.event_type = EventType.TOOL_OUTPUT_DISTILLED
 
 
@@ -117,7 +118,7 @@ class ResearchPhaseEvent(TelemetryEvent):
     query_count: int = 0
     is_sufficient: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.event_type = EventType.RESEARCH_PHASE
 
 
@@ -126,12 +127,12 @@ class ResearchPhaseEvent(TelemetryEvent):
 class TokenUsageTracker:
     """Tracks cumulative token usage per conversation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._prompt_tokens = 0
         self._completion_tokens = 0
         self._request_count = 0
 
-    def record(self, prompt_tokens: int, completion_tokens: int):
+    def record(self, prompt_tokens: int, completion_tokens: int) -> None:
         self._prompt_tokens += prompt_tokens
         self._completion_tokens += completion_tokens
         self._request_count += 1
@@ -140,7 +141,7 @@ class TokenUsageTracker:
     def total_tokens(self) -> int:
         return self._prompt_tokens + self._completion_tokens
 
-    def summary(self) -> Dict[str, int]:
+    def summary(self) -> dict[str, int]:
         return {
             "prompt_tokens": self._prompt_tokens,
             "completion_tokens": self._completion_tokens,
@@ -148,7 +149,7 @@ class TokenUsageTracker:
             "request_count": self._request_count,
         }
 
-    def reset(self):
+    def reset(self) -> None:
         self._prompt_tokens = 0
         self._completion_tokens = 0
         self._request_count = 0
@@ -159,11 +160,11 @@ class TokenUsageTracker:
 class TelemetryEmitter:
     """Central event emission point. Logs structured events."""
 
-    def __init__(self):
-        self._listeners: List[Any] = []
+    def __init__(self) -> None:
+        self._listeners: list[Callable[[TelemetryEvent], Any]] = []
         self.token_tracker = TokenUsageTracker()
 
-    def emit(self, event: TelemetryEvent):
+    def emit(self, event: TelemetryEvent) -> None:
         """Emit a telemetry event."""
         logger.debug("TELEMETRY: %s", event.to_json())
         for listener in self._listeners:
@@ -172,12 +173,12 @@ class TelemetryEmitter:
             except Exception:
                 pass
 
-    def add_listener(self, listener):
+    def add_listener(self, listener: Callable[[TelemetryEvent], Any]) -> None:
         self._listeners.append(listener)
 
 
 # Global singleton
-_emitter: Optional[TelemetryEmitter] = None
+_emitter: TelemetryEmitter | None = None
 
 def get_telemetry() -> TelemetryEmitter:
     global _emitter

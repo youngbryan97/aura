@@ -5,7 +5,7 @@ Ensures perfect 'voice' consistency by managing the semantic density of prompts.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.TokenBudget")
 
@@ -18,7 +18,7 @@ class TokenOptimizer:
     def __init__(self, max_total_tokens: int = 4096):
         self.max_total_tokens = max_total_tokens
         # Default budget allocation (tunable)
-        self.budgets = {
+        self.budgets: dict[str, int] = {
             "identity": 600,
             "internal_state": 400,
             "directives": 300,
@@ -28,11 +28,16 @@ class TokenOptimizer:
         }
 
     @classmethod
-    def estimate(cls, text: Optional[str]) -> int:
-        if not text: return 0
+    def estimate(cls, text: str | None) -> int:
+        if not text:
+            return 0
         return len(text) // cls.CHARS_PER_TOKEN
 
-    def optimize_history(self, history: List[Dict[str, Any]], budget_override: Optional[int] = None) -> List[Dict[str, Any]]:
+    def optimize_history(
+        self,
+        history: list[dict[str, Any]],
+        budget_override: int | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Prunes history while preserving 'Semantic Anchors' (first greeting, last 3 turns).
         """
@@ -45,13 +50,13 @@ class TokenOptimizer:
         latest = history[-5:] # Keep last 5 turns as a baseline
         middle = history[1:-5]
         
-        optimized = []
+        optimized: list[dict[str, Any]] = []
         if anchor:
             optimized.append(anchor)
             budget -= self.estimate(anchor.get("content"))
 
         # Add latest turns first (most relevant)
-        current_latest = []
+        current_latest: list[dict[str, Any]] = []
         for msg in reversed(latest):
             tokens = self.estimate(msg.get("content"))
             if budget - tokens >= 0:
@@ -61,7 +66,7 @@ class TokenOptimizer:
                 break
         
         # If budget remains, try to fill with middle history
-        current_middle = []
+        current_middle: list[dict[str, Any]] = []
         for msg in reversed(middle):
             # Semantic GC: Drop internal thoughts from 'middle' history to save space
             if msg.get("type") == "internal_thought" or (msg.get("content") or "").startswith("<thought>"):
@@ -76,10 +81,10 @@ class TokenOptimizer:
         
         return [anchor] + current_middle + current_latest if anchor and anchor not in current_latest else current_middle + current_latest
 
-    def gc_observations(self, observations: List[str]) -> List[str]:
+    def gc_observations(self, observations: list[str]) -> list[str]:
         """Deduplicate and prune internal observations."""
-        seen = set()
-        cleaned = []
+        seen: set[str] = set()
+        cleaned: list[str] = []
         for obs in reversed(observations):
             # Simple fuzzy deduplication (first 30 chars)
             fingerprint = obs[:30]

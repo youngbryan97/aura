@@ -131,11 +131,11 @@ TRAINING_PAIRS = [
 ]
 
 
-def get_training_pairs():
+def get_training_pairs() -> list[tuple[str, str]]:
     """Return the curated training pairs."""
     return TRAINING_PAIRS
 
 
-def get_personality_prompt():
+def get_personality_prompt() -> str:
     """Return the personality description for system prompts."""
     return PERSONALITY_DESCRIPTION.strip()

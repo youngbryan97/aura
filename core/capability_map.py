@@ -6,8 +6,9 @@ so Aura can automatically use the right tool without explicit commands.
 """
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.CapabilityMap")
 
@@ -18,8 +19,8 @@ class Capability:
 
     name: str
     description: str
-    trigger_patterns: List[str]  # Regex patterns that trigger this capability
-    handler: Optional[Callable] = None
+    trigger_patterns: list[str]  # Regex patterns that trigger this capability
+    handler: Callable[..., Any] | None = None
     is_online: bool = False
 
 
@@ -30,12 +31,12 @@ class CapabilityMap:
     She can "feel" what tools are available and automatically reach for them.
     """
     
-    def __init__(self):
-        self.capabilities: Dict[str, Capability] = {}
+    def __init__(self) -> None:
+        self.capabilities: dict[str, Capability] = {}
         self._build_default_capabilities()
         logger.info("✓ Capability Map initialized")
     
-    def _build_default_capabilities(self):
+    def _build_default_capabilities(self) -> None:
         """Build the default capability map."""
         # Search capability
         self.register(Capability(
@@ -168,11 +169,11 @@ class CapabilityMap:
             ]
         ))
     
-    def register(self, capability: Capability):
+    def register(self, capability: Capability) -> None:
         """Register a capability."""
         self.capabilities[capability.name] = capability
     
-    def ping_all(self, registry) -> Dict[str, bool]:
+    def ping_all(self, registry: Any) -> dict[str, bool]:
         """Ping all capabilities to check if they're online.
         
         Args:
@@ -182,14 +183,14 @@ class CapabilityMap:
             Dict of capability_name -> is_online
 
         """
-        results = {}
+        results: dict[str, bool] = {}
         
         for name, cap in self.capabilities.items():
             # Check if skill exists in registry
             skill_exists = False
             if registry and hasattr(registry, 'skills'):
                 # Map capability names to skill names
-                skill_mappings = {
+                skill_mappings: dict[str, list[str]] = {
                     "web_search": ["web_search", "search", "duckduckgo"],
                     "memory_recall": ["memory", "recall", "remember", "memory_ops"],
                     "code_execute": ["python", "code", "sandbox", "internal_sandbox", "shell"],
@@ -215,7 +216,7 @@ class CapabilityMap:
         
         return results
     
-    def detect_intent(self, message: str) -> List[str]:
+    def detect_intent(self, message: str) -> list[str]:
         """Detect which capabilities should be triggered by a message.
         
         Args:
@@ -225,7 +226,7 @@ class CapabilityMap:
             List of capability names to trigger
 
         """
-        triggered = []
+        triggered: list[str] = []
         message_lower = message.lower()
         
         for name, cap in self.capabilities.items():
@@ -242,7 +243,7 @@ class CapabilityMap:
         
         return triggered
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get capability map status."""
         return {
             "total_capabilities": len(self.capabilities),
@@ -255,7 +256,7 @@ class CapabilityMap:
 
 
 # Singleton instance
-_capability_map = None
+_capability_map: CapabilityMap | None = None
 
 def get_capability_map() -> CapabilityMap:
     """Get or create the capability map instance."""
