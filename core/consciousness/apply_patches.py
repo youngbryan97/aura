@@ -1,83 +1,27 @@
-"""
-core/consciousness/apply_patches.py
-=====================================
-Unified entry point — applies all three consciousness patches.
+"""Legacy compatibility hook for consciousness boot wiring.
 
-Usage (call once after orchestrator is fully booted):
-
-    from core.consciousness.apply_patches import apply_consciousness_patches
-    apply_consciousness_patches(orchestrator)
-
-That single call:
-  1. Patches PhenomenologicalExperiencer for cross-session continuity
-  2. Patches AgencyCore._pathway_self_development for audit-driven focus
-  3. Starts ConsciousnessLoopMonitor as a background task
-
-All three patches are idempotent — safe to call multiple times.
-
-Minimal dependency: each patch degrades gracefully if its target
-component hasn't been registered yet (logs a warning, does not raise).
+The continuity persistence and audit-driven self-development behaviors now
+live natively in their primary modules. This entry point remains so older boot
+paths can keep calling it safely; it only starts the loop monitor.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.ConsciousnessPatches")
 
 
 def apply_consciousness_patches(orchestrator: Any) -> None:
-    """Wire all three patches into a live Aura orchestrator."""
+    """Compatibility hook for native consciousness runtime wiring."""
 
     if getattr(orchestrator, "_consciousness_patches_applied", False):
         logger.debug("apply_consciousness_patches: already applied — skipping")
         return
 
-    # ── Patch 1: Cross-session experiential continuity ────────────────────────
-    try:
-        from core.consciousness.continuity_patch import patch_experiencer
-        from core.container import ServiceContainer
-
-        experiencer = ServiceContainer.get("phenomenological_experiencer", default=None)
-        if experiencer is None:
-            # Try orchestrator attribute
-            experiencer = getattr(orchestrator, "phenomenological_experiencer", None)
-
-        if experiencer is not None:
-            patch_experiencer(experiencer)
-        else:
-            logger.warning(
-                "ConsciousnessPatches: PhenomenologicalExperiencer not found — "
-                "continuity patch deferred. Call patch_experiencer(exp) manually "
-                "once it is registered."
-            )
-    except Exception as exc:
-        logger.error("ConsciousnessPatches: continuity patch failed — %s", exc, exc_info=True)
-
-    # ── Patch 2: Audit-driven self-development pathway ───────────────────────
-    try:
-        from core.agency.self_development_patch import patch_agency_core
-
-        agency = getattr(orchestrator, "agency_core", None)
-        if agency is None:
-            try:
-                from core.container import ServiceContainer
-                agency = ServiceContainer.get("agency_core", default=None)
-            except Exception as _e:
-                logger.debug('Ignored Exception in apply_patches.py: %s', _e)
-
-        if agency is not None:
-            patch_agency_core(agency)
-        else:
-            logger.warning(
-                "ConsciousnessPatches: AgencyCore not found — "
-                "self-development patch deferred. Call patch_agency_core(ac) manually."
-            )
-    except Exception as exc:
-        logger.error("ConsciousnessPatches: self-dev patch failed — %s", exc, exc_info=True)
-
-    # ── Patch 3: Consciousness loop health monitor ────────────────────────────
+    # The behavioral upgrades that used to be patched are now implemented
+    # natively. The remaining boot-time concern is starting the loop monitor.
     try:
         from core.consciousness.loop_monitor import get_loop_monitor
 
@@ -88,4 +32,4 @@ def apply_consciousness_patches(orchestrator: Any) -> None:
         logger.error("ConsciousnessPatches: loop monitor failed — %s", exc, exc_info=True)
 
     orchestrator._consciousness_patches_applied = True
-    logger.info("🧠 All consciousness patches applied successfully")
+    logger.info("🧠 Consciousness runtime wiring is native; compatibility hook completed")

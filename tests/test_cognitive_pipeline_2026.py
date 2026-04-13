@@ -1,13 +1,14 @@
 ################################################################################
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock
-from core.orchestrator import RobustOrchestrator
-from core.container import ServiceContainer
-from core.memory.memory_facade import MemoryFacade
+
 from core.agency_core import AgencyCore, AgencyState, EngagementMode
 from core.cognitive_integration_layer import CognitiveIntegrationLayer
+from core.container import ServiceContainer
+from core.memory.memory_facade import MemoryFacade
+
 
 @pytest.fixture(autouse=True)
 def cleanup_container():
@@ -103,9 +104,46 @@ async def test_cognitive_integration_segments():
     response = await cognition.process_turn("hello")
     assert response == "Hello."
 
+
+@pytest.mark.asyncio
+async def test_cognitive_integration_threads_history_into_reasoning_pipeline(monkeypatch):
+    orch = MagicMock()
+    orch.cognitive_engine = MagicMock()
+
+    from core.cognitive_kernel import CognitiveBrief
+    from core.inner_monologue import ThoughtPacket
+
+    mock_kernel = AsyncMock()
+    mock_kernel.evaluate = AsyncMock(return_value=CognitiveBrief(key_points=["Depth."], conviction=0.7))
+    mock_monologue = AsyncMock()
+    mock_monologue.think = AsyncMock(return_value=ThoughtPacket(stance="Depth.", primary_points=["Depth."]))
+    mock_language = AsyncMock()
+    mock_language.express = AsyncMock(return_value="Depth.")
+
+    ServiceContainer.register_instance("cognitive_kernel", mock_kernel)
+    ServiceContainer.register_instance("inner_monologue", mock_monologue)
+    ServiceContainer.register_instance("language_center", mock_language)
+
+    monkeypatch.setattr("core.cognitive_integration_layer.get_reflex", lambda: MagicMock(process=lambda _msg: None))
+
+    cognition = CognitiveIntegrationLayer(orchestrator=orch)
+    await cognition.initialize()
+
+    context = {
+        "history": [
+            {"role": "user", "content": "Earlier"},
+            {"role": "assistant", "content": "Later"},
+        ]
+    }
+    response = await cognition.process_turn("Let's go deeper.", context=context)
+
+    assert response == "Depth."
+    assert mock_kernel.evaluate.await_args.kwargs["history"] == context["history"]
+    assert mock_monologue.think.await_args.kwargs["history"] == context["history"]
+    assert mock_language.express.await_args.kwargs["history"] == context["history"]
+
 if __name__ == "__main__":
     pytest.main([__file__])
 
 
 ##
-

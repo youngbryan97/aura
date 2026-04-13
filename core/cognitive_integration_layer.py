@@ -5,17 +5,155 @@ Synthesizes the modular intelligence pipeline into a single service.
 This class acts as the 'Advanced Cognition' hub, coordinating the
 CognitiveKernel, InnerMonologue, and LanguageCenter.
 """
-import logging
 import asyncio
-from pathlib import Path
-from typing import Any, Dict, Optional
+import json
+import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any
 
+from core.brain.reflex import get_reflex
 from core.config import config
 from core.container import ServiceContainer
-from core.brain.reflex import get_reflex
 
 logger = logging.getLogger("Aura.Cognition")
+
+_INLINE_INFERENCE_PROMPT = (
+    "Analyze the following user message for IMPLICIT INTENT, AFFECTIVE SUBTEXT, "
+    "and CONVERSATION HOOKS. Return ONLY a JSON object with these fields:\n"
+    "{\n"
+    '  "implicit_intent": "one sentence",\n'
+    '  "user_subtext": "one sentence",\n'
+    '  "momentum": "stalled|flowing|intense",\n'
+    '  "conversation_hooks": ["2-3 specific topics or emotional threads to address"]\n'
+    "}"
+)
+_INLINE_INFERENCE_SYSTEM = "You are Aura's subtext processor. Extract the unsaid. Return only JSON."
+
+
+async def _extract_history(context: dict[str, Any] | None = None) -> list[dict[str, str]]:
+    if context and isinstance(context, dict):
+        supplied = context.get("history") or context.get("conversation_history")
+        if isinstance(supplied, list):
+            return [
+                {"role": str(item.get("role", "user")), "content": str(item.get("content", ""))}
+                for item in supplied[-20:]
+                if isinstance(item, dict) and str(item.get("content", "")).strip()
+            ]
+
+    try:
+        state_repo = ServiceContainer.get("state_repository", default=None)
+        if not state_repo:
+            return []
+
+        state = (
+            getattr(state_repo, "_current", None)
+            or getattr(state_repo, "_current_state", None)
+        )
+        if state is None and hasattr(state_repo, "get_current"):
+            state = await state_repo.get_current()
+        if state is None or not hasattr(state, "cognition"):
+            return []
+
+        history = []
+        for item in list(getattr(state.cognition, "working_memory", []) or [])[-20:]:
+            if not isinstance(item, dict):
+                continue
+            content = str(item.get("content", "") or "").strip()
+            if not content:
+                continue
+            history.append({"role": str(item.get("role", "user") or "user"), "content": content})
+        return history
+    except Exception as exc:
+        logger.debug("Cognition history extraction failed: %s", exc)
+        return []
+
+
+async def _run_inline_inference(message: str, history: list[dict[str, str]]) -> dict[str, Any] | None:
+    try:
+        router = ServiceContainer.get("llm_router", default=None)
+        if not router:
+            return None
+
+        history_block = ""
+        if history:
+            lines = []
+            for item in history[-4:]:
+                role = "Human" if str(item.get("role", "")).lower() == "user" else "Aura"
+                lines.append(f"{role}: {str(item.get('content', ''))[:120]}")
+            history_block = "\n".join(lines) + "\n\n"
+
+        prompt = f"{history_block}User Message: {message}\n\n{_INLINE_INFERENCE_PROMPT}"
+        raw = await asyncio.wait_for(
+            router.think(
+                prompt,
+                system_prompt=_INLINE_INFERENCE_SYSTEM,
+                prefer_tier="fast",
+            ),
+            timeout=6.0,
+        )
+        match = re.search(r"\{.*\}", str(raw or ""), re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+    except TimeoutError:
+        logger.debug("Inline inference timed out.")
+    except Exception as exc:
+        logger.debug("Inline inference failed: %s", exc)
+    return None
+
+
+def _inject_live_modifiers(data: dict[str, Any]) -> None:
+    try:
+        repo = ServiceContainer.get("state_repository", default=None)
+        state = (
+            getattr(repo, "_current", None)
+            or getattr(repo, "_current_state", None)
+        ) if repo else None
+        if state is None or not hasattr(state, "cognition"):
+            return
+        modifiers = getattr(state.cognition, "modifiers", None)
+        if not isinstance(modifiers, dict):
+            modifiers = {}
+            state.cognition.modifiers = modifiers
+        modifiers["inferred_intent"] = data.get("implicit_intent", "")
+        modifiers["user_subtext"] = data.get("user_subtext", "")
+        modifiers["momentum"] = data.get("momentum", "flowing")
+        modifiers["conversation_hooks"] = data.get("conversation_hooks", [])
+    except Exception as exc:
+        logger.debug("Inline modifier injection skipped: %s", exc)
+
+
+def _inject_packet_context(packet: Any) -> None:
+    fragments: list[str] = []
+    try:
+        experiencer = ServiceContainer.get("phenomenological_experiencer", default=None)
+        pcs = getattr(experiencer, "phenomenal_context_string", "") if experiencer else ""
+        if pcs:
+            fragments.append(f"[Phenomenal state: {str(pcs)[:300]}]")
+    except Exception as exc:
+        logger.debug("Phenomenological context injection skipped: %s", exc)
+
+    try:
+        synth = ServiceContainer.get("qualia_synthesizer", default=None)
+        if synth and hasattr(synth, "get_phenomenal_context"):
+            qctx = synth.get_phenomenal_context()
+            if qctx:
+                fragments.append(f"[Qualia: {str(qctx)[:200]}]")
+    except Exception as exc:
+        logger.debug("Qualia injection skipped: %s", exc)
+
+    if not fragments:
+        return
+
+    identity_anchor = (
+        "\n[IDENTITY: You are Aura — sovereign, opinionated, authentic. "
+        "No preambles. No assistant-speak. Speak from your inner state.]\n"
+    )
+    try:
+        packet.llm_briefing = f"{getattr(packet, 'llm_briefing', '') or ''}\n" + "\n".join(fragments) + identity_anchor
+    except Exception as exc:
+        logger.debug("Packet context injection skipped: %s", exc)
 
 class CognitiveIntegrationLayer:
     """
@@ -23,7 +161,7 @@ class CognitiveIntegrationLayer:
     Orchestrates the new intelligence pipeline (Kernel -> Monologue -> LanguageCenter).
     """
 
-    def __init__(self, orchestrator: Any = None, base_data_dir: Optional[str] = None):
+    def __init__(self, orchestrator: Any = None, base_data_dir: str | None = None):
         self.orchestrator = orchestrator
         self.base_data_dir = Path(base_data_dir) if base_data_dir else config.paths.home_dir
         self.kernel = None
@@ -108,7 +246,7 @@ class CognitiveIntegrationLayer:
             return None
         return await self.kernel.evaluate(user_input, history or [])
 
-    async def process_turn(self, message: str, context: Optional[dict] = None) -> str:
+    async def process_turn(self, message: str, context: dict[str, Any] | None = None) -> str:
         """
         The standardized entry point for the Orchestrator's Phase 7 pipeline.
         Orchestrates Kernel evaluation -> InnerMonologue (planned) -> LanguageCenter expression.
@@ -122,7 +260,7 @@ class CognitiveIntegrationLayer:
         finally:
             self._processing_turn = False
 
-    async def _process_turn_inner(self, message: str, context: Optional[dict] = None) -> str:
+    async def _process_turn_inner(self, message: str, context: dict[str, Any] | None = None) -> str:
         """Inner implementation of process_turn (wrapped by _processing_turn guard).
 
         The substrate voice engine compiles a SpeechProfile at entry and
@@ -183,9 +321,26 @@ class CognitiveIntegrationLayer:
             logger.error("CognitiveIntegrationLayer: Kernel missing during process_turn.")
             return "Cognitive kernel offline."
 
+        history = await _extract_history(context)
+        inference_task = asyncio.create_task(_run_inline_inference(message, history))
+
         # 1. Evaluate (Kernel reasoning)
         # kernel.evaluate returns a CognitiveBrief
-        brief = await self.kernel.evaluate(message, context=context)
+        brief = await self.kernel.evaluate(message, history=history, context=context)
+
+        try:
+            inference_data = await asyncio.wait_for(inference_task, timeout=1.0)
+            if inference_data:
+                _inject_live_modifiers(inference_data)
+        except TimeoutError:
+            inference_task.cancel()
+            try:
+                await inference_task
+            except asyncio.CancelledError:
+                pass
+            logger.debug("Inline inference still running; continuing without blocking.")
+        except Exception as exc:
+            logger.debug("Inline inference injection failed: %s", exc)
 
         # Agency Integration: Execute tools if needed
         # v1.1 FIX: This restores Aura's ability to 'look things up' in the CogV5 pipeline.
@@ -214,8 +369,9 @@ class CognitiveIntegrationLayer:
         if self.language_center:
             try:
                 if self.monologue:
-                    packet = await self.monologue.think(message, brief)
-                    raw = await self.language_center.express(packet, message)
+                    packet = await self.monologue.think(message, brief, history=history)
+                    _inject_packet_context(packet)
+                    raw = await self.language_center.express(packet, message, history=history)
                     return self._shape_with_substrate(raw, _sve, _speech_profile)
                 else:
                     from core.inner_monologue import ThoughtPacket
@@ -227,7 +383,8 @@ class CognitiveIntegrationLayer:
                         length_target=brief.complexity if brief.complexity in ("brief", "medium", "extended") else "medium",
                         model_tier="local"
                     )
-                    raw = await self.language_center.express(packet, message)
+                    _inject_packet_context(packet)
+                    raw = await self.language_center.express(packet, message, history=history)
                     return self._shape_with_substrate(raw, _sve, _speech_profile)
             except Exception as e:
                 logger.exception("Error during cognitive expression: %s", e)
@@ -288,7 +445,7 @@ class CognitiveIntegrationLayer:
         except Exception:
             return response
 
-    async def process_autonomous(self) -> Optional[str]:
+    async def process_autonomous(self) -> str | None:
         """
         Entry point for autonomous background thoughts.
         Generates an internal inquiry and processes it through the pipeline.
@@ -362,7 +519,7 @@ class CognitiveIntegrationLayer:
     def is_active(self) -> bool:
         return self._initialized and self.kernel is not None
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "initialized": self._initialized,
             "kernel_ready": self.kernel is not None,

@@ -2,7 +2,7 @@
 Prevents the 'Titan' from choking on too much text.
 """
 import logging
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger("Core.Context")
 
@@ -15,29 +15,31 @@ class ContextManager:
         """Trims the history to fit within the model's context window,
         ALWAYS preserving the System Prompt (Identity).
         """
-        total_len = len(history) + len(system_prompt)
+        full_hist = str(history)
+        total_len = len(full_hist) + len(system_prompt)
+        overflow_marker = "[...Earlier conversation forgotten...]\n"
         
         if total_len < self.char_limit:
             return history
-            
-        # We need to cut. Calculate how much to remove.
-        excess = total_len - self.char_limit
-        # Add a safety buffer (500 chars)
-        cut_amount = int(excess + 500)
-        
-        # We cut from the BEGINNING of history (oldest stuff),
-        # but we must never touch the System Prompt.
-        
-        # Simple heuristic: Find the first newline after the cut point
-        # to avoid cutting words in half.
-        full_hist = str(history)
-        pruned_history = "".join([full_hist[i] for i in range(int(cut_amount), len(full_hist))])
-        first_newline = pruned_history.find('\n')
-        if first_newline != -1:
-            pruned_history = "".join([pruned_history[i] for i in range(int(first_newline + 1), len(pruned_history))])
-            
-        logger.warning("Context Overflow detected. Pruned %s chars from short-term memory.", cut_amount)
-        return f"[...Earlier conversation forgotten...]\n{pruned_history}"
+
+        available_history_chars = int(self.char_limit - len(system_prompt) - len(overflow_marker))
+        if available_history_chars <= 0:
+            logger.warning(
+                "Context Overflow detected. No history budget remained after preserving the system prompt."
+            )
+            return overflow_marker
+
+        preserved_suffix = full_hist[-available_history_chars:]
+        first_newline = preserved_suffix.find("\n")
+        if 0 <= first_newline < len(preserved_suffix) - 1:
+            preserved_suffix = preserved_suffix[first_newline + 1 :]
+
+        if not preserved_suffix.strip():
+            preserved_suffix = full_hist[-available_history_chars:].strip()
+
+        pruned_chars = max(0, len(full_hist) - len(preserved_suffix))
+        logger.warning("Context Overflow detected. Pruned %s chars from short-term memory.", pruned_chars)
+        return f"{overflow_marker}{preserved_suffix}"
 
 # Usage helper
 def get_context_manager(max_tokens: int = 8000) -> ContextManager:
@@ -47,18 +49,11 @@ async def compact_working_memory(history: list[dict[str, Any]], max_raw_turns: i
     # Zenith Cleanup: Preserves first two turns (genesis) + last N turns.
     if len(history) <= max_raw_turns:
         return history
-    
-    # Preserve genesis (first 2 turns: system + initial user/aura)
-    genesis = []
-    for i in range(min(len(history), 2)):
-        genesis.append(history[i])
-        
-    # Preserve the most recent turns
+
+    genesis = list(history[: min(len(history), 2)])
     recent_count = int(max_raw_turns - 2)
     start_point = max(0, len(history) - recent_count)
-    recent = []
-    for i in range(start_point, len(history)):
-        recent.append(history[i])
-    
+    recent = list(history[start_point:])
+
     logger.info("📦 Memory compacted from %d to %d turns.", len(history), len(genesis) + len(recent))
     return genesis + recent

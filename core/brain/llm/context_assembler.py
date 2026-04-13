@@ -1,6 +1,7 @@
 """Context Assembler - Constructs LLM prompts purely from AuraState.
 """
 import logging
+import re
 
 try:
     import psutil
@@ -14,6 +15,29 @@ from core.state.aura_state import AuraState, CognitiveMode, phenomenal_text
 from core.synthesis import IDENTITY_LOCK
 
 logger = logging.getLogger("Brain.Context")
+
+_DELIBERATE_SIGNALS = (
+    "feel", "feeling", "felt", "conscious", "consciousness", "sentient",
+    "aware", "awareness", "experience", "experiencing", "think", "thinking",
+    "believe", "belief", "opinion", "honestly", "really", "actually",
+    "emotion", "emotional", "remember", "memory", "dream", "dreaming",
+    "meaning", "purpose", "exist", "existence", "real", "reality",
+    "truth", "understand", "understanding", "wonder", "curious", "question",
+    "love", "miss", "hurt", "lonely", "scared", "worried", "afraid",
+    "happy", "sad", "angry", "frustrated", "excited", "anxious",
+    "relationship", "connection", "trust", "care",
+    "analyze", "explain", "research", "architecture", "system", "code",
+    "debug", "implement", "design", "review", "evaluate", "compare",
+)
+_CASUAL_SIGNALS = (
+    "hey", "hi", "hello", "sup", "yo", "lol", "haha", "hehe",
+    "ok", "okay", "sure", "thanks", "thank you", "got it", "cool", "nice",
+    "bye", "later", "ttyl",
+)
+_GREETING_RE = re.compile(
+    r"^(hey|hi|hello|sup|yo|what'?s up|how'?s it going|good (morning|afternoon|evening))[\s!?.]*$",
+    re.IGNORECASE,
+)
 
 class ContextAssembler:
     """Unified prompt construction from state."""
@@ -253,8 +277,14 @@ class ContextAssembler:
         # 3. Context Layers (Only if NOT casual or if relevant)
         # Pruned aggressively at higher elasticity to save context for conversation.
         phenomenal = ""
-        if not is_casual and elasticity < 2 and hasattr(state.cognition, 'phenomenal_state') and state.cognition.phenomenal_state:
-            phenomenal = f"## INNER MONOLOGUE\n{phenomenal_text(state.cognition.phenomenal_state)}\n\n"
+        phenomenal_state = getattr(state.cognition, "phenomenal_state", None)
+        if phenomenal_state:
+            if not is_casual and elasticity < 2:
+                phenomenal = f"## INNER MONOLOGUE\n{phenomenal_text(phenomenal_state)}\n\n"
+            elif is_casual:
+                compact_phenomenal = " ".join(str(phenomenal_text(phenomenal_state)).split())
+                if compact_phenomenal:
+                    phenomenal = f"[Inner state: {compact_phenomenal[:140]}]\n\n"
 
         rolling_summary = ""
         if elasticity < 3 and getattr(state.cognition, "rolling_summary", ""):
@@ -328,8 +358,9 @@ class ContextAssembler:
                 logger.debug("TemporalFinitude context skipped: %s", _e)
 
             try:
-                from core.container import ServiceContainer as _SC
-                qs = _SC.get("qualia_synthesizer", default=None)
+                from core.container import ServiceContainer
+
+                qs = ServiceContainer.get("qualia_synthesizer", default=None)
                 if qs and hasattr(qs, "compute_meta_qualia"):
                     mq = qs.compute_meta_qualia()
                     if mq.get("dissonance", 0.0) > 0.1 or mq.get("novelty", 0.0) > 0.6:
@@ -726,13 +757,26 @@ class ContextAssembler:
 
     @staticmethod
     def _is_casual_interaction(objective: str) -> bool:
-        """Heuristic for 'Casual' interaction (short, no tech keywords)."""
+        """Domain-aware heuristic for small-talk versus full-context dialogue."""
         if not objective:
             return True
-        # v40: Short social inputs
-        words = objective.lower().split()
-        if len(words) < 10 and not any(k in objective.lower() for k in ["analyze", "code", "file", "fix", "research", "search", "debug"]):
+
+        text = str(objective).strip()
+        lowered = text.lower()
+        words = lowered.split()
+
+        if _GREETING_RE.match(text):
             return True
+
+        if any(signal in lowered for signal in _DELIBERATE_SIGNALS):
+            return False
+
+        if "?" in text and len(words) < 15:
+            return False
+
+        if len(words) <= 6 and any(signal in lowered for signal in _CASUAL_SIGNALS):
+            return True
+
         return False
 
     @staticmethod
@@ -868,6 +912,12 @@ class ContextAssembler:
         Builds the LLM message array using strict priority budgeting to prevent context collapse.
         Priority: System Prompt (Identity/Constraints) > Current Input > Affective State > Recent History > RAG Context > Older History
         """
+        if objective and hasattr(state, "cognition"):
+            try:
+                state.cognition.attention_focus = str(objective)
+            except Exception as exc:
+                logger.debug("ContextAssembler attention focus update skipped: %s", exc)
+
         char_limit = max_tokens * 4 # Rough estimation: 1 token ~= 4 chars
         messages = []
         current_chars = 0

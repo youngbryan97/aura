@@ -1,18 +1,36 @@
-.PHONY: lint test typecheck compile
+.PHONY: lint test typecheck compile quality smoke
+
+PYTHON ?= python
+RUFF_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_assembler.py core/brain/llm/context_limit.py core/cognitive_integration_layer.py core/safe_mode.py core/coordinators/metabolic_coordinator.py core/evolution/persona_evolver.py core/orchestrator/mixins/autonomy.py core/orchestrator/mixins/context_streaming.py core/orchestrator/mixins/learning_evolution.py core/resilience/dream_cycle.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_consciousness_patch_retirement.py
+MYPY_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_limit.py core/safe_mode.py
+MYPY_FLAGS ?= --follow-imports=skip --explicit-package-bases
+PYTEST_TARGETS ?= tests -q
+SMOKE_TEST_TARGETS ?= tests/test_response_contract.py tests/test_chat_format.py tests/test_effect_closure.py tests/test_local_server_client.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_consciousness_patch_retirement.py -q
 
 compile:
 	@echo "🔍 Compiling all Python files..."
-	@python3 -m py_compile core/**/*.py || exit 1
+	@$(PYTHON) -m compileall -q core tests
 	@echo "✅ All files compile"
 
 lint:
-	@echo "🧹 Running linter..."
-	@flake8 core || echo "Linting finished with some warnings (expected)"
+	@echo "🧹 Running ruff..."
+	@$(PYTHON) -m ruff check $(RUFF_TARGETS)
+	@echo "✅ Ruff passed"
 
 test:
 	@echo "🧪 Running tests..."
-	@pytest tests -v || echo "Tests finished"
+	@$(PYTHON) -m pytest $(PYTEST_TARGETS)
+	@echo "✅ Tests passed"
 
 typecheck:
 	@echo "📝 Running typechecker..."
-	@mypy core || echo "Typecheck finished"
+	@$(PYTHON) -m mypy $(MYPY_FLAGS) $(MYPY_TARGETS)
+	@echo "✅ Typecheck passed"
+
+smoke:
+	@echo "💨 Running smoke suite..."
+	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
+	@echo "✅ Smoke suite passed"
+
+quality: compile lint typecheck smoke
+	@echo "🏁 Quality gates passed"

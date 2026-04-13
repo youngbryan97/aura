@@ -4,19 +4,19 @@ autonomous thought triggers, RL training, and self-update.
 Extracted from orchestrator.py as part of the God Object decomposition.
 """
 import asyncio
+import gc
 import json
 import logging
 import random
 import time
 from collections import deque
-from typing import Any, Dict, List, Optional, Set
-from core.container import ServiceContainer
+
 from core.config import config
-from core.runtime_tools import get_runtime_state
-from core.runtime.impulse_governance import run_governed_impulse
-from core.utils.task_tracker import get_task_tracker
+from core.container import ServiceContainer
 from core.runtime.background_policy import background_activity_reason
-import gc
+from core.runtime.impulse_governance import run_governed_impulse
+from core.safe_mode import runtime_feature_enabled, runtime_mode_value
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -176,9 +176,6 @@ class MetabolicCoordinator:
             except Exception as e:
                 logger.debug("Failed to subscribe to BCI events: %s", e)
 
-        from core.container import ServiceContainer
-        from core.config import config
-        from core.runtime_tools import get_runtime_state
         orch = self.orch
         if not orch:
             return
@@ -245,7 +242,7 @@ class MetabolicCoordinator:
                         orch.execute_tool("swarm_debate", {"topic": f"Self-reflection on current state: {orch.status.state}"}, is_background=True),
                         timeout=120.0  # 64GB system — 32B model needs more time
                     )
-                except (asyncio.TimeoutError, Exception) as e:
+                except (TimeoutError, Exception) as e:
                     logger.debug("Metabolism: Autonomous reflection skipped or timed out: %s", e)
             # Grounded Introspection — Latent Core Heartbeat
             if hasattr(orch, 'latent_core') and orch.latent_core:
@@ -284,7 +281,7 @@ class MetabolicCoordinator:
             if cookie and cookie.instance and state and hasattr(state.cognition, 'active_goals') and state.cognition.active_goals:
                 top_goal = state.cognition.active_goals[0].get("description", "System Integrity")
                 if state.affect.focus > 0.7:  # Only dilate when highly focused
-                    reflection_task = asyncio.create_task(
+                    asyncio.create_task(
                         cookie.instance.reflect(state, f"Optimizing for: {top_goal}", cycles=7)
                     )
                     # We don't await here to keep the metabolic cycle moving
@@ -351,7 +348,7 @@ class MetabolicCoordinator:
             if self._consume_energy(0.01):
                 await self.run_terminal_self_heal()
             # 6. Persona Evolution (Phase 12)
-            if orch.status.cycle_count % 10000 == 0:
+            if runtime_feature_enabled(orch, "persona_evolution", default=True) and orch.status.cycle_count % 10000 == 0:
                 if hasattr(orch, 'persona_evolver') and orch.persona_evolver:
                     await self.track_metabolic_task("persona_evolution", orch.persona_evolver.run_evolution_cycle())
             # 6.5 Recursive Narrative Reflection (Phase 15)
@@ -474,8 +471,8 @@ class MetabolicCoordinator:
     def emit_eternal_record(self):
         """Archives a snapshot of the system's current state into the Eternal Record."""
         try:
-            from core.resilience.eternal_record import EternalRecord
             from core.config import config
+            from core.resilience.eternal_record import EternalRecord
             record_store = config.paths.home_dir / "eternal_archive"
             archivist = EternalRecord(record_store)
             kg_path = config.paths.data_dir / "knowledge.db"
@@ -566,10 +563,8 @@ class MetabolicCoordinator:
 
     def track_metabolic_task(self, name: str, coro):
         """Ensures metabolic tasks don't pile up and exhaust resources."""
-        import asyncio
         import inspect
-        from core.utils.task_tracker import get_task_tracker
-        from core.orchestrator.types import _bg_task_exception_handler
+
         
         if not coro or not inspect.isawaitable(coro):
             # If it's already done (sync) or None, don't track it
@@ -607,8 +602,8 @@ class MetabolicCoordinator:
 
     async def recover_from_stall(self):
         """Attempts to recover from a cognitive loop stall."""
-        from core.container import ServiceContainer
         from core.config import config
+        from core.container import ServiceContainer
         orch = self.orch
         if not orch:
             return
@@ -643,9 +638,16 @@ class MetabolicCoordinator:
                 if dropped:
                     try:
                         dlq_path = config.paths.data_dir / "dlq.jsonl"
-                        with open(dlq_path, "a") as f:
-                            for msg in dropped:
-                                f.write(json.dumps({"timestamp": time.time(), "message": msg}) + "\n")
+                        payload = [
+                            json.dumps({"timestamp": time.time(), "message": msg}) + "\n"
+                            for msg in dropped
+                        ]
+
+                        def _append_lines() -> None:
+                            with open(dlq_path, "a") as f:
+                                f.writelines(payload)
+
+                        await asyncio.to_thread(_append_lines)
                     except Exception as e:
                         logger.error("Failed to dump dropped messages to DLQ file: %s", e)
             await orch.retry_cognitive_connection()
@@ -667,7 +669,6 @@ class MetabolicCoordinator:
     # ------------------------------------------------------------------
 
     def manage_memory_hygiene(self):
-        from core.utils.task_tracker import get_task_tracker
         from core.config import config
         from core.container import ServiceContainer
         orch = self.orch
@@ -815,7 +816,6 @@ class MetabolicCoordinator:
 
     async def process_world_decay(self):
         """Apply entropy to internal belief systems."""
-        from core.utils.task_tracker import get_task_tracker
         from core.container import ServiceContainer
         orch = self.orch
         if not orch:
@@ -840,7 +840,7 @@ class MetabolicCoordinator:
                             get_task_tracker().track_task(asyncio.create_task(archive_eng.archive_vital_logs()))
             except Exception as e:
                 logger.debug("Metabolic Archival trigger failed: %s", e)
-        if orch.status.cycle_count % 3600 == 0:
+        if runtime_feature_enabled(orch, "persona_evolution", default=True) and orch.status.cycle_count % 3600 == 0:
             try:
                 from core.evolution.persona_evolver import PersonaEvolver
                 evolver = PersonaEvolver(orch)
@@ -854,7 +854,6 @@ class MetabolicCoordinator:
 
     async def trigger_autonomous_thought(self, has_message: bool):
         """Trigger idle-time search for autonomous goals."""
-        from core.utils.task_tracker import get_task_tracker
         orch = self.orch
         if not orch:
             return
@@ -870,6 +869,7 @@ class MetabolicCoordinator:
             if hasattr(orch.cognitive_engine, 'singularity_factor'):
                 factor = orch.cognitive_engine.singularity_factor
                 
+            configured_min_interval = float(runtime_mode_value(orch, "autonomous_thought_interval_s", 45.0))
             threshold = 45.0 / max(1.0, factor)
             
             kernel = getattr(self.orch, 'kernel', None)
@@ -882,6 +882,8 @@ class MetabolicCoordinator:
                 return # No autonomous thought in Lockdown
             elif volition == 3:
                 threshold /= 2.0
+
+            threshold = max(configured_min_interval, threshold)
             
             if idle >= threshold:
                 orch.boredom = int(idle)
@@ -894,7 +896,6 @@ class MetabolicCoordinator:
 
     async def run_terminal_self_heal(self):
         """Check terminal monitor for errors to fix."""
-        from core.utils.task_tracker import get_task_tracker
         orch = self.orch
         if not orch:
             return
@@ -937,7 +938,6 @@ class MetabolicCoordinator:
     # ------------------------------------------------------------------
 
     def trigger_background_reflection(self, response: str):
-        from core.utils.task_tracker import get_task_tracker
         from core.orchestrator.types import _bg_task_exception_handler
         orch = self.orch
         if not orch:
@@ -968,7 +968,6 @@ class MetabolicCoordinator:
             logger.debug("Background reflection setup failed: %s", e)
 
     def trigger_background_learning(self, message: str, response: str):
-        from core.utils.task_tracker import get_task_tracker
         from core.orchestrator.types import _bg_task_exception_handler
         orch = self.orch
         if not orch:

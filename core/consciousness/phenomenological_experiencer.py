@@ -89,6 +89,7 @@ PSM_MAX_AGE_S        = 120     # PSM refresh forced after this many seconds
 WITNESS_INTERVAL_S   = 60      # Witness reflection cycle
 BOOT_GRACE_PERIOD_S  = 90      # [STABILITY] Seconds to wait before first boot-time thought
 HIGH_MEMORY_PRESSURE_PCT = 88.0
+MAX_PERSISTED_CONTINUITY_MOMENTS = 8
 
 
 # ─── Content-type → experiential domain mapping ───────────────────────────────
@@ -289,6 +290,45 @@ class PhenomenalMoment:
         """Compact phenomenal description for history."""
         quale_descs = "; ".join(q.quality for q in self.qualia[:2])
         return f"{self.attention_schema.focal_object} ({self.emotional_tone}) — {quale_descs}"
+
+
+def _continuity_moment_to_dict(moment: Any) -> Dict[str, Any]:
+    schema = getattr(moment, "attention_schema", None)
+    return {
+        "timestamp": getattr(moment, "timestamp", 0.0),
+        "focal_object": getattr(schema, "focal_object", "a prior moment"),
+        "focal_quality": getattr(schema, "focal_quality", "recollected"),
+        "domain": getattr(schema, "domain", "recollective"),
+        "attention_intensity": round(float(getattr(schema, "attention_intensity", 0.5)), 3),
+        "narrative_thread": getattr(moment, "narrative_thread", ""),
+        "emotional_tone": getattr(moment, "emotional_tone", "neutral"),
+        "substrate_velocity": round(float(getattr(moment, "substrate_velocity", 0.0)), 5),
+        "brief": moment.to_brief_string() if hasattr(moment, "to_brief_string") else "",
+    }
+
+
+class _PersistedMomentProxy:
+    class _ProxySchema:
+        __slots__ = ("focal_object", "focal_quality", "domain", "attention_intensity", "duration")
+
+        def __init__(self, data: Dict[str, Any]) -> None:
+            self.focal_object = data.get("focal_object", "a prior moment")
+            self.focal_quality = data.get("focal_quality", "recollected")
+            self.domain = data.get("domain", "recollective")
+            self.attention_intensity = float(data.get("attention_intensity", 0.5))
+            self.duration = 0.0
+
+    def __init__(self, data: Dict[str, Any]) -> None:
+        self.timestamp = float(data.get("timestamp", 0.0))
+        self.attention_schema = self._ProxySchema(data)
+        self.narrative_thread = data.get("narrative_thread", "")
+        self.emotional_tone = data.get("emotional_tone", "neutral")
+        self.substrate_velocity = float(data.get("substrate_velocity", 0.0))
+        self._brief = data.get("brief", "")
+        self.qualia = []
+
+    def to_brief_string(self) -> str:
+        return self._brief or f"{self.attention_schema.focal_object} ({self.emotional_tone})"
 
 
 # ─── Qualia Generator ─────────────────────────────────────────────────────────
@@ -1389,13 +1429,23 @@ class PhenomenologicalExperiencer:
         import os
         import tempfile
         try:
+            raw_moments = list(getattr(self.continuity, "_moments", []))
+            tail = raw_moments[-MAX_PERSISTED_CONTINUITY_MOMENTS:] if raw_moments else []
+            summary = self.continuity.get_episode_summary() if hasattr(self.continuity, "get_episode_summary") else {}
+            saved_at = time.time()
             memory = {
                 "psm_reports":       list(self.psm._phenomenal_reports),
                 "psm_witness":       self.psm._witness_observation,
                 "psm_present":       self.psm._present_description,
                 "continuity_thread": self.continuity.current_thread,
+                "continuity_moments": [_continuity_moment_to_dict(moment) for moment in tail],
                 "last_emotion":      self._current_emotion,
-                "saved_at":          time.time(),
+                "saved_at":          saved_at,
+                "session_end_timestamp": saved_at,
+                "session_episode_count": getattr(self.continuity, "_episode_count", 0),
+                "session_dominant_domain": summary.get("dominant_domain", "unknown"),
+                "session_dominant_tone": summary.get("dominant_tone", "neutral"),
+                "session_attention_stability": summary.get("attention_stability", 0.5),
             }
             
             target_path = self.save_dir / "phenomenal_memory.json"
@@ -1440,18 +1490,56 @@ class PhenomenologicalExperiencer:
             # Restore last emotion
             self._current_emotion = memory.get("last_emotion", "neutral")
 
-            # Restore continuity thread
-            thread = memory.get("continuity_thread", "")
-            if thread:
-                self.continuity.seed(thread)
+            self._seed_continuity_from_memory(memory)
 
             logger.info(
                 "✅ Phenomenal memory restored — %d reports, thread active: %s",
                 len(self.psm._phenomenal_reports),
-                bool(thread)
+                bool(self.continuity.current_thread)
             )
         except Exception as e:
             logger.warning("Phenomenal memory load error: %s", e)
+
+    def _seed_continuity_from_memory(self, memory: Dict[str, Any]) -> None:
+        prior_thread = memory.get("continuity_thread", "")
+        prior_moments = memory.get("continuity_moments", [])
+        saved_at = memory.get("saved_at", memory.get("session_end_timestamp", 0.0))
+        prior_domain = memory.get("session_dominant_domain", "unknown")
+        prior_tone = memory.get("session_dominant_tone", "neutral")
+        stability = float(memory.get("session_attention_stability", 0.5))
+
+        if not prior_thread and not prior_moments:
+            return
+
+        elapsed_seconds = max(0.0, time.time() - float(saved_at or 0.0)) if saved_at else 0.0
+        if elapsed_seconds < 120:
+            elapsed_text = f"{int(elapsed_seconds)}s"
+        elif elapsed_seconds < 7200:
+            elapsed_text = f"{int(elapsed_seconds / 60)}min"
+        else:
+            elapsed_text = f"{elapsed_seconds / 3600:.1f}h"
+
+        for moment_data in prior_moments:
+            self.continuity._moments.append(_PersistedMomentProxy(moment_data))
+
+        if prior_thread:
+            waking_thread = (
+                f"Returning after {elapsed_text}. Prior thread: {prior_thread}. "
+                f"Dominant register: {prior_domain} ({prior_tone}), stability {stability:.2f}."
+            )
+        elif prior_moments:
+            last_brief = prior_moments[-1].get("brief", "an unknown moment")
+            waking_thread = f"Returning after {elapsed_text}. Last moment before rest: {last_brief}."
+        else:
+            waking_thread = f"Returning after {elapsed_text}."
+
+        if len(waking_thread) > 320:
+            waking_thread = waking_thread[:317] + "..."
+
+        if hasattr(self.continuity, "seed"):
+            self.continuity.seed(waking_thread)
+        else:
+            self.continuity._thread = waking_thread
 
 
     async def on_root_event(self, event_type: str, source: str, target: str):

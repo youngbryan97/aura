@@ -8,7 +8,6 @@ and attempts to re-ingest failed thoughts or impulses into the core loop.
 import asyncio
 import json
 import logging
-import time
 from pathlib import Path
 
 logger = logging.getLogger("Aura.DreamCycle")
@@ -43,6 +42,15 @@ class DreamCycle:
 
     async def process_dreams(self):
         """Read DLQ and re-enqueue actionable messages."""
+        try:
+            from core.safe_mode import runtime_feature_enabled
+
+            if not runtime_feature_enabled(self.orchestrator, "dream_cycle", default=True):
+                logger.debug("Dream cycle skipped by runtime mode configuration.")
+                return
+        except Exception as exc:
+            logger.debug("Dream cycle runtime-mode check skipped: %s", exc)
+
         if not self.dlq_path.exists():
             return
 
@@ -50,13 +58,14 @@ class DreamCycle:
         
         valid_messages = []
         try:
-            with open(self.dlq_path, "r") as f:
-                lines = f.readlines()
-            
-            # Clear file after reading to avoid infinite loops
-            # We use a backup approach for safety
-            with open(self.dlq_path, "w") as f:
-                pass
+            def _read_and_clear() -> list[str]:
+                with open(self.dlq_path) as f:
+                    lines = f.readlines()
+                # Clear file after reading to avoid infinite loops.
+                self.dlq_path.write_text("")
+                return lines
+
+            lines = await asyncio.to_thread(_read_and_clear)
 
             for line in lines:
                 try:

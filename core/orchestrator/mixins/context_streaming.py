@@ -4,7 +4,6 @@ Extracts context gathering, chat streaming, and history management logic.
 import asyncio
 import inspect
 import logging
-import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -156,8 +155,9 @@ class ContextStreamingMixin:
                 logger.error("Failed to inject strategic context: %s", e)
 
         # Core Engines
-        from ...container import ServiceContainer
         from core.utils.concurrency import RobustLock
+
+        from ...container import ServiceContainer
 
         self._cognitive_engine = ServiceContainer.get("cognitive_engine", default=None)
         self._memory = ServiceContainer.get("memory_facade", default=None)
@@ -352,9 +352,31 @@ class ContextStreamingMixin:
         """Asynchronously prune history via context pruner."""
         try:
             from core.memory.context_pruner import context_pruner
-            self.conversation_history = await context_pruner.prune_history(
-                self.conversation_history, self.cognitive_engine
-            )
+            from core.safe_mode import runtime_feature_enabled, runtime_mode_value
+
+            max_history = int(runtime_mode_value(self, "max_conversation_history", 50))
+            history = list(self.conversation_history) if isinstance(self.conversation_history, list) else []
+
+            if not runtime_feature_enabled(self, "context_pruning", default=True):
+                if len(history) > max_history:
+                    self.conversation_history = history[-max_history:]
+                return
+
+            pruned_history = await context_pruner.prune_history(history, self.cognitive_engine)
+            if not isinstance(pruned_history, list):
+                raise TypeError("context pruner returned a non-list history payload")
+
+            min_acceptable = max(10, len(history) // 3)
+            if len(pruned_history) < min_acceptable and len(history) > 10:
+                logger.warning(
+                    "Context pruner returned suspicious result (%d → %d messages). Reverting to bounded tail.",
+                    len(history),
+                    len(pruned_history),
+                )
+                self.conversation_history = history[-max_history:]
+                return
+
+            self.conversation_history = pruned_history[-max_history:]
         except Exception as e:
             logger.debug("History pruning failed: %s", e)
             if isinstance(self.conversation_history, list) and len(self.conversation_history) > 50:
@@ -363,6 +385,11 @@ class ContextStreamingMixin:
     async def _consolidate_long_term_memory(self):
         """Summarize and move important session highlights to long-term vector memory."""
         try:
+            from core.safe_mode import runtime_feature_enabled
+
+            if not runtime_feature_enabled(self, "memory_consolidation", default=True):
+                return
+
             # Only consolidate every 15-20 messages to avoid spam
             if len(self.conversation_history) % 15 != 0:
                 return

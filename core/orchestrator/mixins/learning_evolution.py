@@ -4,7 +4,6 @@ Extracts knowledge extraction, self-update, meta-evolution, and self-modificatio
 import asyncio
 import logging
 import time
-from typing import Any
 
 from core.container import ServiceContainer
 
@@ -250,6 +249,15 @@ class LearningEvolutionMixin:
     async def _safe_self_modification_loop(self):
         """[PEER MODE] Evolution 7: Sovereign self-modification cycle."""
         while getattr(self.status, 'running', False):
+            try:
+                from core.safe_mode import runtime_feature_enabled
+
+                if not runtime_feature_enabled(self, "self_modification", default=True):
+                    await asyncio.sleep(3600)
+                    continue
+            except Exception as exc:
+                logger.debug("Self-modification runtime-mode check skipped: %s", exc)
+
             # : Safety Lock — No patches while processing.
             if getattr(self.status, 'is_processing', False):
                 await asyncio.sleep(60)

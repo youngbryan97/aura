@@ -5,11 +5,10 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any
 
-from core.config import config
-from core.container import ServiceContainer, ServiceLifetime
 from core.brain.personality_engine import get_personality_engine
+from core.config import config
 
 logger = logging.getLogger("Aura.PersonaEvolver")
 
@@ -40,6 +39,15 @@ class PersonaEvolver:
 
     async def run_evolution_cycle(self, force: bool = False, custom_reflection: str = None):
         """Analyze memory and apply drift to personality if needed."""
+        try:
+            from core.safe_mode import runtime_feature_enabled
+
+            if not runtime_feature_enabled(self.orchestrator, "persona_evolution", default=True):
+                logger.debug("Persona evolution skipped by runtime mode configuration.")
+                return
+        except Exception as exc:
+            logger.debug("Persona evolution runtime-mode check skipped: %s", exc)
+
         now = time.time()
         if not force and (now - self.last_evolution_time < self.evolution_interval):
             return
@@ -75,7 +83,7 @@ Recent Interactions:
 {memory_text}
 """
         try:
-            from core.brain.cognitive_engine import CognitiveEngine, ThinkingMode
+            from core.brain.cognitive_engine import ThinkingMode
             if not hasattr(self.orchestrator, 'cognitive_engine'):
                 logger.warning("No cognitive engine available for evolution.")
                 return
@@ -109,17 +117,16 @@ Recent Interactions:
         except Exception as e:
             logger.error("PersonaEvolver cycle failed: %s", e)
             
-    def _apply_evolution(self, changes: Dict[str, Any], personality):
+    def _apply_evolution(self, changes: dict[str, Any], personality):
         """Merge changes into evolved_persona.json and reload."""
         evolved_path = config.paths.data_dir / "evolved_persona.json"
         
         evolved_data = {"traits": {}, "emotions": {}}
         if evolved_path.exists():
             try:
-                with open(evolved_path, "r") as f:
+                with open(evolved_path) as f:
                     evolved_data = json.load(f)
             except json.JSONDecodeError:
-                import logging
                 logger.debug("Exception caught during execution", exc_info=True)
                 
         # Merge traits

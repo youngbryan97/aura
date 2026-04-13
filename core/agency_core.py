@@ -1600,6 +1600,28 @@ class AgencyCore:
         latest_index = trend.get("latest_index", 1.0)
         is_falling = trend.get("index_trend") == "falling"
 
+        targeted_initiatives: List[Dict[str, Any]] = []
+        try:
+            from core.agency.self_development_patch import _derive_initiatives_from_audit
+
+            targeted_initiatives = _derive_initiatives_from_audit()
+        except Exception as exc:
+            logger.debug("Self-development audit targeting unavailable: %s", exc)
+
+        if targeted_initiatives:
+            chosen = random.choice(targeted_initiatives[:2])
+            self.state.last_skill_use = now
+            return {
+                "type": "autonomous_action",
+                "skill": chosen["skill"],
+                "message": chosen["message"],
+                "source": "self_development",
+                "priority": max(0.45, 0.6 if latest_index < 0.6 or is_falling else 0.45),
+                "narrative_mode": True,
+                "audit_driven": True,
+                "theory_target": chosen.get("theory", ""),
+            }
+
         if not is_falling and random.random() > 0.1:
             return None
             
@@ -1625,7 +1647,8 @@ class AgencyCore:
             "message": hobby["msg"],
             "source": "self_development",
             "priority": priority,
-            "narrative_mode": True
+            "narrative_mode": True,
+            "audit_driven": False,
         }
 
     async def _pathway_social_reflection(self, now: float, idle_seconds: float) -> Optional[Dict[str, Any]]:

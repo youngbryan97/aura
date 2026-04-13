@@ -5,11 +5,12 @@ import asyncio
 import logging
 import random
 import time
-from typing import Optional
 
-from core.utils.exceptions import capture_and_log
 from core.health.degraded_events import record_degraded_event
 from core.runtime.impulse_governance import run_governed_impulse
+from core.safe_mode import runtime_mode_value
+from core.utils.exceptions import capture_and_log
+
 from ...container import ServiceContainer
 
 logger = logging.getLogger(__name__)
@@ -337,7 +338,8 @@ class AutonomyMixin:
             if hasattr(self.cognitive_engine, 'singularity_factor'):
                 factor = float(self.cognitive_engine.singularity_factor)
 
-            threshold = 15.0 / max(1.0, factor)
+            configured_min_interval = float(runtime_mode_value(self, "autonomous_thought_interval_s", 15.0))
+            threshold = max(configured_min_interval, 15.0 / max(1.0, factor))
 
             # Social Cooling: Brief pause after social interaction before autonomous thought
             _since_user = now - getattr(self, '_last_user_interaction_time', 0)
@@ -466,7 +468,6 @@ class AutonomyMixin:
                         try:
                             upd = ls.update(delta_curiosity=0.2)
                             if asyncio.iscoroutine(upd):
-                                loop = asyncio.get_running_loop()
                                 self._fire_and_forget(upd, name="orchestrator.liquid_state.update")
                         except (RuntimeError, ValueError):
                             logger.debug("Impulse handler bypass check passed.")
