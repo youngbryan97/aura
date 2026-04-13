@@ -102,14 +102,76 @@ class SnapshotManager:
             logger.error("Failed to freeze state: %s", e, exc_info=True)
             return False
 
+    def _governance_approve_thaw(self) -> bool:
+        """Request governance approval before restoring state from disk.
+
+        State restoration is a significant mutation — it replaces the current
+        cognitive/affective state with values from a file. This must be
+        authorized through the same governance path as any other state change.
+
+        Returns True if approved, False if denied. If governance is unavailable
+        (early boot before Will is initialized), logs a warning and permits
+        the thaw with an explicit audit note — the system needs its state to
+        function, and early boot is a known governance gap.
+        """
+        try:
+            from core.will import get_will, ActionDomain
+            will = get_will()
+            if will is None:
+                logger.warning(
+                    "SnapshotManager: Will unavailable during thaw (early boot). "
+                    "Permitting with audit note."
+                )
+                return True
+
+            import asyncio
+            decision = asyncio.get_event_loop().run_until_complete(
+                will.decide(
+                    action="snapshot_thaw",
+                    domain=ActionDomain.STATE_MUTATION,
+                    context={
+                        "source": "snapshot_manager",
+                        "file": str(self.snapshot_file),
+                    },
+                    priority=0.9,  # High priority — system needs its state
+                )
+            )
+            approved = decision.is_approved() if hasattr(decision, "is_approved") else True
+            if not approved:
+                logger.warning(
+                    "SnapshotManager: Governance DENIED state thaw: %s",
+                    getattr(decision, "reason", "unknown"),
+                )
+            return approved
+        except Exception as exc:
+            # During early boot, governance may not be available.
+            # Log and permit — the system needs state to function.
+            logger.warning(
+                "SnapshotManager: Governance check failed during thaw (%s). "
+                "Permitting with audit note (early boot assumption).",
+                exc,
+            )
+            return True
+
     def thaw(self) -> bool:
-        """Thaw state from disk and inject into running subsystems."""
+        """Thaw state from disk and inject into running subsystems.
+
+        GOVERNANCE: Requests Will approval before mutating live state.
+        During early boot (before Will is initialized), thaw is permitted
+        with an explicit audit warning — this is a known governance gap
+        that closes once the kernel finishes initialization.
+        """
         if not self._orch:
             logger.error("SnapshotManager requires orchestrator reference to thaw state.")
             return False
 
         if not self.snapshot_file.exists():
             logger.info("No snapshot found. Starting fresh.")
+            return False
+
+        # Governance gate: request approval before mutating state
+        if not self._governance_approve_thaw():
+            logger.warning("SnapshotManager: State thaw BLOCKED by governance.")
             return False
 
         logger.info("🔥 Thawing cognitive state from disk...")

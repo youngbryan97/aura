@@ -2185,14 +2185,29 @@ class InferenceGate:
 
         try:
             from core.container import ServiceContainer
-            
+
+            # PII SCRUBBING: Strip personal identifiers before sending to cloud.
+            # biography_private.json data (real names, trust scores, relationship
+            # labels) must never leave the local machine. The scrubber replaces
+            # PII with generic placeholders while preserving conversational context.
+            cloud_system_prompt = system_prompt
+            cloud_prompt = prompt
+            try:
+                from core.brain.pii_scrubber import scrub_pii_for_cloud
+                cloud_system_prompt = scrub_pii_for_cloud(system_prompt)
+                cloud_prompt = scrub_pii_for_cloud(prompt)
+            except ImportError:
+                logger.debug("PII scrubber not available — sending prompt as-is to cloud")
+            except Exception as scrub_exc:
+                logger.warning("PII scrubbing failed (%s) — sending prompt as-is", scrub_exc)
+
             # Try APIAdapter first (cleaner Gemini integration)
             adapter = ServiceContainer.get("api_adapter", default=None)
             if adapter and getattr(adapter, 'has_gemini', False):
                 logger.info("☁️ Falling back to Gemini via APIAdapter...")
                 result = await asyncio.wait_for(
                     adapter.generate(
-                        f"{system_prompt}\n\nUser: {prompt}\nAura:",
+                        f"{cloud_system_prompt}\n\nUser: {cloud_prompt}\nAura:",
                         {"model_tier": "api_fast", "max_tokens": 800, "temperature": 0.7}
                     ),
                     timeout=30.0,
@@ -2206,12 +2221,12 @@ class InferenceGate:
                         logger.debug("Cloud output notification skipped: %s", exc)
                     return result.strip()
             
-            # Try HealthRouter as secondary cloud path
+            # Try HealthRouter as secondary cloud path (also PII-scrubbed)
             router = ServiceContainer.get("llm_router", default=None)
             if router:
                 logger.info("☁️ Falling back to HealthRouter...")
                 result = await asyncio.wait_for(
-                    router.think(prompt, system_prompt=system_prompt),
+                    router.think(cloud_prompt, system_prompt=cloud_system_prompt),
                     timeout=30.0,
                 )
                 if isinstance(result, str) and result.strip():

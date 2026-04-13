@@ -122,6 +122,29 @@ class Paths(BaseModel):
 
 
 class SecurityConfig(BaseModel):
+    """Security and autonomy configuration for the Aura runtime.
+
+    Key fields documented for audit clarity:
+
+    - ``internal_only_mode``: When True, blocks all external network access.
+    - ``auto_fix_enabled``: Allows the self-modification engine to apply code
+      repairs (still gated by ConstitutionalCore and ASTGuard).
+    - ``aura_full_autonomy``: Enables autonomous initiative generation
+      (background goals, boredom impulses, self-directed exploration).
+      When False, Aura only acts in response to user messages.
+    - ``max_modifications_per_day``: Hard cap on self-modification operations
+      per 24-hour window. Prevents runaway self-repair loops.
+    - ``enable_stealth_mode``: **UI presentation mode only.** When True, the
+      frontend suppresses non-essential system notifications (health pulses,
+      background task completions, subsystem status changes) from the chat
+      panel to keep the conversation clean. Internal errors are ALWAYS logged
+      regardless of this setting — SilentFailover v13 guarantees error
+      transparency in logs. This flag does NOT hide errors, suppress audit
+      trails, or affect governance decisions. It only controls whether
+      routine system telemetry is shown in the user-facing chat UI.
+    - ``force_unity_on``: Forces all consciousness subsystems to synchronize
+      on every tick even when some are dormant.
+    """
     internal_only_mode: bool = False
     auto_fix_enabled: bool = True
     aura_full_autonomy: bool = True

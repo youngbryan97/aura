@@ -154,11 +154,38 @@ class ServiceContainer:
             )
             logger.debug(f"Registered static service: {name}")
     @classmethod
-    def unlock_registration(cls):
-        """Unlock registration to allow dynamic service updates if needed."""
+    def unlock_registration(cls, *, caller: str = "unknown", reason: str = ""):
+        """Unlock registration to allow dynamic service updates.
+
+        AUDIT: Every unlock is logged at WARNING level with the caller identity
+        and reason. This ensures that any post-boot service injection is visible
+        in logs and can be traced to a specific subsystem. The audit trail is
+        the primary defense against unauthorized runtime service replacement.
+
+        Args:
+            caller: Name of the subsystem requesting the unlock. Should be
+                    a module path or class name, not "unknown".
+            reason: Human-readable reason for the unlock (e.g., "late boot
+                    service registration for affective_circumplex").
+        """
+        import traceback
         with cls._lock:
             cls._registration_locked = False
-            logger.debug("ServiceContainer registration UNLOCKED")
+            # Log at WARNING to ensure visibility in production logs
+            frame_info = ""
+            try:
+                stack = traceback.extract_stack(limit=3)
+                if len(stack) >= 2:
+                    frame = stack[-2]
+                    frame_info = f" (from {frame.filename}:{frame.lineno})"
+            except Exception:
+                pass
+            logger.warning(
+                "ServiceContainer registration UNLOCKED by '%s'%s%s",
+                caller,
+                frame_info,
+                f" — reason: {reason}" if reason else "",
+            )
 
     @classmethod
     def lock_registration(cls):
