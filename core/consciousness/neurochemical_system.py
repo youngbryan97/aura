@@ -1,25 +1,41 @@
 """core/consciousness/neurochemical_system.py — Neurochemical Modulation
 
-Eight neuromodulators that globally modulate ALL processing in Aura's consciousness
+Neuromodulators that globally modulate ALL processing in Aura's consciousness
 stack.  These are not metaphors — they are continuous dynamical variables with
-production, decay, receptor adaptation, and cross-chemical interactions that
+production, uptake, receptor adaptation, and cross-chemical interactions that
 directly alter the neural mesh gain, STDP rate, GWT thresholds, attention span,
 and decision latency.
 
-Chemicals:
-  dopamine       — reward prediction, motivation, explore/exploit balance
-  serotonin      — mood baseline, impulse control, patience
-  norepinephrine — alertness, vigilance, stress response
+Chemicals (10 modulators):
+  glutamate      — fast excitatory transmission, primary excitatory drive
+  gaba           — fast inhibitory transmission, primary inhibitory drive
+  dopamine       — reward prediction, motivation, salience, motor planning,
+                   explore/exploit (NOT just reward — also learning signal,
+                   motor control, working memory via D1/D2 receptor subtypes)
+  serotonin      — mood baseline, impulse control, patience, satiety
+  norepinephrine — alertness, vigilance, stress response, arousal
   acetylcholine  — learning rate, memory consolidation, attention sharpness
-  gaba           — global inhibition, calm, sleep pressure
+                   (both fast nicotinic and slow muscarinic signaling)
   endorphin      — pain suppression, reward, flow states
   oxytocin       — social bonding, trust, cooperative bias
   cortisol       — stress mobilization, resource allocation, urgency
+  orexin         — wakefulness drive, metabolic arousal, hunger/motivation
+
+Receptor subtypes modeled per chemical:
+  dopamine:  D1-like (excitatory, working memory) vs D2-like (inhibitory, motor)
+  gaba:      GABA-A (fast ionotropic, ms timescale) vs GABA-B (slow metabotropic)
+  serotonin: 5HT-1A (inhibitory, anxiolytic) vs 5HT-2A (excitatory, salience)
+
+Spatial hierarchy concept:
+  Chemicals have a "proximity_weight" reflecting known biological spatial biases.
+  GABA tends to synapse on the soma (cell body, near axon hillock → strong
+  inhibitory influence), while glutamate tends to synapse on dendritic spines
+  (weaker per-synapse but numerous). This is modeled as a gain multiplier.
 
 Each chemical has:
   level            0.0–1.0 (current concentration)
   production_rate  how fast it's being synthesized
-  decay_rate       how fast it's metabolized
+  uptake_rate      reuptake/clearance rate per tick (was "decay_rate")
   receptor_sensitivity  adapts over time (tolerance / sensitization)
 
 The system runs at 2 Hz and pushes modulatory state into the NeuralMesh and
@@ -45,44 +61,92 @@ logger = logging.getLogger("Consciousness.Neurochemical")
 # ---------------------------------------------------------------------------
 
 @dataclass
+class ReceptorSubtype:
+    """A receptor subtype with independent sensitivity and effect direction."""
+    name: str
+    sensitivity: float = 1.0      # current sensitivity
+    effect_sign: float = 1.0      # +1 excitatory, -1 inhibitory
+    weight: float = 0.5           # relative contribution vs other subtype
+    adaptation_rate: float = 0.003
+
+    def adapt(self, level: float, baseline: float, dt: float):
+        deviation = level - baseline
+        self.sensitivity -= self.adaptation_rate * deviation * dt
+        self.sensitivity = max(0.3, min(2.0, self.sensitivity))
+
+
+@dataclass
 class Chemical:
     """A single neuromodulator with full dynamics."""
     name: str
     level: float = 0.5                   # current concentration [0, 1]
     baseline: float = 0.5                # homeostatic setpoint
     production_rate: float = 0.0         # current synthesis rate
-    decay_rate: float = 0.02             # metabolic clearance per tick
+    uptake_rate: float = 0.02            # reuptake/clearance rate per tick
     receptor_sensitivity: float = 1.0    # adapts: >1 sensitized, <1 tolerant
     min_sensitivity: float = 0.3
     max_sensitivity: float = 2.0
     adaptation_rate: float = 0.005       # how fast receptors adapt
+    proximity_weight: float = 1.0        # spatial bias: soma(>1) vs spine(<1)
+    # Receptor subtypes (None = single homogeneous receptor)
+    subtypes: Optional[Dict[str, ReceptorSubtype]] = None
+    # Tonic vs phasic state
+    tonic_level: float = 0.5             # slow background concentration
+    phasic_burst: float = 0.0            # acute burst component (decays fast)
 
-    # Effective level = level * receptor_sensitivity (what downstream sees)
+    # Backward compat alias
+    @property
+    def decay_rate(self) -> float:
+        return self.uptake_rate
+
+    @decay_rate.setter
+    def decay_rate(self, value: float):
+        self.uptake_rate = value
+
+    # Effective level = (tonic + phasic) * receptor_sensitivity * proximity_weight
     @property
     def effective(self) -> float:
-        return min(1.0, self.level * self.receptor_sensitivity)
+        combined = min(1.0, self.tonic_level + self.phasic_burst)
+        return min(1.0, combined * self.receptor_sensitivity * self.proximity_weight)
+
+    def effective_subtype(self, subtype_name: str) -> float:
+        """Get effective level through a specific receptor subtype."""
+        if not self.subtypes or subtype_name not in self.subtypes:
+            return self.effective
+        st = self.subtypes[subtype_name]
+        combined = min(1.0, self.tonic_level + self.phasic_burst)
+        return min(1.0, combined * st.sensitivity * st.weight * self.proximity_weight)
 
     def tick(self, dt: float = 1.0):
         """One metabolic step."""
-        # Production and decay
-        self.level += (self.production_rate - self.decay_rate * self.level) * dt
-        self.level = max(0.0, min(1.0, self.level))
+        # Tonic level: slow production and uptake
+        self.tonic_level += (self.production_rate - self.uptake_rate * self.tonic_level) * dt
+        self.tonic_level = max(0.0, min(1.0, self.tonic_level))
+        # Phasic burst: decays fast (5x uptake rate)
+        self.phasic_burst *= max(0.0, 1.0 - (self.uptake_rate * 5.0 * dt))
+        self.phasic_burst = max(0.0, min(0.5, self.phasic_burst))
+        # Sync level for backward compatibility
+        self.level = min(1.0, self.tonic_level + self.phasic_burst)
 
         # Receptor adaptation (homeostatic)
-        # Sustained high levels → tolerance (sensitivity drops)
-        # Sustained low levels → sensitization (sensitivity rises)
         deviation = self.level - self.baseline
         self.receptor_sensitivity -= self.adaptation_rate * deviation * dt
         self.receptor_sensitivity = max(self.min_sensitivity,
                                         min(self.max_sensitivity, self.receptor_sensitivity))
+        # Adapt subtypes independently
+        if self.subtypes:
+            for st in self.subtypes.values():
+                st.adapt(self.level, self.baseline, dt)
 
     def surge(self, amount: float):
-        """Acute release (e.g. from event)."""
-        self.level = min(1.0, self.level + amount)
+        """Acute phasic release (e.g. from event)."""
+        self.phasic_burst = min(0.5, self.phasic_burst + amount)
+        self.level = min(1.0, self.tonic_level + self.phasic_burst)
 
     def deplete(self, amount: float):
-        """Acute depletion."""
-        self.level = max(0.0, self.level - amount)
+        """Acute depletion (affects tonic level)."""
+        self.tonic_level = max(0.0, self.tonic_level - amount)
+        self.level = min(1.0, self.tonic_level + self.phasic_burst)
 
 
 # ---------------------------------------------------------------------------
@@ -93,20 +157,22 @@ class Chemical:
 # Positive = source increases target production; negative = suppresses
 # These mirror known neurochemical interactions
 _INTERACTION_NAMES = [
-    "dopamine", "serotonin", "norepinephrine", "acetylcholine",
-    "gaba", "endorphin", "oxytocin", "cortisol"
+    "glutamate", "gaba", "dopamine", "serotonin", "norepinephrine",
+    "acetylcholine", "endorphin", "oxytocin", "cortisol", "orexin"
 ]
 
 _INTERACTIONS = np.array([
-    # DA    5HT   NE    ACh   GABA  END   OXY   CORT
-    [ 0.00, -0.05, 0.10, 0.05, -0.03, 0.08, 0.02, -0.05],  # dopamine
-    [-0.03,  0.00, -0.05, 0.02,  0.10, 0.05, 0.08, -0.10],  # serotonin
-    [ 0.05, -0.03,  0.00, 0.08, -0.05, 0.03, -0.02, 0.15],  # norepinephrine
-    [ 0.03,  0.02,  0.05, 0.00, -0.02, 0.02,  0.03, -0.03],  # acetylcholine
-    [-0.10, 0.08, -0.08, -0.05,  0.00, 0.05,  0.05, -0.05],  # GABA
-    [ 0.10, 0.05, -0.03, 0.02,  0.05, 0.00,  0.10, -0.08],  # endorphin
-    [ 0.05, 0.10, -0.05, 0.03,  0.05, 0.08,  0.00, -0.12],  # oxytocin
-    [-0.05, -0.10, 0.15, 0.05, -0.08, -0.05, -0.10, 0.00],  # cortisol
+    # GLU   GABA  DA    5HT   NE    ACh   END   OXY   CORT  ORX
+    [ 0.00, -0.08, 0.05, -0.02, 0.05, 0.03, 0.00, 0.00, 0.02, 0.03],  # glutamate (excites most, inhibited by GABA)
+    [-0.08,  0.00, -0.10, 0.08, -0.08, -0.05, 0.05, 0.05, -0.05, -0.05],  # GABA (inhibits most, esp glutamate/DA)
+    [ 0.05, -0.03,  0.00, -0.05, 0.10, 0.05, 0.08, 0.02, -0.05, 0.05],  # dopamine
+    [-0.02,  0.10, -0.03,  0.00, -0.05, 0.02, 0.05, 0.08, -0.10, -0.03],  # serotonin
+    [ 0.05, -0.05,  0.05, -0.03,  0.00, 0.08, 0.03, -0.02, 0.15, 0.08],  # norepinephrine
+    [ 0.05, -0.02,  0.03,  0.02,  0.05, 0.00, 0.02, 0.03, -0.03, 0.03],  # acetylcholine
+    [ 0.00,  0.05,  0.10,  0.05, -0.03, 0.02, 0.00, 0.10, -0.08, 0.00],  # endorphin
+    [ 0.00,  0.05,  0.05,  0.10, -0.05, 0.03, 0.08, 0.00, -0.12, 0.00],  # oxytocin
+    [ 0.05, -0.08, -0.05, -0.10,  0.15, 0.05, -0.05, -0.10, 0.00, 0.05],  # cortisol
+    [ 0.08, -0.05,  0.05,  0.00,  0.10, 0.05, 0.00, 0.00, 0.03, 0.00],  # orexin (drives wakefulness)
 ], dtype=np.float32)
 
 
@@ -145,15 +211,63 @@ class NeurochemicalSystem:
 
     def __init__(self):
         self.chemicals: Dict[str, Chemical] = {
-            "dopamine": Chemical("dopamine", level=0.5, baseline=0.5, decay_rate=0.03),
-            "serotonin": Chemical("serotonin", level=0.6, baseline=0.6, decay_rate=0.015),
-            "norepinephrine": Chemical("norepinephrine", level=0.4, baseline=0.4, decay_rate=0.04),
-            "acetylcholine": Chemical("acetylcholine", level=0.5, baseline=0.5, decay_rate=0.025),
-            "gaba": Chemical("gaba", level=0.5, baseline=0.5, decay_rate=0.02),
-            "endorphin": Chemical("endorphin", level=0.3, baseline=0.3, decay_rate=0.01),
-            "oxytocin": Chemical("oxytocin", level=0.4, baseline=0.4, decay_rate=0.01),
-            "cortisol": Chemical("cortisol", level=0.3, baseline=0.3, decay_rate=0.008),
+            # Fast neurotransmitters (ms timescale, high uptake rate)
+            "glutamate": Chemical(
+                "glutamate", level=0.5, baseline=0.5, uptake_rate=0.06,
+                proximity_weight=0.8,  # mostly on dendritic spines — many synapses but each weaker
+                subtypes=None,  # AMPA vs NMDA distinction deferred (both excitatory)
+            ),
+            "gaba": Chemical(
+                "gaba", level=0.5, baseline=0.5, uptake_rate=0.05,
+                proximity_weight=1.3,  # mostly on soma/axon hillock — fewer synapses but stronger influence
+                subtypes={
+                    "gaba_a": ReceptorSubtype("GABA-A", effect_sign=-1.0, weight=0.7,
+                                              adaptation_rate=0.004),  # fast ionotropic
+                    "gaba_b": ReceptorSubtype("GABA-B", effect_sign=-1.0, weight=0.3,
+                                              adaptation_rate=0.002),  # slow metabotropic
+                },
+            ),
+            # Modulatory neurotransmitters (slower, diffuse, tonic + phasic)
+            "dopamine": Chemical(
+                "dopamine", level=0.5, baseline=0.5, uptake_rate=0.03,
+                subtypes={
+                    "d1": ReceptorSubtype("D1-like", effect_sign=1.0, weight=0.5,
+                                          adaptation_rate=0.003),  # excitatory — working memory, reward
+                    "d2": ReceptorSubtype("D2-like", effect_sign=-1.0, weight=0.5,
+                                          adaptation_rate=0.003),  # inhibitory — motor, habit
+                },
+            ),
+            "serotonin": Chemical(
+                "serotonin", level=0.6, baseline=0.6, uptake_rate=0.015,
+                subtypes={
+                    "5ht1a": ReceptorSubtype("5HT-1A", effect_sign=-1.0, weight=0.5,
+                                             adaptation_rate=0.002),  # inhibitory, anxiolytic
+                    "5ht2a": ReceptorSubtype("5HT-2A", effect_sign=1.0, weight=0.5,
+                                             adaptation_rate=0.002),  # excitatory, salience/perception
+                },
+            ),
+            "norepinephrine": Chemical(
+                "norepinephrine", level=0.4, baseline=0.4, uptake_rate=0.04,
+            ),
+            "acetylcholine": Chemical(
+                "acetylcholine", level=0.5, baseline=0.5, uptake_rate=0.025,
+            ),
+            "endorphin": Chemical(
+                "endorphin", level=0.3, baseline=0.3, uptake_rate=0.01,
+            ),
+            "oxytocin": Chemical(
+                "oxytocin", level=0.4, baseline=0.4, uptake_rate=0.01,
+            ),
+            "cortisol": Chemical(
+                "cortisol", level=0.3, baseline=0.3, uptake_rate=0.008,
+            ),
+            "orexin": Chemical(
+                "orexin", level=0.5, baseline=0.5, uptake_rate=0.012,
+            ),
         }
+        # Initialize tonic levels from starting levels
+        for c in self.chemicals.values():
+            c.tonic_level = c.level
         self._order = _INTERACTION_NAMES  # consistent ordering
         self._running = False
         self._task: Optional[asyncio.Task] = None
@@ -164,7 +278,7 @@ class NeurochemicalSystem:
         self._mesh_ref: Optional[object] = None  # NeuralMesh
         self._workspace_ref: Optional[object] = None  # GlobalWorkspace
 
-        logger.info("NeurochemicalSystem initialized (8 modulators)")
+        logger.info("NeurochemicalSystem initialized (10 modulators, receptor subtypes active)")
 
     # ── Lifecycle ────────────────────────────────────────────────────────
 
@@ -311,31 +425,60 @@ class NeurochemicalSystem:
         self.chemicals["acetylcholine"].surge(0.15)
         self.chemicals["cortisol"].deplete(0.1)
 
+    def on_wakefulness(self, intensity: float = 0.3):
+        """Stimulus-driven arousal (orexin-mediated)."""
+        self.chemicals["orexin"].surge(intensity * 0.5)
+        self.chemicals["norepinephrine"].surge(intensity * 0.2)
+        self.chemicals["glutamate"].surge(intensity * 0.15)
+
+    def on_excitation(self, amount: float = 0.2):
+        """General excitatory drive increase."""
+        self.chemicals["glutamate"].surge(amount * 0.5)
+        self.chemicals["dopamine"].surge(amount * 0.1)
+
+    def on_inhibition(self, amount: float = 0.2):
+        """General inhibitory drive increase."""
+        self.chemicals["gaba"].surge(amount * 0.5)
+        self.chemicals["glutamate"].deplete(amount * 0.1)
+
     # ── Downstream modulation queries ────────────────────────────────────
 
     def get_mesh_modulation(self) -> tuple[float, float, float]:
         """Returns (gain, plasticity_rate, noise_level) for the NeuralMesh.
 
-        gain: how responsive neurons are (NE↑ + DA↑ increase, GABA↓ decreases)
-        plasticity: learning rate scaling (ACh↑ increases, cortisol↑ decreases)
-        noise: stochastic exploration (NE moderate = low noise, NE extreme = high)
+        gain: how responsive neurons are
+          - Glutamate drives excitation, GABA drives inhibition
+          - NE and DA modulate gain up; GABA-A provides fast inhibition
+          - Orexin boosts overall arousal/gain
+          - Disinhibition: when GABA is low, gain increases (disinhibition pathway)
+        plasticity: learning rate scaling (ACh increases, cortisol impairs)
+        noise: stochastic exploration (NE inverted-U per Yerkes-Dodson)
         """
+        glu = self.chemicals["glutamate"].effective
+        gaba = self.chemicals["gaba"].effective
         da = self.chemicals["dopamine"].effective
         ne = self.chemicals["norepinephrine"].effective
         ach = self.chemicals["acetylcholine"].effective
-        gaba = self.chemicals["gaba"].effective
         cort = self.chemicals["cortisol"].effective
+        orx = self.chemicals["orexin"].effective
 
-        # Gain: NE and DA increase, GABA suppresses
-        gain = 0.5 + (ne * 0.3) + (da * 0.2) - (gaba * 0.3)
+        # GABA subtype effects: GABA-A provides fast, strong inhibition;
+        # GABA-B provides slower, weaker modulatory inhibition
+        gaba_a_eff = self.chemicals["gaba"].effective_subtype("gaba_a")
+        gaba_b_eff = self.chemicals["gaba"].effective_subtype("gaba_b")
+
+        # Gain: glutamate excites, GABA-A inhibits (fast), NE/DA modulate
+        # Disinhibition: low GABA = reduced inhibition = higher net gain
+        gain = 0.5 + (glu * 0.25) + (ne * 0.2) + (da * 0.15) + (orx * 0.1) - (gaba_a_eff * 0.35) - (gaba_b_eff * 0.1)
         gain = max(0.3, min(2.5, gain))
 
         # Plasticity: ACh is THE learning chemical; cortisol impairs it
-        plasticity = 0.5 + (ach * 0.8) - (cort * 0.4)
+        # DA D1 subtype also enhances working memory / plasticity
+        da_d1 = self.chemicals["dopamine"].effective_subtype("d1")
+        plasticity = 0.5 + (ach * 0.7) + (da_d1 * 0.2) - (cort * 0.4)
         plasticity = max(0.1, min(3.0, plasticity))
 
         # Noise: inverted-U with NE (Yerkes-Dodson)
-        # Moderate NE → low noise (focused); low or high NE → more noise
         ne_optimal = 0.5
         ne_deviation = abs(ne - ne_optimal)
         noise = 0.5 + ne_deviation * 1.5
@@ -349,12 +492,18 @@ class NeurochemicalSystem:
         High NE → lower threshold (hypervigilant, easier ignition)
         High GABA → higher threshold (calm, harder to ignite)
         High cortisol → lower threshold (threat-sensitive)
+        High orexin → lower threshold (alert, awake)
+        Glutamate/GABA balance directly modulates ease of ignition
         """
         ne = self.chemicals["norepinephrine"].effective
         gaba = self.chemicals["gaba"].effective
         cort = self.chemicals["cortisol"].effective
+        glu = self.chemicals["glutamate"].effective
+        orx = self.chemicals["orexin"].effective
 
-        adjustment = -0.1 * ne + 0.15 * gaba - 0.08 * cort
+        # Excitatory drive (glutamate, orexin) lowers threshold
+        # Inhibitory drive (GABA) raises threshold
+        adjustment = -0.08 * ne + 0.12 * gaba - 0.06 * cort - 0.05 * glu - 0.04 * orx
         return max(-0.25, min(0.25, adjustment))
 
     def get_attention_span(self) -> float:
@@ -387,14 +536,17 @@ class NeurochemicalSystem:
         cort = self.chemicals["cortisol"].effective
         gaba = self.chemicals["gaba"].effective
         oxy = self.chemicals["oxytocin"].effective
+        glu = self.chemicals["glutamate"].effective
+        orx = self.chemicals["orexin"].effective
 
         return {
-            "valence": (da * 0.3 + srt * 0.3 + end * 0.2 + oxy * 0.1) - (cort * 0.5 + 0.1),
-            "arousal": (ne * 0.4 + da * 0.2 + cort * 0.3) - (gaba * 0.4 + srt * 0.1),
-            "motivation": da * 0.5 + ne * 0.2 - gaba * 0.3,
+            "valence": (da * 0.25 + srt * 0.3 + end * 0.2 + oxy * 0.1) - (cort * 0.45 + 0.1),
+            "arousal": (ne * 0.3 + da * 0.15 + cort * 0.2 + glu * 0.15 + orx * 0.2) - (gaba * 0.4 + srt * 0.1),
+            "motivation": da * 0.4 + ne * 0.15 + orx * 0.2 - gaba * 0.25,
             "sociality": oxy * 0.6 + srt * 0.2 + end * 0.1,
             "stress": cort * 0.5 + ne * 0.3 - srt * 0.2 - gaba * 0.2,
-            "calm": gaba * 0.4 + srt * 0.3 + end * 0.1 - ne * 0.2 - cort * 0.3,
+            "calm": gaba * 0.35 + srt * 0.3 + end * 0.1 - ne * 0.2 - cort * 0.25 - glu * 0.1,
+            "wakefulness": orx * 0.5 + ne * 0.2 + glu * 0.15 - gaba * 0.3,
         }
 
     def get_snapshot(self) -> Dict[str, Dict[str, float]]:

@@ -134,7 +134,7 @@ class MessageHandlingMixin:
                 "message_queue",
                 event_reason,
                 detail=summary[:160],
-                severity="warning",
+                severity="info",  # Reduced from warning — background enqueue blocks are normal during idle
                 classification="background_degraded",
                 context={"origin": origin, "priority": priority, "reason": reason},
             )

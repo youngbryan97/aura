@@ -180,13 +180,13 @@ class BeliefGraph:
                             "belief_graph",
                             event_reason,
                             detail=f"{source}:{relation}->{target}",
-                            severity="warning",
+                            severity="info",  # Reduced from warning — deferred beliefs are normal governance
                             classification="background_degraded",
                             context={"reason": reason},
                         )
                     except Exception as degraded_exc:
                         logger.debug("BeliefGraph degraded-event logging failed: %s", degraded_exc)
-                    logger.info(
+                    logger.debug(  # Reduced from info to avoid log flooding
                         "Belief update deferred by executive: %s -[%s]-> %s (%s)",
                         source,
                         relation,

@@ -14,11 +14,13 @@ logger = logging.getLogger(__name__)
 
 class HierarchicalMemoryOrchestrator:
     """
-    Core fix for indefinite chat.
-    Every 10 turns or 70% context limit:
-    - Summarizes into structured "Chapter Notes"
+    Core fix for indefinite chat stability.
+    Every 6 turns or 50% context limit:
+    - Strips stale tool results, internal reasoning, and duplicate system messages
+    - Summarizes into structured "Chapter Notes" with open thread tracking
     - Injects only note + last 4 raw turns
     - Full history stays in BlackHole (reinforced)
+    - Selectively forgets: old skill results, background reflections, system noise
     """
     def __init__(
         self,
@@ -52,9 +54,9 @@ class HierarchicalMemoryOrchestrator:
                 tokens = self.context_mgr.estimate_tokens(current_context) if hasattr(self.context_mgr, "estimate_tokens") else 0
                 max_tokens = getattr(self.context_mgr, "max_tokens", 8000)
                 
-                if (self.turn_counter >= 10 or 
-                    tokens > max_tokens * 0.70 or
-                    (datetime.now() - self.last_compaction).total_seconds() > 300):
+                if (self.turn_counter >= 6 or
+                    tokens > max_tokens * 0.50 or
+                    (datetime.now() - self.last_compaction).total_seconds() > 180):
                     
                     logger.info("Triggering hierarchical compaction...")
                     # Support both List and Dict (legacy) current_context formats
@@ -79,9 +81,43 @@ class HierarchicalMemoryOrchestrator:
             
             return current_context
 
+    @staticmethod
+    def _is_forgettable(msg: Dict[str, Any]) -> bool:
+        """Check if a message is stale noise that should be dropped before compaction."""
+        role = str(msg.get("role", "")).lower()
+        content = str(msg.get("content", ""))
+        metadata = msg.get("metadata", {}) or {}
+        msg_type = str(metadata.get("type", "")).lower()
+
+        # Drop old tool/skill results (they're stale after a few turns)
+        if msg_type in ("skill_result", "tool_result"):
+            return True
+        # Drop internal system bookkeeping
+        if role == "system" and any(marker in content for marker in (
+            "[CHAPTER SUMMARY:", "cognitive baseline tick", "background_consolidation",
+            "[ENVIRONMENTAL TRIGGER]", "Phenomenal Surge:", "Winner:",
+            "Pending initiatives:", "Drive alert:", "Reconcile continuity",
+        )):
+            return True
+        # Drop empty or near-empty messages
+        if len(content.strip()) < 5:
+            return True
+        return False
+
     async def _perform_hierarchical_compaction(self, history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Creates Chapter Note and prunes history list."""
+        """Creates Chapter Note and prunes history list.
+
+        Step 1: Selective forgetting — strip stale tool results and system noise
+        Step 2: Summarize older turns into a Chapter Note
+        Step 3: Keep chapter note + last 4 raw turns
+        """
+        # Selective forgetting: remove noise from older history (keep recent 4 intact)
         history_list = list(history)
+        if len(history_list) > 4:
+            older = history_list[:-4]
+            recent = history_list[-4:]
+            older = [msg for msg in older if not self._is_forgettable(msg)]
+            history_list = older + recent
         n = len(history_list)
         
         if n > 4:

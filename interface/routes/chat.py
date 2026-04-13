@@ -14,6 +14,7 @@ import os
 import re
 import time
 import uuid
+import psutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -245,8 +246,11 @@ _idempotency_lock = asyncio.Lock()
 # Track the last N responses to detect when the cortex is stuck returning the
 # same cached output. This prevents the "Dark Matter" loop where a stale
 # identity prompt produces identical text on every turn.
-_recent_responses: collections.deque = collections.deque(maxlen=5)
+_recent_responses: collections.deque = collections.deque(maxlen=12)
+_recent_response_pairs: collections.deque = collections.deque(maxlen=12)  # (user_fp, response_fp) tuples
 _STALE_REPEAT_THRESHOLD = 2  # same text seen this many times = stale
+_FUZZY_SIMILARITY_THRESHOLD = 0.80  # word-overlap ratio that counts as semantically stale
+_consecutive_degraded_count: int = 0  # tracks degradation streak for proactive recovery
 
 
 def _response_fingerprint(text: str) -> str:
@@ -254,18 +258,186 @@ def _response_fingerprint(text: str) -> str:
     return " ".join(str(text or "").split())[:200].strip().lower()
 
 
-def _record_recent_response(text: str) -> None:
+def _word_set(text: str) -> set:
+    """Extract word set for fuzzy similarity comparison."""
+    return set(" ".join(str(text or "").split()).lower().split())
+
+
+def _fuzzy_similar(a: str, b: str) -> bool:
+    """Check if two responses share >80% word overlap (catches paraphrased repeats)."""
+    words_a = _word_set(a)
+    words_b = _word_set(b)
+    if not words_a or not words_b:
+        return False
+    # Jaccard-like: intersection / smaller set
+    overlap = len(words_a & words_b)
+    smaller = min(len(words_a), len(words_b))
+    if smaller < 5:
+        return False  # too short for meaningful comparison
+    return (overlap / smaller) >= _FUZZY_SIMILARITY_THRESHOLD
+
+
+def _record_recent_response(text: str, user_message: str = "") -> None:
     fp = _response_fingerprint(text)
     if fp:
         _recent_responses.append(fp)
+    if user_message:
+        _recent_response_pairs.append((_response_fingerprint(user_message), fp))
 
 
 def _is_stale_repeated_response(text: str) -> bool:
     fp = _response_fingerprint(text)
     if not fp:
         return False
-    count = sum(1 for r in _recent_responses if r == fp)
-    return count >= _STALE_REPEAT_THRESHOLD
+    # Exact match check
+    exact_count = sum(1 for r in _recent_responses if r == fp)
+    if exact_count >= _STALE_REPEAT_THRESHOLD:
+        return True
+    # Fuzzy similarity check — catches "same answer, slightly different wording"
+    fuzzy_count = sum(1 for r in _recent_responses if _fuzzy_similar(fp, r))
+    if fuzzy_count >= _STALE_REPEAT_THRESHOLD:
+        logger.debug("Fuzzy stale detection triggered (overlap count=%d).", fuzzy_count)
+        return True
+    return False
+
+
+def _is_same_answer_different_prompt(user_message: str, text: str) -> bool:
+    """Detect when different user prompts are getting the same response."""
+    user_fp = _response_fingerprint(user_message)
+    resp_fp = _response_fingerprint(text)
+    if not user_fp or not resp_fp:
+        return False
+    for prev_user, prev_resp in _recent_response_pairs:
+        if prev_user != user_fp and (prev_resp == resp_fp or _fuzzy_similar(prev_resp, resp_fp)):
+            return True
+    return False
+
+
+# ── Response Quality Metrics ─────────────────────────────────
+_quality_logger = logging.getLogger("Aura.ResponseQuality")
+
+
+def _log_response_quality_metrics(
+    user_message: str,
+    reply_text: str,
+    confidence: str,
+    stale: bool,
+    same_diff: bool,
+) -> None:
+    """Log structured quality metrics for every response for offline analysis.
+
+    Writes to a dedicated logger so these can be routed to a file/store
+    independently of the main application log.
+    """
+    try:
+        live_state = _resolve_live_aura_state()
+        wm_size = 0
+        has_summary = False
+        coherence = 1.0
+        if live_state:
+            wm = getattr(getattr(live_state, "cognition", None), "working_memory", None)
+            wm_size = len(wm) if isinstance(wm, list) else 0
+            has_summary = bool(getattr(getattr(live_state, "cognition", None), "rolling_summary", ""))
+            coherence = float(getattr(getattr(live_state, "cognition", None), "coherence_score", 1.0) or 1.0)
+
+        _quality_logger.info(
+            "📊 quality_metrics | confidence=%s | stale=%s | same_diff=%s | "
+            "reply_len=%d | user_len=%d | wm_size=%d | has_summary=%s | coherence=%.3f",
+            confidence, stale, same_diff,
+            len(reply_text or ""), len(user_message or ""),
+            wm_size, has_summary, coherence,
+        )
+    except Exception:
+        pass  # metrics are best-effort
+
+
+# ── Consistency Check ─────────────────────────────────────────
+_INABILITY_PATTERNS = re.compile(
+    r"(i can't|i cannot|i'm unable to|i don't have access to|"
+    r"i'm not able to|i lack the ability to)\s+"
+    r"(browse|search|access|look up|check|find|open|read|visit|navigate|download|fetch)",
+    re.IGNORECASE,
+)
+
+
+def _check_response_consistency(reply_text: str, user_message: str) -> tuple[bool, str]:
+    """Check response against known capabilities and commitments.
+
+    Returns (is_consistent, reason).
+    """
+    text_lower = (reply_text or "").lower()
+
+    # 1. Check for false inability claims — Aura has web access via skills
+    if _INABILITY_PATTERNS.search(reply_text or ""):
+        try:
+            from core.container import ServiceContainer
+            cap = ServiceContainer.get("capability_engine", default=None)
+            if cap and hasattr(cap, "get_catalog"):
+                catalog = cap.get_catalog() or {}
+                web_skills = {"web_search", "sovereign_browser", "browser", "search"}
+                available = {k for k, v in catalog.items()
+                             if isinstance(v, dict) and v.get("status") != "unavailable"}
+                if web_skills & available:
+                    return False, "false_inability_claim"
+        except Exception:
+            pass
+
+    # 2. Check for self-contradiction against active commitments
+    try:
+        from core.agency.commitment_engine import get_commitment_engine
+        ce = get_commitment_engine()
+        if hasattr(ce, "get_active_commitments"):
+            active = ce.get_active_commitments()
+            for commitment in (active or [])[:5]:
+                desc = str(commitment.get("description", "") or "").lower()
+                # If reply says "I don't" or "I haven't" about something we committed to
+                if desc and len(desc) > 10:
+                    key_words = set(desc.split()) - {"i", "a", "the", "to", "and", "of", "in", "for", "will", "should"}
+                    matching = sum(1 for w in key_words if w in text_lower)
+                    if matching >= 3 and any(neg in text_lower for neg in ("i don't", "i haven't", "i didn't", "i can't")):
+                        return False, "commitment_contradiction"
+    except Exception:
+        pass
+
+    return True, ""
+
+
+# ── Commitment Extraction ─────────────────────────────────────
+_COMMITMENT_PATTERNS = re.compile(
+    r"(?:^|\. |\n)"
+    r"(i'll |i will |let me |i'm going to |i won't forget |i promise |"
+    r"i'll remember |next step is |we should |i should )"
+    r"([^.!?\n]{10,120})",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _extract_and_register_commitments(reply_text: str, user_message: str) -> None:
+    """Scan the final response for commitment/promise language and register.
+
+    This closes the open-loop tracking gap: when Aura says 'I'll remember X'
+    or 'next step is Z', it actually gets tracked.
+    """
+    if not reply_text or len(reply_text) < 20:
+        return
+    try:
+        matches = _COMMITMENT_PATTERNS.findall(reply_text)
+        if not matches:
+            return
+        from core.agency.commitment_engine import get_commitment_engine
+        ce = get_commitment_engine()
+        if not hasattr(ce, "add_commitment"):
+            return
+        for prefix, body in matches[:3]:  # cap at 3 per response
+            description = f"{prefix.strip()} {body.strip()}"
+            ce.add_commitment(
+                description=description,
+                source="auto_extracted",
+                context=user_message[:200] if user_message else "",
+            )
+            logger.debug("📝 Auto-extracted commitment: %s", description[:80])
+    except Exception as exc:
+        logger.debug("Commitment extraction skipped: %s", exc)
 
 
 # ── Conversation Lane Helpers ─────────────────────────────────
@@ -289,6 +461,7 @@ def _collect_conversation_lane_status() -> Dict[str, Any]:
         "expected_model": "",
         "detected_models": [],
         "runtime_identity_ok": True,
+        "kernel_tick_age_s": None,
     }
     try:
         gate = ServiceContainer.get("inference_gate", default=None)
@@ -311,6 +484,20 @@ def _collect_conversation_lane_status() -> Dict[str, Any]:
                 lane["last_failure_reason"] = lane.get("last_failure_reason") or report.get("last_user_error", "")
     except Exception as exc:
         logger.debug("Conversation lane/router status merge failed: %s", exc)
+
+    # Kernel tick staleness — lets the UI detect when the kernel is locked up
+    try:
+        kernel = ServiceContainer.get("aura_kernel", default=None)
+        if kernel is None:
+            from core.kernel.kernel_interface import KernelInterface
+            ki = KernelInterface.get_instance()
+            kernel = getattr(ki, "kernel", None) if ki else None
+        if kernel:
+            last_tick_at = getattr(kernel, "_last_tick_completed_at", 0.0) or 0.0
+            if last_tick_at > 0.0:
+                lane["kernel_tick_age_s"] = round(time.time() - last_tick_at, 1)
+    except Exception as exc:
+        logger.debug("Kernel tick age probe failed: %s", exc)
 
     return lane
 
@@ -363,13 +550,19 @@ def _mark_conversation_lane_state(reason: str, *, state: str) -> Dict[str, Any]:
 
 
 def _foreground_timeout_for_lane(lane: Optional[Dict[str, Any]]) -> float:
+    """Foreground timeout for the chat request.
+
+    Reduced from 150/180s to 90/120s to prevent 504 gateway timeouts.
+    The 32B model should generate within 60-90s; longer means something
+    is stuck and waiting longer won't help.
+    """
     lane = dict(lane or {})
     state = str(lane.get("state", "") or "").lower()
     if bool(lane.get("conversation_ready", False)):
-        return 150.0
+        return 90.0
     if state in {"warming", "recovering", "cold", "spawning", "handshaking"}:
-        return 180.0
-    return 150.0
+        return 120.0
+    return 90.0
 
 
 def _conversation_lane_user_message(
@@ -399,7 +592,7 @@ def _conversation_lane_user_message(
 
 
 _last_recovery_cooldown_at: float = 0.0
-_RECOVERY_COOLDOWN_SECONDS: float = 15.0  # fast-reject for 15s after a timeout
+_RECOVERY_COOLDOWN_SECONDS: float = 5.0  # fast-reject for 5s after a timeout (reduced from 15s — enough to prevent cascade without stalling UX)
 
 
 def _enter_recovery_cooldown() -> None:
@@ -1385,7 +1578,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         if _INTERNAL_STATE_PATTERNS.search(text):
             logger.warning("Blocked internal state leak in LLM response (len=%d).", len(text))
         elif not _is_stale_repeated_response(text):
-            _record_recent_response(text)
+            _record_recent_response(text, user_message)
             return text
         else:
             logger.warning(
@@ -1408,7 +1601,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             "I want to give you a real answer, not a recycled one. Let me regroup.",
             "Something's making it hard to articulate right now. I'm working on it.",
         ])
-    _record_recent_response(reflex)
+    _record_recent_response(reflex, user_message)
     return reflex
 
 
@@ -1971,9 +2164,25 @@ async def api_chat(
 
     def _remaining_foreground_budget(*, reserve: float = 0.0) -> float:
         elapsed = time.monotonic() - request_started_at
-        return max(0.25, foreground_timeout - elapsed - reserve)
+        return max(2.0, foreground_timeout - elapsed - reserve)
 
     try:
+        # VRAM Circuit Breaker (Limp Mode)
+        sys_memory_pressure = False
+        try:
+            mem = psutil.virtual_memory()
+            if mem.percent > 85.0:
+                sys_memory_pressure = True
+                logger.warning("🚨 [VRAM CIRCUIT BREAKER] Unified memory at %.1f%%. Entering Limp Mode.", mem.percent)
+                # Force constraint at state level
+                live_state = _resolve_live_aura_state()
+                if live_state:
+                    live_state.cognition.conversation_energy = 0.0
+                    live_state.cognition.current_mode = 0  # CognitiveMode.REACTIVE
+                    live_state.response_modifiers['sys_pressure'] = 'CRITICAL VRAM LIMIT'
+        except Exception as e:
+            logger.debug("Memory check failed: %s", e)
+
         # Idempotency check
         idem_key = request.headers.get("X-Idempotency-Key")
         if idem_key:
@@ -1983,6 +2192,29 @@ async def api_chat(
 
         # Notify proactive presence systems; pass content for away-signal detection
         _notify_user_spoke(body.message)
+
+        # Animal cognition: track user emotional state and adapt style
+        try:
+            from core.consciousness.animal_cognition import (
+                get_emotional_tracker, get_camouflage_adapter,
+            )
+            emotional_tracker = get_emotional_tracker()
+            emotional_tracker.update(body.message)
+            camouflage = get_camouflage_adapter()
+            camouflage.observe_user(body.message)
+            # Feed emotional signals into neurochemical system
+            ncs = ServiceContainer.get("neurochemical_system", default=None)
+            if ncs:
+                triggers = emotional_tracker.get_neurochemical_triggers()
+                for trigger, amount in triggers.items():
+                    if "norepinephrine" in trigger:
+                        ncs.on_wakefulness(amount)
+                    elif "dopamine" in trigger:
+                        ncs.on_novelty(amount)
+                    elif "oxytocin" in trigger:
+                        ncs.on_social_connection(amount)
+        except Exception as _ac_exc:
+            logger.debug("Animal cognition tracking skipped: %s", _ac_exc)
 
         async def _finalize_fastpath(reply_text: str, status: str = "ok"):
             response_data = {
@@ -2249,13 +2481,17 @@ async def api_chat(
 
         if kernel_timed_out:
             lane = _mark_conversation_lane_timeout()
+            # Tiered response: 503 (recoverable/retry) when cortex was ready,
+            # 504 (hard timeout) only when the lane itself was broken.
+            was_ready = bool(lane.get("conversation_ready", False)) or str(lane.get("state", "")).lower() in {"ready", "warming", "recovering"}
+            status_code = 503 if was_ready else 504
             return JSONResponse(
                 {
                     "response": _conversation_lane_user_message(lane, timed_out=True),
                     "status": "timeout",
                     "conversation_lane": lane,
                 },
-                status_code=504,
+                status_code=status_code,
             )
 
         # Legacy Orchestrator Fallback
@@ -2277,6 +2513,47 @@ async def api_chat(
 
         reply_text = await _stabilize_user_facing_reply(body.message, reply_text)
 
+        # ── Response confidence assessment ────────────────────────
+        global _consecutive_degraded_count
+        response_confidence = "high"
+        is_stale = _is_stale_repeated_response(reply_text)
+        is_same_diff = _is_same_answer_different_prompt(body.message, reply_text)
+        if is_stale or is_same_diff:
+            response_confidence = "degraded"
+            _consecutive_degraded_count += 1
+            logger.warning(
+                "⚠️ Response confidence: degraded (stale=%s, same_answer_diff_prompt=%s, streak=%d)",
+                is_stale, is_same_diff, _consecutive_degraded_count,
+            )
+        else:
+            _consecutive_degraded_count = 0
+
+        # Proactive recovery: if 3+ consecutive degraded responses, compact + reset stale deque
+        if _consecutive_degraded_count >= 3:
+            logger.warning("🚨 Degradation streak=%d — triggering proactive compaction + stale reset.", _consecutive_degraded_count)
+            _recent_responses.clear()
+            _recent_response_pairs.clear()
+            _consecutive_degraded_count = 0
+            try:
+                live_state = _resolve_live_aura_state()
+                if live_state and hasattr(live_state, "compact"):
+                    live_state.compact(trigger_threshold=20, keep_turns=15)
+                    logger.info("🗜️ Proactive compaction completed after degradation streak.")
+            except Exception as _streak_exc:
+                logger.debug("Degradation streak compaction failed: %s", _streak_exc)
+
+        # Proactive context compaction — fire-and-forget to prevent working memory bloat
+        try:
+            live_state = _resolve_live_aura_state()
+            if live_state and hasattr(live_state, "compact"):
+                wm = getattr(getattr(live_state, "cognition", None), "working_memory", None)
+                if wm and isinstance(wm, list) and len(wm) > 30:
+                    compacted = live_state.compact(trigger_threshold=30, keep_turns=20)
+                    if compacted:
+                        logger.debug("Proactive AuraState.compact() completed (working_memory was %d).", len(wm))
+        except Exception as _compact_exc:
+            logger.debug("Proactive compaction skipped: %s", _compact_exc)
+
         # Retrieve thought metadata from the live cognitive state
         thought_text = ""
         try:
@@ -2286,13 +2563,35 @@ async def api_chat(
         except Exception as _thought_exc:
             logger.debug("Thought metadata retrieval skipped: %s", _thought_exc)
 
+        # ── Post-Response Infrastructure checks ─────────────────
+        # 1. Check self-consistency (avoiding false inability claims, commitment contradictions)
+        if response_confidence == "high":
+            is_consistent, reason = _check_response_consistency(reply_text, body.message)
+            if not is_consistent:
+                response_confidence = "degraded"
+                logger.warning("⚠️ Response confidence lowered to 'degraded' due to inconsistency: %s", reason)
+
+        # 2. Extract new open loops (commitments/promises) made in this turn
+        _extract_and_register_commitments(reply_text, body.message)
+
+        # 3. Log comprehensive quality metrics
+        _log_response_quality_metrics(
+            user_message=body.message,
+            reply_text=reply_text,
+            confidence=response_confidence,
+            stale=is_stale,
+            same_diff=is_same_diff,
+        )
+
         response_data = {
             "response": reply_text or "…",
             "conversation_lane": _collect_conversation_lane_status(),
+            "response_confidence": response_confidence,
         }
         if thought_text:
             response_data["thought"] = thought_text
 
+        _record_recent_response(reply_text or "…", body.message)
         await _log_exchange(body.message, reply_text or "…")
 
         # Cache idempotent response
@@ -2305,13 +2604,15 @@ async def api_chat(
         return JSONResponse(response_data)
     except asyncio.TimeoutError:
         lane = _mark_conversation_lane_timeout()
+        was_ready = bool(lane.get("conversation_ready", False)) or str(lane.get("state", "")).lower() in {"ready", "warming", "recovering"}
+        status_code = 503 if was_ready else 504
         return JSONResponse(
             {
                 "response": _conversation_lane_user_message(lane, timed_out=True),
                 "status": "timeout",
                 "conversation_lane": lane,
             },
-            status_code=504,
+            status_code=status_code,
         )
     except asyncio.CancelledError:
         lane = _mark_conversation_lane_state("foreground_cancelled", state="recovering")

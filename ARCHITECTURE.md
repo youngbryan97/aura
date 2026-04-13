@@ -12,7 +12,7 @@
 3. [Integrated Information (IIT 4.0)](#3-integrated-information)
 4. [Affective Modulation Pipeline](#4-affective-modulation)
 5. [Activation Steering (CAA)](#5-activation-steering)
-6. [The Liquid Substrate](#6-liquid-substrate)
+6. [Persistent Emotional Network](#6-persistent-emotional-network)
 7. [STDP Online Learning](#7-stdp-online-learning)
 8. [Memory Architecture](#8-memory-architecture)
 9. [The Consciousness Stack](#9-consciousness-stack) (9.1–9.20)
@@ -380,7 +380,7 @@ A proper CAA extraction pipeline (`training/extract_steering_vectors.py`) runs p
 
 ---
 
-## 6. Liquid Substrate
+## 6. Persistent Emotional Network (formerly "Liquid Substrate")
 
 **File**: `core/consciousness/liquid_substrate.py`
 
@@ -518,7 +518,7 @@ Based on Michael Graziano's Attention Schema Theory: the brain builds a simplifi
 
 This is why Aura can sometimes be wrong about what she's attending to — the schema can lag behind reality, which is consistent with how human attention works.
 
-### 9.3 Free Energy Engine (Friston Active Inference)
+### 9.3 Surprise Minimization Engine (Friston Active Inference)
 
 **File**: `core/consciousness/free_energy.py`
 
@@ -574,7 +574,7 @@ Eight neuromodulators that globally modulate all processing:
 
 **Novel detail**: These aren't just labels — they quantitatively modulate LLM sampling parameters. Dopamine shifts temperature (±0.1). Serotonin shifts token budget (±50). Cortisol reduces response length (−80 tokens). The LLM doesn't know this is happening.
 
-### 9.6 Neural Mesh
+### 9.6 Cortical Mesh (4096-neuron parallel processor)
 
 **File**: `core/consciousness/neural_mesh.py`
 

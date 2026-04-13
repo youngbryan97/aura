@@ -38,7 +38,7 @@ async def run_governed_impulse(
             "impulse_governance",
             "initiative_blocked",
             detail=str(summary)[:160],
-            severity="warning",
+            severity="info",  # Reduced from warning — blocked initiatives are normal during idle
             classification="background_degraded",
             context={"source": source, "reason": reason},
         )

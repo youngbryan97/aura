@@ -45,7 +45,7 @@ async def propose_governed_initiative_to_state(
             "proposal_governance",
             "initiative_blocked",
             detail=normalized_goal[:160],
-            severity="warning",
+            severity="info",  # Reduced from warning — blocked proposals are normal governance
             classification="background_degraded",
             context={"source": source, "reason": reason, "kind": kind},
         )

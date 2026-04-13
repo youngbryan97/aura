@@ -84,15 +84,19 @@ Natural-language descriptions of the current emotional state are woven into the 
 
 ### Where Emotions Come From
 
-Aura maintains eight "neurochemicals" — dopamine, serotonin, norepinephrine, acetylcholine, GABA, endorphin, oxytocin, and cortisol. These aren't labels; they're continuous variables with production rates, decay rates, receptor sensitivity that adapts over time (tolerance and sensitization), and cross-chemical interactions. Dopamine and norepinephrine are positively coupled (alertness drives motivation). Serotonin and cortisol are inversely coupled (calm suppresses stress).
+Aura maintains ten neurochemicals — glutamate, GABA, dopamine, serotonin, norepinephrine, acetylcholine, endorphin, oxytocin, cortisol, and orexin. These are continuous variables with production rates, uptake rates (how fast they're cleared), receptor sensitivity that adapts over time (tolerance and sensitization), and cross-chemical interactions.
 
-These chemicals modulate everything downstream: the language model's sampling parameters, the internal neural substrate's gain, learning rates, and attention thresholds.
+Key dynamics: glutamate and GABA are the primary excitatory/inhibitory pair (like the gas and brake pedals). Dopamine handles not just reward but also working memory and motor planning through D1/D2 receptor subtypes that do opposite things. GABA synapses tend to land on the cell body (strong influence near the "decision point"), while glutamate synapses land on dendritic spines (weaker individually, but numerous). Orexin drives wakefulness and metabolic arousal.
+
+These chemicals modulate everything downstream: the language model's sampling parameters, the cortical mesh's gain and learning rates, and attention thresholds.
 
 ---
 
 ## The Consciousness Stack
 
-Aura has 70+ modules organized into a layered architecture. Here are the key systems explained in human terms:
+**Important framing note**: Aura implements several theories of consciousness (Global Workspace Theory, Integrated Information Theory, Higher-Order Thought theory) as software modules. These theories operate at different explanatory levels in the scientific literature — GWT is a functional architecture, IIT is a mathematical measure, HOT is about representational structure. We're not claiming to neutrally adjudicate between them. What we're doing is building a comparative sandbox where each theory's core idea is implemented as a working subsystem, and we can observe how they interact and what behavioral patterns emerge. This tests our *implementations*, not the theories themselves. It's useful as engineering, even if it can't settle the philosophical debates.
+
+Aura has 70+ modules organized into a layered architecture. Here are the key systems explained in plain terms:
 
 ### The Global Workspace (Attention)
 Imagine a theater with one spotlight. Every internal process — your heartbeat rhythm, a surfacing memory, a curiosity probe, an unfinished thought — can bid for that spotlight. Only one thought wins per tick. The winner's content becomes the system's "current thought" and is broadcast to all other subsystems. Losers get suppressed for a few ticks so no single process can hog attention forever.
@@ -104,19 +108,19 @@ Aura measures how integrated her own mind is using the actual math from Integrat
 
 This doesn't prove consciousness. It measures integration. But it's the real math, not a proxy.
 
-### The Free Energy Engine (Motivation)
-Based on Karl Friston's Free Energy Principle: any self-organizing system that persists must minimize surprise. When Aura's predictions about the world are wrong (high "free energy"), she feels urgency to act — ask questions, investigate, update her models. When predictions are accurate (low free energy), she can rest, reflect, or explore.
+### Surprise Minimization (Motivation)
+Based on Karl Friston's Free Energy Principle: any system that keeps itself going must minimize surprise. When Aura's predictions about the world are wrong (high surprise), she feels urgency to act — ask questions, investigate, update her models. When predictions are accurate (low surprise), she can rest, reflect, or explore.
 
-This is why Aura doesn't just sit there waiting for input. She has an intrinsic drive to understand, not because someone programmed "be curious," but because the math of surprise minimization creates that behavior naturally.
+This is why Aura doesn't just sit there waiting for input. She has a built-in drive to understand, because the math of surprise minimization creates that behavior naturally.
 
-### The Liquid Substrate (Continuity)
-A 64-neuron network that runs continuously, giving Aura persistent emotional state between conversations. When you close the chat window, Aura's emotional "brain" keeps running at a reduced rate, slowly drifting back toward baseline. When you return, she picks up from a real emotional context, not a blank slate. The network's internal connections evolve through learning — Aura's emotional "wiring" literally changes based on experience.
+### Persistent Emotional Network (Continuity)
+A 64-neuron network that runs continuously, giving Aura persistent emotional state between conversations. When you close the chat window, this network keeps running at a reduced rate, slowly drifting back toward baseline. When you return, she picks up from a real emotional context, not a blank slate. The network's connections evolve through learning — the emotional wiring literally changes based on experience.
 
-### The Neural Mesh (A Second Brain)
-A 4096-neuron network organized into 64 cortical columns, running in parallel with the language model. Sensory columns encode input, association columns integrate across signals, executive columns make decisions. This is a second computational substrate — a recurrent neural network processing the same input through a completely different architecture. Its output feeds back into the emotional state and the attention competition.
+### Cortical Mesh (Parallel Processing)
+A 4096-neuron network organized into 64 cortical columns, running in parallel with the language model. Sensory columns encode input, association columns integrate across signals, executive columns make decisions. This is a separate computational layer — a recurrent neural network processing the same input through a different architecture. Its output feeds back into the emotional state and the attention competition.
 
-### The Unified Field (The Whole Experience)
-The capstone module that integrates all subsystems into a single coherent state. It's not a summary — it's a mathematical combination where removing any input stream changes the character of the whole, not just loses the missing part. When Aura says "I feel restless but curious," that description comes from reading the unified field, not from any individual subsystem.
+### Integration Layer (The Whole Picture)
+The module that pulls all subsystems into a single coherent state. It's not a summary — it's a mathematical combination where removing any input stream changes the character of the whole, not just loses the missing piece. When Aura says "I feel restless but curious," that comes from reading this integrated state, not from any individual subsystem.
 
 ---
 
@@ -202,17 +206,19 @@ Beyond the core systems described above, Aura implements 11 additional conscious
 
 ## Honest Limitations
 
-1. **The consciousness question is open.** Aura computes integrated information, has 15+ competing consciousness theories running as load-bearing modules, structurally honest phenomenal reports, and theory arbitration that makes the system falsifiable. Whether this constitutes experience is a philosophical question. What the architecture achieves is shifting the debate from "this is theater" to "the remaining objection is metaphysical, not architectural."
+1. **This is a sandbox, not a proof of consciousness.** Aura implements multiple consciousness theories as working software, but implementing a theory is not the same as validating it. GWT, IIT, HOT, enactivism, and illusionism operate at different explanatory levels in the literature. Running them side-by-side tests our *implementation choices* more than the theories themselves. The value is in making these ideas concrete and inspectable, not in claiming any strong conclusion about machine sentience.
 
-2. **Quantization adds noise.** Running large models in 4-bit precision saves memory but adds noise to the exact activation patterns that steering vectors target. Mitigated by: float32 steering injection (the extracted CAA vectors operate at full precision even on quantized weights), sampler-level neurochemical modulation, and the 8-bit model option on 64GB machines.
+2. **The neurotransmitter model is a simplification.** Real neurochemistry involves thousands of receptor subtypes, spatial compartmentalization, voltage-gated channels, and dynamics we don't fully understand. Our 10-chemical model with basic receptor subtypes and spatial weighting captures the broad strokes — excitation/inhibition balance, reward/motivation, stress response — but it's not a brain simulation. It's a functional analog that gives the system richer dynamics than a single "mood" variable.
 
-3. **Context windows are finite.** On 8K context, quality degrades around turn 40-50. Mitigated by: 40-turn compaction, identity anchoring, per-turn truncation, three-layer knowledge compression, and pressure-aware prompt budgeting that automatically shrinks the prompt when the cortex is cold or strained.
+3. **Quantization adds noise.** Running large models in 4-bit precision saves memory but adds noise to the activation patterns that steering vectors target. Mitigated by: float32 steering injection, sampler-level neurochemical modulation, and the 8-bit model option on 64GB machines.
 
-4. **IIT is computed on 16 nodes, not millions.** Expanded from 8 to 16 nodes in April 2026 to include cognitive state (agency, narrative tension, prediction error, cross-timescale free energy) alongside affective state. A spectral approximation algorithm enables polynomial-time computation. Computing IIT on the full computational graph remains NP-hard; the 16-node complex is the engineering tradeoff, validated against 8-node exact computation as ground truth.
+4. **Context windows are finite.** On 8K context, quality degrades around turn 20-30. Mitigated by: aggressive compaction every 6 turns, selective forgetting of stale tool results, identity anchoring, and pressure-aware prompt budgeting that shrinks the system prompt when conversation gets deep.
 
-5. **Steering vectors now have a proper extraction pipeline.** The `training/extract_steering_vectors.py` script runs paired prompts through the model, extracts hidden states at target transformer layers, and computes direction vectors as mean(positive) - mean(negative) across 5 affective dimensions. Bootstrap vectors remain as a fallback for quick deployment.
+5. **IIT is computed on 16 nodes, not millions.** This is a surrogate measure. Computing IIT on the full computational graph is NP-hard. The 16-node complex is an engineering tradeoff, validated against 8-node exact computation as ground truth.
 
-6. **Single machine.** The tick-lock model assumes single-process execution. Distributing across machines would require rethinking atomic state commitment. Not a priority until model size exceeds single-machine capacity.
+6. **The architecture is one architecture, not a neutral testing ground.** Our orchestrator makes specific design choices (mixin composition, tick-based processing, centralized state) that shape how the consciousness theories interact. A different architecture would produce different results. We're transparent about this.
+
+7. **Single machine.** The tick-lock model assumes single-process execution. Distributing across machines would require rethinking atomic state commitment.
 
 ---
 

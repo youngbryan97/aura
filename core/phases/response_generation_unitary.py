@@ -153,9 +153,13 @@ class UnitaryResponsePhase(Phase):
         if not is_user_facing:
             return 15.0
         if deep_handoff or model_tier == "secondary":
-            return 180.0
-        # Primary tier (72B Cortex) needs generous timeout for quality generation
-        return 150.0
+            return 120.0
+        # Primary tier — reduced from 150s to 75s.
+        # If the model hasn't generated in 75s, the response is likely stuck
+        # and the user has already waited too long. Better to fail fast and
+        # let the stabilization layer provide a voice reflex than to hold
+        # the HTTP connection for 150s+ and trigger 504 gateway timeouts.
+        return 75.0
 
     @staticmethod
     def _recent_router_history(state: AuraState, limit: int = 6) -> list[dict]:
@@ -165,8 +169,20 @@ class UnitaryResponsePhase(Phase):
                 continue
             role = str(msg.get("role", "") or "").strip().lower()
             content = str(msg.get("content", "") or "").strip()
-            if role in {"user", "assistant"} and content:
+            
+            if not content:
+                continue
+                
+            if role in {"user", "assistant"}:
                 history.append({"role": role, "content": content})
+            elif role == "system" and (
+                "[FETCHED PAGE CONTENT]" in content or 
+                "[SKILL RESULT:" in content or 
+                "[TOOL RESULT:" in content
+            ):
+                # Preserve tool evidence in recent history
+                history.append({"role": "system", "content": content})
+                
         return history
 
     @classmethod
@@ -623,9 +639,17 @@ class UnitaryResponsePhase(Phase):
     ) -> list[dict]:
         messages: list[dict] = [{"role": "system", "content": system_prompt}]
         history = self._recent_router_history(state, limit=history_limit)
+        # Filter out any history items that duplicate the current objective
+        # to avoid the model treating the objective as "already answered"
+        history = [
+            msg for msg in history
+            if not (msg.get("role") == "user" and msg.get("content") == objective)
+        ]
         messages.extend(history)
-        if not history or history[-1].get("role") != "user" or history[-1].get("content") != objective:
-            messages.append({"role": "user", "content": objective})
+        # ALWAYS append the current user message as the final message.
+        # This ensures the model attends to the actual user question,
+        # not buried context from earlier turns.
+        messages.append({"role": "user", "content": objective})
         return messages
 
     @classmethod
@@ -2018,11 +2042,43 @@ class UnitaryResponsePhase(Phase):
                 model_tier=model_tier,
                 deep_handoff=deep_handoff,
             )
-            # Hard cap system prompt to fit within context window
-            _MAX_PROMPT_CHARS = 28000
+            # Hard cap system prompt to fit within context window.
+            # The 32B local model has ~8K token context (~32K chars).
+            # Reserve at least 40% for conversation history + user message.
+            # For compact router payloads, be even more aggressive since
+            # conversation context is critical for prompt-specificity.
+            if use_compact_router_payload:
+                _MAX_PROMPT_CHARS = 6000  # ~1500 tokens — leaves ~6.5K for conversation
+            else:
+                _MAX_PROMPT_CHARS = 14000  # ~3500 tokens — leaves ~4.5K for conversation
             if len(system_prompt) > _MAX_PROMPT_CHARS:
-                half = _MAX_PROMPT_CHARS // 2
-                system_prompt = system_prompt[:half] + "\n[...trimmed...]\n" + system_prompt[-half:]
+                # Keep the identity/rules header and trim context blocks
+                system_prompt = system_prompt[:_MAX_PROMPT_CHARS].rstrip()
+                system_prompt += "\n[...context trimmed for token budget...]"
+
+            # Anti-repetition injection: if recent responses have been stale,
+            # inject an explicit instruction to avoid repeating prior patterns.
+            try:
+                from interface.routes.chat import _recent_responses, _STALE_REPEAT_THRESHOLD
+                if len(_recent_responses) >= _STALE_REPEAT_THRESHOLD:
+                    # Check if recent responses are similar to each other
+                    from interface.routes.chat import _fuzzy_similar
+                    recent_list = list(_recent_responses)
+                    if len(recent_list) >= 2 and _fuzzy_similar(recent_list[-1], recent_list[-2]):
+                        anti_repeat = (
+                            "\n\nCRITICAL: Your recent responses have been repetitive. "
+                            "You MUST answer the user's SPECIFIC question directly. "
+                            "Do NOT describe your architecture, conversational lane, or runtime. "
+                            "Read the user's actual message and respond to THAT, not to your system prompt."
+                        )
+                        # Prepend to system prompt so the model sees it first
+                        system_prompt = anti_repeat + "\n\n" + system_prompt
+                        # Re-trim if needed
+                        if len(system_prompt) > _MAX_PROMPT_CHARS + 400:
+                            system_prompt = system_prompt[:_MAX_PROMPT_CHARS + 400]
+                        logger.warning("🚨 Anti-repetition instruction injected into system prompt.")
+            except Exception:
+                pass  # anti-repetition is best-effort
 
             llm_kwargs = {
                 "messages": messages,

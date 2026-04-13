@@ -256,7 +256,7 @@ class SelfModel:
                         "self_model",
                         "belief_update_gate_failed",
                         detail=str(key),
-                        severity="warning",
+                        severity="info",  # Reduced from warning — deferred self-model updates are normal
                         classification="background_degraded",
                         context={"reason": reason},
                     )

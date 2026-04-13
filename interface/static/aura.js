@@ -2325,7 +2325,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
                 lastTypeTime = timestamp;
 
                 const badgeHtml = (metadata.reflex ? `<span class="aura-badge reflex">Reflex</span>` : (metadata.autonomic ? `<span class="aura-badge autonomic">Autonomic</span>` : ''));
-                div.innerHTML = `<div class="aura-avatar"></div>` + badgeHtml + render(currentWordRaw) + thoughtHtml + `<span class="msg-timestamp">${tsStr}</span>`;
+                div.innerHTML = `<div class="aura-avatar"></div>` + badgeHtml + `<div class="msg-content">` + render(currentWordRaw) + thoughtHtml + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
                 if (!state.userScrolledUp) messages.scrollTop = messages.scrollHeight;
             }
 
@@ -2338,9 +2338,9 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
         requestAnimationFrame(typeChunk);
     } else {
         if (isAura) {
-            div.innerHTML = `<div class="aura-avatar"></div>` + (div.innerHTML || '') + render(text) + thoughtHtml + `<span class="msg-timestamp">${tsStr}</span>`;
+            div.innerHTML = `<div class="aura-avatar"></div>` + (div.innerHTML || '') + `<div class="msg-content">` + render(text) + thoughtHtml + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
         } else {
-            div.innerHTML += render(text) + `<span class="msg-timestamp">${tsStr}</span>`;
+            div.innerHTML += `<div class="msg-content">` + render(text) + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
         }
         div.classList.remove('typing');
         if (!state.userScrolledUp) messages.scrollTop = messages.scrollHeight;
@@ -2370,8 +2370,19 @@ function appendStreamChunk(chunk) {
     if (!activeStreamDiv) return;
     activeStreamContentRaw += chunk;
     
+    let renderText = activeStreamContentRaw;
+    
+    // 1. Auto-close unclosed markdown blocks to prevent UI thrash during streaming
+    const codeBlockCount = (renderText.match(/```/g) || []).length;
+    if (codeBlockCount % 2 !== 0) {
+        renderText += '\n```\n';
+    }
+    
     // Render streaming content with markdown support
-    let h = escHtml(activeStreamContentRaw);
+    let h = escHtml(renderText);
+    
+    // 2. Handle max_tokens hook seamlessly
+    h = h.replace(/\[MAX_TOKENS_REACHED\]/g, '<button class="regenerate-btn" style="display:block;margin-top:10px" onclick="sendMessage(\'Please continue exactly where you left off.\')">Continue Generating</button>');
     // Code blocks with copy button
     h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
         const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
@@ -3985,6 +3996,10 @@ $('shortcuts-overlay')?.addEventListener('click', (e) => {
 // ══════════════════════════════════════════════════════════
 function regenerateResponse() {
     if (!state.lastUserMessage || state.isSubmitting) return;
+
+    // Hide regen button after firing — will re-show on next user send
+    const regenBtn = $('regen-btn');
+    if (regenBtn) regenBtn.style.display = 'none';
 
     // Remove the last aura message from the DOM
     const messages = $('messages');

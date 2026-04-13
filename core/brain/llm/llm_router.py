@@ -675,13 +675,18 @@ class IntelligentLLMRouter:
                     return text
                 return "I don't have grounded results yet, so I shouldn't guess."
 
-        # 0. Check Cache (key includes system prompt to avoid collisions)
+        # 0. Check Cache — DISABLED for user-facing turns.
+        # Caching conversational responses caused the "stale response loop" bug
+        # where different user messages received identical cached replies because
+        # prepare_runtime_payload can coerce prompts into similar forms.
+        # Only cache background/internal requests where staleness is acceptable.
         cache_key = hashlib.md5(f"{prompt}_{kwargs.get('system_prompt', '')}".encode()).hexdigest()
-        cached_val = self.cache.get(cache_key)
-        if cached_val is not None:
-            self.stats["cache_hits"] += 1
-            logger.info("🧠 Brain Cache HIT.")
-            return cached_val
+        if is_background:
+            cached_val = self.cache.get(cache_key)
+            if cached_val is not None:
+                self.stats["cache_hits"] += 1
+                logger.info("🧠 Brain Cache HIT (background).")
+                return cached_val
 
         self.stats["total_calls"] += 1
 
@@ -831,7 +836,8 @@ class IntelligentLLMRouter:
                     self.health_monitor.record_success(endpoint_name)
                     self.stats["calls_by_tier"][endpoint.tier.value] += 1
                     self.stats["calls_by_endpoint"][endpoint_name] += 1
-                    self.cache.set(cache_key, final_text_str)
+                    if is_background:
+                        self.cache.set(cache_key, final_text_str)
                     self.last_tier = endpoint.tier.value
                     if not is_background:
                         self.last_user_tier = endpoint.tier.value

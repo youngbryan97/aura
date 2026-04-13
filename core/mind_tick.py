@@ -29,10 +29,10 @@ class CognitiveMode(Enum):
     CRITICAL = "critical"
 
 TICK_INTERVALS = {
-    CognitiveMode.CONVERSATIONAL: 0.5,
-    CognitiveMode.REFLECTIVE: 2.0,
+    CognitiveMode.CONVERSATIONAL: 2.0,  # Raised from 0.5s — 0.5s caused event loop blocking
+    CognitiveMode.REFLECTIVE: 4.0,      # Raised from 2.0s
     CognitiveMode.SLEEP: 10.0,
-    CognitiveMode.CRITICAL: 0.1,
+    CognitiveMode.CRITICAL: 0.5,        # Raised from 0.1s
 }
 
 PhaseCallable = Callable[[AuraState], Awaitable[AuraState]]
@@ -819,11 +819,20 @@ class MindTick:
                     pass  # Non-critical; never let this block the loop
                 
                 # Wait for the next tick based on mode.
-                # Floor at 0.5s to prevent CPU saturation when tick work
-                # approaches the interval — the event loop needs breathing room.
-                interval = sleep_time_override or TICK_INTERVALS.get(self.mode, 1.0)
+                # Adaptive pacing: if the last tick was slow (> 5s), back off
+                # proportionally to give the event loop breathing room and
+                # prevent the "mean tick too slow" stability guardian alert.
+                interval = sleep_time_override or TICK_INTERVALS.get(self.mode, 2.0)
                 elapsed = asyncio.get_running_loop().time() - start_time
-                sleep_time = max(0.5, interval - elapsed)
+                if elapsed > 5.0:
+                    # Tick was slow — add proportional backoff
+                    interval = max(interval, elapsed * 0.5)
+                    if self._tick_count % 10 == 0:
+                        logger.debug(
+                            "MindTick: adaptive backoff — last tick %.1fs, sleeping %.1fs.",
+                            elapsed, interval,
+                        )
+                sleep_time = max(1.0, interval - elapsed)
                 await asyncio.sleep(sleep_time)
 
     def _get_actual_from_state(self, state: AuraState) -> Optional[str]:
