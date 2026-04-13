@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime
 import re
 from typing import Any, Dict
 
@@ -41,6 +42,56 @@ _FACTUAL_LOOKUP_PATTERNS = (
     r"\bcreepypasta\b",
     r"\bdid you search\b",
     r"\bsearched? for\b",
+)
+
+_TEMPORAL_CURRENTNESS_PATTERNS = (
+    r"\blatest\b",
+    r"\bmost recent\b",
+    r"\bcurrent\b",
+    r"\bcurrently\b",
+    r"\brecent\b",
+    r"\brecently\b",
+    r"\bup[- ]to[- ]date\b",
+    r"\bas of\b",
+    r"\bright now\b",
+    r"\btoday\b",
+    r"\byesterday\b",
+    r"\btomorrow\b",
+    r"\bthis week\b",
+    r"\bthis month\b",
+    r"\bthis year\b",
+)
+
+_LIVE_FACT_PATTERNS = (
+    r"\bnews\b",
+    r"\bheadline\b",
+    r"\bprice\b",
+    r"\bstock\b",
+    r"\bscore\b",
+    r"\bschedule\b",
+    r"\bversion\b",
+    r"\brelease\b",
+    r"\bapi\b",
+    r"\bdocs?\b",
+    r"\bdocumentation\b",
+    r"\bmodel\b",
+    r"\bceo\b",
+    r"\bpresident\b",
+    r"\belection\b",
+    r"\blaw\b",
+    r"\bpolicy\b",
+    r"\brule\b",
+    r"\bregulation\b",
+    r"\bavailability\b",
+)
+
+_TIME_UTILITY_PATTERNS = (
+    r"\bwhat time\b",
+    r"\bcurrent time\b",
+    r"\bdate\b",
+    r"\bday is it\b",
+    r"\btimezone\b",
+    r"\bclock\b",
 )
 
 _GROUNDED_FOLLOWUP_SUMMARY_PATTERNS = (
@@ -181,6 +232,7 @@ class ResponseContract:
     is_user_facing: bool = False
     requires_search: bool = False
     required_skill: str | None = None
+    requires_exact_dates: bool = False
     requires_memory_grounding: bool = False
     requires_state_reflection: bool = False
     avoid_question_fishing: bool = True
@@ -192,6 +244,8 @@ class ResponseContract:
     tool_evidence_available: bool = False
     memory_evidence_available: bool = False
     continuity_evidence_available: bool = False
+    max_tool_turns: int = 1
+    max_tools: int = 4
     reason: str = ""
     search_query: str = ""
 
@@ -215,6 +269,11 @@ class ResponseContract:
         reasons = self.reason or "state-derived dialogue contract"
         directives.append(f"## RESPONSE CONTRACT\n- Reason: {reasons}")
 
+        if self.requires_search or self.requires_exact_dates:
+            now = datetime.now().astimezone()
+            directives.append(f"- Current local date: {now.strftime('%A, %B %d, %Y')}.")
+            directives.append(f"- Current local time: {now.strftime('%I:%M %p %Z')}.")
+
         if self.is_user_facing:
             directives.append(
                 "- This is a user-facing Aura reply. Never default to generic assistant or customer-support language."
@@ -233,6 +292,11 @@ class ResponseContract:
             )
             if self.search_query:
                 directives.append(f"- Preferred search target: {self.search_query[:240]}")
+
+        if self.requires_exact_dates:
+            directives.append(
+                "- If the user says today, tomorrow, yesterday, latest, current, or recent, anchor the answer with exact dates."
+            )
 
         if self.requires_memory_grounding:
             directives.append(
@@ -281,6 +345,13 @@ class ResponseContract:
                 "- A declarative continuation is valid. You can make a statement, offer an interpretation, disagree, "
                 "or advance the idea without handing the turn back immediately."
             )
+
+        directives.append(
+            f"- Tool/function-call budget for this reply: at most {max(1, int(self.max_tool_turns or 1))} tool turns."
+        )
+        directives.append(
+            f"- Keep the active tool catalog narrow: prefer {max(1, int(self.max_tools or 1))} relevant tools or fewer."
+        )
 
         if self.avoid_question_fishing:
             directives.append(
@@ -416,6 +487,8 @@ def build_response_contract(
     *,
     is_user_facing: bool,
 ) -> ResponseContract:
+    from core.runtime.turn_analysis import analyze_turn
+
     text = str(objective or "").strip()
     lower = text.lower()
 
@@ -423,16 +496,10 @@ def build_response_contract(
     factual_lookup = _matches_any(lower, _FACTUAL_LOOKUP_PATTERNS)
     specific_reference = _matches_any(text, _REFERENCE_MARKERS)
     factual_followup = _looks_like_grounded_followup(state, text)
-    # Negation guard: "I didn't mean for you to search" should NOT trigger search.
-    if _SEARCH_NEGATION_RE.search(lower):
-        explicit_search = False
-        factual_lookup = False
-        factual_followup = False
-    # URL presence always forces search — user expects content to be fetched
-    has_url = bool(re.search(r'https?://[^\s]+', text))
-    requires_search = bool(
-        is_user_facing and (explicit_search or has_url or (factual_lookup and specific_reference) or factual_followup)
-    )
+    temporal_currentness = _matches_any(lower, _TEMPORAL_CURRENTNESS_PATTERNS)
+    live_fact_lookup = _matches_any(lower, _LIVE_FACT_PATTERNS)
+    time_utility_lookup = _matches_any(lower, _TIME_UTILITY_PATTERNS)
+    search_negated = bool(_SEARCH_NEGATION_RE.search(lower))
 
     requires_memory = bool(is_user_facing and _matches_any(lower, _MEMORY_PATTERNS))
     requires_state = bool(is_user_facing and _matches_any(lower, _STATE_REFLECTION_PATTERNS))
@@ -440,20 +507,74 @@ def build_response_contract(
     requires_identity_defense = bool(is_user_facing and _matches_any(lower, _IDENTITY_DEFENSE_PATTERNS))
     requires_memory = requires_memory or requires_identity_defense
     requires_state = requires_state or requires_self_preservation or requires_identity_defense
+
+    temporal_live_lookup = bool(
+        is_user_facing
+        and temporal_currentness
+        and live_fact_lookup
+        and not any(
+            (
+                requires_memory,
+                requires_state,
+                requires_self_preservation,
+                requires_identity_defense,
+                time_utility_lookup,
+            )
+        )
+    )
+    # Negation guard: "I didn't mean for you to search" should NOT trigger search.
+    if search_negated:
+        explicit_search = False
+        factual_lookup = False
+        factual_followup = False
+        temporal_live_lookup = False
+    # URL presence always forces search — user expects content to be fetched
+    has_url = bool(re.search(r'https?://[^\s]+', text))
+    requires_search = bool(
+        is_user_facing
+        and (
+            explicit_search
+            or has_url
+            or (factual_lookup and specific_reference)
+            or factual_followup
+            or temporal_live_lookup
+        )
+    )
+    requires_exact_dates = bool(
+        is_user_facing
+        and temporal_currentness
+        and not any((requires_memory, requires_state, requires_self_preservation, requires_identity_defense))
+    )
     requires_aura_stance = bool(
         is_user_facing and (
             requires_state or requires_self_preservation or requires_identity_defense or _matches_any(lower, _AURA_PERSPECTIVE_PATTERNS)
         )
     )
+    requires_exact_dates = bool(requires_exact_dates and not requires_aura_stance)
     requires_aura_question = bool(is_user_facing and _matches_any(lower, _AURA_QUESTION_INVITATION_PATTERNS))
 
     tool_evidence = has_tool_evidence(state)
     memory_evidence = has_memory_evidence(state)
     continuity_evidence = has_continuity_evidence(state)
+    turn_analysis = analyze_turn(text)
+
+    max_tool_turns = 1
+    max_tools = 4
+    if turn_analysis.suggests_deliberate_mode or turn_analysis.intent_type in {"TASK", "SKILL"}:
+        max_tool_turns = 4 if requires_search else 3
+        max_tools = 8 if requires_search else 6
+    elif requires_search:
+        max_tool_turns = 3
+        max_tools = 4
+    elif requires_memory or requires_state or requires_aura_stance:
+        max_tool_turns = 1
+        max_tools = 3
 
     reasons = []
     if explicit_search:
         reasons.append("explicit_search_request")
+    elif temporal_live_lookup:
+        reasons.append("temporal_live_lookup")
     elif factual_followup:
         reasons.append("grounded_followup")
     elif requires_search:
@@ -475,6 +596,7 @@ def build_response_contract(
         is_user_facing=is_user_facing,
         requires_search=requires_search,
         required_skill="web_search" if requires_search else None,
+        requires_exact_dates=requires_exact_dates,
         requires_memory_grounding=requires_memory,
         requires_state_reflection=requires_state,
         avoid_question_fishing=is_user_facing,
@@ -486,6 +608,8 @@ def build_response_contract(
         tool_evidence_available=tool_evidence,
         memory_evidence_available=memory_evidence,
         continuity_evidence_available=continuity_evidence,
+        max_tool_turns=max_tool_turns,
+        max_tools=max_tools,
         reason=", ".join(reasons) if reasons else "ordinary_dialogue",
         search_query=text if requires_search else "",
     )

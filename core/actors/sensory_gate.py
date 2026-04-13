@@ -75,7 +75,12 @@ class SensoryGateActor:
         logger.info("🌐 [%s] Browsing: %s", trace_id[:8], url)
         try:
             result = await self.browser.browse(url)
-            return {"url": url, "content": result}
+            return {
+                "url": url,
+                "content": result,
+                "observation_only": True,
+                "requires_governance_for_effects": True,
+            }
         except Exception as e:
             logger.error("❌ [%s] Browse failed: %s", trace_id[:8], e)
             return {"error": str(e)}
@@ -110,9 +115,21 @@ class SensoryGateActor:
                 for i in range(len(titles)):
                     results.append(f"{titles[i]}: {snippets[i]} ({urls[i]})")
 
-                return {"query": query, "source": "wikipedia", "results": results}
+                return {
+                    "query": query,
+                    "source": "wikipedia",
+                    "results": results,
+                    "observation_only": True,
+                    "requires_governance_for_effects": True,
+                }
             else:
-                return {"query": query, "source": "wikipedia", "results": []}
+                return {
+                    "query": query,
+                    "source": "wikipedia",
+                    "results": [],
+                    "observation_only": True,
+                    "requires_governance_for_effects": True,
+                }
 
         except Exception as e:
             logger.error("❌ [%s] Wikipedia search failed: %s", trace_id[:8], e)

@@ -280,24 +280,30 @@ class EpisodicMemory:
         *,
         source: str = "episodic_memory",
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> bool:
+        return_decision: bool = False,
+    ) -> bool | tuple[bool, Any]:
         preview = f"{context} | {action} | {outcome}".strip()[:240]
         try:
-            from core.constitution import get_constitutional_core
+            from core.constitution import get_constitutional_core, unpack_governance_result
 
-            approved, reason = get_constitutional_core().approve_memory_write_sync(
-                "episodic_episode",
-                preview,
-                source=source or "episodic_memory",
-                importance=max(0.0, min(1.0, float(importance or 0.0))),
-                metadata={
-                    "context": str(context or "")[:120],
-                    "action": str(action or "")[:120],
-                    **dict(metadata or {}),
-                },
+            approved, reason, decision = unpack_governance_result(
+                get_constitutional_core().approve_memory_write_sync(
+                    "episodic_episode",
+                    preview,
+                    source=source or "episodic_memory",
+                    importance=max(0.0, min(1.0, float(importance or 0.0))),
+                    metadata={
+                        "context": str(context or "")[:120],
+                        "action": str(action or "")[:120],
+                        **dict(metadata or {}),
+                    },
+                    return_decision=True,
+                )
             )
             if not approved:
                 logger.info("EpisodicMemory: deferring episode write: %s", reason)
+            if return_decision:
+                return approved, decision
             return approved
         except Exception as exc:
             if self._constitutional_runtime_live():
@@ -310,8 +316,12 @@ class EpisodicMemory:
                     context={"error": type(exc).__name__},
                     exc=exc,
                 )
+                if return_decision:
+                    return False, None
                 return False
             logger.debug("EpisodicMemory constitutional gate unavailable: %s", exc)
+            if return_decision:
+                return True, None
             return True
 
     # ---- Core API -----------------------------------------------------------
@@ -336,14 +346,16 @@ class EpisodicMemory:
         import uuid
         if not context and not action and not outcome:
             return ""
-        if not self._approve_memory_write(
+        approved, governance_decision = self._approve_memory_write(
             context,
             action,
             outcome,
             importance,
             source=source,
             metadata=metadata,
-        ):
+            return_decision=True,
+        )
+        if not approved:
             return ""
         episode_id = str(uuid.uuid4())[:12]
 
@@ -383,54 +395,103 @@ class EpisodicMemory:
         tools = tools_used or []
         lesson_list = lessons or []
 
-        with self._lock:
-            # Retry-on-locked: handle concurrent writes from metabolic background tasks
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    with self._get_conn() as conn:
-                        conn.execute(
-                            """INSERT INTO episodes
-                               (episode_id, timestamp, context, action, outcome, success,
-                                emotional_valence, arousal, importance, participants, 
-                                tools_used, lessons, tags, linked_semantic_ids, decay_rate, qualia_snapshot, next_decay_eval)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                            (
-                                episode_id, now, context, action, outcome,
-                                int(success), emotional_valence, 0.5, importance,
-                                json.dumps(["user", "aura"]),
-                                json.dumps(tools), json.dumps(lesson_list), 
-                                json.dumps([]), json.dumps([]), 0.01,
-                                json.dumps(qualia_snapshot, cls=_SafeEncoder),
-                                now + 21600, # First evaluation in 6 hours
-                            ),
+        if governance_decision is not None:
+            from core.governance_context import governed_scope_sync
+
+            with governed_scope_sync(governance_decision):
+                with self._lock:
+                    # Retry-on-locked: handle concurrent writes from metabolic background tasks
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            with self._get_conn() as conn:
+                                conn.execute(
+                                    """INSERT INTO episodes
+                                       (episode_id, timestamp, context, action, outcome, success,
+                                        emotional_valence, arousal, importance, participants, 
+                                        tools_used, lessons, tags, linked_semantic_ids, decay_rate, qualia_snapshot, next_decay_eval)
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                    (
+                                        episode_id, now, context, action, outcome,
+                                        int(success), emotional_valence, 0.5, importance,
+                                        json.dumps(["user", "aura"]),
+                                        json.dumps(tools), json.dumps(lesson_list), 
+                                        json.dumps([]), json.dumps([]), 0.01,
+                                        json.dumps(qualia_snapshot, cls=_SafeEncoder),
+                                        now + 21600, # First evaluation in 6 hours
+                                    ),
+                                )
+                            break  # Success
+                        except sqlite3.OperationalError as e:
+                            if "locked" in str(e) and attempt < max_retries - 1:
+                                logger.debug("Episode write locked (attempt %d/%d), retrying...", attempt + 1, max_retries)
+                                time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
+                            else:
+                                raise
+
+                    # Also index in vector memory for semantic retrieval
+                    if self._vector_memory:
+                        try:
+                            text = f"{context} | {action} | {outcome}"
+                            self._vector_memory.add_memory(
+                                text,
+                                metadata={
+                                    "type": "episode",
+                                    "episode_id": episode_id,
+                                    "success": success,
+                                    "importance": importance,
+                                    "qualia_norm": qualia_snapshot.get("q_norm", 0.0),
+                                },
+                            )
+                        except Exception as e:
+                            logger.warning("Failed to index episode in vector memory: %s", e)
+
+                    self._maybe_prune()
+        else:
+            with self._lock:
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        with self._get_conn() as conn:
+                            conn.execute(
+                                """INSERT INTO episodes
+                                   (episode_id, timestamp, context, action, outcome, success,
+                                    emotional_valence, arousal, importance, participants, 
+                                    tools_used, lessons, tags, linked_semantic_ids, decay_rate, qualia_snapshot, next_decay_eval)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                (
+                                    episode_id, now, context, action, outcome,
+                                    int(success), emotional_valence, 0.5, importance,
+                                    json.dumps(["user", "aura"]),
+                                    json.dumps(tools), json.dumps(lesson_list), 
+                                    json.dumps([]), json.dumps([]), 0.01,
+                                    json.dumps(qualia_snapshot, cls=_SafeEncoder),
+                                    now + 21600,
+                                ),
+                            )
+                        break
+                    except sqlite3.OperationalError as e:
+                        if "locked" in str(e) and attempt < max_retries - 1:
+                            logger.debug("Episode write locked (attempt %d/%d), retrying...", attempt + 1, max_retries)
+                            time.sleep(0.5 * (2 ** attempt))
+                        else:
+                            raise
+                if self._vector_memory:
+                    try:
+                        text = f"{context} | {action} | {outcome}"
+                        self._vector_memory.add_memory(
+                            text,
+                            metadata={
+                                "type": "episode",
+                                "episode_id": episode_id,
+                                "success": success,
+                                "importance": importance,
+                                "qualia_norm": qualia_snapshot.get("q_norm", 0.0),
+                            },
                         )
-                    break  # Success
-                except sqlite3.OperationalError as e:
-                    if "locked" in str(e) and attempt < max_retries - 1:
-                        logger.debug("Episode write locked (attempt %d/%d), retrying...", attempt + 1, max_retries)
-                        time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
-                    else:
-                        raise
-
-            # Also index in vector memory for semantic retrieval
-            if self._vector_memory:
-                try:
-                    text = f"{context} | {action} | {outcome}"
-                    self._vector_memory.add_memory(
-                        text,
-                        metadata={
-                            "type": "episode",
-                            "episode_id": episode_id,
-                            "success": success,
-                            "importance": importance,
-                            "qualia_norm": qualia_snapshot.get("q_norm", 0.0),
-                        },
-                    )
-                except Exception as e:
-                    logger.warning("Failed to index episode in vector memory: %s", e)
-
-            self._maybe_prune()
+                    except Exception as e:
+                        logger.warning("Failed to index episode in vector memory: %s", e)
+                self._maybe_prune()
 
         logger.info("📝 Episode recorded: %s (success=%s, importance=%.2f, q=%.2f)",
                     episode_id, success, importance, qualia_snapshot.get("q_norm", 0.0))

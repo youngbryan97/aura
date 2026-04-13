@@ -17,6 +17,8 @@ logger = logging.getLogger("Aura.ContextManager")
 
 # Model context limits (conservative — leave 20% headroom)
 MODEL_CONTEXT_LIMITS = {
+    "grok-1":                     8_192,
+    "grok-2":                   131_072,
     "grok-3":                   100_000,
     "grok-3-mini":               32_000,
     "claude-opus-4":            180_000,

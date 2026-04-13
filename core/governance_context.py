@@ -77,6 +77,79 @@ class GovernanceViolation(RuntimeError):
     pass
 
 
+def governance_runtime_active() -> bool:
+    """Return True when the runtime should enforce hard governance."""
+    try:
+        from core.container import ServiceContainer
+
+        return (
+            ServiceContainer.has("executive_core")
+            or ServiceContainer.has("aura_kernel")
+            or ServiceContainer.has("kernel_interface")
+            or bool(getattr(ServiceContainer, "_registration_locked", False))
+        )
+    except Exception:
+        return False
+
+
+def normalize_governance_domain(value: Any) -> str:
+    """Normalize Will/constitutional/effect domains into one runtime vocabulary."""
+    if hasattr(value, "value"):
+        value = getattr(value, "value")
+    text = str(value or "").strip().lower()
+    if not text:
+        return "unknown"
+    aliases = {
+        "tool": "tool_execution",
+        "memory_mutation": "memory_write",
+        "belief_mutation": "memory_write",
+        "state_mutation": "state_mutation",
+        "expression": "expression",
+        "response": "response",
+        "initiative": "initiative",
+        "continuity": "state_mutation",
+    }
+    return aliases.get(text, text)
+
+
+def _decision_constraints(decision: Any) -> dict[str, Any]:
+    raw = getattr(decision, "constraints", {})
+    if isinstance(raw, dict):
+        return dict(raw or {})
+    return {}
+
+
+def _extract_receipt_id(decision: Any) -> str:
+    direct = (
+        getattr(decision, "receipt_id", "")
+        or getattr(decision, "will_receipt_id", "")
+        or getattr(decision, "authority_receipt_id", "")
+    )
+    if direct:
+        return str(direct)
+    constraints = _decision_constraints(decision)
+    for key in ("will_receipt_id", "receipt_id", "authority_receipt_id"):
+        value = constraints.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
+def _extract_domain(decision: Any) -> str:
+    constraints = _decision_constraints(decision)
+    raw_domain = (
+        getattr(decision, "domain", None)
+        or getattr(decision, "kind", None)
+        or constraints.get("governance_domain")
+        or constraints.get("domain")
+    )
+    return normalize_governance_domain(raw_domain)
+
+
+def _extract_source(decision: Any) -> str:
+    return str(getattr(decision, "source", "unknown") or "unknown")
+
+
 # ---------------------------------------------------------------------------
 # Context managers
 # ---------------------------------------------------------------------------
@@ -91,10 +164,10 @@ async def governed_scope(decision: Any):
             await do_governed_work()
     """
     token = GovernanceToken(
-        receipt_id=getattr(decision, "receipt_id", ""),
-        domain=getattr(decision, "domain", "unknown"),
-        source=getattr(decision, "source", "unknown"),
-        constraints=getattr(decision, "constraints", []),
+        receipt_id=_extract_receipt_id(decision) or ("degraded_mode" if not governance_runtime_active() else ""),
+        domain=_extract_domain(decision),
+        source=_extract_source(decision),
+        constraints=list(_decision_constraints(decision).items()),
     )
     reset_token = _active_receipt.set(token)
     try:
@@ -107,10 +180,10 @@ async def governed_scope(decision: Any):
 def governed_scope_sync(decision: Any):
     """Synchronous version of governed_scope."""
     token = GovernanceToken(
-        receipt_id=getattr(decision, "receipt_id", ""),
-        domain=getattr(decision, "domain", "unknown"),
-        source=getattr(decision, "source", "unknown"),
-        constraints=getattr(decision, "constraints", []),
+        receipt_id=_extract_receipt_id(decision) or ("degraded_mode" if not governance_runtime_active() else ""),
+        domain=_extract_domain(decision),
+        source=_extract_source(decision),
+        constraints=list(_decision_constraints(decision).items()),
     )
     reset_token = _active_receipt.set(token)
     try:
@@ -136,7 +209,12 @@ def is_governed() -> bool:
     return get_active_governance() is not None
 
 
-def require_governance(operation: str = "unknown") -> GovernanceToken:
+def require_governance(
+    operation: str = "unknown",
+    *,
+    strict: bool = False,
+    allowed_domains: Optional[list[str] | tuple[str, ...] | set[str]] = None,
+) -> GovernanceToken:
     """Assert that current execution is governed. Raises GovernanceViolation if not.
 
     Use this at the top of any critical function (memory write, tool exec, etc.)
@@ -146,27 +224,40 @@ def require_governance(operation: str = "unknown") -> GovernanceToken:
     """
     token = get_active_governance()
     if token is not None:
+        if allowed_domains:
+            normalized_allowed = {
+                normalize_governance_domain(domain)
+                for domain in allowed_domains
+                if domain is not None
+            }
+            if normalized_allowed and token.domain not in normalized_allowed and token.domain != "degraded":
+                logger.warning(
+                    "GOVERNANCE DOMAIN VIOLATION: '%s' expected %s but got %s",
+                    operation,
+                    sorted(normalized_allowed),
+                    token.domain,
+                )
+                _record_violation(f"{operation}:domain:{token.domain}")
+                if strict:
+                    raise GovernanceViolation(
+                        f"{operation} requires governance domain {sorted(normalized_allowed)} "
+                        f"but active token domain is {token.domain}"
+                    )
         return token
 
     # Check if we're in degraded mode (early boot, shutdown, testing)
-    try:
-        from core.container import ServiceContainer
-        will = ServiceContainer.get("unified_will", default=None)
-        if will is None:
-            # Will not booted yet — degraded mode, allow with warning
-            logger.debug("Governance check '%s' during degraded mode (Will not booted)", operation)
-            return GovernanceToken(receipt_id="degraded_mode", domain="degraded",
-                                   source="boot", ttl=300)
-    except Exception:
-        pass
+    if not governance_runtime_active():
+        logger.debug("Governance check '%s' during degraded mode", operation)
+        return GovernanceToken(receipt_id="degraded_mode", domain="degraded", source="boot", ttl=300)
 
     # Log the violation — in production this would be a hard error
     logger.warning("GOVERNANCE VIOLATION: '%s' called outside governed context", operation)
 
     # Return a violation token that tracks the bypass
     _record_violation(operation)
-    return GovernanceToken(receipt_id="VIOLATION", domain="ungoverned",
-                           source=operation, ttl=1)
+    if strict:
+        raise GovernanceViolation(f"{operation} called outside governed context")
+    return GovernanceToken(receipt_id="VIOLATION", domain="ungoverned", source=operation, ttl=1)
 
 
 def governed(fn: Callable) -> Callable:

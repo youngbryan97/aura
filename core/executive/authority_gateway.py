@@ -31,6 +31,9 @@ class AuthorityDecision:
     executive_intent_id: Optional[str] = None
     capability_token_id: Optional[str] = None
     substrate_receipt_id: Optional[str] = None
+    will_receipt_id: Optional[str] = None
+    domain: Optional[str] = None
+    source: Optional[str] = None
     failure_pressure: float = 0.0
     canonical_self_version: Optional[int] = None
 
@@ -56,7 +59,7 @@ class AuthorityGateway:
         domain_str: str,
         priority: float,
         is_critical: bool = False,
-    ) -> Optional["AuthorityDecision"]:
+    ) -> tuple[Optional["AuthorityDecision"], Optional[Any]]:
         """Route through UnifiedWill first.  Returns a blocking AuthorityDecision
         if the Will refuses, or None if the Will approves (let domain checks proceed).
         """
@@ -81,15 +84,21 @@ class AuthorityGateway:
                 is_critical=is_critical,
             )
             if not decision.is_approved():
-                return AuthorityDecision(
-                    approved=False,
-                    outcome=f"will_{decision.outcome.value}",
-                    reason=decision.reason,
+                return (
+                    AuthorityDecision(
+                        approved=False,
+                        outcome=f"will_{decision.outcome.value}",
+                        reason=decision.reason,
+                        will_receipt_id=decision.receipt_id,
+                        domain=domain.value,
+                        source=source,
+                    ),
+                    decision,
                 )
         except Exception as exc:
             # Will unavailable — degrade gracefully, let domain checks decide
             logger.debug("UnifiedWill gate unavailable: %s", exc)
-        return None  # Will approved or unavailable — proceed with domain checks
+        return None, locals().get("decision")
 
     async def authorize_tool_execution(
         self,
@@ -101,7 +110,7 @@ class AuthorityGateway:
         is_critical: bool = False,
     ) -> AuthorityDecision:
         # ── Unified Will gate (canonical decision authority) ──
-        will_block = self._will_gate(
+        will_block, will_decision = self._will_gate(
             f"tool:{tool_name}", source, "tool_execution", priority, is_critical
         )
         if will_block is not None:
@@ -114,6 +123,8 @@ class AuthorityGateway:
             priority=priority,
             is_critical=is_critical,
             require_substrate=False,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="tool_execution",
         )
         if blocked is not None:
             return blocked
@@ -125,6 +136,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="tool_execution",
+            source=source,
         )
         if decision.approved:
             token = self._capabilities.generate_token(
@@ -149,7 +163,7 @@ class AuthorityGateway:
         *,
         priority: float = 0.5,
     ) -> AuthorityDecision:
-        will_block = self._will_gate(f"state_mutation:{cause}", origin, "state_mutation", priority)
+        will_block, will_decision = self._will_gate(f"state_mutation:{cause}", origin, "state_mutation", priority)
         if will_block is not None:
             return will_block
 
@@ -159,6 +173,8 @@ class AuthorityGateway:
             category=ActionCategory.STATE_MUTATION,
             priority=priority,
             require_substrate=False,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="state_mutation",
         )
         if blocked is not None:
             return blocked
@@ -176,6 +192,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="state_mutation",
+            source=origin or "system",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -188,7 +207,7 @@ class AuthorityGateway:
         *,
         priority: float = 0.5,
     ) -> AuthorityDecision:
-        will_block = self._will_gate(f"state_mutation:{cause}", origin, "state_mutation", priority)
+        will_block, will_decision = self._will_gate(f"state_mutation:{cause}", origin, "state_mutation", priority)
         if will_block is not None:
             return will_block
 
@@ -198,6 +217,8 @@ class AuthorityGateway:
             category=ActionCategory.STATE_MUTATION,
             priority=priority,
             require_substrate=False,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="state_mutation",
         )
         if blocked is not None:
             return blocked
@@ -215,6 +236,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="state_mutation",
+            source=origin or "system",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -229,7 +253,7 @@ class AuthorityGateway:
         importance: float = 0.5,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> AuthorityDecision:
-        will_block = self._will_gate(
+        will_block, will_decision = self._will_gate(
             f"memory:{memory_type}:{str(content)[:80]}", source, "memory_write", importance
         )
         if will_block is not None:
@@ -241,6 +265,8 @@ class AuthorityGateway:
             category=ActionCategory.MEMORY_WRITE,
             priority=max(0.0, min(1.0, float(importance or 0.0))),
             require_substrate=False,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="memory_write",
         )
         if blocked is not None:
             return blocked
@@ -264,6 +290,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="memory_write",
+            source=source or "system",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -278,7 +307,7 @@ class AuthorityGateway:
         importance: float = 0.5,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> AuthorityDecision:
-        will_block = self._will_gate(
+        will_block, will_decision = self._will_gate(
             f"memory:{memory_type}:{str(content)[:80]}", source, "memory_write", importance
         )
         if will_block is not None:
@@ -290,6 +319,8 @@ class AuthorityGateway:
             category=ActionCategory.MEMORY_WRITE,
             priority=max(0.0, min(1.0, float(importance or 0.0))),
             require_substrate=False,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="memory_write",
         )
         if blocked is not None:
             return blocked
@@ -313,6 +344,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="memory_write",
+            source=source or "system",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -328,7 +362,7 @@ class AuthorityGateway:
         priority: float = 0.7,
     ) -> AuthorityDecision:
         content = f"belief:{key}:{str(value)[:80]}"
-        will_block = self._will_gate(content, source, "memory_write", priority)
+        will_block, will_decision = self._will_gate(content, source, "memory_write", priority)
         if will_block is not None:
             return will_block
 
@@ -338,6 +372,8 @@ class AuthorityGateway:
             category=ActionCategory.MEMORY_WRITE,
             priority=max(0.0, min(1.0, float(priority or 0.0))),
             require_substrate=False,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="memory_write",
         )
         if blocked is not None:
             return blocked
@@ -360,6 +396,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="memory_write",
+            source=source or "system",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -372,7 +411,7 @@ class AuthorityGateway:
         source: str = "unknown",
         priority: float = 0.5,
     ) -> AuthorityDecision:
-        will_block = self._will_gate(str(summary)[:200], source, "initiative", priority)
+        will_block, will_decision = self._will_gate(str(summary)[:200], source, "initiative", priority)
         if will_block is not None:
             return will_block
 
@@ -382,6 +421,8 @@ class AuthorityGateway:
             category=ActionCategory.INITIATIVE,
             priority=priority,
             require_substrate=True,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="initiative",
         )
         if blocked is not None:
             return blocked
@@ -399,6 +440,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="initiative",
+            source=source or "autonomous",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -411,7 +455,7 @@ class AuthorityGateway:
         source: str = "unknown",
         priority: float = 0.5,
     ) -> AuthorityDecision:
-        will_block = self._will_gate(str(summary)[:200], source, "initiative", priority)
+        will_block, will_decision = self._will_gate(str(summary)[:200], source, "initiative", priority)
         if will_block is not None:
             return will_block
 
@@ -421,6 +465,8 @@ class AuthorityGateway:
             category=ActionCategory.INITIATIVE,
             priority=priority,
             require_substrate=True,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="initiative",
         )
         if blocked is not None:
             return blocked
@@ -438,6 +484,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="initiative",
+            source=source or "autonomous",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -451,7 +500,7 @@ class AuthorityGateway:
         urgency: float = 0.5,
         is_critical: bool = False,
     ) -> AuthorityDecision:
-        will_block = self._will_gate(str(content)[:200], source, "expression", urgency, is_critical)
+        will_block, will_decision = self._will_gate(str(content)[:200], source, "expression", urgency, is_critical)
         if will_block is not None:
             return will_block
 
@@ -462,6 +511,8 @@ class AuthorityGateway:
             priority=urgency,
             is_critical=is_critical,
             require_substrate=True,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="expression",
         )
         if blocked is not None:
             return blocked
@@ -479,6 +530,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="expression",
+            source=source or "autonomous",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -492,7 +546,7 @@ class AuthorityGateway:
         urgency: float = 0.5,
         is_critical: bool = False,
     ) -> AuthorityDecision:
-        will_block = self._will_gate(str(content)[:200], source, "expression", urgency, is_critical)
+        will_block, will_decision = self._will_gate(str(content)[:200], source, "expression", urgency, is_critical)
         if will_block is not None:
             return will_block
 
@@ -503,6 +557,8 @@ class AuthorityGateway:
             priority=urgency,
             is_critical=is_critical,
             require_substrate=True,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="expression",
         )
         if blocked is not None:
             return blocked
@@ -520,6 +576,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="expression",
+            source=source or "system",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -533,7 +592,7 @@ class AuthorityGateway:
         priority: float = 0.4,
         is_critical: bool = False,
     ) -> AuthorityDecision:
-        will_block = self._will_gate(str(content)[:200], source, "response", priority, is_critical)
+        will_block, will_decision = self._will_gate(str(content)[:200], source, "response", priority, is_critical)
         if will_block is not None:
             return will_block
 
@@ -544,6 +603,8 @@ class AuthorityGateway:
             priority=priority,
             is_critical=is_critical,
             require_substrate=False,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="response",
         )
         if blocked is not None:
             return blocked
@@ -561,6 +622,9 @@ class AuthorityGateway:
             executive_intent_id=intent.intent_id,
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="response",
+            source=source or "user",
         )
         if decision.approved:
             self._complete_intent_safely(intent.intent_id, success=True)
@@ -629,6 +693,9 @@ class AuthorityGateway:
         executive_intent_id: Optional[str] = None,
         capability_token_id: Optional[str] = None,
         substrate_receipt_id: Optional[str] = None,
+        will_receipt_id: Optional[str] = None,
+        domain: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> AuthorityDecision:
         organism = get_organism_status()
         return AuthorityDecision(
@@ -639,6 +706,9 @@ class AuthorityGateway:
             executive_intent_id=executive_intent_id,
             capability_token_id=capability_token_id,
             substrate_receipt_id=substrate_receipt_id,
+            will_receipt_id=will_receipt_id,
+            domain=domain,
+            source=source,
             failure_pressure=float(organism.get("failure_pressure", 0.0) or 0.0),
             canonical_self_version=self._canonical_self_version(),
         )
@@ -650,6 +720,9 @@ class AuthorityGateway:
         executive_intent_id: Optional[str] = None,
         substrate_constraints: Optional[Dict[str, Any]] = None,
         substrate_receipt_id: Optional[str] = None,
+        will_receipt_id: Optional[str] = None,
+        domain: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> AuthorityDecision:
         raw_outcome = getattr(record, "outcome", DecisionOutcome.REJECTED)
         outcome = getattr(raw_outcome, "value", str(raw_outcome or DecisionOutcome.REJECTED.value))
@@ -666,6 +739,9 @@ class AuthorityGateway:
             constraints=constraints,
             executive_intent_id=executive_intent_id,
             substrate_receipt_id=substrate_receipt_id,
+            will_receipt_id=will_receipt_id,
+            domain=domain,
+            source=source,
         )
 
     def _substrate_preflight(
@@ -677,6 +753,8 @@ class AuthorityGateway:
         priority: float,
         is_critical: bool = False,
         require_substrate: bool = False,
+        will_receipt_id: Optional[str] = None,
+        domain: Optional[str] = None,
     ) -> tuple[Optional[AuthorityDecision], Dict[str, Any], Optional[str]]:
         authority = None
         require_substrate = bool(require_substrate and self._strict_runtime_active())
@@ -692,6 +770,9 @@ class AuthorityGateway:
                     outcome="rejected",
                     reason=f"substrate_authority_required:{type(exc).__name__}",
                     constraints={"blocked": True},
+                    will_receipt_id=will_receipt_id,
+                    domain=domain,
+                    source=source,
                 ),
                 {},
                 None,
@@ -716,6 +797,9 @@ class AuthorityGateway:
                         outcome="rejected",
                         reason=f"substrate_gate_failed:{type(exc).__name__}",
                         constraints={"blocked": True},
+                        will_receipt_id=will_receipt_id,
+                        domain=domain,
+                        source=source,
                     ),
                     {},
                     None,
@@ -734,6 +818,9 @@ class AuthorityGateway:
                         "substrate_constraints": list(verdict.constraints or []),
                     },
                     substrate_receipt_id=verdict.receipt_id,
+                    will_receipt_id=will_receipt_id,
+                    domain=domain,
+                    source=source,
                 ),
                 {},
                 verdict.receipt_id,

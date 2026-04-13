@@ -882,7 +882,11 @@ class LocalServerClient:
             ]
         else:
             if system_prompt:
-                prompt = format_chatml_prompt(prompt, system_prompt=system_prompt)
+                prompt = format_chatml_prompt(
+                    prompt,
+                    system_prompt=system_prompt,
+                    model_name=self._runtime_model or self.model_path,
+                )
             payload_messages = [{"role": "user", "content": prompt}]
 
         payload_messages = self._fit_messages_to_context(payload_messages, max_tokens=max_tokens)

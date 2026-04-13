@@ -136,16 +136,20 @@ class SQLiteMemory:
         *,
         importance: float,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> bool:
+        return_decision: bool = False,
+    ) -> bool | tuple[bool, Any]:
         try:
-            from core.constitution import get_constitutional_core
+            from core.constitution import get_constitutional_core, unpack_governance_result
 
-            approved, reason = await get_constitutional_core().approve_memory_write(
-                memory_type,
-                str(content or "")[:240],
-                source="sqlite_memory",
-                importance=max(0.0, min(1.0, float(importance or 0.0))),
-                metadata=dict(metadata or {}),
+            approved, reason, decision = unpack_governance_result(
+                await get_constitutional_core().approve_memory_write(
+                    memory_type,
+                    str(content or "")[:240],
+                    source="sqlite_memory",
+                    importance=max(0.0, min(1.0, float(importance or 0.0))),
+                    metadata=dict(metadata or {}),
+                    return_decision=True,
+                )
             )
             if not approved:
                 record_degraded_event(
@@ -156,6 +160,8 @@ class SQLiteMemory:
                     classification="background_degraded",
                     context={"reason": reason},
                 )
+            if return_decision:
+                return approved, decision
             return approved
         except Exception as exc:
             if self._constitutional_runtime_live():
@@ -168,8 +174,12 @@ class SQLiteMemory:
                     context={"error": type(exc).__name__},
                     exc=exc,
                 )
+                if return_decision:
+                    return False, None
                 return False
             logger.debug("SQLiteMemory constitutional gate unavailable: %s", exc)
+            if return_decision:
+                return True, None
             return True
 
     def close(self):
@@ -252,13 +262,33 @@ class SQLiteMemory:
 
     async def update_semantic_async(self, key: str, value: Any) -> bool:
         """Update a semantic memory asynchronously."""
+        approved, governance_decision = await self._approve_memory_write(
+            "sqlite_semantic",
+            f"{key}:{value}",
+            importance=0.5,
+            metadata={"key": key},
+            return_decision=True,
+        )
+        if not approved:
+            return False
         try:
-            conn = await self._get_conn()
-            await conn.execute('''
-                INSERT OR REPLACE INTO semantic (key, value, last_modified)
-                VALUES (?, ?, ?)
-            ''', (key, json.dumps(value), time.time()))
-            await conn.commit()
+            if governance_decision is not None:
+                from core.governance_context import governed_scope
+
+                async with governed_scope(governance_decision):
+                    conn = await self._get_conn()
+                    await conn.execute('''
+                        INSERT OR REPLACE INTO semantic (key, value, last_modified)
+                        VALUES (?, ?, ?)
+                    ''', (key, json.dumps(value), time.time()))
+                    await conn.commit()
+            else:
+                conn = await self._get_conn()
+                await conn.execute('''
+                    INSERT OR REPLACE INTO semantic (key, value, last_modified)
+                    VALUES (?, ?, ?)
+                ''', (key, json.dumps(value), time.time()))
+                await conn.commit()
             return True
         except Exception as e:
             logger.error("Failed to update semantic asynchronously: %s", e)
@@ -279,30 +309,63 @@ class SQLiteMemory:
 
     async def add(self, content: str, metadata: Optional[Dict[str, Any]] = None, **kwargs) -> bool:
         """Direct add for compatibility with Vector/Semantic APIs."""
-        if not await self._approve_memory_write(
+        approved, governance_decision = await self._approve_memory_write(
             "sqlite_observation",
             content,
             importance=float(kwargs.get("importance", 0.5) or 0.5),
             metadata=metadata,
-        ):
+            return_decision=True,
+        )
+        if not approved:
             return False
         event = {
             "event_type": "observation",
             "outcome": content,
             "metadata": metadata or {}
         }
+        if governance_decision is not None:
+            from core.governance_context import governed_scope
+
+            async with governed_scope(governance_decision):
+                return await self.log_event_async(event)
         return await self.log_event_async(event)
 
     async def record_episode_async(self, context: str, action: str, outcome: str, success: bool, emotional_valence: float, importance: float) -> int:
         """Record a structured episode and return its ID."""
-        if not await self._approve_memory_write(
+        approved, governance_decision = await self._approve_memory_write(
             "sqlite_episode",
             f"{context} | {action} | {outcome}",
             importance=importance,
             metadata={"success": success, "valence": emotional_valence},
-        ):
+            return_decision=True,
+        )
+        if not approved:
             return 0
         try:
+            if governance_decision is not None:
+                from core.governance_context import governed_scope
+
+                async with governed_scope(governance_decision):
+                    conn = await self._get_conn()
+                    await conn.execute('''
+                        INSERT INTO episodic (timestamp, event_type, goal, outcome, cost, metadata)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (
+                        time.time(),
+                        action,
+                        context,
+                        json.dumps(outcome),
+                        0.0,
+                        json.dumps({
+                            "success": success,
+                            "valence": emotional_valence,
+                            "importance": importance
+                        })
+                    ))
+                    await conn.commit()
+                    async with conn.execute("SELECT last_insert_rowid()") as cursor:
+                        row = await cursor.fetchone()
+                        return row[0] if row else 0
             conn = await self._get_conn()
             await conn.execute('''
                 INSERT INTO episodic (timestamp, event_type, goal, outcome, cost, metadata)

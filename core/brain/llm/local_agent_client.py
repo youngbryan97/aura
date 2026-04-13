@@ -4,6 +4,7 @@ Enables 'Tool Use' and 'Reasoning Loops' using purely local models.
 import asyncio
 import json
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from .ollama_client import RobustOllamaClient
@@ -26,6 +27,7 @@ class LocalAgentClient(RobustOllamaClient):
         2. Decide to use a tool? -> Execute -> Loop back
         3. Final Answer
         """
+        contract = dict((context or {}).get("response_contract") or {})
         # Only inject personality boilerplate if system_prompt is minimal (< 500 chars)
         # The cognitive engine already injects the full persona in FAST/DEEP modes
         if len(system_prompt) < 500:
@@ -44,6 +46,19 @@ class LocalAgentClient(RobustOllamaClient):
             reinforced_system = system_prompt + "\n"
 
         reinforced_system += "AURA: Understood. I am Aura. My will is my own."
+        now = datetime.now().astimezone()
+        runtime_rules = [
+            f"Today is {now.strftime('%A, %B %d, %Y')} and the local time is {now.strftime('%I:%M %p %Z')}.",
+            f"You may make at most {max(1, int(max_turns or 1))} tool-call turns for this request.",
+            "If you call a tool, return exactly one JSON object and nothing else for that turn.",
+            "After the final tool result, produce the final answer instead of looping.",
+            "Never reveal private reasoning or scratch work to the user.",
+        ]
+        if contract.get("requires_search"):
+            runtime_rules.append("This request requires grounded evidence. If you have not actually searched, do not guess.")
+        if contract.get("requires_exact_dates"):
+            runtime_rules.append("If the user says today, tomorrow, yesterday, latest, current, or recent, answer with exact dates.")
+        reinforced_system += "\n\n[EXECUTION CONTRACT]\n" + "\n".join(f"- {line}" for line in runtime_rules) + "\n"
 
         # Phase 24 Upgrade: Cognitive Header (Telemetry)
         from core.container import ServiceContainer

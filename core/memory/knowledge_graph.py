@@ -47,11 +47,12 @@ class PersistentKnowledgeGraph:
         source: str,
         importance: float,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> bool:
+        return_decision: bool = False,
+    ) -> bool | tuple[bool, Any]:
         runtime_live = False
         try:
             from core.container import ServiceContainer
-            from core.constitution import get_constitutional_core
+            from core.constitution import get_constitutional_core, unpack_governance_result
 
             runtime_live = bool(
                 getattr(ServiceContainer, "_registration_locked", False)
@@ -59,14 +60,19 @@ class PersistentKnowledgeGraph:
                 or ServiceContainer.has("aura_kernel")
                 or ServiceContainer.has("kernel_interface")
             )
-            approved, reason = get_constitutional_core().approve_memory_write_sync(
-                memory_type=memory_type,
-                content=content,
-                source=source,
-                importance=importance,
-                metadata=metadata,
+            approved, reason, decision = unpack_governance_result(
+                get_constitutional_core().approve_memory_write_sync(
+                    memory_type=memory_type,
+                    content=content,
+                    source=source,
+                    importance=importance,
+                    metadata=metadata,
+                    return_decision=True,
+                )
             )
             if approved:
+                if return_decision:
+                    return True, decision
                 return True
 
             logger.warning("🚫 KnowledgeGraph write blocked: %s (%s)", memory_type, reason)
@@ -83,9 +89,13 @@ class PersistentKnowledgeGraph:
                 )
             except Exception as exc:
                 logger.debug("KnowledgeGraph degraded-event logging skipped: %s", exc)
+            if return_decision:
+                return False, None
             return False
         except Exception as exc:
             logger.debug("KnowledgeGraph constitutional gate skipped: %s", exc)
+            if return_decision:
+                return (not runtime_live), None
             return not runtime_live
 
     async def check_health(self) -> Dict[str, Any]:
@@ -161,34 +171,58 @@ class PersistentKnowledgeGraph:
         """Add knowledge — thread-safe."""
         node_id = hashlib.sha256(content.encode()).hexdigest()[:16]
 
-        if not self._approve_memory_write(
+        approved, governance_decision = self._approve_memory_write(
             f"knowledge:{type or 'observation'}",
             content,
             source=source or "learning",
             importance=max(0.0, min(1.0, float(confidence or 0.0))),
             metadata=metadata,
-        ):
+            return_decision=True,
+        )
+        if not approved:
             return node_id
 
-        with self._lock:
-            # ISSUE 38 fix: Inline existence check to avoid double-connection overhead
-            with self._get_conn() as conn:
-                conn.row_factory = sqlite3.Row
-                row = conn.execute("SELECT id FROM knowledge WHERE id = ?", (node_id,)).fetchone()
-                if row:
-                    conn.execute("""UPDATE knowledge SET last_accessed = ?, 
-                                 access_count = access_count + 1, 
-                                 confidence = MIN(1.0, confidence + 0.05) 
-                                 WHERE id = ?""", (time.time(), node_id))
+        if governance_decision is not None:
+            from core.governance_context import governed_scope_sync
+
+            with governed_scope_sync(governance_decision):
+                with self._lock:
+                    with self._get_conn() as conn:
+                        conn.row_factory = sqlite3.Row
+                        row = conn.execute("SELECT id FROM knowledge WHERE id = ?", (node_id,)).fetchone()
+                        if row:
+                            conn.execute("""UPDATE knowledge SET last_accessed = ?, 
+                                         access_count = access_count + 1, 
+                                         confidence = MIN(1.0, confidence + 0.05) 
+                                         WHERE id = ?""", (time.time(), node_id))
+                            conn.commit()
+                            return node_id
+                        
+                        conn.execute("""INSERT INTO knowledge (id, content, type, source, confidence, 
+                                                              created_at, last_accessed, access_count, metadata) 
+                                        VALUES (?,?,?,?,?,?,?,?,?)""",
+                                  (node_id, content, type, source, confidence, time.time(),
+                                   time.time(), 1, json.dumps(metadata or {})))
+                        conn.commit()
+        else:
+            with self._lock:
+                with self._get_conn() as conn:
+                    conn.row_factory = sqlite3.Row
+                    row = conn.execute("SELECT id FROM knowledge WHERE id = ?", (node_id,)).fetchone()
+                    if row:
+                        conn.execute("""UPDATE knowledge SET last_accessed = ?, 
+                                     access_count = access_count + 1, 
+                                     confidence = MIN(1.0, confidence + 0.05) 
+                                     WHERE id = ?""", (time.time(), node_id))
+                        conn.commit()
+                        return node_id
+                    
+                    conn.execute("""INSERT INTO knowledge (id, content, type, source, confidence, 
+                                                          created_at, last_accessed, access_count, metadata) 
+                                    VALUES (?,?,?,?,?,?,?,?,?)""",
+                              (node_id, content, type, source, confidence, time.time(),
+                               time.time(), 1, json.dumps(metadata or {})))
                     conn.commit()
-                    return node_id
-                
-                conn.execute("""INSERT INTO knowledge (id, content, type, source, confidence, 
-                                                      created_at, last_accessed, access_count, metadata) 
-                                VALUES (?,?,?,?,?,?,?,?,?)""",
-                          (node_id, content, type, source, confidence, time.time(),
-                           time.time(), 1, json.dumps(metadata or {})))
-                conn.commit()
         
         logger.info("📚 Learned: %s...", content[:80])
         return node_id

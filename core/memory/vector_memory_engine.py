@@ -61,6 +61,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from core.container import ServiceContainer
 from core.health.degraded_events import record_degraded_event
+from core.runtime.effect_boundary import effect_sink
 
 logger = logging.getLogger("Aura.VectorMemory")
 
@@ -250,6 +251,7 @@ class MemoryVault:
         except Exception as e:
             logger.error("ChromaDB init failed: %s. Using in-memory fallback.", e)
 
+    @effect_sink("memory.vault_store", allowed_domains=("memory_write",))
     def store(self, memory: Memory, vector: np.ndarray):
         """Persist a memory with its embedding."""
         metadata = {
@@ -543,16 +545,20 @@ class VectorMemoryEngine:
         importance: float,
         source: str,
         tags: Optional[List[str]] = None,
-    ) -> bool:
+        return_decision: bool = False,
+    ) -> bool | tuple[bool, Any]:
         try:
-            from core.constitution import get_constitutional_core
+            from core.constitution import get_constitutional_core, unpack_governance_result
 
-            approved, reason = await get_constitutional_core().approve_memory_write(
-                memory_type,
-                str(content or "")[:240],
-                source=source or "vector_memory_engine",
-                importance=max(0.0, min(1.0, float(importance or 0.0))),
-                metadata={"tags": list(tags or [])[:10]},
+            approved, reason, decision = unpack_governance_result(
+                await get_constitutional_core().approve_memory_write(
+                    memory_type,
+                    str(content or "")[:240],
+                    source=source or "vector_memory_engine",
+                    importance=max(0.0, min(1.0, float(importance or 0.0))),
+                    metadata={"tags": list(tags or [])[:10]},
+                    return_decision=True,
+                )
             )
             if not approved:
                 record_degraded_event(
@@ -563,6 +569,8 @@ class VectorMemoryEngine:
                     classification="background_degraded",
                     context={"reason": reason},
                 )
+            if return_decision:
+                return approved, decision
             return approved
         except Exception as exc:
             if self._constitutional_runtime_live():
@@ -575,8 +583,12 @@ class VectorMemoryEngine:
                     context={"error": type(exc).__name__},
                     exc=exc,
                 )
+                if return_decision:
+                    return False, None
                 return False
             logger.debug("VectorMemoryEngine constitutional gate unavailable: %s", exc)
+            if return_decision:
+                return True, None
             return True
 
     async def store(
@@ -610,13 +622,15 @@ class VectorMemoryEngine:
                 explicitly_important=explicitly_important,
             )
 
-        if not await self._approve_memory_write(
+        approved, governance_decision = await self._approve_memory_write(
             content,
             memory_type=memory_type,
             importance=importance,
             source=source,
             tags=tags,
-        ):
+            return_decision=True,
+        )
+        if not approved:
             return ""
 
         memory_id = hashlib.sha256(
@@ -637,7 +651,13 @@ class VectorMemoryEngine:
 
         # Embed and store
         vector = await asyncio.to_thread(self.embedder.embed, content)
-        self.vault.store(memory, vector)
+        if governance_decision is not None:
+            from core.governance_context import governed_scope
+
+            async with governed_scope(governance_decision):
+                self.vault.store(memory, vector)
+        else:
+            self.vault.store(memory, vector)
 
         # Track recency
         self._recent_memory_ids.append(memory_id)

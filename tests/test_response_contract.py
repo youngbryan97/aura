@@ -20,6 +20,33 @@ def test_response_contract_requires_search_for_specific_lookup():
     assert contract.reason == "specific_fact_lookup"
 
 
+def test_response_contract_requires_search_for_latest_live_fact_lookup():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "What's the latest Claude API version right now?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_search is True
+    assert contract.requires_exact_dates is True
+    assert "temporal_live_lookup" in contract.reason
+
+
+def test_response_contract_does_not_force_search_for_social_checkin_with_today():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "How are you feeling today?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_search is False
+    assert contract.requires_state_reflection is True
+
+
 def test_response_contract_requires_search_for_grounded_followup_with_recent_browser_evidence():
     state = AuraState.default()
     state.response_modifiers["last_skill_run"] = "sovereign_browser"
@@ -156,6 +183,20 @@ def test_response_contract_detects_recent_tool_evidence():
     )
 
     assert has_tool_evidence(state) is True
+
+
+def test_response_contract_prompt_block_includes_runtime_facts_and_tool_budget():
+    state = AuraState.default()
+    contract = build_response_contract(
+        state,
+        "What's the latest release right now?",
+        is_user_facing=True,
+    )
+
+    prompt_block = contract.to_prompt_block()
+
+    assert "Current local date:" in prompt_block
+    assert "Tool/function-call budget for this reply:" in prompt_block
 
 
 @pytest.mark.asyncio

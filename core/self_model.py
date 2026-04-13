@@ -13,6 +13,7 @@ from uuid import uuid4
 logger = logging.getLogger("Aura.SelfModel")
 
 from core.common.paths import DATA_DIR
+from core.runtime.effect_boundary import effect_sink
 from core.runtime.service_access import resolve_canonical_self
 DATA_FILE = DATA_DIR / "self_model.json"
 
@@ -71,6 +72,7 @@ class SelfModel:
                 
         return cls(id=str(uuid4()))
 
+    @effect_sink("belief.self_model_persist", allowed_domains=("memory_write",))
     async def persist(self):
         """Save current state to disk."""
         async with self._lock:
@@ -89,11 +91,11 @@ class SelfModel:
             except Exception as e:
                 logger.error("Failed to persist self model: %s", e)
 
-    def _belief_update_decision(self, key: str, value: Any, note: Optional[str]) -> tuple[bool, str, bool]:
+    def _belief_update_decision(self, key: str, value: Any, note: Optional[str]) -> tuple[bool, str, bool, Any]:
         constitutional_runtime_live = False
         try:
             from core.container import ServiceContainer
-            from core.constitution import get_constitutional_core
+            from core.constitution import get_constitutional_core, unpack_governance_result
 
             constitutional_runtime_live = (
                 ServiceContainer.has("executive_core")
@@ -102,29 +104,50 @@ class SelfModel:
                 or bool(getattr(ServiceContainer, "_registration_locked", False))
             )
             if not constitutional_runtime_live:
-                return True, "", False
+                return True, "", False, None
 
-            approved, reason = get_constitutional_core().approve_belief_update_sync(
-                key,
-                value,
-                note=note,
-                source="system",
-                importance=0.7,
+            approved, reason, decision = unpack_governance_result(
+                get_constitutional_core().approve_belief_update_sync(
+                    key,
+                    value,
+                    note=note,
+                    source="system",
+                    importance=0.7,
+                    return_decision=True,
+                )
             )
             gate_failed = any(
                 marker in str(reason or "")
                 for marker in ("gate_failed", "required", "unavailable")
             )
             if approved:
-                return True, str(reason or ""), False
-            return False, str(reason or "executive_deferred"), gate_failed
+                return True, str(reason or ""), False, decision
+            return False, str(reason or "executive_deferred"), gate_failed, decision
         except Exception as exc:
             if constitutional_runtime_live:
-                return False, f"executive_gate_failed:{type(exc).__name__}", True
+                return False, f"executive_gate_failed:{type(exc).__name__}", True, None
             logger.debug("Executive belief gate skipped: %s", exc)
-            return True, "", False
+            return True, "", False, None
 
-    async def _apply_belief_update(self, key: str, value: Any, note: Optional[str], *, confidence: float = 0.9) -> SelfSnapshot:
+    async def _apply_belief_update(self, key: str, value: Any, note: Optional[str], *, confidence: float = 0.9, decision: Any = None) -> SelfSnapshot:
+        if decision is not None:
+            from core.governance_context import governed_scope
+
+            async with governed_scope(decision):
+                async with self._lock:
+                    self.beliefs[key] = value
+                    snap = SelfSnapshot(
+                        id=str(uuid4()),
+                        ts=time.time(),
+                        summary=f"update {key}",
+                        beliefs={key: value},
+                        confidence=confidence,
+                        revision_note=note,
+                    )
+                    self.snapshots[snap.id] = snap
+                await self.persist()
+                return snap
+
         async with self._lock:
             self.beliefs[key] = value
             snap = SelfSnapshot(
@@ -154,7 +177,7 @@ class SelfModel:
                 continue
             value = item.get("value")
             note = item.get("note")
-            approved, reason, gate_failed = self._belief_update_decision(key, value, note)
+            approved, reason, gate_failed, decision = self._belief_update_decision(key, value, note)
             if not approved:
                 item["reason"] = reason
                 still_pending.append(item)
@@ -166,6 +189,7 @@ class SelfModel:
                 value,
                 note or f"replayed from pending queue after {item.get('reason', 'executive defer')}",
                 confidence=0.85,
+                decision=decision,
             )
             flushed += 1
 
@@ -246,7 +270,7 @@ class SelfModel:
         except Exception as exc:
             logger.debug("BeliefAuthority review skipped: %s", exc)
 
-        approved, reason, gate_failed = self._belief_update_decision(key, value, note)
+        approved, reason, gate_failed, decision = self._belief_update_decision(key, value, note)
         if not approved:
             if gate_failed:
                 try:
@@ -294,7 +318,7 @@ class SelfModel:
             await self.persist()
             return snap
 
-        return await self._apply_belief_update(key, value, note)
+        return await self._apply_belief_update(key, value, note, decision=decision)
 
     async def get(self, key: str, default=None):
         return self.beliefs.get(key, default)

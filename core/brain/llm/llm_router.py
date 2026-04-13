@@ -658,7 +658,7 @@ class IntelligentLLMRouter:
             tools = build_agentic_tool_map(
                 contract.required_skill if contract else None,
                 objective=prompt,
-                max_tools=8,
+                max_tools=getattr(contract, "max_tools", 8) if contract else 8,
             )
             if tools:
                 result = await self.think_and_act(
@@ -897,7 +897,7 @@ class IntelligentLLMRouter:
             tools = build_agentic_tool_map(
                 contract.required_skill if contract else None,
                 objective=prompt,
-                max_tools=8,
+                max_tools=getattr(contract, "max_tools", 8) if contract else 8,
             )
             if tools:
                 result = await self.think_and_act(
@@ -1107,6 +1107,8 @@ class IntelligentLLMRouter:
             agent_context.setdefault("response_contract", contract.to_dict())
         if prepared_messages is not None:
             agent_context.setdefault("messages", prepared_messages)
+        if contract:
+            max_turns = min(max_turns, max(1, int(getattr(contract, "max_tool_turns", max_turns) or max_turns)))
 
         # Find an endpoint whose client has think_and_act
         ordered = self._get_ordered_endpoints()

@@ -170,8 +170,19 @@ class BaseSkill(ABC):
         # somewhere in the call stack). Log violations but don't block
         # during early boot or testing.
         try:
-            from core.governance_context import require_governance
-            require_governance(f"skill:{self.name}")
+            from core.governance_context import GovernanceViolation, governance_runtime_active, require_governance
+
+            require_governance(
+                f"skill:{self.name}",
+                strict=governance_runtime_active(),
+                allowed_domains=("tool_execution",),
+            )
+        except GovernanceViolation as e:
+            self._total_failures += 1
+            return self._error_result(
+                f"Ungoverned skill execution blocked: {e}",
+                time.monotonic() - start
+            )
         except Exception:
             pass  # governance not booted yet
 

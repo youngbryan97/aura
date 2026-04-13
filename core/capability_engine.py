@@ -1208,13 +1208,13 @@ class CapabilityEngine(AuraBaseModule):
             self.logger.warning("[%s] Unpacking double-nested params from LLM hallucination.", skill_name)
         params = normalized_params
 
-        exec_core = None
-        executive_intent_id = None
+        constitution = None
+        tool_handle = None
         result: Optional[Dict[str, Any]] = None
 
         @self.error_boundary
         async def _execute_wrapped():
-            nonlocal exec_core, executive_intent_id, result
+            nonlocal constitution, tool_handle, result
             start_time = time.monotonic()
             ctx = self._augment_execution_context(context)
             exec_source = self._resolve_execution_source(ctx)
@@ -1260,7 +1260,7 @@ class CapabilityEngine(AuraBaseModule):
             if not ok:
                 return {"ok": False, "error": "Missing dependencies", "details": errors}
 
-            # ── CONSTITUTIONAL CLOSURE: Executive gated tools ──
+            # ── CONSTITUTIONAL CLOSURE: Will + AuthorityGateway gated tools ──
             constitutional_runtime_live = False
             try:
                 constitutional_runtime_live = (
@@ -1269,29 +1269,49 @@ class CapabilityEngine(AuraBaseModule):
                     or ServiceContainer.has("kernel_interface")
                     or bool(getattr(ServiceContainer, "_registration_locked", False))
                 )
-                from core.executive.executive_core import get_executive_core
-                exec_core = get_executive_core()
-                intent, record = await exec_core.prepare_tool_intent(
+                from core.constitution import get_constitutional_core
+                from core.executive.authority_gateway import get_authority_gateway
+
+                constitution = get_constitutional_core(self.orchestrator)
+                tool_handle = await constitution.begin_tool_execution(
                     skill_name,
                     params,
                     source=exec_source,
+                    objective=str(ctx.get("objective") or ctx.get("message") or ""),
                 )
-                executive_intent_id = intent.intent_id
-                if str(getattr(record.outcome, "value", record.outcome)) not in {"approved", "degraded"}:
-                    approved = False
-                    reason = record.reason
-                    constraints = record.constraints
-                else:
-                    approved = True
-                    reason = record.reason
-                    constraints = record.constraints
-                    if constraints:
-                        merged_constraints = dict(ctx.get("executive_constraints", {}) or {})
-                        merged_constraints.update(constraints)
-                        ctx["executive_constraints"] = merged_constraints
-                if not approved:
-                    self.logger.warning("🚫 CapabilityEngine: Tool execution '%s' blocked by Executive: %s", skill_name, reason)
-                    return {"ok": False, "error": f"Executive veto: {reason}", "status": "blocked_by_executive"}
+                if not tool_handle.approved:
+                    reason = str(getattr(tool_handle.decision, "reason", "blocked"))
+                    self.logger.warning("🚫 CapabilityEngine: Tool execution '%s' blocked by Constitution: %s", skill_name, reason)
+                    failure_markers = ("gate_failed", "required", "unavailable")
+                    status = (
+                        "blocked_by_executive_gate_failure"
+                        if any(marker in reason for marker in failure_markers)
+                        else "blocked_by_executive"
+                    )
+                    return {"ok": False, "error": f"Executive veto: {reason}", "status": status}
+
+                constraints = dict(getattr(tool_handle, "constraints", {}) or {})
+                if constraints:
+                    merged_constraints = dict(ctx.get("executive_constraints", {}) or {})
+                    merged_constraints.update(constraints)
+                    ctx["executive_constraints"] = merged_constraints
+
+                capability_token_id = getattr(tool_handle, "capability_token_id", None)
+                if constitutional_runtime_live:
+                    if not capability_token_id:
+                        return {
+                            "ok": False,
+                            "error": "Capability token missing",
+                            "status": "blocked_by_missing_capability_token",
+                        }
+                    if not get_authority_gateway().verify_tool_access(skill_name, capability_token_id):
+                        return {
+                            "ok": False,
+                            "error": "Capability token denied tool execution",
+                            "status": "blocked_by_capability_token",
+                        }
+                if capability_token_id:
+                    ctx["capability_token_id"] = capability_token_id
             except Exception as e:
                 if constitutional_runtime_live:
                     try:
@@ -1299,7 +1319,7 @@ class CapabilityEngine(AuraBaseModule):
 
                         record_degraded_event(
                             "capability_engine",
-                            "executive_gate_failed",
+                            "constitutional_gate_failed",
                             detail=skill_name,
                             severity="warning",
                             classification="background_degraded",
@@ -1311,10 +1331,10 @@ class CapabilityEngine(AuraBaseModule):
                     self.logger.warning("🚫 CapabilityEngine: Executive check failed for '%s': %s", skill_name, e)
                     return {
                         "ok": False,
-                        "error": "Executive gate unavailable",
+                        "error": "Constitutional gate unavailable",
                         "status": "blocked_by_executive_gate_failure",
                     }
-                self.logger.debug("CapabilityEngine: Executive check failed, proceeding degraded: %s", e)
+                self.logger.debug("CapabilityEngine: constitutional check failed, proceeding degraded: %s", e)
 
             # 2a. Metabolic self-preservation guard
             try:
@@ -1434,11 +1454,20 @@ class CapabilityEngine(AuraBaseModule):
                 # Execute safely via the Governor to prevent cascading API failures
                 async def resilient_call():
                     return await self._execute_with_retry(self.instances[skill_name], skill_name, exec_params, ctx)
-                
-                result = await self._cognitive_governor.execute_safely(
-                    task_name=skill_name,
-                    coroutine=resilient_call
-                )
+
+                if tool_handle is not None:
+                    from core.governance_context import governed_scope
+
+                    async with governed_scope(tool_handle.decision):
+                        result = await self._cognitive_governor.execute_safely(
+                            task_name=skill_name,
+                            coroutine=resilient_call
+                        )
+                else:
+                    result = await self._cognitive_governor.execute_safely(
+                        task_name=skill_name,
+                        coroutine=resilient_call
+                    )
                 
             except Exception as e:
                 self.logger.error("❌ Skill '%s' unwrapped failure: %s", skill_name, e)
@@ -1510,10 +1539,13 @@ class CapabilityEngine(AuraBaseModule):
             return await _execute_wrapped()
         finally:
             try:
-                if exec_core is not None and executive_intent_id:
-                    exec_core.complete_intent(
-                        executive_intent_id,
+                if constitution is not None and tool_handle is not None and bool(getattr(tool_handle, "approved", False)):
+                    await constitution.finish_tool_execution(
+                        tool_handle,
+                        result=result or {"ok": False, "error": "execution_not_completed"},
                         success=bool(isinstance(result, dict) and result.get("ok", False)),
+                        duration_ms=0.0,
+                        error="" if bool(isinstance(result, dict) and result.get("ok", False)) else str((result or {}).get("error", "")),
                     )
             except Exception as _exc:
                 self.logger.debug("Suppressed Exception: %s", _exc)

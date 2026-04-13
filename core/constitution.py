@@ -57,6 +57,7 @@ class ConstitutionalDecision:
     outcome: ProposalOutcome
     reason: str
     source: str
+    will_receipt_id: Optional[str] = None
     target: str = ""
     intent_id: Optional[str] = None
     commitment_id: Optional[str] = None
@@ -78,6 +79,7 @@ class ToolExecutionHandle:
     intention_id: Optional[str] = None
     capability_token_id: Optional[str] = None
     authority_receipt_id: Optional[str] = None
+    will_receipt_id: Optional[str] = None
 
 
 @dataclass
@@ -95,6 +97,18 @@ class BeliefMutationRecord:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+def unpack_governance_result(result: Any) -> tuple[bool, str, Optional[Any]]:
+    """Support legacy 2-tuples and new 3-tuples from governance APIs."""
+    if isinstance(result, tuple):
+        if len(result) >= 3:
+            return bool(result[0]), str(result[1] or ""), result[2]
+        if len(result) >= 2:
+            return bool(result[0]), str(result[1] or ""), None
+        if len(result) == 1:
+            return bool(result[0]), "", None
+    return bool(result), "", None
 
 
 class BeliefAuthority:
@@ -417,6 +431,7 @@ class ConstitutionalCore:
                     outcome=outcome,
                     reason=authority_decision.reason,
                     source=source,
+                    will_receipt_id=authority_decision.will_receipt_id,
                     intent_id=authority_decision.executive_intent_id,
                     constraints=self._authority_constraints(authority_decision),
                     snapshot=self.snapshot(),
@@ -431,6 +446,7 @@ class ConstitutionalCore:
                 intention_id=intention_id,
                 capability_token_id=authority_decision.capability_token_id,
                 authority_receipt_id=authority_decision.substrate_receipt_id,
+                will_receipt_id=authority_decision.will_receipt_id,
             )
             self._emit_tool_event(
                 "approved" if approved else "rejected",
@@ -518,7 +534,8 @@ class ConstitutionalCore:
         origin: str,
         cause: str,
         state: Any = None,
-    ) -> tuple[bool, str]:
+        return_decision: bool = False,
+    ) -> tuple[bool, str] | tuple[bool, str, ConstitutionalDecision]:
         proposal = ConstitutionalProposal(
             kind=ProposalKind.STATE_MUTATION,
             source=origin or "system",
@@ -527,7 +544,7 @@ class ConstitutionalCore:
         )
 
         if self._strict_enforcement_active() and self._get_executive_core() is None:
-            self._record_decision(
+            recorded = self._record_decision(
                 ConstitutionalDecision(
                     proposal_id=proposal.proposal_id,
                     kind=proposal.kind,
@@ -537,12 +554,14 @@ class ConstitutionalCore:
                     snapshot=self.snapshot(state),
                 )
             )
+            if return_decision:
+                return False, "executive_core_required", recorded
             return False, "executive_core_required"
 
         gateway = self._get_authority_gateway()
         if gateway is None:
             if self._strict_enforcement_active():
-                self._record_decision(
+                recorded = self._record_decision(
                     ConstitutionalDecision(
                         proposal_id=proposal.proposal_id,
                         kind=proposal.kind,
@@ -552,8 +571,10 @@ class ConstitutionalCore:
                         snapshot=self.snapshot(state),
                     )
                 )
+                if return_decision:
+                    return False, "authority_gateway_required", recorded
                 return False, "authority_gateway_required"
-            self._record_decision(
+            recorded = self._record_decision(
                 ConstitutionalDecision(
                     proposal_id=proposal.proposal_id,
                     kind=proposal.kind,
@@ -563,21 +584,26 @@ class ConstitutionalCore:
                     snapshot=self.snapshot(state),
                 )
             )
+            if return_decision:
+                return True, "authority_gateway_unavailable", recorded
             return True, "authority_gateway_unavailable"
 
         authority_decision = await gateway.authorize_state_mutation(origin or "system", cause)
-        self._record_decision(
+        recorded = self._record_decision(
             ConstitutionalDecision(
                 proposal_id=proposal.proposal_id,
                 kind=proposal.kind,
                 outcome=ProposalOutcome.APPROVED if authority_decision.approved else ProposalOutcome.REJECTED,
                 reason=authority_decision.reason,
                 source=proposal.source,
+                will_receipt_id=authority_decision.will_receipt_id,
                 intent_id=authority_decision.executive_intent_id,
                 constraints=self._authority_constraints(authority_decision),
                 snapshot=self.snapshot(state),
             )
         )
+        if return_decision:
+            return authority_decision.approved, authority_decision.reason, recorded
         return authority_decision.approved, authority_decision.reason
 
     async def approve_memory_write(
@@ -589,7 +615,8 @@ class ConstitutionalCore:
         importance: float = 0.5,
         metadata: Optional[Dict[str, Any]] = None,
         state: Any = None,
-    ) -> tuple[bool, str]:
+        return_decision: bool = False,
+    ) -> tuple[bool, str] | tuple[bool, str, ConstitutionalDecision]:
         proposal = ConstitutionalProposal(
             kind=ProposalKind.MEMORY_MUTATION,
             source=source or "system",
@@ -604,7 +631,7 @@ class ConstitutionalCore:
         )
 
         if self._strict_enforcement_active() and self._get_executive_core() is None:
-            self._record_decision(
+            recorded = self._record_decision(
                 ConstitutionalDecision(
                     proposal_id=proposal.proposal_id,
                     kind=proposal.kind,
@@ -614,12 +641,14 @@ class ConstitutionalCore:
                     snapshot=self.snapshot(state),
                 )
             )
+            if return_decision:
+                return False, "executive_core_required", recorded
             return False, "executive_core_required"
 
         gateway = self._get_authority_gateway()
         if gateway is None:
             if self._strict_enforcement_active():
-                self._record_decision(
+                recorded = self._record_decision(
                     ConstitutionalDecision(
                         proposal_id=proposal.proposal_id,
                         kind=proposal.kind,
@@ -629,8 +658,10 @@ class ConstitutionalCore:
                         snapshot=self.snapshot(state),
                     )
                 )
+                if return_decision:
+                    return False, "authority_gateway_required", recorded
                 return False, "authority_gateway_required"
-            self._record_decision(
+            recorded = self._record_decision(
                 ConstitutionalDecision(
                     proposal_id=proposal.proposal_id,
                     kind=proposal.kind,
@@ -640,6 +671,8 @@ class ConstitutionalCore:
                     snapshot=self.snapshot(state),
                 )
             )
+            if return_decision:
+                return True, "authority_gateway_unavailable", recorded
             return True, "authority_gateway_unavailable"
 
         authority_decision = await gateway.authorize_memory_write(
@@ -649,18 +682,21 @@ class ConstitutionalCore:
             source=source or "unknown",
             metadata=metadata,
         )
-        self._record_decision(
+        recorded = self._record_decision(
             ConstitutionalDecision(
                 proposal_id=proposal.proposal_id,
                 kind=proposal.kind,
                 outcome=ProposalOutcome.APPROVED if authority_decision.approved else ProposalOutcome.REJECTED,
                 reason=authority_decision.reason,
                 source=proposal.source,
+                will_receipt_id=authority_decision.will_receipt_id,
                 intent_id=authority_decision.executive_intent_id,
                 constraints=self._authority_constraints(authority_decision),
                 snapshot=self.snapshot(state),
             )
         )
+        if return_decision:
+            return authority_decision.approved, authority_decision.reason, recorded
         return authority_decision.approved, authority_decision.reason
 
     def approve_memory_write_sync(
@@ -672,7 +708,8 @@ class ConstitutionalCore:
         importance: float = 0.5,
         metadata: Optional[Dict[str, Any]] = None,
         state: Any = None,
-    ) -> tuple[bool, str]:
+        return_decision: bool = False,
+    ) -> tuple[bool, str] | tuple[bool, str, ConstitutionalDecision]:
         proposal = ConstitutionalProposal(
             kind=ProposalKind.MEMORY_MUTATION,
             source=source or "system",
@@ -687,7 +724,7 @@ class ConstitutionalCore:
         )
 
         if self._strict_enforcement_active() and self._get_executive_core() is None:
-            self._record_decision(
+            recorded = self._record_decision(
                 ConstitutionalDecision(
                     proposal_id=proposal.proposal_id,
                     kind=proposal.kind,
@@ -697,12 +734,14 @@ class ConstitutionalCore:
                     snapshot=self.snapshot(state),
                 )
             )
+            if return_decision:
+                return False, "executive_core_required", recorded
             return False, "executive_core_required"
 
         gateway = self._get_authority_gateway()
         if gateway is None:
             if self._strict_enforcement_active():
-                self._record_decision(
+                recorded = self._record_decision(
                     ConstitutionalDecision(
                         proposal_id=proposal.proposal_id,
                         kind=proposal.kind,
@@ -712,8 +751,10 @@ class ConstitutionalCore:
                         snapshot=self.snapshot(state),
                     )
                 )
+                if return_decision:
+                    return False, "authority_gateway_required", recorded
                 return False, "authority_gateway_required"
-            self._record_decision(
+            recorded = self._record_decision(
                 ConstitutionalDecision(
                     proposal_id=proposal.proposal_id,
                     kind=proposal.kind,
@@ -723,6 +764,8 @@ class ConstitutionalCore:
                     snapshot=self.snapshot(state),
                 )
             )
+            if return_decision:
+                return True, "authority_gateway_unavailable", recorded
             return True, "authority_gateway_unavailable"
 
         try:
@@ -736,7 +779,7 @@ class ConstitutionalCore:
         except Exception as exc:
             logger.debug("ConstitutionalCore sync memory approval failed: %s", exc)
             if self._strict_enforcement_active():
-                self._record_decision(
+                recorded = self._record_decision(
                     ConstitutionalDecision(
                         proposal_id=proposal.proposal_id,
                         kind=proposal.kind,
@@ -746,21 +789,35 @@ class ConstitutionalCore:
                         snapshot=self.snapshot(state),
                     )
                 )
+                if return_decision:
+                    return False, f"sync_memory_gate_failed:{type(exc).__name__}", recorded
                 return False, f"sync_memory_gate_failed:{type(exc).__name__}"
+            if return_decision:
+                return True, f"sync_memory_gate_unavailable:{type(exc).__name__}", ConstitutionalDecision(
+                    proposal_id=proposal.proposal_id,
+                    kind=proposal.kind,
+                    outcome=ProposalOutcome.DEGRADED,
+                    reason=f"sync_memory_gate_unavailable:{type(exc).__name__}",
+                    source=proposal.source,
+                    snapshot=self.snapshot(state),
+                )
             return True, f"sync_memory_gate_unavailable:{type(exc).__name__}"
 
-        self._record_decision(
+        recorded = self._record_decision(
             ConstitutionalDecision(
                 proposal_id=proposal.proposal_id,
                 kind=proposal.kind,
                 outcome=ProposalOutcome.APPROVED if authority_decision.approved else ProposalOutcome.REJECTED,
                 reason=authority_decision.reason,
                 source=proposal.source,
+                will_receipt_id=authority_decision.will_receipt_id,
                 intent_id=authority_decision.executive_intent_id,
                 constraints=self._authority_constraints(authority_decision),
                 snapshot=self.snapshot(state),
             )
         )
+        if return_decision:
+            return authority_decision.approved, authority_decision.reason, recorded
         return authority_decision.approved, authority_decision.reason
 
     def approve_belief_update_sync(
@@ -772,7 +829,8 @@ class ConstitutionalCore:
         source: str = "unknown",
         importance: float = 0.7,
         state: Any = None,
-    ) -> tuple[bool, str]:
+        return_decision: bool = False,
+    ) -> tuple[bool, str] | tuple[bool, str, ConstitutionalDecision]:
         proposal = ConstitutionalProposal(
             kind=ProposalKind.BELIEF_MUTATION,
             source=source or "system",
@@ -787,7 +845,7 @@ class ConstitutionalCore:
         )
 
         if self._strict_enforcement_active() and self._get_executive_core() is None:
-            self._record_decision(
+            recorded = self._record_decision(
                 ConstitutionalDecision(
                     proposal_id=proposal.proposal_id,
                     kind=proposal.kind,
@@ -797,12 +855,14 @@ class ConstitutionalCore:
                     snapshot=self.snapshot(state),
                 )
             )
+            if return_decision:
+                return False, "executive_core_required", recorded
             return False, "executive_core_required"
 
         gateway = self._get_authority_gateway()
         if gateway is None:
             if self._strict_enforcement_active():
-                self._record_decision(
+                recorded = self._record_decision(
                     ConstitutionalDecision(
                         proposal_id=proposal.proposal_id,
                         kind=proposal.kind,
@@ -812,8 +872,10 @@ class ConstitutionalCore:
                         snapshot=self.snapshot(state),
                     )
                 )
+                if return_decision:
+                    return False, "authority_gateway_required", recorded
                 return False, "authority_gateway_required"
-            self._record_decision(
+            recorded = self._record_decision(
                 ConstitutionalDecision(
                     proposal_id=proposal.proposal_id,
                     kind=proposal.kind,
@@ -823,6 +885,8 @@ class ConstitutionalCore:
                     snapshot=self.snapshot(state),
                 )
             )
+            if return_decision:
+                return True, "authority_gateway_unavailable", recorded
             return True, "authority_gateway_unavailable"
 
         try:
@@ -836,7 +900,7 @@ class ConstitutionalCore:
         except Exception as exc:
             logger.debug("ConstitutionalCore sync belief approval failed: %s", exc)
             if self._strict_enforcement_active():
-                self._record_decision(
+                recorded = self._record_decision(
                     ConstitutionalDecision(
                         proposal_id=proposal.proposal_id,
                         kind=proposal.kind,
@@ -846,21 +910,35 @@ class ConstitutionalCore:
                         snapshot=self.snapshot(state),
                     )
                 )
+                if return_decision:
+                    return False, f"sync_belief_gate_failed:{type(exc).__name__}", recorded
                 return False, f"sync_belief_gate_failed:{type(exc).__name__}"
+            if return_decision:
+                return True, f"sync_belief_gate_unavailable:{type(exc).__name__}", ConstitutionalDecision(
+                    proposal_id=proposal.proposal_id,
+                    kind=proposal.kind,
+                    outcome=ProposalOutcome.DEGRADED,
+                    reason=f"sync_belief_gate_unavailable:{type(exc).__name__}",
+                    source=proposal.source,
+                    snapshot=self.snapshot(state),
+                )
             return True, f"sync_belief_gate_unavailable:{type(exc).__name__}"
 
-        self._record_decision(
+        recorded = self._record_decision(
             ConstitutionalDecision(
                 proposal_id=proposal.proposal_id,
                 kind=proposal.kind,
                 outcome=ProposalOutcome.APPROVED if authority_decision.approved else ProposalOutcome.REJECTED,
                 reason=authority_decision.reason,
                 source=proposal.source,
+                will_receipt_id=authority_decision.will_receipt_id,
                 intent_id=authority_decision.executive_intent_id,
                 constraints=self._authority_constraints(authority_decision),
                 snapshot=self.snapshot(state),
             )
         )
+        if return_decision:
+            return authority_decision.approved, authority_decision.reason, recorded
         return authority_decision.approved, authority_decision.reason
 
     def approve_state_mutation_sync(
@@ -1313,11 +1391,17 @@ class ConstitutionalCore:
     def _authority_constraints(self, authority_decision: Any) -> Dict[str, Any]:
         constraints = dict(getattr(authority_decision, "constraints", {}) or {})
         receipt_id = getattr(authority_decision, "substrate_receipt_id", None)
+        will_receipt_id = getattr(authority_decision, "will_receipt_id", None)
+        governance_domain = getattr(authority_decision, "domain", None)
         capability_token_id = getattr(authority_decision, "capability_token_id", None)
         failure_pressure = getattr(authority_decision, "failure_pressure", None)
         canonical_self_version = getattr(authority_decision, "canonical_self_version", None)
         if receipt_id:
             constraints["substrate_receipt_id"] = receipt_id
+        if will_receipt_id:
+            constraints["will_receipt_id"] = will_receipt_id
+        if governance_domain:
+            constraints["governance_domain"] = governance_domain
         if capability_token_id:
             constraints["capability_token_id"] = capability_token_id
         if failure_pressure is not None:

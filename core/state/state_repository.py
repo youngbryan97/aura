@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import aiosqlite
 
+from core.runtime.effect_boundary import effect_sink
 from core.runtime.background_policy import is_user_facing_origin
 
 from ..bus.shared_mem_bus import SharedMemoryTransport
@@ -450,8 +451,9 @@ class StateRepository:
     async def _process_commit(self, new_state: AuraState, cause: str):
         """Internal atomic processing of a commit. - [UNIFICATION OPTIMIZED]"""
         commit_started = time.perf_counter()
+        governance_decision = None
         try:
-            from core.constitution import get_constitutional_core
+            from core.constitution import get_constitutional_core, unpack_governance_result
 
             new_state.health = copy.deepcopy(getattr(new_state, "health", {}) or {})
             if hasattr(new_state, "compact"):
@@ -460,10 +462,13 @@ class StateRepository:
                 except Exception as exc:
                     logger.debug("State compaction skipped during commit: %s", exc)
 
-            approved, reason = await get_constitutional_core().approve_state_mutation(
-                getattr(new_state, "transition_origin", "system"),
-                cause,
-                state=new_state,
+            approved, reason, governance_decision = unpack_governance_result(
+                await get_constitutional_core().approve_state_mutation(
+                    getattr(new_state, "transition_origin", "system"),
+                    cause,
+                    state=new_state,
+                    return_decision=True,
+                )
             )
             if not approved:
                 logger.warning(
@@ -552,14 +557,24 @@ class StateRepository:
         # consumer instead of spawning unbounded write tasks. The queue already
         # gives us async decoupling from foreground chat, and inline writes keep
         # long uptimes from degenerating into thousands of pending DB/SHM tasks.
-        if self._shm:
-            try:
-                await self._sync_to_shm(new_state, serialized_data)
-            except Exception as exc:
-                logger.warning("⚠️ [STATE] SHM propagation failed: %s", exc)
-
         try:
-            await self._commit_to_db(new_state, serialized_data)
+            if governance_decision is not None:
+                from core.governance_context import governed_scope
+
+                async with governed_scope(governance_decision):
+                    if self._shm:
+                        try:
+                            await self._sync_to_shm(new_state, serialized_data)
+                        except Exception as exc:
+                            logger.warning("⚠️ [STATE] SHM propagation failed: %s", exc)
+                    await self._commit_to_db(new_state, serialized_data)
+            else:
+                if self._shm:
+                    try:
+                        await self._sync_to_shm(new_state, serialized_data)
+                    except Exception as exc:
+                        logger.warning("⚠️ [STATE] SHM propagation failed: %s", exc)
+                await self._commit_to_db(new_state, serialized_data)
         except Exception as exc:
             logger.error("🛑 [STATE] Vault persistence failed: %s", exc)
         finally:
@@ -781,6 +796,7 @@ class StateRepository:
 
         return json.dumps(snapshot, ensure_ascii=False)
 
+    @effect_sink("state.sync_to_shm", allowed_domains=("state_mutation",))
     async def _sync_to_shm(self, state: AuraState, serialized_state: str) -> str:
         """Push serialized state into SHM without re-walking the object graph."""
         shm = self._shm
@@ -913,6 +929,7 @@ class StateRepository:
             
             return self._current
 
+    @effect_sink("state.commit_to_db", allowed_domains=("state_mutation",))
     async def _commit_to_db(self, state: AuraState, serialized_data: str):
         """[CF] Using self._db instead of opening a new connection per write."""
         db = await self._ensure_db()

@@ -821,14 +821,21 @@ class MLXLocalClient:
         messages = kwargs.pop("messages", None)
         system_prompt = kwargs.pop("system_prompt", None)
         if messages and isinstance(messages, list):
-            prompt = self._flatten_messages(messages)
+            prompt = self._flatten_messages(
+                messages,
+                model_name=getattr(self, "model_path", None) or getattr(self, "model_name", None),
+            )
         elif system_prompt:
-            prompt = format_chatml_prompt(prompt, system_prompt=system_prompt)
+            prompt = format_chatml_prompt(
+                prompt,
+                system_prompt=system_prompt,
+                model_name=getattr(self, "model_path", None) or getattr(self, "model_name", None),
+            )
         return await self.generate(prompt, **kwargs)
 
     @staticmethod
-    def _flatten_messages(messages: List[Dict[str, Any]]) -> str:
-        return format_chatml_messages(messages)
+    def _flatten_messages(messages: List[Dict[str, Any]], model_name: Optional[str] = None) -> str:
+        return format_chatml_messages(messages, model_name=model_name)
 
     async def generate(self, prompt: str, **kwargs) -> Optional[str]:
         """High-level generation endpoint with unified deadlines.

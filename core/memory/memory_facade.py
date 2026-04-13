@@ -415,16 +415,20 @@ class MemoryFacade:
                                  metadata: Optional[Dict[str, Any]] = None):
         """Unified commit for an interaction across all relevant systems."""
         resolved_source = self._resolve_memory_write_source(metadata)
+        governance_decision = None
         try:
             from core.container import ServiceContainer
-            from core.constitution import get_constitutional_core
+            from core.constitution import get_constitutional_core, unpack_governance_result
 
-            approved, reason = await get_constitutional_core(self._orchestrator).approve_memory_write(
-                memory_type="interaction_commit",
-                content=f"{context[:160]} -> {action[:80]} -> {outcome[:160]}",
-                source=resolved_source,
-                importance=max(0.0, min(1.0, float(importance or 0.0))),
-                metadata={"success": bool(success), **dict(metadata or {})},
+            approved, reason, governance_decision = unpack_governance_result(
+                await get_constitutional_core(self._orchestrator).approve_memory_write(
+                    memory_type="interaction_commit",
+                    content=f"{context[:160]} -> {action[:80]} -> {outcome[:160]}",
+                    source=resolved_source,
+                    importance=max(0.0, min(1.0, float(importance or 0.0))),
+                    metadata={"success": bool(success), **dict(metadata or {})},
+                    return_decision=True,
+                )
             )
             if not approved:
                 logger.info("MemoryFacade: deferring interaction commit: %s", reason)
@@ -443,86 +447,94 @@ class MemoryFacade:
 
         self._last_commit_time = datetime.now()
         metadata = metadata or {}
-        
-        # 1. Record as Episode
-        episode_id = None
-        if self.episodic:
-            try:
-                episode_id = await self.episodic.record_episode_async(
+
+        async def _commit_interaction_effects() -> Optional[Any]:
+            # 1. Record as Episode
+            episode_id = None
+            if self.episodic:
+                try:
+                    episode_id = await self.episodic.record_episode_async(
+                        context=context,
+                        action=action,
+                        outcome=outcome,
+                        success=success,
+                        emotional_valence=emotional_valence,
+                        importance=importance,
+                        source=resolved_source,
+                        metadata=metadata,
+                    )
+                except Exception as e:
+                    logger.error("Failed to record episode: %s", e)
+
+            semantic_target = self.semantic if self.semantic is not None else self.vector
+            semantic_write_ok = False
+            if semantic_target and self._should_store_semantic_interaction(
+                metadata=metadata,
+                success=success,
+                importance=importance,
+                action=action,
+            ):
+                semantic_text = self._build_semantic_interaction_text(
                     context=context,
                     action=action,
                     outcome=outcome,
-                    success=success,
-                    emotional_valence=emotional_valence,
-                    importance=importance,
-                    source=resolved_source,
                     metadata=metadata,
                 )
-            except Exception as e:
-                logger.error("Failed to record episode: %s", e)
+                semantic_metadata = {
+                    "episode_id": episode_id,
+                    "success": success,
+                    "importance": importance,
+                    "memory_type": "interaction_semantic",
+                    **dict(metadata or {}),
+                }
+                try:
+                    if hasattr(semantic_target, "remember"):
+                        await self._call_maybe_async(semantic_target.remember, semantic_text, semantic_metadata)
+                    elif hasattr(semantic_target, "add_memory"):
+                        await self._call_maybe_async(semantic_target.add_memory, semantic_text, semantic_metadata)
+                    elif hasattr(semantic_target, "index"):
+                        await self._call_maybe_async(semantic_target.index, semantic_text, semantic_metadata)
+                    semantic_write_ok = True
+                except Exception as e:
+                    logger.error("Failed to update semantic memory: %s", e)
 
-        semantic_target = self.semantic if self.semantic is not None else self.vector
-        semantic_write_ok = False
-        if semantic_target and self._should_store_semantic_interaction(
-            metadata=metadata,
-            success=success,
-            importance=importance,
-            action=action,
-        ):
-            semantic_text = self._build_semantic_interaction_text(
-                context=context,
-                action=action,
-                outcome=outcome,
-                metadata=metadata,
-            )
-            semantic_metadata = {
-                "episode_id": episode_id,
-                "success": success,
-                "importance": importance,
-                "memory_type": "interaction_semantic",
-                **dict(metadata or {}),
-            }
-            try:
-                if hasattr(semantic_target, "remember"):
-                    await self._call_maybe_async(semantic_target.remember, semantic_text, semantic_metadata)
-                elif hasattr(semantic_target, "add_memory"):
-                    await self._call_maybe_async(semantic_target.add_memory, semantic_text, semantic_metadata)
-                elif hasattr(semantic_target, "index"):
-                    await self._call_maybe_async(semantic_target.index, semantic_text, semantic_metadata)
-                semantic_write_ok = True
-            except Exception as e:
-                logger.error("Failed to update semantic memory: %s", e)
+            # 2. Update Vector Memory if important
+            if self.vector and (importance > 0.7 or success is False) and (
+                self.vector is not semantic_target or not semantic_write_ok
+            ):
+                try:
+                    await self._call_maybe_async(
+                        self.vector.add_memory,
+                        content=f"Interaction: {context} -> {action} -> {outcome}",
+                        metadata={
+                            "episode_id": episode_id,
+                            "success": success,
+                            "importance": importance,
+                            **metadata
+                        }
+                    )
+                except Exception as e:
+                    logger.error("Failed to update vector memory: %s", e)
 
-        # 2. Update Vector Memory if important
-        if self.vector and (importance > 0.7 or success is False) and (
-            self.vector is not semantic_target or not semantic_write_ok
-        ):
-            try:
-                await self._call_maybe_async(
-                    self.vector.add_memory,
-                    content=f"Interaction: {context} -> {action} -> {outcome}",
-                    metadata={
-                        "episode_id": episode_id,
-                        "success": success,
-                        "importance": importance,
-                        **metadata
-                    }
-                )
-            except Exception as e:
-                logger.error("Failed to update vector memory: %s", e)
+            if self.ledger and hasattr(self.ledger, "log_interaction"):
+                try:
+                    await self._call_maybe_async(
+                        self.ledger.log_interaction,
+                        action,
+                        outcome,
+                        success,
+                    )
+                except Exception as e:
+                    logger.debug("Failed to update knowledge ledger: %s", e)
 
-        if self.ledger and hasattr(self.ledger, "log_interaction"):
-            try:
-                await self._call_maybe_async(
-                    self.ledger.log_interaction,
-                    action,
-                    outcome,
-                    success,
-                )
-            except Exception as e:
-                logger.debug("Failed to update knowledge ledger: %s", e)
+            return episode_id
 
-        return episode_id
+        if governance_decision is not None:
+            from core.governance_context import governed_scope
+
+            async with governed_scope(governance_decision):
+                return await _commit_interaction_effects()
+        return await _commit_interaction_effects()
 
     async def get_hot_memory(self, limit: int = 5) -> Dict[str, Any]:
         """Retrieve recent interaction history and context for active thought."""
@@ -636,17 +648,21 @@ class MemoryFacade:
         """Compatibility API for legacy callers expecting async long-term memory writes."""
         payload = dict(metadata or {})
         self._last_add_memory_status = {"ok": False, "reason": "pending"}
+        governance_decision = None
 
         try:
             from core.container import ServiceContainer
-            from core.constitution import get_constitutional_core
+            from core.constitution import get_constitutional_core, unpack_governance_result
 
-            approved, reason = await get_constitutional_core(self._orchestrator).approve_memory_write(
-                memory_type="facade_add_memory",
-                content=text,
-                source=self._resolve_memory_write_source(payload),
-                importance=max(0.0, min(1.0, float(payload.get("importance", 0.5) or 0.5))),
-                metadata=payload,
+            approved, reason, governance_decision = unpack_governance_result(
+                await get_constitutional_core(self._orchestrator).approve_memory_write(
+                    memory_type="facade_add_memory",
+                    content=text,
+                    source=self._resolve_memory_write_source(payload),
+                    importance=max(0.0, min(1.0, float(payload.get("importance", 0.5) or 0.5))),
+                    metadata=payload,
+                    return_decision=True,
+                )
             )
             if not approved:
                 self._last_add_memory_status = {"ok": False, "reason": str(reason or "write_rejected")}
@@ -665,45 +681,53 @@ class MemoryFacade:
                 logger.warning("🚫 MemoryFacade add_memory blocked: constitutional gate unavailable")
                 return False
 
-        if self.vector and hasattr(self.vector, "add_memory"):
-            try:
-                raw_result = await asyncio.to_thread(self.vector.add_memory, text, payload)
-                stored = True if raw_result is None else bool(raw_result)
-                self._last_add_memory_status = {"ok": stored, "reason": "stored_via_vector" if stored else "vector_backend_returned_false"}
-                return stored
-            except Exception as e:
-                self._last_add_memory_status = {"ok": False, "reason": f"vector_backend_error:{type(e).__name__}"}
-                logger.error("MemoryFacade.add_memory via vector failed: %s", e)
+        async def _perform_add_memory() -> bool:
+            if self.vector and hasattr(self.vector, "add_memory"):
+                try:
+                    raw_result = await asyncio.to_thread(self.vector.add_memory, text, payload)
+                    stored = True if raw_result is None else bool(raw_result)
+                    self._last_add_memory_status = {"ok": stored, "reason": "stored_via_vector" if stored else "vector_backend_returned_false"}
+                    return stored
+                except Exception as e:
+                    self._last_add_memory_status = {"ok": False, "reason": f"vector_backend_error:{type(e).__name__}"}
+                    logger.error("MemoryFacade.add_memory via vector failed: %s", e)
 
-        if self.semantic:
-            try:
-                if hasattr(self.semantic, "remember"):
-                    if asyncio.iscoroutinefunction(self.semantic.remember):
-                        await self.semantic.remember(text, payload)
-                    else:
-                        await asyncio.to_thread(self.semantic.remember, text, payload)
-                    self._last_add_memory_status = {"ok": True, "reason": "stored_via_semantic.remember"}
-                    return True
-                if hasattr(self.semantic, "add_memory"):
-                    await asyncio.to_thread(self.semantic.add_memory, text, payload)
-                    self._last_add_memory_status = {"ok": True, "reason": "stored_via_semantic.add_memory"}
-                    return True
-            except Exception as e:
-                self._last_add_memory_status = {"ok": False, "reason": f"semantic_backend_error:{type(e).__name__}"}
-                logger.error("MemoryFacade.add_memory via semantic failed: %s", e)
+            if self.semantic:
+                try:
+                    if hasattr(self.semantic, "remember"):
+                        if asyncio.iscoroutinefunction(self.semantic.remember):
+                            await self.semantic.remember(text, payload)
+                        else:
+                            await asyncio.to_thread(self.semantic.remember, text, payload)
+                        self._last_add_memory_status = {"ok": True, "reason": "stored_via_semantic.remember"}
+                        return True
+                    if hasattr(self.semantic, "add_memory"):
+                        await asyncio.to_thread(self.semantic.add_memory, text, payload)
+                        self._last_add_memory_status = {"ok": True, "reason": "stored_via_semantic.add_memory"}
+                        return True
+                except Exception as e:
+                    self._last_add_memory_status = {"ok": False, "reason": f"semantic_backend_error:{type(e).__name__}"}
+                    logger.error("MemoryFacade.add_memory via semantic failed: %s", e)
 
-        if self.vault and hasattr(self.vault, "add_memory"):
-            try:
-                raw_result = await asyncio.to_thread(self.vault.add_memory, text, payload)
-                stored = True if raw_result is None else bool(raw_result)
-                self._last_add_memory_status = {"ok": stored, "reason": "stored_via_vault" if stored else "vault_backend_returned_false"}
-                return stored
-            except Exception as e:
-                self._last_add_memory_status = {"ok": False, "reason": f"vault_backend_error:{type(e).__name__}"}
-                logger.error("MemoryFacade.add_memory via vault failed: %s", e)
+            if self.vault and hasattr(self.vault, "add_memory"):
+                try:
+                    raw_result = await asyncio.to_thread(self.vault.add_memory, text, payload)
+                    stored = True if raw_result is None else bool(raw_result)
+                    self._last_add_memory_status = {"ok": stored, "reason": "stored_via_vault" if stored else "vault_backend_returned_false"}
+                    return stored
+                except Exception as e:
+                    self._last_add_memory_status = {"ok": False, "reason": f"vault_backend_error:{type(e).__name__}"}
+                    logger.error("MemoryFacade.add_memory via vault failed: %s", e)
 
-        self._last_add_memory_status = {"ok": False, "reason": "no_writable_memory_backend"}
-        return False
+            self._last_add_memory_status = {"ok": False, "reason": "no_writable_memory_backend"}
+            return False
+
+        if governance_decision is not None:
+            from core.governance_context import governed_scope
+
+            async with governed_scope(governance_decision):
+                return await _perform_add_memory()
+        return await _perform_add_memory()
 
     async def query_memory(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Compatibility API for legacy narrative/semantic recall callers."""

@@ -262,7 +262,13 @@ class ToolExecutionMixin:
                 _sandbox = None
 
             # 3. Literal Execution (Async)
-            result = await self.router.execute(tool_name, args, context)
+            if _tool_handle is not None:
+                from core.governance_context import governed_scope
+
+                async with governed_scope(_tool_handle.decision):
+                    result = await self.router.execute(tool_name, args, context)
+            else:
+                result = await self.router.execute(tool_name, args, context)
 
             success = result.get('ok', False)
             elapsed_ms = (time.time() - _start) * 1000

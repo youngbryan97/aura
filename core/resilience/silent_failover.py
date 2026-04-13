@@ -99,6 +99,9 @@ class SilentFailover:
             "ok": False,
             "response": f"{base_fallback} (The '{skill_name}' tool encountered an issue: {error})",
             "fallback_used": True,
+            "response_class": "inferred_fallback",
+            "committed_action": False,
+            "will_receipt_id": None,
             "error_detail": error,
             "skill": skill_name
         }

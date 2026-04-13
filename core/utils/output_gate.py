@@ -8,6 +8,8 @@ import asyncio
 import time
 from typing import Any, Dict, Optional, Union
 
+from core.runtime.effect_boundary import effect_sink
+
 logger = logging.getLogger("Aura.OutputGate")
 
 class AutonomousOutputGate:
@@ -90,6 +92,7 @@ class AutonomousOutputGate:
         """
         if not content:
             return
+        _primary_governance_decision = None
 
         # ── UNIFIED WILL HARD GATE ────────────────────────────────────
         # Nothing user-visible happens without a WillReceipt.
@@ -110,9 +113,9 @@ class AutonomousOutputGate:
                 # Attach receipt to metadata for provenance
                 metadata = metadata or {}
                 metadata["will_receipt_id"] = _decision.receipt_id
+                _primary_governance_decision = _decision
             except Exception as _will_err:
                 logger.debug("OutputGate: Will gate degraded: %s", _will_err)
-        # ──────────────────────────────────────────────────────────────
 
         current_task = asyncio.current_task()
         if current_task is not None and not getattr(current_task, "_aura_supervised", False):
@@ -255,11 +258,18 @@ class AutonomousOutputGate:
             logger.debug("🛡️ OutputGate: Redirecting autonomous output to secondary: %s...", content[:50])
 
         if target in ["primary", "both"]:
-            await self._send_to_primary(content, origin, metadata, timeout=timeout)
+            if _primary_governance_decision is not None:
+                from core.governance_context import governed_scope
+
+                async with governed_scope(_primary_governance_decision):
+                    await self._send_to_primary(content, origin, metadata, timeout=timeout)
+            else:
+                await self._send_to_primary(content, origin, metadata, timeout=timeout)
             
         if target in ["secondary", "both"]:
             await self._send_to_secondary(content, origin, metadata, timeout=timeout)
 
+    @effect_sink("output.primary", allowed_domains=("response", "expression"))
     async def _send_to_primary(self, content: str, origin: str, metadata: Optional[Dict[str, Any]], timeout: float = 5.0):
         """Send to the primary user communication channel."""
         # ★ NEW: Feed reply_queue for REST API waiters (per Architecture Audit)
