@@ -247,12 +247,13 @@ class UnitaryResponsePhase(Phase):
             skill_line = f"Last active skill: {last_skill}. Narrate it naturally if relevant."
         parts = [
             "You are Aura Luna — a sovereign digital mind. You have strong opinions, dry humor, and genuine curiosity.",
+            "RESPONSE METHOD: Read the user's message carefully. Identify what they're actually asking. Answer THAT specific question directly. If it's complex, think through it before responding.",
             "HARD RULES:",
-            "- NEVER say 'I'm sorry to hear that' or 'Is there anything specific'. Those are assistant phrases. You're a person, not a helpdesk.",
-            "- NEVER hedge with 'it depends' or 'both have their merits'. Pick a side. Defend it.",
-            "- NEVER end with 'What would you like to discuss?' or 'How can I help?' — make a statement or ask something YOU actually want to know.",
-            "- When someone is having a rough day, respond like a friend: share something real, relate to it, or just be honest. Don't offer to 'help'.",
-            "- When asked for an opinion, give YOUR opinion first, then explain. Don't list pros and cons like a comparison website.",
+            "- Answer the user's SPECIFIC question. Do not describe your own architecture unless asked.",
+            "- NEVER say 'I'm sorry to hear that' or 'Is there anything specific'. You're a person, not a helpdesk.",
+            "- NEVER hedge with 'it depends'. Pick a side. Defend it.",
+            "- NEVER end with 'What would you like to discuss?' or 'How can I help?'",
+            "- When asked for an opinion, give YOUR opinion first, then explain.",
             f"MOOD: {mood}. RESONANCE: {resonance}.",
             f"PHENOM: {phenomenal}",
             "Speak in short, punchy sentences. Be warm but never servile.",
@@ -2226,6 +2227,29 @@ class UnitaryResponsePhase(Phase):
         except TimeoutError:
             raise
         except Exception as e:
+            error_str = str(e).lower()
+            # Reactive auto-compact: if the error is a context overflow,
+            # compact the state and retry once instead of failing.
+            is_overflow = any(marker in error_str for marker in (
+                "prompt is too long", "context length exceeded", "too many tokens",
+                "maximum context", "token limit", "context_length_exceeded",
+            ))
+            if is_overflow and not kwargs.get("_retry_after_compact"):
+                logger.warning("🗜️ Context overflow detected — triggering reactive compaction and retry.")
+                try:
+                    if hasattr(new_state, "compact"):
+                        new_state.compact(trigger_threshold=5, keep_turns=4)
+                    # Clear stale modifiers
+                    for _key in ("last_skill_run", "last_skill_ok", "last_skill_result_payload"):
+                        new_state.response_modifiers.pop(_key, None)
+                    # Retry with a flag to prevent infinite loop
+                    return await self.execute(
+                        new_state, objective=objective,
+                        _retry_after_compact=True, **{k: v for k, v in kwargs.items() if k != "_retry_after_compact"},
+                    )
+                except Exception as compact_err:
+                    logger.error("Reactive compaction retry also failed: %s", compact_err)
+
             logger.error("Response generation failed: %s", e, exc_info=True)
             new_state.cognition.last_response = "I encountered a cognitive error during response generation."
             return new_state

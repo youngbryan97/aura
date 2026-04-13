@@ -310,11 +310,26 @@ def _mlx_worker_loop(
                 if schema:
                     temp = 0.0 # Force determinism for JSON
                     logger.info("🎯 [WORKER] Structured mode: temp=0.0 enforced.")
-                
+
+                # Intelligence boosters: min_p sampling improves quality on smaller
+                # models by filtering out low-probability tokens before top_p.
+                # Repetition penalty reduces the stale/looping response pattern.
+                min_p = job.get("min_p", 0.05)
+                repetition_penalty = job.get("repetition_penalty", 1.1)
                 kwargs = {"max_tokens": max_tokens}
                 if make_sampler:
-                    kwargs["sampler"] = make_sampler(temp=temp, top_p=top_p)
-                
+                    sampler_kwargs = {"temp": temp, "top_p": top_p}
+                    try:
+                        import inspect as _insp
+                        _sparams = _insp.signature(make_sampler).parameters
+                        if "min_p" in _sparams:
+                            sampler_kwargs["min_p"] = min_p
+                        if "repetition_penalty" in _sparams:
+                            sampler_kwargs["repetition_penalty"] = repetition_penalty
+                    except Exception:
+                        pass
+                    kwargs["sampler"] = make_sampler(**sampler_kwargs)
+
                 # [v11.0 HARDENING] Logits Processors (JSON Enforcement)
                 logits_processors = []
                 if schema:

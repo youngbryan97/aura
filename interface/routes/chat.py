@@ -2454,6 +2454,15 @@ async def api_chat(
                 status="architecture_self_reflex",
             )
 
+        # Crash-safe persistence: persist the user's message BEFORE calling
+        # the LLM. If the process dies mid-inference, the message is preserved
+        # and the conversation can be resumed. (Pattern from Claude Code.)
+        try:
+            from core.runtime.conversation_support import record_conversation_experience
+            await _log_exchange(body.message, "")  # Empty response = in-flight
+        except Exception:
+            pass  # Best-effort; don't block the response
+
         # Phase 2 Constitutional Closure: Try Sovereign Kernel Interface actively
         from core.kernel.kernel_interface import KernelInterface
         ki = KernelInterface.get_instance()

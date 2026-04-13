@@ -109,6 +109,73 @@ class ContextAssembler:
             return len(wm)
         return 0
 
+    @classmethod
+    def microcompact(cls, messages: list[dict], *, keep_recent: int = 3) -> list[dict]:
+        """Strip stale tool results, verbose system noise, and redundant content
+        from messages BEFORE they hit the LLM. This runs on every API call,
+        not just during compaction.
+
+        Inspired by Claude Code's microcompact pass — the single highest-ROI
+        change for context stability. Tool results from 5 turns ago are still
+        eating tokens that should go to conversation history.
+
+        Rules:
+        - Keep the last `keep_recent` messages untouched
+        - For older messages:
+          - Strip tool/skill results entirely (they're stale)
+          - Truncate system messages to 200 chars
+          - Truncate very long assistant messages to 500 chars
+          - Drop empty/near-empty messages
+        """
+        if len(messages) <= keep_recent + 1:  # +1 for system prompt
+            return messages
+
+        # Separate system prompt (always first) from conversation
+        result = []
+        system_msgs = []
+        convo_msgs = []
+        for msg in messages:
+            if msg.get("role") == "system" and not convo_msgs:
+                system_msgs.append(msg)
+            else:
+                convo_msgs.append(msg)
+
+        # Keep recent messages untouched
+        if len(convo_msgs) <= keep_recent:
+            return messages
+
+        older = convo_msgs[:-keep_recent]
+        recent = convo_msgs[-keep_recent:]
+
+        for msg in older:
+            role = str(msg.get("role", "")).lower()
+            content = str(msg.get("content", ""))
+            metadata = msg.get("metadata", {}) or {}
+            msg_type = str(metadata.get("type", "")).lower()
+
+            # Drop stale tool/skill results entirely
+            if msg_type in ("skill_result", "tool_result"):
+                continue
+            # Drop system bookkeeping
+            if role == "system" and any(marker in content for marker in (
+                "[CHAPTER SUMMARY:", "[FETCHED PAGE CONTENT]",
+                "[SKILL RESULT:", "[TOOL RESULT:", "[INTERNAL MEMORY RECALL]",
+                "cognitive baseline tick", "background_consolidation",
+            )):
+                # Keep a brief marker that context existed
+                result.append({"role": "system", "content": content[:120] + "...[compacted]"})
+                continue
+            # Truncate long assistant messages in old history
+            if role == "assistant" and len(content) > 500:
+                result.append({**msg, "content": content[:500] + "...[truncated]"})
+                continue
+            # Drop near-empty
+            if len(content.strip()) < 5:
+                continue
+            result.append(msg)
+
+        return system_msgs + result + recent
+
     @staticmethod
     def build_system_prompt(state: AuraState) -> str:
         """Construct the core system prompt from state. Uses Elasticity to scale verbosity.
@@ -691,6 +758,13 @@ class ContextAssembler:
                 rels.append(f"- {target}: {sentiment} (Dynamics: {trust:.2f})")
             context += "## SOCIAL DYNAMICS\n" + "\n".join(rels) + "\n\n"
             
+        # 3. User Preferences (Durable facts learned from conversation)
+        if hasattr(world, 'user_preferences') and world.user_preferences:
+            prefs = []
+            for key, val in world.user_preferences.items():
+                prefs.append(f"- {key}: {val}")
+            context += "## USER PREFERENCES\n" + "\n".join(prefs) + "\n\n"
+            
         return context
 
     @staticmethod
@@ -879,6 +953,9 @@ class ContextAssembler:
         # Assemble final array
         messages.extend(retained_history)
         messages.append({"role": "user", "content": safe_input})
+
+        # Microcompact: strip stale tool noise before hitting the LLM
+        messages = cls.microcompact(messages, keep_recent=4)
 
         # Final check for assistant prefill (Stream of Being)
         try:
