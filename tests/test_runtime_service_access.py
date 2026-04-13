@@ -111,6 +111,58 @@ def test_build_conversational_context_blocks_aggregates_registered_services(serv
     ]
 
 
+def test_build_conversational_context_blocks_prioritizes_coding_and_task_context(monkeypatch, service_container):
+    state = AuraState.default()
+    state.world.known_entities = {"Bryan": {"name": "Bryan"}}
+
+    service_container.register_instance(
+        "conversational_profiler",
+        SimpleNamespace(get_context_injection=lambda user_id: f"profile:{user_id}"),
+        required=False,
+    )
+
+    monkeypatch.setattr(
+        conversation_support,
+        "build_coding_context_block",
+        lambda objective: "## CODING WORKING SET\n- Files in play: core/runtime/conversation_support.py",
+    )
+    monkeypatch.setattr(
+        "core.agency.task_commitment_verifier.get_task_commitment_verifier",
+        lambda: SimpleNamespace(
+            get_context_block=lambda objective="": "## TASK CONTINUITY\n- [task-1] Fix failing pytest — status: running_async"
+        ),
+    )
+
+    blocks = conversation_support.build_conversational_context_blocks(
+        state,
+        objective="Keep going on the failing pytest in core/runtime/conversation_support.py",
+    )
+
+    assert blocks[0].startswith("## CODING WORKING SET")
+    assert blocks[1].startswith("## TASK CONTINUITY")
+    assert "profile:bryan" in blocks
+
+
+def test_build_conversational_context_blocks_includes_goal_engine_state(monkeypatch, service_container):
+    state = AuraState.default()
+    state.world.known_entities = {"Bryan": {"name": "Bryan"}}
+
+    service_container.register_instance(
+        "goal_engine",
+        SimpleNamespace(
+            get_context_block=lambda objective="": "## GOAL EXECUTION STATE\n- Immediate execution: stabilize the runtime"
+        ),
+        required=False,
+    )
+
+    blocks = conversation_support.build_conversational_context_blocks(
+        state,
+        objective="Keep going on the project roadmap",
+    )
+
+    assert any(block.startswith("## GOAL EXECUTION STATE") for block in blocks)
+
+
 @pytest.mark.asyncio
 async def test_personhood_engine_uses_shared_router_resolution(monkeypatch):
     llm = SimpleNamespace(

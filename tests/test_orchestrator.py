@@ -9,6 +9,7 @@ import pytest
 from core.orchestrator import RobustOrchestrator
 from core.orchestrator.orchestrator_types import SystemStatus
 from core.container import ServiceContainer
+from core.utils.queues import unpack_priority_message
 
 # mock_container and orchestrator fixtures migrated to tests/conftest.py v14.1
 
@@ -105,6 +106,24 @@ async def test_user_facing_websocket_origin_uses_direct_bypass(orchestrator):
     assert orchestrator._foreground_user_quiet_until >= orchestrator._last_user_interaction_time
     record_history.assert_any_call("Ping from UI", "websocket")
     record_history.assert_any_call("Web reply", "assistant")
+
+
+@pytest.mark.asyncio
+async def test_process_event_wraps_legacy_payload_dict(orchestrator, monkeypatch):
+    monkeypatch.setattr(
+        orchestrator,
+        "_authorize_background_enqueue_sync",
+        lambda *args, **kwargs: True,
+    )
+
+    await orchestrator.process_event("volition_trigger", {"reason": "idle_timeout"})
+
+    raw = orchestrator.message_queue.get_nowait()
+    message, origin = unpack_priority_message(raw)
+    assert origin == "internal"
+    assert message["content"] == "volition_trigger"
+    assert message["context"]["reason"] == "idle_timeout"
+    assert message["origin"] == "internal"
 
 @pytest.mark.asyncio
 async def test_process_user_input_timeout(orchestrator):

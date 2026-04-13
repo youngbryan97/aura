@@ -287,7 +287,7 @@ class WebSocketManager:
         message = _normalize_ui_event(message)
         msg_type = message.get("type", "")
         priority = 10
-        if msg_type in ("aura_message", "chat_response", "chat_stream_chunk"):
+        if msg_type in ("aura_message", "chat_response", "chat_stream_chunk", "agent_step", "tool_execution"):
             priority = 0
         elif msg_type in ("thought", "neural_event", "log", "telemetry"):
             priority = 20

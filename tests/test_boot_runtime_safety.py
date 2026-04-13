@@ -8,7 +8,11 @@ from core.brain.llm_health_router import build_router_from_config
 from core.container import ServiceContainer
 from core.config import PROJECT_ROOT, config
 from core.runtime.boot_safety import main_process_camera_policy, uvloop_allowed
-from core.runtime.desktop_boot_safety import compute_mlx_cache_limit, desktop_safe_boot_enabled
+from core.runtime.desktop_boot_safety import (
+    compute_mlx_cache_limit,
+    desktop_safe_boot_enabled,
+    inprocess_mlx_metal_enabled,
+)
 from core.senses.continuous_vision import ContinuousSensoryBuffer
 from core.sensory_motor_cortex import SensoryMotorCortex
 from core.utils.memory_monitor import AppleSiliconMemoryMonitor
@@ -53,6 +57,32 @@ def test_sensory_motor_cortex_blocks_forced_camera_on_darwin(monkeypatch):
         cortex = SensoryMotorCortex()
 
     assert cortex.camera_enabled is False
+
+
+def test_sensory_motor_cortex_syncs_user_activity_before_idle_trigger():
+    orchestrator = SimpleNamespace(
+        _last_user_interaction_time=200.0,
+        status=SimpleNamespace(is_processing=False),
+        _current_thought_task=None,
+    )
+    cortex = SensoryMotorCortex(orchestrator=orchestrator, config={"boredom_threshold": 120})
+    cortex.last_interaction_time = 0.0
+
+    assert cortex._should_trigger_volition(now=250.0) is False
+    assert cortex.last_interaction_time == 200.0
+
+
+def test_sensory_motor_cortex_skips_volition_while_processing():
+    orchestrator = SimpleNamespace(
+        _last_user_interaction_time=0.0,
+        status=SimpleNamespace(is_processing=True),
+        _current_thought_task=None,
+    )
+    cortex = SensoryMotorCortex(orchestrator=orchestrator, config={"boredom_threshold": 120})
+    cortex.last_interaction_time = 0.0
+
+    assert cortex._should_trigger_volition(now=500.0) is False
+    assert cortex.last_interaction_time == 500.0
 
 
 def test_memory_monitor_uses_psutil_pressure_sample(monkeypatch):
@@ -112,6 +142,52 @@ def test_compute_mlx_cache_limit_defaults_to_standard_ratio_when_not_safe(monkey
     limit = compute_mlx_cache_limit(64 * 1024 ** 3)
 
     assert limit == int(64 * 1024 ** 3 * 0.75)
+
+
+def test_inprocess_mlx_metal_disabled_during_safe_boot(monkeypatch):
+    monkeypatch.setenv("AURA_SAFE_BOOT_DESKTOP", "1")
+    monkeypatch.delenv("AURA_FORCE_INPROCESS_MLX_METAL", raising=False)
+    monkeypatch.delenv("AURA_ALLOW_UNSAFE_INPROCESS_MLX_METAL", raising=False)
+    monkeypatch.delenv("AURA_DISABLE_INPROCESS_MLX_METAL", raising=False)
+
+    enabled, reason = inprocess_mlx_metal_enabled(
+        platform_name="darwin",
+        mac_version="26.4",
+    )
+
+    assert enabled is False
+    assert reason == "desktop_safe_boot"
+
+
+def test_inprocess_mlx_metal_disabled_on_macos26_by_default(monkeypatch):
+    monkeypatch.delenv("AURA_SAFE_BOOT_DESKTOP", raising=False)
+    monkeypatch.delenv("AURA_LAUNCHED_FROM_APP", raising=False)
+    monkeypatch.delenv("AURA_FORCE_INPROCESS_MLX_METAL", raising=False)
+    monkeypatch.delenv("AURA_ALLOW_UNSAFE_INPROCESS_MLX_METAL", raising=False)
+    monkeypatch.delenv("AURA_DISABLE_INPROCESS_MLX_METAL", raising=False)
+
+    enabled, reason = inprocess_mlx_metal_enabled(
+        platform_name="darwin",
+        mac_version="26.4",
+    )
+
+    assert enabled is False
+    assert reason == "macos26_guard"
+
+
+def test_inprocess_mlx_metal_can_be_forced_for_debugging(monkeypatch):
+    monkeypatch.delenv("AURA_SAFE_BOOT_DESKTOP", raising=False)
+    monkeypatch.delenv("AURA_LAUNCHED_FROM_APP", raising=False)
+    monkeypatch.setenv("AURA_FORCE_INPROCESS_MLX_METAL", "1")
+    monkeypatch.delenv("AURA_DISABLE_INPROCESS_MLX_METAL", raising=False)
+
+    enabled, reason = inprocess_mlx_metal_enabled(
+        platform_name="darwin",
+        mac_version="26.4",
+    )
+
+    assert enabled is True
+    assert reason == "forced"
 
 
 import pytest

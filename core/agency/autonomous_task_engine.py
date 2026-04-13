@@ -9,10 +9,13 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from core.config import config
 from core.agency.capability_system import get_capability_manager, CapabilityToken
 from core.agency.safety_registry import get_safety_registry
 from core.mycelial.graph import get_mycelial
+from core.utils.file_utils import atomic_write_json
 
 logger = logging.getLogger("Aura.TaskEngine")
 
@@ -66,6 +69,47 @@ class TaskStep:
             "error":            self.error,
         }
 
+    def to_runtime_dict(self) -> Dict[str, Any]:
+        payload = self.to_dict()
+        payload.update(
+            {
+                "rollback_action": self.rollback_action,
+                "rollback_args": dict(self.rollback_args or {}),
+                "raw_result": self.raw_result,
+                "result_summary": self.result_summary,
+                "started_at": self.started_at,
+                "completed_at": self.completed_at,
+            }
+        )
+        return payload
+
+    @classmethod
+    def from_runtime_dict(cls, payload: Dict[str, Any]) -> "TaskStep":
+        raw_status = str(payload.get("status", StepStatus.PENDING.value) or StepStatus.PENDING.value)
+        try:
+            status = StepStatus(raw_status)
+        except Exception:
+            status = StepStatus.PENDING
+        return cls(
+            step_id=str(payload.get("step_id", "") or ""),
+            description=str(payload.get("description", "") or ""),
+            tool=str(payload.get("tool", "") or ""),
+            args=dict(payload.get("args", {}) or {}),
+            success_criterion=str(payload.get("success_criterion", "") or ""),
+            rollback_action=str(payload.get("rollback_action", "") or "") or None,
+            rollback_args=dict(payload.get("rollback_args", {}) or {}),
+            depends_on=list(payload.get("depends_on", []) or []),
+            parallel_safe=bool(payload.get("parallel_safe", False)),
+            status=status,
+            attempts=int(payload.get("attempts", 0) or 0),
+            raw_result=payload.get("raw_result"),
+            verified=bool(payload.get("verified", False)),
+            error=str(payload.get("error", "") or "") or None,
+            result_summary=str(payload.get("result_summary", "") or "") or None,
+            started_at=payload.get("started_at"),
+            completed_at=payload.get("completed_at"),
+        )
+
 
 @dataclass
 class TaskPlan:
@@ -97,6 +141,43 @@ class TaskPlan:
     @property
     def any_failed(self) -> bool:
         return any(s.status == StepStatus.FAILED for s in self.steps)
+
+    def to_runtime_dict(self) -> Dict[str, Any]:
+        return {
+            "plan_id": self.plan_id,
+            "goal": self.goal,
+            "steps": [step.to_runtime_dict() for step in self.steps],
+            "trace_id": self.trace_id,
+            "context": dict(self.context or {}),
+            "token_id": self.token_id,
+            "is_shadow": self.is_shadow,
+            "requires_approval": self.requires_approval,
+            "created_at": self.created_at,
+            "completed_at": self.completed_at,
+            "status": self.status,
+            "final_result": self.final_result,
+        }
+
+    @classmethod
+    def from_runtime_dict(cls, payload: Dict[str, Any]) -> "TaskPlan":
+        return cls(
+            plan_id=str(payload.get("plan_id", "") or ""),
+            goal=str(payload.get("goal", "") or ""),
+            steps=[
+                TaskStep.from_runtime_dict(item)
+                for item in list(payload.get("steps", []) or [])
+                if isinstance(item, dict)
+            ],
+            trace_id=str(payload.get("trace_id", "") or ""),
+            context=dict(payload.get("context", {}) or {}),
+            token_id=str(payload.get("token_id", "") or "") or None,
+            is_shadow=bool(payload.get("is_shadow", False)),
+            requires_approval=bool(payload.get("requires_approval", False)),
+            created_at=float(payload.get("created_at", time.time()) or time.time()),
+            completed_at=payload.get("completed_at"),
+            status=str(payload.get("status", "pending") or "pending"),
+            final_result=str(payload.get("final_result", "") or "") or None,
+        )
 
 
 @dataclass
@@ -136,6 +217,7 @@ class AutonomousTaskEngine:
     MAX_PARALLEL_STEPS = 4
     MAX_RESULT_CHARS = 1200
     SAFE_PARALLEL_TOOLS = frozenset({"think", "web_search", "read_file"})
+    TERMINAL_PLAN_STATUSES = frozenset({"succeeded", "failed", "partial", "rejected"})
     TECHNICAL_FACT_HINTS = (
         "def ", "class ", ".py", ".ts", ".tsx", ".js", ".jsx",
         "function ", "method ", "module ", "endpoint", "api ", "schema ",
@@ -144,12 +226,139 @@ class AutonomousTaskEngine:
     def __init__(self, kernel: Any):
         self.kernel = kernel
         self._active_plans: Dict[str, TaskPlan] = {}
+        self._persist_path = Path(config.paths.data_dir) / "runtime" / "task_engine_active_plans.json"
         self._tool_registry: Dict[str, Callable] = {}
         self._capability_manager = get_capability_manager()
         self._safety_registry = get_safety_registry()
         self._mycelial = get_mycelial()
         self._approval_events: Dict[str, asyncio.Event] = {}
         self._register_default_tools()
+        self._load_persisted_active_plans()
+
+    @staticmethod
+    def _record_coding_execution(callback_name: str, **kwargs: Any) -> None:
+        try:
+            from core.runtime.coding_session_memory import get_coding_session_memory
+
+            recorder = get_coding_session_memory()
+            callback = getattr(recorder, callback_name, None)
+            if callable(callback):
+                callback(**kwargs)
+        except Exception as exc:
+            logger.debug("TaskEngine: coding execution recording skipped (%s): %s", callback_name, exc)
+
+    @staticmethod
+    def _goal_overlap_score(a: str, b: str) -> float:
+        tokens_a = set(re.findall(r"[a-z0-9_./-]+", str(a or "").lower()))
+        tokens_b = set(re.findall(r"[a-z0-9_./-]+", str(b or "").lower()))
+        if not tokens_a or not tokens_b:
+            return 0.0
+        return len(tokens_a & tokens_b) / max(1, len(tokens_b))
+
+    def _persist_active_plans(self) -> None:
+        try:
+            payload = {
+                "updated_at": time.time(),
+                "plans": [plan.to_runtime_dict() for plan in self._active_plans.values()],
+            }
+            atomic_write_json(str(self._persist_path), payload)
+        except Exception as exc:
+            logger.debug("TaskEngine: active plan persistence skipped: %s", exc)
+
+    def _persist_plan_state(self, plan: TaskPlan) -> None:
+        active_plans = getattr(self, "_active_plans", None)
+        if isinstance(active_plans, dict) and plan.plan_id in active_plans:
+            active_plans[plan.plan_id] = plan
+        self._persist_active_plans()
+
+    def _normalize_loaded_plan(self, plan: TaskPlan) -> TaskPlan:
+        plan.context = dict(plan.context or {})
+        plan.context["recovered_after_restart"] = True
+        for step in plan.steps:
+            if step.status in {StepStatus.SUCCEEDED, StepStatus.SKIPPED, StepStatus.ROLLED_BACK}:
+                continue
+            interruption_note = (
+                f"Interrupted before completion. Previous state: {step.error}"
+                if step.error
+                else "Interrupted before this step could be fully verified."
+            )
+            step.status = StepStatus.PENDING
+            step.verified = False
+            step.error = interruption_note
+            step.completed_at = None
+        plan.status = "interrupted"
+        return plan
+
+    def _load_persisted_active_plans(self) -> None:
+        try:
+            if not self._persist_path.exists():
+                return
+            raw = json.loads(self._persist_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.debug("TaskEngine: persisted active plan load skipped: %s", exc)
+            return
+
+        restored: Dict[str, TaskPlan] = {}
+        for item in list(raw.get("plans", []) or []):
+            if not isinstance(item, dict):
+                continue
+            try:
+                plan = TaskPlan.from_runtime_dict(item)
+            except Exception as exc:
+                logger.debug("TaskEngine: persisted plan decode skipped: %s", exc)
+                continue
+            if not plan.plan_id or not plan.goal:
+                continue
+            if plan.status in self.TERMINAL_PLAN_STATUSES:
+                continue
+            restored[plan.plan_id] = self._normalize_loaded_plan(plan)
+
+        if not restored:
+            return
+
+        self._active_plans.update(restored)
+        for plan in restored.values():
+            try:
+                self._update_state_goals(plan)
+            except Exception as exc:
+                logger.debug("TaskEngine: recovered plan state sync skipped: %s", exc)
+        self._persist_active_plans()
+
+    def _find_resume_candidate(self, goal: str, context: Optional[Dict[str, Any]]) -> Optional[TaskPlan]:
+        ctx = dict(context or {})
+        requested_plan_id = str(ctx.get("resume_plan_id", "") or "").strip()
+        if requested_plan_id:
+            candidate = self._active_plans.get(requested_plan_id)
+            if candidate is not None and candidate.status not in self.TERMINAL_PLAN_STATUSES:
+                return candidate
+
+        task_id = str(ctx.get("task_id", "") or "").strip()
+        best_match: Optional[TaskPlan] = None
+        best_score = 0.0
+        for plan in list(self._active_plans.values()):
+            if plan.status in self.TERMINAL_PLAN_STATUSES:
+                continue
+            score = 0.0
+            if task_id and str(plan.context.get("task_id", "") or "").strip() == task_id:
+                score += 1.0
+            score += self._goal_overlap_score(plan.goal, goal)
+            if plan.status == "interrupted":
+                score += 0.2
+            if score > best_score:
+                best_score = score
+                best_match = plan
+        if best_score >= 0.65:
+            return best_match
+        return None
+
+    @staticmethod
+    def _plan_summary(plan: TaskPlan) -> str:
+        for step in reversed(plan.steps):
+            if step.error:
+                return str(step.error)[:180]
+            if step.result_summary:
+                return str(step.result_summary)[:180]
+        return str(plan.final_result or "")[:180]
 
     # === AUDIT FIXES: Logic & Safety ===
 
@@ -216,29 +425,43 @@ class AutonomousTaskEngine:
         is_shadow: bool = False,
     ) -> TaskResult:
         """Logic for decomposing a goal and executing the plan."""
-        plan_id = f"plan_{int(time.time())}"
+        requested_plan_id = f"plan_{int(time.time())}"
         trace_id = uuid.uuid4().hex[:8]
-        logger.info("TaskEngine: starting goal '%s' (plan=%s) [trace=%s]", goal[:50], plan_id, trace_id)
+        logger.info("TaskEngine: starting goal '%s' (requested_plan=%s) [trace=%s]", goal[:50], requested_plan_id, trace_id)
 
         # 0. Safety Check: Is this goal/skill allowed?
         if not await self._safety_registry.is_allowed(goal[:50]):
             logger.warning("TaskEngine: Goal '%s' blocked by SafetyRegistry", goal[:50])
             return TaskResult(
-                plan_id=plan_id, goal=goal, succeeded=False,
+                plan_id=requested_plan_id, goal=goal, succeeded=False,
                 summary="This autonomous action is currently disabled or restricted by safety policies.",
                 trace_id=trace_id,
                 steps_completed=0, steps_total=0,
             )
 
-        # 1. Decompose goal into steps
-        plan = await self._decompose_goal(goal, plan_id, context)
+        plan = self._find_resume_candidate(goal, context)
+        if plan is None:
+            plan = await self._decompose_goal(goal, requested_plan_id, context)
+            plan.context = dict(context or {})
+        else:
+            plan.context = dict(plan.context or {}) | dict(context or {})
+            plan.context["resume_count"] = int(plan.context.get("resume_count", 0) or 0) + 1
+            plan.context["last_resumed_at"] = time.time()
+            logger.info("TaskEngine: resuming interrupted plan %s for goal '%s'", plan.plan_id, goal[:60])
+
         plan.trace_id = trace_id
         plan.is_shadow = is_shadow
-        plan.context = dict(context or {})
+        self._record_coding_execution(
+            "record_execution_plan",
+            goal=goal,
+            steps=[step.description for step in list(plan.steps or [])],
+            plan_id=plan.plan_id,
+            objective=goal,
+        )
 
         if not plan.steps:
             return TaskResult(
-                plan_id=plan_id, goal=goal, succeeded=False,
+                plan_id=plan.plan_id, goal=goal, succeeded=False,
                 summary="I couldn't decompose this goal into executable steps.",
                 steps_completed=0, steps_total=0,
                 trace_id=trace_id,
@@ -253,27 +476,30 @@ class AutonomousTaskEngine:
         token = self._capability_manager.generate_token(tools_needed)
         plan.token_id = token.token_id
 
-        self._active_plans[plan_id] = plan
+        self._active_plans[plan.plan_id] = plan
         self._update_state_goals(plan)
+        self._persist_plan_state(plan)
 
         # Pause if escalation required (except in shadow mode)
         if plan.requires_approval and not plan.is_shadow:
-            logger.warning("TaskEngine: Plan %s requires human approval. Blocking execution.", plan_id)
+            logger.warning("TaskEngine: Plan %s requires human approval. Blocking execution.", plan.plan_id)
             plan.status = "waiting_for_approval"
+            self._persist_plan_state(plan)
             event = asyncio.Event()
-            self._approval_events[plan_id] = event
+            self._approval_events[plan.plan_id] = event
             try:
                 approved = await asyncio.wait_for(event.wait(), timeout=self.APPROVAL_TIMEOUT)
             except asyncio.TimeoutError:
                 approved = False
             finally:
-                self._approval_events.pop(plan_id, None)
+                self._approval_events.pop(plan.plan_id, None)
             if not approved or plan.status == "rejected":
                 plan.status = "rejected"
                 self._update_state_goals(plan)
-                self._active_plans.pop(plan_id, None)
+                self._active_plans.pop(plan.plan_id, None)
+                self._persist_active_plans()
                 return TaskResult(
-                    plan_id=plan_id, goal=goal, succeeded=False,
+                    plan_id=plan.plan_id, goal=goal, succeeded=False,
                     summary="Plan requires human approval. Call approve_plan(plan_id) to proceed.",
                     steps_completed=0, steps_total=len(plan.steps),
                     trace_id=trace_id,
@@ -288,7 +514,7 @@ class AutonomousTaskEngine:
                 if cfe:
                     action_space = [
                         {"type": "execute_plan", "description": f"Execute full plan: {goal[:60]}",
-                         "params": {"plan_id": plan_id, "steps": len(plan.steps)}},
+                         "params": {"plan_id": plan.plan_id, "steps": len(plan.steps)}},
                         {"type": "plan", "description": f"Re-plan with simpler approach for: {goal[:60]}",
                          "params": {}},
                         {"type": "ask_clarification", "description": f"Ask user to clarify: {goal[:60]}",
@@ -304,7 +530,7 @@ class AutonomousTaskEngine:
                     if best and best.action_type != "execute_plan":
                         logger.info(
                             "TaskEngine: Counterfactual deliberation chose '%s' over execute_plan for %s",
-                            best.action_type, plan_id,
+                            best.action_type, plan.plan_id,
                         )
                         # Still execute — the deliberation is informational for now
                         # and records learning signal. The counterfactual record will
@@ -317,6 +543,13 @@ class AutonomousTaskEngine:
 
         # 3. Synthesize result
         result = await self._synthesize_result(plan, time.time() - plan.created_at)
+        self._record_coding_execution(
+            "record_execution_result",
+            summary=result.summary,
+            succeeded=result.succeeded,
+            steps_completed=result.steps_completed,
+            steps_total=result.steps_total,
+        )
         # Issue ATE-007: Update goals BEFORE deleting from active_plans.
         # Wrap in try/finally so the plan is always cleaned up even if
         # the goal engine write fails — prevents zombie active plans.
@@ -329,21 +562,22 @@ class AutonomousTaskEngine:
                     _ge = _SC.get("goal_engine", default=None)
                     if _ge and hasattr(_ge, "update_task_lifecycle"):
                         await _ge.update_task_lifecycle(
-                            task_id=plan_id,
+                            task_id=str(plan.context.get("task_id", "") or plan.plan_id),
                             status="completed",
                             summary=result.summary or "",
                             evidence=result.evidence or [],
                         )
                 except Exception as _lc_err:
-                    logger.debug("TaskEngine: goal lifecycle completion failed for plan %s: %s", plan_id, _lc_err)
+                    logger.debug("TaskEngine: goal lifecycle completion failed for plan %s: %s", plan.plan_id, _lc_err)
         except Exception as exc:
-            logger.error("TaskEngine: goal state sync failed for plan %s: %s", plan_id, exc)
+            logger.error("TaskEngine: goal state sync failed for plan %s: %s", plan.plan_id, exc)
         finally:
-            self._active_plans.pop(plan_id, None)
+            self._active_plans.pop(plan.plan_id, None)
+            self._persist_active_plans()
 
         logger.info(
             "TaskEngine: plan %s complete. Success=%s (%d/%d steps)",
-            plan_id, result.succeeded, result.steps_completed, result.steps_total,
+            plan.plan_id, result.succeeded, result.steps_completed, result.steps_total,
         )
         return result
 
@@ -353,6 +587,7 @@ class AutonomousTaskEngine:
         if event:
             if plan_id in self._active_plans:
                 self._active_plans[plan_id].status = "approved"
+                self._persist_active_plans()
             event.set()
             logger.info("TaskEngine: Plan %s approved by operator.", plan_id)
             return True
@@ -365,6 +600,7 @@ class AutonomousTaskEngine:
         if event:
             if plan_id in self._active_plans:
                 self._active_plans[plan_id].status = "rejected"
+                self._persist_active_plans()
             event.set()
             logger.info("TaskEngine: Plan %s rejected by operator.", plan_id)
             return True
@@ -380,6 +616,13 @@ class AutonomousTaskEngine:
                 "goal":    p.goal[:60],
                 "steps":   [s.to_dict() for s in p.steps],
                 "status":  p.status,
+                "summary": self._plan_summary(p),
+                "task_id": str(p.context.get("task_id", "") or p.plan_id),
+                "project_id": str(p.context.get("project_id", "") or ""),
+                "trace_id": p.trace_id,
+                "steps_completed": len(p.succeeded_steps),
+                "steps_total": len(p.steps),
+                "resumable": p.status in {"interrupted", "waiting_for_approval", "pending"},
             }
             for p in snapshot
         ]
@@ -573,6 +816,7 @@ Respond ONLY with a JSON array, no other text:
                 remaining.status = StepStatus.SKIPPED
                 remaining.error = "skipped due to earlier failure"
         plan.status = "failed"
+        self._persist_plan_state(plan)
 
     # ── Execution ─────────────────────────────────────────────────────────────
 
@@ -585,11 +829,13 @@ Respond ONLY with a JSON array, no other text:
         # Final safety check before execution
         if not await self._safety_registry.is_allowed(plan.goal[:50]):
              plan.status = "failed"
+             self._persist_plan_state(plan)
              logger.error("TaskEngine: Execution aborted for '%s' - Safety revocation triggered.", plan.goal[:50])
              return
 
         plan.status = "running"
-        completed_ids: Set[str] = set()
+        self._persist_plan_state(plan)
+        completed_ids: Set[str] = {step.step_id for step in plan.succeeded_steps}
 
         while True:
             pending_steps = [step for step in plan.steps if step.status == StepStatus.PENDING]
@@ -606,6 +852,7 @@ Respond ONLY with a JSON array, no other text:
                     step.error = "dependency cycle or unsatisfied dependency"
                     self._report_progress(step, on_progress)
                 plan.status = "failed"
+                self._persist_plan_state(plan)
                 logger.error("TaskEngine: no runnable steps remain for plan %s", plan.plan_id)
                 return
 
@@ -616,6 +863,7 @@ Respond ONLY with a JSON array, no other text:
                     if step.status == StepStatus.SUCCEEDED:
                         completed_ids.add(step.step_id)
                     self._report_progress(step, on_progress)
+                self._persist_plan_state(plan)
                 failed_step = next((step for step in parallel_wave if step.status == StepStatus.FAILED), None)
                 if failed_step is not None:
                     await self._fail_plan(
@@ -631,6 +879,7 @@ Respond ONLY with a JSON array, no other text:
             if step.status == StepStatus.SUCCEEDED:
                 completed_ids.add(step.step_id)
             self._report_progress(step, on_progress)
+            self._persist_plan_state(plan)
 
             if step.status == StepStatus.FAILED:
                 await self._fail_plan(
@@ -642,6 +891,7 @@ Respond ONLY with a JSON array, no other text:
 
         if plan.status != "failed":
             plan.status = "succeeded" if plan.all_complete and not plan.any_failed else "partial"
+            self._persist_plan_state(plan)
 
     async def _execute_step_with_retry(self, step: TaskStep, plan: TaskPlan) -> None:
         """Execute a single step with up to MAX_RETRIES retries."""
@@ -649,6 +899,18 @@ Respond ONLY with a JSON array, no other text:
             step.attempts   += 1
             step.status      = StepStatus.RUNNING
             step.started_at  = time.time()
+            step.completed_at = None
+            self._record_coding_execution(
+                "record_execution_step",
+                step_description=step.description,
+                tool_name=step.tool,
+                status="running",
+                attempt=step.attempts,
+                success_criterion=step.success_criterion,
+                steps_completed=len(plan.succeeded_steps),
+                steps_total=len(plan.steps),
+            )
+            self._persist_plan_state(plan)
 
             try:
                 # Issue ATE-001: asyncio.timeout() is 3.11+, use wait_for for compatibility
@@ -661,31 +923,98 @@ Respond ONLY with a JSON array, no other text:
                 step.result_summary = step.raw_result
 
                 # Verify the step succeeded
+                self._record_coding_execution(
+                    "record_execution_step",
+                    step_description=step.description,
+                    tool_name=step.tool,
+                    status="verifying",
+                    attempt=step.attempts,
+                    result_summary=step.result_summary or "",
+                    success_criterion=step.success_criterion,
+                    steps_completed=len(plan.succeeded_steps),
+                    steps_total=len(plan.steps),
+                )
                 verified = await self._verify_step(step, raw_result)
                 if verified:
                     step.status       = StepStatus.SUCCEEDED
                     step.verified     = True
                     step.completed_at = time.time()
+                    self._record_coding_execution(
+                        "record_execution_step",
+                        step_description=step.description,
+                        tool_name=step.tool,
+                        status="verified",
+                        attempt=step.attempts,
+                        result_summary=step.result_summary or "",
+                        success_criterion=step.success_criterion,
+                        steps_completed=len(plan.succeeded_steps) + 1,
+                        steps_total=len(plan.steps),
+                    )
                     logger.debug("TaskEngine: step '%s' succeeded (attempt %d)", step.description[:40], attempt + 1)
+                    self._persist_plan_state(plan)
                     return
                 else:
                     # Verification failed — modify args and retry
                     step.error = "verification failed"
+                    self._record_coding_execution(
+                        "record_execution_step",
+                        step_description=step.description,
+                        tool_name=step.tool,
+                        status="verification_failed",
+                        attempt=step.attempts,
+                        result_summary=step.result_summary or "",
+                        error=step.error,
+                        success_criterion=step.success_criterion,
+                        steps_completed=len(plan.succeeded_steps),
+                        steps_total=len(plan.steps),
+                    )
                     logger.warning("TaskEngine: step '%s' verification failed (attempt %d)", step.description[:40], attempt + 1)
                     # Modify args for retry: ask LLM for an alternative approach
                     if attempt < self.MAX_RETRIES - 1:
                         step.args = await self._get_alternative_approach(step)
+                        self._record_coding_execution(
+                            "record_execution_repair",
+                            step_description=step.description,
+                            reason=step.error or step.success_criterion,
+                            new_args=step.args,
+                        )
+                    self._persist_plan_state(plan)
 
             except asyncio.TimeoutError:
                 step.error = f"timeout after {self.STEP_TIMEOUT}s"
+                self._record_coding_execution(
+                    "record_execution_step",
+                    step_description=step.description,
+                    tool_name=step.tool,
+                    status="timeout",
+                    attempt=step.attempts,
+                    error=step.error,
+                    success_criterion=step.success_criterion,
+                    steps_completed=len(plan.succeeded_steps),
+                    steps_total=len(plan.steps),
+                )
                 logger.warning("TaskEngine: step '%s' timed out (attempt %d)", step.description[:40], attempt + 1)
+                self._persist_plan_state(plan)
             except Exception as e:
                 step.error = str(e)
+                self._record_coding_execution(
+                    "record_execution_step",
+                    step_description=step.description,
+                    tool_name=step.tool,
+                    status="failed",
+                    attempt=step.attempts,
+                    error=step.error,
+                    success_criterion=step.success_criterion,
+                    steps_completed=len(plan.succeeded_steps),
+                    steps_total=len(plan.steps),
+                )
                 logger.warning("TaskEngine: step '%s' error: %s (attempt %d)", step.description[:40], e, attempt + 1)
+                self._persist_plan_state(plan)
 
         # If all retries fail
         step.status = StepStatus.FAILED
         step.completed_at = time.time()
+        self._persist_plan_state(plan)
 
     # ── Verification ─────────────────────────────────────────────────────────
 
@@ -700,11 +1029,42 @@ Respond ONLY with a JSON array, no other text:
             return False
 
         result_str = str(result)[:1000] if result else ""
+        criterion = str(step.success_criterion or "").lower()
+
+        if isinstance(result, dict):
+            if result.get("verified") is True:
+                return True
+            if result.get("verified") is False:
+                return False
+            if result.get("ok") is False:
+                return False
+            exit_code = result.get("exit_code", result.get("return_code"))
+            if exit_code not in (None, 0):
+                return False
+            if result.get("error"):
+                return False
+            if criterion and any(marker in criterion for marker in ("no error", "without error", "completes")):
+                if exit_code == 0 and not result.get("stderr"):
+                    return True
+
+        if criterion:
+            contains_match = re.search(r"(?:contains?|includes?|mentions?)\s+['\"]([^'\"]+)['\"]", criterion)
+            if contains_match:
+                needle = contains_match.group(1).strip().lower()
+                if needle and needle in result_str.lower():
+                    return True
+            if any(marker in criterion for marker in ("non-empty", "non empty", "response is non-empty", "any result")):
+                return bool(result_str.strip())
+            if "file exists" in criterion and any(token in result_str.lower() for token in ("exists", "found", "present")):
+                return True
 
         # Fast path: trivial criteria
         trivial_pass = ["step completes", "non-empty", "any result", "no error"]
         if any(t in step.success_criterion.lower() for t in trivial_pass):
             return bool(result_str.strip())
+
+        if step.tool in {"read_file", "think"} and self._looks_technical_fact(result_str):
+            return True
 
         try:
             llm = self.kernel.organs["llm"].get_instance()
@@ -846,6 +1206,7 @@ Respond ONLY with a JSON array, no other text:
             trace_id=plan.trace_id,
             steps_completed=len(plan.succeeded_steps),
             steps_total=len(plan.steps),
+            evidence=evidence[:6],
             duration_s=time.time() - plan.created_at
         )
 

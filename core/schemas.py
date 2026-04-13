@@ -69,12 +69,17 @@ class ChatStreamEvent(BaseModel):
     content: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
+class ToolInvocation(BaseModel):
+    name: str = Field(..., description="The tool to invoke (python_sandbox, web_search)")
+    payload: str = Field(..., description="The script or query for the tool")
+
 class ShardResponse(BaseModel):
     """Strict schema for autonomous cognitive shards."""
     model_config = ConfigDict(extra='allow') # allow extra fields like 'thought' from LLMs
     
     analysis: str = Field(..., description="Internal cognitive monologue/analysis.", validation_alias=AliasChoices('analysis', 'thought'))
     action_type: str = Field(..., description="One of: 'observation', 'tool_use', 'conclusion', 'thought'")
-    tool_name: Optional[str] = Field(None, description="The tool to invoke (python_sandbox, web_search)")
-    tool_payload: Optional[str] = Field(None, description="The script or query for the tool")
+    tools: List[ToolInvocation] = Field(default_factory=list, description="Array of tools to execute simultaneously.")
+    tool_name: Optional[str] = Field(None, description="[Legacy] The tool to invoke")
+    tool_payload: Optional[str] = Field(None, description="[Legacy] The script or query for the tool")
     conclusion: str = Field(..., description="Final takeaway or message.")

@@ -326,6 +326,7 @@ class NucleusManager(LLMProvider):
 
                     yield response.text
                     if response.count >= max_tokens:
+                        yield "\n\n[MAX_TOKENS_REACHED]"
                         # Save cache back for persistence
                         model_entry["cache"] = cache
                         break

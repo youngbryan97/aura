@@ -27,19 +27,38 @@ class ToolExecutionMixin:
         _constitution = None
         _tool_handle = None
         _constitutional_runtime_live = False
+        _origin = kwargs.get("origin", "unknown")
+
+        def _record_coding_tool_event(result: Any, *, success: bool, error: str = "") -> None:
+            try:
+                from core.runtime.coding_session_memory import get_coding_session_memory
+
+                get_coding_session_memory().record_tool_event(
+                    tool_name=tool_name,
+                    args=args,
+                    result=result,
+                    objective=self._current_objective or "",
+                    origin=_origin,
+                    success=success,
+                    error=error,
+                )
+            except Exception as _coding_exc:
+                logger.debug("Coding session tool recording skipped: %s", _coding_exc)
 
         # ── UNIFIED WILL GATE ────────────────────────────────────────────
         try:
             from core.will import ActionDomain, get_will
             _will_decision = get_will().decide(
                 content=f"tool:{tool_name} args:{str(args)[:100]}",
-                source=kwargs.get("origin", "unknown"),
+                source=_origin,
                 domain=ActionDomain.TOOL_EXECUTION,
                 priority=0.7,
             )
             if not _will_decision.is_approved():
                 logger.warning("Unified Will REFUSED tool '%s': %s", tool_name, _will_decision.reason)
-                return {"ok": False, "error": f"Will refused: {_will_decision.reason}"}
+                result = {"ok": False, "error": f"Will refused: {_will_decision.reason}"}
+                _record_coding_tool_event(result, success=False, error=str(_will_decision.reason))
+                return result
         except Exception as _will_err:
             logger.debug("Unified Will tool gate degraded: %s", _will_err)
         # ─────────────────────────────────────────────────────────────────
@@ -56,7 +75,6 @@ class ToolExecutionMixin:
                 or bool(getattr(_SC, "_registration_locked", False))
             )
             _constitution = get_constitutional_core(self)
-            _origin = kwargs.get("origin", "unknown")
             _tool_handle = await _constitution.begin_tool_execution(
                 tool_name,
                 args,
@@ -70,7 +88,9 @@ class ToolExecutionMixin:
                     from core.unified_action_log import get_action_log
                     get_action_log().record(tool_name, kwargs.get("origin","unknown"), "tool", "blocked", str(reason))
                 except Exception: pass
-                return {"ok": False, "error": f"Executive blocked: {reason}"}
+                result = {"ok": False, "error": f"Executive blocked: {reason}"}
+                _record_coding_tool_event(result, success=False, error=str(reason))
+                return result
             try:
                 from core.unified_action_log import get_action_log
                 get_action_log().record(tool_name, kwargs.get("origin","unknown"), "tool", "approved")
@@ -94,7 +114,9 @@ class ToolExecutionMixin:
                 except Exception as _exc:
                     logger.debug("Suppressed Exception: %s", _exc)
                 logger.warning("🚫 ConstitutionalCore unavailable for tool '%s': %s", tool_name, _exec_err)
-                return {"ok": False, "error": "Constitutional tool gate unavailable"}
+                result = {"ok": False, "error": "Constitutional tool gate unavailable"}
+                _record_coding_tool_event(result, success=False, error=str(_exec_err))
+                return result
             logger.debug("ConstitutionalCore unavailable for tool gate: %s", _exec_err)
         # ─────────────────────────────────────────────────────────────────
 
@@ -113,7 +135,9 @@ class ToolExecutionMixin:
                             duration_ms=(time.time() - _start) * 1000,
                             error="Capability token missing.",
                         )
-                    return {"ok": False, "error": "Capability token missing."}
+                    result = {"ok": False, "error": "Capability token missing."}
+                    _record_coding_tool_event(result, success=False, error="Capability token missing.")
+                    return result
                 if not get_authority_gateway().verify_tool_access(tool_name, capability_token_id):
                     logger.warning("🚫 Capability token denied tool '%s'.", tool_name)
                     if _constitution and _tool_handle:
@@ -124,7 +148,9 @@ class ToolExecutionMixin:
                             duration_ms=(time.time() - _start) * 1000,
                             error="Capability token denied tool execution.",
                         )
-                    return {"ok": False, "error": "Capability token denied tool execution."}
+                    result = {"ok": False, "error": "Capability token denied tool execution."}
+                    _record_coding_tool_event(result, success=False, error="Capability token denied tool execution.")
+                    return result
                 kwargs["capability_token_id"] = capability_token_id
             except Exception as capability_err:
                 logger.warning("Capability verification failed for tool '%s': %s", tool_name, capability_err)
@@ -136,7 +162,9 @@ class ToolExecutionMixin:
                         duration_ms=(time.time() - _start) * 1000,
                         error="Capability verification failed.",
                     )
-                return {"ok": False, "error": "Capability verification failed."}
+                result = {"ok": False, "error": "Capability verification failed."}
+                _record_coding_tool_event(result, success=False, error=str(capability_err))
+                return result
 
         # 0. Virtual & Internal Tools
         if tool_name == "swarm_debate":
@@ -149,7 +177,9 @@ class ToolExecutionMixin:
                         duration_ms=(time.time() - _start) * 1000,
                         error="Swarm Delegator not available.",
                     )
-                return {"ok": False, "error": "Swarm Delegator not available."}
+                result = {"ok": False, "error": "Swarm Delegator not available."}
+                _record_coding_tool_event(result, success=False, error="Swarm Delegator not available.")
+                return result
             topic = args.get("topic") or args.get("query") or self._current_objective
             roles = args.get("roles", ["architect", "critic"])
             self._emit_thought_stream(f"🐝 Engaging Swarm Debate: {topic[:100]}...")
@@ -161,7 +191,9 @@ class ToolExecutionMixin:
                     success=True,
                     duration_ms=(time.time() - _start) * 1000,
                 )
-            return {"ok": True, "output": result}
+            response = {"ok": True, "output": result}
+            _record_coding_tool_event(response, success=True)
+            return response
 
         try:
             # 1. Check if tool exists in registry
@@ -175,7 +207,9 @@ class ToolExecutionMixin:
                             success=True,
                             duration_ms=(time.time() - _start) * 1000,
                         )
-                    return {"ok": True, "message": args.get("message", "Done.")}
+                    result = {"ok": True, "message": args.get("message", "Done.")}
+                    _record_coding_tool_event(result, success=True)
+                    return result
 
                 # 1.5 Autogenesis (Hephaestus Engine)
                 if self.hephaestus:
@@ -204,7 +238,9 @@ class ToolExecutionMixin:
                         duration_ms=(time.time() - _start) * 1000,
                         error=f"Tool '{tool_name}' not found.",
                     )
-                return {"ok": False, "error": f"Tool '{tool_name}' not found."}
+                result = {"ok": False, "error": f"Tool '{tool_name}' not found."}
+                _record_coding_tool_event(result, success=False, error=result["error"])
+                return result
 
             # 2. Contextual Awareness
             context = {
@@ -296,6 +332,7 @@ class ToolExecutionMixin:
                     success=success,
                     duration_ms=elapsed_ms,
                 )
+            _record_coding_tool_event(result, success=success, error=str(result.get("error", "")))
             return result
 
         except Exception as e:
@@ -324,6 +361,8 @@ class ToolExecutionMixin:
                     )
                 except Exception as _finish_exc:
                     logger.debug("Constitutional tool completion failed: %s", _finish_exc)
-            return {"ok": False, "error": "execution_jolt", "message": str(e)}
+            result = {"ok": False, "error": "execution_jolt", "message": str(e)}
+            _record_coding_tool_event(result, success=False, error=str(e))
+            return result
 
         logger.info("Orchestrator stopped")

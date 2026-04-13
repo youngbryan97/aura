@@ -411,6 +411,25 @@ class InferenceGate:
 
         asyncio.create_task(_background_recover())
 
+    async def _respawn_cortex_if_needed(self) -> None:
+        """Respawn the primary cortex if it's dead.
+
+        Called by HealthRouter and message_handling when inference returns empty.
+        Delegates to _ensure_cortex_recovery() which has proper rate-limiting,
+        warm-up sequencing, and retry budgets.
+        """
+        if (
+            self._mlx_client
+            and hasattr(self._mlx_client, "is_alive")
+            and self._mlx_client.is_alive()
+        ):
+            return  # Cortex is fine — nothing to do
+        if self._cortex_recovery_in_progress:
+            logger.debug("_respawn_cortex_if_needed: recovery already in progress.")
+            return  # Already recovering — don't double-spawn
+        logger.info("🔄 _respawn_cortex_if_needed: cortex is dead, delegating to recovery.")
+        await self._ensure_cortex_recovery()
+
     async def ensure_all_tiers_healthy(self) -> Dict[str, str]:
         """Proactive health check for ALL inference tiers. Called by MindTick.
 
@@ -2119,6 +2138,8 @@ class InferenceGate:
                 # Force cortex recovery in background
                 if not self._cortex_recovery_in_progress:
                     asyncio.create_task(self._respawn_cortex_if_needed())
+                # Give cortex time to recover before next request hits a dead endpoint
+                self._extend_startup_quiet_window(15.0)
                 # Reset the UnitaryResponsePhase circuit breaker so next attempt works
                 try:
                     from core.resilience.error_boundary import CircuitRegistry
@@ -2130,7 +2151,7 @@ class InferenceGate:
                         logger.info("Reset UnitaryResponsePhase circuit to HALF_OPEN for recovery")
                 except Exception:
                     pass
-                return "My cognitive engine is currently recovering. Give me a moment to gather my thoughts and try again."
+                return "My thinking engine just hiccupped — try that again in a few seconds."
             return None
 
         if time.monotonic() < self._cloud_backoff_until:

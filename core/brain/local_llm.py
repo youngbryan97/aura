@@ -15,6 +15,44 @@ _CONNECT_TIMEOUT = 10.0
 _READ_TIMEOUT = 300.0  # 5 minutes to allow slow model loading
 _DEFAULT_TIMEOUT = httpx.Timeout(connect=_CONNECT_TIMEOUT, read=_READ_TIMEOUT, write=30.0, pool=10.0)
 
+# ── Model Tier Defaults (v27: Upgraded for M5/64GB) ─────────────────────────
+# Old values (v26): num_ctx=4096, num_predict=512 — cripplingly low
+_MODEL_TIER_DEFAULTS = {
+    "coding":  {"num_ctx": 16384, "num_predict": 4096, "temperature": 0.4},
+    "chat":    {"num_ctx": 16384, "num_predict": 2048, "temperature": 0.7},
+    "summary": {"num_ctx": 8192,  "num_predict": 1024, "temperature": 0.3},
+    "default": {"num_ctx": 16384, "num_predict": 2048, "temperature": 0.7},
+}
+
+# ── Thought Circulation (from gemini-skills) ────────────────────────────────
+_CODING_KEYWORDS = {
+    "code", "function", "class", "implement", "debug", "fix", "refactor",
+    "script", "api", "endpoint", "database", "sql", "query", "test",
+    "error", "bug", "traceback", "exception", "compile", "build",
+    "deploy", "docker", "git", "commit", "merge", "python", "javascript",
+    "typescript", "rust", "java", "create a", "write a", "modify",
+    "html", "css", "react", "fastapi", "flask", "django",
+}
+
+_THOUGHT_CIRCULATION_DIRECTIVE = """Before responding, reason step-by-step in <think> tags about:
+1. What the user is asking for and any implicit requirements
+2. What files, APIs, or systems are involved
+3. Edge cases, error handling, and potential pitfalls
+4. Your exact implementation approach
+Then provide your implementation outside the think tags."""
+
+
+def detect_task_tier(prompt: str, system_prompt: str = "") -> str:
+    """Detect the task tier from the prompt content."""
+    combined = (prompt + " " + (system_prompt or "")).lower()
+    for keyword in _CODING_KEYWORDS:
+        if keyword in combined:
+            return "coding"
+    # Check for summary/compression tasks
+    if any(kw in combined for kw in ["summarize", "compress", "distill", "snapshot"]):
+        return "summary"
+    return "chat"
+
 
 class LocalBrain:
     """Sovereign Intelligence Bridge connecting to local Ollama instance.
@@ -151,19 +189,27 @@ class LocalBrain:
     # --- Generation ---
     async def generate(self, prompt: str, system_prompt: Optional[str] = None, options: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, str]:
         """Send a generation request to the local Ollama instance (Async).
-        v14: Returns {"response": ..., "thought": ...} with extracted thinking.
+        v15: Task-tier-aware defaults, thought circulation, 3 retries w/ exp backoff.
         """
         if not self._check_circuit():
             return {"response": "Error: Local brain temporarily unavailable (circuit breaker open).", "thought": ""}
         
-        # v26 FIX: Hard Memory Ceiling (4k Context / 512 Predict)
+        # v27: Task-tier-aware defaults (replaces hard 4K/512 ceiling)
+        task_tier = detect_task_tier(prompt, system_prompt or "")
+        tier_defaults = _MODEL_TIER_DEFAULTS.get(task_tier, _MODEL_TIER_DEFAULTS["default"])
+
         final_options = {
-            "temperature": config.llm.temperature,
-            "num_predict": 512, # Verbosisty Cap
-            "num_ctx": 4096    # Context Ceiling
+            "temperature": tier_defaults["temperature"],
+            "num_predict": tier_defaults["num_predict"],
+            "num_ctx": tier_defaults["num_ctx"],
         }
         if options:
             final_options.update(options)
+
+        # v27: Thought circulation injection for coding tasks
+        effective_system = system_prompt or ""
+        if task_tier == "coding" and _THOUGHT_CIRCULATION_DIRECTIVE not in effective_system:
+            effective_system = f"{effective_system}\n\n{_THOUGHT_CIRCULATION_DIRECTIVE}" if effective_system else _THOUGHT_CIRCULATION_DIRECTIVE
 
         url = "/api/generate"
         payload = {
@@ -173,13 +219,15 @@ class LocalBrain:
             "keep_alive": "30m",
             "options": final_options
         }
-        if system_prompt:
-            payload["system"] = system_prompt
+        if effective_system:
+            payload["system"] = effective_system
         
         last_error = None
-        for attempt in range(2):  # 1 retry
+        max_retries = 4  # v27: Increased from 2 to 4 (3 retries)
+        for attempt in range(max_retries):
             try:
-                logger.info("Ollama Request: %s | Prompt len: %d | Attempt: %d", self.model, len(prompt), attempt + 1)
+                logger.info("Ollama Request: %s | Tier: %s | Prompt len: %d | Attempt: %d/%d",
+                           self.model, task_tier, len(prompt), attempt + 1, max_retries)
                 response = await self.client.post(url, json=payload)
                 response.raise_for_status()
                 data = response.json()
@@ -192,9 +240,10 @@ class LocalBrain:
                 
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
                 last_error = e
-                if attempt == 0:
-                    logger.warning("Transient LLM error (retrying in 1s): %s", e)
-                    await asyncio.sleep(1.0)
+                if attempt < max_retries - 1:
+                    backoff = min(2 ** attempt, 8)  # 1s, 2s, 4s, 8s
+                    logger.warning("Transient LLM error (retry %d in %ds): %s", attempt + 1, backoff, e)
+                    await asyncio.sleep(backoff)
                     continue
             except Exception as e:
                 last_error = e
@@ -212,14 +261,22 @@ class LocalBrain:
             yield "Error: Local brain temporarily unavailable."
             return
         
-        # v26 FIX: Hard Memory Ceiling (4k Context / 512 Predict)
+        # v27: Task-tier-aware defaults for text streaming
+        task_tier = detect_task_tier(prompt, system_prompt or "")
+        tier_defaults = _MODEL_TIER_DEFAULTS.get(task_tier, _MODEL_TIER_DEFAULTS["default"])
+
         final_options = {
-            "temperature": config.llm.temperature,
-            "num_predict": 512, # Verbosisty Cap
-            "num_ctx": 4096    # Context Ceiling
+            "temperature": tier_defaults["temperature"],
+            "num_predict": tier_defaults["num_predict"],
+            "num_ctx": tier_defaults["num_ctx"],
         }
         if options:
             final_options.update(options)
+
+        # v27: Thought circulation for coding
+        effective_system = system_prompt or ""
+        if task_tier == "coding" and _THOUGHT_CIRCULATION_DIRECTIVE not in effective_system:
+            effective_system = f"{effective_system}\n\n{_THOUGHT_CIRCULATION_DIRECTIVE}" if effective_system else _THOUGHT_CIRCULATION_DIRECTIVE
 
         url = "/api/generate"
         payload = {
@@ -229,8 +286,8 @@ class LocalBrain:
             "keep_alive": "30m",
             "options": final_options
         }
-        if system_prompt:
-            payload["system"] = system_prompt
+        if effective_system:
+            payload["system"] = effective_system
 
         try:
             # Thinking State Machine
@@ -295,31 +352,49 @@ class LocalBrain:
     # --- Chat ---
     async def chat(self, messages: List[Dict[str, str]], options: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, str]:
         """Async chat interface for the orchestrator.
-        v14: Returns {"response": ..., "thought": ...} with extracted thinking.
+        v15: Task-tier-aware defaults, thought circulation, 3 retries w/ exp backoff.
         """
         if not self._check_circuit():
             return {"response": "Error: Local brain temporarily unavailable (circuit breaker open).", "thought": ""}
         
-        # v26 FIX: Hard Memory Ceiling (4k Context / 512 Predict)
+        # v27: Detect task tier from message content
+        all_content = " ".join(m.get("content", "") for m in messages[-3:])  # Last 3 messages
+        task_tier = detect_task_tier(all_content)
+        tier_defaults = _MODEL_TIER_DEFAULTS.get(task_tier, _MODEL_TIER_DEFAULTS["default"])
+
         final_options = {
-            "temperature": config.llm.temperature,
-            "num_predict": 512, # Verbosisty Cap
-            "num_ctx": 4096    # Context Ceiling
+            "temperature": tier_defaults["temperature"],
+            "num_predict": tier_defaults["num_predict"],
+            "num_ctx": tier_defaults["num_ctx"],
         }
         if options:
              final_options.update(options)
+
+        # v27: Thought circulation — inject into system message for coding tasks
+        effective_messages = list(messages)
+        if task_tier == "coding" and effective_messages:
+            if effective_messages[0].get("role") == "system":
+                sys_content = effective_messages[0]["content"]
+                if _THOUGHT_CIRCULATION_DIRECTIVE not in sys_content:
+                    effective_messages[0] = {
+                        **effective_messages[0],
+                        "content": f"{sys_content}\n\n{_THOUGHT_CIRCULATION_DIRECTIVE}"
+                    }
+            else:
+                effective_messages.insert(0, {"role": "system", "content": _THOUGHT_CIRCULATION_DIRECTIVE})
         
         url = "/api/chat"
         payload = {
             "model": self.model,
-            "messages": messages,
+            "messages": effective_messages,
             "stream": False,
             "keep_alive": "30m",
             "options": final_options
         }
         
         last_error = None
-        for attempt in range(2):  # 1 retry
+        max_retries = 4
+        for attempt in range(max_retries):
             try:
                 response = await self.client.post(url, json=payload)
                 response.raise_for_status()
@@ -333,9 +408,10 @@ class LocalBrain:
                 
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
                 last_error = e
-                if attempt == 0:
-                    logger.warning("Transient chat error (retrying in 1s): %s", e)
-                    await asyncio.sleep(1.0)
+                if attempt < max_retries - 1:
+                    backoff = min(2 ** attempt, 8)
+                    logger.warning("Transient chat error (retry %d in %ds): %s", attempt + 1, backoff, e)
+                    await asyncio.sleep(backoff)
                     continue
             except Exception as e:
                 last_error = e
@@ -353,19 +429,34 @@ class LocalBrain:
             yield "Error: Local brain temporarily unavailable."
             return
         
-        # v26 FIX: Hard Memory Ceiling (4k Context / 512 Predict)
+        # v27: Task-tier-aware defaults for streaming chat
+        all_content = " ".join(m.get("content", "") for m in messages[-3:])
+        task_tier = detect_task_tier(all_content)
+        tier_defaults = _MODEL_TIER_DEFAULTS.get(task_tier, _MODEL_TIER_DEFAULTS["default"])
+
         final_options = {
-            "temperature": config.llm.temperature,
-            "num_predict": 512, # Verbosisty Cap
-            "num_ctx": 4096    # Context Ceiling
+            "temperature": tier_defaults["temperature"],
+            "num_predict": tier_defaults["num_predict"],
+            "num_ctx": tier_defaults["num_ctx"],
         }
         if options:
             final_options.update(options)
 
+        # v27: Thought circulation for coding
+        effective_messages = list(messages)
+        if task_tier == "coding" and effective_messages:
+            if effective_messages[0].get("role") == "system":
+                sys_content = effective_messages[0]["content"]
+                if _THOUGHT_CIRCULATION_DIRECTIVE not in sys_content:
+                    effective_messages[0] = {
+                        **effective_messages[0],
+                        "content": f"{sys_content}\n\n{_THOUGHT_CIRCULATION_DIRECTIVE}"
+                    }
+
         url = "/api/chat"
         payload = {
             "model": self.model,
-            "messages": messages,
+            "messages": effective_messages,
             "stream": True,
             "keep_alive": "30m",
             "options": final_options

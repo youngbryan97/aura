@@ -217,6 +217,7 @@ class GoalEngine:
             "failed": GoalStatus.FAILED.value,
             "fulfilled": GoalStatus.COMPLETED.value,
             "in_progress": GoalStatus.IN_PROGRESS.value,
+            "interrupted": GoalStatus.BLOCKED.value,
             "intended": GoalStatus.QUEUED.value,
             "partial": GoalStatus.IN_PROGRESS.value,
             "paused": GoalStatus.PAUSED.value,
@@ -832,26 +833,72 @@ class GoalEngine:
             "summary": summary,
         }
 
-    def get_context_block(self, limit: int = 6) -> str:
+    def get_context_block(self, objective: str = "", limit: int = 6) -> str:
         snapshot = self.build_snapshot(limit=max(12, limit * 2), include_external=True)
-        active = [item for item in snapshot["items"] if item.get("status") in ACTIVE_GOAL_STATUSES][: max(1, int(limit or 6))]
-        completed = [item for item in snapshot["items"] if item.get("status") == GoalStatus.COMPLETED.value][:3]
+        objective_tokens = set(self._normalize_tokens(objective))
+
+        def _relevance(item: Dict[str, Any]) -> float:
+            if not objective_tokens:
+                return 0.0
+            item_tokens = set(
+                self._normalize_tokens(
+                    f"{item.get('objective') or ''} {item.get('name') or ''} {item.get('summary') or ''}"
+                )
+            )
+            if not item_tokens:
+                return 0.0
+            return len(objective_tokens & item_tokens) / max(1, len(objective_tokens))
+
+        ranked_items = sorted(
+            snapshot["items"],
+            key=lambda item: (
+                _relevance(item),
+                1.0 if str(item.get("status", "")) in ACTIVE_GOAL_STATUSES else 0.0,
+                float(item.get("priority", 0.0) or 0.0),
+                float(item.get("updated_at") or item.get("created_at") or 0.0),
+            ),
+            reverse=True,
+        )
+        active = [item for item in ranked_items if item.get("status") in ACTIVE_GOAL_STATUSES]
+        completed = [item for item in ranked_items if item.get("status") == GoalStatus.COMPLETED.value]
+        blocked = [item for item in ranked_items if item.get("status") == GoalStatus.BLOCKED.value]
+        short_term = [item for item in active if item.get("horizon") == GoalHorizon.SHORT_TERM.value]
+        long_term = [item for item in active if item.get("horizon") == GoalHorizon.LONG_TERM.value]
         if not active and not completed:
             return ""
         lines = ["## GOAL EXECUTION STATE"]
-        if active:
-            lines.append("Active goal queue:")
-            for item in active:
+        if short_term:
+            lines.append("Immediate execution:")
+            for item in short_term[: max(1, int(limit or 6))]:
                 tools = ", ".join((item.get("required_tools") or [])[:3]) or "none"
                 progress = int(round(float(item.get("progress", 0.0) or 0.0) * 100))
+                steps_total = int(item.get("steps_total", 0) or 0)
+                steps_done = int(item.get("steps_done", 0) or 0)
+                step_progress = f" | steps={steps_done}/{steps_total}" if steps_total > 0 else ""
                 lines.append(
-                    f"- [{str(item.get('status', '')).upper()}][{str(item.get('horizon', '')).upper()}]"
-                    f" p={float(item.get('priority', 0.0) or 0.0):.2f} {str(item.get('objective') or item.get('name') or '')[:140]}"
-                    f" | progress={progress}% | tools={tools}"
+                    f"- [{str(item.get('status', '')).upper()}] p={float(item.get('priority', 0.0) or 0.0):.2f}"
+                    f" {str(item.get('objective') or item.get('name') or '')[:140]}"
+                    f" | progress={progress}%{step_progress} | tools={tools}"
+                )
+        if long_term:
+            lines.append("Long-horizon anchors:")
+            for item in long_term[:2]:
+                progress = int(round(float(item.get("progress", 0.0) or 0.0) * 100))
+                source = str(item.get("source", "") or "goal_engine")
+                lines.append(
+                    f"- [{str(item.get('status', '')).upper()}] {str(item.get('objective') or item.get('name') or '')[:140]}"
+                    f" | progress={progress}% | source={source}"
+                )
+        if blocked:
+            lines.append("Recovery pressure:")
+            for item in blocked[:2]:
+                detail = str(item.get("error") or item.get("summary") or "Needs an explicit resume or unblock step.")[:160]
+                lines.append(
+                    f"- {str(item.get('objective') or item.get('name') or '')[:140]} | {detail}"
                 )
         if completed:
             lines.append("Recently completed:")
-            for item in completed:
+            for item in completed[:3]:
                 lines.append(f"- {str(item.get('objective') or item.get('name') or '')[:140]}")
         lines.append(
             "Follow through on queued and in-progress goals unless the user explicitly reprioritizes. Prefer quick interruptible wins only when they are truly short and then return to sustained work."

@@ -14,6 +14,7 @@ from core.state.aura_state import AuraState
 from core.consciousness.executive_authority import get_executive_authority
 from core.phases.response_contract import build_response_contract
 from core.runtime.background_policy import background_activity_allowed
+from core.runtime.tool_result_contracts import compact_result_payload
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -22,38 +23,7 @@ logger = logging.getLogger("Aura.10x")
 
 
 def _compact_skill_result_payload(result: object) -> dict[str, object]:
-    if not isinstance(result, dict):
-        text = str(result)
-        return {"result": text[:1200] + ("…[result truncated]" if len(text) > 1200 else "")}
-
-    payload: dict[str, object] = {}
-    for key in ("ok", "summary", "content", "result", "title", "source", "url", "message", "time", "readable"):
-        value = result.get(key)
-        if value in (None, ""):
-            continue
-        if isinstance(value, str):
-            payload[key] = value[:1200] + ("…[result truncated]" if len(value) > 1200 else "")
-        else:
-            payload[key] = value
-
-    compact_results: list[dict[str, str]] = []
-    for item in list(result.get("results") or [])[:3]:
-        if not isinstance(item, dict):
-            continue
-        compact_item: dict[str, str] = {}
-        for key in ("title", "snippet", "url"):
-            value = item.get(key)
-            if value in (None, ""):
-                continue
-            compact_item[key] = str(value)[:400]
-        if compact_item:
-            compact_results.append(compact_item)
-    if compact_results:
-        payload["results"] = compact_results
-
-    if not payload:
-        payload["result"] = str(result)[:1200]
-    return payload
+    return compact_result_payload(result)
 
 # ──────────────────────────────────────────────────────────────
 # PHASE 1: EternalMemoryPhase → Persistent Memory Agent = 10/10
@@ -513,6 +483,24 @@ class GodModeToolPhase(Phase):
                 })
                 state.response_modifiers["last_task_outcome"] = acceptance.outcome.value
                 state.response_modifiers["last_task_id"] = acceptance.task_id
+                result_data = acceptance.result_data
+                state.response_modifiers["last_task_result_payload"] = compact_result_payload(
+                    {
+                        "status": acceptance.outcome.value,
+                        "summary": acceptance.summary,
+                        "task_id": acceptance.task_id,
+                        "commitment_id": acceptance.commitment_id,
+                        "objective": acceptance.objective or objective,
+                        "requested_objective": acceptance.requested_objective or objective,
+                        "plan_id": getattr(result_data, "plan_id", ""),
+                        "trace_id": getattr(result_data, "trace_id", ""),
+                        "steps_completed": getattr(result_data, "steps_completed", None),
+                        "steps_total": getattr(result_data, "steps_total", None),
+                        "duration_s": getattr(result_data, "duration_s", None),
+                        "evidence": list(getattr(result_data, "evidence", []) or []),
+                        "succeeded": getattr(result_data, "succeeded", None),
+                    }
+                )
                 logger.info(
                     "⚡ GodMode/TASK: %s → %s", objective[:60], acceptance.outcome.value
                 )

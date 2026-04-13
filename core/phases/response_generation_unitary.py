@@ -549,6 +549,54 @@ class UnitaryResponsePhase(Phase):
 
         return compress_system_prompt("\n".join(parts))
 
+    def _build_coding_response_block(self, state: AuraState, contract: Any) -> str:
+        modifiers = dict(getattr(state, "response_modifiers", {}) or {})
+        if not modifiers.get("coding_request"):
+            return ""
+
+        complexity = self._safe_scalar(modifiers.get("coding_complexity_score", 0.0))
+        route_hints = dict(modifiers.get("coding_route_hints", {}) or {})
+        current_objective = self._normalize_text(getattr(state.cognition, "current_objective", "") or "", 180)
+
+        parts = [
+            "## ENGINEERING RESPONSE MODE",
+            "- Treat this as a live technical/coding turn, not generic chat.",
+            "- Use the coding working set, file paths, commands, failures, and tool evidence directly when relevant.",
+            "- Be concrete and causal: identify the likely root cause, then the fix, then how to verify it.",
+            "- Prefer targeted edits, commands, and next checks over broad generic advice.",
+            "- Do not drift into motivational filler, generic assistant framing, or unrelated self-description.",
+        ]
+
+        if complexity >= 0.65:
+            parts.append(
+                "- Complexity is high. Reason step by step and preserve consistency across files, subsystems, and prior tool results."
+            )
+        elif complexity >= 0.4:
+            parts.append("- This is a medium-complexity engineering turn. Stay precise and avoid hand-wavy summaries.")
+
+        if modifiers.get("deep_handoff"):
+            parts.append(
+                "- A deeper local reasoning lane is active for this turn. Use it to resolve cross-file causality, not to become verbose."
+            )
+
+        if route_hints.get("has_test_failure") or route_hints.get("has_runtime_error"):
+            parts.append("- There is a recent failure signal in the coding thread. Address that concrete failure before branching out.")
+        if route_hints.get("has_active_plan"):
+            phase = self._normalize_text(route_hints.get("execution_phase", ""), 40) or "executing"
+            parts.append(f"- A multi-step execution loop is active ({phase}). Continue from the live plan state instead of restarting from scratch.")
+        if route_hints.get("has_verification_failure"):
+            parts.append("- Verification has already failed at least once. Use a repair mindset: inspect evidence, change approach, then re-check.")
+        if int(route_hints.get("repair_attempts", 0) or 0) > 0:
+            parts.append(
+                f"- Repair attempts already used in this thread: {int(route_hints.get('repair_attempts', 0) or 0)}. Avoid repeating the same failed move."
+            )
+        if self._response_contract_attr(contract, "tool_evidence_available", False):
+            parts.append("- Tool evidence exists. Ground claims in observed outputs instead of guessing.")
+        if current_objective:
+            parts.append(f"- Current engineering focus: {current_objective}")
+
+        return compress_system_prompt("\n".join(parts))
+
     def _build_interaction_signals_block(self, state: AuraState) -> str:
         modifiers = dict(getattr(state, "response_modifiers", {}) or {})
         signal_status = dict(modifiers.get("interaction_signals", {}) or {})
@@ -1265,6 +1313,32 @@ class UnitaryResponsePhase(Phase):
         return ""
 
     @classmethod
+    def _build_deterministic_task_reply(
+        cls,
+        state: AuraState,
+        objective: str,
+        contract: Any,
+    ) -> str:
+        if getattr(contract, "requires_search", False):
+            return ""
+
+        modifiers = dict(getattr(state, "response_modifiers", {}) or {})
+        last_payload = modifiers.get("last_task_result_payload")
+        try:
+            from core.agency.task_commitment_verifier import get_task_commitment_verifier
+
+            verifier = get_task_commitment_verifier()
+            if verifier and hasattr(verifier, "build_status_reply"):
+                reply = verifier.build_status_reply(
+                    objective,
+                    last_result_payload=last_payload if isinstance(last_payload, dict) else None,
+                )
+                return cls._normalize_text(reply, 700)
+        except Exception as exc:
+            logger.debug("UnitaryResponse: deterministic task reply skipped: %s", exc)
+        return ""
+
+    @classmethod
     async def _attempt_grounded_search_reply(
         cls,
         objective: str,
@@ -1426,6 +1500,68 @@ class UnitaryResponsePhase(Phase):
         return ""
 
     @classmethod
+    def _build_technical_recovery_reply(cls, state: AuraState, objective: str) -> str:
+        modifiers = dict(getattr(state, "response_modifiers", {}) or {})
+        route_hints = dict(modifiers.get("coding_route_hints", {}) or {})
+        last_task = modifiers.get("last_task_result_payload")
+        last_skill = modifiers.get("last_skill_result_payload")
+        coding_request = bool(modifiers.get("coding_request"))
+
+        if not (
+            coding_request
+            or route_hints.get("has_active_plan")
+            or route_hints.get("has_verification_failure")
+            or isinstance(last_task, dict)
+        ):
+            return ""
+
+        focus = cls._normalize_text(
+            objective or getattr(getattr(state, "cognition", None), "current_objective", ""),
+            180,
+        ) or "that technical task"
+        parts = [f"I hit an interruption while working on {focus}."]
+
+        steps_total = 0
+        steps_completed = 0
+        if isinstance(last_task, dict):
+            steps_total = int(last_task.get("steps_total", 0) or 0)
+            steps_completed = int(last_task.get("steps_completed", 0) or 0)
+        if steps_total > 0:
+            parts.append(f"Grounded progress before the interruption was {steps_completed}/{steps_total} steps.")
+
+        phase = cls._normalize_text(route_hints.get("execution_phase", ""), 40)
+        if phase:
+            parts.append(f"The active execution loop was in {phase}.")
+
+        grounded_state = ""
+        if isinstance(last_task, dict):
+            grounded_state = cls._normalize_text(
+                last_task.get("summary") or last_task.get("error") or "",
+                220,
+            )
+        if not grounded_state and isinstance(last_skill, dict):
+            grounded_state = cls._normalize_text(
+                last_skill.get("summary") or last_skill.get("stderr") or last_skill.get("error") or "",
+                220,
+            )
+        if grounded_state:
+            parts.append(f"Last grounded state: {grounded_state}.")
+
+        if route_hints.get("has_verification_failure"):
+            repair_attempts = int(route_hints.get("repair_attempts", 0) or 0)
+            if repair_attempts > 0:
+                parts.append(
+                    f"Verification had already failed and repair attempts were in flight ({repair_attempts}), so I need to resume from the repair loop instead of pretending it landed."
+                )
+            else:
+                parts.append(
+                    "Verification had already failed once, so the next safe move is to resume from the last checked step and re-run verification."
+                )
+
+        parts.append("I haven't lost the thread, but I shouldn't claim that run completed cleanly.")
+        return " ".join(parts)
+
+    @classmethod
     def _build_minimal_live_voice_reply(cls, state: AuraState) -> str:
         """Last-resort fallback when LLM inference timed out or failed.
 
@@ -1458,6 +1594,12 @@ class UnitaryResponsePhase(Phase):
         # All user messages should go through LLM inference for natural responses.
         # Recovery replies are only used as last-resort fallbacks when the LLM
         # is completely unavailable, not as a fast-path bypass.
+        deterministic_task = cls._build_deterministic_task_reply(state, objective, contract)
+        if deterministic_task:
+            return deterministic_task
+        technical = cls._build_technical_recovery_reply(state, objective)
+        if technical:
+            return technical
         return ""
 
     @classmethod
@@ -1608,6 +1750,14 @@ class UnitaryResponsePhase(Phase):
                 objective,
                 contract,
             )
+            deterministic_task_reply = self._build_deterministic_task_reply(
+                new_state,
+                objective,
+                contract,
+            )
+            if deterministic_task_reply:
+                logger.info("🧰 UnitaryResponse: answered directly from task state.")
+                return self._commit_response(new_state, deterministic_task_reply)
             if deterministic_tool_reply:
                 logger.info(
                     "🧰 UnitaryResponse: answered directly from deterministic tool result (%s).",
@@ -1986,11 +2136,12 @@ class UnitaryResponsePhase(Phase):
                 )
             elif use_compact_router_payload:
                 system_prompt = self._build_compact_router_system_prompt(new_state)
+                history_limit = 8 if new_state.response_modifiers.get("coding_request") else 6
                 messages = self._build_router_messages(
                     new_state,
                     objective,
                     system_prompt,
-                    history_limit=2 if not is_user_facing else 6,
+                    history_limit=2 if not is_user_facing else history_limit,
                 )
             else:
                 system_prompt = self._build_system_prompt(new_state)
@@ -2031,6 +2182,9 @@ class UnitaryResponsePhase(Phase):
             if contract.reason != "ordinary_dialogue":
                 contract_block = contract.to_prompt_block().strip()
                 _prepend_system_guidance(contract_block)
+            if is_user_facing and new_state.response_modifiers.get("coding_request"):
+                coding_block = self._build_coding_response_block(new_state, contract)
+                _prepend_system_guidance(coding_block)
             if is_user_facing:
                 voice_block = self._build_user_facing_voice_block(new_state, contract)
                 _prepend_system_guidance(voice_block)
@@ -2251,7 +2405,24 @@ class UnitaryResponsePhase(Phase):
                     logger.error("Reactive compaction retry also failed: %s", compact_err)
 
             logger.error("Response generation failed: %s", e, exc_info=True)
-            new_state.cognition.last_response = "I encountered a cognitive error during response generation."
+            fallback_contract = locals().get("contract")
+            if fallback_contract is None:
+                try:
+                    fallback_contract = build_response_contract(
+                        new_state,
+                        objective,
+                        is_user_facing=bool(priority or self._is_user_facing_origin(new_state.cognition.current_origin)),
+                    )
+                except Exception:
+                    fallback_contract = ResponseContract(
+                        is_user_facing=bool(priority or self._is_user_facing_origin(new_state.cognition.current_origin)),
+                        reason="response_generation_exception",
+                    )
+            recovered = self._build_governed_user_recovery_reply(new_state, objective, fallback_contract)
+            if recovered:
+                new_state.cognition.last_response = recovered
+            else:
+                new_state.cognition.last_response = self._build_minimal_live_voice_reply(new_state)
             return new_state
 
     def _build_system_prompt(self, state: AuraState) -> str:

@@ -1,10 +1,17 @@
 """
 Context window budget manager.
 Tracks token usage and prunes the lowest-value content to stay within limits.
+v2.0: Integrated ChatCompressionService for intelligent history management.
 """
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
+
+from core.context.chat_compression import (
+    ChatCompressionService,
+    CompressionStatus,
+    estimate_tokens_for_messages,
+)
 
 logger = logging.getLogger("Aura.ContextManager")
 
@@ -26,8 +33,29 @@ MODEL_CONTEXT_LIMITS = {
 DEFAULT_HEADROOM = 0.80
 
 
+# ── Tokenizer ───────────────────────────────────────────────────────────────
+
+import functools
+
+# Use tiktoken if available, fallback to char count
+try:
+    import tiktoken
+    _T_ENCODING = tiktoken.get_encoding("cl100k_base")
+    HAS_TIKTOKEN = True
+except ImportError:
+    HAS_TIKTOKEN = False
+    _T_ENCODING = None
+
+@functools.lru_cache(maxsize=1000)
 def estimate_tokens(text: str) -> int:
-    """Fast token estimate: ~4 chars per token for English."""
+    """Accurate token count via tiktoken (cached), fallback to ~4 chars/token."""
+    if not text:
+        return 0
+    if HAS_TIKTOKEN and _T_ENCODING:
+        try:
+            return len(_T_ENCODING.encode(text, disallowed_special=()))
+        except Exception:
+            pass
     return max(1, len(text) // 4)
 
 
@@ -47,6 +75,7 @@ class ContextWindowManager:
     """
     Assembles a prompt that fits within the model's context limit.
     Drops low-priority items first; never drops system prompt or the current user message.
+    v2.0: Integrated ChatCompressionService for automatic history compression.
     """
 
     def __init__(self, model_name: str = "default"):
@@ -67,6 +96,37 @@ class ContextWindowManager:
                     
         self._limit = int(limit * DEFAULT_HEADROOM)  # Safe headroom
         self._model = model_name
+        self._compression_service = ChatCompressionService()
+        self._raw_limit = limit  # Unscaled limit for compression threshold
+
+    async def compress_if_needed(
+        self,
+        history: List[Dict[str, str]],
+        brain: Any = None,
+    ) -> List[Dict[str, str]]:
+        """Auto-compress history if it exceeds the threshold.
+
+        Args:
+            history: Message list (role/content dicts)
+            brain: LocalBrain instance for LLM summarization
+
+        Returns:
+            Possibly compressed history.
+        """
+        current_tokens = estimate_tokens_for_messages(history)
+        compressed, info = await self._compression_service.compress(
+            history=history,
+            model_token_limit=self._raw_limit,
+            current_token_count=current_tokens,
+            brain=brain,
+        )
+        if compressed is not None:
+            logger.info(
+                "Context compressed: %s (%d → %d tokens)",
+                info.status.value, info.original_token_count, info.new_token_count
+            )
+            return compressed
+        return history
 
     def build_prompt(
         self,

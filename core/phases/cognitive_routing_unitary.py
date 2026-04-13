@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import re
 import time
 from typing import Optional, TYPE_CHECKING
 from core.runtime.turn_analysis import analyze_turn
@@ -21,6 +22,24 @@ _DEEP_HANDOFF_KEYWORDS = frozenset({
     "complex analysis", "bottleneck analysis", "vulnerability scan",
     "formal proof", "root cause analysis", "flagship architecture",
 })
+
+_CODING_ROUTE_MARKERS = frozenset({
+    "debug", "traceback", "stack trace", "failing test", "pytest",
+    "refactor", "architecture", "performance", "latency", "memory leak",
+    "race condition", "deadlock", "regression", "stability", "compile",
+    "build", "patch", "code", "mlx", "llm", "router", "prompt", "model",
+})
+
+_FOLLOWUP_CODING_MARKERS = frozenset({
+    "keep going", "keep it going", "continue", "go ahead", "try again",
+    "let's do it", "lets do it", "do it", "resume",
+    "fix it", "fix that", "patch it", "finish it", "does that solve it",
+    "why is that failing", "what about the test", "what about that bug",
+})
+
+_FILE_REF_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_])(?:\.{0,2}/|/)?[A-Za-z0-9_.~/-]+\.(?:py|md|json|toml|ya?ml|txt|js|ts|tsx|sh|swift|rs|go|cpp|c|h)"
+)
 
 
 class CognitiveRoutingPhase(Phase):
@@ -55,34 +74,170 @@ class CognitiveRoutingPhase(Phase):
         return "primary" if is_user_facing else "tertiary"
 
     @staticmethod
-    def _should_allow_deep_handoff(text: str, *, is_user_facing: bool, intent_type: str) -> bool:
+    def _count_file_refs(text: str) -> int:
+        return len({match.group(0) for match in _FILE_REF_PATTERN.finditer(str(text or ""))})
+
+    @classmethod
+    def _build_coding_route_metadata(cls, text: str, *, analysis, intent_type: str) -> dict[str, object]:
+        lowered = str(text or "").lower()
+        word_count = len(str(text or "").split())
+        file_ref_count = cls._count_file_refs(text)
+
+        route_hints: dict[str, object] = {}
+        try:
+            from core.runtime.coding_session_memory import get_coding_route_hints
+
+            route_hints = dict(get_coding_route_hints(text) or {})
+        except Exception:
+            route_hints = {}
+
+        active_thread = bool(route_hints.get("active_coding_thread"))
+        followup_coding = active_thread and any(marker in lowered for marker in _FOLLOWUP_CODING_MARKERS)
+        marker_hit = any(marker in lowered for marker in _CODING_ROUTE_MARKERS)
+        coding_request = bool(
+            route_hints.get("coding_request")
+            or analysis.semantic_mode == "technical"
+            or file_ref_count > 0
+            or marker_hit
+            or followup_coding
+        )
+
+        complexity = 0.0
+        if coding_request:
+            complexity += 0.25
+        if analysis.semantic_mode == "technical":
+            complexity += 0.2
+        if intent_type == "TASK":
+            complexity += 0.15
+        if word_count >= 18:
+            complexity += 0.1
+        if file_ref_count >= 1:
+            complexity += 0.1
+        if file_ref_count >= 2:
+            complexity += 0.05
+        if marker_hit:
+            complexity += 0.15
+        if route_hints.get("has_test_failure"):
+            complexity += 0.15
+        if route_hints.get("has_runtime_error"):
+            complexity += 0.1
+        if route_hints.get("has_active_plan"):
+            complexity += 0.1
+        if route_hints.get("has_verification_failure"):
+            complexity += 0.15
+        if int(route_hints.get("repair_attempts", 0) or 0) > 0:
+            complexity += min(0.15, 0.05 * int(route_hints.get("repair_attempts", 0) or 0))
+        if followup_coding:
+            complexity += 0.1
+        if active_thread and word_count <= 8:
+            complexity += 0.05
+
+        return {
+            "coding_request": coding_request,
+            "coding_complexity_score": min(1.0, complexity),
+            "file_ref_count": file_ref_count,
+            "active_coding_thread": active_thread,
+            "has_test_failure": bool(route_hints.get("has_test_failure")),
+            "has_runtime_error": bool(route_hints.get("has_runtime_error")),
+            "has_active_plan": bool(route_hints.get("has_active_plan")),
+            "has_verification_failure": bool(route_hints.get("has_verification_failure")),
+            "repair_attempts": int(route_hints.get("repair_attempts", 0) or 0),
+            "execution_phase": str(route_hints.get("execution_phase", "") or ""),
+            "followup_coding": followup_coding,
+        }
+
+    @classmethod
+    def _should_allow_deep_handoff(
+        cls,
+        text: str,
+        *,
+        is_user_facing: bool,
+        intent_type: str,
+        analysis=None,
+        route_meta: dict[str, object] | None = None,
+    ) -> bool:
         if not is_user_facing or intent_type not in {"CHAT", "TASK"}:
             return False
         lower = text.lower()
         word_count = len(text.split())
         if word_count >= 120 or len(text) >= 900:
             return True
-        return any(keyword in lower for keyword in _DEEP_HANDOFF_KEYWORDS)
+        if any(keyword in lower for keyword in _DEEP_HANDOFF_KEYWORDS):
+            return True
+
+        current_analysis = analysis or analyze_turn(text)
+        metadata = route_meta or cls._build_coding_route_metadata(
+            text,
+            analysis=current_analysis,
+            intent_type=intent_type,
+        )
+        if current_analysis.semantic_mode != "technical" or not metadata.get("coding_request"):
+            return False
+
+        complexity = float(metadata.get("coding_complexity_score", 0.0) or 0.0)
+        if complexity >= 0.65:
+            return True
+        return bool(
+            metadata.get("has_test_failure")
+            and (
+                metadata.get("file_ref_count")
+                or "pytest" in lower
+                or "traceback" in lower
+                or "failing" in lower
+            )
+        )
 
     @staticmethod
     def _looks_like_everyday_chat(text: str) -> bool:
         return analyze_turn(text).everyday_chat_safe
 
-    def _stamp_llm_route(self, state: AuraState, *, objective: str, intent_type: str, is_user_facing: bool) -> None:
+    def _stamp_llm_route(
+        self,
+        state: AuraState,
+        *,
+        objective: str,
+        intent_type: str,
+        is_user_facing: bool,
+        analysis=None,
+        route_meta: dict[str, object] | None = None,
+    ) -> None:
+        current_analysis = analysis or analyze_turn(objective)
+        metadata = route_meta or self._build_coding_route_metadata(
+            objective,
+            analysis=current_analysis,
+            intent_type=intent_type,
+        )
         model_tier = self._resolve_model_tier(is_user_facing)
         deep_handoff = self._should_allow_deep_handoff(
             objective,
             is_user_facing=is_user_facing,
             intent_type=intent_type,
+            analysis=current_analysis,
+            route_meta=metadata,
         )
         state.response_modifiers["intent_type"] = intent_type
         state.response_modifiers["model_tier"] = model_tier
         state.response_modifiers["deep_handoff"] = deep_handoff
+        state.response_modifiers["coding_request"] = bool(metadata.get("coding_request"))
+        state.response_modifiers["coding_complexity_score"] = float(metadata.get("coding_complexity_score", 0.0) or 0.0)
+        state.response_modifiers["coding_route_hints"] = {
+            "file_ref_count": int(metadata.get("file_ref_count", 0) or 0),
+            "active_coding_thread": bool(metadata.get("active_coding_thread")),
+            "has_test_failure": bool(metadata.get("has_test_failure")),
+            "has_runtime_error": bool(metadata.get("has_runtime_error")),
+            "has_active_plan": bool(metadata.get("has_active_plan")),
+            "has_verification_failure": bool(metadata.get("has_verification_failure")),
+            "repair_attempts": int(metadata.get("repair_attempts", 0) or 0),
+            "execution_phase": str(metadata.get("execution_phase", "") or ""),
+            "followup_coding": bool(metadata.get("followup_coding")),
+        }
         logger.info(
-            "🧠 CognitiveRouting: Mode=%s, Tier=%s, DeepHandoff=%s",
+            "🧠 CognitiveRouting: Mode=%s, Tier=%s, DeepHandoff=%s, Coding=%s, Complexity=%.2f",
             state.cognition.current_mode.name,
             model_tier,
             deep_handoff,
+            bool(metadata.get("coding_request")),
+            float(metadata.get("coding_complexity_score", 0.0) or 0.0),
         )
 
     async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
@@ -102,6 +257,11 @@ class CognitiveRoutingPhase(Phase):
         contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing)
         new_state.response_modifiers["response_contract"] = contract.to_dict()
         analysis = analyze_turn(objective)
+        route_meta = self._build_coding_route_metadata(
+            objective,
+            analysis=analysis,
+            intent_type=analysis.intent_type,
+        )
         new_state.response_modifiers["semantic_intent"] = analysis.semantic_mode
         affect_signature = (
             new_state.affect.get_cognitive_signature()
@@ -113,14 +273,28 @@ class CognitiveRoutingPhase(Phase):
         if contract.requires_self_preservation or contract.requires_identity_defense:
             logger.info("🧭 Routing: self-protective deliberate path engaged.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=is_user_facing)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             new_state.response_modifiers["deep_handoff"] = True
             return new_state
 
         if contract.requires_search and contract.required_skill:
             logger.info("🧭 Routing: Response contract requires grounded search.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="SKILL", is_user_facing=is_user_facing)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="SKILL",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             new_state.response_modifiers["matched_skills"] = [contract.required_skill]
             return new_state
 
@@ -143,7 +317,14 @@ class CognitiveRoutingPhase(Phase):
                 reflective_mode = CognitiveMode.DELIBERATE
 
             new_state.cognition.current_mode = reflective_mode
-            self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=is_user_facing)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             if reflective_mode == CognitiveMode.DELIBERATE and (
                 contract.requires_state_reflection
                 or contract.requires_aura_question
@@ -152,11 +333,39 @@ class CognitiveRoutingPhase(Phase):
                 new_state.response_modifiers["deep_handoff"] = True
             return new_state
 
+        if is_user_facing and bool(route_meta.get("coding_request")):
+            logger.info("🧭 Routing: coding-aware technical lane engaged.")
+            complexity = float(route_meta.get("coding_complexity_score", 0.0) or 0.0)
+            new_state.cognition.current_mode = (
+                CognitiveMode.DELIBERATE
+                if bool(route_meta.get("active_coding_thread"))
+                or analysis.intent_type == "TASK"
+                or analysis.semantic_mode == "technical"
+                or complexity >= 0.45
+                else CognitiveMode.REACTIVE
+            )
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="TASK" if new_state.cognition.current_mode == CognitiveMode.DELIBERATE else "CHAT",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            return new_state
+
         lower_obj = objective.lower()
         if any(cmd in lower_obj for cmd in ["reboot", "restart", "shutdown", "sleep mode"]):
             logger.info("🧭 Routing: SYSTEM intent detected via heuristics.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="SYSTEM", is_user_facing=is_user_facing)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="SYSTEM",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             return new_state
 
         _TASK_SIGNALS = (
@@ -181,7 +390,14 @@ class CognitiveRoutingPhase(Phase):
         if _task_hit or _is_long_goal:
             logger.info("🧭 Routing: TASK detected via heuristics for: %s", objective[:60])
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="TASK", is_user_facing=is_user_facing)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="TASK",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             return new_state
 
         try:
@@ -192,7 +408,14 @@ class CognitiveRoutingPhase(Phase):
                 if matched:
                     logger.info("🧭 Routing: SKILL detected via patterns → %s", matched[:3])
                     new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                    self._stamp_llm_route(new_state, objective=objective, intent_type="SKILL", is_user_facing=is_user_facing)
+                    self._stamp_llm_route(
+                        new_state,
+                        objective=objective,
+                        intent_type="SKILL",
+                        is_user_facing=is_user_facing,
+                        analysis=analysis,
+                        route_meta=route_meta,
+                    )
                     new_state.response_modifiers["matched_skills"] = matched
                     new_state.world.recent_percepts.append({
                         "type": "goal_achieved",
@@ -207,31 +430,66 @@ class CognitiveRoutingPhase(Phase):
         if is_user_facing and analysis.intent_type == "TASK":
             logger.info("🧭 Routing: Deterministic task route for user-facing turn.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="TASK", is_user_facing=True)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="TASK",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             return new_state
 
         if is_user_facing and analysis.intent_type == "SKILL":
             logger.info("🧭 Routing: Deterministic skill route for user-facing turn.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="SKILL", is_user_facing=True)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="SKILL",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             return new_state
 
         if is_user_facing and analysis.suggests_deliberate_mode:
             logger.info("🧭 Routing: Deliberate governed route for user-facing turn.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=True)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             return new_state
 
         if is_user_facing and analysis.requires_live_aura_voice:
             logger.info("🧭 Routing: Live Aura voice required. Keeping governed reactive lane.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=True)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             return new_state
 
         if is_user_facing and self._looks_like_everyday_chat(objective):
             logger.info("🧭 Routing: Everyday chat fast-path detected.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=True)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             return new_state
 
         if is_user_facing:
@@ -239,7 +497,14 @@ class CognitiveRoutingPhase(Phase):
             new_state.cognition.current_mode = (
                 CognitiveMode.DELIBERATE if analysis.suggests_deliberate_mode else CognitiveMode.REACTIVE
             )
-            self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=True)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
             return new_state
 
         try:
@@ -247,7 +512,14 @@ class CognitiveRoutingPhase(Phase):
             if cycle < 10:
                 logger.debug("🧭 Routing: Bootstrap mode active (cycle < 10). Using heuristics.")
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=is_user_facing)
+                self._stamp_llm_route(
+                    new_state,
+                    objective=objective,
+                    intent_type="CHAT",
+                    is_user_facing=is_user_facing,
+                    analysis=analysis,
+                    route_meta=route_meta,
+                )
                 return new_state
 
             llm = self.kernel.organs["llm"].get_instance()
@@ -286,16 +558,44 @@ class CognitiveRoutingPhase(Phase):
             res = str(res).strip().upper()
             if "TASK" in res:
                 new_state.cognition.current_mode = CognitiveMode.DELIBERATE
-                self._stamp_llm_route(new_state, objective=objective, intent_type="TASK", is_user_facing=is_user_facing)
+                self._stamp_llm_route(
+                    new_state,
+                    objective=objective,
+                    intent_type="TASK",
+                    is_user_facing=is_user_facing,
+                    analysis=analysis,
+                    route_meta=route_meta,
+                )
             elif "SKILL" in res:
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                self._stamp_llm_route(new_state, objective=objective, intent_type="SKILL", is_user_facing=is_user_facing)
+                self._stamp_llm_route(
+                    new_state,
+                    objective=objective,
+                    intent_type="SKILL",
+                    is_user_facing=is_user_facing,
+                    analysis=analysis,
+                    route_meta=route_meta,
+                )
             elif "SYSTEM" in res:
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                self._stamp_llm_route(new_state, objective=objective, intent_type="SYSTEM", is_user_facing=is_user_facing)
+                self._stamp_llm_route(
+                    new_state,
+                    objective=objective,
+                    intent_type="SYSTEM",
+                    is_user_facing=is_user_facing,
+                    analysis=analysis,
+                    route_meta=route_meta,
+                )
             else:
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=is_user_facing)
+                self._stamp_llm_route(
+                    new_state,
+                    objective=objective,
+                    intent_type="CHAT",
+                    is_user_facing=is_user_facing,
+                    analysis=analysis,
+                    route_meta=route_meta,
+                )
 
             new_state.world.recent_percepts.append({
                 "type": "goal_achieved",
@@ -308,10 +608,24 @@ class CognitiveRoutingPhase(Phase):
         except RuntimeError:
             logger.warning("🧭 Routing: LLM Organ not ready, defaulting to CHAT.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=is_user_facing)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
         except Exception as e:
             logger.error("🧭 Routing: Classification error: %s", e)
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(new_state, objective=objective, intent_type="CHAT", is_user_facing=is_user_facing)
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
 
         return new_state

@@ -79,16 +79,36 @@ class PhantomBrowser:
                 self._resource_lock = None
 
             self.playwright = await async_playwright().start()
-            
-            if self.browser_type == "firefox":
-                self.browser = await self.playwright.firefox.launch(headless=not self.visible)
-            elif self.browser_type == "webkit":
-                self.browser = await self.playwright.webkit.launch(headless=not self.visible)
-            else:
-                self.browser = await self.playwright.chromium.launch(
-                    headless=not self.visible,
-                    args=['--disable-blink-features=AutomationControlled']
-                )
+
+            # RESILIENCE: Build a fallback cascade of browser types.
+            # If the configured browser (e.g. Firefox) isn't installed,
+            # fall back to chromium which is the most reliably available.
+            browser_attempts = [self.browser_type]
+            if self.browser_type != "chromium":
+                browser_attempts.append("chromium")
+
+            launch_error = None
+            for bt in browser_attempts:
+                try:
+                    if bt == "firefox":
+                        self.browser = await self.playwright.firefox.launch(headless=not self.visible)
+                    elif bt == "webkit":
+                        self.browser = await self.playwright.webkit.launch(headless=not self.visible)
+                    else:
+                        self.browser = await self.playwright.chromium.launch(
+                            headless=not self.visible,
+                            args=['--disable-blink-features=AutomationControlled']
+                        )
+                    if bt != self.browser_type:
+                        logger.info("✓ Fell back to %s after %s was unavailable.", bt, self.browser_type)
+                    launch_error = None
+                    break  # Launch succeeded
+                except Exception as launch_exc:
+                    launch_error = launch_exc
+                    logger.warning("Browser %s failed to launch: %s. Trying next fallback...", bt, launch_exc)
+
+            if launch_error or self.browser is None:
+                raise launch_error or RuntimeError("All browser types failed to launch.")
 
             user_agent = self._get_random_ua()
 

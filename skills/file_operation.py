@@ -5,6 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from core.context.tool_distillation import get_distillation_service
 
 from infrastructure import BaseSkill
 
@@ -82,7 +83,20 @@ class FileOperationSkill(BaseSkill):
                         return f.read()
                 
                 data = await asyncio.to_thread(_read)
-                return {"ok": True, "content": data[:5000], "truncated": len(data) > 5000}
+                
+                # Wholesale addition: Distill massive file reads instead of naive truncation
+                distiller = get_distillation_service()
+                from core.conversation_loop import get_brain
+                brain = get_brain()
+                
+                distilled = await distiller.distill(
+                    content=data,
+                    tool_name="file_operation.read",
+                    command=f"read {path}",
+                    brain=brain
+                )
+                
+                return {"ok": True, "content": distilled, "truncated": len(data) > len(distilled)}
                 
             elif action == "write":
                 def _write():
@@ -164,24 +178,41 @@ class FileOperationSkill(BaseSkill):
                 return {"ok": True, "summary": f"Copied {path} to {dest_path}"}
 
             elif action == "patch":
-                target_text = params.get("target")
-                replacement = params.get("replacement")
-                if target_text is None or replacement is None:
-                    return {"ok": False, "error": "Missing 'target' or 'replacement' for patch action"}
+                # Wholesale addition: Line-bounded chunk replacement (like replace_file_content tool)
+                chunks = params.get("chunks", [])
+                if not chunks:
+                    return {"ok": False, "error": "Missing 'chunks' list for patch action. Provide [{'start_line', 'end_line', 'target', 'replacement'}]"}
                 
                 def _patch():
                     with open(full_path, "r", encoding='utf-8', errors='ignore') as f:
-                        data = f.read()
+                        lines = f.readlines()
                     
-                    # Use re.escape to prevent ReDoS via user-supplied regex
-                    new_data = re.sub(re.escape(target_text), replacement, data)
+                    # Sort chunks descending so line modifications don't break subsequent index bounds
+                    sorted_chunks = sorted(chunks, key=lambda x: x.get("start_line", 0), reverse=True)
                     
+                    for chunk in sorted_chunks:
+                        start_idx = chunk.get("start_line", 1) - 1
+                        end_idx = chunk.get("end_line", start_idx + 1)
+                        target = chunk.get("target", "")
+                        replacement = chunk.get("replacement", "")
+                        
+                        target_region = "".join(lines[start_idx:end_idx])
+                        if target in target_region or not target:
+                            # Strict drop-in replacement of the matched region
+                            new_region = target_region.replace(target, replacement) if target else replacement
+                            
+                            # Re-split into lines and patch
+                            lines[start_idx:end_idx] = [line + "\n" if not line.endswith("\n") else line for line in new_region.splitlines()]
+                        else:
+                            raise ValueError(f"Target content not found in lines {start_idx+1} to {end_idx}")
+
+                    new_data = "".join(lines)
                     with open(full_path, "w", encoding='utf-8') as f:
                         f.write(new_data)
                     return new_data
 
                 await asyncio.to_thread(_patch)
-                return {"ok": True, "summary": f"Patched {path}: replaced '{target_text}' with '{replacement}'"}
+                return {"ok": True, "summary": f"Patched {path}: applied {len(chunks)} chunks"}
 
         except Exception as e:
             self.logger.error("File Op failed: %s", e)

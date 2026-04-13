@@ -5,9 +5,64 @@ import time
 from typing import Any
 
 from core.runtime import service_access
+from core.runtime.coding_session_memory import (
+    build_coding_context_block,
+    get_coding_session_memory,
+)
 from core.runtime.turn_analysis import analyze_turn
 
 logger = logging.getLogger("Aura.ConversationSupport")
+
+
+def _is_task_context_priority(objective: str) -> bool:
+    lowered = str(objective or "").lower()
+    if not lowered:
+        return False
+    return any(
+        marker in lowered
+        for marker in (
+            "keep going",
+            "keep it going",
+            "continue",
+            "resume",
+            "let's do it",
+            "lets do it",
+            "do it",
+            "are you done",
+            "did you finish",
+            "status",
+            "progress",
+            "still running",
+            "task",
+            "follow up",
+            "what happened",
+        )
+    )
+
+
+def _is_goal_context_priority(objective: str) -> bool:
+    lowered = str(objective or "").lower()
+    if not lowered:
+        return False
+    return any(
+        marker in lowered
+        for marker in (
+            "project",
+            "roadmap",
+            "milestone",
+            "priority",
+            "long term",
+            "long-term",
+            "goal",
+            "plan",
+            "status",
+            "progress",
+            "resume",
+            "continue",
+            "keep going",
+            "keep it going",
+        )
+    )
 
 
 def resolve_primary_user_id(state: Any) -> str:
@@ -45,6 +100,7 @@ async def record_shared_ground_callbacks(response_text: str) -> None:
 
 def build_conversational_context_blocks(state: Any, objective: str = "") -> list[str]:
     user_id = resolve_primary_user_id(state)
+    priority_blocks: list[str] = []
     blocks: list[str] = []
 
     try:
@@ -112,7 +168,40 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
     except Exception as exc:
         logger.debug("SocialImagination injection failed: %s", exc)
 
-    return blocks
+    try:
+        coding_block = build_coding_context_block(objective or "")
+        if coding_block:
+            priority_blocks.append(coding_block)
+    except Exception as exc:
+        logger.debug("Coding session context injection failed: %s", exc)
+
+    try:
+        from core.agency.task_commitment_verifier import get_task_commitment_verifier
+
+        verifier = get_task_commitment_verifier()
+        if verifier and hasattr(verifier, "get_context_block"):
+            task_block = verifier.get_context_block(objective or "")
+            if task_block:
+                if _is_task_context_priority(objective or ""):
+                    priority_blocks.append(task_block)
+                else:
+                    blocks.append(task_block)
+    except Exception as exc:
+        logger.debug("Task verifier context injection failed: %s", exc)
+
+    try:
+        goal_engine = service_access.resolve_goal_engine(default=None)
+        if goal_engine and hasattr(goal_engine, "get_context_block"):
+            goal_block = goal_engine.get_context_block(objective=objective or "")
+            if goal_block:
+                if _is_goal_context_priority(objective or "") or priority_blocks:
+                    priority_blocks.append(goal_block)
+                else:
+                    blocks.append(goal_block)
+    except Exception as exc:
+        logger.debug("Goal engine context injection failed: %s", exc)
+
+    return priority_blocks + blocks
 
 
 async def update_conversational_intelligence(user_input: str, aura_response: str, state: Any) -> None:
@@ -211,6 +300,15 @@ async def record_conversation_experience(user_input: str, aura_response: str, st
 
     await update_conversational_intelligence(user_input, aura_response, state_obj)
     await record_shared_ground_callbacks(aura_response)
+
+    try:
+        get_coding_session_memory().record_conversation_turn(
+            user_input,
+            aura_response,
+            analysis=analysis,
+        )
+    except Exception as exc:
+        logger.debug("Coding session turn recording skipped: %s", exc)
 
     try:
         episodic = service_access.optional_service("episodic_memory", default=None)

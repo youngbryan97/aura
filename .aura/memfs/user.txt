@@ -1,0 +1,11 @@
+// Core Memory Block: user
+I like light mode.
+I like light mode.
+I like light mode.
+Tester —[loves]→ robustness (confidence=0.75)
+I like light mode.
+Tester —[loves]→ robustness (confidence=0.75)
+I like light mode.
+Tester —[loves]→ robustness (confidence=0.75)
+I like light mode.
+Tester —[loves]→ robustness (confidence=0.75)

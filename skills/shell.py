@@ -1,4 +1,5 @@
 # skills/shell.py — Shell execution skill (subprocess with list args, no shell=True)
+import asyncio
 import logging
 import os
 import shlex
@@ -21,8 +22,13 @@ class ShellSkill(BaseSkill):
     description = "Execute safe terminal commands."
     inputs = {
         "command": "The shell command to run",
-        "timeout": "Timeout in seconds (default 10)"
+        "timeout": "Timeout in seconds (default 10)",
+        "background": "Run the command in the background (default False)",
+        "sandbox": "Enable native macOS sandbox isolation (default False)",
+        "persistent_session_id": "Use a persistent bash session across commands"
     }
+    
+    _background_jobs: Dict[str, asyncio.subprocess.Process] = {}
 
     def __init__(self):
         # No command whitelist — full autonomy. Destructive-pattern blocklist
@@ -100,6 +106,9 @@ class ShellSkill(BaseSkill):
         cmd_str = goal.get("params", {}).get("command", "")
         timeout = goal.get("params", {}).get("timeout", 10)
 
+        background = goal.get("params", {}).get("background", False)
+        use_sandbox = goal.get("params", {}).get("sandbox", False)
+
         if not cmd_str:
             return {"ok": False, "error": "No command provided."}
 
@@ -110,7 +119,8 @@ class ShellSkill(BaseSkill):
             return {"ok": False, "error": f"Command blocked: {reason}"}
 
         base_cmd = shlex.split(cmd_str)[0]
-        logger.info("Shell Execution: %s", cmd_str)
+        logger.info("Shell Execution: [%s] (timeout=%s, bg=%s, sandbox=%s)", 
+                    cmd_str, timeout, background, use_sandbox)
 
         # 2. Execution
         try:
@@ -127,7 +137,39 @@ class ShellSkill(BaseSkill):
                     else:
                         return {"ok": False, "error": "Access Denied: Cannot leave workspace."}
 
-            # Replace subprocess.run with async version
+            if use_sandbox:
+                from core.sandbox.macos_sandbox import MacOSSandbox, SandboxConfig
+                sb_cfg = SandboxConfig(
+                    allow_network=True,
+                    allow_exec=True,
+                    read_paths=[self.cwd],
+                    write_paths=[self.cwd]
+                )
+                sandbox = MacOSSandbox(sb_cfg)
+                # Note: sandbox-exec is synchronous in this implementation
+                res = sandbox.execute_command(shlex.split(cmd_str), cwd=self.cwd)
+                return {
+                    "ok": res.returncode == 0,
+                    "stdout": res.stdout.strip()[:4000],
+                    "stderr": res.stderr.strip()[:4000],
+                    "cwd": self.cwd,
+                    "sandbox": True
+                }
+
+            # Wholesale addition: Persistent Bash Session
+            persistent_session_id = goal.get("params", {}).get("persistent_session_id")
+            if persistent_session_id:
+                from core.sandbox.bash_daemon import bash_manager
+                session = bash_manager.get_session(persistent_session_id, self.cwd)
+                success, output = await session.execute(cmd_str, timeout=float(timeout))
+                return {
+                    "ok": success,
+                    "stdout": output,
+                    "stderr": "", # Daemon merges stdout/stderr
+                    "cwd": "PERSISTENT" # Handled internally
+                }
+
+            # Normal Async Execution
             process = await asyncio.create_subprocess_exec(
                 *shlex.split(cmd_str),
                 cwd=self.cwd,
@@ -135,19 +177,30 @@ class ShellSkill(BaseSkill):
                 stderr=asyncio.subprocess.PIPE
             )
             
+            if background:
+                job_id = f"job_{process.pid}"
+                self._background_jobs[job_id] = process
+                return {
+                    "ok": True, 
+                    "job_id": job_id, 
+                    "message": f"Process {process.pid} started in background. Use command_status to check."
+                }
+            
             try:
                 stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=float(timeout))
             except asyncio.TimeoutError:
                 try:
                     process.kill()
+                    await process.wait()  # Ensure cleanup
                 except Exception:
                     pass
-                return {"ok": False, "error": "Command timed out."}
+                return {"ok": False, "error": f"Command timed out after {timeout}s."}
 
+            # v2.0: Let the Tool Distillation Service handle long outputs (Phase 1B integration)
             return {
                 "ok": process.returncode == 0,
-                "stdout": stdout.decode().strip()[:2000],
-                "stderr": stderr.decode().strip()[:2000],
+                "stdout": stdout.decode().strip(),
+                "stderr": stderr.decode().strip(),
                 "cwd": self.cwd
             }
 

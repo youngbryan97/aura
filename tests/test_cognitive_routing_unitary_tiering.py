@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from core.phases.cognitive_routing_unitary import CognitiveRoutingPhase
+from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState, CognitiveMode
 
 
@@ -39,6 +40,27 @@ def test_background_work_never_requests_deep_handoff():
         is_user_facing=False,
         intent_type="TASK",
     ) is False
+
+
+def test_complex_coding_debug_turn_enables_deep_handoff():
+    analysis = analyze_turn(
+        "Debug the failing pytest in core/runtime/conversation_support.py and core/orchestrator/mixins/tool_execution.py."
+    )
+    route_meta = CognitiveRoutingPhase._build_coding_route_metadata(
+        "Debug the failing pytest in core/runtime/conversation_support.py and core/orchestrator/mixins/tool_execution.py.",
+        analysis=analysis,
+        intent_type="TASK",
+    )
+
+    assert route_meta["coding_request"] is True
+    assert route_meta["coding_complexity_score"] >= 0.65
+    assert CognitiveRoutingPhase._should_allow_deep_handoff(
+        "Debug the failing pytest in core/runtime/conversation_support.py and core/orchestrator/mixins/tool_execution.py.",
+        is_user_facing=True,
+        intent_type="TASK",
+        analysis=analysis,
+        route_meta=route_meta,
+    ) is True
 
 
 @pytest.mark.asyncio
@@ -125,3 +147,92 @@ async def test_state_reflection_routes_to_deliberate_with_affective_pressure():
     assert new_state.response_modifiers["intent_type"] == "CHAT"
     assert new_state.response_modifiers["model_tier"] == "primary"
     assert new_state.response_modifiers["deep_handoff"] is True
+
+
+@pytest.mark.asyncio
+async def test_followup_coding_turn_stays_on_engineering_lane(monkeypatch):
+    kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
+    phase = CognitiveRoutingPhase(kernel)
+    state = AuraState.default()
+    state.cognition.current_origin = "user"
+
+    monkeypatch.setattr(
+        "core.runtime.coding_session_memory.get_coding_route_hints",
+        lambda _objective="": {
+            "coding_request": False,
+            "active_coding_thread": True,
+            "recent_file_count": 3,
+            "recent_command_count": 2,
+            "has_test_failure": True,
+            "has_runtime_error": False,
+            "last_objective": "Fix the failing pytest in core/runtime/conversation_support.py",
+        },
+    )
+
+    new_state = await phase.execute(state, objective="Let's keep it going")
+
+    assert new_state.cognition.current_mode == CognitiveMode.DELIBERATE
+    assert new_state.response_modifiers["coding_request"] is True
+    assert new_state.response_modifiers["coding_route_hints"]["active_coding_thread"] is True
+
+
+@pytest.mark.asyncio
+async def test_short_lets_do_it_followup_stays_on_engineering_lane(monkeypatch):
+    kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
+    phase = CognitiveRoutingPhase(kernel)
+    state = AuraState.default()
+    state.cognition.current_origin = "user"
+
+    monkeypatch.setattr(
+        "core.runtime.coding_session_memory.get_coding_route_hints",
+        lambda _objective="": {
+            "coding_request": False,
+            "active_coding_thread": True,
+            "recent_file_count": 2,
+            "recent_command_count": 1,
+            "has_test_failure": True,
+            "has_runtime_error": False,
+            "last_objective": "Fix the failing pytest in core/runtime/conversation_support.py",
+        },
+    )
+
+    new_state = await phase.execute(state, objective="Let's do it")
+
+    assert new_state.cognition.current_mode == CognitiveMode.DELIBERATE
+    assert new_state.response_modifiers["coding_request"] is True
+    assert new_state.response_modifiers["coding_route_hints"]["active_coding_thread"] is True
+
+
+@pytest.mark.asyncio
+async def test_coding_route_hints_include_execution_loop_state(monkeypatch):
+    kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
+    phase = CognitiveRoutingPhase(kernel)
+    state = AuraState.default()
+    state.cognition.current_origin = "user"
+
+    monkeypatch.setattr(
+        "core.runtime.coding_session_memory.get_coding_route_hints",
+        lambda _objective="": {
+            "coding_request": True,
+            "active_coding_thread": True,
+            "recent_file_count": 2,
+            "recent_command_count": 1,
+            "has_test_failure": True,
+            "has_runtime_error": False,
+            "has_active_plan": True,
+            "has_verification_failure": True,
+            "repair_attempts": 2,
+            "execution_phase": "repairing",
+        },
+    )
+
+    new_state = await phase.execute(
+        state,
+        objective="Keep going on the failing pytest in core/runtime/conversation_support.py",
+    )
+
+    route_hints = new_state.response_modifiers["coding_route_hints"]
+    assert route_hints["has_active_plan"] is True
+    assert route_hints["has_verification_failure"] is True
+    assert route_hints["repair_attempts"] == 2
+    assert route_hints["execution_phase"] == "repairing"

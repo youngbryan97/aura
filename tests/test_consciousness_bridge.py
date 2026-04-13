@@ -80,6 +80,12 @@ class TestNeuralMesh:
         assert mesh._tick_count == 1
         assert mesh._mean_column_energy >= 0
 
+    def test_status_reports_accelerator(self):
+        mesh = self._make_mesh()
+        status = mesh.get_status()
+        assert status["accelerator"] in {"metal", "numpy"}
+        assert isinstance(status["accelerator_reason"], str)
+
     def test_executive_projection_shape(self):
         mesh = self._make_mesh()
         mesh._tick()
@@ -543,6 +549,14 @@ class TestUnifiedField:
         uf = self._make_field()
         assert uf.F.shape == (32,)
         assert uf.W_field.shape == (32, 32)
+
+    def test_default_config_initialization(self):
+        from core.consciousness.unified_field import UnifiedField
+
+        uf = UnifiedField()
+
+        assert uf.F.shape == (uf.cfg.dim,)
+        assert uf._total_input_dim == sum(uf._input_dims)
 
     def test_tick_updates_state(self):
         uf = self._make_field()

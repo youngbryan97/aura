@@ -12,6 +12,8 @@ import threading
 import subprocess
 from typing import Optional, Dict, Any
 
+from core.runtime.desktop_boot_safety import inprocess_mlx_metal_enabled
+
 try:
     import psutil
 except ImportError:
@@ -50,6 +52,7 @@ class PlatformRoot:
         self._last_pulse = 0.0
         self.device_active = False
         self._pulse_interval = 15.0
+        self._metal_allowed, self._metal_reason = inprocess_mlx_metal_enabled()
         
         logger.info("🌿 [PLATFORM ROOT] Sovereign Root initialized. Building direct hardware connection...")
         self._connect_hardware()
@@ -58,6 +61,13 @@ class PlatformRoot:
         """Establish the direct link to the Metal device."""
         if mx is None:
             logger.error("❌ [PLATFORM ROOT] MLX not found. Hardware binding impossible.")
+            return
+        if not self._metal_allowed:
+            logger.info(
+                "🛡️ [PLATFORM ROOT] Skipping Metal hardware binding (%s).",
+                self._metal_reason,
+            )
+            self.device_active = False
             return
 
         try:
@@ -72,6 +82,8 @@ class PlatformRoot:
 
     def pulse(self, force_wake: bool = False):
         """Execute a sub-conductive hardware pulse to keep the compiler active."""
+        if not self._metal_allowed:
+            return False
         if mx is None or not self.device_active:
             if force_wake:
                 self._connect_hardware()

@@ -100,6 +100,131 @@ async def test_unitary_response_uses_direct_clock_skill_reply_without_llm(monkey
 
 
 @pytest.mark.asyncio
+async def test_unitary_response_injects_engineering_guidance_for_coding_turns(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Debug the failing pytest in core/runtime/conversation_support.py."
+    state.response_modifiers["coding_request"] = True
+    state.response_modifiers["coding_complexity_score"] = 0.78
+    state.response_modifiers["coding_route_hints"] = {
+        "has_test_failure": True,
+        "active_coding_thread": True,
+    }
+    state.response_modifiers["deep_handoff"] = True
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="The likely root cause is stale context injection."))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.build_response_contract",
+        lambda _state, _objective, is_user_facing=False: ResponseContract(
+            is_user_facing=is_user_facing,
+            reason="ordinary_dialogue",
+            tool_evidence_available=True,
+        ),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    _, kwargs = llm.think.await_args
+    assert "## ENGINEERING RESPONSE MODE" in kwargs["system_prompt"]
+    assert "root cause" in kwargs["system_prompt"].lower()
+    assert new_state.cognition.last_response == "The likely root cause is stale context injection."
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_answers_task_status_from_tracked_state_without_llm(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Are you done fixing the failing pytest in core/runtime/conversation_support.py?"
+    state.response_modifiers["last_task_result_payload"] = {
+        "status": "started",
+        "objective": "Fix the failing pytest in core/runtime/conversation_support.py",
+        "summary": "Background verification is still running.",
+        "task_id": "task-123",
+    }
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="I should not be called."))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+    monkeypatch.setattr(
+        "core.agency.task_commitment_verifier.get_task_commitment_verifier",
+        lambda kernel=None: SimpleNamespace(
+            build_status_reply=lambda objective, last_result_payload=None: (
+                "No. It's still running: Fix the failing pytest in core/runtime/conversation_support.py. "
+                "Latest state: Background verification is still running."
+            )
+        ),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    llm.think.assert_not_awaited()
+    assert "still running" in new_state.cognition.last_response.lower()
+    assert "conversation_support.py" in new_state.cognition.last_response
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_uses_grounded_technical_recovery_when_generation_crashes(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Fix the failing pytest in core/runtime/conversation_support.py."
+    state.response_modifiers["coding_request"] = True
+    state.response_modifiers["coding_route_hints"] = {
+        "has_active_plan": True,
+        "has_verification_failure": True,
+        "repair_attempts": 1,
+        "execution_phase": "verifying",
+    }
+    state.response_modifiers["last_task_result_payload"] = {
+        "status": "started",
+        "summary": "pytest is still failing with AssertionError: expected coding block.",
+        "steps_completed": 1,
+        "steps_total": 3,
+    }
+
+    llm = SimpleNamespace(think=AsyncMock(side_effect=RuntimeError("mlx lane crashed")))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.ContextAssembler.build_messages",
+        staticmethod(lambda _state, objective: [
+            {"role": "system", "content": "rich_context"},
+            {"role": "user", "content": objective},
+        ]),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.build_response_contract",
+        lambda _state, _objective, is_user_facing=False: ResponseContract(
+            is_user_facing=is_user_facing,
+            reason="ordinary_dialogue",
+            tool_evidence_available=True,
+        ),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    assert "interruption" in new_state.cognition.last_response.lower()
+    assert "1/3 steps" in new_state.cognition.last_response.lower()
+    assert "assertionerror" in new_state.cognition.last_response.lower()
+
+
+@pytest.mark.asyncio
 async def test_unitary_response_fails_closed_when_grounding_is_required_without_evidence(monkeypatch):
     state = AuraState()
     state.cognition.current_origin = "api"

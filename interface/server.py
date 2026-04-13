@@ -481,6 +481,9 @@ from interface.routes import interaction_signals as interaction_signal_routes
 from interface.routes import privacy as privacy_routes
 from interface.routes import rpc as rpc_routes
 from interface.routes import inner_state as inner_state_routes
+from core.session.checkpointing import CheckpointService
+
+checkpoint_service = CheckpointService()
 
 app.include_router(system_health_router, prefix="/api/health", tags=["health"])
 app.include_router(memory_ui.router, prefix="/memory", tags=["memory"])
@@ -634,6 +637,42 @@ async def serve_telemetry(request: Request):
     p = STATIC_DIR / "telemetry.html"
     return FileResponse(str(p), headers=NO_CACHE_HEADERS) if p.exists() else ORJSONResponse({"error": "not found"}, status_code=404)
 
+# ── Routes — Checkpoints (Phase 5A) ───────────────────────────
+
+@app.post("/api/checkpoints/save", tags=["checkpoints"])
+async def save_checkpoint(request: Request):
+    """Manually trigger a conversation checkpoint save."""
+    _require_internal(request)
+    data = await request.json()
+    
+    label = data.get("label", "manual")
+    # In a full integration, these states would be pulled from the active KernelInterface
+    messages = data.get("messages", [])
+    
+    filepath = checkpoint_service.save(
+        messages=messages,
+        label=label
+    )
+    if filepath:
+        return {"ok": True, "filepath": filepath}
+    return JSONResponse(status_code=500, content={"ok": False, "error": "Save failed"})
+
+@app.post("/api/checkpoints/restore", tags=["checkpoints"])
+async def restore_checkpoint(request: Request):
+    """Restore conversation from a checkpoint."""
+    _require_internal(request)
+    data = await request.json()
+    
+    label = data.get("label")
+    if label:
+        cp = checkpoint_service.restore_by_label(label)
+    else:
+        cp = checkpoint_service.restore_latest()
+        
+    if cp:
+        # Here we would inject the state back into the KernelInterface
+        return {"ok": True, "turn_count": cp.turn_count, "messages": len(cp.messages)}
+    return JSONResponse(status_code=404, content={"ok": False, "error": "Checkpoint not found"})
 
 # ── Routes — WebSocket ────────────────────────────────────────
 

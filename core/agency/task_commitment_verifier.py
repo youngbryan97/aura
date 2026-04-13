@@ -36,14 +36,79 @@ How it works
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 import time
+from pathlib import Path
+from threading import RLock
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from core.config import config
+from core.utils.file_utils import atomic_write_json
+
 logger = logging.getLogger("Aura.TaskCommitmentVerifier")
+_STATUS_FOLLOWUP_MARKERS = (
+    "keep going",
+    "keep it going",
+    "continue",
+    "resume",
+    "let's do it",
+    "lets do it",
+    "do it",
+    "carry on",
+    "pick it back up",
+    "go ahead",
+    "finish it",
+    "fix it",
+    "patch it",
+    "are you done",
+    "did you finish",
+    "still running",
+    "progress",
+    "status",
+    "what happened",
+    "follow up",
+    "task",
+)
+_CONTINUATION_MARKERS = (
+    "keep going",
+    "keep it going",
+    "continue",
+    "resume",
+    "let's do it",
+    "lets do it",
+    "do it",
+    "carry on",
+    "pick it back up",
+    "go ahead",
+    "finish it",
+    "fix it",
+    "patch it",
+    "try again",
+)
+_CONTINUATION_FILLER_TOKENS = {
+    "a", "an", "the", "it", "that", "this", "task", "please", "now",
+    "just", "again", "up", "back", "to", "on",
+}
+_STATUS_QUERY_MARKERS = (
+    "are you done",
+    "did you finish",
+    "still running",
+    "progress",
+    "status",
+    "what happened",
+    "follow up",
+    "did it work",
+    "how did it go",
+    "where are you on",
+)
+_TERMINAL_TASK_STATUSES = {"completed", "failed", "cancelled", "capability_gap", "denied"}
+_RUNNING_TASK_STATUSES = {"running", "running_async"}
+_ACTIVE_TASK_STATUSES = _RUNNING_TASK_STATUSES | {"interrupted"}
 
 
 class DispatchOutcome(str, Enum):
@@ -71,6 +136,8 @@ class TaskAcceptance:
     outcome: DispatchOutcome
     task_id: Optional[str] = None
     commitment_id: Optional[str] = None
+    objective: str = ""
+    requested_objective: str = ""
     summary: str = ""
     result_data: Any = None
     elapsed_ms: float = 0.0
@@ -114,10 +181,15 @@ class TaskCommitmentVerifier:
     # Maximum seconds to wait for an inline task before treating it as async-started.
     INLINE_TIMEOUT_S = 25.0
 
-    def __init__(self, kernel: Any):
+    def __init__(self, kernel: Any, persist_path: Path | None = None):
         self.kernel = kernel
+        base_dir = config.paths.data_dir / "runtime"
+        self.persist_path = Path(persist_path or (base_dir / "task_commitment_state.json"))
+        self._lock = RLock()
         self._active_tasks: Dict[str, Dict] = {}   # task_id → status record
         self._background_tasks: Dict[str, asyncio.Task] = {}
+        self._updated_at: float = 0.0
+        self._load()
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -140,6 +212,31 @@ class TaskCommitmentVerifier:
         """
         t0 = time.monotonic()
         task_id = str(uuid.uuid4())[:8]
+        requested_objective = " ".join(str(objective or "").split()).strip()
+        objective = requested_objective
+        followup_entry = self._resolve_relevant_entry(objective)
+        resume_plan_id = str((followup_entry or {}).get("plan_id", "") or "")
+
+        if self.is_continuation_request(objective):
+            if followup_entry is None:
+                elapsed = (time.monotonic() - t0) * 1000
+                return TaskAcceptance(
+                    outcome=DispatchOutcome.FAILED,
+                    task_id=task_id,
+                    objective=requested_objective,
+                    requested_objective=requested_objective,
+                    summary=(
+                        "I don't have a tracked task to continue from that alone. "
+                        "I need the actual task, not just 'keep going'."
+                    ),
+                    elapsed_ms=elapsed,
+                )
+
+            reuse_acceptance = self._build_continuation_reuse_acceptance(followup_entry, t0=t0)
+            if reuse_acceptance is not None:
+                return reuse_acceptance
+
+            objective = str(followup_entry.get("objective", "") or requested_objective).strip() or requested_objective
 
         # 1. Capability pre-check
         assessment = self._assess_capability(objective)
@@ -157,6 +254,8 @@ class TaskCommitmentVerifier:
             return TaskAcceptance(
                 outcome=DispatchOutcome.CAPABILITY_GAP,
                 task_id=task_id,
+                objective=objective,
+                requested_objective=requested_objective,
                 summary=gap_msg,
                 elapsed_ms=elapsed,
             )
@@ -168,6 +267,8 @@ class TaskCommitmentVerifier:
             return TaskAcceptance(
                 outcome=DispatchOutcome.FAILED,
                 task_id=task_id,
+                objective=objective,
+                requested_objective=requested_objective,
                 summary="Task engine unavailable. Cannot execute autonomous tasks right now.",
                 elapsed_ms=elapsed,
             )
@@ -177,23 +278,114 @@ class TaskCommitmentVerifier:
         is_long = force_async or estimated_steps > self.INLINE_STEP_THRESHOLD
 
         if is_long:
-            return await self._dispatch_async(task_id, objective, state, task_engine, t0)
+            return await self._dispatch_async(
+                task_id,
+                objective,
+                state,
+                task_engine,
+                t0,
+                requested_objective=requested_objective,
+                continued_from_task_id=str((followup_entry or {}).get("task_id", "") or ""),
+                resume_plan_id=resume_plan_id,
+            )
         else:
-            return await self._dispatch_inline(task_id, objective, state, task_engine, t0)
+            return await self._dispatch_inline(
+                task_id,
+                objective,
+                state,
+                task_engine,
+                t0,
+                requested_objective=requested_objective,
+                continued_from_task_id=str((followup_entry or {}).get("task_id", "") or ""),
+                resume_plan_id=resume_plan_id,
+            )
 
     def get_task_status(self, task_id: str) -> Optional[Dict]:
         """Return stored status for a previously dispatched task.
 
         Used by the response generator to answer "are you done with X?" accurately.
         """
-        return self._active_tasks.get(task_id)
+        with self._lock:
+            entry = self._active_tasks.get(task_id)
+            return dict(entry) if isinstance(entry, dict) else entry
 
     def get_all_active(self) -> List[Dict]:
         """Return all non-terminal task records."""
-        return [
-            t for t in self._active_tasks.values()
-            if t.get("status") not in ("completed", "failed", "capability_gap")
+        with self._lock:
+            return [
+                dict(t)
+                for t in self._active_tasks.values()
+                if str(t.get("status", "") or "") not in _TERMINAL_TASK_STATUSES
+            ]
+
+    @classmethod
+    def is_continuation_request(cls, objective: str) -> bool:
+        lowered = str(objective or "").lower()
+        if not lowered:
+            return False
+        if not any(marker in lowered for marker in _CONTINUATION_MARKERS):
+            return False
+
+        stripped = lowered
+        for marker in _CONTINUATION_MARKERS:
+            stripped = stripped.replace(marker, " ")
+        residual_tokens = [
+            token
+            for token in re.findall(r"[a-z0-9_./-]+", stripped)
+            if token not in _CONTINUATION_FILLER_TOKENS
         ]
+        return len(residual_tokens) <= 1
+
+    @classmethod
+    def is_status_followup_request(cls, objective: str) -> bool:
+        lowered = str(objective or "").lower()
+        if not lowered:
+            return False
+        return any(marker in lowered for marker in _STATUS_QUERY_MARKERS)
+
+    def build_status_reply(
+        self,
+        objective: str,
+        *,
+        last_result_payload: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        if not self.is_status_followup_request(objective):
+            return ""
+
+        entry = self._resolve_relevant_entry(objective)
+        if entry:
+            reply = self._render_entry_status_reply(entry, objective)
+            if reply:
+                return reply
+
+        if isinstance(last_result_payload, dict):
+            return self._render_payload_status_reply(last_result_payload, objective)
+        return ""
+
+    def get_context_block(self, objective: str = "", limit: int = 4) -> str:
+        """Compact prompt-facing task continuity block."""
+        entries = self._relevant_entries(objective, limit=limit)
+        if not entries:
+            return ""
+
+        lines = ["## TASK CONTINUITY"]
+        for entry in entries:
+            status = str(entry.get("status", "unknown") or "unknown")
+            objective_text = str(entry.get("objective", "") or "").strip()
+            summary = str(entry.get("summary", "") or entry.get("error", "") or "").strip()
+            task_id = str(entry.get("task_id", "") or "").strip()
+            progress = ""
+            steps_total = int(entry.get("steps_total", 0) or 0)
+            steps_completed = int(entry.get("steps_completed", 0) or 0)
+            if steps_total > 0:
+                progress = f" — progress: {steps_completed}/{steps_total}"
+            rendered = f"- [{task_id}] {objective_text[:90]} — status: {status}{progress}"
+            if summary:
+                rendered += f" — {summary[:140]}"
+            lines.append(rendered)
+
+        lines.append("Use task state to answer progress/follow-up questions from real execution status, not guesses.")
+        return "\n".join(lines)
 
     # ── Internal helpers ─────────────────────────────────────────────────────
 
@@ -283,12 +475,23 @@ class TaskCommitmentVerifier:
         state: Any,
         task_engine: Any,
         t0: float,
+        *,
+        requested_objective: str = "",
+        continued_from_task_id: str = "",
+        resume_plan_id: str = "",
     ) -> TaskAcceptance:
         """Run task synchronously and wait for result (short tasks only)."""
-        self._active_tasks[task_id] = {
-            "task_id": task_id, "objective": objective[:120],
-            "status": "running", "started_at": time.time(),
-        }
+        self._store_task_entry(
+            task_id,
+            {
+                "task_id": task_id,
+                "objective": objective[:120],
+                "requested_objective": requested_objective[:120] if requested_objective and requested_objective != objective else "",
+                "continued_from_task_id": continued_from_task_id,
+                "status": "running",
+                "started_at": time.time(),
+            },
+        )
         await self._track_goal_dispatch(
             objective,
             task_id=task_id,
@@ -305,6 +508,7 @@ class TaskCommitmentVerifier:
                     "attention_policy": "interruptible",
                     "priority": 0.9,
                     "horizon": "short_term",
+                    "resume_plan_id": resume_plan_id,
                 },
             )
         )
@@ -316,16 +520,20 @@ class TaskCommitmentVerifier:
             succeeded = getattr(result, "succeeded", bool(result))
             summary = getattr(result, "summary", str(result))
             outcome = DispatchOutcome.COMPLETED if succeeded else DispatchOutcome.FAILED
-            self._active_tasks[task_id].update({
-                "status": outcome.value,
-                "completed_at": time.time(),
-                "summary": summary,
-            })
+            tracking_updates, evidence = self._extract_result_tracking_fields(result)
+            self._update_task_entry(
+                task_id,
+                status=outcome.value,
+                completed_at=time.time(),
+                summary=summary,
+                **tracking_updates,
+            )
             await self._update_goal_dispatch(
                 task_id=task_id,
                 status=outcome.value,
                 summary=summary,
                 error="" if succeeded else summary,
+                evidence=evidence,
             )
             elapsed = (time.monotonic() - t0) * 1000
             logger.info(
@@ -335,15 +543,18 @@ class TaskCommitmentVerifier:
             return TaskAcceptance(
                 outcome=outcome,
                 task_id=task_id,
+                objective=objective,
+                requested_objective=requested_objective,
                 summary=summary,
                 result_data=result,
                 elapsed_ms=elapsed,
             )
         except asyncio.TimeoutError:
             commitment_id = self._register_commitment(objective)
-            self._active_tasks[task_id]["status"] = "running_async"
+            updates: Dict[str, Any] = {"status": "running_async"}
             if commitment_id:
-                self._active_tasks[task_id]["commitment_id"] = commitment_id
+                updates["commitment_id"] = commitment_id
+            self._update_task_entry(task_id, **updates)
             self._background_tasks[task_id] = execution_task
             execution_task.add_done_callback(
                 lambda fut, _task_id=task_id, _objective=objective, _commitment_id=commitment_id:
@@ -368,6 +579,8 @@ class TaskCommitmentVerifier:
                 outcome=DispatchOutcome.STARTED,
                 task_id=task_id,
                 commitment_id=commitment_id,
+                objective=objective,
+                requested_objective=requested_objective,
                 summary=(
                     f"This task is still running in the background (took >={self.INLINE_TIMEOUT_S:.0f}s). "
                     "I'll keep tracking it until it completes."
@@ -376,7 +589,7 @@ class TaskCommitmentVerifier:
                 elapsed_ms=elapsed,
             )
         except Exception as e:
-            self._active_tasks[task_id].update({"status": "failed", "error": str(e)})
+            self._update_task_entry(task_id, status="failed", error=str(e))
             await self._update_goal_dispatch(
                 task_id=task_id,
                 status=DispatchOutcome.FAILED.value,
@@ -388,6 +601,8 @@ class TaskCommitmentVerifier:
             return TaskAcceptance(
                 outcome=DispatchOutcome.FAILED,
                 task_id=task_id,
+                objective=objective,
+                requested_objective=requested_objective,
                 summary=f"Task execution failed: {e}",
                 elapsed_ms=elapsed,
             )
@@ -399,16 +614,27 @@ class TaskCommitmentVerifier:
         state: Any,
         task_engine: Any,
         t0: float,
+        *,
+        requested_objective: str = "",
+        continued_from_task_id: str = "",
+        resume_plan_id: str = "",
     ) -> TaskAcceptance:
         """Launch task in the background and register a CommitmentEngine entry."""
         # Register with CommitmentEngine for cross-session tracking
         commitment_id = self._register_commitment(objective)
 
-        self._active_tasks[task_id] = {
-            "task_id": task_id, "objective": objective[:120],
-            "commitment_id": commitment_id,
-            "status": "running_async", "started_at": time.time(),
-        }
+        self._store_task_entry(
+            task_id,
+            {
+                "task_id": task_id,
+                "objective": objective[:120],
+                "requested_objective": requested_objective[:120] if requested_objective and requested_objective != objective else "",
+                "continued_from_task_id": continued_from_task_id,
+                "commitment_id": commitment_id,
+                "status": "running_async",
+                "started_at": time.time(),
+            },
+        )
         await self._track_goal_dispatch(
             objective,
             task_id=task_id,
@@ -427,6 +653,7 @@ class TaskCommitmentVerifier:
                     "attention_policy": "sustained",
                     "priority": 0.8,
                     "horizon": "short_term",
+                    "resume_plan_id": resume_plan_id,
                 },
             )
         )
@@ -448,6 +675,8 @@ class TaskCommitmentVerifier:
             outcome=DispatchOutcome.STARTED,
             task_id=task_id,
             commitment_id=commitment_id,
+            objective=objective,
+            requested_objective=requested_objective,
             summary=(
                 f"I've started this task (id={task_id}). "
                 "I'll follow up when it's done."
@@ -492,6 +721,22 @@ class TaskCommitmentVerifier:
             logger.debug("TaskCommitmentVerifier: CommitmentEngine registration failed: %s", ex)
             return None
 
+    @staticmethod
+    def _extract_result_tracking_fields(result: Any) -> tuple[Dict[str, Any], List[str]]:
+        updates: Dict[str, Any] = {}
+        evidence: List[str] = []
+        for key in ("plan_id", "trace_id", "steps_completed", "steps_total", "duration_s"):
+            value = getattr(result, key, None)
+            if value not in (None, ""):
+                updates[key] = value
+        for item in list(getattr(result, "evidence", []) or [])[:4]:
+            text = str(item or "").strip()
+            if text:
+                evidence.append(text)
+        if evidence:
+            updates["evidence"] = evidence
+        return updates, evidence
+
     async def _track_goal_dispatch(
         self,
         objective: str,
@@ -521,6 +766,7 @@ class TaskCommitmentVerifier:
         status: str,
         summary: str = "",
         error: str = "",
+        evidence: Optional[List[str]] = None,
     ) -> None:
         goal_engine = self._get_goal_engine()
         if goal_engine and hasattr(goal_engine, "update_task_lifecycle"):
@@ -530,6 +776,7 @@ class TaskCommitmentVerifier:
                     status=status,
                     summary=summary,
                     error=error,
+                    evidence=evidence,
                 )
             except Exception as exc:
                 logger.debug("TaskCommitmentVerifier: goal lifecycle update failed: %s", exc)
@@ -549,18 +796,21 @@ class TaskCommitmentVerifier:
             result = future.result()
             succeeded = getattr(result, "succeeded", bool(result))
             summary = getattr(result, "summary", str(result))
-            if task_id in self._active_tasks:
-                self._active_tasks[task_id].update({
-                    "status": "completed" if succeeded else "failed",
-                    "completed_at": time.time(),
-                    "summary": summary,
-                })
+            tracking_updates, evidence = self._extract_result_tracking_fields(result)
+            self._update_task_entry(
+                task_id,
+                status="completed" if succeeded else "failed",
+                completed_at=time.time(),
+                summary=summary,
+                **tracking_updates,
+            )
             try:
                 await self._update_goal_dispatch(
                     task_id=task_id,
                     status=DispatchOutcome.COMPLETED.value if succeeded else DispatchOutcome.FAILED.value,
                     summary=summary,
                     error="" if succeeded else summary,
+                    evidence=evidence,
                 )
             except Exception as goal_exc:
                 logger.error("TaskCommitmentVerifier: goal dispatch failed for %s: %s", task_id, goal_exc)
@@ -585,8 +835,7 @@ class TaskCommitmentVerifier:
                 summary[:80],
             )
         except asyncio.CancelledError:
-            if task_id in self._active_tasks:
-                self._active_tasks[task_id].update({"status": "cancelled", "completed_at": time.time()})
+            self._update_task_entry(task_id, status="cancelled", completed_at=time.time())
             try:
                 await self._update_goal_dispatch(
                     task_id=task_id,
@@ -598,8 +847,12 @@ class TaskCommitmentVerifier:
                 pass
             logger.warning("TaskCommitmentVerifier: async task %s was cancelled", task_id)
         except Exception as e:
-            if task_id in self._active_tasks:
-                self._active_tasks[task_id].update({"status": "failed", "error": str(e), "completed_at": time.time()})
+            self._update_task_entry(
+                task_id,
+                status="failed",
+                error=str(e),
+                completed_at=time.time(),
+            )
             try:
                 await self._update_goal_dispatch(
                     task_id=task_id,
@@ -613,22 +866,307 @@ class TaskCommitmentVerifier:
         finally:
             # Prevent unbounded _active_tasks growth: clean up terminal entries
             # after a grace period so callers can still query recent results.
-            entry = self._active_tasks.get(task_id)
+            entry = self.get_task_status(task_id)
             if entry and entry.get("status") in {"completed", "failed", "cancelled"}:
-                entry.setdefault("cleanup_at", time.time() + 300)
+                self._update_task_entry(task_id, cleanup_at=time.time() + 300)
             self._prune_terminal_tasks()
 
     def _prune_terminal_tasks(self, max_age: float = 300.0) -> None:
         """Remove completed/failed/cancelled tasks older than max_age seconds."""
         now = time.time()
-        to_remove = [
-            tid
-            for tid, entry in self._active_tasks.items()
-            if entry.get("status") in {"completed", "failed", "cancelled"}
-            and now >= float(entry.get("cleanup_at", now + 1))
-        ]
-        for tid in to_remove:
-            self._active_tasks.pop(tid, None)
+        with self._lock:
+            to_remove = [
+                tid
+                for tid, entry in self._active_tasks.items()
+                if str(entry.get("status", "") or "") in {"completed", "failed", "cancelled"}
+                and now >= float(entry.get("cleanup_at", now + 1))
+            ]
+            for tid in to_remove:
+                self._active_tasks.pop(tid, None)
+            if to_remove:
+                self._updated_at = now
+                self._save_locked()
+
+    def _task_engine_entries(self) -> List[Dict[str, Any]]:
+        task_engine = self._get_task_engine()
+        if task_engine is None or not hasattr(task_engine, "get_active_plans"):
+            return []
+        try:
+            snapshot = list(task_engine.get_active_plans() or [])
+        except Exception as exc:
+            logger.debug("TaskCommitmentVerifier: task engine snapshot skipped: %s", exc)
+            return []
+
+        entries: List[Dict[str, Any]] = []
+        for item in snapshot:
+            if not isinstance(item, dict):
+                continue
+            plan_id = str(item.get("plan_id", "") or "").strip()
+            objective = str(item.get("goal", "") or "").strip()
+            if not plan_id or not objective:
+                continue
+            entries.append(
+                {
+                    "task_id": str(item.get("task_id", "") or plan_id),
+                    "plan_id": plan_id,
+                    "objective": objective,
+                    "status": str(item.get("status", "") or "running"),
+                    "summary": str(item.get("summary", "") or "").strip(),
+                    "steps_completed": int(item.get("steps_completed", 0) or 0),
+                    "steps_total": int(item.get("steps_total", 0) or 0),
+                    "updated_at": time.time(),
+                }
+            )
+        return entries
+
+    @staticmethod
+    def _token_overlap_score(text: str, objective: str) -> float:
+        text_tokens = set(re.findall(r"[a-z0-9_]+", str(text or "").lower()))
+        objective_tokens = set(re.findall(r"[a-z0-9_]+", str(objective or "").lower()))
+        if not text_tokens or not objective_tokens:
+            return 0.0
+        overlap = text_tokens & objective_tokens
+        return len(overlap) / max(1, len(objective_tokens))
+
+    def _relevant_entries(self, objective: str, *, limit: int) -> List[Dict]:
+        with self._lock:
+            records = [dict(item) for item in self._active_tasks.values()]
+        if not records:
+            records = []
+        external_records = self._task_engine_entries()
+
+        lowered = str(objective or "").lower()
+        followup_query = any(marker in lowered for marker in _STATUS_FOLLOWUP_MARKERS)
+
+        def _score(entry: Dict[str, Any]) -> tuple[float, float]:
+            status = str(entry.get("status", "") or "")
+            overlap = self._token_overlap_score(entry.get("objective", ""), objective)
+            terminal = status in {"completed", "failed", "cancelled"}
+            recency = float(entry.get("completed_at") or entry.get("started_at") or 0.0)
+            score = overlap
+            if status == "running_async":
+                score += 0.45
+            elif status == "running":
+                score += 0.4
+            elif followup_query and terminal:
+                score += 0.25
+            if overlap > 0:
+                score += 0.2
+            if not objective and not terminal:
+                score += 0.1
+            return (score, recency)
+
+        ordered = sorted(records, key=_score, reverse=True)
+        if objective:
+            filtered = [entry for entry in ordered if _score(entry)[0] > 0.0]
+            if filtered:
+                return filtered[:limit]
+        if ordered and not objective:
+            return ordered[:limit]
+
+        if not external_records:
+            return ordered[:limit]
+
+        ordered_external = sorted(external_records, key=_score, reverse=True)
+        if objective:
+            filtered_external = [entry for entry in ordered_external if _score(entry)[0] > 0.0]
+            if filtered_external:
+                return filtered_external[:limit]
+        return (ordered or ordered_external)[:limit]
+
+    def _resolve_relevant_entry(self, objective: str) -> Optional[Dict[str, Any]]:
+        entries = self._relevant_entries(objective, limit=1)
+        if entries:
+            return dict(entries[0])
+        return None
+
+    def _build_continuation_reuse_acceptance(
+        self,
+        entry: Dict[str, Any],
+        *,
+        t0: float,
+    ) -> Optional[TaskAcceptance]:
+        status = str(entry.get("status", "") or "")
+        task_id = str(entry.get("task_id", "") or "") or None
+        commitment_id = str(entry.get("commitment_id", "") or "") or None
+        objective = str(entry.get("objective", "") or "").strip()
+        summary = str(entry.get("summary", "") or entry.get("error", "") or "").strip()
+        elapsed = (time.monotonic() - t0) * 1000
+
+        if status in _RUNNING_TASK_STATUSES:
+            msg = f"I'm already working on {objective}." if objective else "I'm already working on that."
+            if summary:
+                msg += f" Latest state: {summary}"
+            return TaskAcceptance(
+                outcome=DispatchOutcome.STARTED,
+                task_id=task_id,
+                commitment_id=commitment_id,
+                objective=objective,
+                requested_objective=objective,
+                summary=msg,
+                elapsed_ms=elapsed,
+            )
+
+        if status == "completed":
+            msg = f"That task already finished: {objective}." if objective else "That task already finished."
+            if summary:
+                msg += f" {summary}"
+            return TaskAcceptance(
+                outcome=DispatchOutcome.COMPLETED,
+                task_id=task_id,
+                commitment_id=commitment_id,
+                objective=objective,
+                requested_objective=objective,
+                summary=msg,
+                elapsed_ms=elapsed,
+            )
+        return None
+
+    def _render_entry_status_reply(self, entry: Dict[str, Any], objective: str) -> str:
+        status = str(entry.get("status", "") or "unknown")
+        task_objective = str(entry.get("objective", "") or "that task").strip()
+        summary = str(entry.get("summary", "") or "").strip()
+        error = str(entry.get("error", "") or "").strip()
+        lowered = str(objective or "").lower()
+        progress = ""
+        steps_total = int(entry.get("steps_total", 0) or 0)
+        steps_completed = int(entry.get("steps_completed", 0) or 0)
+        if steps_total > 0:
+            progress = f" ({steps_completed}/{steps_total} steps)"
+
+        if status in _RUNNING_TASK_STATUSES:
+            base = f"No. It's still running{progress}: {task_objective}."
+            if "progress" in lowered or "status" in lowered:
+                base = f"It's still in progress{progress}: {task_objective}."
+            if summary:
+                base += f" Latest state: {summary}"
+            return base
+
+        if status == "interrupted":
+            base = (
+                f"Not yet. I was working on {task_objective}{progress}, but that run was interrupted before it finished."
+            )
+            detail = summary or "I need to resume it rather than pretend it completed."
+            return f"{base} {detail}".strip()
+
+        if status == "waiting_for_approval":
+            detail = summary or "It needs explicit approval before the next execution step can continue."
+            return f"It is paused pending approval{progress}: {task_objective}. {detail}".strip()
+
+        if status == "completed":
+            base = f"Yes. I finished {task_objective}{progress}."
+            if "what happened" in lowered or "follow up" in lowered:
+                base = f"That task finished{progress}: {task_objective}."
+            if summary:
+                base += f" {summary}"
+            return base
+
+        if status == "failed":
+            detail = error or summary or "It failed without a clean summary."
+            return f"It didn't finish cleanly. {task_objective}{progress} failed. {detail}".strip()
+
+        if status == "cancelled":
+            return f"I stopped that run before it finished{progress}: {task_objective}."
+
+        return ""
+
+    def _render_payload_status_reply(self, payload: Dict[str, Any], objective: str) -> str:
+        status = str(payload.get("status", "") or "")
+        task_objective = str(payload.get("objective", "") or "that task").strip()
+        summary = str(payload.get("summary", "") or payload.get("error", "") or "").strip()
+        progress = ""
+        steps_total = int(payload.get("steps_total", 0) or 0)
+        steps_completed = int(payload.get("steps_completed", 0) or 0)
+        if steps_total > 0:
+            progress = f" ({steps_completed}/{steps_total} steps)"
+
+        if status == DispatchOutcome.STARTED.value:
+            base = "It's still in flight."
+            if task_objective:
+                base = f"It's still in flight{progress}: {task_objective}."
+            if summary:
+                base += f" {summary}"
+            return base
+        if status == DispatchOutcome.COMPLETED.value:
+            base = "Yes. That task finished."
+            if task_objective:
+                base = f"Yes. {task_objective}{progress} finished."
+            if summary:
+                base += f" {summary}"
+            return base
+        if status == DispatchOutcome.FAILED.value:
+            base = "It didn't finish cleanly."
+            if task_objective:
+                base = f"It didn't finish cleanly{progress}: {task_objective}."
+            if summary:
+                base += f" {summary}"
+            return base
+        return ""
+
+    def _store_task_entry(self, task_id: str, entry: Dict[str, Any]) -> None:
+        with self._lock:
+            payload = dict(entry)
+            payload.setdefault("task_id", task_id)
+            payload.setdefault("updated_at", time.time())
+            self._active_tasks[task_id] = payload
+            self._updated_at = time.time()
+            self._save_locked()
+
+    def _update_task_entry(self, task_id: str, **updates: Any) -> None:
+        with self._lock:
+            entry = self._active_tasks.get(task_id)
+            if not entry:
+                return
+            entry.update(updates)
+            entry["updated_at"] = time.time()
+            self._updated_at = time.time()
+            self._save_locked()
+
+    def _save_locked(self) -> None:
+        payload = {
+            "updated_at": self._updated_at or time.time(),
+            "active_tasks": list(self._active_tasks.values()),
+        }
+        atomic_write_json(str(self.persist_path), payload)
+
+    def _load(self) -> None:
+        try:
+            if not self.persist_path.exists():
+                return
+            raw = json.loads(self.persist_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.debug("TaskCommitmentVerifier: state load skipped: %s", exc)
+            return
+
+        now = time.time()
+        loaded: Dict[str, Dict[str, Any]] = {}
+        needs_save = False
+        for item in list(raw.get("active_tasks") or []):
+            if not isinstance(item, dict):
+                continue
+            task_id = str(item.get("task_id", "") or "").strip()
+            if not task_id:
+                continue
+            entry = dict(item)
+            status = str(entry.get("status", "") or "")
+            if status in _RUNNING_TASK_STATUSES:
+                entry["status"] = "interrupted"
+                entry.setdefault(
+                    "summary",
+                    "The last run was interrupted before it could finish, so it needs an explicit resume.",
+                )
+                entry["interrupted_at"] = now
+                entry["updated_at"] = now
+                needs_save = True
+            loaded[task_id] = entry
+
+        with self._lock:
+            self._active_tasks = loaded
+            self._updated_at = float(raw.get("updated_at") or now)
+            self._prune_terminal_tasks(max_age=86400.0)
+            if needs_save:
+                self._updated_at = now
+                self._save_locked()
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────

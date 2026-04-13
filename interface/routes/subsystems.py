@@ -138,7 +138,9 @@ async def api_terminal_send(request: Request):
         if not text:
             raise HTTPException(status_code=400, detail="text required")
         from core.terminal_chat import get_terminal_fallback
-        get_terminal_fallback().queue_autonomous_message(text)
+        queued = get_terminal_fallback().queue_autonomous_message(text)
+        if queued is False:
+            return JSONResponse({"ok": False, "error": "suppressed by constitution"})
         return JSONResponse({"ok": True, "queued": text})
     except HTTPException:
         raise

@@ -71,3 +71,44 @@ async def test_goal_engine_persists_short_and_long_horizon_lifecycle(tmp_path):
 
     active_async = await engine.get_active_goals_async(limit=10, include_external=False)
     assert any(item["horizon"] == "long_term" for item in active_async)
+
+
+@pytest.mark.asyncio
+async def test_goal_engine_context_block_surfaces_long_horizon_and_recovery_pressure(tmp_path):
+    engine = GoalEngine(db_path=str(tmp_path / "goal_lifecycle.db"))
+
+    await engine.add_goal(
+        "Finish the long-horizon runtime stabilization project",
+        objective="Finish the long-horizon runtime stabilization project",
+        horizon="long_term",
+        priority=0.9,
+        status="in_progress",
+    )
+
+    interrupted_step = SimpleNamespace(tool="sovereign_terminal")
+    interrupted_plan = SimpleNamespace(
+        plan_id="plan-recovery",
+        goal="Repair the interrupted runtime verification loop",
+        steps=[interrupted_step, SimpleNamespace(tool="read_file")],
+        succeeded_steps=[],
+        trace_id="trace-recovery",
+        status="interrupted",
+        final_result="",
+        requires_approval=False,
+        context={
+            "task_id": "task-recovery",
+            "source": "task_engine",
+            "priority": 0.96,
+            "horizon": "short_term",
+            "quick_win": False,
+            "error": "Interrupted during verification.",
+        },
+    )
+
+    engine.sync_task_plan(interrupted_plan)
+    block = engine.get_context_block("Keep going on the interrupted runtime project")
+
+    assert "## GOAL EXECUTION STATE" in block
+    assert "Immediate execution:" in block
+    assert "Long-horizon anchors:" in block
+    assert "Recovery pressure:" in block

@@ -1466,7 +1466,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         
         # Original logic continues...
 
-    async def process_event(self, event: Any, origin: str = "internal", priority: int = 20):
+    async def process_event(self, event: Any, origin: Any = "internal", priority: int = 20):
         """Compatibility alias for legacy subsystems.
 
         Uses the async-native enqueue_message path since callers are
@@ -1474,8 +1474,49 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         enqueue_from_thread path would incorrectly resolve the loop
         and trigger RuntimeError when the async loop was already
         running.
+
+        Legacy callers sometimes passed a payload dict as the second positional
+        argument (before this method standardized on ``origin``). Preserve that
+        shape by wrapping the event into a message payload instead of treating
+        the dict as an origin label.
         """
-        self.enqueue_message(event, priority=priority, origin=origin)
+        payload = None
+        normalized_origin = origin
+
+        if isinstance(origin, dict):
+            payload = dict(origin)
+            normalized_origin = str(payload.pop("origin", "") or "internal")
+            if priority == 20 and "priority" in payload:
+                try:
+                    priority = int(payload.pop("priority"))
+                except Exception:
+                    pass
+        elif origin is None:
+            normalized_origin = "internal"
+        elif not isinstance(origin, str):
+            payload = {"value": origin}
+            normalized_origin = "internal"
+
+        if payload is not None:
+            if isinstance(event, dict):
+                merged = dict(event)
+                merged_context = dict(merged.get("context") or {})
+                merged_context.update(payload)
+                merged["context"] = merged_context
+                merged.setdefault("origin", normalized_origin)
+                event = merged
+            else:
+                event = {
+                    "content": event,
+                    "context": payload,
+                    "origin": normalized_origin,
+                }
+
+        self.enqueue_message(
+            event,
+            priority=priority,
+            origin=str(normalized_origin or "internal"),
+        )
 
     async def _ensure_inference_gate_ready(self, context: str = "runtime") -> bool:
         """Ensure the unified inference gate is ready before user-facing chat begins."""

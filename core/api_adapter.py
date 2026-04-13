@@ -155,7 +155,7 @@ class APIAdapter:
         start = time.monotonic()
 
         # Tier routing with fallback
-        result = await self._route_generate(prompt, tier, temperature, max_tokens)
+        result = await self._route_generate(prompt, tier, temperature, max_tokens, config=config)
 
         elapsed = (time.monotonic() - start) * 1000
         logger.debug("APIAdapter.generate: tier=%s purpose=%s %.1fms len=%d",
@@ -177,14 +177,15 @@ class APIAdapter:
     # ─── Routing ─────────────────────────────────────────────────────────────
 
     async def _route_generate(
-        self, prompt: str, tier: str, temperature: float, max_tokens: int
+        self, prompt: str, tier: str, temperature: float, max_tokens: int, config: Optional[Dict[str, Any]] = None
     ) -> str:
         """Route with automatic fallback chain."""
+        config = config or {}
 
         # Cloud chain (Gemini only)
         if tier in ("api_deep", "api_fast"):
             if self.has_gemini and time.monotonic() >= self._gemini_backoff_until:
-                result = await self._gemini_generate(prompt, tier, temperature, max_tokens)
+                result = await self._gemini_generate(prompt, tier, temperature, max_tokens, config=config)
                 if result:
                     return result
 
@@ -225,21 +226,27 @@ class APIAdapter:
     # ─── Gemini ──────────────────────────────────────────────────────────────
 
     async def _gemini_generate(
-        self, prompt: str, tier: str, temperature: float, max_tokens: int, system_instruction: Optional[str] = None
+        self, prompt: str, tier: str, temperature: float, max_tokens: int, system_instruction: Optional[str] = None, config: Optional[Dict[str, Any]] = None
     ) -> Optional[str]:
+        config = config or {}
         if self._gemini_client and self.has_gemini:
             model_name = GEMINI_MODELS.get(tier, GEMINI_MODELS["api_fast"])
             try:
                 from google import genai
-                config = genai.types.GenerateContentConfig(
-                    temperature=temperature,
-                    max_output_tokens=max_tokens,
-                    system_instruction=system_instruction if system_instruction else None,
-                )
+                config_kwargs = {
+                    "temperature": temperature,
+                    "max_output_tokens": max_tokens,
+                    "system_instruction": system_instruction if system_instruction else None,
+                }
+                # Support native structural tools
+                if "tools" in config:
+                    config_kwargs["tools"] = config["tools"]
+
+                gen_config = genai.types.GenerateContentConfig(**config_kwargs)
                 response = await self._gemini_client.aio.models.generate_content(
                     model=model_name,
                     contents=prompt,
-                    config=config,
+                    config=gen_config,
                 )
                 self._call_count["gemini"] += 1
                 return response.text or ""

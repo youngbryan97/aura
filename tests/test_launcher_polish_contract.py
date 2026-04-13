@@ -63,6 +63,14 @@ def test_launch_script_supports_gui_window_mode():
     assert "aura-desktop-launch.log" in shell
 
 
+def test_launcher_cleanup_shim_exists_at_repo_root():
+    shim = PROJECT_ROOT / "aura_cleanup.py"
+    contents = shim.read_text(encoding="utf-8")
+
+    assert shim.exists()
+    assert 'scripts" / "one_off" / "aura_cleanup.py"' in contents
+
+
 def test_aura_main_supports_gui_window_mode():
     main_py = (PROJECT_ROOT / "aura_main.py").read_text(encoding="utf-8")
 

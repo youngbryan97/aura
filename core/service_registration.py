@@ -162,6 +162,8 @@ def _finalize_wiring(container):
     try:
         mycelial = container.get("mycelial_network")
         if mycelial:
+            from .runtime.desktop_boot_safety import inprocess_mlx_metal_enabled
+
             # Link major layers
             from .meta_cognition import MetaEvolutionEngine
             mycelial.link_layer("meta_cognition", MetaEvolutionEngine)
@@ -175,7 +177,9 @@ def _finalize_wiring(container):
             
             # Phase 10: Neural Root for Metal persistence
             if hasattr(mycelial, 'establish_neural_root'):
-                mycelial.establish_neural_root("llm", hardware_id="gpu_metal")
+                metal_enabled, reason = inprocess_mlx_metal_enabled()
+                hardware_id = "gpu_metal" if metal_enabled else f"cpu_safe:{reason}"
+                mycelial.establish_neural_root("llm", hardware_id=hardware_id)
             
     except Exception as e:
         logger.debug("Wiring deferred: %s", e)

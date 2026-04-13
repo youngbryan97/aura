@@ -25,6 +25,31 @@ class ToolExecutor:
     def __init__(self, orch: Any) -> None:
         self.orch = orch
 
+    @staticmethod
+    def _record_coding_tool_event(
+        orch: Any,
+        *,
+        tool_name: str,
+        args: Dict[str, Any],
+        result: Any,
+        success: bool,
+        error: str = "",
+    ) -> None:
+        try:
+            from core.runtime.coding_session_memory import get_coding_session_memory
+
+            get_coding_session_memory().record_tool_event(
+                tool_name=tool_name,
+                args=args,
+                result=result,
+                objective=getattr(orch, "_current_objective", "") or "",
+                origin="tool_executor",
+                success=success,
+                error=error,
+            )
+        except Exception as exc:
+            logger.debug("ToolExecutor: coding tool recording skipped: %s", exc)
+
     async def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
         """Execute a single tool with feedback, episodic recording, and learning."""
         from core.utils.task_tracker import task_tracker
@@ -36,18 +61,24 @@ class ToolExecutor:
         # Swarm debate delegation
         if tool_name == "swarm_debate":
             if not orch.swarm:
-                return {"ok": False, "error": "Swarm Delegator not available."}
+                result = {"ok": False, "error": "Swarm Delegator not available."}
+                self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=False, error=result["error"])
+                return result
             topic = args.get("topic") or args.get("query") or orch._current_objective
             roles = args.get("roles", ["architect", "critic"])
             orch._emit_thought_stream(f"🐝 Engaging Swarm Debate: {topic[:100]}...")
             result = await orch.swarm.delegate_debate(topic, roles=roles)
-            return {"ok": True, "output": result}
+            response = {"ok": True, "output": result}
+            self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=response, success=True)
+            return response
 
         try:
             # Missing tool -> Hephaestus forge
             if tool_name not in orch.router.skills:
                 if tool_name == "notify_user":
-                    return {"ok": True, "message": args.get("message", "Done.")}
+                    result = {"ok": True, "message": args.get("message", "Done.")}
+                    self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=True)
+                    return result
                 if orch.hephaestus:
                     orch._emit_thought_stream(
                         f"🔨 Tool '{tool_name}' missing. Initiating Autonomous Forge..."
@@ -68,7 +99,9 @@ class ToolExecutor:
                             tool_name,
                             forge_result.get("error"),
                         )
-                return {"ok": False, "error": f"Tool '{tool_name}' not found."}
+                result = {"ok": False, "error": f"Tool '{tool_name}' not found."}
+                self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=False, error=result["error"])
+                return result
 
             # Execute via router
             goal = {"action": tool_name, "params": args}
@@ -101,13 +134,16 @@ class ToolExecutor:
 
             # ACG world model
             self._record_acg(goal, context, result, success)
+            self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=success)
 
             return result
 
         except Exception as e:
             logger.error("Execution Jolt (Pain): Tool %s crashed: %s", tool_name, e)
             await self._record_crash(orch, tool_name, args, e)
-            return {"ok": False, "error": "execution_jolt", "message": str(e)}
+            result = {"ok": False, "error": "execution_jolt", "message": str(e)}
+            self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=False, error=str(e))
+            return result
 
     async def execute_plan(self, plan: Dict[str, Any]) -> List[Any]:
         """Batch tool execution from a plan dict."""

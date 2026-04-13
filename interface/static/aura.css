@@ -3390,6 +3390,10 @@ body.accent-amber .msg.aura { border-left-color: #fbbf24; }
 /* ══════════════════════════════════════════════════════════
    MAGNUM OPUS 2 — Message Timestamps
    ══════════════════════════════════════════════════════════ */
+/* Message content wrapper — separates text from timestamp for clean transcript extraction */
+.msg-content {
+    display: block;
+}
 .msg-timestamp {
     display: block;
     font-size: 0.55rem;

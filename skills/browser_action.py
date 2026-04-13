@@ -3,6 +3,12 @@ Combines the best of Playwright and Selenium/Undetected-Chromedriver.
 Primary: Playwright (Fast, Robust)
 Fallback: Undetected-Chromedriver (Stealth, CAPTCHA bypass)
 Fallback 2: Native Webbrowser (Simple opens)
+
+v2.0 Upgrades (from Google Gemini ecosystem):
+  - Proxy-select injection for OS-native dropdown capture
+  - Rate-limited, IP-blocked text-only fallback with HTML→text conversion
+  - Screenshot memory pruning (keep last 3 only)
+  - Mouse cursor highlight for visual grounding
 """
 import asyncio
 import base64
@@ -15,6 +21,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import requests
+import re as _re
+from collections import defaultdict
+from urllib.parse import quote as _url_quote
 
 try:
     from infrastructure import BaseSkill
@@ -24,6 +33,111 @@ except ImportError:
 
 logger = logging.getLogger("Skills.UnifiedBrowser")
 
+# ── Proxy-Select Script (from computer-use-preview) ─────────────────────────
+# Injects DOM-level select replacement to capture OS-native dropdown menus
+# which Playwright/screenshots cannot see.
+PROXY_SELECT_JS = """
+(function() {
+  if (window.__proxySelectInjected) return;
+  window.__proxySelectInjected = true;
+  document.querySelectorAll('select').forEach(function(sel) {
+    if (sel.dataset.proxied) return;
+    sel.dataset.proxied = 'true';
+    var wrapper = document.createElement('div');
+    wrapper.className = 'proxy-select-wrapper';
+    wrapper.style.cssText = 'position:relative;display:inline-block;';
+    sel.parentNode.insertBefore(wrapper, sel);
+    
+    var display = document.createElement('div');
+    display.className = 'proxy-select-display';
+    display.style.cssText = 'border:1px solid #ccc;padding:4px 8px;cursor:pointer;background:#fff;min-width:100px;';
+    display.textContent = sel.options[sel.selectedIndex]?.text || '';
+    wrapper.appendChild(display);
+    
+    var dropdown = document.createElement('div');
+    dropdown.className = 'proxy-select-dropdown';
+    dropdown.style.cssText = 'display:none;position:absolute;z-index:999999;background:#fff;border:1px solid #ccc;max-height:200px;overflow-y:auto;width:100%;box-shadow:0 2px 8px rgba(0,0,0,0.15);';
+    
+    Array.from(sel.options).forEach(function(opt, i) {
+      var item = document.createElement('div');
+      item.className = 'proxy-select-option';
+      item.style.cssText = 'padding:4px 8px;cursor:pointer;';
+      item.textContent = opt.text;
+      item.addEventListener('mouseenter', function() { this.style.background='#e3f2fd'; });
+      item.addEventListener('mouseleave', function() { this.style.background='#fff'; });
+      item.addEventListener('click', function() {
+        sel.selectedIndex = i;
+        sel.dispatchEvent(new Event('change', {bubbles:true}));
+        display.textContent = opt.text;
+        dropdown.style.display = 'none';
+      });
+      dropdown.appendChild(item);
+    });
+    
+    wrapper.appendChild(dropdown);
+    display.addEventListener('click', function() {
+      dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', function(e) {
+      if (!wrapper.contains(e.target)) dropdown.style.display = 'none';
+    });
+    
+    sel.style.display = 'none';
+  });
+})();
+"""
+
+# ── Rate Limiting (from gemini-cli/web-fetch.ts) ─────────────────────────────
+_RATE_LIMIT_WINDOW = 60  # seconds
+_MAX_REQUESTS_PER_WINDOW = 10
+_host_request_times: Dict[str, List[float]] = defaultdict(list)
+
+# ── Screenshot Pruning ───────────────────────────────────────────────────────
+MAX_SCREENSHOTS_KEPT = 3
+
+
+def _check_rate_limit(url: str) -> bool:
+    """Returns True if the request is allowed."""
+    try:
+        from urllib.parse import urlparse
+        hostname = urlparse(url).hostname or ""
+        now = time.time()
+        cutoff = now - _RATE_LIMIT_WINDOW
+        _host_request_times[hostname] = [
+            t for t in _host_request_times[hostname] if t > cutoff
+        ]
+        if len(_host_request_times[hostname]) >= _MAX_REQUESTS_PER_WINDOW:
+            return False
+        _host_request_times[hostname].append(now)
+        return True
+    except Exception:
+        return True
+
+
+def _is_private_ip(url: str) -> bool:
+    """Block requests to localhost and private IP ranges."""
+    try:
+        from urllib.parse import urlparse
+        hostname = urlparse(url).hostname or ""
+        if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+            return True
+        import ipaddress
+        try:
+            ip = ipaddress.ip_address(hostname)
+            return ip.is_private or ip.is_loopback
+        except ValueError:
+            return False
+    except Exception:
+        return False
+
+
+def _convert_github_url(url: str) -> str:
+    """Convert GitHub blob URLs to raw content URLs."""
+    if "github.com" in url and "/blob/" in url:
+        return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+    return url
+
+
 # Dependency Flags
 HAS_PLAYWRIGHT = False
 HAS_SELENIUM = False
@@ -31,7 +145,7 @@ HAS_SELENIUM = False
 try:
     from playwright.async_api import async_playwright
     HAS_PLAYWRIGHT = True
-except ImportError:  # Non-critical, fallback handled
+except ImportError:
     logger.warning("Playwright not found.")
 
 try:
@@ -40,7 +154,7 @@ try:
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.support.ui import WebDriverWait
     HAS_SELENIUM = True
-except ImportError:  # Non-critical, fallback handled
+except ImportError:
     logger.warning("Selenium not found.")
 
 class PrivacyEnhancer:
@@ -161,23 +275,79 @@ class UnifiedBrowserSkill(BaseSkill):
         return None
 
     def _run_text_only(self, url: str) -> Dict[str, Any]:
-        """Fallback to simple HTTP fetch"""
+        """v2.0: Hardened text-only fallback with rate limiting, IP blocking, and HTML conversion."""
+        # Security: Block private IPs
+        if _is_private_ip(url):
+            return {"ok": False, "error": f"Blocked: private/local host ({url})"}
+
+        # Rate limiting
+        if not _check_rate_limit(url):
+            return {"ok": False, "error": f"Rate limited for host (max {_MAX_REQUESTS_PER_WINDOW}/min)"}
+
+        # GitHub URL conversion
+        url = _convert_github_url(url)
+
         try:
-             logger.info("Attempting text-only fetch for %s", url)
-             response = requests.get(url, timeout=10)
-             response.raise_for_status()
-             content = response.text
-             if content:
-                 return {
-                     "ok": True,
-                     "engine": "text_only_fallback",
-                     "title": "Text Only View",
-                     "url": url,
-                     "content": content[:5000],
-                     "note": "Content fetched via HTTP because browsers failed."
-                 }
+            logger.info("Attempting text-only fetch for %s", url)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; Aura/2.0; +https://github.com/aura)",
+                "Accept": "text/html, text/plain, application/json",
+            }
+            response = requests.get(url, timeout=15, headers=headers, stream=True)
+            response.raise_for_status()
+
+            # Size limiting: abort if > 10MB
+            content_length = response.headers.get("content-length")
+            if content_length and int(content_length) > 10 * 1024 * 1024:
+                return {"ok": False, "error": "Content exceeds 10MB limit"}
+
+            raw_content = response.text[:500000]  # 500KB safety cap
+            content_type = response.headers.get("content-type", "")
+
+            # HTML → text conversion
+            if "text/html" in content_type:
+                try:
+                    from html.parser import HTMLParser
+                    import io
+
+                    class _TextExtractor(HTMLParser):
+                        def __init__(self):
+                            super().__init__()
+                            self._text = []
+                            self._skip = False
+                        def handle_starttag(self, tag, attrs):
+                            if tag in ("script", "style", "nav", "footer", "header"):
+                                self._skip = True
+                        def handle_endtag(self, tag):
+                            if tag in ("script", "style", "nav", "footer", "header"):
+                                self._skip = False
+                        def handle_data(self, data):
+                            if not self._skip:
+                                text = data.strip()
+                                if text:
+                                    self._text.append(text)
+                        def get_text(self):
+                            return "\n".join(self._text)
+
+                    extractor = _TextExtractor()
+                    extractor.feed(raw_content)
+                    content = extractor.get_text()
+                except Exception:
+                    content = raw_content
+            else:
+                content = raw_content
+
+            if content:
+                return {
+                    "ok": True,
+                    "engine": "text_only_fallback",
+                    "title": "Text Only View",
+                    "url": url,
+                    "content": content[:12000],  # Increased from 5000
+                    "note": "Content fetched via HTTP because browsers failed."
+                }
         except Exception as e:
-             logger.warning("Text-only fetch failed: %s", e)
+            logger.warning("Text-only fetch failed: %s", e)
         
         # Absolute Last Resort: System Browser
         try:
@@ -215,7 +385,11 @@ class UnifiedBrowserSkill(BaseSkill):
         # Ephemeral Session with Privacy Enhancements
         async with async_playwright() as p:
             # Launch
-            browser = await p.chromium.launch(headless=headless, slow_mo=500)
+            browser = await p.chromium.launch(
+                headless=headless,
+                slow_mo=500,
+                args=["--no-sandbox", "--disable-setuid-sandbox"]
+            )
             
             # Privacy: Randomize context
             context_obj = await browser.new_context(
@@ -224,11 +398,16 @@ class UnifiedBrowserSkill(BaseSkill):
                 locale='en-US'
             )
             page = await context_obj.new_page()
+
+            # v2.0: Inject proxy-select script for dropdown capture
+            await page.add_init_script(PROXY_SELECT_JS)
             
             # Navigate
             if url:
                 logger.info("Navigating to %s", url)
-                await page.goto(url, wait_until="domcontentloaded", timeout=60000) # Increased timeout
+                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                # Re-inject proxy-select after navigation (for dynamically loaded selects)
+                await page.evaluate(PROXY_SELECT_JS)
             
             # Actions
             params = goal.get("params", {})
@@ -244,6 +423,8 @@ class UnifiedBrowserSkill(BaseSkill):
                     elif stype == "wait": await asyncio.sleep(float(val))
                     elif stype == "get_html": 
                         params["html"] = await page.content()
+                    # v2.0: Re-inject proxy-select after DOM mutations
+                    await page.evaluate(PROXY_SELECT_JS)
                 except Exception as e:
                     logger.warning("Action %s failed: %s", stype, e)
 
@@ -261,8 +442,8 @@ class UnifiedBrowserSkill(BaseSkill):
                 "engine": "playwright_ephemeral_secure",
                 "title": title,
                 "url": page.url,
-                "content": text[:3000] + "...",
-                "html": html[:5000] if params.get("get_html") else None,
+                "content": text[:12000],  # v2.0: Increased from 3000
+                "html": html[:8000] if params.get("get_html") else None,
                 "screenshot": screenshot
             }
 

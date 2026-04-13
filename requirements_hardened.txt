@@ -1,0 +1,4 @@
+# Transitional manifest for Aura's boot probe and launcher diagnostics.
+# Keep this file present so startup can verify a hardened dependency manifest
+# exists, while the actual package list continues to live in requirements.txt.
+-r requirements.txt

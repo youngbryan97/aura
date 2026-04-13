@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import os
-from typing import Mapping
+import platform
+import threading
+from typing import Any, Mapping
 
 
 _GIB = 1024 ** 3
+_INPROCESS_MLX_LOCK = threading.Lock()
+_INPROCESS_MLX_STATE: dict[str, Any] = {
+    "configured": False,
+    "device": "unknown",
+    "reason": "uninitialized",
+}
 
 
 def env_flag_enabled(value: str | None) -> bool:
@@ -41,3 +49,109 @@ def compute_mlx_cache_limit(total_ram_bytes: int, env: Mapping[str, str] | None 
     if hard_cap_gb > 0:
         limit = min(limit, int(hard_cap_gb * _GIB))
     return max(8 * _GIB, limit)
+
+
+def _truthy(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _macos_major_version(version: str | None = None) -> int:
+    release = str(version or platform.mac_ver()[0] or "").strip()
+    if not release:
+        return 0
+    head = release.split(".", 1)[0].strip()
+    try:
+        return int(head)
+    except ValueError:
+        return 0
+
+
+def inprocess_mlx_metal_enabled(
+    env: Mapping[str, str] | None = None,
+    *,
+    platform_name: str | None = None,
+    mac_version: str | None = None,
+) -> tuple[bool, str]:
+    env = env or os.environ
+    platform_name = str(platform_name or os.sys.platform).lower()
+
+    if _truthy(env.get("AURA_FORCE_INPROCESS_MLX_METAL")) or _truthy(
+        env.get("AURA_ALLOW_UNSAFE_INPROCESS_MLX_METAL")
+    ):
+        return True, "forced"
+
+    if _truthy(env.get("AURA_DISABLE_INPROCESS_MLX_METAL")):
+        return False, "env_disabled"
+
+    if desktop_safe_boot_enabled(env):
+        return False, "desktop_safe_boot"
+
+    if platform_name == "darwin" and _macos_major_version(mac_version) >= 26:
+        return False, "macos26_guard"
+
+    return True, "enabled"
+
+
+def configure_inprocess_mlx_runtime(
+    env: Mapping[str, str] | None = None,
+    *,
+    platform_name: str | None = None,
+    mac_version: str | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    enabled, reason = inprocess_mlx_metal_enabled(
+        env,
+        platform_name=platform_name,
+        mac_version=mac_version,
+    )
+
+    desired_device = "metal" if enabled else "cpu"
+    with _INPROCESS_MLX_LOCK:
+        if (
+            not force
+            and _INPROCESS_MLX_STATE["configured"]
+            and _INPROCESS_MLX_STATE["device"] == desired_device
+            and _INPROCESS_MLX_STATE["reason"] == reason
+        ):
+            return dict(_INPROCESS_MLX_STATE)
+
+        try:
+            import mlx.core as mx
+        except Exception:
+            _INPROCESS_MLX_STATE.update(
+                {
+                    "configured": True,
+                    "device": "unavailable",
+                    "reason": f"{reason}:mlx_unavailable",
+                }
+            )
+            return dict(_INPROCESS_MLX_STATE)
+
+        if enabled:
+            _INPROCESS_MLX_STATE.update(
+                {
+                    "configured": True,
+                    "device": "metal",
+                    "reason": reason,
+                }
+            )
+            return dict(_INPROCESS_MLX_STATE)
+
+        try:
+            mx.set_default_device(mx.cpu())
+            _INPROCESS_MLX_STATE.update(
+                {
+                    "configured": True,
+                    "device": "cpu",
+                    "reason": reason,
+                }
+            )
+        except Exception as exc:
+            _INPROCESS_MLX_STATE.update(
+                {
+                    "configured": True,
+                    "device": "failed",
+                    "reason": f"{reason}:{type(exc).__name__}",
+                }
+            )
+        return dict(_INPROCESS_MLX_STATE)

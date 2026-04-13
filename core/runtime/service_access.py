@@ -55,6 +55,14 @@ def resolve_kernel_interface(orchestrator: Any = None, *, default: Any = None) -
     return optional_service("kernel_interface", default=default)
 
 
+def resolve_goal_engine(*, default: Any = None) -> Any:
+    return optional_service("goal_engine", default=default)
+
+
+def resolve_task_engine(*, default: Any = None) -> Any:
+    return optional_service("task_engine", default=default)
+
+
 def resolve_canonical_self_engine(*, default: Any = None, autocreate: bool = True) -> Any:
     engine = optional_service("canonical_self_engine", default=None)
     if engine is not None:

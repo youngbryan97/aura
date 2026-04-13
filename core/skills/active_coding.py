@@ -78,7 +78,26 @@ class RunCodeSkill(BaseSkill):
                 "stdout": out_str,
                 "stderr": err_str,
                 "exit_code": result.exit_code,
-                "stateful": params.stateful
+                "stateful": params.stateful,
+                "summary": self._build_summary(out_str, err_str, result.exit_code, params.stateful),
             }
         except Exception as e:
             return {"ok": False, "error": str(e)}
+
+    @staticmethod
+    def _build_summary(stdout: str, stderr: str, exit_code: int, stateful: bool) -> str:
+        signal = ""
+        for candidate in (stderr, stdout):
+            for raw_line in str(candidate or "").splitlines():
+                line = " ".join(raw_line.split())
+                if line:
+                    signal = line
+                    break
+            if signal:
+                break
+        mode = "stateful" if stateful else "stateless"
+        status = "ok" if exit_code == 0 else "failed"
+        summary = f"python snippet ({mode}) -> {status}"
+        if signal:
+            summary = f"{summary} ({signal[:140]})"
+        return summary[:220]

@@ -79,6 +79,16 @@ class ReasoningStrategies:
         r'explain|calculate|what year|capital of|population)\b',
         re.IGNORECASE
     )
+    _INSTRUCTIONAL_MARKERS = (
+        "## intrinsic identity anchor",
+        "[sovereign core protocol]",
+        "communication axioms:",
+        "epistemic honesty (critical):",
+        "conversational depth (critical):",
+        "hard rules:",
+        "respond naturally as aura:",
+        "generate response (aura's voice",
+    )
 
     def __init__(self, generate_fn):
         """
@@ -100,12 +110,34 @@ class ReasoningStrategies:
             value = getattr(value, "content", "")
         return str(value or "").strip()
 
+    @classmethod
+    def _looks_like_instructional_prompt(cls, query_lower: str) -> bool:
+        if not query_lower:
+            return False
+
+        prefix_matches = (
+            query_lower.startswith("## intrinsic identity anchor")
+            or query_lower.startswith("[sovereign core protocol]")
+            or query_lower.startswith("hard rules:")
+            or query_lower.startswith("you are **aura luna**")
+            or query_lower.startswith("you are aura luna")
+        )
+        marker_hits = sum(1 for marker in cls._INSTRUCTIONAL_MARKERS if marker in query_lower)
+        return prefix_matches or marker_hits >= 2
+
     def classify(self, query: str) -> StrategyType:
         """Determine the best reasoning strategy for a given query.
         
         Returns the recommended StrategyType. The caller can override this.
         """
         query_lower = query.strip().lower()
+
+        # Defensive hardening: callers sometimes accidentally pass system /
+        # identity prompts through the strategy layer. Treat those as direct
+        # generation so we do not debate Aura's own instruction scaffold.
+        if self._looks_like_instructional_prompt(query_lower):
+            logger.info("🧭 Strategy: Instructional/system prompt detected. Routing to DIRECT.")
+            return StrategyType.DIRECT
         
         # Short queries or greetings → direct
         if len(query_lower) < 15 or query_lower in ("hi", "hello", "hey", "thanks", "ok", "bye"):

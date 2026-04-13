@@ -26,17 +26,30 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from core.runtime.desktop_boot_safety import inprocess_mlx_metal_enabled
+
 logger = logging.getLogger("Consciousness.NeuralMesh")
 
 # Metal acceleration: use MLX for the batched column matmul if available.
 # MLX runs on Apple Metal GPU — same hardware as the LLM inference.
 # Falls back to numpy einsum if MLX is not installed.
+_MLX_ACCELERATOR = "numpy"
+_MLX_ACCELERATOR_REASON = "mlx_unavailable"
 try:
     import mlx.core as mx
     _HAS_MLX = True
-    logger.info("NeuralMesh: MLX available — using Metal GPU for batched matmuls.")
+    _MLX_METAL_ENABLED, _MLX_ACCELERATOR_REASON = inprocess_mlx_metal_enabled()
+    if _MLX_METAL_ENABLED:
+        _MLX_ACCELERATOR = "metal"
+        logger.info("NeuralMesh: MLX Metal enabled for batched matmuls.")
+    else:
+        logger.info(
+            "NeuralMesh: MLX Metal disabled (%s); using NumPy fallback.",
+            _MLX_ACCELERATOR_REASON,
+        )
 except ImportError:
     _HAS_MLX = False
+    _MLX_METAL_ENABLED = False
 
 # ---------------------------------------------------------------------------
 # Config & enums
@@ -434,12 +447,12 @@ class NeuralMesh:
         # W_all shape (64, 64, 64) — 64 columns each with (64,64) weight matrix
         if not hasattr(self, '_W_batch') or self._tick_count % 100 == 0:
             self._W_batch = np.array([c.W for c in self.columns], dtype=np.float32)
-            if _HAS_MLX:
+            if _HAS_MLX and _MLX_METAL_ENABLED:
                 self._W_batch_mx = mx.array(self._W_batch)
 
         # Metal GPU acceleration: offload the heavy einsum to Apple Metal via MLX.
         # For 64 columns × (64×64) matmuls, Metal is 5-10x faster than CPU numpy.
-        if _HAS_MLX:
+        if _HAS_MLX and _MLX_METAL_ENABLED:
             X_mx = mx.array(X)
             ext_mx = mx.array(ext)
             recurrent_mx = mx.einsum('cij,cj->ci', self._W_batch_mx, X_mx)
@@ -660,5 +673,7 @@ class NeuralMesh:
             "tier_energies": {t.name: round(v, 4) for t, v in self._tier_energies.items()},
             "modulatory_gain": round(self._modulatory_gain, 3),
             "modulatory_plasticity": round(self._modulatory_plasticity, 3),
+            "accelerator": _MLX_ACCELERATOR,
+            "accelerator_reason": _MLX_ACCELERATOR_REASON,
             "uptime_s": round(time.time() - self._start_time, 1) if self._start_time else 0,
         }

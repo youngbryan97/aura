@@ -153,8 +153,11 @@ class UnifiedField:
             self.W_mesh, self.W_chem, self.W_bind, self.W_intero, self.W_substrate
         ]).astype(np.float32)  # (256, 148)
         self._input_dims = [
-            cfg.mesh_input_dim, cfg.chem_input_dim, cfg.binding_input_dim,
-            cfg.intero_input_dim, cfg.substrate_input_dim
+            self.cfg.mesh_input_dim,
+            self.cfg.chem_input_dim,
+            self.cfg.binding_input_dim,
+            self.cfg.intero_input_dim,
+            self.cfg.substrate_input_dim,
         ]
         self._total_input_dim = sum(self._input_dims)  # 148
 

@@ -83,14 +83,14 @@ class TerminalFallbackChat:
     def is_active(self) -> bool:
         return self._active
 
-    def queue_autonomous_message(self, text: str):
+    def queue_autonomous_message(self, text: str) -> bool:
         """Any subsystem calls this when it has something to say.
 
         The TerminalWatchdog will deliver it if/when terminal mode opens.
         If terminal is already active, it's written immediately.
         """
         if not text or not text.strip():
-            return
+            return False
         constitutional_runtime_live = False
         try:
             from core.container import ServiceContainer
@@ -126,9 +126,9 @@ class TerminalFallbackChat:
                     except Exception as _exc:
                         logger.debug("Suppressed Exception: %s", _exc)
                     logger.debug("TerminalFallback: constitutional gate unavailable, suppressing autonomous message: %s", reason)
-                    return
+                    return False
                 logger.debug("TerminalFallback: constitutional gate suppressed queued autonomous message: %s", reason)
-                return
+                return False
         except Exception as exc:
             if constitutional_runtime_live:
                 try:
@@ -146,7 +146,7 @@ class TerminalFallbackChat:
                 except Exception as _exc:
                     logger.debug("Suppressed Exception: %s", _exc)
                 logger.debug("TerminalFallback: executive gate unavailable, suppressing autonomous message: %s", exc)
-                return
+                return False
             logger.debug("TerminalFallback: executive gate unavailable, proceeding degraded: %s", exc)
         self._pending.append(text.strip())
         logger.debug("TerminalFallback: queued message (%d pending)", len(self._pending))
@@ -154,6 +154,7 @@ class TerminalFallbackChat:
         if self._active:
             # Already in terminal mode — flush now
             asyncio.ensure_future(self._flush_pending())
+        return True
 
     async def activate(self, orchestrator=None, force: bool = False) -> bool:
         """Activate terminal fallback mode.

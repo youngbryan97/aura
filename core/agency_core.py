@@ -187,14 +187,34 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
             # Log the internal monologue for transparency
             logger.info("🧠 Shard %s Monologue: %s", shard_id, analysis_text[:100] + "...")
             
-            # 3. Execute Tool Commands (Strictly from Pydantic fields)
-            if tool_name and tool_payload:
+            # 3. Execute Parallel Tool Commands 
+            tool_name = getattr(shard_res, "tool_name", None)
+            tool_payload = getattr(shard_res, "tool_payload", None)
+            tools_list = getattr(shard_res, "tools", [])
+            
+            # Legacy fallback
+            if tool_name and tool_payload and not tools_list:
+                tools_list = [{"name": tool_name, "payload": tool_payload}]
+            elif tools_list:
+                tools_list = [t.model_dump() if hasattr(t, "model_dump") else t for t in tools_list]
                 
-                # Execute asynchronously via tool orchestrator
-                tool_result = await self.orch.agency_core.tool_orchestrator.route_and_execute(tool_name, tool_payload)
+            if tools_list:
+                tasks = []
+                valid_tools = [t for t in tools_list if (t.get("name") or t.get("tool_name")) and (t.get("payload") or t.get("tool_payload"))]
+                for t in valid_tools:
+                    name = t.get("name", t.get("tool_name"))
+                    payload = t.get("payload", t.get("tool_payload"))
+                    tasks.append(self.orch.agency_core.tool_orchestrator.route_and_execute(name, payload))
                 
-                # Update output_text to include tool result for subsequent processing
-                output_text = f"{output_text}\n\n[Tool Result]: {tool_result}"
+                if tasks:
+                    logger.info("⚡ Parallel Tool Dispatch: Firing %d simultaneous actions.", len(tasks))
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    
+                    for i, t in enumerate(valid_tools):
+                        name = t.get("name", t.get("tool_name"))
+                        res = results[i]
+                        res_text = res if not isinstance(res, Exception) else f"Exception: {res}"
+                        output_text = f"{output_text}\n\n[Tool Result - {name}]:\n{res_text}"
 
             # 4. Abstraction Engine: Learning First Principles
             # If the shard involved complex reasoning or tool use, extract the generalized logic

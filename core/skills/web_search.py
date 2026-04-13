@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from core.search import ResearchSearchPipeline
 from core.skills.base_skill import BaseSkill
-
+from core.skills.deep_research import run_deep_research
 
 logger = logging.getLogger("Skills.WebSearch")
 
@@ -70,6 +70,28 @@ class EnhancedWebSearchSkill(BaseSkill):
         pass
 
         logger.info("🔍 WebSearch: '%s' (deep=%s, retain=%s, force_refresh=%s)", query[:80], deep, retain, force_refresh)
+        
+        if deep:
+            # v2.0: Deep Research LangGraph Pipeline implementation
+            try:
+                from core.conversation_loop import get_brain
+                brain = get_brain()
+                
+                # Adapting existing Search pipeline format to standard search_fn format
+                async def _search_fn(q: str):
+                    res = await self.pipeline.search(q, num_results=5, deep=False, force_refresh=force_refresh)
+                    results = res.get("results", [])
+                    # format sources
+                    content = res.get("answer") or str([r.get("snippet", "") for r in results])
+                    return {"ok": True, "content": content, "sources": results}
+                
+                res = await run_deep_research(query, brain, _search_fn)
+                res["summary"] = res.get("answer", "")
+                return res
+            except Exception as e:
+                logger.error("Deep Research failed, falling back to legacy: %s", e)
+
+        # Legacy direct search
         result = await self.pipeline.search(
             query,
             num_results=num_results,

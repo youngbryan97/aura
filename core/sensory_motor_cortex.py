@@ -177,11 +177,48 @@ class SensoryMotorCortex:
                     from core.agency_core import EngagementMode
                     if self.orchestrator.agency_core.state.engagement_mode == EngagementMode.ACTIVE_CONVERSATION:
                         return
-                
+
                 asyncio.run_coroutine_threadsafe(
-                    self.orchestrator.process_event("visual_stimulus", {"image": image_bytes}),
+                    self.orchestrator.process_event(
+                        {"content": "visual_stimulus", "context": {"image": image_bytes}},
+                        origin="visual_stimulus",
+                    ),
                     self._main_loop
                 )
+
+    def _sync_last_interaction_time(self) -> float:
+        """Fold orchestrator-side user activity into the local idle clock."""
+        orch = self.orchestrator
+        if orch is None:
+            return self.last_interaction_time
+
+        try:
+            orch_last = float(getattr(orch, "_last_user_interaction_time", 0.0) or 0.0)
+        except Exception:
+            orch_last = 0.0
+
+        if orch_last > self.last_interaction_time:
+            self.last_interaction_time = orch_last
+        return self.last_interaction_time
+
+    def _should_trigger_volition(self, now: Optional[float] = None) -> bool:
+        """Prevent spontaneous volition from interrupting active foreground turns."""
+        now = float(now if now is not None else time.time())
+        self._sync_last_interaction_time()
+
+        orch = self.orchestrator
+        if orch is not None:
+            status = getattr(orch, "status", None)
+            if getattr(status, "is_processing", False):
+                self.last_interaction_time = max(self.last_interaction_time, now)
+                return False
+
+            current_task = getattr(orch, "_current_thought_task", None)
+            if current_task is not None and hasattr(current_task, "done") and not current_task.done():
+                self.last_interaction_time = max(self.last_interaction_time, now)
+                return False
+
+        return (now - self.last_interaction_time) > self.boredom_threshold_seconds
 
     # ---------------------------------------------------------
     # 2. VOLITION: Spontaneous Action Generation
@@ -193,12 +230,16 @@ class SensoryMotorCortex:
         while self.is_active:
             await asyncio.sleep(60) # Check every minute
 
-            idle_duration = time.time() - self.last_interaction_time
-            if idle_duration > self.boredom_threshold_seconds:
+            now = time.time()
+            if self._should_trigger_volition(now=now):
+                idle_duration = now - self.last_interaction_time
                 logger.info(f"System idle for {idle_duration/60:.1f}m. Triggering spontaneous volition.")
                 if self.orchestrator:
-                    await self.orchestrator.process_event("volition_trigger", {"reason": "idle_timeout"})
-                self.last_interaction_time = time.time() # Reset clock
+                    await self.orchestrator.process_event(
+                        {"content": "volition_trigger", "context": {"reason": "idle_timeout"}},
+                        origin="sensory_motor",
+                    )
+                self.last_interaction_time = now # Reset clock
 
     # ---------------------------------------------------------
     # 3. BROWSER ACTUATION: Semantic Web Research

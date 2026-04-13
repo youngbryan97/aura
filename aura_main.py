@@ -70,6 +70,25 @@ if VENV_PATH.exists():
                 site.addsitedir(str(site_packages))
                 logger.info("📍 Injected venv site-packages: %s", site_packages)
 
+# Desktop-safe boot should keep the main Aura process off the in-process
+# MLX/Metal path. The managed LLM runtimes use their own subprocesses.
+try:
+    from core.runtime.desktop_boot_safety import configure_inprocess_mlx_runtime
+
+    _mlx_runtime = configure_inprocess_mlx_runtime()
+    if _mlx_runtime.get("device") == "cpu":
+        logger.info(
+            "🛡️ In-process MLX pinned to CPU (%s).",
+            _mlx_runtime.get("reason", "guard"),
+        )
+    elif _mlx_runtime.get("device") == "metal":
+        logger.info(
+            "⚡ In-process MLX Metal retained (%s).",
+            _mlx_runtime.get("reason", "enabled"),
+        )
+except Exception as _mlx_guard_exc:
+    logger.debug("In-process MLX boot guard unavailable: %s", _mlx_guard_exc)
+
 # Phase 31: Native M1 Pro Resilience Fixes
 # 1. Address AVFFrameReceiver conflict (cv2 vs av/PyAV) on macOS
 # This prevents the "AVFFrameReceiver: ... is already established" crash

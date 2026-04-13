@@ -149,7 +149,13 @@ class SovereignTerminalSkill(BaseSkill):
                     "ok": False,
                     "error": "Execution timed out or hung on interactive prompt.",
                     "stdout": self._smart_truncate(stdout_str),
-                    "stderr": self._smart_truncate(stderr_str)
+                    "stderr": self._smart_truncate(stderr_str),
+                    "summary": self._build_command_summary(
+                        cmd,
+                        stdout_str,
+                        stderr_str or "Execution timed out or hung on interactive prompt.",
+                        return_code=None,
+                    ),
                 }
 
             stdout_str = b"".join(stdout_chunks).decode(errors="replace")
@@ -163,7 +169,13 @@ class SovereignTerminalSkill(BaseSkill):
                 "stdout": self._smart_truncate(stdout_str),
                 "stderr": self._smart_truncate(stderr_str),
                 "return_code": process.returncode,
-                "cwd": cwd
+                "cwd": cwd,
+                "summary": self._build_command_summary(
+                    cmd,
+                    stdout_str,
+                    stderr_str,
+                    return_code=process.returncode,
+                ),
             }
         except Exception as e:
             return {"ok": False, "error": f"Shell error: {e}"}
@@ -179,6 +191,29 @@ class SovereignTerminalSkill(BaseSkill):
         tail_len = max_len // 2
         truncated_msg = f"\n... [TRUNCATED {len(text) - max_len} CHARS] ...\n"
         return text[:head_len] + truncated_msg + text[-tail_len:]
+
+    def _build_command_summary(
+        self,
+        command: str,
+        stdout: str,
+        stderr: str,
+        *,
+        return_code: Optional[int],
+    ) -> str:
+        signal = ""
+        for candidate in (stderr, stdout):
+            for raw_line in str(candidate or "").splitlines():
+                line = " ".join(raw_line.split())
+                if line:
+                    signal = line
+                    break
+            if signal:
+                break
+        status = "ok" if return_code == 0 else "failed" if return_code is not None else "timed out"
+        summary = f"{command} -> {status}"
+        if signal:
+            summary = f"{summary} ({signal[:140]})"
+        return summary[:220]
 
     async def _open_target(self, target: str, action: str) -> Dict[str, Any]:
         if not target:

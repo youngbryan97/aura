@@ -446,9 +446,12 @@ class CognitiveContext:
 
     def trim_working_memory(self, limit: Optional[int] = None):
         self.sanitize_autonomy_state()
+        self._prune_stale_entries()
+        self._deduplicate_summaries()
         target = limit or MAX_WORKING_MEMORY
-        while len(self.working_memory) > target:
-            self.working_memory.pop(0)
+        # Use salience-ranked pruning instead of FIFO
+        if len(self.working_memory) > target:
+            self.salience_prune(target)
 
         while len(self.pending_intents) > 20:
             self.pending_intents.pop(0)
@@ -457,6 +460,200 @@ class CognitiveContext:
         while len(self.active_goals) > 10:
             self.active_goals.pop(0)
 
+    def _prune_stale_entries(self) -> None:
+        """Remove low-value entries from working memory to prevent context rot.
+
+        Targets:
+        - [STATE-REFLECTION] entries beyond the most recent 3
+        - 'thought' role entries beyond the most recent 5
+        - Entries with empty or placeholder content ('…', '')
+        - Tool/skill result entries: truncated to 500 chars max
+        - Salience-ranked overflow pruning when above limit
+        """
+        if not self.working_memory:
+            return
+
+        # Count and index specific entry types
+        reflection_indices: list[int] = []
+        thought_indices: list[int] = []
+        removable: set[int] = set()
+
+        for i, msg in enumerate(self.working_memory):
+            if not isinstance(msg, dict):
+                removable.add(i)
+                continue
+
+            content = str(msg.get("content", "") or "").strip()
+            role = str(msg.get("role", "") or "")
+            metadata = msg.get("metadata") or {}
+
+            # Remove empty/placeholder entries
+            if not content or content == "…" or content == "...":
+                removable.add(i)
+                continue
+
+            # Tool output normalization — cap long skill/tool results to 500 chars
+            entry_type = str(metadata.get("type", "") or "").lower()
+            if entry_type in {"skill_result", "tool_result"} and len(content) > 500:
+                head = content[:200]
+                tail = content[-200:]
+                msg["content"] = f"{head}\n[...truncated {len(content) - 400} chars...]\n{tail}"
+
+            # Track reflections
+            if "[STATE-REFLECTION]" in content:
+                reflection_indices.append(i)
+
+            # Track thought entries
+            if role == "thought":
+                thought_indices.append(i)
+
+        # Keep only last 3 reflections
+        if len(reflection_indices) > 3:
+            for idx in reflection_indices[:-3]:
+                removable.add(idx)
+
+        # Keep only last 5 thoughts
+        if len(thought_indices) > 5:
+            for idx in thought_indices[:-5]:
+                removable.add(idx)
+
+        if removable:
+            self.working_memory = [
+                msg for i, msg in enumerate(self.working_memory)
+                if i not in removable
+            ]
+
+    @staticmethod
+    def _salience_score(msg: dict, index: int, total: int) -> float:
+        """Score a working memory entry for importance (higher = keep).
+
+        Used for intelligent pruning when working memory exceeds limits.
+        Factors: recency, role, named entities, commitments, content length.
+        """
+        score = 0.0
+        if not isinstance(msg, dict):
+            return 0.0
+
+        role = str(msg.get("role", "") or "").lower()
+        content = str(msg.get("content", "") or "").lower()
+        metadata = msg.get("metadata") or {}
+
+        # Recency bonus (0.0 to 0.4) — newer entries score higher
+        if total > 0:
+            score += 0.4 * (index / max(1, total - 1))
+
+        # Role weighting
+        role_weights = {
+            "user": 0.3,
+            "assistant": 0.25,
+            "system": 0.1,
+            "thought": 0.05,
+        }
+        score += role_weights.get(role, 0.1)
+
+        # Synthetic summaries get protected
+        if metadata.get("synthetic_summary"):
+            score += 0.5
+
+        # Named entity bonus — mentions of known people
+        entity_names = {"bryan", "tatiana", "aura"}
+        if any(name in content for name in entity_names):
+            score += 0.15
+
+        # Commitment/promise language bonus
+        commitment_markers = {"i'll", "i will", "let me", "next step", "we should", "i won't forget", "remember to", "i promise"}
+        if any(marker in content for marker in commitment_markers):
+            score += 0.2
+
+        # Penalize very short entries (< 20 chars)
+        if len(content) < 20:
+            score -= 0.15
+
+        # Penalize stale tool results
+        entry_type = str(metadata.get("type", "") or "").lower()
+        if entry_type in {"skill_result", "tool_result"}:
+            score -= 0.1
+
+        return max(0.0, min(1.0, score))
+
+    def salience_prune(self, target: int) -> None:
+        """Prune working memory to target size using salience ranking.
+
+        Instead of FIFO, removes the lowest-salience entries first.
+        Always preserves the most recent 6 entries regardless of score.
+        """
+        if len(self.working_memory) <= target:
+            return
+
+        total = len(self.working_memory)
+        # Protect the last 6 entries unconditionally
+        protected = max(6, min(target, total))
+        candidates = self.working_memory[:-protected] if protected < total else []
+        tail = self.working_memory[-protected:]
+
+        if not candidates:
+            return
+
+        # Score all candidates
+        scored = [
+            (i, self._salience_score(msg, i, total), msg)
+            for i, msg in enumerate(candidates)
+        ]
+        # Sort by salience descending — keep the highest
+        scored.sort(key=lambda x: x[1], reverse=True)
+
+        keep_count = max(0, target - len(tail))
+        kept = [item[2] for item in scored[:keep_count]]
+        # Restore original order
+        kept_set = set(id(msg) for msg in kept)
+        ordered_kept = [msg for msg in candidates if id(msg) in kept_set]
+
+        self.working_memory = ordered_kept + tail
+
+    def _deduplicate_summaries(self) -> None:
+        """Collapse multiple synthetic_summary entries into the most recent one.
+
+        Repeated compaction cycles can stack summary entries. This merges them
+        into a single entry to keep the working memory clean.
+        """
+        if not self.working_memory:
+            return
+
+        summary_indices: list[int] = []
+        for i, msg in enumerate(self.working_memory):
+            if isinstance(msg, dict):
+                meta = msg.get("metadata", {}) or {}
+                if meta.get("synthetic_summary"):
+                    summary_indices.append(i)
+
+        # Keep only the most recent summary entry
+        if len(summary_indices) > 1:
+            # Merge older summaries into the most recent one
+            latest_idx = summary_indices[-1]
+            latest = self.working_memory[latest_idx]
+            older_content_parts: list[str] = []
+            for idx in summary_indices[:-1]:
+                older = self.working_memory[idx]
+                content = str(older.get("content", "") or "").strip()
+                if content:
+                    # Strip the [CONVERSATION CONTEXT] prefix for clean merging
+                    content = content.replace("[CONVERSATION CONTEXT]\n", "").strip()
+                    if content and content != "Older messages compacted.":
+                        older_content_parts.append(content[:600])
+
+            if older_content_parts:
+                existing_content = str(latest.get("content", "") or "")
+                existing_content = existing_content.replace("[CONVERSATION CONTEXT]\n", "").strip()
+                merged = " | ".join(older_content_parts[-2:])  # keep 2 most recent older summaries
+                latest["content"] = f"[CONVERSATION CONTEXT]\n{merged}\n{existing_content}"[:2500]
+
+            # Remove older summary entries
+            remove_set = set(summary_indices[:-1])
+            self.working_memory = [
+                msg for i, msg in enumerate(self.working_memory)
+                if i not in remove_set
+            ]
+
 @dataclass
 class WorldModel:
     """Aura's current model of her environment and relationships."""
@@ -464,6 +661,8 @@ class WorldModel:
     spatial_context: Optional[dict] = None                          # What she can see
     recent_percepts: list[dict] = field(default_factory=list)
     relationship_graph: dict[str, dict] = field(default_factory=dict)
+    # Durable user preferences — learned from conversation, not re-discovered each time
+    user_preferences: dict[str, str] = field(default_factory=dict)
 
     def trim_percepts(self, limit: int = 50):
         if len(self.recent_percepts) > limit:

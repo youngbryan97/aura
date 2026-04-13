@@ -1564,6 +1564,12 @@ class HealthAwareLLMRouter:
                             "NOT recording as circuit failure.", ep.name
                         )
                         return {"ok": False, "error": "client_returned_no_text"}
+                except AttributeError as ae:
+                    # Missing method on client wrapper (e.g. InferenceGate) — this is NOT
+                    # an inference failure, it's a code interface mismatch. Do NOT record
+                    # as a circuit-breaker failure or it will permanently mark Cortex as dead.
+                    logger.warning("Client adapter method missing for %s: %s", ep.name, ae)
+                    return {"ok": False, "error": f"client_adapter_missing_method:{ae}"}
                 except Exception as e:
                     logger.error("Client adapter call failed for %s: %s", ep.name, e)
                     raise e
