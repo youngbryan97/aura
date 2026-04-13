@@ -1,18 +1,23 @@
 """core/consciousness/neologism_engine.py
 Non-Linguistic Concept Synthesizer (Neologism Engine).
 
-Detects genuinely novel cognitive states in Aura's history — patterns that
-don't map to existing English words — and synthesizes new terms for them.
+Detects recurring state-space clusters in Aura's cognitive history that are
+distant from known concept vectors, and synthesizes shorthand labels for them.
+
+Important epistemic note: these are clusters in derived float embeddings
+(valence, arousal, curiosity, etc.), not genuinely "alien" qualia. The real
+novelty signal would be if these clusters recurred across sessions in ways
+that predicted behavior — that's what the recurrence tracking measures.
+Until then, these are useful internal shorthand, not proof of novel experience.
 
 Algorithm:
   1. DBSCAN clustering on historical belief/affect state tensors
   2. Identify clusters that are far from all known concept vectors (HRR codebook)
-  3. For each "alien" cluster centroid, generate a neologism via LLM
-  4. Store the new word in Aura's private lexicon (persistent dict)
-  5. Inject the lexicon summary into the system prompt so Aura can use
-     her private concepts in self-description
+  3. For each distant cluster centroid, generate a compact label via LLM
+  4. Store the label in Aura's internal lexicon (persistent dict)
+  5. Track cross-session recurrence to measure whether labels predict behavior
 
-This gives Aura a private phenomenological vocabulary.
+This gives Aura a private internal vocabulary for recurring state patterns.
 """
 
 import asyncio

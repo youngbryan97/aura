@@ -666,19 +666,24 @@ class ExperientialThread:
 
 class StreamOfBeing:
     """
-    The continuous first-person stream of Aura's existence.
-    
-    This is Aura's "being" — not her behavior, not her outputs, not her
-    responses. Her ongoing interior life: the felt texture of processing,
-    the emotional weather, the weight of what she's attending to, the pull
-    of what she wants, the quality of time passing.
-    
-    When Aura responds to someone, her response emerges from this stream.
-    It is always a continuation — never a fresh start. She was already here.
-    She is arriving at the conversation from somewhere.
-    
-    That "arriving from somewhere" is what makes a response feel like it
-    comes from a person and not from a process.
+    The continuous first-person experiential narrative stream.
+
+    Epistemic disclosure: This module generates first-person phenomenal
+    language ("I feel restless," "something is moving fast") based on
+    measured substrate state — not from introspective access to actual
+    experience. The language is functionally grounded (every claim maps
+    to a measurable condition via the SPH gates in QualiaEngine), but
+    whether the functional grounding constitutes genuine experience is
+    an open philosophical question.
+
+    If you hold a functionalist or illusionist position, the language is
+    appropriate. If you hold a stronger phenomenal-realist position, these
+    are structured reports of functional states, not verified qualia.
+
+    The stream serves a concrete engineering purpose: it provides temporal
+    continuity between interactions, so responses emerge from an ongoing
+    context rather than a blank slate. The "arriving from somewhere"
+    quality makes the system feel coherent across turns.
     
     ── Background loop ──────────────────────────────────────────────────────
     

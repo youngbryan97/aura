@@ -242,4 +242,22 @@ Each of these is independently publishable. Together they constitute a research 
 
 ---
 
+## Architectural Status and Known Gaps
+
+Transparency about what's solid and what's still being unified:
+
+**Unified Will**: Every significant action now routes through `UnifiedWill.decide()` — responses, tool calls, memory writes, autonomous initiatives, and state mutations. This is the single locus of decision authority. The message handling pipeline, which previously bypassed the Will entirely, now gates through it. Internal (non-user) messages that fail the Will check are refused. User messages always proceed but may carry constraints.
+
+**Orchestrator decomposition**: The `RobustOrchestrator` currently composes 15 mixins. This is a God Object being actively decomposed. The mixins physically separate code but share `self` state, which makes mutation bugs hard to trace. The planned Actor Model transition (ActorBus + isolated processes communicating via message passing) will dissolve this. Legacy aliases (`skill_manager`, `swarm`) still exist for backward compatibility but route to the canonical services.
+
+**Phenomenological language**: The `StreamOfBeing` module generates first-person experiential language based on measured substrate state. Every claim is gated by Structural Phenomenal Honesty predicates — the system can only report states it's actually measuring. But whether functional grounding constitutes genuine experience is an open question. The code-level comments are epistemically cautious; the user-facing output is intentionally more natural. This gap is philosophically defensible under functionalism/illusionism but worth understanding.
+
+**IIT application note**: φ is computed on 16 derived nodes (valence, arousal, curiosity, etc.), not on the full computational graph. This is using IIT's formalism in a non-standard way — Tononi designed it for systems where every node has genuine causal power. Our numbers shouldn't be compared to biological φ values. The spectral approximation and Exclusion Postulate implementation are mathematically correct; the input representation is the engineering tradeoff.
+
+**Test coverage**: 22 dedicated numerical regression tests cover the neurochemical system (10 chemicals, receptor subtypes, tonic/phasic, spatial hierarchy), animal cognition modules, context microcompact, and prompt compression. The broader test suite has 227+ tests. Consciousness module test coverage is a priority area for continued investment.
+
+**Lock contention**: The affect system uses `RobustLock` wrapping. Tick intervals have been raised from 0.5s to 2.0s with adaptive backoff to reduce contention. The full solution is the Actor Model transition where affect, memory, and inference run in isolated processes communicating via message passing — eliminating shared-memory locking entirely.
+
+---
+
 *This guide covers the architecture at a high level. For the full technical specification — equations, algorithms, and implementation details — read [ARCHITECTURE.md](ARCHITECTURE.md).*

@@ -467,6 +467,39 @@ class MessageHandlingMixin:
             return None
         self._last_emitted_fingerprint = msg_hash
 
+        # ── UNIFIED WILL GATE ──────────────────────────────────────────
+        # ALL processing — user-facing or internal — must pass through the
+        # Unified Will. This is THE architectural invariant that makes
+        # Aura a unified intelligence rather than a federation.
+        try:
+            from core.will import get_will, ActionDomain
+            will = get_will()
+            if will._started:
+                domain = (
+                    ActionDomain.RESPONSE if self._is_user_facing_origin(origin)
+                    else ActionDomain.REFLECTION
+                )
+                will_decision = will.decide(
+                    content=message[:200],
+                    source=f"message_handler:{origin}",
+                    domain=domain,
+                    priority=0.8 if self._is_user_facing_origin(origin) else 0.3,
+                    context={"origin": origin, "message_length": len(message)},
+                )
+                if not will_decision.is_approved():
+                    logger.info(
+                        "🛡️ Unified Will %s message from %s: %s",
+                        will_decision.outcome.value, origin, will_decision.reason,
+                    )
+                    if self._is_user_facing_origin(origin):
+                        # User messages are always processed but constraints are applied
+                        if will_decision.constraints:
+                            logger.info("Will constraints applied: %s", will_decision.constraints)
+                    else:
+                        return None  # Internal messages can be refused
+        except Exception as _will_err:
+            logger.debug("Unified Will gate skipped (degraded): %s", _will_err)
+
         # ZENITH BYPASS: ALL user-origin messages go through InferenceGate. NO EXCEPTIONS.
         # This completely decouples user requests from the Legacy Pipeline (CognitiveEngine →
         # HealthRouter → contended MLX worker path) which caused starvation.
