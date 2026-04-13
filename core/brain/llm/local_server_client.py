@@ -317,7 +317,7 @@ class LocalServerClient:
         return self._lane_name in {PRIMARY_ENDPOINT, DEEP_ENDPOINT}
 
     def _warmup_timeout(self) -> float:
-        return 90.0 if self._is_primary_or_deep_lane() else 45.0
+        return 180.0 if self._is_primary_or_deep_lane() else 120.0
 
     def _startup_timeout(self) -> float:
         return 360.0 if self._is_primary_or_deep_lane() else 180.0
@@ -947,6 +947,9 @@ class LocalServerClient:
             "messages": list(messages),
             "max_tokens": max_tokens,
             "temperature": temperature,
+            "min_p": 0.05,                # Filter low-probability tokens for quality
+            "repetition_penalty": 1.1,    # Reduce stale/looping responses
+            "top_p": self.top_p,
         }
         if schema:
             payload["response_format"] = {"type": "json_object"}
@@ -955,7 +958,7 @@ class LocalServerClient:
         if isinstance(deadline, Deadline) and deadline.remaining is not None:
             timeout = max(1.0, deadline.remaining)
         else:
-            timeout = 90.0 if self._is_primary_or_deep_lane() else 45.0
+            timeout = 180.0 if self._is_primary_or_deep_lane() else 120.0
 
         try:
             response = await client.post(

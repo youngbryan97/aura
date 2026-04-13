@@ -442,11 +442,23 @@ def _mlx_worker_loop(
                 temp = job.get("temp", 0.7)
                 top_p = job.get("top_p", 0.9)
                 max_tokens = job.get("max_tokens", 512)
-                
+                min_p = job.get("min_p", 0.05)
+                repetition_penalty = job.get("repetition_penalty", 1.1)
+
                 kwargs = {"max_tokens": max_tokens}
                 if make_sampler:
-                    kwargs["sampler"] = make_sampler(temp=temp, top_p=top_p)
-                
+                    sampler_kwargs = {"temp": temp, "top_p": top_p}
+                    try:
+                        import inspect as _insp2
+                        _sparams2 = _insp2.signature(make_sampler).parameters
+                        if "min_p" in _sparams2:
+                            sampler_kwargs["min_p"] = min_p
+                        if "repetition_penalty" in _sparams2:
+                            sampler_kwargs["repetition_penalty"] = repetition_penalty
+                    except Exception:
+                        pass
+                    kwargs["sampler"] = make_sampler(**sampler_kwargs)
+
                 stop_sequences = ["<|im_end|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
                 
                 try:
