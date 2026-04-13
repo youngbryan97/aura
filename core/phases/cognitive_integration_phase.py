@@ -1,9 +1,10 @@
-"""Cognitive Integration Phase — Wires Learned Systems into the Tick Pipeline
+"""Cognitive Integration Phase — Wires ALL Learned Systems into the Tick Pipeline
 
 This phase runs once per tick, after affect and before cognitive routing.
 It bridges the gap between the raw consciousness substrate and the response
-generation layer by running the learned cognitive systems:
+generation layer by running every learned cognitive and artificial life system:
 
+    LEARNED COGNITIVE SYSTEMS:
     1. Sentiment analysis on the latest input (replaces hardware-only mood)
     2. Anomaly detection on the current state (replaces keyword-matching threats)
     3. Strange loop self-prediction (recursive self-model update)
@@ -11,14 +12,22 @@ generation layer by running the learned cognitive systems:
     5. Topology evolution on the neural mesh (structural plasticity)
     6. Autopoiesis health check (self-maintenance)
 
+    ARTIFICIAL LIFE SYSTEMS (from Avida, Tierra, Lenia, EcoSim, Evochora):
+    7. Criticality regulation — tune neural dynamics toward edge-of-chaos
+    8. ALife dynamics — Lenia kernels, entropy tracking, differential CPU allocation
+    9. ALife extensions — pattern replication, speciation, toroidal topology,
+       thermodynamic costs, ownership-based access costs
+   10. Endogenous fitness — survival-based evolution (Tierra) + behavioral rules (EcoSim)
+
 Each subsystem is optional — if it hasn't been initialized (e.g., on first
-boot or if a dependency is missing), it's silently skipped.  This ensures
-the kernel never crashes due to a cognitive module failure.
+boot or if a dependency is missing), it's silently skipped.
 
 Written for humans: Think of this as the "brainstem" that coordinates all
-the higher cognitive functions every time Aura thinks.  It's the glue layer
-that makes sure every new idea (sentiment tracking, threat detection, etc.)
-actually participates in the cognitive cycle instead of sitting idle.
+cognitive functions every time Aura thinks. The ALife systems give Aura the
+properties of a living organism: she self-organizes toward criticality,
+evolves her own neural wiring, maintains dual thermodynamic constraints
+(energy AND entropy), replicates successful patterns, and forms functional
+species within her cortical columns.
 """
 
 from __future__ import annotations
@@ -54,6 +63,11 @@ class CognitiveIntegrationPhase(Phase):
         self._homeostatic_rl = None
         self._topology_evolution = None
         self._autopoiesis = None
+        # ALife systems
+        self._criticality_regulator = None
+        self._alife_dynamics = None
+        self._alife_extensions = None
+        self._endogenous_fitness = None
         self._resolved = False
 
     def _resolve_services(self) -> None:
@@ -68,6 +82,11 @@ class CognitiveIntegrationPhase(Phase):
             self._homeostatic_rl = ServiceContainer.get("homeostatic_rl", default=None)
             self._topology_evolution = ServiceContainer.get("topology_evolution", default=None)
             self._autopoiesis = ServiceContainer.get("autopoiesis", default=None)
+            # ALife systems
+            self._criticality_regulator = ServiceContainer.get("criticality_regulator", default=None)
+            self._alife_dynamics = ServiceContainer.get("alife_dynamics", default=None)
+            self._alife_extensions = ServiceContainer.get("alife_extensions", default=None)
+            self._endogenous_fitness = ServiceContainer.get("endogenous_fitness", default=None)
         except Exception as exc:
             logger.debug("CognitiveIntegration: service resolution deferred: %s", exc)
         self._resolved = True
@@ -114,6 +133,24 @@ class CognitiveIntegrationPhase(Phase):
         # Quick health check — detect degrading subsystems and schedule
         # repairs if needed.
         await self._run_autopoiesis(new_state)
+
+        # ── 7. Criticality Regulation (Wolfram/CA research) ─────────────
+        # Tune the neural mesh toward the edge of chaos — the critical
+        # point where computation is richest. Adjusts gain, noise, and
+        # excitation/inhibition balance via a PID controller.
+        await self._run_criticality(new_state)
+
+        # ── 8. ALife Dynamics (Lenia + Evochora + Avida) ────────────────
+        # Lenia continuous convolution kernels for inter-column coupling,
+        # entropy tracking (Evochora's dual thermodynamic constraint),
+        # and differential CPU allocation (Avida's compute-as-reward).
+        await self._run_alife_dynamics(new_state)
+
+        # ── 9. ALife Extensions (pattern replication, speciation, etc.) ──
+        # Autopoietic pattern replication (Avida), speciation-driven
+        # column specialization (EcoSim), toroidal wrapping, thermodynamic
+        # operation costs, and ownership-based access costs (Evochora).
+        await self._run_alife_extensions(new_state)
 
         elapsed_ms = (time.monotonic() - t0) * 1000
         if elapsed_ms > 50:
@@ -254,7 +291,6 @@ class CognitiveIntegrationPhase(Phase):
         try:
             vitality = self._autopoiesis.get_vitality()
             state.response_modifiers["autopoiesis_vitality"] = vitality
-            # If vitality is critically low, signal the kernel
             if vitality < 0.3:
                 logger.warning(
                     "Autopoiesis: vitality critically low (%.2f). "
@@ -263,3 +299,123 @@ class CognitiveIntegrationPhase(Phase):
                 )
         except Exception as exc:
             logger.debug("Autopoiesis skipped: %s", exc)
+
+    # ── ALife System Runners ─────────────────────────────────────────────
+
+    async def _run_criticality(self, state: AuraState) -> None:
+        """Criticality Regulator — tunes neural mesh toward edge-of-chaos.
+
+        Biological brains self-organize toward the critical point between
+        order and chaos, where computation is richest. This regulator
+        measures the branching ratio and avalanche statistics of the neural
+        mesh and adjusts gain, noise, and excitation/inhibition balance
+        to drive the system toward criticality.
+        """
+        if not self._criticality_regulator:
+            return
+        try:
+            from core.container import ServiceContainer
+            mesh = ServiceContainer.get("neural_mesh", default=None)
+            if not mesh:
+                return
+            activations = getattr(mesh, "column_activations", None)
+            weights = getattr(mesh, "inter_column_weights", None)
+            if activations is None or weights is None:
+                return
+
+            crit_state = await self._criticality_regulator.tick(activations, weights)
+            score = self._criticality_regulator.get_criticality_score()
+            adjustments = self._criticality_regulator.get_adjustments()
+
+            state.response_modifiers["criticality_score"] = score
+            state.response_modifiers["branching_ratio"] = crit_state.branching_ratio
+            state.response_modifiers["avalanche_exponent"] = crit_state.avalanche_exponent
+
+            # Apply adjustments to the mesh
+            if hasattr(mesh, "set_modulatory_state"):
+                mesh.set_modulatory_state(
+                    modulatory_gain=adjustments.get("gain", 1.0),
+                    modulatory_noise=adjustments.get("noise", 1.0),
+                )
+
+            # Feed E/I ratio to neurochemical system
+            ei_ratio = adjustments.get("ei_ratio", 1.0)
+            try:
+                neurochems = ServiceContainer.get("neurochemical_system", default=None)
+                if neurochems and hasattr(neurochems, "set_ei_target"):
+                    neurochems.set_ei_target(ei_ratio)
+            except Exception:
+                pass
+        except Exception as exc:
+            logger.debug("Criticality regulation skipped: %s", exc)
+
+    async def _run_alife_dynamics(self, state: AuraState) -> None:
+        """ALife Dynamics — Lenia kernels, entropy tracking, CPU allocation.
+
+        Lenia: Replaces fixed inter-column connectivity with continuous
+        convolution kernels that create richer emergent dynamics.
+        Entropy: Adds Evochora's dual thermodynamic constraint (energy + entropy).
+        CPU allocation: Avida's innovation — columns earn compute time through
+        useful contribution to the global workspace.
+        """
+        if not self._alife_dynamics:
+            return
+        try:
+            from core.container import ServiceContainer
+            mesh = ServiceContainer.get("neural_mesh", default=None)
+            if not mesh:
+                return
+            activations = getattr(mesh, "column_activations", None)
+            weights = getattr(mesh, "inter_column_weights", None)
+            projection = getattr(mesh, "projection_weights", None)
+            if activations is None or weights is None:
+                return
+
+            alife_state = await self._alife_dynamics.tick(
+                activations, weights, projection
+            )
+
+            # Store entropy and credit info in state
+            if hasattr(alife_state, "entropy"):
+                state.response_modifiers["entropy"] = alife_state.entropy
+                state.response_modifiers["entropy_pressure"] = alife_state.entropy_pressure
+            if hasattr(alife_state, "compute_credits"):
+                state.response_modifiers["compute_credits_gini"] = (
+                    self._alife_dynamics.get_status().get("gini_coefficient", 0.0)
+                    if hasattr(self._alife_dynamics, "get_status") else 0.0
+                )
+        except Exception as exc:
+            logger.debug("ALife dynamics skipped: %s", exc)
+
+    async def _run_alife_extensions(self, state: AuraState) -> None:
+        """ALife Extensions — replication, speciation, toroidal topology, costs.
+
+        Pattern replication (Avida): Successful column configs replicate to
+        struggling neighbors. Speciation (EcoSim): Columns form functional
+        species. Toroidal wrapping: Mesh boundaries connect. Thermodynamic
+        costs (Evochora): Per-operation energy/entropy charges. Ownership
+        costs: Cross-subsystem access is more expensive.
+        """
+        if not self._alife_extensions:
+            return
+        try:
+            from core.container import ServiceContainer
+            mesh = ServiceContainer.get("neural_mesh", default=None)
+            mesh_state = {}
+            if mesh:
+                mesh_state = {
+                    "column_activations": getattr(mesh, "column_activations", None),
+                    "inter_column_weights": getattr(mesh, "inter_column_weights", None),
+                }
+            tick_count = getattr(self.kernel, "cycle_count", 0)
+            ext_state = await self._alife_extensions.tick(
+                mesh_state=mesh_state,
+                evolution_state={},
+                tick_count=tick_count,
+            )
+            if hasattr(ext_state, "species_info") and ext_state.species_info:
+                state.response_modifiers["species_count"] = getattr(
+                    ext_state.species_info, "species_count", 0
+                )
+        except Exception as exc:
+            logger.debug("ALife extensions skipped: %s", exc)

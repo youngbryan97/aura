@@ -118,8 +118,17 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
         "topology_evolution": ("core.cognitive.topology_evolution", "TopologyEvolution"),
         "autopoiesis": ("core.cognitive.autopoiesis", "get_autopoiesis_engine"),
     }
+    # ALife systems (from Avida, Tierra, Lenia, EcoSim, Evochora, CA research)
+    _alife_services = {
+        "criticality_regulator": ("core.consciousness.criticality_regulator", "get_criticality_regulator"),
+        "alife_dynamics": ("core.consciousness.alife_dynamics", "ALifeDynamics"),
+        "alife_extensions": ("core.consciousness.alife_extensions", "ALifeExtensions"),
+        "endogenous_fitness": ("core.consciousness.endogenous_fitness", "get_endogenous_fitness"),
+    }
+    all_services = {**_cognitive_services, **_alife_services}
+    total_expected = len(all_services)
     registered_count = 0
-    for svc_name, (mod_path, factory_name) in _cognitive_services.items():
+    for svc_name, (mod_path, factory_name) in all_services.items():
         try:
             import importlib
             mod = importlib.import_module(mod_path)
@@ -128,9 +137,12 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
             ServiceContainer.register_instance(svc_name, instance)
             registered_count += 1
         except Exception as cog_exc:
-            logger.debug("Cognitive service '%s' deferred: %s", svc_name, cog_exc)
+            logger.debug("Cognitive/ALife service '%s' deferred: %s", svc_name, cog_exc)
     if registered_count:
-        logger.info("🧠 Registered %d/6 learned cognitive systems.", registered_count)
+        logger.info(
+            "🧠 Registered %d/%d learned cognitive + ALife systems.",
+            registered_count, total_expected,
+        )
 
     # 12. Cellular Substrate (Unified Mutation)
     try:

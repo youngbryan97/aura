@@ -140,7 +140,7 @@ class BlackHoleVault:
         new_bytes = len(text.encode())
         
         # Physics bounds check
-        check = bekenstein_check((current_bytes + new_bytes) * 8, radius_cm=10.0, energy_mJ=50.0)
+        check = bekenstein_check((current_bytes + new_bytes) * 8, radius_cm=10.0, energy_mj=50.0)
         if not check["fits"]:
             logger.warning("Bekenstein Bound Exceeded! Evaporating oldest memories...")
             self._evaporate()
