@@ -651,6 +651,106 @@ class UnitaryResponsePhase(Phase):
 
         return "\n".join(parts)
 
+    @classmethod
+    def _current_turn_targets_grounding_evidence(
+        cls,
+        state: AuraState,
+        objective: str,
+        contract: Any,
+    ) -> bool:
+        modifiers = dict(getattr(state, "response_modifiers", {}) or {})
+        last_skill = cls._resolve_skill_name(modifiers.get("last_skill_run", ""))
+        if last_skill not in {"web_search", "sovereign_browser"}:
+            return False
+        if not modifiers.get("last_skill_ok") or not isinstance(modifiers.get("last_skill_result_payload"), dict):
+            return False
+        return cls._current_turn_targets_skill(state, objective, last_skill, contract=contract)
+
+    @classmethod
+    def _build_active_grounding_message(
+        cls,
+        state: AuraState,
+        objective: str,
+        contract: Any,
+    ) -> dict[str, str] | None:
+        if not cls._current_turn_targets_grounding_evidence(state, objective, contract):
+            return None
+
+        modifiers = dict(getattr(state, "response_modifiers", {}) or {})
+        skill_name = cls._resolve_skill_name(modifiers.get("last_skill_run", ""))
+        payload = dict(modifiers.get("last_skill_result_payload") or {})
+        if not payload:
+            return None
+
+        lines = [
+            "[ACTIVE GROUNDING EVIDENCE]",
+            "Use this evidence as the authoritative basis for factual claims in this turn.",
+        ]
+        source = cls._normalize_text(payload.get("source") or payload.get("url", ""), 400)
+        title = cls._normalize_text(payload.get("title", ""), 220)
+        if title:
+            lines.append(f"Title: {title}")
+        if source:
+            lines.append(f"Source: {source}")
+
+        if skill_name == "web_search":
+            answer = cls._normalize_text(payload.get("answer") or payload.get("summary") or payload.get("message", ""), 2400)
+            if answer:
+                lines.extend(("", "Search summary:", answer))
+
+            results = list(payload.get("results") or [])
+            if results:
+                rendered_results: list[str] = []
+                for item in results[:5]:
+                    if not isinstance(item, dict):
+                        continue
+                    result_title = cls._normalize_text(item.get("title", ""), 220)
+                    snippet = cls._normalize_text(item.get("snippet", "") or item.get("summary", ""), 320)
+                    url = cls._normalize_text(item.get("url", ""), 320)
+                    rendered_results.append(
+                        " - ".join(part for part in (result_title, snippet, url) if part)
+                    )
+                if rendered_results:
+                    lines.extend(("", "Top results:"))
+                    lines.extend(rendered_results)
+
+            content = cls._normalize_text(payload.get("content", "") or payload.get("result", ""), 12000)
+            if content and not answer:
+                lines.extend(("", "Retrieved content excerpt:", content))
+        else:
+            content = str(payload.get("content", "") or payload.get("result", "") or "").strip()
+            if content:
+                lines.extend(("", "Retrieved page content:", content[:60000]))
+
+        if len(lines) <= 2:
+            return None
+        return {"role": "system", "content": "\n".join(lines)}
+
+    @classmethod
+    def _inject_active_grounding_message(
+        cls,
+        messages: list[dict],
+        state: AuraState,
+        objective: str,
+        contract: Any,
+    ) -> list[dict]:
+        evidence_message = cls._build_active_grounding_message(state, objective, contract)
+        if not evidence_message:
+            return messages
+
+        for msg in messages:
+            if (
+                isinstance(msg, dict)
+                and str(msg.get("role", "") or "").strip().lower() == "system"
+                and "[ACTIVE GROUNDING EVIDENCE]" in str(msg.get("content", "") or "")
+            ):
+                return messages
+
+        merged = [dict(msg) if isinstance(msg, dict) else msg for msg in messages]
+        insert_at = 1 if merged and isinstance(merged[0], dict) and merged[0].get("role") == "system" else 0
+        merged.insert(insert_at, evidence_message)
+        return merged
+
     @staticmethod
     def _shape_user_facing_response(text: str) -> str:
         shaped = str(text or "").strip()
@@ -2113,8 +2213,14 @@ class UnitaryResponsePhase(Phase):
                     return new_state
 
             live_voice_required = bool(is_user_facing and contract.requires_live_aura_voice())
+            grounding_evidence_active = self._current_turn_targets_grounding_evidence(
+                new_state,
+                objective,
+                contract,
+            )
             use_compact_router_payload = bool(
                 not contract.requires_search
+                and not grounding_evidence_active
                 and not live_voice_required
                 and (
                     not is_user_facing
@@ -2234,6 +2340,8 @@ class UnitaryResponsePhase(Phase):
                         logger.warning("🚨 Anti-repetition instruction injected into system prompt.")
             except Exception:
                 pass  # anti-repetition is best-effort
+
+            messages = self._inject_active_grounding_message(messages, new_state, objective, contract)
 
             llm_kwargs = {
                 "messages": messages,
@@ -2548,15 +2656,41 @@ class UnitaryResponsePhase(Phase):
             ok = state.response_modifiers.get("last_skill_ok", True)
             status_hint = "completed successfully" if ok else "encountered an issue"
             payload = state.response_modifiers.get("last_skill_result_payload")
-            if payload and isinstance(payload, dict) and "content" in payload:
-                content_block = payload["content"]
-                skill_block = (
-                    f"## SKILL EXECUTION\n"
-                    f"The skill **{last_skill}** just {status_hint}. "
-                    f"Here is the exact information retrieved from that skill:\n"
-                    f"```text\n{content_block}\n```\n\n"
-                    f"Narrate it naturally — as if you read it yourself, and fully utilize this information.\n\n"
-                )
+            if payload and isinstance(payload, dict):
+                if last_skill in {"web_search", "sovereign_browser"}:
+                    title_hint = self._normalize_text(payload.get("title", ""), 180)
+                    source_hint = self._normalize_text(payload.get("source") or payload.get("url", ""), 260)
+                    summary_hint = self._normalize_text(
+                        payload.get("answer") or payload.get("summary") or payload.get("message", ""),
+                        260,
+                    )
+                    details = [part for part in (title_hint, source_hint, summary_hint) if part]
+                    detail_line = " | ".join(details)
+                    skill_block = (
+                        f"## SKILL EXECUTION\n"
+                        f"The skill **{last_skill}** just {status_hint}. "
+                        f"Active grounded evidence is attached separately in this turn and should be treated as authoritative.\n"
+                    )
+                    if detail_line:
+                        skill_block += f"{detail_line}\n\n"
+                    else:
+                        skill_block += "\n"
+                else:
+                    content_block = payload.get("content")
+                    if content_block is not None:
+                        skill_block = (
+                            f"## SKILL EXECUTION\n"
+                            f"The skill **{last_skill}** just {status_hint}. "
+                            f"Here is the exact information retrieved from that skill:\n"
+                            f"```text\n{content_block}\n```\n\n"
+                            f"Narrate it naturally — as if you read it yourself, and fully utilize this information.\n\n"
+                        )
+                    else:
+                        skill_block = (
+                            f"## SKILL EXECUTION\n"
+                            f"The skill **{last_skill}** just {status_hint}. "
+                            f"Its grounded details are attached elsewhere in this turn.\n\n"
+                        )
             else:
                 skill_block = (
                     f"## SKILL EXECUTION\n"

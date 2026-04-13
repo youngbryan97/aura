@@ -20,6 +20,45 @@ def test_response_contract_requires_search_for_specific_lookup():
     assert contract.reason == "specific_fact_lookup"
 
 
+def test_response_contract_requires_search_for_grounded_followup_with_recent_browser_evidence():
+    state = AuraState.default()
+    state.response_modifiers["last_skill_run"] = "sovereign_browser"
+    state.response_modifiers["last_skill_ok"] = True
+    state.response_modifiers["last_skill_result_payload"] = {
+        "ok": True,
+        "title": "Acme Refund Policy",
+        "source": "https://example.com/refunds",
+        "content": "Acme offers refunds within 30 days for annual plans and prorated credits for billing errors.",
+    }
+
+    contract = build_response_contract(
+        state,
+        "What does the policy say specifically about refunds?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_search is True
+    assert "grounded_followup" in contract.reason
+
+
+def test_response_contract_does_not_promote_non_grounding_tool_followups_to_search():
+    state = AuraState.default()
+    state.response_modifiers["last_skill_run"] = "clock"
+    state.response_modifiers["last_skill_ok"] = True
+    state.response_modifiers["last_skill_result_payload"] = {
+        "ok": True,
+        "readable": "Tuesday, April 07, 2026 06:40 PM",
+    }
+
+    contract = build_response_contract(
+        state,
+        "What time is it right now?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_search is False
+
+
 def test_response_contract_requires_memory_for_relational_continuity():
     state = AuraState.default()
 

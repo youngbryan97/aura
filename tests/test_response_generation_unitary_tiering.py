@@ -72,6 +72,63 @@ async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_unitary_response_injects_active_grounding_evidence_for_targeted_followup(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "What does the policy say specifically about refunds?"
+    state.response_modifiers["last_skill_run"] = "sovereign_browser"
+    state.response_modifiers["last_skill_ok"] = True
+    state.response_modifiers["last_skill_result_payload"] = {
+        "ok": True,
+        "title": "Acme Refund Policy",
+        "source": "https://example.com/refunds",
+        "content": "Acme offers refunds within 30 days for annual plans.",
+    }
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="It says refunds are available within 30 days."))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    def _compact_should_not_run(_state):
+        raise AssertionError("compact router path should not be used for active grounding evidence")
+
+    phase._build_compact_router_system_prompt = _compact_should_not_run  # type: ignore[method-assign]
+    phase._build_system_prompt = lambda _state: "full-system"  # type: ignore[method-assign]
+
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.ContextAssembler.build_messages",
+        staticmethod(lambda _state, objective: [
+            {"role": "system", "content": "rich_context"},
+            {"role": "user", "content": objective},
+        ]),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.build_response_contract",
+        lambda _state, _objective, is_user_facing=False: ResponseContract(
+            is_user_facing=is_user_facing,
+            requires_search=True,
+            required_skill="web_search",
+            reason="grounded_followup",
+            tool_evidence_available=True,
+        ),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    _, kwargs = llm.think.await_args
+    assert any(
+        msg["role"] == "system" and "[ACTIVE GROUNDING EVIDENCE]" in msg["content"]
+        for msg in kwargs["messages"]
+    )
+    assert kwargs["messages"][0]["content"].startswith("##") or "full-system" in kwargs["messages"][0]["content"]
+    assert new_state.cognition.last_response == "It says refunds are available within 30 days."
+
+
+@pytest.mark.asyncio
 async def test_unitary_response_uses_direct_clock_skill_reply_without_llm(monkeypatch):
     state = AuraState()
     state.cognition.current_origin = "api"

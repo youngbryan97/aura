@@ -233,6 +233,26 @@ async def test_user_facing_primary_uses_compact_foreground_context_builders():
     assert "compact-live" in cortex.prompts[0]
 
 
+def test_compact_prebuilt_messages_preserves_grounding_system_evidence():
+    gate = InferenceGate.__new__(InferenceGate)
+    messages = [
+        {"role": "system", "content": "base-system"},
+        {"role": "user", "content": "Please read this page."},
+        {"role": "assistant", "content": "I fetched it."},
+        {
+            "role": "system",
+            "content": "[ACTIVE GROUNDING EVIDENCE]\nTitle: Acme Refund Policy\nRefunds are available within 30 days.",
+        },
+        {"role": "user", "content": "What does the policy say specifically about refunds?"},
+    ]
+
+    compact = gate._compact_prebuilt_messages(messages, history_limit=4)
+
+    assert compact[0]["content"] == "base-system"
+    assert any("[ACTIVE GROUNDING EVIDENCE]" in msg["content"] for msg in compact)
+    assert compact[-1]["content"] == "What does the policy say specifically about refunds?"
+
+
 @pytest.mark.asyncio
 async def test_user_facing_primary_preserves_prebuilt_messages_for_local_mlx():
     gate = InferenceGate()

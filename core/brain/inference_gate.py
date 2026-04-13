@@ -1530,6 +1530,27 @@ class InferenceGate:
         return messages
 
     @staticmethod
+    def _is_grounding_system_message(message: Any) -> bool:
+        if not isinstance(message, dict):
+            return False
+        role = str(message.get("role", "") or "").strip().lower()
+        if role != "system":
+            return False
+
+        metadata = message.get("metadata", {}) or {}
+        if str(metadata.get("type", "") or "").strip().lower() in {"skill_result", "tool_result"}:
+            return True
+
+        content = str(message.get("content", "") or "")
+        markers = (
+            "[FETCHED PAGE CONTENT]",
+            "[ACTIVE GROUNDING EVIDENCE]",
+            "[SKILL RESULT:",
+            "[TOOL RESULT:",
+        )
+        return any(marker in content for marker in markers)
+
+    @staticmethod
     def _compact_prebuilt_message_content(role: str, content: Any) -> str:
         clean = str(content or "").strip()
         if not clean:
@@ -1557,6 +1578,7 @@ class InferenceGate:
             return []
 
         system_message: Optional[Dict[str, str]] = None
+        preserved_system_messages: List[Dict[str, str]] = []
         convo: List[Dict[str, str]] = []
         for msg in messages:
             if not isinstance(msg, dict):
@@ -1568,12 +1590,15 @@ class InferenceGate:
             normalized = {"role": role or "user", "content": content}
             if role == "system" and system_message is None:
                 system_message = normalized
+            elif role == "system" and self._is_grounding_system_message(msg):
+                preserved_system_messages.append(normalized)
             elif role in {"user", "assistant"}:
                 convo.append(normalized)
 
         compact: List[Dict[str, str]] = []
         if system_message is not None:
             compact.append(system_message)
+        compact.extend(preserved_system_messages[-2:])
         compact.extend(convo[-max(1, int(history_limit)):])
         return compact
 

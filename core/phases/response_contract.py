@@ -43,6 +43,37 @@ _FACTUAL_LOOKUP_PATTERNS = (
     r"\bsearched? for\b",
 )
 
+_GROUNDED_FOLLOWUP_SUMMARY_PATTERNS = (
+    r"\bwhat happens\b",
+    r"\bsummar(?:y|ize|ise)\b",
+    r"\brecap\b",
+    r"\bstory beats?\b",
+    r"\bplot beats?\b",
+    r"\bhow does it end\b",
+    r"\bwhat(?:'s| is) the ending\b",
+    r"\bin full\b",
+    r"\bread (?:it|this|that|the)\b",
+)
+
+_GROUNDED_FOLLOWUP_PRECISION_PATTERNS = (
+    r"\bspecifically\b",
+    r"\bwhat specific\b",
+    r"\bwhich one\b",
+    r"\bexactly\b",
+    r"\bwhat does it say\b",
+    r"\bwhat does (?:it|the page|the post|the article|the story|the document) say\b",
+)
+
+_GROUNDED_FOLLOWUP_DOCUMENT_PATTERNS = (
+    r"\b(?:story|article|post|page|thread|document|source|text|link|site|paper|report|policy|guide|log|logs|journal|journals)\b",
+    r"\b(?:this|that|it)\b",
+)
+
+_GROUNDED_FOLLOWUP_OPENING_RE = re.compile(
+    r"^\s*(?:ok(?:ay)?|right|so|well|wait|question)?[\s,.:;-]*(?:but\s+)?(?:what|who|when|where|why|how|which)\b",
+    re.IGNORECASE,
+)
+
 _REFERENCE_MARKERS = (
     r"\"[^\"]{3,}\"",
     r"'[^']{3,}'",
@@ -54,6 +85,14 @@ _REFERENCE_MARKERS = (
     r"\balbum\b",
     r"\blyrics?\b",
 )
+
+_ANCHOR_STOPWORDS = frozenset({
+    "about", "after", "again", "article", "being", "below", "could", "document",
+    "from", "have", "into", "its", "journal", "journals", "just", "link", "page",
+    "paper", "post", "report", "said", "says", "search", "source", "story",
+    "text", "that", "their", "them", "then", "there", "these", "they", "this",
+    "those", "thread", "what", "when", "where", "which", "while", "with", "would",
+})
 
 _MEMORY_PATTERNS = (
     r"\bremember\b",
@@ -269,6 +308,30 @@ def has_tool_evidence(state: AuraState) -> bool:
     return False
 
 
+def has_grounding_tool_evidence(state: AuraState) -> bool:
+    modifiers = getattr(state, "response_modifiers", {}) or {}
+    last_skill = str(modifiers.get("last_skill_run", "") or "").strip()
+    if (
+        last_skill in {"web_search", "sovereign_browser"}
+        and modifiers.get("last_skill_ok")
+        and isinstance(modifiers.get("last_skill_result_payload"), dict)
+    ):
+        return True
+
+    working_memory = getattr(state.cognition, "working_memory", []) or []
+    for msg in reversed(working_memory[-8:]):
+        if not isinstance(msg, dict):
+            continue
+        meta = msg.get("metadata", {}) or {}
+        if (
+            meta.get("type") == "skill_result"
+            and meta.get("ok") is True
+            and str(meta.get("skill", "") or "").strip() in {"web_search", "sovereign_browser"}
+        ):
+            return True
+    return False
+
+
 def has_memory_evidence(state: AuraState) -> bool:
     if getattr(state.cognition, "long_term_memory", None):
         return True
@@ -288,6 +351,65 @@ def has_continuity_evidence(state: AuraState) -> bool:
     return False
 
 
+def _recent_grounding_anchor_terms(state: AuraState) -> set[str]:
+    texts: list[str] = []
+    modifiers = getattr(state, "response_modifiers", {}) or {}
+    last_skill = str(modifiers.get("last_skill_run", "") or "").strip()
+    payload = modifiers.get("last_skill_result_payload")
+    if last_skill in {"web_search", "sovereign_browser"} and modifiers.get("last_skill_ok") and isinstance(payload, dict):
+        for key in ("title", "query", "answer", "summary", "source", "url"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                texts.append(value[:320])
+        content = str(payload.get("content", "") or payload.get("result", "") or "").strip()
+        if content:
+            texts.append(content.splitlines()[0][:240])
+
+    working_memory = getattr(state.cognition, "working_memory", []) or []
+    for msg in reversed(working_memory[-6:]):
+        if not isinstance(msg, dict):
+            continue
+        role = str(msg.get("role", "") or "").strip().lower()
+        content = str(msg.get("content", "") or "").strip()
+        if not content:
+            continue
+        if role == "system" and "[FETCHED PAGE CONTENT]" in content:
+            texts.append("\n".join(content.splitlines()[:3])[:320])
+        elif role in {"user", "assistant"}:
+            texts.append(content[:220])
+
+    anchors: set[str] = set()
+    for raw in texts:
+        for token in re.findall(r"[a-z0-9']+", raw.lower()):
+            normalized = token.strip("'")
+            if len(normalized) < 3 or normalized in _ANCHOR_STOPWORDS:
+                continue
+            anchors.add(normalized)
+    return anchors
+
+
+def _looks_like_grounded_followup(state: AuraState, text: str) -> bool:
+    lowered = str(text or "").strip().lower()
+    if not lowered or not has_grounding_tool_evidence(state):
+        return False
+
+    summary_followup = _matches_any(lowered, _GROUNDED_FOLLOWUP_SUMMARY_PATTERNS)
+    precision_followup = _matches_any(lowered, _GROUNDED_FOLLOWUP_PRECISION_PATTERNS)
+    document_reference = _matches_any(lowered, _GROUNDED_FOLLOWUP_DOCUMENT_PATTERNS)
+    wh_opening = bool(_GROUNDED_FOLLOWUP_OPENING_RE.match(lowered))
+    anchors = _recent_grounding_anchor_terms(state)
+    anchor_overlap = bool(anchors and any(anchor in lowered for anchor in anchors))
+    short_followup = len(lowered.split()) <= 8
+
+    if summary_followup:
+        return True
+    if precision_followup and (document_reference or anchor_overlap or short_followup):
+        return True
+    if wh_opening and (document_reference or anchor_overlap):
+        return True
+    return False
+
+
 def build_response_contract(
     state: AuraState,
     objective: str,
@@ -300,13 +422,17 @@ def build_response_contract(
     explicit_search = _matches_any(lower, _EXPLICIT_SEARCH_PATTERNS)
     factual_lookup = _matches_any(lower, _FACTUAL_LOOKUP_PATTERNS)
     specific_reference = _matches_any(text, _REFERENCE_MARKERS)
+    factual_followup = _looks_like_grounded_followup(state, text)
     # Negation guard: "I didn't mean for you to search" should NOT trigger search.
     if _SEARCH_NEGATION_RE.search(lower):
         explicit_search = False
         factual_lookup = False
+        factual_followup = False
     # URL presence always forces search — user expects content to be fetched
     has_url = bool(re.search(r'https?://[^\s]+', text))
-    requires_search = bool(is_user_facing and (explicit_search or has_url or (factual_lookup and specific_reference)))
+    requires_search = bool(
+        is_user_facing and (explicit_search or has_url or (factual_lookup and specific_reference) or factual_followup)
+    )
 
     requires_memory = bool(is_user_facing and _matches_any(lower, _MEMORY_PATTERNS))
     requires_state = bool(is_user_facing and _matches_any(lower, _STATE_REFLECTION_PATTERNS))
@@ -328,6 +454,8 @@ def build_response_contract(
     reasons = []
     if explicit_search:
         reasons.append("explicit_search_request")
+    elif factual_followup:
+        reasons.append("grounded_followup")
     elif requires_search:
         reasons.append("specific_fact_lookup")
     if requires_memory:
