@@ -204,6 +204,16 @@ async def test_warmup_treats_empty_generation_as_benign_runtime_readiness():
 
 
 @pytest.mark.asyncio
+async def test_solver_background_warmup_preserves_background_runtime_intent():
+    client = LocalServerClient("/tmp/qwen2.5-72b-instruct-q4_k_m.gguf")
+    client._ensure_runtime_ready = AsyncMock(return_value=False)
+
+    await client.warmup(foreground_request=False)
+
+    assert client._ensure_runtime_ready.await_args.kwargs["foreground_request"] is False
+
+
+@pytest.mark.asyncio
 async def test_single_empty_generation_does_not_immediately_crash_foreground_lane():
     client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
     client._lane_state = "ready"

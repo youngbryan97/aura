@@ -250,6 +250,21 @@ class InferenceGate:
         if self._foreground_user_turn_active() or self._foreground_owner_active():
             return False
 
+        if endpoint_name == DEEP_ENDPOINT:
+            lane = self.get_conversation_status()
+            lane_state = str(lane.get("state", "") or "").strip().lower()
+            if lane.get("conversation_ready") or lane.get("warmup_in_flight"):
+                return False
+            if lane_state in {"spawning", "handshaking", "warming", "recovering"}:
+                return False
+            background_deferral = self._background_local_deferral_reason(origin="maintenance_hot_spare")
+            if background_deferral:
+                logger.debug(
+                    "⏸️ Skipping Solver hot spare warmup due to %s.",
+                    background_deferral,
+                )
+                return False
+
         try:
             from core.brain.llm.mlx_client import get_mlx_client
             from core.brain.llm.model_registry import (
@@ -284,7 +299,7 @@ class InferenceGate:
             return False
 
         try:
-            await client.warmup()
+            await client.warmup(foreground_request=False)
         except Exception as exc:
             logger.debug("Hot-spare warmup failed for %s: %s", endpoint_name, exc)
             return False

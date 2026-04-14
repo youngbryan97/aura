@@ -892,14 +892,19 @@ class LocalServerClient:
         except Exception as e:
             logger.error("[%s] Server restart failed: %s", self._lane_name, e)
 
-    async def warmup(self):
+    async def warmup(self, *, foreground_request: Optional[bool] = None):
         self._warmup_attempted = True
         self._warmup_in_flight = True
         self._set_lane_state("warming")
+        request_is_foreground = (
+            self._is_primary_or_deep_lane()
+            if foreground_request is None
+            else bool(foreground_request)
+        )
         try:
             ready = await self._ensure_runtime_ready(
                 deadline=get_deadline(self._warmup_timeout()),
-                foreground_request=self._is_primary_or_deep_lane(),
+                foreground_request=request_is_foreground,
             )
             if not ready:
                 return
@@ -913,7 +918,7 @@ class LocalServerClient:
                 ],
                 max_tokens=8,
                 temp=0.0,
-                foreground_request=self._is_primary_or_deep_lane(),
+                foreground_request=request_is_foreground,
                 owner_label=f"warmup:{self._lane_name}",
             )
             if text is not None:
@@ -925,8 +930,8 @@ class LocalServerClient:
         finally:
             self._warmup_in_flight = False
 
-    async def warm_up(self):
-        return await self.warmup()
+    async def warm_up(self, **kwargs):
+        return await self.warmup(**kwargs)
 
     async def reboot_worker(self, reason: str = "manual_reboot", mark_failed: bool = False):
         self._set_lane_state("recovering", reason)

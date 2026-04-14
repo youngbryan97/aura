@@ -664,6 +664,67 @@ async def test_recycle_idle_local_clients_reboots_fragmented_spare():
 
 
 @pytest.mark.asyncio
+async def test_solver_hot_spare_stays_deferred_while_cortex_is_ready():
+    gate = InferenceGate()
+    solver = MagicMock()
+    solver.is_alive.return_value = False
+    solver.warmup = AsyncMock()
+
+    with patch.object(
+        gate,
+        "get_conversation_status",
+        return_value={
+            "conversation_ready": True,
+            "state": "ready",
+            "warmup_in_flight": False,
+        },
+    ):
+        with patch("core.brain.llm.mlx_client.get_mlx_client", return_value=solver):
+            with patch("core.brain.llm.model_registry.get_deep_model_path", return_value="/models/deep"):
+                result = await gate._ensure_hot_spare_ready("Solver")
+
+    assert result is False
+    solver.warmup.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_solver_hot_spare_warmup_uses_background_semantics():
+    gate = InferenceGate()
+    solver = MagicMock()
+    solver.warmup = AsyncMock(side_effect=lambda **_kwargs: None)
+    solver.is_alive.side_effect = [False, True]
+
+    with patch.object(
+        gate,
+        "get_conversation_status",
+        return_value={
+            "conversation_ready": False,
+            "state": "cold",
+            "warmup_in_flight": False,
+        },
+    ):
+        with patch.object(gate, "_background_local_deferral_reason", return_value=None):
+            with patch.object(
+                gate,
+                "_headroom_snapshot",
+                return_value={
+                    "tier": "secondary",
+                    "pressure_pct": 52.0,
+                    "available_gb": 26.0,
+                    "max_pressure_pct": 84.0,
+                    "min_available_gb": 16.0,
+                    "can_admit": True,
+                },
+            ):
+                with patch("core.brain.llm.mlx_client.get_mlx_client", return_value=solver):
+                    with patch("core.brain.llm.model_registry.get_deep_model_path", return_value="/models/deep"):
+                        result = await gate._ensure_hot_spare_ready("Solver")
+
+    assert result is True
+    solver.warmup.assert_awaited_once_with(foreground_request=False)
+
+
+@pytest.mark.asyncio
 async def test_secondary_requests_downgrade_to_primary_when_headroom_is_tight():
     gate = InferenceGate()
     cortex = _RecordingClient("cortex")

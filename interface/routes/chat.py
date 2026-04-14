@@ -2576,11 +2576,11 @@ async def api_chat(
         if not bool(lane.get("conversation_ready", False)):
             gate = ServiceContainer.get("inference_gate", default=None)
             if gate and hasattr(gate, "ensure_foreground_ready"):
-                # [STABILITY v51] Reduced warmup budget from 35s → 12s.
-                # If cortex doesn't warm within 12s, fall through to the
-                # protected foreground lane for a fast response rather than
-                # blocking the user for 35s staring at "cortex warming".
-                warmup_budget = min(12.0, _remaining_foreground_budget(reserve=12.0))
+                # Give a cold/recovering cortex a real chance to come online
+                # before we concede to a fallback lane. The previous 12s cap
+                # was too aggressive and caused repeated user-visible warming
+                # loops under normal boot and recovery conditions.
+                warmup_budget = min(35.0, _remaining_foreground_budget(reserve=12.0))
                 try:
                     lane = await gate.ensure_foreground_ready(
                         timeout=max(1.0, warmup_budget)
