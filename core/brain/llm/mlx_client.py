@@ -1472,13 +1472,18 @@ class MLXLocalClient:
                         {
                             "function": {
                                 "name": tool_name,
-                                "arguments": tool_args,
+                                "arguments": json.dumps(tool_args),  # [STABILITY v53] Must be a JSON string, not a dict
                             }
                         }
                     ],
                 }
             )
-            messages.append({"role": "tool", "content": tool_result[:4000]})
+            
+            # [STABILITY v53] Protect against massive tool outputs breaking context windows
+            if len(tool_result) > 4000:
+                tool_result = tool_result[:4000] + "\n\n...[OUTPUT TRUNCATED FOR LENGTH]..."
+            
+            messages.append({"role": "tool", "content": tool_result})
 
         # Exhausted turns — return last non-empty response
         return {
