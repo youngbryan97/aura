@@ -735,7 +735,11 @@ class AuraKernel:
                 self.state.updated_at = time.time()
 
             # Flush deferred storage side-effects (eternal_append, db_write, etc.)
-            await self._process_storage_intents()
+            # [STABILITY v53] Timeout guard — storage intents can hang on slow I/O
+            try:
+                await asyncio.wait_for(self._process_storage_intents(), timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ [STABILITY] Storage intents timed out (10s) — skipping for this tick.")
 
             # ── CONSTITUTIONAL CLOSURE ──────────────────────────────────────
             # Stamp this tick's arbitration into the canonical state before commit.
@@ -765,7 +769,11 @@ class AuraKernel:
             # ────────────────────────────────────────────────────────────────
 
             # Persistence
-            await self._commit_vault(objective)
+            # [STABILITY v53] Timeout guard — vault commit can hang on slow disk/network
+            try:
+                await asyncio.wait_for(self._commit_vault(objective), timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ [STABILITY] Vault commit timed out (10s) — state not persisted this tick.")
 
             # Cognitive Ledger: record this tick as a structured transition
             try:

@@ -1146,10 +1146,17 @@ class InferenceGate:
             from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
 
             primary_client = get_mlx_client(model_path=str(get_runtime_model_path(ACTIVE_MODEL)))
-            await primary_client.warmup()
+            # [STABILITY v53] Add timeout — warmup can hang if Metal is exhausted
+            # after running the 72B model. 60s is generous but prevents infinite hang.
+            await asyncio.wait_for(primary_client.warmup(), timeout=60.0)
             logger.info("♻️ Restored %s after deep handoff.", PRIMARY_ENDPOINT)
+        except asyncio.TimeoutError:
+            logger.error("⚠️ Failed to restore %s after deep handoff: warmup timed out (60s)", PRIMARY_ENDPOINT)
+            # Schedule deferred recovery so next request doesn't hit dead cortex
+            self._schedule_background_cortex_prewarm(delay=5.0)
         except Exception as exc:
-            logger.warning("⚠️ Failed to restore %s after deep handoff: %s", PRIMARY_ENDPOINT, exc)
+            logger.error("⚠️ Failed to restore %s after deep handoff: %s", PRIMARY_ENDPOINT, exc)
+            self._schedule_background_cortex_prewarm(delay=5.0)
 
     # ── Silence Protocol ──────────────────────────────────────────────────────
     SILENCE_TOKEN = "<|SILENCE|>"
@@ -2507,7 +2514,12 @@ class InferenceGate:
                     )
                 if text:
                     if restore_primary:
-                        asyncio.create_task(self._restore_primary_after_deep_handoff())
+                        # [STABILITY v53] Add exception callback to prevent silent failures
+                        _task = asyncio.create_task(
+                            self._restore_primary_after_deep_handoff(),
+                            name="restore_primary_after_deep",
+                        )
+                        _task.add_done_callback(self._log_task_exception)
                     return text
 
                 # ── CORTEX RETRY: For user-facing requests, retry the primary model
@@ -2609,7 +2621,12 @@ class InferenceGate:
                     )
                 if brainstem_text:
                     if restore_primary:
-                        asyncio.create_task(self._restore_primary_after_deep_handoff())
+                        # [STABILITY v53] Add exception callback to prevent silent failures
+                        _task = asyncio.create_task(
+                            self._restore_primary_after_deep_handoff(),
+                            name="restore_primary_after_deep",
+                        )
+                        _task.add_done_callback(self._log_task_exception)
                     return brainstem_text
                 logger.warning("🧠 Local fallback returned no text.")
                 

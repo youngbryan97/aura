@@ -736,9 +736,11 @@ async def websocket_endpoint(ws: WebSocket):
                                 from core.kernel.kernel_interface import KernelInterface
                                 ki = KernelInterface.get_instance()
                                 if ki.is_ready():
+                                    # [STABILITY v53] Match HTTP timeout (180s) — was 120s,
+                                    # causing WS to timeout while HTTP still succeeding.
                                     reply = await asyncio.wait_for(
                                         ki.process(user_content, origin="ws", priority=True),
-                                        timeout=120.0,
+                                        timeout=180.0,
                                     )
                                 else:
                                     from core.event_bus import get_event_bus
@@ -751,17 +753,49 @@ async def websocket_endpoint(ws: WebSocket):
                                         "type": "aura_message",
                                         "content": reply,
                                     }))
+                                else:
+                                    # [STABILITY v53] Never leave user without a response
+                                    await ws_ref.send_text(json.dumps({
+                                        "type": "aura_message",
+                                        "content": "I lost my thread for a second. Say that again?",
+                                    }))
                             except asyncio.TimeoutError:
-                                logger.error("WS: KernelInterface.process() timed out after 120s")
+                                logger.error("WS: KernelInterface.process() timed out after 180s")
+                                # [STABILITY v53] Try fast brainstem fallback before giving up
+                                try:
+                                    from core.container import ServiceContainer
+                                    gate = ServiceContainer.get("inference_gate", default=None)
+                                    if gate and hasattr(gate, "generate"):
+                                        fallback = await asyncio.wait_for(
+                                            gate.generate(
+                                                user_content,
+                                                context={
+                                                    "origin": "ws",
+                                                    "foreground_request": True,
+                                                    "prefer_tier": "tertiary",
+                                                    "allow_cloud_fallback": True,
+                                                },
+                                                timeout=15.0,
+                                            ),
+                                            timeout=15.0,
+                                        )
+                                        if fallback and str(fallback).strip():
+                                            await ws_ref.send_text(json.dumps({
+                                                "type": "aura_message",
+                                                "content": str(fallback).strip(),
+                                            }))
+                                            return
+                                except Exception:
+                                    pass
                                 await ws_ref.send_text(json.dumps({
                                     "type": "aura_message",
-                                    "content": "I'm sorry, my thinking took too long. Please try again.",
+                                    "content": "I was thinking but my cortex took too long. Try again — I should be warmer now.",
                                 }))
                             except Exception as e:
-                                logger.error("WS: Message handling failed: %s (%s)", type(e).__name__, e)
+                                logger.error("WS: Message handling failed: %s (%s)", type(e).__name__, e, exc_info=True)
                                 await ws_ref.send_text(json.dumps({
                                     "type": "aura_message",
-                                    "content": "Something went wrong. Please try again.",
+                                    "content": "I hit a bump in my thinking. Try me again?",
                                 }))
 
                         _spawn_server_bounded_task(

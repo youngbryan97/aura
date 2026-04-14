@@ -2359,7 +2359,18 @@ class UnitaryResponsePhase(Phase):
             else:
                 llm_kwargs["state"] = new_state
 
-            raw = await llm.think(objective, **llm_kwargs)
+            # [STABILITY v53] Explicit timeout wrapper — don't rely on router
+            # honoring the timeout kwarg. If the router hangs, the phase hangs,
+            # the kernel hangs, the user gets nothing.
+            try:
+                raw = await asyncio.wait_for(
+                    llm.think(objective, **llm_kwargs),
+                    timeout=request_timeout + 5.0,  # Small buffer over router's internal timeout
+                )
+            except asyncio.TimeoutError:
+                raise TimeoutError(
+                    f"LLM generation hard-timed-out after {request_timeout + 5.0:.0f}s"
+                )
 
             if isinstance(raw, dict):
                 raw = raw.get("content") or raw.get("response") or ""
@@ -2415,7 +2426,14 @@ class UnitaryResponsePhase(Phase):
                     retry_kwargs["skip_runtime_payload"] = True
                 else:
                     retry_kwargs["state"] = new_state
-                retried = await llm.think(objective, **retry_kwargs)
+                # [STABILITY v53] Explicit timeout on retry too
+                try:
+                    retried = await asyncio.wait_for(
+                        llm.think(objective, **retry_kwargs),
+                        timeout=retry_timeout + 5.0,
+                    )
+                except asyncio.TimeoutError:
+                    return ""
                 if isinstance(retried, dict):
                     retried = retried.get("content") or retried.get("response") or ""
                 retried_text = str(retried or "").strip()
