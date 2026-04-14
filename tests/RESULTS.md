@@ -1,6 +1,6 @@
 ========================================================================
 AURA NULL HYPOTHESIS DEFEAT SUITE — MEASURED RESULTS
-Run: 2026-04-14 08:34:33 UTC
+Run: 2026-04-14 08:42:30 UTC
 ========================================================================
 
 ## Test 2: Contradictory State (chemicals drive mood, not text)
@@ -21,8 +21,8 @@ Run: 2026-04-14 08:34:33 UTC
 
   [PASS] 8.1 Sustained DA → receptor downregulation
          initial_sensitivity=1.0  final_sensitivity=0.9517  delta=-0.0483
-  [FAIL] 8.2 Same DA level → decreasing effective level
-         effective_tick1=0.5  effective_tick50=0.8437
+  [PASS] 8.2 Same DA level → decreasing effective level
+         effective_tick1=0.9  effective_tick50=0.8437
   [PASS] 8.3 DA withdrawal → sensitivity recovery
          tolerant=0.9517  recovered=0.9818
 
@@ -47,19 +47,19 @@ Run: 2026-04-14 08:34:33 UTC
 ## Tests 6-7: Substrate Dynamics
 
   [PASS] 6.1 Idle drift after 100 ticks
-         L2_drift=7.4252
+         L2_drift=5.2044
   [PASS] 7.1 Perturbation divergence persists
-         divergence=0.2549000084400177
+         divergence=0.5103999972343445
 
 ## Test 5.4: Phi Core Computation
 
   [PASS] 5.4 Phi computed from 80 correlated states
-         phi_s=0.0  is_complex=False  n_partitions=32  tpm_samples=79  compute_ms=42.43
+         phi_s=0.0  is_complex=False  n_partitions=32  tpm_samples=119  compute_ms=43.64
 
 ## Test 18: Free Energy Engine
 
   [PASS] 18.1 Free energy monotonically increases with prediction error
-         FE(pe=0.0)=0.2619 [rest]  FE(pe=0.2)=0.2668 [rest]  FE(pe=0.5)=0.2768 [rest]  FE(pe=0.8)=0.2937 [rest]  FE(pe=1.0)=0.3194 [rest]
+         FE(pe=0.0)=0.2628 [rest]  FE(pe=0.2)=0.2668 [rest]  FE(pe=0.5)=0.2768 [rest]  FE(pe=0.8)=0.2937 [rest]  FE(pe=1.0)=0.3194 [rest]
 
 ## Multi-Level Prediction
 
@@ -86,18 +86,18 @@ Run: 2026-04-14 08:34:33 UTC
 ## Timing Fingerprint (real computation, not stubs)
 
   [PASS] 1000 ODE ticks take measurable time
-         elapsed_ms=52.34
+         elapsed_ms=52.31
   [PASS] 50 STDP recordings on 64 neurons
-         elapsed_ms=23.99
+         elapsed_ms=24.98
 
 ## Identity Swap Test
 
   [PASS] State swap transfers behavioral bias
-         A_pre=0.2669  B_pre=-0.0879  A_post=-0.0879  B_post=0.2669
+         A_pre=0.4124  B_pre=-0.1015  A_post=-0.1015  B_post=0.4124
 
 ========================================================================
-RESULTS: 24 passed, 1 failed, 25 total
-Time: 0.35s
+RESULTS: 25 passed, 0 failed, 25 total
+Time: 0.37s
 ========================================================================
 
 Results written to tests/RESULTS.json

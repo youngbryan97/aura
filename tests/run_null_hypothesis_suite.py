@@ -163,11 +163,13 @@ print()
 ncs_t = NeurochemicalSystem()
 da = ncs_t.chemicals["dopamine"]
 init_sens = da.receptor_sensitivity
-eff_1 = da.effective
+# Force DA high and capture effective BEFORE adaptation runs
+da.tonic_level = 0.9; da.level = 0.9
+eff_1 = da.effective  # high DA * fresh sensitivity
 for _ in range(50):
     da.tonic_level = 0.9; da.level = 0.9; da.tick(dt=0.5)
 final_sens = da.receptor_sensitivity
-eff_50 = da.effective
+eff_50 = da.effective  # same high DA * adapted (lower) sensitivity
 
 result("8.1 Sustained DA → receptor downregulation",
        final_sens < init_sens,
@@ -275,7 +277,7 @@ sub_p = LiquidSubstrate(config=SubstrateConfig(neuron_count=64, noise_level=0.0,
                         state_file=Path(tempfile.mkdtemp()) / "det2.npy"))
 sub_p._chaos_engine = None
 rng = np.random.default_rng(42)
-ix = rng.uniform(-0.5, 0.5, 64); iw = rng.standard_normal((64, 64)) * 0.1
+ix = rng.uniform(-0.5, 0.5, 64); iw = rng.standard_normal((64, 64)) / np.sqrt(64)
 sub_c.x = ix.copy(); sub_c.W = iw.copy(); sub_p.x = ix.copy(); sub_p.W = iw.copy()
 for _ in range(20): _tick(sub_c); _tick(sub_p)
 sub_p.x[0] += 0.5; sub_p.x[1] -= 0.3
@@ -290,13 +292,20 @@ print()
 print("## Test 5.4: Phi Core Computation")
 print()
 
+# Feed phi from ACTUAL substrate ODE output (not synthetic random data).
+# The substrate's recurrent connectivity (W) creates cross-node temporal
+# correlations that synthetic pairwise correlations can't reproduce.
+# This is exactly the difference between "real dynamics" and "fake data."
 phi = PhiCore()
-rng = np.random.default_rng(42)
-for i in range(80):
-    sx = rng.uniform(-0.5, 0.5, 8)
-    sx[1] = 0.8 * sx[0] + 0.2 * rng.uniform(-0.1, 0.1)
-    phi.record_state(sx, {"phi": float(rng.uniform(0, 0.5)),
-                           "prediction_error": float(rng.uniform(0, 0.5))})
+phi_sub = _make_substrate(seed=42)
+for i in range(120):
+    _tick(phi_sub, dt=0.1, n=1)
+    # Use real substrate state as the affective nodes
+    phi.record_state(
+        phi_sub.x[:8],
+        {"phi": float(np.clip(phi_sub.x[8] if len(phi_sub.x) > 8 else 0, -1, 1)),
+         "prediction_error": float(np.clip(abs(phi_sub.v[0]) if len(phi_sub.v) > 0 else 0, 0, 1))}
+    )
 t0 = time.perf_counter()
 phi_result = phi.compute_phi()
 phi_time = time.perf_counter() - t0

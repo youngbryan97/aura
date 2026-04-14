@@ -44,7 +44,7 @@ class SubstrateConfig:
     neuron_count: int = 64
     time_constant: float = 0.1  # Integration time step (dt)
     update_rate: float = 20.0   # Hz (updates per second)
-    decay_rate: float = 0.05    # State decay
+    decay_rate: float = 0.5     # State decay (leak current prevents saturation while allowing nonlinear dynamics)
     noise_level: float = 0.01   # Stochastic noise
     hebbian_rate: float = 0.001 # Learning rate for synaptic plasticity
     save_interval: int = 300    # Seconds between auto-saves
@@ -66,7 +66,10 @@ class LiquidSubstrate:
         self.v: np.ndarray = np.zeros(self.config.neuron_count)  # Velocity (change in x)
         
         # Connectivity Matrix (The Connectome)
-        self.W: np.ndarray = np.random.randn(self.config.neuron_count, self.config.neuron_count) * 0.1
+        # Scale by 1/sqrt(N) to keep recurrent drive in the nonlinear regime of tanh
+        # (prevents saturation at ±1 which collapses phi's state space)
+        n = self.config.neuron_count
+        self.W: np.ndarray = np.random.randn(n, n) * (1.0 / np.sqrt(n))
         
         # Operational Flags
         self.running: bool = False
@@ -77,7 +80,7 @@ class LiquidSubstrate:
         # --- PyTorch Substrate State (Evolution 1) ---
         self.device = DEVICE
         self.x_torch = torch.zeros(self.config.neuron_count, device=self.device)
-        self.W_torch = torch.randn(self.config.neuron_count, self.config.neuron_count, device=self.device) * 0.1
+        self.W_torch = torch.randn(self.config.neuron_count, self.config.neuron_count, device=self.device) * (1.0 / (self.config.neuron_count ** 0.5))
         self.v_torch = torch.zeros(self.config.neuron_count, device=self.device)
         
         # --- Unified Qualia State Variables (Phase XVI) ---

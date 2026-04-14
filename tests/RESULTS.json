@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-04-14T08:34:34.193298+00:00",
+  "timestamp": "2026-04-14T08:42:31.288517+00:00",
   "total": 25,
-  "passed": 24,
-  "failed": 1,
-  "elapsed_seconds": 0.35,
+  "passed": 25,
+  "failed": 0,
+  "elapsed_seconds": 0.37,
   "tests": {
     "2.1 Cortisol \u2192 negative valence": {
       "status": "PASS",
@@ -34,8 +34,8 @@
       "delta": -0.0483
     },
     "8.2 Same DA level \u2192 decreasing effective level": {
-      "status": "FAIL",
-      "effective_tick1": 0.5,
+      "status": "PASS",
+      "effective_tick1": 0.9,
       "effective_tick50": 0.8437
     },
     "8.3 DA withdrawal \u2192 sensitivity recovery": {
@@ -71,23 +71,23 @@
     },
     "6.1 Idle drift after 100 ticks": {
       "status": "PASS",
-      "L2_drift": 7.4252
+      "L2_drift": 5.2044
     },
     "7.1 Perturbation divergence persists": {
       "status": "PASS",
-      "divergence": "0.2549"
+      "divergence": "0.5104"
     },
     "5.4 Phi computed from 80 correlated states": {
       "status": "PASS",
       "phi_s": 0.0,
       "is_complex": false,
       "n_partitions": 32,
-      "tpm_samples": 79,
-      "compute_ms": 42.43
+      "tpm_samples": 119,
+      "compute_ms": 43.64
     },
     "18.1 Free energy monotonically increases with prediction error": {
       "status": "PASS",
-      "FE(pe=0.0)": "0.2619 [rest]",
+      "FE(pe=0.0)": "0.2628 [rest]",
       "FE(pe=0.2)": "0.2668 [rest]",
       "FE(pe=0.5)": "0.2768 [rest]",
       "FE(pe=0.8)": "0.2937 [rest]",
@@ -123,18 +123,18 @@
     },
     "1000 ODE ticks take measurable time": {
       "status": "PASS",
-      "elapsed_ms": 52.34
+      "elapsed_ms": 52.31
     },
     "50 STDP recordings on 64 neurons": {
       "status": "PASS",
-      "elapsed_ms": 23.99
+      "elapsed_ms": 24.98
     },
     "State swap transfers behavioral bias": {
       "status": "PASS",
-      "A_pre": 0.2669,
-      "B_pre": -0.0879,
-      "A_post": -0.0879,
-      "B_post": 0.2669
+      "A_pre": 0.4124,
+      "B_pre": -0.1015,
+      "A_post": -0.1015,
+      "B_post": 0.4124
     }
   }
 }
