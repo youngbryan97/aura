@@ -4,7 +4,9 @@
 
 **[Run the tests yourself](tests/test_null_hypothesis_defeat.py)** | **[See measured results](tests/RESULTS.json)** | **[Results runner with actual values](tests/run_null_hypothesis_suite.py)**
 
-136 tests. 0 failures. Every measured value published.
+225 tests. 0 failures. Every measured value published.
+
+168 in the null hypothesis defeat suite. 57 in the causal exclusion + phenomenal convergence suites. See [full breakdown below](#causal-exclusion--phenomenal-convergence-suite-april-2026).
 
 ### The Headline Result
 
@@ -346,7 +348,7 @@ python -m pytest tests/test_null_hypothesis_defeat.py tests/test_ablation_suite.
 | Robustness | 4 | Tier 5 | Adversarial flooding, corruption recovery, oscillation, shift detection |
 | Self-Monitoring | 4 | Tier 5 | Error↔variability correlation, uncertainty→action, dimension identification |
 
-**Total: 161 tests across 5 tiers + phenomenal probes + hardened discriminative suite**
+**Null hypothesis suite: 168 tests across 5 tiers + phenomenal probes + hardened discriminative suite**
 
 ---
 

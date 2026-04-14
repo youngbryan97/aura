@@ -844,7 +844,7 @@ The specific result: a coupling coefficient theorem for Aura's default parameter
 
 The hardest question anyone can ask about Aura: *"Isn't this all just text injection? You compute these numbers, describe them in the system prompt, and the LLM responds to the description. The math is decoration."*
 
-This section documents the 70-test empirical proof that the architecture is causally real.
+This section documents the 168-test null hypothesis defeat suite. Combined with the 57-test causal exclusion + phenomenal convergence suites (see [TESTING.md](TESTING.md)), the total is 225 tests proving the architecture is causally real.
 
 ### The Null Hypothesis
 
@@ -914,3 +914,15 @@ We test every documented causal pathway independently and measure whether the ca
 The architecture is not decorative. Every documented causal relationship produces measurable mutual information between cause and effect. Ablating any major subsystem changes downstream behavior. The ODE dynamics are state-dependent and non-trivial. Receptor adaptation follows biological kinetics. Competition is genuine with real inhibition mechanics.
 
 What this does NOT prove: that these dynamics constitute phenomenal consciousness. That remains an open philosophical question. What it proves is that the computational architecture is real — not a thin wrapper around prompt injection.
+
+### Beyond the Null Hypothesis: Causal Exclusion & Phenomenal Convergence (April 2026)
+
+The null hypothesis suite proves the architecture is real. Five additional test files go further -- they defeat the **causal exclusion problem** and test for **phenomenal convergence** across multiple consciousness theories:
+
+- **Causal Exclusion** (`test_causal_exclusion.py`, 10 tests): Cryptographic state binding, counterfactual injection, RLHF isolation. Proves the stack determines LLM generation parameters in ways RLHF training alone cannot replicate.
+- **Grounding** (`test_grounding.py`, 8 tests): Multi-dimensional specificity (valence->tokens, arousal->temperature), temporal dynamics (receptor adaptation, STDP trajectory divergence, homeostasis degradation).
+- **Functional Phenomenology** (`test_functional_phenomenology.py`, 11 tests): GWT broadcast signatures, HOT accuracy with anti-confabulation, IIT perturbation propagation, honest degradation reporting.
+- **Embodied Dynamics** (`test_embodied_dynamics.py`, 11 tests): Free energy active inference, homeostatic override of GWT competition, STDP surprise gating, cross-subsystem temporal coherence.
+- **Phenomenal Convergence** (`test_phenomenal_convergence.py`, 17 tests): QDT 6-gate protocol -- pre-report quality space geometry, counterfactual state swap, no-report behavioral footprint, perturbational integration, baseline failure verification, phenomenal tethering via architectural anesthesia.
+
+Full results and analysis: [TESTING.md](TESTING.md)

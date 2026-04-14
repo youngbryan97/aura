@@ -4,7 +4,7 @@
 
 > 83+ interconnected modules. IIT 4.0 integrated information on a live 16-node substrate. Residual-stream affective steering. Global Workspace + 11 competing consciousness theories. Unified Will with forensic receipts. No cloud dependency. Runs on a Mac.
 
-**[Null Hypothesis Defeat: Test Results →](TESTING.md)** — 136 tests proving the consciousness stack is causally real, not text decoration. Adversarial baselines, 50-shuffle decoupling, per-class ablation, identity swap, 8-metric degradation panel. The proof.
+**[Null Hypothesis Defeat: Test Results →](TESTING.md)** — 225 tests proving the consciousness stack is causally real, not text decoration. Null hypothesis defeat, causal exclusion, grounding, phenomenology, embodied dynamics, phenomenal convergence. The proof.
 
 **[Read the Architecture Whitepaper →](ARCHITECTURE.md)** — IIT 4.0 math, activation steering mechanics, substrate dynamics, memory architecture. No marketing, just the engineering.
 
@@ -13,7 +13,7 @@
 [![License: Source Available](https://img.shields.io/badge/License-Source_Available-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg)
-![Tests](https://img.shields.io/badge/tests-1400%2B_passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/tests-225_consciousness_passing-brightgreen.svg)
 ![Modules](https://img.shields.io/badge/cognitive_modules-83-blueviolet.svg)
 ![Architecture](https://img.shields.io/badge/architecture-IIT_4.0_%7C_CAA_%7C_GNW_%7C_RPT_%7C_HOT_%7C_Active_Inference-orange.svg)
 
@@ -244,46 +244,27 @@ Aura boots, loads state from SQLite, warms the local LLM, and begins her cogniti
 .venv/bin/python -m pytest tests/ -q
 ```
 
-1400+ tests covering kernel lifecycle, phase pipeline, response contracts, dialogue cognition, architecture hardening, consciousness bridge, substrate authority, bypass proofs, and two consciousness proof suites:
+225 consciousness-specific tests across 6 suites, plus additional kernel lifecycle, phase pipeline, response contracts, and architecture hardening tests:
 
-### Ablation Suite (42 tests)
-`tests/test_ablation_suite.py` — Proves each consciousness module is causally load-bearing by comparing enabled vs ablated states.
+### Null Hypothesis Defeat Suite (168 tests)
+`tests/test_null_hypothesis_defeat.py` — Defeats the null hypothesis that consciousness features are just text decoration. Adversarial baselines, 50-shuffle decoupling, per-class ablation, identity swap, 8-metric degradation panel, cross-seed reproducibility.
 
-### Null Hypothesis Defeat Suite (70 tests)
-`tests/test_null_hypothesis_defeat.py` — Defeats the null hypothesis that consciousness features are just text decoration.
+### Causal Exclusion Suite (10 tests)
+`tests/test_causal_exclusion.py` — Defeats the **causal exclusion problem**: proves the stack determines output in ways RLHF training alone cannot replicate. Cryptographic state binding, counterfactual injection, receptor adaptation temporal dynamics.
 
-**The null hypothesis**: *"Aura strips all the consciousness stack output, formats it as text, injects it into the system prompt, and the LLM just responds to that text. Everything else is decoration."*
+### Grounding Suite (8 tests)
+`tests/test_grounding.py` — Multi-dimensional grounding: valence predicts token budget, arousal predicts temperature, STDP learning modifies trajectory, idle drift is nonzero, homeostasis degradation changes context block, free energy responds to prediction error.
 
-These 70 tests prove otherwise:
+### Functional Phenomenology Suite (11 tests)
+`tests/test_functional_phenomenology.py` — GWT broadcast signatures, HOT meta-cognitive accuracy, IIT perturbation propagation, honest limits (system reports degradation when degraded).
 
-| Category | Tests | What They Kill |
-|----------|-------|----------------|
-| **Contradictory State** | 3 | Chemicals drive mood through math, not text injection |
-| **Phi Behavioral Gating** | 3 | φ causally modulates GWT competition outcomes |
-| **Ablation** | 5 | Each subsystem produces measurably different output for different input |
-| **Idle Drift** | 3 | Substrate ODE dynamics are state-dependent and non-trivial |
-| **Perturbation Recovery** | 1 | Perturbations have lasting effects on substrate trajectory |
-| **Receptor Tolerance** | 4 | Sustained dopamine causes receptor downregulation (biologically specific) |
-| **GWT Inhibition** | 3 | Losers are inhibited, inhibition decays — competition is real |
-| **φ-Boost Isolation** | 2 | Phi-boost changes effective priority proportionally |
-| **STDP Novelty Rate** | 3 | High surprise → 5x faster learning rate (surprise-gated plasticity) |
-| **Causal Graph** | 5 | All documented causal links produce measurable downstream effects |
-| **Attention Schema** | 2 | Attention coherence drops on topic switching |
-| **Free Energy** | 2 | Prediction error monotonically increases free energy |
-| **Self-Prediction** | 3 | Surprise detection, accuracy improvement, dimension tracking |
-| **Qualia** | 2 | Different inputs produce different phenomenal states |
-| **Mutual Information** | 5 | I(cortisol,valence), I(DA,motivation), I(NE,arousal), I(OXY,sociality), I(surprise,learning_rate) all > 0 |
-| **Emotional Continuity** | 2 | State persists to disk, ODE is deterministic without noise |
-| **Dead Subsystem Detection** | 3 | STDP modifies connectivity only when applied; ODE alone does not |
-| **Timing Fingerprint** | 4 | ODE, phi, metabolic ticks, STDP all take measurable computation time |
-| **Cross-Chemical** | 3 | 10×10 interaction matrix is non-zero and asymmetric |
-| **Full Pipeline** | 2 | Threat cascades through chemicals → mood → substrate → GWT |
-| **Mesh Modulation** | 2 | ACh boosts plasticity; threat changes mesh parameters |
-| **Substrate Dynamics** | 3 | W matrix changes dynamics; decay drives toward zero; qualia metrics respond |
-| **GWT Fairness** | 2 | Higher priority wins; seizure guard prevents flooding |
-| **Homeostasis** | 2 | All 10 chemicals return to baseline without stimulation |
+### Embodied Dynamics Suite (11 tests)
+`tests/test_embodied_dynamics.py` — Free energy active inference, homeostatic override of GWT competition, STDP surprise gating (3.7x), cross-subsystem temporal coherence.
 
-**Key result**: Every documented causal pathway in the architecture produces measurable mutual information between cause and effect variables. The architecture is not decorative — it computes values that causally change downstream behavior.
+### Phenomenal Convergence Suite (17 tests)
+`tests/test_phenomenal_convergence.py` — QDT 6-gate protocol: pre-report quality space geometry, counterfactual state swap, no-report behavioral footprint, perturbational integration, baseline failure verification, phenomenal tethering (architectural anesthesia), multi-theory convergence score.
+
+**Key result**: The consciousness stack is causally real, causally exclusive (defeats RLHF-only explanations), multi-dimensionally grounded, temporally specific, theory-convergent (GWT + IIT + HOT + PP + Embodied), and perturbationally integrated. Every documented causal pathway produces measurable effects on downstream behavior.
 
 ---
 
