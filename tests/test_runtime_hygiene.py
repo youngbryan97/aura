@@ -1,0 +1,107 @@
+import asyncio
+import subprocess
+import sys
+import threading
+import time
+from types import SimpleNamespace
+
+import pytest
+
+from core.resilience.stability_guardian import StabilityGuardian
+from core.runtime.runtime_hygiene import RuntimeHygieneManager
+from core.utils.task_tracker import TaskTracker
+
+
+@pytest.mark.asyncio
+async def test_task_tracker_loop_hygiene_observes_raw_asyncio_tasks():
+    tracker = TaskTracker(name="RuntimeHygieneTest")
+    tracker.install_loop_hygiene(asyncio.get_running_loop())
+    release = asyncio.Event()
+
+    async def _hold():
+        await release.wait()
+
+    try:
+        task = asyncio.create_task(_hold(), name="runtime_hygiene.implicit")
+        await asyncio.sleep(0)
+
+        stats = tracker.get_stats()
+        assert stats["implicit_active"] >= 1
+        assert getattr(task, "_aura_task_supervision", "") == "implicit"
+        assert getattr(task, "_aura_task_tracker", "") == "RuntimeHygieneTest"
+    finally:
+        release.set()
+        await asyncio.sleep(0)
+        tracker.restore_loop_hygiene()
+
+
+@pytest.mark.asyncio
+async def test_runtime_hygiene_tracks_non_daemon_threads():
+    hygiene = RuntimeHygieneManager()
+    hygiene.stale_thread_age_s = 0.0
+    release = threading.Event()
+
+    def _worker():
+        release.wait(0.5)
+
+    await hygiene.start(asyncio.get_running_loop())
+    try:
+        thread = threading.Thread(target=_worker, name="runtime-hygiene-thread", daemon=False)
+        thread.start()
+        await asyncio.sleep(0.05)
+
+        report = hygiene.audit()
+
+        assert report["threads"]["active_non_daemon"] >= 1
+        assert not report["healthy"]
+        assert any("thread" in issue for issue in report["issues"])
+    finally:
+        release.set()
+        thread.join(timeout=1.0)
+        await hygiene.stop()
+        hygiene.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_runtime_hygiene_tracks_subprocesses():
+    hygiene = RuntimeHygieneManager()
+    await hygiene.start(asyncio.get_running_loop())
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(0.25)"])
+
+    try:
+        await asyncio.sleep(0.05)
+        report = hygiene.audit()
+        assert report["processes"]["active_registered"] >= 1
+        assert report["processes"]["active_subprocesses"] >= 1
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=1.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        await hygiene.stop()
+        hygiene.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_stability_guardian_surfaces_runtime_hygiene_findings(service_container):
+    service_container.register_instance(
+        "runtime_hygiene",
+        SimpleNamespace(
+            audit=lambda: {
+                "healthy": False,
+                "critical": False,
+                "issues": ["1 long-lived implicit task(s) still running"],
+                "repair_actions": ["gc.collect()"],
+            }
+        ),
+        required=False,
+    )
+    guardian = StabilityGuardian(SimpleNamespace(start_time=time.time()))
+
+    result = await guardian._check_runtime_hygiene()
+
+    assert result.healthy is False
+    assert result.severity == "warning"
+    assert "long-lived implicit task" in result.message
+    assert result.action_taken == "gc.collect()"

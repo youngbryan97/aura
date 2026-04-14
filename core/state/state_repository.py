@@ -9,6 +9,7 @@ import os
 import time
 from enum import Enum
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import aiosqlite
@@ -139,6 +140,12 @@ class StateRepository:
     async def initialize(self) -> None:
         from .aura_state import AuraState
         serialized_current: Optional[str] = None
+        boot_governance_decision = SimpleNamespace(
+            receipt_id="state_repository_bootstrap",
+            domain="state_mutation",
+            source="state_repository.initialize",
+            constraints={"boot_phase": "initialize"},
+        )
         if self.is_vault_owner:
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
             db = await self._ensure_db()
@@ -161,12 +168,15 @@ class StateRepository:
             
             # Ensure we have a default state if DB is empty
             if self._current is None:
+                from core.governance_context import governed_scope
                 from .aura_state import AuraState
+
                 self._current = AuraState()
                 logger.info("🆕 [STATE] No state found in DB. Initialized default AuraState.")
                 # Synchronously commit genesis so it's ready in DB
                 serialized_current = self._serialize(self._current)
-                await self._commit_to_db(self._current, serialized_current)
+                async with governed_scope(boot_governance_decision):
+                    await self._commit_to_db(self._current, serialized_current)
             
             # Setup SHM for writing
             self._shm = SharedMemoryTransport(name="aura_state_shm", size=get_state_shm_size_bytes())
@@ -185,7 +195,10 @@ class StateRepository:
                     try:
                         if serialized_current is None:
                             serialized_current = await asyncio.to_thread(self._serialize, self._current)
-                        shm_mode = await self._sync_to_shm(self._current, serialized_current)
+                        from core.governance_context import governed_scope
+
+                        async with governed_scope(boot_governance_decision):
+                            shm_mode = await self._sync_to_shm(self._current, serialized_current)
                         if shm_mode == "full":
                             logger.info("✓ [STATE] Genesis state pushed to SHM.")
                         elif shm_mode == "marker":

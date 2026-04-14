@@ -234,6 +234,7 @@ class StabilityGuardian:
             self._check_llm_circuit,
             self._check_db_connections,
             self._check_backup_maintenance,
+            self._check_runtime_hygiene,
             self._check_background_tasks,
         ]
         for fn in check_fns + self._extra_checks:
@@ -737,6 +738,51 @@ class StabilityGuardian:
             return HealthCheckResult("backup_manager", True, f"Backup maintenance OK: latest={latest_label}")
         except Exception as exc:
             return HealthCheckResult("backup_manager", False, f"Check failed: {exc}", "error")
+
+    async def _check_runtime_hygiene(self) -> HealthCheckResult:
+        try:
+            from core.container import ServiceContainer
+
+            hygiene = ServiceContainer.get("runtime_hygiene", default=None)
+            if hygiene is None:
+                try:
+                    from core.runtime.runtime_hygiene import get_runtime_hygiene
+
+                    hygiene = get_runtime_hygiene()
+                except Exception:
+                    hygiene = None
+
+            if hygiene is None:
+                return HealthCheckResult("runtime_hygiene", True, "Runtime hygiene not registered yet", "info")
+
+            report = hygiene.audit()
+            if report.get("healthy", True):
+                tasks = report.get("tasks", {})
+                threads = report.get("threads", {})
+                processes = report.get("processes", {})
+                return HealthCheckResult(
+                    "runtime_hygiene",
+                    True,
+                    (
+                        "Runtime hygiene OK: "
+                        f"tasks={tasks.get('active', 0)} "
+                        f"threads={threads.get('active', 0)} "
+                        f"children={processes.get('active_registered', 0)}"
+                    ),
+                    action_taken=", ".join(report.get("repair_actions", []) or []) or None,
+                )
+
+            issues = list(report.get("issues", []) or [])
+            severity = "error" if report.get("critical") else "warning"
+            return HealthCheckResult(
+                "runtime_hygiene",
+                False,
+                "; ".join(issues[:3]) or "Runtime hygiene reported degradation",
+                severity=severity,
+                action_taken=", ".join(report.get("repair_actions", []) or []) or None,
+            )
+        except Exception as exc:
+            return HealthCheckResult("runtime_hygiene", False, f"Check failed: {exc}", "error")
 
     async def _check_background_tasks(self) -> HealthCheckResult:
         """Verify critical named background tasks are still running."""

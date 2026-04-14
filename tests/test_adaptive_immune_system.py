@@ -21,15 +21,51 @@ def run(coro):
 class _RepairResult:
     success: bool = True
     governance_approved: bool = True
+    health_before: float = 0.0
+    health_after: float = 0.0
 
 
 class _AutopoiesisStub:
-    def __init__(self):
+    def __init__(self, *, initial_health=None, health_delta=0.45, success=True):
         self.calls = []
+        self.health = dict(initial_health or {})
+        self.health_delta = health_delta
+        self.success = success
+        self._health_fns = {
+            name: (lambda name=name: self.health.get(name, 0.0))
+            for name in self.health
+        }
+
+    def get_component_health(self, component):
+        return float(self.health.get(component, 0.0))
 
     async def request_repair(self, component, strategy):
         self.calls.append((component, getattr(strategy, "value", str(strategy))))
-        return _RepairResult(success=True, governance_approved=True)
+        before = self.get_component_health(component)
+        after = before if not self.success else min(1.0, before + self.health_delta)
+        self.health[component] = after
+        self._health_fns[component] = lambda component=component: self.health.get(component, 0.0)
+        return _RepairResult(
+            success=self.success,
+            governance_approved=True,
+            health_before=before,
+            health_after=after,
+        )
+
+
+class _PatchMeshStub:
+    def __init__(self, *, applied=True):
+        self.calls = []
+        self.applied = applied
+
+    async def attempt_patch_for_antigen(self, artifact, antigen):
+        self.calls.append((artifact.kind.value, artifact.component, antigen.error_signature))
+        return {
+            "attempted": True,
+            "applied": self.applied,
+            "status": "applied" if self.applied else "validated_unapplied",
+            "notes": "sandbox + verification pipeline completed",
+        }
 
 
 def test_tissue_field_diffuses_local_damage():
@@ -47,6 +83,7 @@ def test_tissue_field_diffuses_local_damage():
         error_load=0.6,
         health_pressure=0.4,
         temporal_pressure=0.2,
+        recurrence_pressure=0.1,
         protected=False,
     )
     field.ingest_antigen(antigen)
@@ -104,7 +141,7 @@ def test_successful_lineage_clones_and_persists_as_memory(tmp_path):
         dream_every_observations=100,
     )
     immune = AdaptiveImmuneSystem(config=cfg, state_dir=tmp_path, rng_seed=2)
-    autopoiesis = _AutopoiesisStub()
+    autopoiesis = _AutopoiesisStub(initial_health={"state_repository": 0.2})
     immune._get_service = lambda name: autopoiesis if name == "autopoiesis" else None
 
     antigen = immune.present_antigen(
@@ -138,10 +175,12 @@ def test_successful_lineage_clones_and_persists_as_memory(tmp_path):
         "error_count": 5,
         "resource_pressure": 0.2,
     }
-    run(immune.observe_event(event))
-    run(immune.observe_event(event))
+    first_response = run(immune.observe_event(event))
+    second_response = run(immune.observe_event(event))
 
     assert autopoiesis.calls
+    assert first_response.verification_report["verified_success"] is True
+    assert second_response.diagnostic_verdict["status"] == "verified_recovery"
     assert len(immune._cells) > 1
 
     immune.dream_consolidate()
@@ -183,3 +222,95 @@ def test_species_assignment_preserves_multiple_niches(tmp_path):
     immune._assign_species()
     assert immune._species_count >= 2
     assert len({cell.species_id for cell in immune._cells}) >= 2
+
+
+def test_truthful_reporting_avoids_false_all_clear_under_thin_coverage(tmp_path):
+    cfg = AdaptiveImmuneConfig(population_size=1, max_population=6, dream_every_observations=100)
+    immune = AdaptiveImmuneSystem(config=cfg, state_dir=tmp_path, rng_seed=4)
+    immune._get_service = lambda name: None
+    immune._cells = []
+
+    response = run(
+        immune.observe_event(
+            {
+                "type": "tick",
+                "text": "",
+                "subsystem": "unknown",
+                "source": "thin_probe",
+                "danger": 0.02,
+                "timestamp": 123.0,
+            }
+        )
+    )
+
+    assert response.coverage_report["coverage_label"] == "thin"
+    assert response.diagnostic_verdict["status"] == "no_confirmed_issue_under_limited_visibility"
+    assert response.diagnostic_verdict["all_clear"] is False
+
+
+def test_recurrence_memory_persists_across_reload(tmp_path):
+    cfg = AdaptiveImmuneConfig(population_size=1, max_population=6, dream_every_observations=100)
+    immune = AdaptiveImmuneSystem(config=cfg, state_dir=tmp_path, rng_seed=5)
+    immune.observe_signature("state_repository", "RuntimeError", error_count=3)
+    immune.observe_signature("state_repository", "RuntimeError", error_count=3)
+
+    assert immune._estimate_recurrence_pressure("state_repository", "RuntimeError") > 0.0
+
+    reloaded = AdaptiveImmuneSystem(config=cfg, state_dir=tmp_path, rng_seed=5)
+    assert reloaded._estimate_recurrence_pressure("state_repository", "RuntimeError") > 0.0
+    hotspots = reloaded.get_status()["recurrence_hotspots"]
+    assert hotspots
+    assert hotspots[0]["subsystem"] == "state_repository"
+
+
+def test_patch_proposal_artifacts_route_into_patch_pipeline(tmp_path):
+    cfg = AdaptiveImmuneConfig(population_size=1, max_population=6, dream_every_observations=100)
+    immune = AdaptiveImmuneSystem(config=cfg, state_dir=tmp_path, rng_seed=6)
+    patch_mesh = _PatchMeshStub(applied=True)
+
+    antigen = immune.present_antigen(
+        {
+            "type": "exception",
+            "text": "ZeroDivisionError in runtime",
+            "subsystem": "runtime_engine",
+            "source": "exception",
+            "danger": 0.86,
+            "error_count": 3,
+            "stack_trace": 'Traceback\n  File "/tmp/demo.py", line 12, in run\n',
+            "exception_type": "ZeroDivisionError",
+        }
+    )
+    immune._cells = [
+        ImmuneCell(
+            cell_id="patcher",
+            lineage_id="patch_lineage",
+            kind=CellKind.B,
+            receptor=antigen.vector.copy(),
+            subsystem_scope="runtime_engine",
+            persistence=0.8,
+            fitness=0.4,
+        )
+    ]
+    immune._get_service = lambda name: patch_mesh if name == "autonomous_resilience_mesh" else None
+    artifact = immune._emit_artifact(
+        immune._cells[0],
+        antigen,
+        affinity=1.0,
+        activation=0.92,
+    )
+
+    assert artifact is not None
+    assert artifact.kind.value == "patch_proposal"
+
+    verification = run(
+        immune._maybe_execute_artifact(
+            artifact,
+            antigen,
+            coverage_report={"coverage_ratio": 0.9},
+        )
+    )
+
+    assert patch_mesh.calls
+    assert artifact.executed is True
+    assert artifact.success is True
+    assert verification["status"] == "applied"

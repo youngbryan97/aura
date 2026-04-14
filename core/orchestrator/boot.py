@@ -291,6 +291,16 @@ class OrchestratorBootMixin(
                 self.setup()
                 if hasattr(self, "_async_init_threading"):
                     self._async_init_threading()
+
+                try:
+                    from core.runtime.runtime_hygiene import get_runtime_hygiene
+
+                    self.runtime_hygiene = get_runtime_hygiene()
+                    await self.runtime_hygiene.start()
+                    ServiceContainer.register_instance("runtime_hygiene", self.runtime_hygiene)
+                    logger.info("🧹 Runtime hygiene installed (tasks, threads, processes, memory).")
+                except Exception as hygiene_exc:
+                    logger.error("⚠️ Runtime hygiene bootstrap failed: %s", hygiene_exc, exc_info=True)
                 
                 await init_enterprise_layer(self)
 

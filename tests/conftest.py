@@ -71,6 +71,15 @@ def service_container():
     except Exception:
         pass
 
+    try:
+        from core.runtime.runtime_hygiene import get_runtime_hygiene
+
+        hygiene = get_runtime_hygiene()
+        asyncio.run(hygiene.stop())
+        hygiene.reset_state()
+    except Exception:
+        pass
+
     _close_service_instances()
     ServiceContainer.clear()
 
@@ -99,6 +108,20 @@ def _disable_redis_event_bus_for_tests():
     config.redis.use_for_events = prev_use_for_events
     event_bus_module.get_event_bus()._use_redis = prev_bus_use_redis
     event_bus_module.get_event_bus()._redis = prev_bus_redis
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_runtime_hygiene_after_test():
+    yield
+
+    try:
+        from core.runtime.runtime_hygiene import get_runtime_hygiene
+
+        hygiene = get_runtime_hygiene()
+        asyncio.run(hygiene.stop())
+        hygiene.reset_state()
+    except Exception:
+        pass
 
 @pytest.fixture
 def mock_container(service_container):

@@ -56,6 +56,16 @@ _ANTIGEN_DIM = 16
 _EPSILON = 1e-8
 
 
+def _json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    return repr(value)
+
+
 class CellKind(str, Enum):
     DENDRITIC = "dendritic"
     B = "b_cell"
@@ -94,6 +104,13 @@ class AdaptiveImmuneConfig:
     replay_buffer_size: int = 128
     recent_response_buffer: int = 64
     max_artifacts_per_antigen: int = 3
+    max_execution_attempts_per_event: int = 2
+    execution_confidence_floor: float = 0.45
+    low_coverage_floor: float = 0.42
+    verification_checks: int = 2
+    verification_interval_s: float = 0.01
+    min_verified_health_delta: float = 0.02
+    recurrence_window_s: float = 900.0
     species_min_k: int = 2
     species_max_k: int = 4
     species_silhouette_floor: float = 0.22
@@ -113,6 +130,7 @@ class Antigen:
     error_load: float
     health_pressure: float
     temporal_pressure: float
+    recurrence_pressure: float
     protected: bool
     source: str = "unknown"
     error_signature: str = ""
@@ -131,11 +149,40 @@ class Antigen:
             "error_load": round(float(self.error_load), 4),
             "health_pressure": round(float(self.health_pressure), 4),
             "temporal_pressure": round(float(self.temporal_pressure), 4),
+            "recurrence_pressure": round(float(self.recurrence_pressure), 4),
             "protected": bool(self.protected),
             "source": self.source,
             "error_signature": self.error_signature,
+            "stack_trace": self.stack_trace,
             "timestamp": self.timestamp,
+            "vector": self.vector.astype(float).tolist(),
+            "context": _json_safe(self.context),
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Antigen":
+        vector = np.asarray(data.get("vector", [0.0] * _ANTIGEN_DIM), dtype=np.float32)
+        if vector.shape[0] != _ANTIGEN_DIM:
+            vector = np.resize(vector, (_ANTIGEN_DIM,)).astype(np.float32)
+        return cls(
+            antigen_id=str(data.get("antigen_id", "")),
+            subsystem=str(data.get("subsystem", "unknown")),
+            vector=np.clip(vector, 0.0, 1.0),
+            danger=float(data.get("danger", 0.0)),
+            subsystem_need=float(data.get("subsystem_need", 0.0)),
+            threat_probability=float(data.get("threat_probability", 0.0)),
+            resource_pressure=float(data.get("resource_pressure", 0.0)),
+            error_load=float(data.get("error_load", 0.0)),
+            health_pressure=float(data.get("health_pressure", 0.0)),
+            temporal_pressure=float(data.get("temporal_pressure", 0.0)),
+            recurrence_pressure=float(data.get("recurrence_pressure", 0.0)),
+            protected=bool(data.get("protected", False)),
+            source=str(data.get("source", "unknown")),
+            error_signature=str(data.get("error_signature", "")),
+            stack_trace=str(data.get("stack_trace", "")),
+            timestamp=float(data.get("timestamp", time.time())),
+            context=dict(data.get("context", {})),
+        )
 
 
 @dataclass
@@ -277,6 +324,9 @@ class ImmuneResponse:
     species_count: int
     tissue_snapshot: Dict[str, Any]
     dream_consolidated: bool = False
+    coverage_report: Dict[str, Any] = field(default_factory=dict)
+    verification_report: Dict[str, Any] = field(default_factory=dict)
+    diagnostic_verdict: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -293,6 +343,9 @@ class ImmuneResponse:
             "species_count": self.species_count,
             "tissue_snapshot": self.tissue_snapshot,
             "dream_consolidated": self.dream_consolidated,
+            "coverage_report": self.coverage_report,
+            "verification_report": self.verification_report,
+            "diagnostic_verdict": self.diagnostic_verdict,
         }
 
 
@@ -579,6 +632,19 @@ class AdaptiveImmuneSystem:
             maxlen=self.cfg.recent_response_buffer
         )
         self._recent_subsystem_counts: Counter[str] = Counter()
+        self._recurrence_tracker: Dict[str, Dict[str, Any]] = defaultdict(
+            lambda: {
+                "occurrences": 0,
+                "last_seen": 0.0,
+                "interval_ewma": 0.0,
+                "last_interval": None,
+                "streak": 0,
+                "peak_streak": 0,
+                "verified_repairs": 0,
+                "failed_repairs": 0,
+                "last_verified_at": 0.0,
+            }
+        )
         self._lineage_stats: Dict[str, Dict[str, Any]] = defaultdict(
             lambda: {
                 "successes": 0,
@@ -622,17 +688,62 @@ class AdaptiveImmuneSystem:
             anomaly_score=anomaly_score,
             state_snapshot=state_snapshot,
         )
-        response, top_cell = self._observe_core(antigen)
+        coverage_report = self._assess_coverage(
+            event,
+            antigen,
+            anomaly_score=anomaly_score,
+            state_snapshot=state_snapshot,
+        )
+        response, _top_cell = self._observe_core(antigen)
+        response.coverage_report = coverage_report
+        self._apply_coverage_constraints(response, antigen, coverage_report)
 
-        if response.selected_artifact:
-            await self._maybe_execute_artifact(response.selected_artifact, antigen)
+        selected_artifact = None
+        verification_report = self._default_verification_report(
+            status="not_executed",
+            coverage_ratio=coverage_report["coverage_ratio"],
+        )
+        executed_candidates = 0
+
+        for artifact in self._execution_candidates(response):
+            if executed_candidates >= self.cfg.max_execution_attempts_per_event:
+                break
+            selected_artifact = artifact
+            verification_report = await self._maybe_execute_artifact(
+                artifact,
+                antigen,
+                coverage_report=coverage_report,
+            )
+            executed_candidates += 1
+            if artifact.success:
+                break
+
+        if selected_artifact is None:
+            selected_artifact = self._best_visible_artifact(response)
+
+        response.selected_artifact = selected_artifact
+        response.verification_report = verification_report
+        response.diagnostic_verdict = self._build_diagnostic_verdict(
+            antigen,
+            response,
+            coverage_report=coverage_report,
+            verification_report=verification_report,
+        )
+
+        if response.selected_artifact and (
+            response.selected_artifact.executed or response.selected_artifact.governance_denied
+        ):
+            acting_cell = self._find_cell(response.selected_artifact.source_cell_id)
             response.proliferation_count = self._reinforce_after_execution(
                 antigen=antigen,
                 response=response,
-                top_cell=top_cell,
+                acting_cell=acting_cell,
+                verification_report=verification_report,
             )
         else:
             self._reinforce_without_execution(antigen, response)
+
+        self._record_response_summary(response)
 
         return response
 
@@ -655,7 +766,19 @@ class AdaptiveImmuneSystem:
         }
         antigen = self.present_antigen(event, anomaly_score=None, state_snapshot=context)
         response, _top_cell = self._observe_core(antigen)
+        response.coverage_report = self._assess_coverage(event, antigen, anomaly_score=None, state_snapshot=context)
+        response.verification_report = self._default_verification_report(
+            status="not_executed",
+            coverage_ratio=response.coverage_report["coverage_ratio"],
+        )
+        response.diagnostic_verdict = self._build_diagnostic_verdict(
+            antigen,
+            response,
+            coverage_report=response.coverage_report,
+            verification_report=response.verification_report,
+        )
         self._reinforce_without_execution(antigen, response)
+        self._record_response_summary(response)
         return response
 
     def observe_signature(
@@ -679,7 +802,19 @@ class AdaptiveImmuneSystem:
         }
         antigen = self.present_antigen(event, anomaly_score=None, state_snapshot=context)
         response, _top_cell = self._observe_core(antigen)
+        response.coverage_report = self._assess_coverage(event, antigen, anomaly_score=None, state_snapshot=context)
+        response.verification_report = self._default_verification_report(
+            status="not_executed",
+            coverage_ratio=response.coverage_report["coverage_ratio"],
+        )
+        response.diagnostic_verdict = self._build_diagnostic_verdict(
+            antigen,
+            response,
+            coverage_report=response.coverage_report,
+            verification_report=response.verification_report,
+        )
         self._reinforce_without_execution(antigen, response)
+        self._record_response_summary(response)
         return response
 
     def present_antigen(
@@ -709,6 +844,12 @@ class AdaptiveImmuneSystem:
                 )
             )
             error_load = min(1.0, float(event.get("error_rate", 0.0)) + float(event.get("error_count", 0) or 0) / 10.0)
+            error_signature = str(
+                event.get("exception_type")
+                or event.get("error_signature")
+                or event.get("type")
+                or ""
+            )
             threat_probability = float(
                 getattr(anomaly_score, "threat_probability", None)
                 or event.get("threat_probability")
@@ -723,21 +864,23 @@ class AdaptiveImmuneSystem:
                 1.0,
                 float(self._recent_subsystem_counts.get(subsystem, 0)) / 6.0,
             )
+            recurrence_pressure = self._estimate_recurrence_pressure(subsystem, error_signature)
             tissue_need_prior = self._tissue.get_need(subsystem)
 
             danger = max(
                 0.0,
                 min(
                     1.0,
-                    0.55 * threat_probability
+                    0.48 * threat_probability
                     + 0.20 * error_load
                     + 0.15 * resource_pressure
-                    + 0.10 * stack_complexity,
+                    + 0.09 * stack_complexity
+                    + 0.08 * recurrence_pressure,
                 ),
             )
             subsystem_need = max(
                 tissue_need_prior,
-                0.55 * danger + 0.45 * max(health_pressure, resource_pressure, error_load),
+                0.48 * danger + 0.32 * max(health_pressure, resource_pressure, error_load) + 0.20 * recurrence_pressure,
             )
 
             vector = np.zeros(self.cfg.receptor_dim, dtype=np.float32)
@@ -748,16 +891,10 @@ class AdaptiveImmuneSystem:
             vector[11] = 1.0 if protected else 0.0
             vector[12] = health_pressure
             vector[13] = tissue_need_prior
-            vector[14] = temporal_pressure
+            vector[14] = max(temporal_pressure, recurrence_pressure)
             vector[15] = stack_complexity
 
             antigen_id = f"ag_{hashlib.sha1(f'{subsystem}:{time.time()}'.encode()).hexdigest()[:12]}"
-            error_signature = str(
-                event.get("exception_type")
-                or event.get("error_signature")
-                or event.get("type")
-                or ""
-            )
 
             antigen = Antigen(
                 antigen_id=antigen_id,
@@ -770,6 +907,7 @@ class AdaptiveImmuneSystem:
                 error_load=max(0.0, min(1.0, error_load)),
                 health_pressure=max(0.0, min(1.0, health_pressure)),
                 temporal_pressure=max(0.0, min(1.0, temporal_pressure)),
+                recurrence_pressure=max(0.0, min(1.0, recurrence_pressure)),
                 protected=protected,
                 source=str(event.get("source") or event.get("type") or "unknown"),
                 error_signature=error_signature,
@@ -851,6 +989,8 @@ class AdaptiveImmuneSystem:
                 "observation_count": self._observation_count,
                 "last_dream_at": self._last_dream_at,
                 "cells_by_kind": dict(by_kind),
+                "coverage": self._system_coverage_summary(),
+                "recurrence_hotspots": self._recurrence_hotspots(),
                 "top_lineages": [
                     {
                         "lineage_id": lineage_id,
@@ -889,6 +1029,7 @@ class AdaptiveImmuneSystem:
             self._observation_count += 1
             self._recent_subsystem_counts[antigen.subsystem] += 1
             self._recent_antigens.append(antigen)
+            self._record_recurrence_observation(antigen)
             self._tissue.ingest_antigen(antigen)
 
             metabolic_scale, entropy_pressure = self._metabolic_context()
@@ -979,6 +1120,7 @@ class AdaptiveImmuneSystem:
                 {
                     "subsystem": antigen.subsystem,
                     "danger": round(float(antigen.danger), 4),
+                    "recurrence_pressure": round(float(antigen.recurrence_pressure), 4),
                     "selected_artifact": (
                         selected_artifact.kind.value if selected_artifact else None
                     ),
@@ -1008,18 +1150,24 @@ class AdaptiveImmuneSystem:
         *,
         antigen: Antigen,
         response: ImmuneResponse,
-        top_cell: Optional[ImmuneCell],
+        acting_cell: Optional[ImmuneCell],
+        verification_report: Optional[Dict[str, Any]] = None,
     ) -> int:
-        if not response.selected_artifact or top_cell is None:
+        if not response.selected_artifact or acting_cell is None:
             return 0
 
         artifact = response.selected_artifact
-        repair_gain = 1.0 if artifact.success else 0.0
-        recurrence_reduction = 0.35 if artifact.success else 0.0
-        recovery_speed = artifact.confidence * (1.0 if artifact.executed else 0.35)
+        verification_report = verification_report or {}
+        verified_success = bool(verification_report.get("verified_success", artifact.success))
+        raw_success = bool(verification_report.get("raw_success", artifact.success))
+        health_delta = max(0.0, float(verification_report.get("health_delta", 0.0) or 0.0))
+        repair_gain = 1.0 if verified_success else 0.22 if raw_success else 0.0
+        recurrence_reduction = min(0.45, 0.15 + 0.45 * health_delta) if verified_success else 0.0
+        recovery_speed = min(1.0, artifact.confidence * (0.35 + 0.90 * health_delta)) if artifact.executed else 0.0
         false_positive_cost = 0.35 if antigen.danger < 0.25 else 0.0
         entropy_cost = 0.18 * response.entropy_pressure + 0.05
         governance_penalty = 0.70 if artifact.governance_denied else 0.0
+        verification_penalty = 0.20 if artifact.executed and not verified_success else 0.0
         fitness = (
             repair_gain
             + recurrence_reduction
@@ -1027,29 +1175,31 @@ class AdaptiveImmuneSystem:
             - false_positive_cost
             - entropy_cost
             - governance_penalty
+            - verification_penalty
         )
         proliferation_count = 0
 
         with self._lock:
-            top_cell.fitness = 0.68 * top_cell.fitness + 0.32 * fitness
-            if artifact.success:
-                top_cell.successes += 1
-                top_cell.best_effector = artifact.kind
-                self._lineage_stats[top_cell.lineage_id]["successes"] += 1
-                self._lineage_stats[top_cell.lineage_id]["best_effector"] = artifact.kind
-                self._lineage_stats[top_cell.lineage_id]["best_fitness"] = max(
-                    float(self._lineage_stats[top_cell.lineage_id]["best_fitness"]),
-                    float(top_cell.fitness),
+            acting_cell.fitness = 0.68 * acting_cell.fitness + 0.32 * fitness
+            self._record_repair_outcome(artifact, antigen, verified_success=verified_success)
+            if verified_success:
+                acting_cell.successes += 1
+                acting_cell.best_effector = artifact.kind
+                self._lineage_stats[acting_cell.lineage_id]["successes"] += 1
+                self._lineage_stats[acting_cell.lineage_id]["best_effector"] = artifact.kind
+                self._lineage_stats[acting_cell.lineage_id]["best_fitness"] = max(
+                    float(self._lineage_stats[acting_cell.lineage_id]["best_fitness"]),
+                    float(acting_cell.fitness),
                 )
                 proliferation_count = self._clone_successful_lineages(
-                    top_cell=top_cell,
+                    top_cell=acting_cell,
                     antigen=antigen,
                 )
             else:
-                top_cell.failures += 1
-                self._lineage_stats[top_cell.lineage_id]["failures"] += 1
+                acting_cell.failures += 1
+                self._lineage_stats[acting_cell.lineage_id]["failures"] += 1
                 if artifact.governance_denied:
-                    top_cell.fitness -= 0.15
+                    acting_cell.fitness -= 0.15
             self._save_state()
         return proliferation_count
 
@@ -1103,7 +1253,23 @@ class AdaptiveImmuneSystem:
         if cell.kind in {CellKind.B, CellKind.MEMORY}:
             sig = antigen.error_signature.lower()
             text = f"{antigen.source} {sig}".lower()
-            if "lock" in text or "cache" in text:
+            if any(
+                token in text
+                for token in (
+                    "zerodivision",
+                    "typeerror",
+                    "attributeerror",
+                    "nameerror",
+                    "importerror",
+                    "keyerror",
+                    "indexerror",
+                    "schema drift",
+                    "null",
+                    "none",
+                )
+            ) and antigen.stack_trace:
+                kind = EffectorKind.PATCH_PROPOSAL
+            elif "lock" in text or "cache" in text:
                 kind = EffectorKind.CLEAR_CACHE
             elif "schema" in text or "migration" in text:
                 kind = EffectorKind.SCHEMA_MIGRATION
@@ -1175,16 +1341,194 @@ class AdaptiveImmuneSystem:
         self,
         artifact: EffectorArtifact,
         antigen: Antigen,
-    ) -> None:
-        if artifact.suppressed or artifact.confidence < 0.45:
-            return
+        *,
+        coverage_report: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        coverage_report = coverage_report or {"coverage_ratio": 0.0}
+        coverage_ratio = float(coverage_report.get("coverage_ratio", 0.0) or 0.0)
+        if artifact.suppressed:
+            return self._default_verification_report(
+                status="suppressed",
+                coverage_ratio=coverage_ratio,
+                notes=artifact.notes,
+            )
+        if artifact.confidence < self.cfg.execution_confidence_floor:
+            artifact.notes = artifact.notes or "execution confidence below floor"
+            return self._default_verification_report(
+                status="low_confidence",
+                coverage_ratio=coverage_ratio,
+                notes=artifact.notes,
+            )
+        if not self._is_executable_artifact(artifact):
+            return self._default_verification_report(
+                status="advisory_only",
+                coverage_ratio=coverage_ratio,
+                notes=artifact.notes,
+            )
 
         if antigen.protected and not self._authorize_protected_action(artifact, antigen):
             artifact.governance_denied = True
             artifact.suppressed = True
             artifact.notes = artifact.notes or "protected tissue denied by Unified Will"
-            return
+            return self._default_verification_report(
+                status="governance_denied",
+                coverage_ratio=coverage_ratio,
+                notes=artifact.notes,
+            )
 
+        if artifact.kind == EffectorKind.PATCH_PROPOSAL:
+            resilience_mesh = self._get_service("autonomous_resilience_mesh")
+            if resilience_mesh is None or not hasattr(resilience_mesh, "attempt_patch_for_antigen"):
+                artifact.notes = artifact.notes or "patch pipeline unavailable"
+                return self._default_verification_report(
+                    status="unavailable",
+                    coverage_ratio=coverage_ratio,
+                    notes=artifact.notes,
+                )
+            try:
+                patch_result = await resilience_mesh.attempt_patch_for_antigen(artifact, antigen)
+                attempted = bool(patch_result.get("attempted", False))
+                applied = bool(patch_result.get("applied", False))
+                artifact.executed = attempted
+                artifact.success = applied
+                if patch_result.get("notes"):
+                    artifact.notes = str(patch_result["notes"])
+                if applied:
+                    self._tissue.mark_repair(artifact.component, 0.32)
+                return {
+                    "status": str(patch_result.get("status", "patch_attempted")),
+                    "raw_success": applied,
+                    "verified_success": applied,
+                    "health_before": None,
+                    "health_after": None,
+                    "health_delta": 0.0,
+                    "health_samples": [],
+                    "coverage_ratio": round(coverage_ratio, 4),
+                    "recurrence_risk": round(
+                        max(0.0, min(1.0, antigen.recurrence_pressure * (0.45 if applied else 1.0))),
+                        4,
+                    ),
+                    "notes": artifact.notes or "",
+                }
+            except Exception as exc:
+                artifact.executed = True
+                artifact.success = False
+                artifact.notes = artifact.notes or f"patch execution failed: {exc}"
+                return self._default_verification_report(
+                    status="execution_error",
+                    coverage_ratio=coverage_ratio,
+                    notes=artifact.notes,
+                )
+
+        autopoiesis = self._get_service("autopoiesis")
+        if not autopoiesis or not hasattr(autopoiesis, "request_repair"):
+            artifact.notes = artifact.notes or "autopoiesis repair path unavailable"
+            return self._default_verification_report(
+                status="unavailable",
+                coverage_ratio=coverage_ratio,
+                notes=artifact.notes,
+            )
+
+        try:
+            from core.cognitive.autopoiesis import RepairStrategy
+
+            strategy = getattr(RepairStrategy, self._artifact_strategy_name(artifact.kind), None)
+            if strategy is None:
+                return self._default_verification_report(
+                    status="unsupported",
+                    coverage_ratio=coverage_ratio,
+                    notes=f"unsupported strategy for {artifact.kind.value}",
+                )
+            result = await autopoiesis.request_repair(artifact.component, strategy)
+            artifact.executed = True
+            raw_success = bool(getattr(result, "success", False))
+            health_before = self._coerce_optional_float(getattr(result, "health_before", None))
+            health_after = self._coerce_optional_float(getattr(result, "health_after", None))
+            health_samples = await self._sample_component_health(artifact.component)
+            if health_after is None and health_samples:
+                health_after = health_samples[-1]
+            verified_success = self._verify_repair_success(
+                raw_success=raw_success,
+                health_before=health_before,
+                health_after=health_after,
+                health_samples=health_samples,
+            )
+            artifact.success = verified_success
+            if verified_success:
+                self._tissue.mark_repair(artifact.component, 0.40)
+            elif artifact.kind in {EffectorKind.QUARANTINE, EffectorKind.HALT_RUNAWAY, EffectorKind.REVOKE_TOOL}:
+                self._tissue.mark_quarantine(artifact.component, 0.28)
+            verification_report = {
+                "status": (
+                    "verified_success"
+                    if verified_success
+                    else "attempted_unverified"
+                    if raw_success
+                    else "failed"
+                ),
+                "raw_success": raw_success,
+                "verified_success": verified_success,
+                "health_before": self._round_optional(health_before),
+                "health_after": self._round_optional(health_after),
+                "health_delta": round(
+                    float((health_after or 0.0) - (health_before or 0.0)),
+                    4,
+                )
+                if health_before is not None and health_after is not None
+                else 0.0,
+                "health_samples": [round(float(sample), 4) for sample in health_samples],
+                "coverage_ratio": round(coverage_ratio, 4),
+                "recurrence_risk": round(
+                    max(0.0, min(1.0, antigen.recurrence_pressure * (0.55 if verified_success else 1.0))),
+                    4,
+                ),
+                "notes": artifact.notes or "",
+            }
+            if raw_success and not verified_success and not artifact.notes:
+                artifact.notes = "repair executed but could not be verified as durable"
+                verification_report["notes"] = artifact.notes
+            return verification_report
+        except Exception as exc:
+            artifact.executed = True
+            artifact.success = False
+            artifact.notes = artifact.notes or f"execution failed: {exc}"
+            return self._default_verification_report(
+                status="execution_error",
+                coverage_ratio=coverage_ratio,
+                notes=artifact.notes,
+            )
+
+    async def _sample_component_health(self, component: str) -> List[float]:
+        samples: List[float] = []
+        checks = max(0, int(self.cfg.verification_checks))
+        for idx in range(checks):
+            if idx > 0 and self.cfg.verification_interval_s > 0.0:
+                await asyncio.sleep(self.cfg.verification_interval_s)
+            reading = self._read_component_health(component)
+            if reading is not None:
+                samples.append(reading)
+        return samples
+
+    def _verify_repair_success(
+        self,
+        *,
+        raw_success: bool,
+        health_before: Optional[float],
+        health_after: Optional[float],
+        health_samples: List[float],
+    ) -> bool:
+        if not raw_success:
+            return False
+        threshold = float(self.cfg.min_verified_health_delta)
+        if health_before is not None and health_after is not None:
+            if (health_after - health_before) >= threshold:
+                return True
+            if health_samples and (max(health_samples) - health_before) >= threshold:
+                return True
+        return False
+
+    @staticmethod
+    def _artifact_strategy_name(kind: EffectorKind) -> str:
         mapping = {
             EffectorKind.CLEAR_CACHE: "CLEAR_CACHE",
             EffectorKind.REDUCE_LOAD: "REDUCE_LOAD",
@@ -1194,30 +1538,40 @@ class AdaptiveImmuneSystem:
             EffectorKind.HALT_RUNAWAY: "ISOLATE",
             EffectorKind.REVOKE_TOOL: "ISOLATE",
         }
-        if artifact.kind not in mapping:
-            return
+        return mapping.get(kind, "")
 
-        autopoiesis = self._get_service("autopoiesis")
-        if not autopoiesis or not hasattr(autopoiesis, "request_repair"):
-            return
+    @staticmethod
+    def _is_executable_artifact(artifact: EffectorArtifact) -> bool:
+        return artifact.kind in {
+            EffectorKind.CLEAR_CACHE,
+            EffectorKind.REDUCE_LOAD,
+            EffectorKind.RESTART_COMPONENT,
+            EffectorKind.RESTORE_CHECKPOINT,
+            EffectorKind.QUARANTINE,
+            EffectorKind.HALT_RUNAWAY,
+            EffectorKind.REVOKE_TOOL,
+            EffectorKind.PATCH_PROPOSAL,
+        }
 
-        try:
-            from core.cognitive.autopoiesis import RepairStrategy
-
-            strategy = getattr(RepairStrategy, mapping[artifact.kind], None)
-            if strategy is None:
-                return
-            result = await autopoiesis.request_repair(artifact.component, strategy)
-            artifact.executed = True
-            artifact.success = bool(getattr(result, "success", False))
-            if artifact.success:
-                self._tissue.mark_repair(artifact.component, 0.40)
-            elif artifact.kind in {EffectorKind.QUARANTINE, EffectorKind.HALT_RUNAWAY, EffectorKind.REVOKE_TOOL}:
-                self._tissue.mark_quarantine(artifact.component, 0.28)
-        except Exception as exc:
-            artifact.executed = True
-            artifact.success = False
-            artifact.notes = artifact.notes or f"execution failed: {exc}"
+    def _default_verification_report(
+        self,
+        *,
+        status: str,
+        coverage_ratio: float,
+        notes: str = "",
+    ) -> Dict[str, Any]:
+        return {
+            "status": status,
+            "raw_success": False,
+            "verified_success": False,
+            "health_before": None,
+            "health_after": None,
+            "health_delta": 0.0,
+            "health_samples": [],
+            "coverage_ratio": round(float(coverage_ratio), 4),
+            "recurrence_risk": 0.0,
+            "notes": notes,
+        }
 
     def _authorize_protected_action(
         self,
@@ -1244,6 +1598,375 @@ class AdaptiveImmuneSystem:
         except Exception as exc:
             logger.debug("Protected-action authorization unavailable: %s", exc)
             return False
+
+    def _assess_coverage(
+        self,
+        event: Dict[str, Any],
+        antigen: Antigen,
+        *,
+        anomaly_score: Any | None,
+        state_snapshot: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        component_matches = self._component_monitor_matches(antigen.subsystem)
+        channels = {
+            "anomaly_model": anomaly_score is not None,
+            "subsystem_identity": antigen.subsystem not in {"", "unknown"},
+            "error_telemetry": antigen.error_load > 0.0 or bool(event.get("error_count")) or bool(antigen.error_signature),
+            "resource_telemetry": any(key in event for key in ("resource_pressure", "cpu", "ram")),
+            "health_probe": bool(component_matches),
+            "causal_trace": bool(event.get("stack_trace") or event.get("causal_trace") or antigen.stack_trace),
+            "state_snapshot": bool(state_snapshot),
+            "temporal_history": antigen.recurrence_pressure > 0.0 or self._recent_subsystem_counts.get(antigen.subsystem, 0) > 0,
+        }
+        coverage_ratio = sum(1.0 for present in channels.values() if present) / max(len(channels), 1)
+        missing_channels = [name for name, present in channels.items() if not present]
+        blind_spots: List[str] = []
+        if "health_probe" in missing_channels:
+            blind_spots.append("no direct health probe for this subsystem")
+        if "causal_trace" in missing_channels:
+            blind_spots.append("no stack or causal trace")
+        if "anomaly_model" in missing_channels:
+            blind_spots.append("no anomaly-model corroboration")
+        if "state_snapshot" in missing_channels:
+            blind_spots.append("no rich state snapshot for this observation")
+        if "temporal_history" in missing_channels:
+            blind_spots.append("little longitudinal history for this subsystem")
+
+        if coverage_ratio >= 0.8:
+            coverage_label = "strong"
+        elif coverage_ratio >= 0.55:
+            coverage_label = "moderate"
+        else:
+            coverage_label = "thin"
+
+        return {
+            "coverage_ratio": round(float(coverage_ratio), 4),
+            "coverage_label": coverage_label,
+            "observed_channels": [name for name, present in channels.items() if present],
+            "missing_channels": missing_channels,
+            "known_blind_spots": blind_spots,
+            "monitored_components": component_matches,
+            "system_coverage": self._system_coverage_summary(),
+        }
+
+    def _apply_coverage_constraints(
+        self,
+        response: ImmuneResponse,
+        antigen: Antigen,
+        coverage_report: Dict[str, Any],
+    ) -> None:
+        coverage_ratio = float(coverage_report.get("coverage_ratio", 0.0) or 0.0)
+        risky_kinds = {
+            EffectorKind.RESTART_COMPONENT,
+            EffectorKind.RESTORE_CHECKPOINT,
+            EffectorKind.REVOKE_TOOL,
+            EffectorKind.SCHEMA_MIGRATION,
+        }
+        for artifact in response.artifacts:
+            artifact.confidence = max(0.0, min(0.99, artifact.confidence * (0.55 + 0.45 * coverage_ratio)))
+            if (
+                coverage_ratio < self.cfg.low_coverage_floor
+                and artifact.kind in risky_kinds
+                and antigen.danger < 0.88
+            ):
+                artifact.suppressed = True
+                artifact.notes = artifact.notes or "suppressed under low observability"
+
+    def _execution_candidates(self, response: ImmuneResponse) -> List[EffectorArtifact]:
+        candidates = [
+            artifact
+            for artifact in response.artifacts
+            if not artifact.suppressed and self._is_executable_artifact(artifact)
+        ]
+        candidates.sort(key=lambda artifact: artifact.confidence, reverse=True)
+        return candidates
+
+    def _best_visible_artifact(self, response: ImmuneResponse) -> Optional[EffectorArtifact]:
+        visible = [artifact for artifact in response.artifacts if not artifact.suppressed]
+        if not visible:
+            return None
+        return max(visible, key=lambda artifact: artifact.confidence)
+
+    def _build_diagnostic_verdict(
+        self,
+        antigen: Antigen,
+        response: ImmuneResponse,
+        *,
+        coverage_report: Dict[str, Any],
+        verification_report: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        coverage_ratio = float(coverage_report.get("coverage_ratio", 0.0) or 0.0)
+        verification_status = str(verification_report.get("status", "not_executed"))
+        verified_success = bool(verification_report.get("verified_success", False))
+        evidence_count = sum(
+            1
+            for present in (
+                antigen.error_load > 0.08,
+                antigen.health_pressure > 0.12,
+                antigen.resource_pressure > 0.45,
+                antigen.recurrence_pressure > 0.3,
+                bool(antigen.stack_trace),
+                bool(response.activated_cells),
+            )
+            if present
+        )
+        issue_confirmed = evidence_count >= 2 and antigen.danger >= 0.28
+        escalation_recommended = False
+
+        if verified_success:
+            status = "verified_recovery"
+            all_clear = coverage_ratio >= 0.7 and antigen.recurrence_pressure < 0.45
+        elif verification_status in {"failed", "execution_error"}:
+            status = "persistent_issue"
+            all_clear = False
+            escalation_recommended = antigen.danger >= 0.45 or antigen.recurrence_pressure >= 0.35
+        elif verification_status == "attempted_unverified":
+            status = "repair_attempted_unverified"
+            all_clear = False
+            escalation_recommended = True
+        elif issue_confirmed:
+            status = "confirmed_issue"
+            all_clear = False
+        elif antigen.danger >= 0.48 or antigen.recurrence_pressure >= 0.4:
+            status = "suspected_issue"
+            all_clear = False
+        elif coverage_ratio >= 0.75:
+            status = "no_confirmed_issue_under_current_visibility"
+            all_clear = True
+        else:
+            status = "no_confirmed_issue_under_limited_visibility"
+            all_clear = False
+
+        confidence = max(
+            0.05,
+            min(
+                0.98,
+                0.30
+                + 0.45 * coverage_ratio
+                + 0.20 * min(1.0, evidence_count / 4.0)
+                + 0.05 * float(verified_success),
+            ),
+        )
+        summary = self._summarize_verdict(
+            status=status,
+            antigen=antigen,
+            coverage_report=coverage_report,
+            verification_report=verification_report,
+        )
+        return {
+            "status": status,
+            "all_clear": all_clear,
+            "confidence": round(float(confidence), 4),
+            "issue_confirmed": issue_confirmed,
+            "repair_verified": verified_success,
+            "coverage_ratio": round(coverage_ratio, 4),
+            "coverage_label": coverage_report.get("coverage_label", "thin"),
+            "evidence_count": evidence_count,
+            "escalation_recommended": escalation_recommended,
+            "known_blind_spots": list(coverage_report.get("known_blind_spots", [])),
+            "summary": summary,
+        }
+
+    def _summarize_verdict(
+        self,
+        *,
+        status: str,
+        antigen: Antigen,
+        coverage_report: Dict[str, Any],
+        verification_report: Dict[str, Any],
+    ) -> str:
+        coverage_label = coverage_report.get("coverage_label", "thin")
+        if status == "verified_recovery":
+            return f"issue was detected in {antigen.subsystem} and a bounded repair verified successfully under {coverage_label} coverage"
+        if status == "persistent_issue":
+            return f"repair did not hold for {antigen.subsystem}; recurrence or low health still indicates a persistent issue"
+        if status == "repair_attempted_unverified":
+            return f"repair was attempted in {antigen.subsystem}, but success could not be verified under current visibility"
+        if status == "confirmed_issue":
+            return f"multiple signals confirm an active issue in {antigen.subsystem}"
+        if status == "suspected_issue":
+            return f"signals suggest risk in {antigen.subsystem}, but confirmation remains incomplete"
+        if status == "no_confirmed_issue_under_current_visibility":
+            return f"no confirmed issue was observed in {antigen.subsystem} under current visibility"
+        return f"no confirmed issue was observed in {antigen.subsystem}, but visibility is limited and blind spots remain"
+
+    def _record_response_summary(self, response: ImmuneResponse) -> None:
+        with self._lock:
+            if self._recent_responses:
+                self._recent_responses[-1].update(
+                    {
+                        "coverage_ratio": response.coverage_report.get("coverage_ratio", 0.0),
+                        "verdict": response.diagnostic_verdict.get("status"),
+                        "verification": response.verification_report.get("status"),
+                        "all_clear": response.diagnostic_verdict.get("all_clear", False),
+                    }
+                )
+            self._save_state()
+
+    def _component_monitor_matches(self, subsystem: str) -> List[str]:
+        if not subsystem:
+            return []
+        autopoiesis = self._get_service("autopoiesis")
+        health_fns = getattr(autopoiesis, "_health_fns", {}) if autopoiesis is not None else {}
+        lowered = subsystem.lower()
+        matches: List[str] = []
+        for component in health_fns:
+            candidate = str(component).lower()
+            if candidate == lowered or candidate in lowered or lowered in candidate:
+                matches.append(str(component))
+                continue
+            if candidate.split("_", 1)[0] == lowered.split("_", 1)[0]:
+                matches.append(str(component))
+        return sorted(set(matches))
+
+    def _system_coverage_summary(self) -> Dict[str, Any]:
+        active_subsystems = {
+            subsystem
+            for subsystem in set(self._recent_subsystem_counts) | set(self._tissue._edges)
+            if subsystem and subsystem != "unknown"
+        }
+        monitored = set()
+        autopoiesis = self._get_service("autopoiesis")
+        if autopoiesis is not None:
+            monitored = {str(name) for name in getattr(autopoiesis, "_health_fns", {}).keys()}
+        covered = {
+            subsystem
+            for subsystem in active_subsystems
+            if self._component_monitor_matches(subsystem)
+        }
+        coverage_ratio = len(covered) / max(len(active_subsystems), 1)
+        uncovered = sorted(active_subsystems - covered)[:8]
+        return {
+            "active_components": len(active_subsystems),
+            "monitored_components": len(monitored),
+            "covered_active_components": len(covered),
+            "coverage_ratio": round(float(coverage_ratio), 4),
+            "uncovered_hotspots": uncovered,
+        }
+
+    def _recurrence_hotspots(self, limit: int = 6) -> List[Dict[str, Any]]:
+        hotspots: List[Tuple[float, str, Dict[str, Any]]] = []
+        for key, stats in self._recurrence_tracker.items():
+            if not key.startswith("subsystem::"):
+                continue
+            subsystem = key.split("::", 1)[1]
+            pressure = self._estimate_recurrence_pressure(subsystem, "")
+            if pressure <= 0.0:
+                continue
+            hotspots.append((pressure, subsystem, stats))
+        hotspots.sort(key=lambda item: item[0], reverse=True)
+        return [
+            {
+                "subsystem": subsystem,
+                "pressure": round(float(pressure), 4),
+                "occurrences": int(stats.get("occurrences", 0)),
+                "streak": int(stats.get("streak", 0)),
+                "verified_repairs": int(stats.get("verified_repairs", 0)),
+                "failed_repairs": int(stats.get("failed_repairs", 0)),
+            }
+            for pressure, subsystem, stats in hotspots[:limit]
+        ]
+
+    def _read_component_health(self, subsystem: str) -> Optional[float]:
+        autopoiesis = self._get_service("autopoiesis")
+        if autopoiesis is None or not hasattr(autopoiesis, "get_component_health"):
+            return None
+        matches = self._component_monitor_matches(subsystem)
+        for component in matches:
+            try:
+                return float(max(0.0, min(1.0, autopoiesis.get_component_health(component))))
+            except Exception:
+                continue
+        return None
+
+    def _estimate_recurrence_pressure(self, subsystem: str, error_signature: str) -> float:
+        keys = self._recurrence_keys(subsystem, error_signature)
+        if not keys:
+            return 0.0
+        pressures: List[float] = []
+        for key in keys:
+            stats = self._recurrence_tracker.get(key)
+            if not stats:
+                continue
+            occurrences = float(stats.get("occurrences", 0))
+            streak = float(stats.get("streak", 0))
+            interval_ewma = float(stats.get("interval_ewma", 0.0) or 0.0)
+            verified = float(stats.get("verified_repairs", 0))
+            failed = float(stats.get("failed_repairs", 0))
+            count_term = min(1.0, occurrences / 6.0)
+            streak_term = min(1.0, streak / 4.0)
+            interval_term = 0.0
+            if interval_ewma > 0.0:
+                interval_term = 1.0 - min(1.0, interval_ewma / max(self.cfg.recurrence_window_s, 1.0))
+            repair_term = failed / max(verified + failed + 1.0, 1.0)
+            pressures.append(0.35 * count_term + 0.25 * streak_term + 0.20 * interval_term + 0.20 * repair_term)
+        return float(max(pressures, default=0.0))
+
+    def _record_recurrence_observation(self, antigen: Antigen) -> None:
+        if (
+            antigen.danger < 0.18
+            and antigen.error_load <= 0.0
+            and antigen.health_pressure <= 0.0
+            and antigen.resource_pressure < 0.45
+        ):
+            return
+        now = antigen.timestamp
+        for key in self._recurrence_keys(antigen.subsystem, antigen.error_signature):
+            stats = self._recurrence_tracker[key]
+            last_seen = float(stats.get("last_seen", 0.0) or 0.0)
+            interval = now - last_seen if last_seen > 0.0 else None
+            stats["occurrences"] = int(stats.get("occurrences", 0)) + 1
+            stats["last_seen"] = now
+            if interval is not None and interval >= 0.0:
+                prev_ewma = float(stats.get("interval_ewma", 0.0) or 0.0)
+                stats["last_interval"] = interval
+                stats["interval_ewma"] = interval if prev_ewma <= 0.0 else 0.7 * prev_ewma + 0.3 * interval
+                if interval <= self.cfg.recurrence_window_s:
+                    stats["streak"] = int(stats.get("streak", 0)) + 1
+                else:
+                    stats["streak"] = 1
+            else:
+                stats["streak"] = max(1, int(stats.get("streak", 0)))
+            stats["peak_streak"] = max(int(stats.get("peak_streak", 0)), int(stats.get("streak", 0)))
+
+    def _record_repair_outcome(
+        self,
+        artifact: EffectorArtifact,
+        antigen: Antigen,
+        *,
+        verified_success: bool,
+    ) -> None:
+        now = time.time()
+        for key in self._recurrence_keys(antigen.subsystem, antigen.error_signature):
+            stats = self._recurrence_tracker[key]
+            if verified_success:
+                stats["verified_repairs"] = int(stats.get("verified_repairs", 0)) + 1
+                stats["last_verified_at"] = now
+                stats["streak"] = max(0, int(stats.get("streak", 0)) - 1)
+            else:
+                stats["failed_repairs"] = int(stats.get("failed_repairs", 0)) + 1
+
+    @staticmethod
+    def _recurrence_keys(subsystem: str, error_signature: str) -> List[str]:
+        keys = [f"subsystem::{subsystem}"]
+        if error_signature:
+            keys.append(f"signature::{subsystem}::{error_signature.lower()}")
+        return keys
+
+    @staticmethod
+    def _coerce_optional_float(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _round_optional(value: Optional[float]) -> Optional[float]:
+        if value is None:
+            return None
+        return round(float(value), 4)
 
     # ------------------------------------------------------------------
     # Species, metabolism, persistence
@@ -1363,6 +2086,25 @@ class AdaptiveImmuneSystem:
             "observation_count": self._observation_count,
             "last_dream_at": self._last_dream_at,
             "recent_antigens": [antigen.to_dict() for antigen in list(self._recent_antigens)[-24:]],
+            "recent_responses": list(self._recent_responses)[-24:],
+            "recurrence_tracker": {
+                key: {
+                    "occurrences": int(stats.get("occurrences", 0)),
+                    "last_seen": float(stats.get("last_seen", 0.0)),
+                    "interval_ewma": float(stats.get("interval_ewma", 0.0)),
+                    "last_interval": (
+                        float(stats["last_interval"])
+                        if stats.get("last_interval") is not None
+                        else None
+                    ),
+                    "streak": int(stats.get("streak", 0)),
+                    "peak_streak": int(stats.get("peak_streak", 0)),
+                    "verified_repairs": int(stats.get("verified_repairs", 0)),
+                    "failed_repairs": int(stats.get("failed_repairs", 0)),
+                    "last_verified_at": float(stats.get("last_verified_at", 0.0)),
+                }
+                for key, stats in self._recurrence_tracker.items()
+            },
         }
         try:
             self._state_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -1401,6 +2143,42 @@ class AdaptiveImmuneSystem:
                 }
             self._observation_count = int(payload.get("observation_count", 0))
             self._last_dream_at = int(payload.get("last_dream_at", 0))
+            self._recent_antigens = deque(
+                [
+                    Antigen.from_dict(item)
+                    for item in payload.get("recent_antigens", [])
+                ],
+                maxlen=self.cfg.replay_buffer_size,
+            )
+            self._recent_responses = deque(
+                [dict(item) for item in payload.get("recent_responses", [])],
+                maxlen=self.cfg.recent_response_buffer,
+            )
+            self._recurrence_tracker = defaultdict(
+                lambda: {
+                    "occurrences": 0,
+                    "last_seen": 0.0,
+                    "interval_ewma": 0.0,
+                    "last_interval": None,
+                    "streak": 0,
+                    "peak_streak": 0,
+                    "verified_repairs": 0,
+                    "failed_repairs": 0,
+                    "last_verified_at": 0.0,
+                }
+            )
+            for key, stats in payload.get("recurrence_tracker", {}).items():
+                self._recurrence_tracker[str(key)] = {
+                    "occurrences": int(stats.get("occurrences", 0)),
+                    "last_seen": float(stats.get("last_seen", 0.0)),
+                    "interval_ewma": float(stats.get("interval_ewma", 0.0)),
+                    "last_interval": self._coerce_optional_float(stats.get("last_interval")),
+                    "streak": int(stats.get("streak", 0)),
+                    "peak_streak": int(stats.get("peak_streak", 0)),
+                    "verified_repairs": int(stats.get("verified_repairs", 0)),
+                    "failed_repairs": int(stats.get("failed_repairs", 0)),
+                    "last_verified_at": float(stats.get("last_verified_at", 0.0)),
+                }
             self._assign_species()
             return bool(self._cells)
         except Exception as exc:
@@ -1420,6 +2198,9 @@ class AdaptiveImmuneSystem:
             "memory_guard",
             "voice_engine",
             "identity",
+            "prompt_boundary",
+            "tool_boundary",
+            "memory_boundary",
             "generic",
         ]
         kind_sequence = (

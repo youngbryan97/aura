@@ -214,12 +214,17 @@ class AuraKernel:
 
     def _spawn_background_task(self, coro: Any, *, name: str) -> asyncio.Task:
         """Create a supervised kernel-owned background task and retain it for shutdown/restart handling."""
-        task = asyncio.create_task(coro, name=name)
         try:
-            task._aura_supervised = True
-            task._aura_task_tracker = "AuraKernel"
-        except Exception as _exc:
-            logger.debug("Suppressed Exception: %s", _exc)
+            from core.utils.task_tracker import get_task_tracker
+
+            task = get_task_tracker().create_task(coro, name=name)
+        except Exception:
+            task = asyncio.create_task(coro, name=name)
+            try:
+                task._aura_supervised = True
+                task._aura_task_tracker = "AuraKernel"
+            except Exception as _exc:
+                logger.debug("Suppressed Exception: %s", _exc)
         self._background_tasks.append(task)
         return task
 
@@ -278,6 +283,13 @@ class AuraKernel:
         Fails fast if dependencies are missing.
         """
         logger.info("🛡️ Kernel Boot sequence initiated...")
+
+        try:
+            from core.runtime.runtime_hygiene import get_runtime_hygiene
+
+            await get_runtime_hygiene().start()
+        except Exception as hygiene_exc:
+            logger.debug("Kernel boot runtime hygiene install skipped: %s", hygiene_exc)
         
         # Initialize Lock Watchdog before anything else
         try:

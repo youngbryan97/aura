@@ -36,7 +36,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from core.kernel.bridge import Phase
 from core.state.aura_state import AuraState
@@ -60,6 +60,7 @@ class CognitiveIntegrationPhase(Phase):
         # Lazy references (resolved on first tick)
         self._sentiment_tracker = None
         self._anomaly_detector = None
+        self._autonomous_resilience_mesh = None
         self._adaptive_immune_system = None
         self._strange_loop = None
         self._homeostatic_rl = None
@@ -80,6 +81,7 @@ class CognitiveIntegrationPhase(Phase):
             from core.container import ServiceContainer
             self._sentiment_tracker = ServiceContainer.get("sentiment_tracker", default=None)
             self._anomaly_detector = ServiceContainer.get("anomaly_detector", default=None)
+            self._autonomous_resilience_mesh = ServiceContainer.get("autonomous_resilience_mesh", default=None)
             self._adaptive_immune_system = ServiceContainer.get("adaptive_immune_system", default=None)
             self._strange_loop = ServiceContainer.get("strange_loop", default=None)
             self._homeostatic_rl = ServiceContainer.get("homeostatic_rl", default=None)
@@ -118,43 +120,48 @@ class CognitiveIntegrationPhase(Phase):
         # whether anything looks abnormal compared to the learned baseline.
         anomaly_score = await self._run_anomaly_detection(new_state, user_text)
 
-        # ── 3. Adaptive Immunity ─────────────────────────────────────────
+        # ── 3. Autonomous Resilience Mesh ────────────────────────────────
+        # Audit runtime, service wiring, security signals, and static code
+        # risks so the immune system has more truthful threat context.
+        resilience_report = await self._run_autonomous_resilience(new_state, user_text)
+
+        # ── 4. Adaptive Immunity ─────────────────────────────────────────
         # Convert the current state into a richer antigen that the adaptive
         # immune population can learn against and emit bounded effectors for.
-        await self._run_adaptive_immunity(new_state, user_text, anomaly_score)
+        await self._run_adaptive_immunity(new_state, user_text, anomaly_score, resilience_report)
 
-        # ── 4. Strange Loop (Self-Prediction) ────────────────────────────
+        # ── 5. Strange Loop (Self-Prediction) ────────────────────────────
         # Update the recursive self-model: predict internal state, compare
         # with actual, and feed prediction error back as experience.
         await self._run_strange_loop(new_state)
 
-        # ── 5. Homeostatic RL ────────────────────────────────────────────
+        # ── 6. Homeostatic RL ────────────────────────────────────────────
         # Update the energy/drive system and compute action preferences.
         await self._run_homeostatic_rl(new_state)
 
-        # ── 6. Topology Evolution ────────────────────────────────────────
+        # ── 7. Topology Evolution ────────────────────────────────────────
         # Let the neural mesh grow new connections or prune dead ones based
         # on recent activity patterns.
         await self._run_topology_evolution(new_state)
 
-        # ── 7. Autopoiesis ──────────────────────────────────────────────
+        # ── 8. Autopoiesis ──────────────────────────────────────────────
         # Quick health check — detect degrading subsystems and schedule
         # repairs if needed.
         await self._run_autopoiesis(new_state)
 
-        # ── 8. Criticality Regulation (Wolfram/CA research) ─────────────
+        # ── 9. Criticality Regulation (Wolfram/CA research) ─────────────
         # Tune the neural mesh toward the edge of chaos — the critical
         # point where computation is richest. Adjusts gain, noise, and
         # excitation/inhibition balance via a PID controller.
         await self._run_criticality(new_state)
 
-        # ── 8. ALife Dynamics (Lenia + Evochora + Avida) ────────────────
+        # ── 10. ALife Dynamics (Lenia + Evochora + Avida) ───────────────
         # Lenia continuous convolution kernels for inter-column coupling,
         # entropy tracking (Evochora's dual thermodynamic constraint),
         # and differential CPU allocation (Avida's compute-as-reward).
         await self._run_alife_dynamics(new_state)
 
-        # ── 9. ALife Extensions (pattern replication, speciation, etc.) ──
+        # ── 11. ALife Extensions (pattern replication, speciation, etc.) ─
         # Autopoietic pattern replication (Avida), speciation-driven
         # column specialization (EcoSim), toroidal wrapping, thermodynamic
         # operation costs, and ownership-based access costs (Evochora).
@@ -225,10 +232,34 @@ class CognitiveIntegrationPhase(Phase):
             logger.debug("Anomaly detection skipped: %s", exc)
             return None
 
-    async def _run_adaptive_immunity(self, state: AuraState, text: str, anomaly_score: Any | None) -> None:
+    async def _run_autonomous_resilience(self, state: AuraState, text: str) -> Dict[str, Any] | None:
+        if not self._autonomous_resilience_mesh:
+            return None
+        try:
+            report = await self._autonomous_resilience_mesh.tick(
+                user_text=text,
+                state_snapshot={
+                    "error_count": len(getattr(state.cognition, "recent_errors", [])),
+                    "anomaly_threat_level": state.response_modifiers.get("anomaly_threat_level", 0.0),
+                },
+            )
+            state.response_modifiers["autonomous_resilience"] = report
+            return report
+        except Exception as exc:
+            logger.debug("Autonomous resilience skipped: %s", exc)
+            return None
+
+    async def _run_adaptive_immunity(
+        self,
+        state: AuraState,
+        text: str,
+        anomaly_score: Any | None,
+        resilience_report: Dict[str, Any] | None,
+    ) -> None:
         if not self._adaptive_immune_system:
             return
         try:
+            resilience_threat = float((resilience_report or {}).get("threat_score", 0.0) or 0.0)
             event = {
                 "type": "tick",
                 "text": text,
@@ -247,6 +278,7 @@ class CognitiveIntegrationPhase(Phase):
                     ),
                 ),
                 "error_count": len(getattr(state.cognition, "recent_errors", [])),
+                "threat_probability": resilience_threat,
                 "timestamp": time.time(),
             }
             immune_response = await self._adaptive_immune_system.observe_event(
@@ -254,6 +286,7 @@ class CognitiveIntegrationPhase(Phase):
                 anomaly_score=anomaly_score,
                 state_snapshot={
                     "health_pressure": state.response_modifiers.get("anomaly_threat_level", 0.0),
+                    "resilience": resilience_report or {},
                 },
             )
             state.response_modifiers["adaptive_immunity"] = immune_response.to_dict()
@@ -266,6 +299,36 @@ class CognitiveIntegrationPhase(Phase):
                     "executed": selected.executed,
                     "success": selected.success,
                 }
+            if immune_response.diagnostic_verdict:
+                state.response_modifiers["adaptive_immune_verdict"] = immune_response.diagnostic_verdict
+            if immune_response.coverage_report:
+                state.response_modifiers["adaptive_immune_coverage"] = immune_response.coverage_report
+            if immune_response.verification_report:
+                state.response_modifiers["adaptive_immune_verification"] = immune_response.verification_report
+            if resilience_report and resilience_report.get("immune_events"):
+                secondary_responses = []
+                for issue_event in list(resilience_report.get("immune_events", []))[:2]:
+                    extra_response = await self._adaptive_immune_system.observe_event(
+                        issue_event,
+                        anomaly_score=anomaly_score,
+                        state_snapshot={
+                            "health_pressure": state.response_modifiers.get("anomaly_threat_level", 0.0),
+                            "resilience": resilience_report,
+                        },
+                    )
+                    secondary_responses.append(
+                        {
+                            "antigen": extra_response.antigen.to_dict(),
+                            "verdict": extra_response.diagnostic_verdict,
+                            "selected_artifact": (
+                                extra_response.selected_artifact.to_dict()
+                                if extra_response.selected_artifact
+                                else None
+                            ),
+                        }
+                    )
+                if secondary_responses:
+                    state.response_modifiers["autonomous_resilience_immune"] = secondary_responses
         except Exception as exc:
             logger.debug("Adaptive immunity skipped: %s", exc)
 
