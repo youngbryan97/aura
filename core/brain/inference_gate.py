@@ -2291,6 +2291,8 @@ class InferenceGate:
             max_tokens,
         )
 
+        _is_user_facing = self._origin_is_user_facing(origin) or requested_tier == "primary"
+
         # 1. Try the selected local brain.
         if self._mlx_client:
             try:
@@ -2321,7 +2323,6 @@ class InferenceGate:
                     fallback_label = PRIMARY_ENDPOINT
                     restore_primary = True
 
-                _is_user_facing = self._origin_is_user_facing(origin) or requested_tier == "primary"
                 protected_deep_fallback = bool(
                     protected_foreground_lane
                     and _is_user_facing
