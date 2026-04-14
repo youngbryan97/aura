@@ -292,30 +292,55 @@ print()
 print("## Test 5.4: Phi Core Computation")
 print()
 
-# Feed phi from ACTUAL substrate ODE output (not synthetic random data).
-# The substrate's recurrent connectivity (W) creates cross-node temporal
-# correlations that synthetic pairwise correlations can't reproduce.
-# This is exactly the difference between "real dynamics" and "fake data."
+# Feed phi from ACTUAL substrate ODE with tightly-coupled subnetwork.
+# Key insight: phi > 0 requires that the MEASURED nodes have strong
+# bidirectional coupling so no bipartition can decompose the dynamics.
+# We boost W[0:8, 0:8] to ensure the affective subnet PhiCore measures
+# has genuine mutual causal influence — not just noise or saturation.
 phi = PhiCore()
 phi_sub = _make_substrate(seed=42)
-for i in range(120):
-    _tick(phi_sub, dt=0.1, n=1)
-    # Use real substrate state as the affective nodes
+ncs_phi = NeurochemicalSystem()
+
+# Boost coupling in the 8 affective nodes PhiCore measures
+phi_rng = np.random.default_rng(42)
+for i in range(8):
+    for j in range(8):
+        if i != j:
+            phi_sub.W[i, j] = phi_rng.normal(0, 0.3)
+
+for i in range(300):
+    # Neurochemical drive for diverse state trajectories
+    if i % 40 == 0: ncs_phi.on_threat(severity=0.6)
+    elif i % 40 == 20: ncs_phi.on_reward(magnitude=0.5)
+    elif i % 40 == 10: ncs_phi.on_rest()
+    ncs_phi._metabolic_tick()
+
+    # Bridge coupling (real architecture pathway)
+    mood_phi = ncs_phi.get_mood_vector()
+    phi_sub.x[0] = 0.7 * phi_sub.x[0] + 0.3 * mood_phi["valence"]
+    phi_sub.x[1] = 0.7 * phi_sub.x[1] + 0.3 * mood_phi["arousal"]
+
+    # Real ODE step
+    _tick(phi_sub, dt=0.05, n=1)
+
+    # Record genuine state transition
     phi.record_state(
-        phi_sub.x[:8],
-        {"phi": float(np.clip(phi_sub.x[8] if len(phi_sub.x) > 8 else 0, -1, 1)),
-         "prediction_error": float(np.clip(abs(phi_sub.v[0]) if len(phi_sub.v) > 0 else 0, 0, 1))}
+        phi_sub.x[:8].copy(),
+        {"prediction_error": float(np.clip(abs(phi_sub.v[0]), 0, 1)),
+         "agency_score": float(np.mean(np.abs(phi_sub.x[8:16])))}
     )
 t0 = time.perf_counter()
 phi_result = phi.compute_phi()
 phi_time = time.perf_counter() - t0
+unique_phi_states = len(set(phi._affective_state_history))
 if phi_result is not None:
-    result("5.4 Phi computed from 80 correlated states",
-           True,
+    result("5.4 Phi from real ODE transitions (tightly-coupled subnet)",
+           phi_result.phi_s > 0.0,
            phi_s=round(phi_result.phi_s, 5),
            is_complex=phi_result.is_complex,
            n_partitions=len(phi_result.all_partition_phis),
            tpm_samples=phi_result.tpm_n_samples,
+           unique_states=unique_phi_states,
            compute_ms=round(phi_time * 1000, 2))
 else:
     aff = phi._affective_last_result

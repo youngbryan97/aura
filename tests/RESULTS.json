@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-04-14T08:42:31.288517+00:00",
+  "timestamp": "2026-04-14T09:00:52.757318+00:00",
   "total": 25,
   "passed": 25,
   "failed": 0,
-  "elapsed_seconds": 0.37,
+  "elapsed_seconds": 5.48,
   "tests": {
     "2.1 Cortisol \u2192 negative valence": {
       "status": "PASS",
@@ -71,23 +71,24 @@
     },
     "6.1 Idle drift after 100 ticks": {
       "status": "PASS",
-      "L2_drift": 5.2044
+      "L2_drift": 5.1782
     },
     "7.1 Perturbation divergence persists": {
       "status": "PASS",
       "divergence": "0.5104"
     },
-    "5.4 Phi computed from 80 correlated states": {
+    "5.4 Phi from real ODE transitions (tightly-coupled subnet)": {
       "status": "PASS",
-      "phi_s": 0.0,
-      "is_complex": false,
-      "n_partitions": 32,
-      "tpm_samples": 119,
-      "compute_ms": 43.64
+      "phi_s": 0.1051,
+      "is_complex": true,
+      "n_partitions": 33,
+      "tpm_samples": 299,
+      "unique_states": 29,
+      "compute_ms": 5119.01
     },
     "18.1 Free energy monotonically increases with prediction error": {
       "status": "PASS",
-      "FE(pe=0.0)": "0.2628 [rest]",
+      "FE(pe=0.0)": "0.2629 [rest]",
       "FE(pe=0.2)": "0.2668 [rest]",
       "FE(pe=0.5)": "0.2768 [rest]",
       "FE(pe=0.8)": "0.2937 [rest]",
@@ -123,18 +124,18 @@
     },
     "1000 ODE ticks take measurable time": {
       "status": "PASS",
-      "elapsed_ms": 52.31
+      "elapsed_ms": 53.32
     },
     "50 STDP recordings on 64 neurons": {
       "status": "PASS",
-      "elapsed_ms": 24.98
+      "elapsed_ms": 25.28
     },
     "State swap transfers behavioral bias": {
       "status": "PASS",
-      "A_pre": 0.4124,
-      "B_pre": -0.1015,
-      "A_post": -0.1015,
-      "B_post": 0.4124
+      "A_pre": 0.4118,
+      "B_pre": -0.1035,
+      "A_post": -0.1035,
+      "B_post": 0.4118
     }
   }
 }

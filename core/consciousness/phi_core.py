@@ -1211,6 +1211,56 @@ class PhiCore:
 
         return phi
 
+    def _phi_for_bipartition_generic(self, tpm, p_stationary, part_a, part_b,
+                                      n_nodes=None, n_states=None, bit_tables=None):
+        """Generic phi computation that works for any node count.
+
+        Used by compute_affective_phi (8-node) and compute_mesh_phi (8-node)
+        which pass their own n_states and bit_tables.
+        """
+        if n_states is None:
+            n_states = N_STATES
+        if bit_tables is None:
+            bit_tables = getattr(self, '_bit_tables', {})
+
+        tpm_a = self._marginal_tpm_generic(tpm, p_stationary, list(part_a), list(part_b),
+                                            n_states=n_states, bit_tables=bit_tables)
+        tpm_b = self._marginal_tpm_generic(tpm, p_stationary, list(part_b), list(part_a),
+                                            n_states=n_states, bit_tables=bit_tables)
+
+        bt = bit_tables.get(frozenset(part_a), None)
+        if bt is None:
+            return 0.0
+
+        phi = 0.0
+        for s in range(n_states):
+            p_s = float(p_stationary[s])
+            if p_s < 1e-10:
+                continue
+            t_actual = tpm[s]
+            s_a = bt["extract_a"][s]
+            s_b = bt["extract_b"][s]
+
+            t_cut = np.zeros(n_states, dtype=np.float32)
+            for s_prime in range(n_states):
+                s_prime_a = bt["extract_a"][s_prime]
+                s_prime_b = bt["extract_b"][s_prime]
+                t_cut[s_prime] = tpm_a[s_a, s_prime_a] * tpm_b[s_b, s_prime_b]
+
+            t_cut_sum = t_cut.sum()
+            if t_cut_sum < 1e-10:
+                continue
+            t_cut /= t_cut_sum
+
+            mask = t_actual > 1e-10
+            if not mask.any():
+                continue
+            kl = float(np.sum(
+                t_actual[mask] * np.log(t_actual[mask] / (t_cut[mask] + 1e-10))
+            ))
+            phi += p_s * max(0.0, kl)
+        return phi
+
     def _phi_for_bipartition(
         self,
         tpm: np.ndarray,
@@ -1457,6 +1507,58 @@ class PhiCore:
         row_sums = np.maximum(row_sums, 1e-10)
         tpm_target /= row_sums
 
+        return tpm_target
+
+    def _marginal_tpm_generic(
+        self,
+        tpm: np.ndarray,
+        p_stationary: np.ndarray,
+        target_nodes: List[int],
+        other_nodes: List[int],
+        n_states: int = None,
+        bit_tables: dict = None,
+    ) -> np.ndarray:
+        """Compute marginal TPM using provided n_states and bit_tables."""
+        if n_states is None:
+            n_states = N_STATES
+        if bit_tables is None:
+            bit_tables = getattr(self, '_bit_tables', {})
+
+        n_target = len(target_nodes)
+        n_target_states = 2 ** n_target
+        n_other = len(other_nodes)
+        n_other_states = 2 ** n_other
+
+        bt = bit_tables.get(frozenset(target_nodes), None)
+        if bt is None:
+            return np.ones((n_target_states, n_target_states), dtype=np.float32) / n_target_states
+
+        p_other = np.zeros(n_other_states, dtype=np.float32)
+        for s in range(n_states):
+            s_other = bt["extract_other"][s] if "extract_other" in bt else bt["extract_b"][s]
+            p_other[s_other] += p_stationary[s]
+        p_other_sum = p_other.sum()
+        if p_other_sum > 1e-10:
+            p_other /= p_other_sum
+        else:
+            p_other = np.ones(n_other_states, dtype=np.float32) / n_other_states
+
+        tpm_target = np.zeros((n_target_states, n_target_states), dtype=np.float32)
+        for s_target in range(n_target_states):
+            for s_other in range(n_other_states):
+                if "encode" in bt:
+                    s_full = bt["encode"][s_target * n_other_states + s_other]
+                else:
+                    # Reconstruct full state from parts
+                    s_full = s_target  # Fallback
+                p_weight = p_other[s_other]
+                for s_prime in range(n_states):
+                    s_prime_target = bt["extract_a"][s_prime]
+                    tpm_target[s_target, s_prime_target] += tpm[s_full, s_prime] * p_weight
+
+        row_sums = tpm_target.sum(axis=1, keepdims=True)
+        row_sums = np.maximum(row_sums, 1e-10)
+        tpm_target /= row_sums
         return tpm_target
 
     # ── Precomputed Lookup Tables ──────────────────────────────────────────────

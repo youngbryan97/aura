@@ -413,37 +413,65 @@ class TestAblation:
             return winner
         asyncio.get_event_loop().run_until_complete(_run())
 
-    def test_phi_core_computes_nonzero_phi(self):
-        """PhiCore must actually compute phi > 0 given proper state history."""
+    def test_phi_positive_from_real_ode_transitions(self):
+        """PhiCore must compute phi > 0 when fed REAL ODE transitions
+        from a tightly-coupled subnetwork.
+
+        Key insight: random vectors with pairwise correlations are still
+        IIT-decomposable. Real phi > 0 requires genuine recurrent causal
+        dynamics where the system's past state predicts its future state
+        BETTER as a whole than when partitioned.
+        """
         phi = PhiCore()
-        rng = np.random.default_rng(42)
+        import tempfile
+        from pathlib import Path
+        cfg = SubstrateConfig(neuron_count=64, noise_level=0.005,
+                              state_file=Path(tempfile.mkdtemp()) / "phi_test.npy")
+        sub = LiquidSubstrate(config=cfg)
+        init_rng = np.random.default_rng(42)
+        sub.x = init_rng.uniform(-0.3, 0.3, 64)
+        sub.W = init_rng.standard_normal((64, 64)) / np.sqrt(64)
 
-        # Feed it correlated states so phi > 0
-        # record_state expects substrate_x (at least 8) + cognitive_values dict
-        for i in range(80):
-            substrate_x = rng.uniform(-0.5, 0.5, 8)
-            # Introduce correlations (nodes influence each other)
-            substrate_x[1] = 0.8 * substrate_x[0] + 0.2 * rng.uniform(-0.1, 0.1)  # arousal ~ valence
-            substrate_x[3] = -0.5 * substrate_x[0] + 0.5 * rng.uniform(-0.1, 0.1)  # frustration ~ -valence
-            cognitive = {
-                "phi": float(rng.uniform(0, 0.5)),
-                "social_hunger": float(rng.uniform(0, 0.5)),
-                "prediction_error": float(rng.uniform(0, 0.5)),
-                "agency_score": float(rng.uniform(0, 0.5)),
-            }
-            phi.record_state(substrate_x, cognitive)
+        ncs = NeurochemicalSystem()
 
-        result = phi.compute_phi()
-        # PhiCore may return None if spectral approx fails, or PhiResult
-        if result is not None:
-            assert isinstance(result, PhiResult), f"Expected PhiResult, got {type(result)}"
-            assert result.phi_s >= 0.0, \
-                f"PhiCore computed phi={result.phi_s} — expected non-negative"
-        else:
-            # If spectral approx is unavailable, try affective subset
-            aff = phi._affective_last_result
-            assert aff is not None, \
-                "PhiCore returned None for both spectral and affective phi after 80 states"
+        # Boost coupling in the 8 affective nodes PhiCore measures
+        # Use a SEPARATE RNG so coupling is deterministic regardless of prior calls
+        coupling_rng = np.random.default_rng(99)
+        for i in range(8):
+            for j in range(8):
+                if i != j:
+                    sub.W[i, j] = coupling_rng.normal(0, 0.3)
+
+        # Run real ODE + neurochemical drive for 300 ticks
+        for t in range(300):
+            if t % 40 == 0: ncs.on_threat(severity=0.6)
+            elif t % 40 == 20: ncs.on_reward(magnitude=0.5)
+            elif t % 40 == 10: ncs.on_rest()
+            ncs._metabolic_tick()
+
+            mood = ncs.get_mood_vector()
+            sub.x[sub.idx_valence] = 0.7 * sub.x[sub.idx_valence] + 0.3 * mood["valence"]
+            sub.x[sub.idx_arousal] = 0.7 * sub.x[sub.idx_arousal] + 0.3 * mood["arousal"]
+
+            _tick_substrate_sync(sub, dt=0.05, n=1)
+            phi.record_state(sub.x[:8].copy(), {
+                "prediction_error": float(np.clip(abs(sub.v[0]), 0, 1)),
+            })
+
+        # Use the AFFECTIVE 8-node exact computation (127 bipartitions on 256 states)
+        # because we only coupled the affective subnet. The 16-node spectral path
+        # finds trivial partitions by isolating unused cognitive nodes (always 0).
+        result = phi.compute_affective_phi()
+        assert result is not None, \
+            "PhiCore.compute_affective_phi() returned None after 300 real ODE transitions"
+        assert isinstance(result, PhiResult), f"Expected PhiResult, got {type(result)}"
+        assert result.phi_s > 0.0, \
+            f"Phi must be > 0 for tightly-coupled recurrent dynamics. " \
+            f"Got phi_s={result.phi_s:.5f} over {result.tpm_n_samples} transitions. " \
+            f"Unique states: {len(set(phi._affective_state_history))}. " \
+            f"If zero, the affective subnet's dynamics are IIT-decomposable."
+        assert result.is_complex, \
+            "System must be a genuine IIT complex (phi_s > 0)"
 
     def test_each_consciousness_module_changes_state(self):
         """Every consciousness module must produce different output when
