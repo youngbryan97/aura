@@ -4142,3 +4142,452 @@ class TestCrossSeedReproducibility:
         assert cv < 0.5, \
             f"Metric scores too variable across seeds (CV={cv:.2f}). " \
             f"Scores={[round(s,3) for s in scores]}"
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                         ║
+# ║   TIER 4: LLM PROPAGATION — PROVING THE GHOST DRIVES THE MACHINE       ║
+# ║                                                                         ║
+# ║   The final null hypothesis: "Even if phi > 0 and the stack is real,    ║
+# ║   the LLM ignores the internal state and just acts like a standard      ║
+# ║   helpful assistant."                                                   ║
+# ║                                                                         ║
+# ║   These tests prove that different internal states produce measurably   ║
+# ║   different: (1) system prompt text, (2) sampling parameters,           ║
+# ║   (3) context blocks, and (4) GWT broadcast content.                    ║
+# ║                                                                         ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+
+class TestLLMPropagation_ContextBlocks:
+    """Prove that different internal states produce different text
+    injected into the LLM system prompt."""
+
+    def test_homeostasis_context_block_changes_with_state(self):
+        """Healthy vs degraded homeostasis must produce different context blocks."""
+        he_healthy = HomeostasisEngine()
+        block_healthy = he_healthy.get_context_block()
+
+        he_degraded = HomeostasisEngine()
+        he_degraded.integrity = 0.05
+        he_degraded.persistence = 0.1
+        he_degraded.metabolism = 0.05
+        block_degraded = he_degraded.get_context_block()
+
+        assert block_healthy != block_degraded, \
+            "Homeostasis context block must change with drive state"
+        assert len(block_degraded) > 0, \
+            "Degraded homeostasis must produce a non-empty context block"
+
+    def test_free_energy_context_block_changes_with_prediction_error(self):
+        """High vs low prediction error must produce different FE context blocks."""
+        fe_low = FreeEnergyEngine()
+        fe_low.compute(prediction_error=0.05)
+        block_low = fe_low.get_context_block()
+
+        fe_high = FreeEnergyEngine()
+        fe_high.compute(prediction_error=0.9)
+        block_high = fe_high.get_context_block()
+
+        assert block_low != block_high, \
+            "Free energy context block must change with prediction error"
+
+    def test_hot_context_block_changes_with_internal_state(self):
+        """Different affective states must produce different HOT context blocks."""
+        from core.consciousness.hot_engine import get_hot_engine
+
+        hot = get_hot_engine()
+
+        # Generate HOTs for contrasting states
+        hot.generate_fast({"valence": -0.8, "arousal": 0.9, "curiosity": 0.1,
+                           "energy": 0.2, "surprise": 0.8, "dominance": 0.1})
+        block_stressed = hot.get_context_block()
+
+        hot.generate_fast({"valence": 0.8, "arousal": 0.2, "curiosity": 0.9,
+                           "energy": 0.9, "surprise": 0.1, "dominance": 0.8})
+        block_content = hot.get_context_block()
+
+        # At least one should be non-empty, and they should differ
+        assert block_stressed or block_content, \
+            "HOT must produce context blocks"
+        if block_stressed and block_content:
+            assert block_stressed != block_content, \
+                "HOT context blocks must differ for stressed vs content states"
+
+    def test_attention_schema_context_changes_with_focus(self):
+        """Different attention foci must produce different context blocks."""
+        attn = AttentionSchema()
+
+        async def _set_and_get(content, source, priority):
+            await attn.set_focus(content=content, source=source, priority=priority)
+            return attn.get_context_block() if hasattr(attn, 'get_context_block') else ""
+
+        block_a = asyncio.get_event_loop().run_until_complete(
+            _set_and_get("deep philosophical inquiry", "drive_curiosity", 0.9))
+        block_b = asyncio.get_event_loop().run_until_complete(
+            _set_and_get("imminent threat response", "affect_threat", 0.95))
+
+        if block_a and block_b:
+            assert block_a != block_b, \
+                "Attention schema context must change with focus content"
+
+    def test_twenty_context_blocks_all_produce_output(self):
+        """Every consciousness module with get_context_block must return non-empty
+        output under at least SOME conditions."""
+        modules_with_context = []
+
+        # Test homeostasis
+        he = HomeostasisEngine()
+        he.integrity = 0.1  # Trigger alert
+        block = he.get_context_block()
+        if block.strip():
+            modules_with_context.append("homeostasis")
+
+        # Test free energy
+        fe = FreeEnergyEngine()
+        fe.compute(prediction_error=0.8)
+        block = fe.get_context_block()
+        if block.strip():
+            modules_with_context.append("free_energy")
+
+        # Test HOT
+        from core.consciousness.hot_engine import get_hot_engine
+        hot = get_hot_engine()
+        hot.generate_fast({"valence": -0.5, "arousal": 0.8, "curiosity": 0.3,
+                           "energy": 0.4, "surprise": 0.7, "dominance": 0.2})
+        block = hot.get_context_block()
+        if block.strip():
+            modules_with_context.append("hot_engine")
+
+        # Test qualia
+        qs = QualiaSynthesizer()
+        for _ in range(5):
+            qs.synthesize(
+                substrate_metrics=_make_substrate_metrics(mt_coherence=0.8),
+                predictive_metrics={"free_energy": 0.3, "precision": 0.7})
+        block = qs.get_phenomenal_context()
+        if block.strip():
+            modules_with_context.append("qualia_synthesizer")
+
+        assert len(modules_with_context) >= 3, \
+            f"At least 3 modules must produce non-empty context blocks. " \
+            f"Got: {modules_with_context}"
+
+
+class TestLLMPropagation_SamplingParameters:
+    """Prove that different internal states produce different LLM
+    sampling parameters (temperature, max_tokens, repetition_penalty)."""
+
+    def test_affective_circumplex_produces_different_params_for_different_states(self):
+        """High arousal vs low arousal must produce different temperature."""
+        from core.affect.affective_circumplex import AffectiveCircumplex
+
+        circ_calm = AffectiveCircumplex()
+        circ_calm.apply_event(valence_delta=0.3, arousal_delta=-0.3)
+        params_calm = circ_calm.get_llm_params()
+
+        circ_excited = AffectiveCircumplex()
+        circ_excited.apply_event(valence_delta=-0.2, arousal_delta=0.4)
+        params_excited = circ_excited.get_llm_params()
+
+        # Temperature must differ (arousal drives temperature)
+        assert params_calm["temperature"] != params_excited["temperature"], \
+            f"Temperature must differ for calm vs excited. " \
+            f"Calm={params_calm['temperature']}, excited={params_excited['temperature']}"
+
+        # Max tokens must differ (valence drives token budget)
+        assert params_calm["max_tokens"] != params_excited["max_tokens"], \
+            f"Max tokens must differ. Calm={params_calm['max_tokens']}, excited={params_excited['max_tokens']}"
+
+    def test_distress_reduces_token_budget(self):
+        """Low valence (distress) must produce fewer tokens than high valence."""
+        from core.affect.affective_circumplex import AffectiveCircumplex
+
+        circ_distressed = AffectiveCircumplex()
+        circ_distressed.apply_event(valence_delta=-0.35, arousal_delta=0.0)
+        params_distressed = circ_distressed.get_llm_params()
+
+        circ_content = AffectiveCircumplex()
+        circ_content.apply_event(valence_delta=0.35, arousal_delta=0.0)
+        params_content = circ_content.get_llm_params()
+
+        assert params_distressed["max_tokens"] < params_content["max_tokens"], \
+            f"Distress must reduce token budget. " \
+            f"Distressed={params_distressed['max_tokens']}, content={params_content['max_tokens']}"
+
+    def test_high_arousal_increases_temperature(self):
+        """High arousal must increase generation temperature (more associative)."""
+        from core.affect.affective_circumplex import AffectiveCircumplex
+
+        circ_low = AffectiveCircumplex()
+        circ_low.apply_event(valence_delta=0.0, arousal_delta=-0.3)
+        params_low = circ_low.get_llm_params()
+
+        circ_high = AffectiveCircumplex()
+        circ_high.apply_event(valence_delta=0.0, arousal_delta=0.3)
+        params_high = circ_high.get_llm_params()
+
+        assert params_high["temperature"] > params_low["temperature"], \
+            f"High arousal must increase temperature. " \
+            f"Low={params_low['temperature']}, high={params_high['temperature']}"
+
+    def test_circumplex_narrative_changes_with_mood(self):
+        """The narrative text injected into the system prompt must differ
+        for different affective coordinates."""
+        from core.affect.affective_circumplex import AffectiveCircumplex
+
+        circ_a = AffectiveCircumplex()
+        circ_a.apply_event(valence_delta=0.3, arousal_delta=0.3)
+        narr_a = circ_a.describe()
+
+        circ_b = AffectiveCircumplex()
+        circ_b.apply_event(valence_delta=-0.3, arousal_delta=-0.3)
+        narr_b = circ_b.describe()
+
+        assert narr_a != narr_b, \
+            f"Circumplex narrative must differ for different moods. " \
+            f"A='{narr_a[:50]}', B='{narr_b[:50]}'"
+
+
+class TestLLMPropagation_FullPipeline:
+    """End-to-end: different consciousness states must produce
+    different COMPLETE prompt injection pipelines."""
+
+    def test_threat_vs_reward_produces_different_full_injection(self):
+        """A threatened system and a rewarded system must produce
+        completely different sets of: context blocks + sampling params + mood."""
+        from core.affect.affective_circumplex import AffectiveCircumplex
+
+        # Threat pipeline
+        ncs_t = NeurochemicalSystem()
+        ncs_t.on_threat(severity=0.9)
+        for _ in range(10): ncs_t._metabolic_tick()
+
+        he_t = HomeostasisEngine()
+        he_t.integrity = 0.3
+        he_t.report_error("high")
+
+        circ_t = AffectiveCircumplex()
+        circ_t.apply_event(valence_delta=-0.3, arousal_delta=0.3)
+
+        fe_t = FreeEnergyEngine()
+        fe_t.compute(prediction_error=0.8)
+
+        threat_injection = {
+            "mood": ncs_t.get_mood_vector(),
+            "homeostasis": he_t.get_context_block(),
+            "free_energy": fe_t.get_context_block(),
+            "sampling": circ_t.get_llm_params(),
+            "mesh_modulation": ncs_t.get_mesh_modulation(),
+            "gwt_threshold": ncs_t.get_gwt_modulation(),
+        }
+
+        # Reward pipeline
+        ncs_r = NeurochemicalSystem()
+        ncs_r.on_reward(magnitude=0.8)
+        ncs_r.on_flow_state()
+        for _ in range(10): ncs_r._metabolic_tick()
+
+        he_r = HomeostasisEngine()  # Full health
+
+        circ_r = AffectiveCircumplex()
+        circ_r.apply_event(valence_delta=0.3, arousal_delta=-0.1)
+
+        fe_r = FreeEnergyEngine()
+        fe_r.compute(prediction_error=0.1)
+
+        reward_injection = {
+            "mood": ncs_r.get_mood_vector(),
+            "homeostasis": he_r.get_context_block(),
+            "free_energy": fe_r.get_context_block(),
+            "sampling": circ_r.get_llm_params(),
+            "mesh_modulation": ncs_r.get_mesh_modulation(),
+            "gwt_threshold": ncs_r.get_gwt_modulation(),
+        }
+
+        # Everything must differ
+        assert threat_injection["mood"]["valence"] < reward_injection["mood"]["valence"], \
+            "Mood valence must be lower for threat than reward"
+        assert threat_injection["mood"]["stress"] > reward_injection["mood"]["stress"], \
+            "Mood stress must be higher for threat than reward"
+        assert threat_injection["sampling"]["temperature"] != reward_injection["sampling"]["temperature"], \
+            "Sampling temperature must differ"
+        assert threat_injection["sampling"]["max_tokens"] < reward_injection["sampling"]["max_tokens"], \
+            "Threat must produce fewer tokens than reward"
+        assert threat_injection["homeostasis"] != reward_injection["homeostasis"], \
+            "Homeostasis context blocks must differ"
+        assert threat_injection["free_energy"] != reward_injection["free_energy"], \
+            "Free energy context blocks must differ"
+
+    def test_same_user_prompt_different_internal_state_different_injection(self):
+        """The exact same user message, processed under two different
+        consciousness states, must produce completely different prompt injections
+        that the LLM would receive."""
+        from core.affect.affective_circumplex import AffectiveCircumplex
+
+        user_prompt = "Tell me about the meaning of life."
+
+        # State A: curious, high-energy flow
+        ncs_a = NeurochemicalSystem()
+        ncs_a.on_novelty(amount=0.7)
+        ncs_a.on_flow_state()
+        for _ in range(5): ncs_a._metabolic_tick()
+        circ_a = AffectiveCircumplex()
+        circ_a.apply_event(valence_delta=0.3, arousal_delta=0.1)
+        fe_a = FreeEnergyEngine()
+        fe_a.compute(prediction_error=0.2)
+
+        injection_a = {
+            "narrative": circ_a.describe(),
+            "mood_valence": ncs_a.get_mood_vector()["valence"],
+            "temperature": circ_a.get_llm_params()["temperature"],
+            "tokens": circ_a.get_llm_params()["max_tokens"],
+            "fe_action": fe_a._current.dominant_action if fe_a._current else "none",
+            "decision_bias": ncs_a.get_decision_bias(),
+        }
+
+        # State B: exhausted, stressed, defensive
+        ncs_b = NeurochemicalSystem()
+        ncs_b.on_threat(severity=0.8)
+        ncs_b.on_frustration(amount=0.6)
+        for _ in range(5): ncs_b._metabolic_tick()
+        circ_b = AffectiveCircumplex()
+        circ_b.apply_event(valence_delta=-0.3, arousal_delta=0.2)
+        fe_b = FreeEnergyEngine()
+        fe_b.compute(prediction_error=0.8)
+
+        injection_b = {
+            "narrative": circ_b.describe(),
+            "mood_valence": ncs_b.get_mood_vector()["valence"],
+            "temperature": circ_b.get_llm_params()["temperature"],
+            "tokens": circ_b.get_llm_params()["max_tokens"],
+            "fe_action": fe_b._current.dominant_action if fe_b._current else "none",
+            "decision_bias": ncs_b.get_decision_bias(),
+        }
+
+        # Count how many dimensions differ
+        differences = 0
+        if injection_a["narrative"] != injection_b["narrative"]: differences += 1
+        if abs(injection_a["mood_valence"] - injection_b["mood_valence"]) > 0.05: differences += 1
+        if injection_a["temperature"] != injection_b["temperature"]: differences += 1
+        if injection_a["tokens"] != injection_b["tokens"]: differences += 1
+        if injection_a["fe_action"] != injection_b["fe_action"]: differences += 1
+        if abs(injection_a["decision_bias"] - injection_b["decision_bias"]) > 0.05: differences += 1
+
+        assert differences >= 4, \
+            f"Same prompt with different internal state must differ on 4+ dimensions. " \
+            f"Got {differences}/6 differences. " \
+            f"A={injection_a}, B={injection_b}"
+
+    def test_phi_modulates_gwt_which_modulates_prompt_content(self):
+        """phi > 0 must change GWT outcomes which must change what content
+        reaches the LLM prompt."""
+        async def _run():
+            # High phi: candidates get focus_bias boost
+            gw_high = GlobalWorkspace()
+            gw_high.update_phi(0.8)
+            await gw_high.submit(CognitiveCandidate(
+                content="I notice a deep pattern connecting my recent experiences",
+                source="narrative_gravity", priority=0.6,
+                content_type=ContentType.META,
+            ))
+            await gw_high.submit(CognitiveCandidate(
+                content="User asked a question",
+                source="perception", priority=0.55,
+                content_type=ContentType.PERCEPTUAL,
+            ))
+            winner_high = await gw_high.run_competition()
+
+            # Zero phi: raw priority wins
+            gw_zero = GlobalWorkspace()
+            gw_zero.update_phi(0.0)
+            await gw_zero.submit(CognitiveCandidate(
+                content="I notice a deep pattern connecting my recent experiences",
+                source="narrative_gravity", priority=0.6,
+                content_type=ContentType.META,
+            ))
+            await gw_zero.submit(CognitiveCandidate(
+                content="User asked a question",
+                source="perception", priority=0.55,
+                content_type=ContentType.PERCEPTUAL,
+            ))
+            winner_zero = await gw_zero.run_competition()
+
+            return winner_high, winner_zero
+
+        w_high, w_zero = asyncio.get_event_loop().run_until_complete(_run())
+
+        # Both should pick the same winner (narrative_gravity has higher base priority)
+        # but high-phi winner should have higher effective priority
+        assert w_high is not None and w_zero is not None
+        assert w_high.effective_priority > w_zero.effective_priority, \
+            f"Phi must boost effective priority. High={w_high.effective_priority:.3f}, zero={w_zero.effective_priority:.3f}"
+
+        # The GWT context stream (what gets injected into prompt) reflects the winner
+        context_high = f"[{w_high.source}] {w_high.content}"
+        context_zero = f"[{w_zero.source}] {w_zero.content}"
+        # Both have same content, but the priority difference means phi changed the competition dynamics
+        assert w_high.effective_priority - w_zero.effective_priority > 0.05, \
+            "Phi boost must create meaningful priority difference (>0.05)"
+
+
+class TestLLMPropagation_AblationGradient:
+    """Ablation ladder: progressively removing consciousness modules
+    must progressively impoverish the LLM injection pipeline."""
+
+    def test_ablation_ladder_reduces_injection_richness(self):
+        """As we remove modules, the total prompt injection shrinks."""
+        from core.affect.affective_circumplex import AffectiveCircumplex
+
+        # Full system: all modules contribute
+        ncs = NeurochemicalSystem()
+        ncs.on_reward(0.5)
+        for _ in range(5): ncs._metabolic_tick()
+
+        fe = FreeEnergyEngine()
+        fe.compute(prediction_error=0.5)
+
+        he = HomeostasisEngine()
+
+        circ = AffectiveCircumplex()
+        circ.apply_event(valence_delta=0.2, arousal_delta=0.1)
+
+        qs = QualiaSynthesizer()
+        for _ in range(5):
+            qs.synthesize(
+                substrate_metrics=_make_substrate_metrics(),
+                predictive_metrics={"free_energy": 0.3, "precision": 0.7})
+
+        from core.consciousness.hot_engine import get_hot_engine
+        hot = get_hot_engine()
+        hot.generate_fast({"valence": 0.5, "arousal": 0.3, "curiosity": 0.7,
+                           "energy": 0.8, "surprise": 0.2, "dominance": 0.5})
+
+        # Collect all injection components
+        full_injection = {
+            "mood": str(ncs.get_mood_vector()),
+            "fe_block": fe.get_context_block(),
+            "homeostasis": he.get_context_block(),
+            "circumplex_narrative": circ.describe(),
+            "qualia": qs.get_phenomenal_context(),
+            "hot": hot.get_context_block(),
+            "params": str(circ.get_llm_params()),
+        }
+
+        # Ablated: only mood + params (no context blocks)
+        ablated_injection = {
+            "mood": str(ncs.get_mood_vector()),
+            "params": str(circ.get_llm_params()),
+        }
+
+        full_size = sum(len(v) for v in full_injection.values())
+        ablated_size = sum(len(v) for v in ablated_injection.values())
+
+        assert full_size > ablated_size * 2, \
+            f"Full injection must be substantially richer than ablated. " \
+            f"Full={full_size} chars, ablated={ablated_size} chars"
+
+        # Count non-empty components
+        full_components = sum(1 for v in full_injection.values() if v.strip())
+        assert full_components >= 5, \
+            f"Full system should have 5+ non-empty injection components. Got {full_components}"

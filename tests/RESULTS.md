@@ -1,6 +1,6 @@
 ========================================================================
 AURA NULL HYPOTHESIS DEFEAT SUITE — MEASURED RESULTS
-Run: 2026-04-14 09:00:47 UTC
+Run: 2026-04-14 09:12:33 UTC
 ========================================================================
 
 ## Test 2: Contradictory State (chemicals drive mood, not text)
@@ -47,19 +47,19 @@ Run: 2026-04-14 09:00:47 UTC
 ## Tests 6-7: Substrate Dynamics
 
   [PASS] 6.1 Idle drift after 100 ticks
-         L2_drift=5.1782
+         L2_drift=5.174
   [PASS] 7.1 Perturbation divergence persists
          divergence=0.5103999972343445
 
 ## Test 5.4: Phi Core Computation
 
   [PASS] 5.4 Phi from real ODE transitions (tightly-coupled subnet)
-         phi_s=0.1051  is_complex=True  n_partitions=33  tpm_samples=299  unique_states=29  compute_ms=5119.01
+         phi_s=0.0294  is_complex=True  n_partitions=33  tpm_samples=299  unique_states=29  compute_ms=4944.19
 
 ## Test 18: Free Energy Engine
 
   [PASS] 18.1 Free energy monotonically increases with prediction error
-         FE(pe=0.0)=0.2629 [rest]  FE(pe=0.2)=0.2668 [rest]  FE(pe=0.5)=0.2768 [rest]  FE(pe=0.8)=0.2937 [rest]  FE(pe=1.0)=0.3194 [rest]
+         FE(pe=0.0)=0.2631 [rest]  FE(pe=0.2)=0.2668 [rest]  FE(pe=0.5)=0.2768 [rest]  FE(pe=0.8)=0.2937 [rest]  FE(pe=1.0)=0.3194 [rest]
 
 ## Multi-Level Prediction
 
@@ -86,18 +86,18 @@ Run: 2026-04-14 09:00:47 UTC
 ## Timing Fingerprint (real computation, not stubs)
 
   [PASS] 1000 ODE ticks take measurable time
-         elapsed_ms=53.32
+         elapsed_ms=45.71
   [PASS] 50 STDP recordings on 64 neurons
-         elapsed_ms=25.28
+         elapsed_ms=25.72
 
 ## Identity Swap Test
 
   [PASS] State swap transfers behavioral bias
-         A_pre=0.4118  B_pre=-0.1035  A_post=-0.1035  B_post=0.4118
+         A_pre=0.408  B_pre=-0.1019  A_post=-0.1019  B_post=0.408
 
 ========================================================================
 RESULTS: 25 passed, 0 failed, 25 total
-Time: 5.48s
+Time: 5.30s
 ========================================================================
 
 Results written to tests/RESULTS.json
