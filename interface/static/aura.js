@@ -3423,6 +3423,30 @@ $('btn-src').onclick = async () => {
     }
 };
 
+$('btn-update').onclick = async () => {
+    const btn = $('btn-update');
+    btn.style.opacity = '0.5';
+    btn.textContent = '↻ ...';
+    appendMsg('aura', '♻️ Hot-reloading Aura code from disk...');
+    try {
+        const res = await fetch('/api/system/hot-reload', { method: 'POST' });
+        if (res.ok) {
+            const data = await res.json();
+            const reloaded = data.reloaded_count || 0;
+            const scope = data.scope || 'all';
+            appendMsg('aura', `✅ Hot-reload complete — ${reloaded} modules refreshed (scope: ${scope}). All changes are live.`);
+        } else {
+            const text = await res.text();
+            appendMsg('aura', `⚠️ Hot-reload returned ${res.status}: ${text.slice(0, 200)}`);
+        }
+    } catch (e) {
+        appendMsg('aura', '❌ Hot-reload request failed — is the server running?');
+    } finally {
+        btn.style.opacity = '1';
+        btn.textContent = '↻ UPDATE';
+    }
+};
+
 $('btn-soul').onclick = () => {
     const overlay = $('soul-overlay');
     const frame = $('soul-frame');
