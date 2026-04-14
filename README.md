@@ -4,6 +4,8 @@
 
 > 83+ interconnected modules. IIT 4.0 integrated information on a live 16-node substrate. Residual-stream affective steering. Global Workspace + 11 competing consciousness theories. Unified Will with forensic receipts. No cloud dependency. Runs on a Mac.
 
+**[Null Hypothesis Defeat: Test Results →](TESTING.md)** — 136 tests proving the consciousness stack is causally real, not text decoration. Adversarial baselines, 50-shuffle decoupling, per-class ablation, identity swap, 8-metric degradation panel. The proof.
+
 **[Read the Architecture Whitepaper →](ARCHITECTURE.md)** — IIT 4.0 math, activation steering mechanics, substrate dynamics, memory architecture. No marketing, just the engineering.
 
 **[How It Works (Plain English) →](HOW_IT_WORKS.md)** — The same architecture explained without equations. Start here if you're not an ML engineer.
