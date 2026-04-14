@@ -2576,7 +2576,11 @@ async def api_chat(
         if not bool(lane.get("conversation_ready", False)):
             gate = ServiceContainer.get("inference_gate", default=None)
             if gate and hasattr(gate, "ensure_foreground_ready"):
-                warmup_budget = min(35.0, _remaining_foreground_budget(reserve=35.0))
+                # [STABILITY v51] Reduced warmup budget from 35s → 12s.
+                # If cortex doesn't warm within 12s, fall through to the
+                # protected foreground lane for a fast response rather than
+                # blocking the user for 35s staring at "cortex warming".
+                warmup_budget = min(12.0, _remaining_foreground_budget(reserve=12.0))
                 try:
                     lane = await gate.ensure_foreground_ready(
                         timeout=max(1.0, warmup_budget)
@@ -2586,14 +2590,53 @@ async def api_chat(
                         "foreground_warmup_timeout",
                         state="warming",
                     )
+                    # [STABILITY v51] Warming-with-response: instead of returning
+                    # a 503 "still warming" message, try the protected foreground
+                    # lane. The user gets a fast response while cortex warms in
+                    # the background for the next message.
+                    _warmup_bypass_reply = await _attempt_protected_foreground_reply("warmup_timeout_bypass")
+                    if _warmup_bypass_reply:
+                        # Fire-and-forget cortex recovery for the next request
+                        if gate and hasattr(gate, "_schedule_background_cortex_prewarm"):
+                            try:
+                                gate._schedule_background_cortex_prewarm(delay=1.0)
+                            except Exception:
+                                pass
+                        return await _finalize_fastpath(
+                            _warmup_bypass_reply,
+                            status="protected_foreground",
+                        )
                 except Exception as exc:
                     failure_reason = str(exc or "foreground_warmup_failed")
                     lane = _mark_conversation_lane_state(
                         failure_reason,
                         state="failed" if failure_reason.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:")) else "recovering",
                     )
+                    # [STABILITY v51] Same warming-with-response pattern for
+                    # warmup failures — try protected lane before giving up.
+                    if not failure_reason.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:")):
+                        _failure_bypass_reply = await _attempt_protected_foreground_reply("warmup_failure_bypass")
+                        if _failure_bypass_reply:
+                            if gate and hasattr(gate, "_schedule_background_cortex_prewarm"):
+                                try:
+                                    gate._schedule_background_cortex_prewarm(delay=2.0)
+                                except Exception:
+                                    pass
+                            return await _finalize_fastpath(
+                                _failure_bypass_reply,
+                                status="protected_foreground",
+                            )
 
         if _conversation_lane_blocks_fallback(lane):
+            # [STABILITY v51] Proactive lane recovery: even on hard 503,
+            # schedule a background cortex recovery so the next request
+            # finds a warm cortex instead of hitting 503 again.
+            try:
+                gate = ServiceContainer.get("inference_gate", default=None)
+                if gate and hasattr(gate, "_schedule_background_cortex_prewarm"):
+                    gate._schedule_background_cortex_prewarm(delay=2.0)
+            except Exception:
+                pass
             return JSONResponse(
                 {
                     "response": _conversation_lane_user_message(lane),

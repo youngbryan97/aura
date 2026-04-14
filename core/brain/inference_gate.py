@@ -362,6 +362,11 @@ class InferenceGate:
             lane["warmup_in_flight"] = bool(raw.get("warmup_in_flight", lane["warmup_in_flight"]))
             if lane["conversation_ready"]:
                 lane["foreground_endpoint"] = PRIMARY_ENDPOINT
+        # [STABILITY v51] If the prewarm task completed (success or failure),
+        # force-sync warmup_in_flight to False. A done task is no longer "in flight"
+        # regardless of what the MLX client flag says.
+        if self._prewarm_task and self._prewarm_task.done():
+            lane["warmup_in_flight"] = False
         lane_state = str(lane.get("state", "") or "").lower()
         recent_success = (time.time() - getattr(self, "_last_successful_generation_at", time.time())) <= 30.0
         recent_ready = any(
@@ -534,8 +539,8 @@ class InferenceGate:
             return  # Primary is fine
 
         now = time.monotonic()
-        if (now - self._last_cortex_check) < 10.0:
-            return  # Rate limit: reduced from 30s to 10s for faster cortex recovery
+        if (now - self._last_cortex_check) < 3.0:
+            return  # [STABILITY v51] Rate limit: reduced from 10s to 3s for faster cortex recovery
         self._last_cortex_check = now
 
         if self._cortex_recovery_attempts >= 5:
@@ -585,6 +590,9 @@ class InferenceGate:
             except Exception as exc:
                 logger.warning("⚠️ [RECOVERY] Primary 32B cortex respawn failed: %s", exc)
             finally:
+                # [STABILITY v51] ALWAYS clear the flag, even on unexpected exceptions.
+                # Previously this was inside the try block and could leak if an
+                # exception was raised between the flag set and the finally.
                 self._cortex_recovery_in_progress = False
 
         asyncio.create_task(_background_recover())
@@ -1901,17 +1909,42 @@ class InferenceGate:
         # ── Proactive cortex recovery (laptop sleep / MLX worker death) ───
         if not is_background:
             await self._ensure_cortex_recovery()
+            # [STABILITY v51] If cortex is dead and NO recovery is in progress,
+            # attempt inline recovery with a tight budget rather than waiting
+            # for the background task that may not have started yet.
+            if (
+                self._mlx_client
+                and hasattr(self._mlx_client, "is_alive")
+                and not self._mlx_client.is_alive()
+                and not self._cortex_recovery_in_progress
+                and hasattr(self._mlx_client, "_ensure_worker_alive")
+            ):
+                logger.warning("🔄 [STABILITY] Cortex dead, no recovery in progress. Attempting inline fast-recovery (15s budget)...")
+                try:
+                    alive = await asyncio.wait_for(
+                        self._mlx_client._ensure_worker_alive(
+                            request_is_background=False,
+                            foreground_request=True,
+                            init_timeout=15.0,
+                            soft_timeout=True,
+                        ),
+                        timeout=15.0,
+                    )
+                    if alive:
+                        logger.info("✅ [STABILITY] Inline fast-recovery succeeded.")
+                except Exception as inline_exc:
+                    logger.warning("⚠️ [STABILITY] Inline fast-recovery failed: %s", inline_exc)
+
             # If cortex recovery was just triggered or is in progress, give it
             # a short window to complete before the user hits a dead endpoint.
-            # This turns 2-message recovery ("wound up" + real reply) into a
-            # single slightly-longer first response.
+            # [STABILITY v51] Reduced from 10×1s to 5×1s to keep responsiveness.
             if (
                 self._cortex_recovery_in_progress
                 and self._mlx_client
                 and hasattr(self._mlx_client, "is_alive")
                 and not self._mlx_client.is_alive()
             ):
-                for _ in range(10):  # Up to 10s of 1s slices
+                for _ in range(5):  # Up to 5s of 1s slices
                     await asyncio.sleep(1.0)
                     if self._mlx_client.is_alive():
                         logger.info("✅ InferenceGate: cortex recovered inline for user request.")

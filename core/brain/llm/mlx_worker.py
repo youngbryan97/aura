@@ -85,19 +85,36 @@ class HeartbeatThread(threading.Thread):
     ZENITH LOCKDOWN: Proactive Worker Heartbeat.
     Ensures the SupervisionTree sees this process as alive even during 
     massive 32B model loads or compilation stalls.
+
+    [STABILITY v51] Reduced interval from 5s → 2s for faster dead-worker
+    detection.  Added parent-PID liveness check: if the parent process
+    dies (crash, restart), the worker self-terminates to prevent orphans.
     """
     def __init__(self, writer: IPCWriterThread):
         super().__init__(name="MLX-Heartbeat", daemon=True)
         self.writer = writer
         self._stop_event = threading.Event()
+        self._parent_pid = os.getppid()
 
     def stop(self):
         self._stop_event.set()
 
+    def _parent_alive(self) -> bool:
+        """Check if our parent process is still running."""
+        try:
+            os.kill(self._parent_pid, 0)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
+
     def run(self):
         while not self._stop_event.is_set():
+            # [STABILITY v51] Self-terminate if parent died — prevents orphan workers
+            if not self._parent_alive():
+                print(f"🛑 [MLX_HEARTBEAT] Parent process {self._parent_pid} is dead. Self-terminating orphaned worker.")
+                os._exit(1)
             self.writer.put({"status": "heartbeat", "timestamp": time.time(), "type": "mlx_worker"})
-            time.sleep(5.0)
+            time.sleep(2.0)
 
 # Set environment variables for MLX stability
 def _setup_worker_env():
@@ -369,6 +386,11 @@ class JobWatchdog(threading.Thread):
     """
     Kills the worker process if a job is active but no tokens have been generated 
     within the timeout. This prevents 'Metal Stalls' from hanging the system.
+
+    [STABILITY v51] Reduced timeout from 240s → 90s. The 32B model's Metal
+    shader compilation should complete within 60s on M5 hardware. If no token
+    progress after 90s, the worker is stuck and must self-terminate so the
+    parent can respawn it.
     """
     def __init__(self, timeout=60.0):
         super().__init__(daemon=True)
@@ -418,7 +440,7 @@ def _mlx_worker_loop(
     heartbeat = HeartbeatThread(ipc_writer)
     heartbeat.start()
 
-    watchdog = JobWatchdog(timeout=240.0)  # 128k context compilation on 32B model needs massive headroom
+    watchdog = JobWatchdog(timeout=90.0)  # [STABILITY v51] Reduced from 240s. M5 Metal compilation should finish within 60s.
     watchdog.start()
 
     try:

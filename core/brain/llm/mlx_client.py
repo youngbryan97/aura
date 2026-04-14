@@ -352,11 +352,13 @@ class MLXLocalClient:
             logger.debug("Failed to record MLX degraded event: %s", exc)
 
     def _stale_after(self, *, during_generation: bool = False) -> float:
+        """[STABILITY v51] Tightened from 30/60s to 20/40s for 32B.
+        Faster stall detection means faster recovery for user-facing requests."""
         lowered = os.path.basename(self.model_path).lower()
         if "72b" in lowered or "solver" in lowered:
             return 90.0 if during_generation else 45.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
-            return 60.0 if during_generation else 30.0
+            return 40.0 if during_generation else 20.0
         return 20.0 if during_generation else 15.0
 
     def _first_token_sla(self) -> float:
@@ -507,6 +509,37 @@ class MLXLocalClient:
         last_progress = max(self._last_heartbeat, self._last_progress_at, self._last_ready_at)
         return bool(last_progress and (time.time() - last_progress) > stale_after)
 
+    def _check_lane_state_staleness(self) -> None:
+        """[STABILITY v51] Auto-reset stuck non-terminal lane states.
+
+        If the lane has been in a transient state (warming, recovering,
+        handshaking, spawning) for >120s with no progress, force-reset
+        to 'cold' so recovery can restart from scratch. This prevents
+        the permanent 'CORTEX WARMING' display.
+        """
+        if self._lane_state not in {"warming", "recovering", "handshaking", "spawning"}:
+            return
+        now = time.time()
+        stuck_duration = now - self._lane_transition_at
+        if stuck_duration < 120.0:
+            return
+        last_activity = max(
+            self._last_heartbeat,
+            self._last_progress_at,
+            self._last_ready_at,
+            self._last_token_progress_at,
+        )
+        if last_activity > 0.0 and (now - last_activity) < 30.0:
+            return  # Recent activity — state is legitimate
+        logger.warning(
+            "🔧 [STABILITY] Lane state '%s' stuck for %.0fs with no activity. "
+            "Force-resetting to 'cold' for clean recovery.",
+            self._lane_state,
+            stuck_duration,
+        )
+        self._warmup_in_flight = False
+        self._set_lane_state("cold")
+
     def _kill_and_join_blocking(self, p: mp.Process):
         if p and p.is_alive():
             try:
@@ -520,6 +553,31 @@ class MLXLocalClient:
         runtime_ok, runtime_detail = _probe_mlx_runtime()
         if not runtime_ok:
             raise RuntimeError(f"mlx_runtime_probe_failed:{runtime_detail}")
+
+        # [STABILITY v51] Orphan reclamation: kill any existing MLXWorker
+        # processes for this model path before spawning a new one.
+        try:
+            model_basename = os.path.basename(self.model_path)
+            target_name = f"MLXWorker-{model_basename}"
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    pname = proc.info.get('name', '') or ''
+                    if target_name in pname or (
+                        proc.info.get('cmdline') and
+                        any(model_basename in str(arg) for arg in (proc.info['cmdline'] or []))
+                        and 'mlx_worker' in str(proc.info.get('cmdline', []))
+                    ):
+                        if proc.pid != os.getpid():
+                            logger.warning(
+                                "🧹 [STABILITY] Killing orphan MLXWorker pid=%d for %s",
+                                proc.pid, model_basename,
+                            )
+                            proc.kill()
+                            proc.wait(timeout=3.0)
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
+        except Exception as orphan_exc:
+            logger.debug("Orphan reclamation scan failed (non-fatal): %s", orphan_exc)
 
         ctx = mp.get_context("spawn") if os.uname().sysname == "Darwin" else mp.get_context("forkserver")
 
@@ -657,6 +715,7 @@ class MLXLocalClient:
 
         # Fast path: if worker is already alive, don't acquire the gate
         if self._process and self._process.is_alive() and self._init_done:
+            self._check_lane_state_staleness()  # [STABILITY v51]
             self._set_lane_state("ready")
             return True
         
@@ -1478,6 +1537,18 @@ class MLXLocalClient:
         owner_name = f"warmup:{os.path.basename(self.model_path)}"
         warmup_timeout = self._warmup_timeout()
         self._warmup_attempted = True
+        # [STABILITY v51] Stale-warmup circuit breaker: if _warmup_in_flight
+        # has been True for >120s, the previous warmup task leaked without
+        # clearing the flag. Force-clear before proceeding.
+        if self._warmup_in_flight:
+            elapsed_since_transition = time.time() - self._lane_transition_at
+            if elapsed_since_transition > 120.0:
+                logger.warning(
+                    "🔧 [STABILITY] _warmup_in_flight was stuck True for %.0fs. "
+                    "Force-clearing stale warmup flag.",
+                    elapsed_since_transition,
+                )
+                self._warmup_in_flight = False
         self._warmup_in_flight = True
         self._set_lane_state("warming")
         try:
