@@ -295,7 +295,16 @@ python -m pytest tests/test_null_hypothesis_defeat.py tests/test_ablation_suite.
 | Long-Run Degradation (8 metrics) | 2 | Hardened | No collapse over 1000 ticks |
 | Cross-Seed Reproducibility | 2 | Hardened | Results hold across 10 seeds |
 
-**Total: 136 tests across 4 tiers + phenomenal probes + hardened discriminative suite**
+| LLM Context Blocks | 5 | Tier 4 | Different states → different prompt text |
+| LLM Sampling Params | 4 | Tier 4 | Affect → temperature, tokens, penalty |
+| LLM Full Pipeline | 2 | Tier 4 | Threat vs reward differs on all dimensions |
+| LLM Phi→GWT→Prompt | 1 | Tier 4 | Phi boosts priority → changes prompt content |
+| LLM Ablation Gradient | 1 | Tier 4 | Full injection 2x richer than ablated |
+| Generalization | 4 | Tier 5 | Novel combos, extremes, transfer, novel sequences |
+| Robustness | 4 | Tier 5 | Adversarial flooding, corruption recovery, oscillation, shift detection |
+| Self-Monitoring | 4 | Tier 5 | Error↔variability correlation, uncertainty→action, dimension identification |
+
+**Total: 161 tests across 5 tiers + phenomenal probes + hardened discriminative suite**
 
 ---
 

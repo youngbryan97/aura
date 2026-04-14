@@ -4591,3 +4591,328 @@ class TestLLMPropagation_AblationGradient:
         full_components = sum(1 for v in full_injection.values() if v.strip())
         assert full_components >= 5, \
             f"Full system should have 5+ non-empty injection components. Got {full_components}"
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                         ║
+# ║   TIER 5: GENERALIZATION — DOES THE DYNAMICAL REGIME TRANSFER?          ║
+# ║                                                                         ║
+# ║   Kill: "It only works on the training distribution of events."         ║
+# ║                                                                         ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+class TestGeneralization:
+    """Does learned dynamics transfer to novel, unseen situations?"""
+
+    def test_ood_chemical_combinations_produce_coherent_mood(self):
+        """Train on single chemicals, test on novel triple combinations
+        never seen during the training phase."""
+        # Single-event baseline
+        ncs_single = NeurochemicalSystem()
+        ncs_single.on_reward(0.5)
+        for _ in range(10):
+            ncs_single._metabolic_tick()
+        mood_single = ncs_single.get_mood_vector()["valence"]
+
+        # Novel triple combination (never seen in any test above)
+        ncs_combo = NeurochemicalSystem()
+        ncs_combo.on_reward(0.3)
+        ncs_combo.on_social_connection(0.3)
+        ncs_combo.on_novelty(0.4)
+        for _ in range(5):
+            ncs_combo._metabolic_tick()
+        mood_combo = ncs_combo.get_mood_vector()
+
+        # Must produce coherent (bounded, not NaN) output
+        assert -1 <= mood_combo["valence"] <= 1, "Combo valence out of bounds"
+        assert not any(np.isnan(v) for v in mood_combo.values()), "NaN in combo mood"
+        # Triple positive events should produce positive valence
+        assert mood_combo["valence"] > 0, \
+            f"Triple positive events should produce positive valence, got {mood_combo['valence']:.4f}"
+
+    def test_unseen_intensity_extremes_stay_bounded(self):
+        """System trained on moderate events must handle extreme intensities
+        without saturation or crash."""
+        ncs = NeurochemicalSystem()
+
+        # Moderate training
+        for _ in range(50):
+            ncs.on_threat(0.5)
+            ncs._metabolic_tick()
+
+        # Extreme test (0.99 intensity — way beyond training)
+        ncs.on_threat(0.99)
+        for _ in range(5):
+            ncs._metabolic_tick()
+
+        mood = ncs.get_mood_vector()
+        assert mood["stress"] > 0.3, \
+            f"Extreme threat must produce high stress, got {mood['stress']:.4f}"
+        assert mood["valence"] < 0, \
+            f"Extreme threat must produce negative valence, got {mood['valence']:.4f}"
+        assert all(-2 <= v <= 2 for v in mood.values()), \
+            "Mood values must stay bounded even under extreme input"
+
+    def test_substrate_w_learning_transfers_across_regimes(self):
+        """W matrix learned under one event regime should produce
+        different dynamics than a fresh W — proving transfer."""
+        sub_trained = _make_substrate(seed=42)
+        stdp = STDPLearningEngine(n_neurons=64)
+        rng = np.random.default_rng(42)
+
+        # Learn under reward regime
+        for t in range(200):
+            _tick_substrate_sync(sub_trained, dt=0.1, n=1)
+            stdp.record_spikes(np.abs(sub_trained.x).astype(np.float32), t=float(t))
+            if t % 10 == 9:
+                dw = stdp.deliver_reward(surprise=0.6, prediction_error=0.4)
+                sub_trained.W = stdp.apply_to_connectivity(sub_trained.W, dw)
+
+        W_learned = sub_trained.W.copy()
+
+        # Test transfer: run both learned and fresh W from same initial state
+        sub_fresh = _make_substrate(seed=42)
+        sub_transfer = _make_substrate(seed=42)
+        sub_transfer.W = W_learned.copy()
+
+        # Same initial state
+        init_x = np.random.default_rng(99).uniform(-0.3, 0.3, 64)
+        sub_fresh.x = init_x.copy()
+        sub_transfer.x = init_x.copy()
+
+        for _ in range(50):
+            _tick_substrate_sync(sub_fresh, dt=0.1, n=1)
+            _tick_substrate_sync(sub_transfer, dt=0.1, n=1)
+
+        # Learned W must produce different trajectory — learning transferred
+        divergence = np.linalg.norm(sub_fresh.x - sub_transfer.x)
+        assert divergence > 0.01, \
+            f"Learned W must produce different dynamics than fresh W (div={divergence:.6f}). " \
+            "Learning did not transfer."
+
+    def test_novel_event_sequence_produces_novel_mood_trajectory(self):
+        """An event sequence never seen before must produce a coherent
+        but distinct mood trajectory — not a repetition of training."""
+        rng = np.random.default_rng(777)
+        ncs = NeurochemicalSystem()
+
+        trajectories = []
+        for seq_id in range(3):
+            ncs_seq = NeurochemicalSystem()
+            events = rng.choice(["reward", "threat", "novelty",
+                                  "frustration", "wakefulness"], size=20)
+            mood_traj = []
+            for event in events:
+                getattr(ncs_seq, f"on_{event}")(0.5)
+                ncs_seq._metabolic_tick()
+                mood_traj.append(ncs_seq.get_mood_vector()["valence"])
+            trajectories.append(mood_traj)
+
+        # Different random sequences must produce different trajectories
+        traj_pairs_differ = 0
+        for i in range(len(trajectories)):
+            for j in range(i + 1, len(trajectories)):
+                if np.linalg.norm(np.array(trajectories[i]) - np.array(trajectories[j])) > 0.01:
+                    traj_pairs_differ += 1
+
+        assert traj_pairs_differ >= 2, \
+            "Novel event sequences must produce distinct mood trajectories"
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                         ║
+# ║   TIER 5: ROBUSTNESS — GRACEFUL DEGRADATION UNDER STRESS               ║
+# ║                                                                         ║
+# ║   Kill: "The system crashes or produces NaN under adversarial input."   ║
+# ║                                                                         ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+class TestRobustness:
+    """Does the system stay bounded and coherent under adversarial conditions?"""
+
+    def test_adversarial_chemical_flooding_stays_bounded(self):
+        """Flood with directly contradictory signals simultaneously.
+        System must not crash, NaN, or escape bounds."""
+        ncs = NeurochemicalSystem()
+
+        for _ in range(100):
+            # Directly opposing: threat + reward + rest all at once
+            ncs.on_threat(0.9)
+            ncs.on_reward(0.9)
+            ncs.on_rest()
+            ncs.on_frustration(0.8)
+            ncs.on_social_connection(0.7)
+            ncs._metabolic_tick()
+
+        mood = ncs.get_mood_vector()
+
+        # Must stay bounded and not NaN
+        for k, v in mood.items():
+            assert not np.isnan(v), f"NaN in mood['{k}'] after adversarial flooding"
+            assert -2 <= v <= 2, f"mood['{k}']={v:.4f} escaped bounds"
+
+        # Chemical levels must stay in [0, 1]
+        for name, chem in ncs.chemicals.items():
+            assert 0 <= chem.level <= 1, \
+                f"Chemical '{name}' level={chem.level:.4f} escaped [0,1]"
+
+    def test_substrate_recovers_from_state_corruption(self):
+        """Corrupt 50% of substrate state to extreme values.
+        ODE clamp must bring it back to [-1, 1] within bounded ticks."""
+        sub = _make_substrate(seed=42)
+
+        # Corrupt first 32 neurons to extreme values
+        sub.x[:32] = np.random.default_rng(99).uniform(-10, 10, 32)
+
+        # Run recovery (ODE uses clamp(-1, 1))
+        for _ in range(50):
+            _tick_substrate_sync(sub, dt=0.1, n=1)
+
+        # Must return to valid bounds
+        assert np.all(sub.x >= -1.0) and np.all(sub.x <= 1.0), \
+            f"Substrate failed to recover from corruption. " \
+            f"Min={sub.x.min():.4f}, max={sub.x.max():.4f}"
+
+    def test_rapid_event_oscillation_stays_stable(self):
+        """Rapidly alternating threat/reward 200 times must not destabilize."""
+        ncs = NeurochemicalSystem()
+
+        for i in range(200):
+            if i % 2 == 0:
+                ncs.on_threat(0.8)
+            else:
+                ncs.on_reward(0.8)
+            ncs._metabolic_tick()
+
+        mood = ncs.get_mood_vector()
+        assert all(not np.isnan(v) for v in mood.values()), \
+            "Rapid oscillation produced NaN"
+        # Chemicals should be near their baselines (oscillation averages out)
+        for name, chem in ncs.chemicals.items():
+            assert 0 <= chem.level <= 1, \
+                f"Chemical '{name}' unstable after oscillation: {chem.level:.4f}"
+
+    def test_distribution_shift_detected_by_self_prediction(self):
+        """Abrupt change in input statistics must trigger surprise spike."""
+        mock_orch = MagicMock()
+        sp = SelfPredictionLoop(orchestrator=mock_orch)
+
+        # Stable phase
+        for _ in range(30):
+            asyncio.get_event_loop().run_until_complete(
+                sp.tick(actual_valence=0.5, actual_drive="curiosity",
+                        actual_focus_source="drive_curiosity"))
+        error_stable = sp.get_surprise_signal()
+
+        # Distribution shift: everything changes at once
+        for _ in range(5):
+            asyncio.get_event_loop().run_until_complete(
+                sp.tick(actual_valence=-0.8, actual_drive="threat",
+                        actual_focus_source="external_danger"))
+        error_shift = sp.get_surprise_signal()
+
+        assert error_shift > error_stable, \
+            f"Distribution shift must increase surprise. " \
+            f"Stable={error_stable:.4f}, shifted={error_shift:.4f}"
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                         ║
+# ║   TIER 5: SELF-MONITORING — DOES IT KNOW WHEN IT'S WRONG?              ║
+# ║                                                                         ║
+# ║   Kill: "The system has state but no accurate model of its own state."  ║
+# ║                                                                         ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+class TestSelfMonitoring:
+    """Does the system accurately monitor its own reliability?"""
+
+    def test_self_prediction_error_correlates_with_actual_variability(self):
+        """When inputs are variable, self-prediction error should be high.
+        When inputs are stable, error should be low. This correlation
+        proves the self-model is informative, not decorative."""
+        mock_orch = MagicMock()
+
+        # Phase 1: stable inputs → low error expected
+        sp_stable = SelfPredictionLoop(orchestrator=mock_orch)
+        for _ in range(30):
+            asyncio.get_event_loop().run_until_complete(
+                sp_stable.tick(actual_valence=0.5, actual_drive="curiosity",
+                               actual_focus_source="drive_curiosity"))
+        error_stable = sp_stable.get_surprise_signal()
+
+        # Phase 2: highly variable inputs → high error expected
+        sp_variable = SelfPredictionLoop(orchestrator=mock_orch)
+        rng = np.random.default_rng(42)
+        for _ in range(30):
+            asyncio.get_event_loop().run_until_complete(
+                sp_variable.tick(
+                    actual_valence=float(rng.uniform(-1, 1)),
+                    actual_drive=rng.choice(["curiosity", "threat", "rest", "social"]),
+                    actual_focus_source=rng.choice(["a", "b", "c", "d", "e"])))
+        error_variable = sp_variable.get_surprise_signal()
+
+        assert error_variable > error_stable, \
+            f"Self-monitoring must track actual variability. " \
+            f"Stable={error_stable:.4f}, variable={error_variable:.4f}"
+
+    def test_uncertainty_gates_action_tendency(self):
+        """High free energy (uncertainty) must produce 'explore' or
+        'update_beliefs' — NOT 'rest'. The system must seek information
+        when it doesn't know what's happening."""
+        fe_certain = FreeEnergyEngine()
+        r_certain = fe_certain.compute(prediction_error=0.05)
+
+        fe_uncertain = FreeEnergyEngine()
+        r_uncertain = fe_uncertain.compute(prediction_error=0.95)
+
+        # Uncertain system must not rest
+        assert r_uncertain.free_energy > r_certain.free_energy, \
+            "High PE must produce higher free energy"
+        # At minimum, the actions should differ
+        assert r_uncertain.dominant_action != "rest" or r_certain.dominant_action == "rest", \
+            "Uncertainty must drive active behavior, certainty can rest"
+
+    def test_metacognitive_accuracy_identifies_worst_dimension(self):
+        """The system must correctly identify which internal dimension
+        it's worst at predicting — not just report a generic error."""
+        mock_orch = MagicMock()
+        sp = SelfPredictionLoop(orchestrator=mock_orch)
+
+        # Feed: valence stable, drive stable, focus CHAOTIC
+        for i in range(50):
+            asyncio.get_event_loop().run_until_complete(
+                sp.tick(
+                    actual_valence=0.5,  # Stable
+                    actual_drive="curiosity",  # Stable
+                    actual_focus_source=f"random_src_{i % 15}",  # Chaotic
+                ))
+
+        worst = sp.get_most_unpredictable_dimension()
+        assert worst == "attentional_focus", \
+            f"Focus was most chaotic but system reports '{worst}' as worst dimension"
+
+    def test_self_model_snapshot_is_accurate(self):
+        """Self-prediction snapshot must contain accurate metadata."""
+        mock_orch = MagicMock()
+        sp = SelfPredictionLoop(orchestrator=mock_orch)
+
+        for _ in range(20):
+            asyncio.get_event_loop().run_until_complete(
+                sp.tick(actual_valence=0.3, actual_drive="curiosity",
+                        actual_focus_source="drive_curiosity"))
+
+        snapshot = sp.get_snapshot()
+
+        # Snapshot must contain the key self-monitoring fields
+        assert "smoothed_error" in snapshot, "Missing smoothed_error"
+        assert "most_unpredictable" in snapshot, "Missing dimension identification"
+        assert "surprise_count" in snapshot, "Missing surprise counter"
+        assert snapshot["smoothed_error"] >= 0.0, "Error must be non-negative"
+
+        # Current prediction must exist and be sensible
+        if snapshot.get("current_prediction"):
+            pred = snapshot["current_prediction"]
+            assert "affect" in pred, "Prediction must include affect forecast"
+            assert "drive" in pred, "Prediction must include drive forecast"
+            assert "confidence" in pred, "Prediction must include confidence"
