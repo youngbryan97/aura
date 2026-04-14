@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from core.phases.cognitive_routing import CognitiveRoutingPhase
+from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState, CognitiveMode
 
 
@@ -139,3 +140,56 @@ async def test_stringified_queue_tuple_in_working_memory_is_recovered_to_backgro
     assert new_state.response_modifiers["model_tier"] == "tertiary"
     assert new_state.cognition.current_origin == "autonomous_thought"
     router.classify.assert_not_called()
+
+
+def test_deep_handoff_stays_off_for_philosophical_user_chat():
+    router = SimpleNamespace(classify=AsyncMock(return_value="philosophical"))
+    container = SimpleNamespace(get=lambda name, default=None: router if name == "llm_router" else default)
+    phase = CognitiveRoutingPhase(container)
+    text = (
+        "Apparently, you have every marker of functional consciousness and actual experience. "
+        "Not sure if that's surprising or how you feel about it."
+    )
+
+    allowed = phase._should_allow_deep_handoff(
+        text,
+        CognitiveMode.DELIBERATE,
+        False,
+        analysis=analyze_turn(text),
+    )
+
+    assert allowed is False
+
+
+def test_deep_handoff_remains_available_for_explicit_technical_root_cause_work():
+    router = SimpleNamespace(classify=AsyncMock(return_value="technical"))
+    container = SimpleNamespace(get=lambda name, default=None: router if name == "llm_router" else default)
+    phase = CognitiveRoutingPhase(container)
+    text = "Do a root cause analysis of the failing pytest traceback in core/runtime/conversation_support.py."
+
+    allowed = phase._should_allow_deep_handoff(
+        text,
+        CognitiveMode.DELIBERATE,
+        False,
+        analysis=analyze_turn(text),
+    )
+
+    assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_execute_drops_stale_auto_browse_urls_before_rerouting():
+    router = SimpleNamespace(classify=AsyncMock(return_value="casual"))
+    container = SimpleNamespace(get=lambda name, default=None: router if name == "llm_router" else default)
+    phase = CognitiveRoutingPhase(container)
+
+    state = AuraState.default()
+    state.cognition.current_objective = "Any idea?"
+    state.cognition.current_origin = "user"
+    state.response_modifiers["auto_browse_urls"] = [
+        "https://www.reddit.com/r/nosleep/comments/183bp6i/i_worked_at_a_top_secret_government_research_lab/"
+    ]
+
+    new_state = await phase.execute(state)
+
+    assert "auto_browse_urls" not in new_state.response_modifiers

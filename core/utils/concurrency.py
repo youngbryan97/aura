@@ -344,7 +344,7 @@ class RobustSemaphore:
         self.name = name
         self._sem = threading.BoundedSemaphore(value)
 
-    async def acquire(self, timeout: float | None = None) -> bool:
+    async def acquire(self, timeout: Optional[float] = None) -> bool:
         """Acquire the semaphore asynchronously using to_thread.
 
         When a timeout is provided, the timeout is enforced inside the backing

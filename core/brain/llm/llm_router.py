@@ -91,7 +91,7 @@ class LLMEndpoint(BaseModel):
     temperature: float = 0.7
     supports_function_calling: bool = False
     supports_streaming: bool = False
-    timeout: float = 120.0
+    timeout: float = 180.0
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

@@ -573,10 +573,10 @@ def _foreground_timeout_for_lane(lane: Optional[Dict[str, Any]]) -> float:
     lane = dict(lane or {})
     state = str(lane.get("state", "") or "").lower()
     if bool(lane.get("conversation_ready", False)):
-        return 150.0
-    if state in {"warming", "recovering", "cold", "spawning", "handshaking"}:
         return 180.0
-    return 150.0
+    if state in {"warming", "recovering", "cold", "spawning", "handshaking"}:
+        return 200.0
+    return 180.0
 
 
 def _conversation_lane_user_message(
@@ -634,8 +634,8 @@ def _conversation_lane_user_message(
 _last_recovery_cooldown_at: float = 0.0
 _RECOVERY_COOLDOWN_SECONDS: float = 1.0  # [STABILITY v50] Reduced from 5s→1s. The old 5s cooldown amplified single failures into multi-turn outages by fast-rejecting the user's immediate retry. 1s is enough to prevent request pileup without blocking a legitimate retry.
 _PROTECTED_FOREGROUND_LOCK_BYPASS_SECONDS: float = 1.0
-_PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS: float = 55.0
-_PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 90.0
+_PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS: float = 120.0
+_PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 180.0
 _KERNEL_SOFT_REPLY_SLA_SECONDS: float = 8.0
 
 

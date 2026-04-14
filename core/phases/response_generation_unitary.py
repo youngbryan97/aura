@@ -1869,7 +1869,7 @@ class UnitaryResponsePhase(Phase):
             # When cognitive routing detected URLs in user input, we actually
             # fetch and read the pages so Aura has real content to discuss
             # instead of hallucinating about pages she never accessed.
-            auto_browse_urls = new_state.response_modifiers.get("auto_browse_urls", [])
+            auto_browse_urls = list(new_state.response_modifiers.pop("auto_browse_urls", []) or [])
             if auto_browse_urls and is_user_facing:
                 logger.info("🌐 UnitaryResponse: Auto-browsing %d URL(s) from user input.", len(auto_browse_urls))
                 fetched_content_parts = []

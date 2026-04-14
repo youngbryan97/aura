@@ -434,7 +434,7 @@ class HealthAwareLLMRouter:
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
-        timeout: float = 120.0,
+        timeout: float = 180.0,
         prefer_tier: Optional[str] = None,
         schema: Optional[Dict] = None,
         **kwargs,

@@ -129,6 +129,7 @@ class CognitiveRoutingPhase(BasePhase):
         new_state = state.derive("cognitive_routing")
         if not input_text.strip():
             return new_state
+        new_state.response_modifiers.pop("auto_browse_urls", None)
 
         # Deduplicate residual/internal routing churn so background cognition
         # doesn't keep reclassifying the exact same synthetic objective.
@@ -255,7 +256,12 @@ class CognitiveRoutingPhase(BasePhase):
         
         # 4. Resolve Model Tier
         model_tier = self._resolve_model_tier(new_state, input_text, cognitive_mode, is_autonomous)
-        deep_handoff = self._should_allow_deep_handoff(input_text, cognitive_mode, is_autonomous)
+        deep_handoff = self._should_allow_deep_handoff(
+            input_text,
+            cognitive_mode,
+            is_autonomous,
+            analysis=analysis,
+        )
         new_state.response_modifiers["model_tier"] = model_tier
         new_state.response_modifiers["deep_handoff"] = deep_handoff
         if routing_origin in user_origins:
@@ -308,7 +314,14 @@ class CognitiveRoutingPhase(BasePhase):
         # All user-facing work starts on the 32B brain by default.
         return "primary"
 
-    def _should_allow_deep_handoff(self, text: str, mode: CognitiveMode, is_autonomous: bool) -> bool:
+    def _should_allow_deep_handoff(
+        self,
+        text: str,
+        mode: CognitiveMode,
+        is_autonomous: bool,
+        *,
+        analysis: Any | None = None,
+    ) -> bool:
         """Gate the 72B solver using SUBSTRATE STATE, not just keywords.
 
         The substrate decides whether a thought is complex enough for the
@@ -319,6 +332,38 @@ class CognitiveRoutingPhase(BasePhase):
         Keywords are kept as a fallback but the substrate is the primary signal.
         """
         if is_autonomous or mode != CognitiveMode.DELIBERATE:
+            return False
+
+        lower = text.lower()
+        word_count = len(text.split())
+        current_analysis = analysis or analyze_turn(text)
+        semantic_mode = str(getattr(current_analysis, "semantic_mode", "") or "").lower()
+        explicit_deep_request = any(keyword in lower for keyword in _DEEP_HANDOFF_KEYWORDS)
+        looks_technical = semantic_mode == "technical" or any(
+            marker in lower
+            for marker in (
+                "pytest",
+                "traceback",
+                "stack trace",
+                "failing test",
+                "exception",
+                ".py",
+                ".ts",
+                ".tsx",
+                ".js",
+                ".jsx",
+                "core/",
+                "interface/",
+                "root cause",
+                "debug",
+                "refactor",
+                "architecture",
+            )
+        )
+        if not explicit_deep_request and not looks_technical:
+            # Deliberate emotional/philosophical conversation should stay on the
+            # stable Cortex lane unless the user explicitly asks for heavyweight
+            # deep reasoning. This preserves conversational continuity.
             return False
 
         # ── Substrate-driven handoff decision ─────────────────────────
@@ -350,7 +395,7 @@ class CognitiveRoutingPhase(BasePhase):
             if norepinephrine > 0.5:
                 substrate_score += 0.1
 
-            if substrate_score >= 0.4:
+            if substrate_score >= 0.4 and (explicit_deep_request or looks_technical):
                 logger.info(
                     "🧠 CognitiveRouting: SUBSTRATE approves deep handoff (score=%.2f, "
                     "coherence=%.2f, phi=%.2f, complexity=%.2f)",
@@ -362,11 +407,9 @@ class CognitiveRoutingPhase(BasePhase):
             logger.debug("Substrate routing check failed, falling back to keywords: %s", exc)
 
         # ── Keyword fallback (still useful for explicit requests) ──────
-        lower = text.lower()
-        word_count = len(text.split())
-        if word_count >= 120 or len(text) >= 900:
+        if looks_technical and (word_count >= 120 or len(text) >= 900):
             return True
-        return any(keyword in lower for keyword in _DEEP_HANDOFF_KEYWORDS)
+        return explicit_deep_request
 
     @staticmethod
     def _has_deliberate_keywords(text: str) -> bool:

@@ -612,7 +612,7 @@ class AuraKernel:
             for _stale_key in (
                 "last_skill_run", "last_skill_ok", "last_skill_result_payload",
                 "matched_skills", "intent_type", "precomputed_grounded_reply",
-                "last_task_outcome", "last_task_id",
+                "last_task_outcome", "last_task_id", "auto_browse_urls",
             ):
                 state.response_modifiers.pop(_stale_key, None)
             self.state = state
