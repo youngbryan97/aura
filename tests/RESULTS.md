@@ -1,6 +1,6 @@
 ========================================================================
 AURA NULL HYPOTHESIS DEFEAT SUITE — MEASURED RESULTS
-Run: 2026-04-14 09:19:20 UTC
+Run: 2026-04-14 16:03:33 UTC
 ========================================================================
 
 ## Test 2: Contradictory State (chemicals drive mood, not text)
@@ -47,19 +47,19 @@ Run: 2026-04-14 09:19:20 UTC
 ## Tests 6-7: Substrate Dynamics
 
   [PASS] 6.1 Idle drift after 100 ticks
-         L2_drift=5.1889
+         L2_drift=5.1449
   [PASS] 7.1 Perturbation divergence persists
          divergence=0.5103999972343445
 
 ## Test 5.4: Phi Core Computation
 
   [PASS] 5.4 Phi from real ODE transitions (tightly-coupled subnet)
-         phi_s=0.03371  is_complex=True  n_partitions=33  tpm_samples=299  unique_states=28  compute_ms=4684.56
+         phi_s=0.0331  is_complex=True  n_partitions=33  tpm_samples=299  unique_states=27  compute_ms=6953.74
 
 ## Test 18: Free Energy Engine
 
   [PASS] 18.1 Free energy monotonically increases with prediction error
-         FE(pe=0.0)=0.2628 [rest]  FE(pe=0.2)=0.2668 [rest]  FE(pe=0.5)=0.2768 [rest]  FE(pe=0.8)=0.2937 [rest]  FE(pe=1.0)=0.3194 [rest]
+         FE(pe=0.0)=0.2626 [rest]  FE(pe=0.2)=0.2668 [rest]  FE(pe=0.5)=0.2768 [rest]  FE(pe=0.8)=0.2937 [rest]  FE(pe=1.0)=0.3194 [rest]
 
 ## Multi-Level Prediction
 
@@ -86,18 +86,52 @@ Run: 2026-04-14 09:19:20 UTC
 ## Timing Fingerprint (real computation, not stubs)
 
   [PASS] 1000 ODE ticks take measurable time
-         elapsed_ms=52.83
+         elapsed_ms=69.95
   [PASS] 50 STDP recordings on 64 neurons
-         elapsed_ms=25.17
+         elapsed_ms=37.62
 
 ## Identity Swap Test
 
   [PASS] State swap transfers behavioral bias
-         A_pre=0.4136  B_pre=-0.1017  A_post=-0.1017  B_post=0.4136
+         A_pre=0.4135  B_pre=-0.1021  A_post=-0.1021  B_post=0.4135
+
+## LLM Propagation (Tier 4)
+
+  [PASS] Threat → lower temperature than reward
+         threat_temp=0.685  reward_temp=0.5
+  [PASS] Threat → fewer tokens than reward
+         threat_tokens=518  reward_tokens=768
+  [PASS] Threat narrative ≠ reward narrative
+         threat_narrative=Somatically stable.  reward_narrative=Somatically calm and settled.
+  [PASS] Homeostasis context blocks differ (degraded vs healthy)
+         degraded_len=90  healthy_len=77
+  [PASS] Free energy context blocks differ (high PE vs low PE)
+         high_pe_block_len=86  low_pe_block_len=86
+
+## Generalization (Tier 5)
+
+  [PASS] Novel triple chemical combo produces coherent mood
+         combo_valence=0.2770000100135803  combo_stress=0.02449999935925007
+  [PASS] Extreme intensity (0.99) stays bounded
+         extreme_stress=0.4099999964237213  extreme_valence=-0.08789999783039093
+
+## Robustness (Tier 5)
+
+  [PASS] Adversarial flooding: 100 contradictory events
+         valence=0.2581999897956848  stress=0.09520000219345093  any_nan=False
+  [PASS] State corruption recovery (50% neurons → [-10,10])
+         min_after=-1.0  max_after=0.9316
+
+## Self-Monitoring (Tier 5)
+
+  [PASS] Self-monitoring: stable→low error, chaotic→high error
+         stable_error=0.0  chaotic_error=0.8008
+  [PASS] Metacognitive accuracy: identifies chaotic focus dimension
+         identified_as=attentional_focus
 
 ========================================================================
-RESULTS: 25 passed, 0 failed, 25 total
-Time: 5.06s
+RESULTS: 36 passed, 0 failed, 36 total
+Time: 7.52s
 ========================================================================
 
 Results written to tests/RESULTS.json

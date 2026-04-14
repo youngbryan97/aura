@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-04-14T09:19:26.002786+00:00",
-  "total": 25,
-  "passed": 25,
+  "timestamp": "2026-04-14T16:03:41.464752+00:00",
+  "total": 36,
+  "passed": 36,
   "failed": 0,
-  "elapsed_seconds": 5.06,
+  "elapsed_seconds": 7.52,
   "tests": {
     "2.1 Cortisol \u2192 negative valence": {
       "status": "PASS",
@@ -71,7 +71,7 @@
     },
     "6.1 Idle drift after 100 ticks": {
       "status": "PASS",
-      "L2_drift": 5.1889
+      "L2_drift": 5.1449
     },
     "7.1 Perturbation divergence persists": {
       "status": "PASS",
@@ -79,16 +79,16 @@
     },
     "5.4 Phi from real ODE transitions (tightly-coupled subnet)": {
       "status": "PASS",
-      "phi_s": 0.03371,
+      "phi_s": 0.0331,
       "is_complex": true,
       "n_partitions": 33,
       "tpm_samples": 299,
-      "unique_states": 28,
-      "compute_ms": 4684.56
+      "unique_states": 27,
+      "compute_ms": 6953.74
     },
     "18.1 Free energy monotonically increases with prediction error": {
       "status": "PASS",
-      "FE(pe=0.0)": "0.2628 [rest]",
+      "FE(pe=0.0)": "0.2626 [rest]",
       "FE(pe=0.2)": "0.2668 [rest]",
       "FE(pe=0.5)": "0.2768 [rest]",
       "FE(pe=0.8)": "0.2937 [rest]",
@@ -124,18 +124,73 @@
     },
     "1000 ODE ticks take measurable time": {
       "status": "PASS",
-      "elapsed_ms": 52.83
+      "elapsed_ms": 69.95
     },
     "50 STDP recordings on 64 neurons": {
       "status": "PASS",
-      "elapsed_ms": 25.17
+      "elapsed_ms": 37.62
     },
     "State swap transfers behavioral bias": {
       "status": "PASS",
-      "A_pre": 0.4136,
-      "B_pre": -0.1017,
-      "A_post": -0.1017,
-      "B_post": 0.4136
+      "A_pre": 0.4135,
+      "B_pre": -0.1021,
+      "A_post": -0.1021,
+      "B_post": 0.4135
+    },
+    "Threat \u2192 lower temperature than reward": {
+      "status": "PASS",
+      "threat_temp": 0.685,
+      "reward_temp": 0.5
+    },
+    "Threat \u2192 fewer tokens than reward": {
+      "status": "PASS",
+      "threat_tokens": 518,
+      "reward_tokens": 768
+    },
+    "Threat narrative \u2260 reward narrative": {
+      "status": "PASS",
+      "threat_narrative": "Somatically stable.",
+      "reward_narrative": "Somatically calm and settled."
+    },
+    "Homeostasis context blocks differ (degraded vs healthy)": {
+      "status": "PASS",
+      "degraded_len": 90,
+      "healthy_len": 77
+    },
+    "Free energy context blocks differ (high PE vs low PE)": {
+      "status": "PASS",
+      "high_pe_block_len": 86,
+      "low_pe_block_len": 86
+    },
+    "Novel triple chemical combo produces coherent mood": {
+      "status": "PASS",
+      "combo_valence": "0.277",
+      "combo_stress": "0.0245"
+    },
+    "Extreme intensity (0.99) stays bounded": {
+      "status": "PASS",
+      "extreme_stress": "0.41",
+      "extreme_valence": "-0.0879"
+    },
+    "Adversarial flooding: 100 contradictory events": {
+      "status": "PASS",
+      "valence": "0.2582",
+      "stress": "0.0952",
+      "any_nan": false
+    },
+    "State corruption recovery (50% neurons \u2192 [-10,10])": {
+      "status": "PASS",
+      "min_after": -1.0,
+      "max_after": 0.9316
+    },
+    "Self-monitoring: stable\u2192low error, chaotic\u2192high error": {
+      "status": "PASS",
+      "stable_error": 0.0,
+      "chaotic_error": 0.8008
+    },
+    "Metacognitive accuracy: identifies chaotic focus dimension": {
+      "status": "PASS",
+      "identified_as": "attentional_focus"
     }
   }
 }

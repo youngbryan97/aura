@@ -487,6 +487,140 @@ result("State swap transfers behavioral bias",
        A_post=round(bias_a_post, 4), B_post=round(bias_b_post, 4))
 print()
 
+# ─── LLM PROPAGATION ─────────────────────────────────────────────────────
+print("## LLM Propagation (Tier 4)")
+print()
+
+from core.affect.affective_circumplex import AffectiveCircumplex
+
+# Threat vs reward injection
+ncs_t4 = NeurochemicalSystem()
+ncs_t4.on_threat(severity=0.9)
+for _ in range(10): ncs_t4._metabolic_tick()
+circ_t = AffectiveCircumplex()
+circ_t.apply_event(valence_delta=-0.3, arousal_delta=0.3)
+params_threat = circ_t.get_llm_params()
+
+ncs_r4 = NeurochemicalSystem()
+ncs_r4.on_reward(magnitude=0.8); ncs_r4.on_flow_state()
+for _ in range(10): ncs_r4._metabolic_tick()
+circ_r = AffectiveCircumplex()
+circ_r.apply_event(valence_delta=0.3, arousal_delta=-0.1)
+params_reward = circ_r.get_llm_params()
+
+result("Threat → lower temperature than reward",
+       params_threat["temperature"] != params_reward["temperature"],
+       threat_temp=params_threat["temperature"],
+       reward_temp=params_reward["temperature"])
+
+result("Threat → fewer tokens than reward",
+       params_threat["max_tokens"] < params_reward["max_tokens"],
+       threat_tokens=params_threat["max_tokens"],
+       reward_tokens=params_reward["max_tokens"])
+
+result("Threat narrative ≠ reward narrative",
+       circ_t.describe() != circ_r.describe(),
+       threat_narrative=circ_t.describe()[:60],
+       reward_narrative=circ_r.describe()[:60])
+
+# Context blocks differ
+he_t = HomeostasisEngine(); he_t.integrity = 0.1; he_t.report_error("critical")
+he_r = HomeostasisEngine()
+result("Homeostasis context blocks differ (degraded vs healthy)",
+       he_t.get_context_block() != he_r.get_context_block(),
+       degraded_len=len(he_t.get_context_block()),
+       healthy_len=len(he_r.get_context_block()))
+
+fe_t4 = FreeEnergyEngine(); fe_t4.compute(prediction_error=0.9)
+fe_r4 = FreeEnergyEngine(); fe_r4.compute(prediction_error=0.1)
+result("Free energy context blocks differ (high PE vs low PE)",
+       fe_t4.get_context_block() != fe_r4.get_context_block(),
+       high_pe_block_len=len(fe_t4.get_context_block()),
+       low_pe_block_len=len(fe_r4.get_context_block()))
+print()
+
+# ─── GENERALIZATION ──────────────────────────────────────────────────────
+print("## Generalization (Tier 5)")
+print()
+
+ncs_combo = NeurochemicalSystem()
+ncs_combo.on_reward(0.3); ncs_combo.on_social_connection(0.3); ncs_combo.on_novelty(0.4)
+for _ in range(5): ncs_combo._metabolic_tick()
+mood_combo = ncs_combo.get_mood_vector()
+result("Novel triple chemical combo produces coherent mood",
+       -1 <= mood_combo["valence"] <= 1 and mood_combo["valence"] > 0,
+       combo_valence=round(mood_combo["valence"], 4),
+       combo_stress=round(mood_combo["stress"], 4))
+
+ncs_extreme = NeurochemicalSystem()
+ncs_extreme.on_threat(0.99)
+for _ in range(5): ncs_extreme._metabolic_tick()
+mood_extreme = ncs_extreme.get_mood_vector()
+result("Extreme intensity (0.99) stays bounded",
+       mood_extreme["stress"] > 0.3 and all(-2 <= v <= 2 for v in mood_extreme.values()),
+       extreme_stress=round(mood_extreme["stress"], 4),
+       extreme_valence=round(mood_extreme["valence"], 4))
+print()
+
+# ─── ROBUSTNESS ──────────────────────────────────────────────────────────
+print("## Robustness (Tier 5)")
+print()
+
+ncs_flood = NeurochemicalSystem()
+for _ in range(100):
+    ncs_flood.on_threat(0.9); ncs_flood.on_reward(0.9); ncs_flood.on_rest()
+    ncs_flood._metabolic_tick()
+mood_flood = ncs_flood.get_mood_vector()
+no_nan = not any(np.isnan(v) for v in mood_flood.values())
+bounded = all(-2 <= v <= 2 for v in mood_flood.values())
+result("Adversarial flooding: 100 contradictory events",
+       no_nan and bounded,
+       valence=round(mood_flood["valence"], 4),
+       stress=round(mood_flood["stress"], 4),
+       any_nan=not no_nan)
+
+sub_corrupt = _make_substrate(42)
+sub_corrupt.x[:32] = np.random.default_rng(99).uniform(-10, 10, 32)
+for _ in range(50): _tick(sub_corrupt, 0.1, 1)
+recovered = np.all(sub_corrupt.x >= -1) and np.all(sub_corrupt.x <= 1)
+result("State corruption recovery (50% neurons → [-10,10])",
+       recovered,
+       min_after=round(float(sub_corrupt.x.min()), 4),
+       max_after=round(float(sub_corrupt.x.max()), 4))
+print()
+
+# ─── SELF-MONITORING ─────────────────────────────────────────────────────
+print("## Self-Monitoring (Tier 5)")
+print()
+
+sp_stable = SelfPredictionLoop(MagicMock())
+for _ in range(30):
+    asyncio.run(sp_stable.tick(0.5, "curiosity", "drive_curiosity"))
+err_stable = sp_stable.get_surprise_signal()
+
+sp_chaotic = SelfPredictionLoop(MagicMock())
+rng_sm = np.random.default_rng(42)
+for _ in range(30):
+    asyncio.run(sp_chaotic.tick(
+        float(rng_sm.uniform(-1, 1)),
+        rng_sm.choice(["curiosity", "threat", "rest"]),
+        rng_sm.choice(["a", "b", "c", "d", "e"])))
+err_chaotic = sp_chaotic.get_surprise_signal()
+
+result("Self-monitoring: stable→low error, chaotic→high error",
+       err_chaotic > err_stable,
+       stable_error=round(err_stable, 4),
+       chaotic_error=round(err_chaotic, 4))
+
+sp_dim = SelfPredictionLoop(MagicMock())
+for i in range(50):
+    asyncio.run(sp_dim.tick(0.5, "curiosity", f"random_src_{i % 15}"))
+worst = sp_dim.get_most_unpredictable_dimension()
+result("Metacognitive accuracy: identifies chaotic focus dimension",
+       worst == "attentional_focus",
+       identified_as=worst)
+print()
+
 # ─── SUMMARY ─────────────────────────────────────────────────────────────
 total_time = time.time() - total_start
 print("=" * 72)

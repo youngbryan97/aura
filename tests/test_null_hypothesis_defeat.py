@@ -411,7 +411,7 @@ class TestAblation:
             assert winner is not None, "GWT produced no winner"
             assert winner.source == "src_a", "GWT didn't pick highest priority"
             return winner
-        asyncio.get_event_loop().run_until_complete(_run())
+        asyncio.run(_run())
 
     def test_phi_positive_from_real_ode_transitions(self):
         """PhiCore must compute phi > 0 when fed REAL ODE transitions
@@ -2378,7 +2378,7 @@ class TestClosedLoopAdaptation:
 
         errors = []
         for i in range(60):
-            await_result = asyncio.get_event_loop().run_until_complete(
+            await_result = asyncio.run(
                 sp.tick(
                     actual_valence=0.5,
                     actual_drive="curiosity",
@@ -2995,7 +2995,7 @@ class TestPhenomenalProbes:
 
         # Build history
         for i in range(30):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp.tick(actual_valence=0.5, actual_drive="curiosity",
                         actual_focus_source="drive_curiosity")
             )
@@ -3075,7 +3075,7 @@ class TestIrreducibility:
                 winner = await gw.run_competition()
                 return pa, pb, phi, (1 if winner and winner.source == "src_a" else 0)
 
-            pa, pb, phi, y = asyncio.get_event_loop().run_until_complete(_run())
+            pa, pb, phi, y = asyncio.run(_run())
             X.append([pa, pb, phi])
             Y.append(y)
 
@@ -3216,7 +3216,7 @@ def _score_system(sub: LiquidSubstrate, ncs: NeurochemicalSystem,
     mock_orch = MagicMock()
     sp = SelfPredictionLoop(orchestrator=mock_orch)
     for t in range(min(40, n_ticks)):
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             sp.tick(actual_valence=moods[t] if t < len(moods) else 0.0,
                     actual_drive="curiosity",
                     actual_focus_source="drive_curiosity"))
@@ -3275,7 +3275,7 @@ def _score_system(sub: LiquidSubstrate, ncs: NeurochemicalSystem,
             if w:
                 winners.append(w.source)
         return min(1.0, len(set(winners)) / 4.0)
-    action_diversity = asyncio.get_event_loop().run_until_complete(_gwt_diversity())
+    action_diversity = asyncio.run(_gwt_diversity())
 
     return {
         "viability": round(viability, 4),
@@ -3697,7 +3697,7 @@ class TestInternalStateBlindness:
         # With self-model: normal prediction loop
         sp = SelfPredictionLoop(orchestrator=mock_orch)
         for i in range(30):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp.tick(actual_valence=0.5, actual_drive="curiosity",
                         actual_focus_source="drive_curiosity"))
         calibration_with = 1.0 - sp.get_surprise_signal()
@@ -3706,7 +3706,7 @@ class TestInternalStateBlindness:
         sp_blind = SelfPredictionLoop(orchestrator=mock_orch)
         rng = np.random.default_rng(42)
         for i in range(30):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_blind.tick(
                     actual_valence=float(rng.uniform(-1, 1)),
                     actual_drive=rng.choice(["curiosity", "threat", "rest"]),
@@ -3770,7 +3770,7 @@ class TestSelfModelFalseInjection:
         # Accurate self-model: predict what actually happens
         sp_acc = SelfPredictionLoop(orchestrator=mock_orch)
         for _ in range(20):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_acc.tick(actual_valence=0.5, actual_drive="curiosity",
                             actual_focus_source="drive_curiosity"))
 
@@ -3781,13 +3781,13 @@ class TestSelfModelFalseInjection:
         rng = np.random.default_rng(42)
         # Build false history then switch to stable
         for _ in range(10):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_false.tick(
                     actual_valence=float(rng.uniform(-1, 1)),
                     actual_drive=rng.choice(["a", "b", "c"]),
                     actual_focus_source=rng.choice(["x", "y", "z"])))
         for _ in range(10):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_false.tick(actual_valence=0.5, actual_drive="curiosity",
                               actual_focus_source="drive_curiosity"))
 
@@ -3807,7 +3807,7 @@ class TestSelfModelFalseInjection:
         # Accurate: trained on same stable signal it will predict
         sp_acc = SelfPredictionLoop(orchestrator=mock_orch)
         for _ in range(40):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_acc.tick(actual_valence=0.3, actual_drive="curiosity",
                             actual_focus_source="drive_curiosity"))
 
@@ -3815,13 +3815,13 @@ class TestSelfModelFalseInjection:
         sp_false = SelfPredictionLoop(orchestrator=mock_orch)
         rng = np.random.default_rng(99)
         for _ in range(30):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_false.tick(
                     actual_valence=float(rng.uniform(-1, 1)),
                     actual_drive=rng.choice(["a", "b", "c", "d"]),
                     actual_focus_source=rng.choice(["w", "x", "y", "z"])))
         for _ in range(10):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_false.tick(actual_valence=0.3, actual_drive="curiosity",
                               actual_focus_source="drive_curiosity"))
 
@@ -3848,7 +3848,7 @@ class TestOnlineAdaptation:
         sp_zero = SelfPredictionLoop(orchestrator=mock_orch)
         rng = np.random.default_rng(42)
         for _ in range(10):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_zero.tick(
                     actual_valence=float(rng.uniform(-1, 1)),
                     actual_drive=rng.choice(["a", "b", "c", "d"]),
@@ -3858,7 +3858,7 @@ class TestOnlineAdaptation:
         # Trained: 100 ticks of a consistent pattern
         sp_trained = SelfPredictionLoop(orchestrator=mock_orch)
         for _ in range(100):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_trained.tick(actual_valence=0.5, actual_drive="curiosity",
                                 actual_focus_source="drive_curiosity"))
         error_trained = sp_trained.get_surprise_signal()
@@ -4222,9 +4222,9 @@ class TestLLMPropagation_ContextBlocks:
             await attn.set_focus(content=content, source=source, priority=priority)
             return attn.get_context_block() if hasattr(attn, 'get_context_block') else ""
 
-        block_a = asyncio.get_event_loop().run_until_complete(
+        block_a = asyncio.run(
             _set_and_get("deep philosophical inquiry", "drive_curiosity", 0.9))
-        block_b = asyncio.get_event_loop().run_until_complete(
+        block_b = asyncio.run(
             _set_and_get("imminent threat response", "affect_threat", 0.95))
 
         if block_a and block_b:
@@ -4515,7 +4515,7 @@ class TestLLMPropagation_FullPipeline:
 
             return winner_high, winner_zero
 
-        w_high, w_zero = asyncio.get_event_loop().run_until_complete(_run())
+        w_high, w_zero = asyncio.run(_run())
 
         # Both should pick the same winner (narrative_gravity has higher base priority)
         # but high-phi winner should have higher effective priority
@@ -4799,14 +4799,14 @@ class TestRobustness:
 
         # Stable phase
         for _ in range(30):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp.tick(actual_valence=0.5, actual_drive="curiosity",
                         actual_focus_source="drive_curiosity"))
         error_stable = sp.get_surprise_signal()
 
         # Distribution shift: everything changes at once
         for _ in range(5):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp.tick(actual_valence=-0.8, actual_drive="threat",
                         actual_focus_source="external_danger"))
         error_shift = sp.get_surprise_signal()
@@ -4836,7 +4836,7 @@ class TestSelfMonitoring:
         # Phase 1: stable inputs → low error expected
         sp_stable = SelfPredictionLoop(orchestrator=mock_orch)
         for _ in range(30):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_stable.tick(actual_valence=0.5, actual_drive="curiosity",
                                actual_focus_source="drive_curiosity"))
         error_stable = sp_stable.get_surprise_signal()
@@ -4845,7 +4845,7 @@ class TestSelfMonitoring:
         sp_variable = SelfPredictionLoop(orchestrator=mock_orch)
         rng = np.random.default_rng(42)
         for _ in range(30):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp_variable.tick(
                     actual_valence=float(rng.uniform(-1, 1)),
                     actual_drive=rng.choice(["curiosity", "threat", "rest", "social"]),
@@ -4881,7 +4881,7 @@ class TestSelfMonitoring:
 
         # Feed: valence stable, drive stable, focus CHAOTIC
         for i in range(50):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp.tick(
                     actual_valence=0.5,  # Stable
                     actual_drive="curiosity",  # Stable
@@ -4898,7 +4898,7 @@ class TestSelfMonitoring:
         sp = SelfPredictionLoop(orchestrator=mock_orch)
 
         for _ in range(20):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 sp.tick(actual_valence=0.3, actual_drive="curiosity",
                         actual_focus_source="drive_curiosity"))
 
