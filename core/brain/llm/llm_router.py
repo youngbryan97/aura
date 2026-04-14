@@ -110,8 +110,9 @@ class LLMHealthMonitor:
         self.failure_counts: Dict[str, int] = {}
         self.last_success: Dict[str, float] = {}
         self.failure_threshold = 3
-        self.recovery_time = 120  # Reduced from 3600s — 1 hour lockout was too aggressive
-                                  # and caused the 72B cortex to stay dead after boot failures
+        self.recovery_time = 20  # [STABILITY v52] Reduced from 120s. 
+                                 # We need the router to try respawned local workers far sooner 
+                                 # instead of unnecessarily falling back to weaker tiers for 2 mins.
         self.event_bus = event_bus
         
         logger.info("LLMHealthMonitor initialized")

@@ -671,7 +671,10 @@ def _mlx_worker_loop(
                                             "timestamp": time.time(),
                                         })
                                     
-                                    # Let MLX manage VRAM dynamically inline without manual clears
+                                    # [STABILITY v52] Explicit manual cache clearing to prevent MLX memory 
+                                    # fragmentation mapping failures on long context 32B inferences.
+                                    if mx and device != "cpu" and token_count % 32 == 0:
+                                        _clear_mlx_cache(mx)
                                     
                                     # [FRONTIER UPGRADE] Absolute safety cap expanded so it never stops midway
                                     if token_count > 8192:
@@ -702,9 +705,6 @@ def _mlx_worker_loop(
                         if len(prompt) > 2000:
                             logger.debug("Prompt snippet: %s...", prompt[:100])
                     
-                    if mx and device != "cpu":
-                        _clear_mlx_cache(mx)
-                    
                     # : Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.
                     ipc_writer.put({
@@ -717,6 +717,11 @@ def _mlx_worker_loop(
                 except Exception as e:
                     logger.error(f"Generation failed: {e}")
                     ipc_writer.put({"status": "error", "action": "generate", "message": str(e)})
+                finally:
+                    # [STABILITY v52] Guarantee VRAM gets purged after standard generation 
+                    # completes or fails, ensuring pure state for next request.
+                    if mx and device != "cpu":
+                        _clear_mlx_cache(mx)
             
             elif action == "stream":
                 prompt = job.get("prompt")
@@ -790,11 +795,14 @@ def _mlx_worker_loop(
                             watchdog.stop_job()
                     
                     ipc_writer.put({"status": "ok", "action": "stream_done"})
-                    if mx and device != "cpu":
-                        _clear_mlx_cache(mx)
                 except Exception as e:
                     logger.error(f"Streaming failed: {e}")
                     ipc_writer.put({"status": "error", "action": "stream", "message": str(e)})
+                finally:
+                    # [STABILITY v52] Guarantee VRAM gets purged after streaming
+                    # completes or fails, ensuring pure state for next request.
+                    if mx and device != "cpu":
+                        _clear_mlx_cache(mx)
 
             elif action == "ping":
                 if mx and device != "cpu":
