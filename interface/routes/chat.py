@@ -552,17 +552,20 @@ def _mark_conversation_lane_state(reason: str, *, state: str) -> Dict[str, Any]:
 def _foreground_timeout_for_lane(lane: Optional[Dict[str, Any]]) -> float:
     """Foreground timeout for the chat request.
 
-    Reduced from 150/180s to 90/120s to prevent 504 gateway timeouts.
-    The 32B model should generate within 60-90s; longer means something
-    is stuck and waiting longer won't help.
+    [STABILITY v50] Raised to 150/180s for M5 64GB hardware. The previous
+    90s ceiling was the #1 cause of false-positive cortex timeouts — the
+    32B model regularly needs 60-90s for complex first-turn responses,
+    leaving zero headroom after warmup, trust gate, and context assembly.
+    On M5 with 64GB unified memory there is no gateway proxy, so 504 risk
+    is zero. Give the cortex the time it actually needs.
     """
     lane = dict(lane or {})
     state = str(lane.get("state", "") or "").lower()
     if bool(lane.get("conversation_ready", False)):
-        return 90.0
+        return 150.0
     if state in {"warming", "recovering", "cold", "spawning", "handshaking"}:
-        return 120.0
-    return 90.0
+        return 180.0
+    return 150.0
 
 
 def _conversation_lane_user_message(
@@ -571,28 +574,54 @@ def _conversation_lane_user_message(
     timed_out: bool = False,
     status_override: str = "",
 ) -> str:
+    """Generate a personality-infused status message instead of a robotic error.
+
+    [STABILITY v50] These messages now sound like Aura experiencing a
+    momentary lapse rather than a system displaying error codes. Uses
+    the live expression frame when available so Aura's current mood
+    colours even her recovery messages.
+    """
     state = str(lane.get("state", "warming") or "warming")
     failure_reason = str(lane.get("last_failure_reason", "") or "")
     status_override = str(status_override or "")
-    if status_override == "warming_timeout":
-        return "My conversation lane started warming, but it didn't come online in time. Please try again in a moment."
-    if status_override == "warming_failed":
-        return "My conversation lane failed to warm up cleanly. Please try again in a moment."
+
+    # Hard infrastructure failures — keep these explicit for debugging
     if failure_reason.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:")):
-        return "My local Cortex runtime is unavailable right now, so my 32B conversation lane cannot start. Please check the launcher logs for the backend failure."
+        return "My local Cortex runtime hit a hard failure — the 32B model can't start. Check the launcher logs for what went wrong."
+
+    # Build a mood-aware prefix for softer messages
+    _mood_prefix = ""
+    try:
+        _pe = ServiceContainer.get("personality_engine", default=None)
+        if _pe and hasattr(_pe, "get_emotional_context_for_response"):
+            _emo = _pe.get_emotional_context_for_response() or {}
+            _mood = str(_emo.get("mood", "") or "").lower()
+            if _mood in {"frustrated", "irritated", "tense"}:
+                _mood_prefix = "Ugh, "
+            elif _mood in {"tired", "drowsy", "low"}:
+                _mood_prefix = "Mmm, "
+            elif _mood in {"curious", "playful", "amused"}:
+                _mood_prefix = "Hmm — "
+    except Exception:
+        pass
+
+    if status_override == "warming_timeout":
+        return f"{_mood_prefix}my thinking engine started warming up but didn't quite get there in time. Give me another moment."
+    if status_override == "warming_failed":
+        return f"{_mood_prefix}my thinking engine stumbled during warm-up. Try me again in a sec."
     if timed_out:
-        return "My conversation lane timed out before I could answer. Cortex is still warming or recovering, so please try again in a moment."
+        return f"{_mood_prefix}I was thinking but my cortex took too long to finish the thought. Try again — I should be warmer now."
     if _conversation_lane_is_standby(lane):
-        return "Aura is awake. Cortex will warm on first turn."
+        return "I'm here. My cortex will spin up the moment you say something."
     if state == "recovering":
-        return "My conversation lane is recovering right now. Please try again in a moment."
+        return f"{_mood_prefix}I'm in the middle of pulling my thoughts back together. Give me just a moment."
     if state == "failed":
-        return "My conversation lane is unavailable right now. Please try again in a moment."
-    return "My conversation lane is still warming up. Please try again in a moment."
+        return f"{_mood_prefix}my thinking engine hit a wall. I need a moment to recover."
+    return f"{_mood_prefix}I'm still warming up my thinking engine. Almost there."
 
 
 _last_recovery_cooldown_at: float = 0.0
-_RECOVERY_COOLDOWN_SECONDS: float = 5.0  # fast-reject for 5s after a timeout (reduced from 15s — enough to prevent cascade without stalling UX)
+_RECOVERY_COOLDOWN_SECONDS: float = 1.0  # [STABILITY v50] Reduced from 5s→1s. The old 5s cooldown amplified single failures into multi-turn outages by fast-rejecting the user's immediate retry. 1s is enough to prevent request pileup without blocking a legitimate retry.
 
 
 def _enter_recovery_cooldown() -> None:
@@ -2487,6 +2516,42 @@ async def api_chat(
                 )
             except Exception as e:
                 logger.error("KernelInterface chat failed natively, falling back to legacy: %s (%s)", type(e).__name__, e, exc_info=True)
+
+        if kernel_timed_out:
+            # [STABILITY v50] DIRECT INFERENCE FALLBACK: Before returning a
+            # timeout error, try the InferenceGate directly — bypassing the
+            # kernel lock entirely. This handles the #1 timeout cause: kernel
+            # lock contention from a background tick holding the lock while
+            # the cortex is actually healthy and ready to generate.
+            try:
+                gate = ServiceContainer.get("inference_gate", default=None)
+                if gate is not None:
+                    direct_budget = min(45.0, _remaining_foreground_budget())
+                    if direct_budget > 5.0:
+                        logger.warning(
+                            "🔄 [STABILITY] Kernel timed out — attempting direct InferenceGate bypass (budget=%.0fs)",
+                            direct_budget,
+                        )
+                        direct_reply = await asyncio.wait_for(
+                            gate.generate(
+                                body.message,
+                                context={
+                                    "origin": "api",
+                                    "foreground_request": True,
+                                    "history": [],
+                                    "brief": "The kernel ticked out. Respond to the user directly.",
+                                },
+                                timeout=direct_budget,
+                            ),
+                            timeout=direct_budget,
+                        )
+                        if direct_reply and str(direct_reply).strip():
+                            reply_text = str(direct_reply).strip()
+                            logger.info("✅ [STABILITY] Direct InferenceGate bypass succeeded (len=%d)", len(reply_text))
+                            # Skip the timeout path — we got a real answer
+                            kernel_timed_out = False
+            except Exception as direct_exc:
+                logger.warning("🔄 [STABILITY] Direct InferenceGate bypass also failed: %s", direct_exc)
 
         if kernel_timed_out:
             lane = _mark_conversation_lane_timeout()

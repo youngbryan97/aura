@@ -187,6 +187,10 @@ class ConversationalDynamicsEngine:
 
     MAX_ANCHORS = 8          # Rolling window of topic anchors
     MAX_OPEN_THREADS = 5     # Max open threads tracked
+    MAX_ANCHOR_AGE_TURNS = 8
+    MAX_CALLBACK_AGE_TURNS = 4
+    MAX_OPEN_THREAD_AGE_TURNS = 4
+    OPEN_THREAD_URGENCY_DECAY = 0.82
 
     def __init__(self):
         self._state = ConversationalDynamicsState()
@@ -223,12 +227,19 @@ class ConversationalDynamicsEngine:
         # Age open threads
         for thread in new_state.open_threads:
             thread.age_turns += 1
+            thread.urgency = max(0.0, min(1.0, float(thread.urgency) * self.OPEN_THREAD_URGENCY_DECAY))
 
-        # Prune old threads (older than 6 turns and not urgent)
+        # Prune old/open-ended scaffolding so stale callbacks do not keep
+        # dragging the model back to abandoned topics.
         new_state.open_threads = [
             t for t in new_state.open_threads
-            if t.age_turns < 6 or t.urgency > 0.7
+            if t.age_turns < self.MAX_OPEN_THREAD_AGE_TURNS and t.urgency >= 0.35
         ][:self.MAX_OPEN_THREADS]
+        new_state.topic_anchors = [
+            anchor
+            for anchor in new_state.topic_anchors[-self.MAX_ANCHORS :]
+            if (self._message_count - int(anchor.message_index or 0)) <= self.MAX_ANCHOR_AGE_TURNS
+        ]
 
         self._state = new_state
         return new_state
@@ -303,6 +314,9 @@ class ConversationalDynamicsEngine:
                 state.association_chain.pop(0)
 
         state.current_topic = topic
+        for anchor in state.topic_anchors:
+            if anchor.topic == topic and int(anchor.message_index or 0) != self._message_count:
+                anchor.is_resolved = True
 
         # 8. Open thread detection
         self._detect_open_threads(message, speech_act, state)
@@ -334,7 +348,11 @@ class ConversationalDynamicsEngine:
         state.partner_trajectory = self._state.partner_trajectory
         state.current_topic = self._state.current_topic
         state.conditional_relevance_open = False  # Aura responded, clear the flag
-        state.open_threads = list(self._state.open_threads)
+        state.open_threads = [
+            thread
+            for thread in self._state.open_threads
+            if thread.thread_type not in {"question", "invitation"}
+        ]
         state.register = self._state.register
         state.in_group_active = self._state.in_group_active
         state.accommodation_cues = self._state.accommodation_cues
@@ -465,7 +483,7 @@ class ConversationalDynamicsEngine:
                 content=message.strip()[:120],
                 thread_type="question",
                 message_index=self._message_count,
-                urgency=0.9
+                urgency=0.75
             )
             state.open_threads.append(thread)
 
@@ -475,7 +493,7 @@ class ConversationalDynamicsEngine:
                 content=message.strip()[:120],
                 thread_type="vulnerable_disclosure",
                 message_index=self._message_count,
-                urgency=0.8
+                urgency=0.72
             )
             state.open_threads.append(thread)
 
@@ -485,7 +503,7 @@ class ConversationalDynamicsEngine:
                 content="User asked for Aura's opinion",
                 thread_type="invitation",
                 message_index=self._message_count,
-                urgency=0.7
+                urgency=0.55
             )
             state.open_threads.append(thread)
 
@@ -556,7 +574,16 @@ class ConversationalDynamicsEngine:
             lines.append(f"Open thread [{thread.thread_type}]: {thread.content[:80]}")
 
         # Callbacks available
-        available_callbacks = [a for a in s.topic_anchors[-5:] if not a.is_resolved and a.topic != s.current_topic]
+        available_callbacks = [
+            a
+            for a in s.topic_anchors[-5:]
+            if (
+                not a.is_resolved
+                and a.topic != s.current_topic
+                and (self._message_count - int(a.message_index or 0)) <= self.MAX_CALLBACK_AGE_TURNS
+                and float(a.salience or 0.0) >= 0.45
+            )
+        ]
         if available_callbacks:
             cb_topics = [a.topic for a in available_callbacks[-3:]]
             lines.append(f"Callback opportunities: {', '.join(cb_topics)}")

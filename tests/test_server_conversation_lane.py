@@ -5,6 +5,27 @@ from unittest.mock import AsyncMock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _reset_recovery_cooldown():
+    """Reset the recovery cooldown global between tests.
+
+    Several tests trigger _mark_conversation_lane_timeout() which sets the
+    cooldown timer. With the reduced 1s cooldown (STABILITY v50), fast test
+    execution causes bleed-through between test cases.
+    """
+    try:
+        from interface.routes import chat as chat_routes
+        chat_routes._last_recovery_cooldown_at = 0.0
+    except Exception:
+        pass
+    yield
+    try:
+        from interface.routes import chat as chat_routes
+        chat_routes._last_recovery_cooldown_at = 0.0
+    except Exception:
+        pass
+
+
 def _mock_orch(**kwargs):
     """Build a SimpleNamespace orchestrator with the minimum interface api_chat expects."""
     ns = SimpleNamespace(**kwargs)
@@ -173,7 +194,7 @@ async def test_api_chat_returns_hard_local_failure_without_kernel_fallback(monke
     )
 
     assert response.status_code == 503
-    assert b"local Cortex runtime is unavailable" in response.body
+    assert b"local Cortex runtime hit a hard failure" in response.body
     assert b"\"status\":\"conversation_unavailable\"" in response.body
     assert b"\"state\":\"failed\"" in response.body
 
@@ -214,8 +235,8 @@ async def test_api_chat_returns_structured_timeout_when_kernel_times_out(monkeyp
         None,
     )
 
-    assert response.status_code == 504
-    assert b"timed out" in response.body
+    assert response.status_code == 503
+    assert b"cortex took too long" in response.body
     assert b"\"status\":\"timeout\"" in response.body
 
 
@@ -272,7 +293,7 @@ def test_conversation_lane_user_message_reports_local_runtime_failure():
         }
     )
 
-    assert "local Cortex runtime is unavailable" in message
+    assert "local Cortex runtime hit a hard failure" in message
 
 
 @pytest.mark.asyncio

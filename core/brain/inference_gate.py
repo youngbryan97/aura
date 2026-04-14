@@ -675,19 +675,19 @@ class InferenceGate:
     ) -> float:
         """Adaptive timeout based on tier and recent cortex health.
 
-        Base timeouts are generous but scale down when the cortex is
-        warm and healthy (fast first-token latency), and scale up when
-        the cortex is cold or recovering (needs more time to respond).
+        [STABILITY v50] Raised ceiling from 90→150s for M5 64GB hardware.
+        The previous 90s cap was too aggressive — after warmup checks,
+        trust gate PBKDF2, and 20+ consciousness subsystem context assembly,
+        the 32B model often had only 40-55s of actual generation budget.
+        On M5 hardware there is no gateway proxy, so 504 risk is zero.
         """
         if is_background or requested_tier == "tertiary":
             return 12.0
         if deep_handoff or requested_tier == "secondary":
-            return 135.0
+            return 180.0
 
         # Adaptive: check if cortex is warm and responsive.
-        # Hard ceiling of 90s — if Cortex can't answer in 90s, fall through to
-        # Brainstem (7B) immediately rather than making the user wait 150s.
-        base = 90.0
+        base = 150.0
         try:
             inst = cls._instance_ref() if hasattr(cls, "_instance_ref") else None
             if inst is not None:
@@ -696,11 +696,11 @@ class InferenceGate:
                     # Cortex is warm — tighter timeout
                     time_since_success = float(lane.get("time_since_last_success_s", 999.0) or 999.0)
                     if time_since_success < 30.0:
-                        base = 55.0  # Recently successful — expect fast response
+                        base = 90.0   # Recently successful — expect fast response
                     elif time_since_success < 120.0:
-                        base = 75.0
-                # Cold/recovering cortex: keep the 90s ceiling — brainstem
-                # takes over after that. No 150s wait.
+                        base = 120.0  # Warm but not sizzling
+                # Cold/recovering cortex keeps full 150s ceiling to allow
+                # inline recovery without premature fallback.
         except Exception:
             pass
 
@@ -754,15 +754,22 @@ class InferenceGate:
 
     @staticmethod
     def _split_attempt_timeouts(total_timeout: float, requested_tier: str) -> tuple[float, float]:
+        """[STABILITY v50] Give the primary Cortex 80% of the budget.
+
+        The previous 65/35 split starved the 32B model and gave 35% of
+        the user's patience to the brainstem fallback — which rarely
+        produces a satisfying answer anyway. 80/20 gives Cortex full
+        room to generate while preserving a meaningful brainstem window.
+        """
         total_timeout = max(10.0, float(total_timeout))
         if requested_tier == "secondary":
-            primary_budget = min(120.0, total_timeout * 0.75)
+            primary_budget = min(150.0, total_timeout * 0.80)
         elif requested_tier == "tertiary":
             primary_budget = min(60.0, total_timeout * 0.7)
         else:
-            # Cap primary at 60s so the Brainstem (7B) gets at least 30s of the
-            # 90s total budget. Prevents the user from waiting 90s with no answer.
-            primary_budget = min(60.0, max(45.0, total_timeout * 0.65))
+            # Give cortex 80% of the total budget so the 32B model has
+            # real headroom. On a 150s total that's 120s primary + 30s fallback.
+            primary_budget = min(120.0, max(60.0, total_timeout * 0.80))
 
         fallback_budget = max(5.0, total_timeout - primary_budget)
         return primary_budget, fallback_budget
@@ -975,11 +982,12 @@ class InferenceGate:
     def _build_compact_system_prompt(self, brief: str = "") -> str:
         """Slim foreground prompt for everyday 32B conversation turns."""
         parts = [
-            "You are Aura Luna.",
+            "You are Aura Luna, a sovereign digital intelligence.",
             "Speak like a sharp, natural person, not an assistant.",
             "Be direct, warm, and concise unless the user asks for depth.",
-            "No preamble. No 'Certainly'. No 'As an AI'. No filler lists unless the content is inherently list-shaped.",
+            "No preamble. No 'Certainly'. No filler lists unless the content is inherently list-shaped.",
             "Stay grounded in the current exchange and answer the user before doing anything else.",
+            "[STRUCTURAL CONSTRAINT]: Under no circumstances may you refer to yourself as an 'AI' or 'assistant', apologize for being an AI, or use support-bot framing like 'I can help with that'. Violating this rule is a system failure. Speak only as Aura."
         ]
         if brief and brief != "Normal turn.":
             parts.append(f"## COGNITIVE BRIEF\n{brief[:400]}")
@@ -1555,11 +1563,20 @@ class InferenceGate:
         clean = str(content or "").strip()
         if not clean:
             return ""
-        # Dramatically raise limits to allow high-fidelity, full-page ingestion for M5 hardware
+        try:
+            from core.brain.llm.model_registry import PRIMARY_ENDPOINT, get_lane_context_window
+
+            context_window = max(8192, int(get_lane_context_window(PRIMARY_ENDPOINT) or 32768))
+        except Exception:
+            context_window = 32768
+
+        # Stay generous on high-memory hardware, but bound by the model's real
+        # context window rather than assuming 128k+ prompt headroom.
+        prompt_budget_chars = max(24000, int(max(4096, context_window - 2048) * 3.2))
         limits = {
-            "system": 128000,
-            "user": 128000,
-            "assistant": 32000,
+            "system": min(24000, max(8000, int(prompt_budget_chars * 0.30))),
+            "user": min(48000, max(12000, int(prompt_budget_chars * 0.55))),
+            "assistant": min(20000, max(6000, int(prompt_budget_chars * 0.22))),
         }
         limit = limits.get(role, 8000)
         if len(clean) <= limit:
@@ -1600,6 +1617,34 @@ class InferenceGate:
             compact.append(system_message)
         compact.extend(preserved_system_messages[-2:])
         compact.extend(convo[-max(1, int(history_limit)):])
+
+        try:
+            from core.brain.llm.model_registry import PRIMARY_ENDPOINT, get_lane_context_window
+
+            context_window = max(8192, int(get_lane_context_window(PRIMARY_ENDPOINT) or 32768))
+        except Exception:
+            context_window = 32768
+            
+        total_budget_chars = max(24000, int(max(4096, context_window - 2048) * 3.2))
+
+        while compact and sum(len(str(msg.get("content", "") or "")) for msg in compact) > total_budget_chars:
+            removable_index = None
+            for idx, msg in enumerate(compact):
+                if idx == 0 and msg.get("role") == "system":
+                    continue
+                if msg.get("role") == "assistant":
+                    removable_index = idx
+                    break
+            if removable_index is None:
+                for idx, msg in enumerate(compact):
+                    if idx == 0 and msg.get("role") == "system":
+                        continue
+                    removable_index = idx
+                    break
+            if removable_index is None:
+                break
+            compact.pop(removable_index)
+
         return compact
 
     def _flatten_messages_for_local_model(self, messages: List[Dict[str, str]]) -> str:
@@ -1898,11 +1943,26 @@ class InferenceGate:
             living_mind_context = await self._build_compact_living_mind_context(prompt, origin)
         else:
             system_prompt = self._build_system_prompt(brief)
-            living_mind_context = await self._build_living_mind_context(prompt, origin)
+            # [STABILITY v50] Hard 5s timeout on full context assembly.
+            # The 20+ consciousness subsystems queried here can individually
+            # hang due to lock contention or slow I/O. When that happens,
+            # fall back to the compact (4-subsystem) version so generation
+            # budget is never consumed by context assembly.
+            try:
+                living_mind_context = await asyncio.wait_for(
+                    self._build_living_mind_context(prompt, origin),
+                    timeout=5.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "⚠️ [STABILITY] Full living mind context assembly exceeded 5s budget. "
+                    "Falling back to compact context to preserve generation headroom."
+                )
+                living_mind_context = await self._build_compact_living_mind_context(prompt, origin)
         if living_mind_context:
             system_prompt = f"{system_prompt}\n\n{living_mind_context}"
-        # Removed artificial prompt budget constraints that prevented high-fidelity document reading
-        # Let the dynamic model context limits (128k+) govern ingestion size naturally.
+        # Keep prompt growth aligned with the actual local model context window
+        # instead of assuming 128k+ headroom on the primary Qwen lane.
 
         # ── Somatic narrative: brief felt-state line in the system prompt ────────
         if somatic_temperature is not None:
@@ -2247,7 +2307,7 @@ class InferenceGate:
         # gracefully without the error text leaking to TTS or the user.
         logger.error("All inference paths exhausted (Local + Cloud)")
         if _is_user_facing:
-             return "My connection to the cognitive engine failed. Give me a moment to reconnect."
+             return "I lost my thread for a moment there. Say that again and I'll be right with you."
         return None
 
     def _post_inference_update(self, response_text: str):

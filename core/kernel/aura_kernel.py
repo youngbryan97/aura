@@ -550,9 +550,11 @@ class AuraKernel:
             self._user_priority_pending.set()
 
         # [DEADLOCK PREVENTION] Use robust lock for the tick
-        # v49: Raised to 135s — must be >= largest phase timeout (120s priority response)
-        # to avoid false deadlock detection while 32B inference is running.
-        if not await self._lock.acquire_robust(timeout=135.0, max_retries=3):
+        # [STABILITY v50] Reduced from 135→45s. Background ticks now yield
+        # within 5s when a priority request is pending, so we don't need
+        # a huge lock timeout. 45s covers the worst-case phase-in-progress
+        # plus a comfortable margin for 32B inference startup.
+        if not await self._lock.acquire_robust(timeout=45.0, max_retries=3):
             logger.error("🛑 CRITICAL: Could not acquire Kernel lock for tick. Possible deadlock. Objective: '%s'", objective)
             if self.status:
                 logger.error("Kernel Status: %s, Cycle: %s", self.status.message, self.status.cycle_count)
@@ -655,6 +657,18 @@ class AuraKernel:
                     # task alive so the worker is not disturbed mid-generation.
                     try:
                         phase_timeout = self._phase_timeout_seconds(phase_name, priority=priority)
+
+                        # [STABILITY v50] FAST PREEMPTION: When a priority user
+                        # request is pending, cap background phase budgets at 5s
+                        # so the user doesn't wait 45s+ for a background tick to
+                        # finish. Response phases get a hard 5s cap; other phases
+                        # get 8s. This is the #1 fix for kernel lock contention.
+                        if not priority and self._user_priority_pending.is_set():
+                            if phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}:
+                                phase_timeout = min(phase_timeout, 5.0)
+                            else:
+                                phase_timeout = min(phase_timeout, 8.0)
+
                         result = await asyncio.wait_for(
                             asyncio.shield(phase_task),
                             timeout=phase_timeout,

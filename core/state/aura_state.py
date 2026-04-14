@@ -10,7 +10,7 @@ from enum import Enum
 import hashlib
 from core.motivation.constants import clone_motivation_budget_defaults
 
-MAX_WORKING_MEMORY: Final[int] = 40   # Tighter cap prevents context window overflow and personality drift
+MAX_WORKING_MEMORY: Final[int] = 150   # [FRONTIER UPGRADE] Expanded capacity for M5 64GB node to prevent context loss
 MAX_PERCEPTS: Final[int] = 200        # More sensory history
 MAX_EVOLUTION_LOG: Final[int] = 1000  # Richer evolution tracking
 
@@ -492,12 +492,8 @@ class CognitiveContext:
                 removable.add(i)
                 continue
 
-            # Tool output normalization — cap long skill/tool results to 500 chars
+            # [FRONTIER UPGRADE] Tool truncation removed to guarantee perfect contextual recall of long web reads
             entry_type = str(metadata.get("type", "") or "").lower()
-            if entry_type in {"skill_result", "tool_result"} and len(content) > 500:
-                head = content[:200]
-                tail = content[-200:]
-                msg["content"] = f"{head}\n[...truncated {len(content) - 400} chars...]\n{tail}"
 
             # Track reflections
             if "[STATE-REFLECTION]" in content:

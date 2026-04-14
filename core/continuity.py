@@ -48,10 +48,84 @@ def _sanitize_restored_text(value: Any) -> str:
     return text
 
 
+def _looks_like_ephemeral_conversation_turn(value: Any) -> bool:
+    text = " ".join(str(value or "").strip().split())
+    lowered = text.lower()
+    if not lowered:
+        return False
+
+    if lowered.endswith("?"):
+        return True
+
+    direct_chat_markers = (
+        "what were we talking about",
+        "what do you think",
+        "your thoughts",
+        "how are you",
+        "how do you feel",
+        "tell me more",
+        "sorry,",
+        "bear with me",
+        "what parts did you find",
+    )
+    if any(marker in lowered for marker in direct_chat_markers):
+        return True
+
+    task_markers = (
+        "fix",
+        "debug",
+        "implement",
+        "investigate",
+        "repair",
+        "resume",
+        "continue",
+        "finish",
+        "complete",
+        "build",
+        "write",
+        "analyze",
+        "review",
+        "patch",
+        "test",
+        "refactor",
+        "research",
+        "trace",
+        "stabilize",
+        "protect",
+        "reconcile",
+    )
+    if any(marker in lowered for marker in task_markers):
+        return False
+
+    words = lowered.split()
+    if len(words) <= 18:
+        return True
+
+    return False
+
+
+def _sanitize_restored_objective(value: Any) -> str:
+    text = _sanitize_restored_text(value)
+    if not text:
+        return ""
+    if _looks_like_ephemeral_conversation_turn(text):
+        return ""
+    return text
+
+
 def _sanitize_restored_items(values: Optional[List[Any]]) -> List[str]:
     sanitized: List[str] = []
     for item in list(values or []):
         text = _sanitize_restored_text(item)
+        if text:
+            sanitized.append(text[:200])
+    return sanitized[:5]
+
+
+def _sanitize_restored_objective_items(values: Optional[List[Any]]) -> List[str]:
+    sanitized: List[str] = []
+    for item in list(values or []):
+        text = _sanitize_restored_objective(item)
         if text:
             sanitized.append(text[:200])
     return sanitized[:5]
@@ -364,11 +438,11 @@ class ContinuityEngine:
                 "identity_mismatch": False,
                 **reentry,
             }
-        sanitized_pending = _sanitize_restored_items(self._record.pending_initiative_details)
-        sanitized_goals = _sanitize_restored_items(self._record.active_goal_details)
+        sanitized_pending = _sanitize_restored_objective_items(self._record.pending_initiative_details)
+        sanitized_goals = _sanitize_restored_objective_items(self._record.active_goal_details)
         sanitized_commitments = _sanitize_restored_items(self._record.active_commitments)
         return {
-            "current_objective": _sanitize_restored_text(self._record.current_objective),
+            "current_objective": _sanitize_restored_objective(self._record.current_objective),
             "active_commitments": sanitized_commitments,
             "pending_initiatives": sanitized_pending,
             "active_goals": sanitized_goals,
@@ -391,9 +465,9 @@ class ContinuityEngine:
 
         obligations = self.get_obligations()
 
-        restored_objective = _sanitize_restored_text(self._record.current_objective)
-        restored_pending = _sanitize_restored_items(self._record.pending_initiative_details)
-        restored_goals = _sanitize_restored_items(self._record.active_goal_details)
+        restored_objective = _sanitize_restored_objective(self._record.current_objective)
+        restored_pending = _sanitize_restored_objective_items(self._record.pending_initiative_details)
+        restored_goals = _sanitize_restored_objective_items(self._record.active_goal_details)
 
         if not getattr(cognition, "current_objective", None) and restored_objective:
             cognition.current_objective = restored_objective
