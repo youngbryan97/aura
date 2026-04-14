@@ -38,6 +38,12 @@ logger = logging.getLogger("Aura.Server.System")
 
 router = APIRouter()
 
+_DESKTOP_ACCESS_CACHE_TTL_S = float(os.getenv("AURA_DESKTOP_ACCESS_CACHE_TTL_S", "30") or 30.0)
+_desktop_access_cache: Dict[str, Any] = {
+    "captured_at": 0.0,
+    "payload": None,
+}
+
 
 # ── Collector Helpers ─────────────────────────────────────────
 
@@ -360,6 +366,14 @@ def _collect_voice_summary() -> Dict[str, Any]:
 
 
 async def _collect_desktop_access_summary() -> Dict[str, Any]:
+    cached_payload = _desktop_access_cache.get("payload")
+    cached_at = float(_desktop_access_cache.get("captured_at", 0.0) or 0.0)
+    if (
+        isinstance(cached_payload, dict)
+        and (time.monotonic() - cached_at) < max(1.0, _DESKTOP_ACCESS_CACHE_TTL_S)
+    ):
+        return cached_payload
+
     payload: Dict[str, Any] = {
         "screen_recording": {"granted": False, "status": "unknown", "guidance": ""},
         "accessibility": {"granted": False, "status": "unknown", "guidance": ""},
@@ -375,14 +389,14 @@ async def _collect_desktop_access_summary() -> Dict[str, Any]:
         "pyautogui_error": "",
     }
     try:
-        from core.security.permission_guard import PermissionGuard, PermissionType
+        from core.security.permission_guard import PermissionType, get_permission_guard
         from core.skills._pyautogui_runtime import get_pyautogui
 
-        guard = ServiceContainer.get("permission_guard", default=None) or PermissionGuard()
+        guard = ServiceContainer.get("permission_guard", default=None) or get_permission_guard()
         if guard:
-            screen = await guard.check_permission(PermissionType.SCREEN, force=True)
-            accessibility = await guard.check_permission(PermissionType.ACCESSIBILITY, force=True)
-            automation = await guard.check_permission(PermissionType.AUTOMATION, force=True)
+            screen = await guard.check_permission(PermissionType.SCREEN, force=False)
+            accessibility = await guard.check_permission(PermissionType.ACCESSIBILITY, force=False)
+            automation = await guard.check_permission(PermissionType.AUTOMATION, force=False)
             payload["screen_recording"] = screen
             payload["accessibility"] = accessibility
             payload["automation"] = automation
@@ -439,6 +453,8 @@ async def _collect_desktop_access_summary() -> Dict[str, Any]:
         )
     except Exception as exc:
         logger.debug("Desktop access summary collection failed: %s", exc)
+    _desktop_access_cache["captured_at"] = time.monotonic()
+    _desktop_access_cache["payload"] = payload
     return payload
 
 
@@ -1237,3 +1253,78 @@ async def api_boot_health():
 async def api_heartbeat():
     """Minimal heartbeat for GUI Actor watchdog."""
     return {"status": "ok", "time": time.time()}
+
+
+# ── Hot Reload ────────────────────────────────────────────────
+
+@router.post("/system/hot-reload", tags=["system"])
+async def api_hot_reload(request: Request):
+    """Reload Aura's cognitive modules without restarting the process.
+
+    Query params:
+        scope  – reload scope (phases, skills, consciousness, llm, affect,
+                 memory, identity, resilience, orchestrator_mixins, learning,
+                 agency, all).  Defaults to "all".
+        file   – reload a single file by path (relative to project root).
+
+    The kernel, ServiceContainer, event loop, loaded models, and
+    conversation history are preserved.
+    """
+    from interface.auth import _require_internal
+    _require_internal(request)
+
+    from core.ops.hot_reload import get_hot_reloader
+
+    reloader = get_hot_reloader()
+
+    # Register in ServiceContainer if not already present
+    if ServiceContainer.get("hot_reloader", default=None) is None:
+        ServiceContainer.register_instance("hot_reloader", reloader)
+
+    filepath = request.query_params.get("file")
+    scope = request.query_params.get("scope", "all")
+
+    try:
+        if filepath:
+            result = await asyncio.to_thread(reloader.reload_file, filepath)
+        else:
+            result = await asyncio.to_thread(reloader.reload_scope, scope)
+
+        status_code = 200 if result.ok else 207  # 207 Multi-Status for partial failure
+        return JSONResponse(result.to_dict(), status_code=status_code)
+    except Exception as exc:
+        logger.error("Hot reload failed: %s", exc, exc_info=True)
+        return JSONResponse(
+            {"ok": False, "error": str(exc)},
+            status_code=500,
+        )
+
+
+@router.get("/system/hot-reload/status", tags=["system"])
+async def api_hot_reload_status(request: Request):
+    """Return the current state of the hot-reload engine."""
+    from interface.auth import _require_internal
+    _require_internal(request)
+
+    from core.ops.hot_reload import get_hot_reloader
+
+    reloader = get_hot_reloader()
+    return JSONResponse(reloader.get_status())
+
+
+@router.get("/system/hot-reload/scopes", tags=["system"])
+async def api_hot_reload_scopes(request: Request):
+    """List all available reload scopes and their module prefixes."""
+    from interface.auth import _require_internal
+    _require_internal(request)
+
+    from core.ops.hot_reload import RELOAD_SCOPES, PROTECTED_MODULES
+
+    return JSONResponse({
+        "scopes": {
+            name: {"prefixes": prefixes}
+            for name, prefixes in RELOAD_SCOPES.items()
+        },
+        "special_scopes": ["all"],
+        "protected_modules": sorted(PROTECTED_MODULES),
+    })

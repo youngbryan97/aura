@@ -112,3 +112,88 @@ async def test_goal_engine_context_block_surfaces_long_horizon_and_recovery_pres
     assert "Immediate execution:" in block
     assert "Long-horizon anchors:" in block
     assert "Recovery pressure:" in block
+
+
+@pytest.mark.asyncio
+async def test_goal_engine_reuses_existing_active_record_for_same_objective_and_source(tmp_path):
+    engine = GoalEngine(db_path=str(tmp_path / "goal_lifecycle.db"))
+
+    first = await engine.add_goal(
+        "Protect identity, memory integrity, and process continuity.",
+        objective="Protect identity, memory integrity, and process continuity.",
+        horizon="long_term",
+        priority=0.98,
+        source="executive_authority",
+        status="in_progress",
+    )
+    second = await engine.add_goal(
+        "Protect identity, memory integrity, and process continuity.",
+        objective="Protect identity, memory integrity, and process continuity.",
+        horizon="long_term",
+        priority=0.98,
+        source="executive_authority",
+        status="in_progress",
+    )
+
+    assert first["id"] == second["id"]
+
+    snapshot = engine.build_snapshot(limit=20, include_external=False)
+    matching = [
+        item
+        for item in snapshot["items"]
+        if item["objective"] == "Protect identity, memory integrity, and process continuity."
+    ]
+    assert len(matching) == 1
+    assert matching[0]["status"] == "in_progress"
+
+
+@pytest.mark.asyncio
+async def test_goal_engine_reconciles_stale_task_engine_plan_records(tmp_path, monkeypatch):
+    engine = GoalEngine(db_path=str(tmp_path / "goal_lifecycle.db"))
+
+    running_step = SimpleNamespace(tool="think")
+    plan = SimpleNamespace(
+        plan_id="plan-stale",
+        goal="Protect identity, memory integrity, and process continuity.",
+        steps=[running_step],
+        succeeded_steps=[],
+        trace_id="trace-stale",
+        status="running",
+        final_result="",
+        requires_approval=False,
+        context={
+            "source": "task_engine",
+            "priority": 0.75,
+            "horizon": "short_term",
+            "quick_win": True,
+        },
+    )
+    engine.sync_task_plan(plan)
+
+    stale_at = engine._now() - 120.0
+    assert engine._conn is not None
+    engine._conn.execute(
+        "UPDATE goals SET created_at = ?, updated_at = ? WHERE plan_id = ?",
+        (stale_at, stale_at, "plan-stale"),
+    )
+    engine._conn.commit()
+
+    monkeypatch.setattr(
+        "core.goals.goal_engine.ServiceContainer.get",
+        staticmethod(
+            lambda name, default=None: (
+                SimpleNamespace(get_active_plans=lambda: []) if name == "task_engine" else default
+            )
+        ),
+    )
+
+    snapshot = engine.build_snapshot(limit=20, include_external=False)
+    matching = [
+        item
+        for item in snapshot["items"]
+        if item["objective"] == "Protect identity, memory integrity, and process continuity."
+    ]
+
+    assert matching
+    assert matching[0]["status"] == "blocked"
+    assert "interrupted" in str(matching[0]["summary"]).lower()

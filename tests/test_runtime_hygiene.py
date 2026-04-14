@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from core.resilience.stability_guardian import StabilityGuardian
+from core.runtime import runtime_hygiene as runtime_hygiene_module
 from core.runtime.runtime_hygiene import RuntimeHygieneManager
 from core.utils.task_tracker import TaskTracker
 
@@ -81,6 +82,54 @@ async def test_runtime_hygiene_tracks_subprocesses():
             proc.kill()
         await hygiene.stop()
         hygiene.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_runtime_hygiene_adopts_existing_subprocesses_started_before_hygiene():
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(0.25)"])
+    hygiene = RuntimeHygieneManager()
+    await hygiene.start(asyncio.get_running_loop())
+
+    try:
+        await asyncio.sleep(0.05)
+        report = hygiene.audit()
+        assert report["processes"]["active_registered"] >= 1
+        assert report["processes"]["rogue_child_processes"] == 0
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=1.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        await hygiene.stop()
+        hygiene.reset_state()
+
+
+def test_runtime_hygiene_skips_tracemalloc_by_default(monkeypatch):
+    calls = []
+
+    monkeypatch.delenv("AURA_RUNTIME_HYGIENE_TRACEMALLOC", raising=False)
+    monkeypatch.setattr(runtime_hygiene_module.tracemalloc, "is_tracing", lambda: False)
+    monkeypatch.setattr(runtime_hygiene_module.tracemalloc, "start", lambda frames=1: calls.append(frames))
+
+    hygiene = RuntimeHygieneManager()
+    hygiene._start_tracemalloc()
+
+    assert calls == []
+
+
+def test_runtime_hygiene_can_opt_in_tracemalloc(monkeypatch):
+    calls = []
+
+    monkeypatch.setenv("AURA_RUNTIME_HYGIENE_TRACEMALLOC", "1")
+    monkeypatch.setenv("AURA_RUNTIME_HYGIENE_TRACEMALLOC_FRAMES", "3")
+    monkeypatch.setattr(runtime_hygiene_module.tracemalloc, "is_tracing", lambda: False)
+    monkeypatch.setattr(runtime_hygiene_module.tracemalloc, "start", lambda frames=1: calls.append(frames))
+
+    hygiene = RuntimeHygieneManager()
+    hygiene._start_tracemalloc()
+
+    assert calls == [3]
 
 
 @pytest.mark.asyncio

@@ -87,11 +87,11 @@ class ComputerUseSkill(BaseSkill):
     @staticmethod
     def _runtime_permission_payload(message: str) -> Optional[Dict[str, Any]]:
         try:
-            from core.security.permission_guard import PermissionGuard, PermissionType
+            from core.security.permission_guard import PermissionType, get_permission_guard
         except Exception:
             return None
 
-        guard = PermissionGuard()
+        guard = get_permission_guard()
         if "Accessibility permission is blocked" in message:
             return {
                 "ok": False,

@@ -310,24 +310,50 @@ async def record_conversation_experience(user_input: str, aura_response: str, st
     except Exception as exc:
         logger.debug("Coding session turn recording skipped: %s", exc)
 
+    used_memory_facade = False
     try:
-        episodic = service_access.optional_service("episodic_memory", default=None)
-        if episodic and hasattr(episodic, "record_episode_async"):
-            await episodic.record_episode_async(
-                context=f"User said: {str(user_input).strip()}",
-                action=f"Aura replied: {str(aura_response).strip()}",
-                outcome="Conversation changed shared context and should inform future continuity.",
+        memory_facade = service_access.optional_service("memory_facade", default=None)
+        if memory_facade and hasattr(memory_facade, "commit_interaction"):
+            used_memory_facade = True
+            await memory_facade.commit_interaction(
+                context=str(user_input).strip(),
+                action="conversation_reply",
+                outcome=str(aura_response).strip(),
                 success=True,
                 emotional_valence=emotional_valence,
-                tools_used=["conversation"],
-                lessons=[
-                    f"User interaction classified as {analysis.intent_type.lower()}:{analysis.semantic_mode}.",
-                    "Conversational exchanges should remain available as lived context, not just transcript data.",
-                ],
                 importance=importance,
+                metadata={
+                    "origin": "api",
+                    "source": "chat_api",
+                    "domain": "conversation",
+                    "objective": str(user_input).strip(),
+                    "intent_type": str(analysis.intent_type).lower(),
+                    "semantic_mode": str(analysis.semantic_mode),
+                    "memory_salience": round(float(importance), 4),
+                },
             )
     except Exception as exc:
-        logger.debug("Episodic conversation recording skipped: %s", exc)
+        logger.debug("Conversation memory facade commit skipped: %s", exc)
+
+    if not used_memory_facade:
+        try:
+            episodic = service_access.optional_service("episodic_memory", default=None)
+            if episodic and hasattr(episodic, "record_episode_async"):
+                await episodic.record_episode_async(
+                    context=f"User said: {str(user_input).strip()}",
+                    action=f"Aura replied: {str(aura_response).strip()}",
+                    outcome="Conversation changed shared context and should inform future continuity.",
+                    success=True,
+                    emotional_valence=emotional_valence,
+                    tools_used=["conversation"],
+                    lessons=[
+                        f"User interaction classified as {analysis.intent_type.lower()}:{analysis.semantic_mode}.",
+                        "Conversational exchanges should remain available as lived context, not just transcript data.",
+                    ],
+                    importance=importance,
+                )
+        except Exception as exc:
+            logger.debug("Episodic conversation recording skipped: %s", exc)
 
     try:
         entity_graph = service_access.optional_service("entity_graph", "relationship_graph", default=None)

@@ -90,6 +90,14 @@ class RuntimeHygieneManager:
         self.stale_task_age_s = 900.0
         self.process_shutdown_timeout_s = 1.0
         self.thread_join_timeout_s = 0.2
+        self.tracemalloc_enabled = str(
+            os.getenv("AURA_RUNTIME_HYGIENE_TRACEMALLOC", "0") or "0"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        self.tracemalloc_frames = max(
+            1,
+            int(os.getenv("AURA_RUNTIME_HYGIENE_TRACEMALLOC_FRAMES", "1") or 1),
+        )
+        self._tracemalloc_started_by_hygiene = False
 
         self._original_thread_start = None
         self._original_popen_init = None
@@ -113,6 +121,7 @@ class RuntimeHygieneManager:
         self._patch_subprocess()
         self._patch_multiprocessing()
         self._start_tracemalloc()
+        self._adopt_existing_child_processes()
         self.capture_sample()
 
     async def stop(self) -> None:
@@ -120,6 +129,13 @@ class RuntimeHygieneManager:
         self._restore_patches()
         await self._cleanup_child_processes()
         await self._join_non_daemon_threads()
+        if self._tracemalloc_started_by_hygiene and tracemalloc.is_tracing():
+            try:
+                tracemalloc.stop()
+            except Exception as exc:
+                logger.debug("RuntimeHygiene: tracemalloc stop failed: %s", exc)
+            finally:
+                self._tracemalloc_started_by_hygiene = False
         self.capture_sample()
         self._running = False
 
@@ -291,12 +307,53 @@ class RuntimeHygieneManager:
             self._original_new_event_loop = None
 
     def _start_tracemalloc(self) -> None:
+        if not self.tracemalloc_enabled:
+            return
         if tracemalloc.is_tracing():
             return
         try:
-            tracemalloc.start(10)
+            tracemalloc.start(self.tracemalloc_frames)
+            self._tracemalloc_started_by_hygiene = True
         except Exception as exc:
             logger.debug("RuntimeHygiene: tracemalloc start failed: %s", exc)
+
+    def _adopt_existing_child_processes(self) -> None:
+        if self._proc is None:
+            return
+        try:
+            children = list(self._proc.children(recursive=True))
+        except Exception as exc:
+            logger.debug("RuntimeHygiene: existing child adoption skipped: %s", exc)
+            return
+
+        for child in children:
+            try:
+                pid = int(getattr(child, "pid", 0) or 0)
+            except Exception:
+                pid = 0
+            if pid and any(
+                record.pid == pid and record.finished_at is None
+                for record in self._process_records.values()
+            ):
+                continue
+            try:
+                command_parts = list(child.cmdline() or [])
+            except Exception:
+                command_parts = []
+            try:
+                name = str(child.name() or f"pid:{pid}")
+            except Exception:
+                name = f"pid:{pid}" if pid else "unknown_child"
+            key = -(pid or len(self._process_records) + 1)
+            self._process_records[key] = ProcessRecord(
+                key=key,
+                kind="subprocess",
+                name=name,
+                source="psutil.adopt_existing_child",
+                command=" ".join(str(part) for part in command_parts)[:240] or name,
+                pid=pid or None,
+            )
+            self._process_refs[key] = child
 
     def _register_thread(self, thread: threading.Thread, source: str) -> None:
         key = id(thread)
@@ -407,6 +464,16 @@ class RuntimeHygieneManager:
                     record.finished_at = record.finished_at or now
                 else:
                     record.pid = getattr(proc, "pid", record.pid)
+            elif hasattr(proc, "is_running"):
+                try:
+                    alive = bool(proc.is_running())
+                    status = proc.status() if alive else "stopped"
+                except Exception as exc:
+                    logger.debug("RuntimeHygiene: adopted child liveness failed: %s", exc)
+                    alive = False
+                    status = "error"
+                if not alive or status == "zombie":
+                    record.finished_at = record.finished_at or now
 
     def _thread_summary(self) -> Dict[str, Any]:
         now = time.monotonic()

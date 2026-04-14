@@ -39,7 +39,12 @@ _RUNTIME_SLOT_LOCK = _threading.Lock()
 
 
 def _parallel_lane_runtime_allowed() -> bool:
-    """Allow Cortex + Brainstem co-residency on roomy machines unless overridden."""
+    """Allow Cortex + Brainstem co-residency on roomy machines unless overridden.
+
+    Only lightweight lanes (Brainstem, Reflex) may co-reside with one heavy
+    lane (Cortex OR Solver).  Two heavy lanes must never co-reside — that is
+    enforced separately in ``_yield_runtime_slot``.
+    """
     setting = str(os.getenv("AURA_LOCAL_RUNTIME_SINGLETON", "auto")).strip().lower()
     if setting in {"1", "true", "yes", "on"}:
         return False
@@ -51,8 +56,8 @@ def _parallel_lane_runtime_allowed() -> bool:
         total_gb = vm.total / float(1024 ** 3)
         available_gb = vm.available / float(1024 ** 3)
         min_total_gb = float(os.getenv("AURA_PARALLEL_LANE_MIN_TOTAL_GB", "48"))
-        max_pressure = float(os.getenv("AURA_PARALLEL_LANE_MAX_PRESSURE_PCT", "90"))
-        min_available_gb = float(os.getenv("AURA_PARALLEL_LANE_MIN_AVAILABLE_GB", "6"))
+        max_pressure = float(os.getenv("AURA_PARALLEL_LANE_MAX_PRESSURE_PCT", "80"))
+        min_available_gb = float(os.getenv("AURA_PARALLEL_LANE_MIN_AVAILABLE_GB", "12"))
         return bool(
             total_gb >= min_total_gb
             and vm.percent < max_pressure
@@ -155,6 +160,7 @@ class LocalServerClient:
         self._last_generation_completed_at = 0.0
         self._warmup_attempted = False
         self._warmup_in_flight = False
+        self._consecutive_empty = 0
         self._process_started_at = 0.0
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
@@ -799,12 +805,29 @@ class LocalServerClient:
     async def _yield_runtime_slot(self, *, foreground_request: bool) -> bool:
         conflicting_clients = []
         allow_parallel_lightweight = _parallel_lane_runtime_allowed()
+
+        # ── RAM-pressure forced eviction ──────────────────────────────
+        # If memory pressure is critical, force-evict ALL non-self heavy
+        # lanes regardless of the parallel lightweight setting.  This
+        # prevents the 72B + 32B + 7B triple-residency explosion.
+        ram_pressure_critical = False
+        try:
+            vm = psutil.virtual_memory()
+            ram_pressure_critical = vm.percent >= 85 or (vm.available / float(1024 ** 3)) < 8
+        except Exception:
+            pass
+
         for client in _SERVER_CLIENTS.values():
             if client is self or client._external_only:
                 continue
             if not client._is_runtime_resident():
                 continue
             if self._is_primary_or_deep_lane() and client._is_primary_or_deep_lane():
+                conflicting_clients.append(client)
+                continue
+            if ram_pressure_critical and client._is_primary_or_deep_lane():
+                # Under RAM pressure, even lightweight lanes requesting
+                # startup should evict any heavy non-self lane.
                 conflicting_clients.append(client)
                 continue
             if not allow_parallel_lightweight:
@@ -825,9 +848,10 @@ class LocalServerClient:
 
         for client in conflicting_clients:
             logger.info(
-                "🧹 [%s] Releasing runtime slot held by %s before startup.",
+                "🧹 [%s] Releasing runtime slot held by %s before startup.%s",
                 self._lane_name,
                 client._lane_name,
+                " (RAM pressure forced)" if ram_pressure_critical else "",
             )
             try:
                 async with _thread_lock_context(
@@ -852,7 +876,7 @@ class LocalServerClient:
         try:
             if self._process and self._process.poll() is None:
                 self._process.kill()
-                self._process.wait(timeout=5)
+                await asyncio.to_thread(self._process.wait, 5.0)
                 logger.info("[%s] Old server process killed.", self._lane_name)
         except Exception as e:
             logger.debug("[%s] Kill failed: %s", self._lane_name, e)
@@ -892,7 +916,7 @@ class LocalServerClient:
                 foreground_request=self._is_primary_or_deep_lane(),
                 owner_label=f"warmup:{self._lane_name}",
             )
-            if text:
+            if text is not None:
                 self._set_lane_state("ready")
                 self._last_ready_at = time.time()
                 logger.info("✅ [%s] Local runtime warmup complete.", self._lane_name)
@@ -922,6 +946,21 @@ class LocalServerClient:
             except Exception as _exc:
                 logger.debug("Suppressed Exception: %s", _exc)
 
+        # ── Orphan Reclamation ─────────────────────────────────────────
+        # After a desktop restart, the old llama-server may survive on
+        # our reserved port with no subprocess handle to kill.  Force-
+        # reclaim the port so the memory is actually freed.
+        try:
+            reclaimed = await asyncio.to_thread(self._reclaim_runtime_port_blocking)
+            if reclaimed:
+                logger.info(
+                    "🧹 [%s] reboot_worker: reclaimed orphaned process on port %s.",
+                    self._lane_name,
+                    self._port,
+                )
+        except Exception as _exc:
+            logger.debug("reboot_worker: port reclamation failed: %s", _exc)
+
         if self._log_handle is not None and not self._log_handle.closed:
             try:
                 self._log_handle.flush()
@@ -929,6 +968,7 @@ class LocalServerClient:
                 logger.debug("Suppressed Exception: %s", _exc)
 
         self._warmup_in_flight = False
+        self._consecutive_empty = 0
         self._process_started_at = 0.0
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
@@ -1109,13 +1149,34 @@ class LocalServerClient:
                 text = ""
 
             if not text.strip():
+                self._consecutive_empty += 1
+                is_warmup = bool(self._warmup_in_flight)
+                if is_warmup:
+                    logger.debug(
+                        "[%s] Empty warmup generation treated as benign runtime precompile.",
+                        self._lane_name,
+                    )
+                    self._set_lane_state("ready")
+                    self._last_ready_at = time.time()
+                    return ""
+
                 self._record_degraded_event(
                     "empty_generation",
                     detail=f"{self._lane_name}:response_keys={','.join(sorted(data.keys())[:6])}",
                     severity="warning",
                     foreground_request=foreground_request,
                 )
-                self.note_lane_recovering("empty_generation")
+                if foreground_request and self._is_primary_or_deep_lane():
+                    if self._consecutive_empty >= 3:
+                        self.note_lane_recovering("repeated_empty_generation")
+                    else:
+                        logger.warning(
+                            "[%s] Empty generation received but runtime stayed healthy; preserving lane for retry (streak=%d).",
+                            self._lane_name,
+                            self._consecutive_empty,
+                        )
+                        self._set_lane_state("ready")
+                        self._last_ready_at = time.time()
                 return None
 
             from .mlx_client import _notify_closed_loop_output
@@ -1125,6 +1186,7 @@ class LocalServerClient:
             self._last_generation_completed_at = time.time()
             self._last_ready_at = time.time()
             self._set_lane_state("ready")
+            self._consecutive_empty = 0
             _notify_closed_loop_output(text)
             return text.strip()
         finally:

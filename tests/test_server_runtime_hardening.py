@@ -317,6 +317,40 @@ async def test_api_health_treats_cold_standby_lane_as_ready(service_container, m
 
 
 @pytest.mark.asyncio
+async def test_desktop_access_summary_reuses_cached_probe_result(monkeypatch):
+    import core.security.permission_guard as permission_guard_module
+    from interface.routes import system as system_routes
+
+    calls = []
+
+    class _Guard:
+        async def check_permission(self, ptype, force=False):
+            calls.append((ptype.name, force))
+            return {"granted": False, "status": "denied", "guidance": ""}
+
+    monkeypatch.setattr(permission_guard_module, "get_permission_guard", lambda: _Guard())
+    monkeypatch.setattr("core.skills._pyautogui_runtime.get_pyautogui", lambda: (None, None))
+    monkeypatch.setattr(system_routes, "_DESKTOP_ACCESS_CACHE_TTL_S", 60.0)
+
+    original_cache = dict(system_routes._desktop_access_cache)
+    system_routes._desktop_access_cache["captured_at"] = 0.0
+    system_routes._desktop_access_cache["payload"] = None
+    try:
+        first = await system_routes._collect_desktop_access_summary()
+        second = await system_routes._collect_desktop_access_summary()
+    finally:
+        system_routes._desktop_access_cache.update(original_cache)
+
+    assert first["overall_status"] == "blocked"
+    assert second["overall_status"] == "blocked"
+    assert calls == [
+        ("SCREEN", False),
+        ("ACCESSIBILITY", False),
+        ("AUTOMATION", False),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_api_memory_episodic_clamps_limit_and_supports_offset(service_container):
     from interface import server as server_module
 

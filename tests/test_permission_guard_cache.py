@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import AsyncMock
 
-from core.security.permission_guard import PermissionGuard, PermissionType
+import core.security.permission_guard as permission_guard_module
+from core.security.permission_guard import PermissionGuard, PermissionType, get_permission_guard
 
 
 class TestPermissionGuardCache(unittest.IsolatedAsyncioTestCase):
@@ -17,3 +18,14 @@ class TestPermissionGuardCache(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(first, second)
         guard._check_screen_permission.assert_awaited_once()
+
+    def test_shared_permission_guard_accessor_reuses_singleton(self):
+        original = permission_guard_module._SHARED_PERMISSION_GUARD
+        permission_guard_module._SHARED_PERMISSION_GUARD = None
+        try:
+            first = get_permission_guard()
+            second = get_permission_guard()
+        finally:
+            permission_guard_module._SHARED_PERMISSION_GUARD = original
+
+        self.assertIs(first, second)

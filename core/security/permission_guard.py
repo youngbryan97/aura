@@ -214,3 +214,31 @@ class PermissionGuard(AuraBaseModule):
                 "4. Allow Aura/Terminal/Codex to control System Events if you want desktop text and menu-bar access."
             )
         return "Check your macOS Privacy & Security settings."
+
+
+_SHARED_PERMISSION_GUARD: Optional[PermissionGuard] = None
+
+
+def get_permission_guard() -> PermissionGuard:
+    """Return a shared permission guard so passive probes can reuse cache state."""
+    global _SHARED_PERMISSION_GUARD
+
+    try:
+        from core.container import ServiceContainer
+
+        existing = ServiceContainer.get("permission_guard", default=None)
+        if existing is not None:
+            return existing
+    except Exception:
+        ServiceContainer = None  # type: ignore[assignment]
+
+    if _SHARED_PERMISSION_GUARD is None:
+        _SHARED_PERMISSION_GUARD = PermissionGuard()
+
+    try:
+        if ServiceContainer is not None:
+            ServiceContainer.register_instance("permission_guard", _SHARED_PERMISSION_GUARD, required=False)
+    except Exception:
+        pass
+
+    return _SHARED_PERMISSION_GUARD

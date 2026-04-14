@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 import time
+from types import SimpleNamespace
 
 from core.brain.llm.mlx_client import MLXLocalClient
 from core.senses.sensory_client import SensoryLocalClient
@@ -295,6 +296,28 @@ class TestCognitiveContextSanitization(unittest.TestCase):
 
 
 class TestMetabolicCoordinatorGuards(unittest.IsolatedAsyncioTestCase):
+    async def test_metabolic_coordinator_preserves_live_singleton_locks(self):
+        from core.coordinators import metabolic_coordinator as metabolic_module
+        from core.coordinators.metabolic_coordinator import MetabolicCoordinator
+
+        with self.subTest("live_lock_preserved_and_dead_lock_removed"):
+            with patch.object(
+                metabolic_module,
+                "config",
+                SimpleNamespace(paths=SimpleNamespace(home_dir=self._make_tmp_home())),
+            ):
+                lock_dir = metabolic_module.config.paths.home_dir / "locks"
+                lock_dir.mkdir(parents=True, exist_ok=True)
+                live_lock = lock_dir / "orchestrator.lock"
+                stale_lock = lock_dir / "stale.lock"
+                live_lock.write_text(str(metabolic_module.os.getpid()), encoding="utf-8")
+                stale_lock.write_text("999999", encoding="utf-8")
+
+                MetabolicCoordinator()
+
+                self.assertTrue(live_lock.exists())
+                self.assertFalse(stale_lock.exists())
+
     async def test_metabolic_coordinator_drains_neural_event_deque_without_pop_index_error(self):
         from core.coordinators.metabolic_coordinator import MetabolicCoordinator
 
@@ -361,3 +384,12 @@ class TestMetabolicCoordinatorGuards(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(result)
         self.assertEqual(world.recent_percepts[0]["command"], "test")
+
+    def _make_tmp_home(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+
+        path = Path(tempfile.mkdtemp(prefix="aura-metabolic-locks-"))
+        self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+        return path

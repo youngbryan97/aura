@@ -178,6 +178,92 @@ async def test_response_parser_handles_part_arrays_and_reasoning_fallback():
 
 
 @pytest.mark.asyncio
+async def test_warmup_treats_empty_generation_as_benign_runtime_readiness():
+    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client._ensure_runtime_ready = AsyncMock(return_value=True)
+
+    class _FakeHttpClient:
+        async def post(self, _url, json=None, timeout=None):
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {"message": {"content": ""}}
+                    ]
+                },
+            )
+
+    async def _fake_client():
+        return _FakeHttpClient()
+
+    client._client = _fake_client
+
+    await client.warmup()
+
+    assert client.get_lane_status()["state"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_single_empty_generation_does_not_immediately_crash_foreground_lane():
+    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client._lane_state = "ready"
+    client._ensure_runtime_ready = AsyncMock(return_value=True)
+
+    class _FakeHttpClient:
+        async def post(self, _url, json=None, timeout=None):
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {"message": {"content": ""}}
+                    ]
+                },
+            )
+
+    async def _fake_client():
+        return _FakeHttpClient()
+
+    client._client = _fake_client
+
+    result = await client.generate_text_async("hello", foreground_request=True)
+
+    assert result is None
+    assert client.get_lane_status()["state"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_restart_server_wait_is_offloaded_from_event_loop(monkeypatch):
+    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    wait_calls = []
+    offload_calls = []
+
+    class _Proc:
+        def poll(self):
+            return None
+
+        def kill(self):
+            return None
+
+        def wait(self, timeout=None):
+            wait_calls.append(timeout)
+            return 0
+
+    async def _fake_to_thread(func, *args, **kwargs):
+        offload_calls.append((func, args, kwargs))
+        return func(*args, **kwargs)
+
+    client._process = _Proc()
+    client.warmup = AsyncMock(return_value=None)
+    monkeypatch.setattr(local_server_client.asyncio, "to_thread", _fake_to_thread)
+
+    await client._restart_server()
+
+    assert wait_calls == [5.0]
+    assert offload_calls and offload_calls[0][0].__name__ == "wait"
+    client.warmup.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_server_health_detects_wrong_model_on_reserved_lane_port():
     client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
 

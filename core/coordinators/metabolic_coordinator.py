@@ -7,6 +7,7 @@ import asyncio
 import gc
 import json
 import logging
+import os
 import random
 import time
 from collections import deque
@@ -45,18 +46,49 @@ class MetabolicCoordinator:
         self._cleanup_stale_locks()
 
     def _cleanup_stale_locks(self):
-        """Purge stale .lock files from the aura home directory."""
+        """Remove only stale PID locks without destroying active singleton guards."""
         try:
             lock_dir = config.paths.home_dir / "locks"
             if lock_dir.exists():
-                logger.info("🧹 Purging stale PID locks from %s", lock_dir)
+                logger.info("🧹 Inspecting PID locks in %s", lock_dir)
                 for lock_file in lock_dir.glob("*.lock"):
+                    if not self._lock_file_is_stale(lock_file):
+                        continue
                     try:
                         lock_file.unlink()
+                        logger.info("🧹 Removed stale lock: %s", lock_file.name)
                     except Exception as _exc:
                         logger.debug("Suppressed Exception: %s", _exc)
         except Exception as e:
             logger.debug("Stale lock cleanup failed: %s", e)
+
+    @staticmethod
+    def _lock_file_is_stale(lock_file) -> bool:
+        try:
+            raw = lock_file.read_text(encoding="utf-8").strip()
+        except Exception:
+            return False
+
+        if not raw:
+            return False
+
+        pid_text = raw.splitlines()[0].strip()
+        if not pid_text.isdigit():
+            return False
+
+        pid = int(pid_text)
+        if pid <= 0:
+            return False
+
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            return False
+        except Exception:
+            return False
+        return False
 
     # ------------------------------------------------------------------
     # Main Tick

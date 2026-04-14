@@ -155,6 +155,9 @@ class GoalEngine:
         self._conn: Optional[sqlite3.Connection] = None
         self._state_repo = None
         self._gbm = None
+        self._last_reconcile_at = 0.0
+        self._reconcile_interval_s = 15.0
+        self._reconciling = False
         self._initialize()
         logger.info("GoalEngine initialized with durable store at %s", self._db_path)
 
@@ -246,6 +249,190 @@ class GoalEngine:
             seen.add(key)
             normalized.append(text)
         return normalized
+
+    @classmethod
+    def _goal_signature(cls, value: Any) -> str:
+        raw = re.sub(r"\s+", " ", str(value or "").strip().lower())
+        if not raw:
+            return ""
+        tokens = cls._normalize_tokens(raw)
+        if tokens:
+            return " ".join(tokens)
+        return raw.strip(" .,:;!?")
+
+    def _find_matching_record_by_objective(
+        self,
+        *,
+        objective: str,
+        source: str,
+        horizon: Any,
+        statuses: Optional[Iterable[str]] = None,
+        limit: int = 200,
+    ) -> Optional[GoalRecord]:
+        target_signature = self._goal_signature(objective)
+        if not target_signature:
+            return None
+
+        normalized_source = str(source or "").strip().lower()
+        normalized_horizon = self._coerce_horizon(horizon, default="")
+        candidates = self._fetch_records(statuses=statuses, limit=max(40, int(limit or 200)))
+
+        best_match: Optional[GoalRecord] = None
+        best_key: tuple[float, float] | None = None
+        for record in candidates:
+            if normalized_source and str(record.source or "").strip().lower() != normalized_source:
+                continue
+            if normalized_horizon and str(record.horizon or "") != normalized_horizon:
+                continue
+            record_signature = self._goal_signature(record.objective or record.name)
+            if record_signature != target_signature:
+                continue
+            key = (
+                float(record.updated_at or record.created_at or 0.0),
+                float(record.priority or 0.0),
+            )
+            if best_key is None or key > best_key:
+                best_match = record
+                best_key = key
+        return best_match
+
+    def _active_task_engine_plan_ids(self) -> Optional[set[str]]:
+        try:
+            task_engine = ServiceContainer.get("task_engine", default=None)
+        except Exception:
+            task_engine = None
+
+        if task_engine is None or not hasattr(task_engine, "get_active_plans"):
+            return None
+
+        try:
+            snapshot = list(task_engine.get_active_plans() or [])
+        except Exception as exc:
+            logger.debug("GoalEngine task-engine plan snapshot skipped: %s", exc)
+            return None
+
+        active_ids: set[str] = set()
+        for item in snapshot:
+            if not isinstance(item, dict):
+                continue
+            for key in ("plan_id", "task_id"):
+                value = str(item.get(key, "") or "").strip()
+                if value:
+                    active_ids.add(value)
+        return active_ids
+
+    def _reconcile_stale_task_engine_records(self) -> None:
+        now = self._now()
+        active_plan_ids = self._active_task_engine_plan_ids()
+        if active_plan_ids is None:
+            return
+        active_records = self._fetch_records(statuses=ACTIVE_GOAL_STATUSES, limit=500)
+
+        for record in active_records:
+            if str(record.source or "") != "task_engine":
+                continue
+            plan_id = str(record.plan_id or record.task_id or "").strip()
+            if not plan_id or plan_id in active_plan_ids:
+                continue
+            age_s = max(0.0, now - float(record.updated_at or record.created_at or now))
+            if age_s < 15.0:
+                continue
+
+            metadata = dict(record.metadata or {})
+            if metadata.get("reconciled_stale_plan"):
+                continue
+            metadata["reconciled_stale_plan"] = True
+            metadata["reconciled_at"] = now
+            metadata["last_known_plan_id"] = plan_id
+
+            summary = str(record.summary or "")
+            if not summary:
+                summary = "Interrupted before completion. No active task-engine plan still owns this goal."
+            error = str(record.error or "")
+            if not error:
+                error = "Task engine plan interrupted or lost ownership before completion."
+
+            repaired_payload = asdict(record)
+            repaired_payload.update(
+                {
+                    "status": GoalStatus.BLOCKED.value,
+                    "summary": summary[:2400],
+                    "error": error[:2400],
+                    "metadata": metadata,
+                    "updated_at": now,
+                    "last_progress_at": now,
+                }
+            )
+            repaired = GoalRecord(**repaired_payload)
+            self._write_record(repaired)
+
+    def _reconcile_duplicate_active_records(self) -> None:
+        now = self._now()
+        active_records = self._fetch_records(statuses=ACTIVE_GOAL_STATUSES, limit=500)
+        grouped: Dict[tuple[str, str, str], List[GoalRecord]] = {}
+
+        for record in active_records:
+            signature = self._goal_signature(record.objective or record.name)
+            if not signature:
+                continue
+            key = (str(record.source or ""), str(record.horizon or ""), signature)
+            grouped.setdefault(key, []).append(record)
+
+        for (source, _horizon, _signature), records in grouped.items():
+            if len(records) <= 1:
+                continue
+            ordered = sorted(
+                records,
+                key=lambda item: (
+                    float(item.updated_at or item.created_at or 0.0),
+                    float(item.priority or 0.0),
+                ),
+                reverse=True,
+            )
+            canonical = ordered[0]
+            for stale in ordered[1:]:
+                metadata = dict(stale.metadata or {})
+                if metadata.get("duplicate_reconciled_to") == canonical.id:
+                    continue
+                metadata["duplicate_reconciled_to"] = canonical.id
+                metadata["reconciled_at"] = now
+                summary = str(stale.summary or "") or "Superseded by a newer goal record for the same objective."
+                error = str(stale.error or "")
+                next_status = (
+                    GoalStatus.ABANDONED.value
+                    if source == "executive_authority"
+                    else GoalStatus.BLOCKED.value
+                )
+                repaired_payload = asdict(stale)
+                repaired_payload.update(
+                    {
+                        "status": next_status,
+                        "summary": summary[:2400],
+                        "error": error[:2400],
+                        "metadata": metadata,
+                        "updated_at": now,
+                        "last_progress_at": now,
+                    }
+                )
+                repaired = GoalRecord(**repaired_payload)
+                self._write_record(repaired)
+
+    def _maybe_reconcile_runtime_records(self) -> None:
+        if self._conn is None or self._reconciling:
+            return
+        now = self._now()
+        if (now - float(self._last_reconcile_at or 0.0)) < self._reconcile_interval_s:
+            return
+
+        self._reconciling = True
+        try:
+            self._reconcile_stale_task_engine_records()
+            self._reconcile_duplicate_active_records()
+            self._last_reconcile_at = now
+        except Exception as exc:
+            logger.debug("GoalEngine reconciliation skipped: %s", exc)
+        finally:
+            self._reconciling = False
 
     def _write_record(self, record: GoalRecord) -> GoalRecord:
         if self._conn is None:
@@ -461,6 +648,13 @@ class GoalEngine:
             intention_id=str(intention_id or ""),
             commitment_id=str(commitment_id or ""),
         )
+        if existing is None:
+            existing = self._find_matching_record_by_objective(
+                objective=str(objective or name or ""),
+                source=str(source or ""),
+                horizon=horizon,
+                statuses=ACTIVE_GOAL_STATUSES,
+            )
 
         if progress is None:
             if steps_total > 0:
@@ -799,18 +993,29 @@ class GoalEngine:
         return completed[: max(1, int(limit or 20))]
 
     def build_snapshot(self, limit: int = 30, *, include_external: bool = True) -> Dict[str, Any]:
+        self._maybe_reconcile_runtime_records()
         internal_items = [record.to_dict() for record in self._fetch_records(limit=max(40, int(limit or 30) * 2))]
         items = list(internal_items)
         if include_external:
             items.extend(self._external_goal_items())
 
         deduped: List[Dict[str, Any]] = []
-        seen: set[str] = set()
+        seen_ids: set[str] = set()
+        seen_active_signatures: set[str] = set()
         for item in self._sort_items(items):
             item_id = str(item.get("id", "") or f"{item.get('source','goal')}::{item.get('objective') or item.get('name')}")
-            if item_id in seen:
+            if item_id in seen_ids:
                 continue
-            seen.add(item_id)
+            seen_ids.add(item_id)
+            status = str(item.get("status", "") or "")
+            if status in ACTIVE_GOAL_STATUSES:
+                signature = self._goal_signature(item.get("objective") or item.get("name") or "")
+                horizon = str(item.get("horizon", "") or "")
+                active_key = f"{horizon}::{signature}" if signature else ""
+                if active_key and active_key in seen_active_signatures:
+                    continue
+                if active_key:
+                    seen_active_signatures.add(active_key)
             deduped.append(item)
 
         active = [item for item in deduped if str(item.get("status", "")) in ACTIVE_GOAL_STATUSES]
