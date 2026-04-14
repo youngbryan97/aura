@@ -1,0 +1,140 @@
+{
+  "timestamp": "2026-04-14T08:34:34.193298+00:00",
+  "total": 25,
+  "passed": 24,
+  "failed": 1,
+  "elapsed_seconds": 0.35,
+  "tests": {
+    "2.1 Cortisol \u2192 negative valence": {
+      "status": "PASS",
+      "baseline_valence": 0.17,
+      "stressed_valence": "-0.0838",
+      "delta": "-0.2538"
+    },
+    "2.2 Cortisol \u2192 high stress": {
+      "status": "PASS",
+      "baseline_stress": 0.02,
+      "stressed_stress": "0.3959"
+    },
+    "2.3 Opposite chemicals \u2192 opposite moods": {
+      "status": "PASS",
+      "calm_valence": "0.2916",
+      "stressed_valence": "-0.1143",
+      "gap": "0.4059"
+    },
+    "4.1 Phi=0 \u2192 no boost, Phi=0.8 \u2192 boost": {
+      "status": "PASS",
+      "phi0_boost": 0.0,
+      "phi08_boost": 0.08
+    },
+    "8.1 Sustained DA \u2192 receptor downregulation": {
+      "status": "PASS",
+      "initial_sensitivity": 1.0,
+      "final_sensitivity": 0.9517,
+      "delta": -0.0483
+    },
+    "8.2 Same DA level \u2192 decreasing effective level": {
+      "status": "FAIL",
+      "effective_tick1": 0.5,
+      "effective_tick50": 0.8437
+    },
+    "8.3 DA withdrawal \u2192 sensitivity recovery": {
+      "status": "PASS",
+      "tolerant": 0.9517,
+      "recovered": 0.9818
+    },
+    "15.1 Surprise modulates learning rate": {
+      "status": "PASS",
+      "lr_low_surprise": 0.0015,
+      "lr_high_surprise": 0.0055,
+      "ratio": 3.67
+    },
+    "28: I(cortisol, valence)": {
+      "status": "PASS",
+      "mutual_information": 0.3823
+    },
+    "28: I(dopamine, motivation)": {
+      "status": "PASS",
+      "mutual_information": 0.6563
+    },
+    "28: I(NE, arousal)": {
+      "status": "PASS",
+      "mutual_information": 0.7985
+    },
+    "28: I(oxytocin, sociality)": {
+      "status": "PASS",
+      "mutual_information": 2.2316
+    },
+    "28: I(surprise, learning_rate)": {
+      "status": "PASS",
+      "mutual_information": 3.2838
+    },
+    "6.1 Idle drift after 100 ticks": {
+      "status": "PASS",
+      "L2_drift": 7.4252
+    },
+    "7.1 Perturbation divergence persists": {
+      "status": "PASS",
+      "divergence": "0.2549"
+    },
+    "5.4 Phi computed from 80 correlated states": {
+      "status": "PASS",
+      "phi_s": 0.0,
+      "is_complex": false,
+      "n_partitions": 32,
+      "tpm_samples": 79,
+      "compute_ms": 42.43
+    },
+    "18.1 Free energy monotonically increases with prediction error": {
+      "status": "PASS",
+      "FE(pe=0.0)": "0.2619 [rest]",
+      "FE(pe=0.2)": "0.2668 [rest]",
+      "FE(pe=0.5)": "0.2768 [rest]",
+      "FE(pe=0.8)": "0.2937 [rest]",
+      "FE(pe=1.0)": "0.3194 [rest]"
+    },
+    "Prediction error reduces with repetition": {
+      "status": "PASS",
+      "fe_first": 0.2594,
+      "fe_after_20": 0.0675
+    },
+    "Different levels have different precision": {
+      "status": "PASS",
+      "sensory": 0.1824,
+      "association": 0.8171,
+      "executive": 0.8155,
+      "narrative": 0.8113,
+      "meta": 0.7912
+    },
+    "HOT generates state-dependent thoughts": {
+      "status": "PASS",
+      "thought_1": "[surprise] I notice a strong surprise signal \u2014 my predictions were wron",
+      "thought_2": "[valence] I notice I am in a positive state \u2014 something feels right."
+    },
+    "Vitality degrades without maintenance": {
+      "status": "PASS",
+      "vitality_healthy": 0.8554,
+      "vitality_degraded": 0.3058
+    },
+    "Interaction matrix is non-trivial and asymmetric": {
+      "status": "PASS",
+      "nonzero_entries": 81,
+      "asymmetry": 0.2561
+    },
+    "1000 ODE ticks take measurable time": {
+      "status": "PASS",
+      "elapsed_ms": 52.34
+    },
+    "50 STDP recordings on 64 neurons": {
+      "status": "PASS",
+      "elapsed_ms": 23.99
+    },
+    "State swap transfers behavioral bias": {
+      "status": "PASS",
+      "A_pre": 0.2669,
+      "B_pre": -0.0879,
+      "A_post": -0.0879,
+      "B_post": 0.2669
+    }
+  }
+}
