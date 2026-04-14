@@ -156,12 +156,26 @@ class CognitiveRoutingPhase(Phase):
         analysis=None,
         route_meta: dict[str, object] | None = None,
     ) -> bool:
-        if not is_user_facing or intent_type not in {"CHAT", "TASK"}:
+        """Determine if the 72B deep solver should be activated.
+
+        [STABILITY v53] DRASTICALLY tightened. The 32B cortex handles 95%+ of
+        conversation perfectly. The 72B should ONLY activate for genuinely complex
+        technical problems that the 32B can't handle — multi-file debugging,
+        complex architecture, mathematical proofs. NOT for:
+        - Philosophical questions
+        - Emotional conversations
+        - Long messages (length ≠ complexity)
+        - Questions about Aura herself
+        - Normal "explain" / "why" / "how" questions
+        """
+        if not is_user_facing or intent_type not in {"TASK"}:
+            # [STABILITY v53] Only TASK intent can trigger deep handoff.
+            # CHAT intent stays on 32B — it handles conversation beautifully.
             return False
         lower = text.lower()
         word_count = len(text.split())
-        if word_count >= 120 or len(text) >= 900:
-            return True
+
+        # Only explicit deep-dive technical keywords trigger handoff
         if any(keyword in lower for keyword in _DEEP_HANDOFF_KEYWORDS):
             return True
 
@@ -171,19 +185,21 @@ class CognitiveRoutingPhase(Phase):
             analysis=current_analysis,
             intent_type=intent_type,
         )
+        # Must be technical AND a coding request
         if current_analysis.semantic_mode != "technical" or not metadata.get("coding_request"):
             return False
 
+        # [STABILITY v53] Raised threshold from 0.65 to 0.80 — only truly complex
+        # multi-file technical tasks should trigger the 72B solver.
         complexity = float(metadata.get("coding_complexity_score", 0.0) or 0.0)
-        if complexity >= 0.65:
+        if complexity >= 0.80:
             return True
         return bool(
             metadata.get("has_test_failure")
+            and metadata.get("file_ref_count", 0) >= 2  # Multiple files = actually complex
             and (
-                metadata.get("file_ref_count")
-                or "pytest" in lower
+                "pytest" in lower
                 or "traceback" in lower
-                or "failing" in lower
             )
         )
 
@@ -281,7 +297,11 @@ class CognitiveRoutingPhase(Phase):
                 analysis=analysis,
                 route_meta=route_meta,
             )
-            new_state.response_modifiers["deep_handoff"] = True
+            # [STABILITY v53] Removed forced deep_handoff=True for identity/self-preservation.
+            # The 32B cortex handles identity questions perfectly well. Forcing 72B
+            # for "are you real?" or philosophical questions was the #1 cause of
+            # unnecessary deep solver activation, which then crashed or hung and
+            # prevented the 32B from coming back.
             return new_state
 
         if contract.requires_search and contract.required_skill:
@@ -325,12 +345,11 @@ class CognitiveRoutingPhase(Phase):
                 analysis=analysis,
                 route_meta=route_meta,
             )
-            if reflective_mode == CognitiveMode.DELIBERATE and (
-                contract.requires_state_reflection
-                or contract.requires_aura_question
-                or affective_complexity > 0.45
-            ):
-                new_state.response_modifiers["deep_handoff"] = True
+            # [STABILITY v53] Removed deep_handoff for reflective/emotional/philosophical
+            # conversations. The 32B cortex is MORE than capable of handling questions
+            # about Aura's feelings, opinions, state, and philosophical topics.
+            # The 72B deep solver should ONLY activate for genuinely complex technical
+            # problems (coding, math, architecture). Emotional depth ≠ computational depth.
             return new_state
 
         if is_user_facing and bool(route_meta.get("coding_request")):

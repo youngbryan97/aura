@@ -830,22 +830,20 @@ def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
         )
     except Exception as exc:
         logger.debug("Protected foreground route analysis failed: %s", exc)
+        # [STABILITY v53] Tightened fallback — only truly complex technical
+        # markers should trigger 72B. Removed "architecture", "debug" (too common).
+        # Removed text length >= 900 (long ≠ complex).
         lower = text.lower()
         deep_handoff = any(
             marker in lower
             for marker in (
                 "deep dive",
-                "root cause",
-                "architecture",
-                "debug",
-                "traceback",
-                "failing test",
+                "mathematical proof",
+                "formal proof",
                 "security audit",
-                "memory leak",
-                "deadlock",
-                "race condition",
+                "vulnerability scan",
             )
-        ) or len(text) >= 900
+        )
 
     return {
         "prefer_tier": "secondary" if deep_handoff else "primary",
