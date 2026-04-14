@@ -11,12 +11,14 @@ identity/personality system prompt so responses sound like Aura, not a bare LLM.
 Timeouts are kept tight (45s) for conversational responsiveness.
 """
 import asyncio
+import gc
 import inspect
 import json
 import logging
 import os
 import threading as _threading
 import time
+import weakref
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
@@ -91,8 +93,11 @@ class InferenceGate:
         self._last_successful_generation_at: float = time.time()
         self._prewarm_task: Optional[asyncio.Task] = None
         self._deferred_prewarm_task: Optional[asyncio.Task] = None
+        self._maintenance_task: Optional[asyncio.Task] = None
         self._foreground_ready_lock = _threading.Lock()
         self._last_background_memory_shed_at: float = 0.0
+        self._last_spare_maintenance_at: float = 0.0
+        type(self)._instance_ref = weakref.ref(self)
         logger.info("🛡️ InferenceGate created.")
 
     @staticmethod
@@ -150,6 +155,179 @@ class InferenceGate:
         if setting in {"0", "false", "no", "off"}:
             return False
         return True
+
+    @staticmethod
+    def _headroom_snapshot(requested_tier: str = "primary") -> Dict[str, Any]:
+        try:
+            vm = psutil.virtual_memory()
+            total_gb = vm.total / float(1024 ** 3)
+            available_gb = vm.available / float(1024 ** 3)
+            tier = str(requested_tier or "primary").strip().lower()
+            if tier == "secondary":
+                max_pressure = 84.0 if total_gb >= 60.0 else 80.0
+                min_available_gb = 16.0 if total_gb >= 60.0 else 12.0
+            elif tier == "tertiary":
+                max_pressure = 92.0 if total_gb >= 60.0 else 88.0
+                min_available_gb = 6.0 if total_gb >= 60.0 else 4.0
+            else:
+                max_pressure = 88.0 if total_gb >= 60.0 else 84.0
+                min_available_gb = 12.0 if total_gb >= 60.0 else 8.0
+            return {
+                "tier": tier,
+                "pressure_pct": float(vm.percent),
+                "total_gb": total_gb,
+                "available_gb": available_gb,
+                "max_pressure_pct": max_pressure,
+                "min_available_gb": min_available_gb,
+                "can_admit": bool(vm.percent < max_pressure and available_gb >= min_available_gb),
+            }
+        except Exception:
+            return {
+                "tier": str(requested_tier or "primary"),
+                "pressure_pct": 0.0,
+                "total_gb": 0.0,
+                "available_gb": 0.0,
+                "max_pressure_pct": 100.0,
+                "min_available_gb": 0.0,
+                "can_admit": True,
+            }
+
+    def _foreground_headroom_reserved(self, requested_tier: str = "primary") -> bool:
+        snap = self._headroom_snapshot(requested_tier)
+        safety_buffer_gb = 3.0 if snap["tier"] == "secondary" else 2.0
+        return bool(
+            snap["pressure_pct"] >= (snap["max_pressure_pct"] - 2.0)
+            or snap["available_gb"] <= (snap["min_available_gb"] + safety_buffer_gb)
+        )
+
+    @staticmethod
+    def _iter_local_clients() -> Dict[str, Any]:
+        clients: Dict[str, Any] = {}
+        try:
+            from core.brain.llm.local_server_client import _SERVER_CLIENTS
+
+            clients.update(dict(_SERVER_CLIENTS))
+        except Exception:
+            pass
+        try:
+            from core.brain.llm.mlx_client import _CLIENTS
+
+            clients.update(dict(_CLIENTS))
+        except Exception:
+            pass
+        return clients
+
+    async def _enforce_foreground_admission(
+        self,
+        requested_tier: str,
+        *,
+        protected_foreground: bool = False,
+    ) -> Dict[str, Any]:
+        snapshot = self._headroom_snapshot(requested_tier)
+        if snapshot["can_admit"]:
+            return snapshot
+
+        logger.warning(
+            "🛡️ Foreground admission tightening for %s (pressure=%.1f%% available=%.1fGB).",
+            requested_tier,
+            snapshot["pressure_pct"],
+            snapshot["available_gb"],
+        )
+        await self._shed_background_workers_for_memory_pressure()
+        gc.collect()
+        tightened = self._headroom_snapshot(requested_tier)
+        if not tightened["can_admit"] and protected_foreground:
+            logger.warning(
+                "🛡️ Protected foreground request proceeding under reduced headroom for tier=%s "
+                "(pressure=%.1f%% available=%.1fGB).",
+                requested_tier,
+                tightened["pressure_pct"],
+                tightened["available_gb"],
+            )
+        return tightened
+
+    async def _ensure_hot_spare_ready(self, endpoint_name: str) -> bool:
+        if self._foreground_user_turn_active() or self._foreground_owner_active():
+            return False
+
+        try:
+            from core.brain.llm.mlx_client import get_mlx_client
+            from core.brain.llm.model_registry import (
+                get_brainstem_path,
+                get_deep_model_path,
+                get_fallback_path,
+            )
+        except Exception as exc:
+            logger.debug("Hot-spare setup unavailable: %s", exc)
+            return False
+
+        if endpoint_name == BRAINSTEM_ENDPOINT:
+            model_path = str(get_brainstem_path())
+            requested_tier = "tertiary"
+        elif endpoint_name == DEEP_ENDPOINT:
+            model_path = str(get_deep_model_path())
+            requested_tier = "secondary"
+        elif endpoint_name == FALLBACK_ENDPOINT:
+            model_path = str(get_fallback_path())
+            requested_tier = "tertiary"
+        else:
+            return False
+
+        snapshot = self._headroom_snapshot(requested_tier)
+        if endpoint_name == DEEP_ENDPOINT and not snapshot["can_admit"]:
+            return False
+
+        client = get_mlx_client(model_path=model_path)
+        if hasattr(client, "is_alive") and client.is_alive():
+            return True
+        if not hasattr(client, "warmup"):
+            return False
+
+        try:
+            await client.warmup()
+        except Exception as exc:
+            logger.debug("Hot-spare warmup failed for %s: %s", endpoint_name, exc)
+            return False
+        return bool(hasattr(client, "is_alive") and client.is_alive())
+
+    async def _recycle_idle_local_clients(self) -> None:
+        if self._foreground_user_turn_active() or self._foreground_owner_active():
+            return
+
+        max_uptime_s = float(os.environ.get("AURA_LOCAL_RECYCLE_MAX_UPTIME_S", "5400"))
+        min_idle_s = float(os.environ.get("AURA_LOCAL_RECYCLE_MIN_IDLE_S", "900"))
+        for client in self._iter_local_clients().values():
+            if client is None or client is self._mlx_client:
+                continue
+            recycle_predicate = getattr(client, "should_recycle_for_fragmentation", None)
+            if not callable(recycle_predicate):
+                continue
+            try:
+                if recycle_predicate(max_uptime_s=max_uptime_s, min_idle_s=min_idle_s):
+                    logger.info("♻️ Recycling idle local runtime to reduce fragmentation.")
+                    if hasattr(client, "reboot_worker"):
+                        await client.reboot_worker(
+                            reason="scheduled_fragmentation_recycle",
+                            mark_failed=False,
+                        )
+            except Exception as exc:
+                logger.debug("Idle runtime recycle skipped: %s", exc)
+
+    async def _maintenance_loop(self) -> None:
+        while True:
+            try:
+                await asyncio.sleep(15.0 if self._last_spare_maintenance_at <= 0.0 else 45.0)
+                self._last_spare_maintenance_at = time.monotonic()
+                if self._background_memory_pressure_active():
+                    await self._shed_background_workers_for_memory_pressure()
+                    continue
+                await self._ensure_hot_spare_ready(BRAINSTEM_ENDPOINT)
+                await self._ensure_hot_spare_ready(DEEP_ENDPOINT)
+                await self._recycle_idle_local_clients()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.debug("InferenceGate maintenance loop skipped: %s", exc)
 
     def get_conversation_status(self) -> Dict[str, Any]:
         lane = {
@@ -578,6 +756,8 @@ class InferenceGate:
     def _background_local_deferral_reason(self, *, origin: Optional[str] = None) -> Optional[str]:
         if self._foreground_user_turn_active() or self._foreground_owner_active():
             return "foreground_reserved"
+        if self._foreground_headroom_reserved("primary"):
+            return "foreground_headroom_reserved"
         if self._should_quiet_background_for_cortex_startup():
             return "cortex_startup_quiet"
 
@@ -902,6 +1082,12 @@ class InferenceGate:
                 logger.info("⏸️ InferenceGate ONLINE (32B warmup deferred until post-boot memory settles).")
             else:
                 logger.info("🛡️ InferenceGate ONLINE (desktop safe boot: 32B warmup deferred until the first real foreground request).")
+
+            if self._maintenance_task is None or self._maintenance_task.done():
+                self._maintenance_task = asyncio.create_task(
+                    self._maintenance_loop(),
+                    name="InferenceGate.maintenance",
+                )
             
             self._initialized = True
             
@@ -1665,6 +1851,7 @@ class InferenceGate:
         requested_tier = self._normalize_tier(context.get("prefer_tier"))
         explicit_background = "is_background" in context
         explicit_foreground = bool(context.get("foreground_request", False))
+        protected_foreground_lane = bool(context.get("protected_foreground_lane", False))
         is_background = bool(context.get("is_background", False))
         if explicit_foreground:
             is_background = False
@@ -1692,6 +1879,11 @@ class InferenceGate:
                 if background_deferral == "memory_pressure":
                     logger.info(
                         "⏸️ InferenceGate: Deferring background inference for origin=%s due to memory pressure.",
+                        origin,
+                    )
+                elif background_deferral == "foreground_headroom_reserved":
+                    logger.info(
+                        "⏸️ InferenceGate: Foreground headroom reserved. Deferring background inference for origin=%s.",
                         origin,
                     )
                 elif background_deferral == "cortex_startup_quiet":
@@ -1733,17 +1925,23 @@ class InferenceGate:
                 and not self._mlx_client.is_alive()
                 and requested_tier == "primary"
             ):
-                logger.warning(
-                    "⚠️ InferenceGate: Primary cortex still dead after recovery wait. "
-                    "Downgrading to secondary tier for user responsiveness."
-                )
-                requested_tier = "tertiary"  # Use 7B brainstem — fast, always available
+                if protected_foreground_lane:
+                    logger.warning(
+                        "⚠️ InferenceGate: Primary cortex still dead after recovery wait, "
+                        "but protected foreground mode will preserve the requested high-capability path."
+                    )
+                else:
+                    logger.warning(
+                        "⚠️ InferenceGate: Primary cortex still dead after recovery wait. "
+                        "Downgrading to the fast tertiary lane for user responsiveness."
+                    )
+                    requested_tier = "tertiary"  # Use 7B brainstem — fast, always available
 
             # RAM-aware inference routing (v50): when RAM > 88%, prefer the 7B
             # brainstem over the 32B cortex. The 32B model's KV cache and
             # activations consume significant unified memory — switching to 7B
             # prevents hitting the 94% throttle wall during conversation.
-            if requested_tier == "primary":
+            if requested_tier == "primary" and not protected_foreground_lane:
                 try:
                     import psutil
                     ram_pct = psutil.virtual_memory().percent
@@ -1805,6 +2003,43 @@ class InferenceGate:
                 is_background=is_background,
             )
         )
+        admission_snapshot: Optional[Dict[str, Any]] = None
+        if not is_background and requested_tier in {"primary", "secondary"}:
+            admission_snapshot = await self._enforce_foreground_admission(
+                requested_tier,
+                protected_foreground=protected_foreground_lane,
+            )
+            if not admission_snapshot.get("can_admit", True) and requested_tier == "secondary" and not protected_foreground_lane:
+                logger.warning(
+                    "🛡️ InferenceGate: deep local handoff exceeds safe headroom "
+                    "(pressure=%.1f%% available=%.1fGB). Downgrading to the primary lane.",
+                    float(admission_snapshot.get("pressure_pct", 0.0) or 0.0),
+                    float(admission_snapshot.get("available_gb", 0.0) or 0.0),
+                )
+                requested_tier = "primary"
+                deep_handoff = False
+                timeout_val = timeout or self._default_timeout_for_request(
+                    origin,
+                    requested_tier,
+                    deep_handoff=deep_handoff,
+                    is_background=is_background,
+                )
+                primary_timeout, fallback_timeout = self._split_attempt_timeouts(timeout_val, requested_tier)
+                max_tokens = int(
+                    context.get("max_tokens")
+                    or self._default_max_tokens_for_request(
+                        origin,
+                        requested_tier,
+                        deep_handoff=deep_handoff,
+                        is_background=is_background,
+                    )
+                )
+                admission_snapshot = await self._enforce_foreground_admission(
+                    requested_tier,
+                    protected_foreground=protected_foreground_lane,
+                )
+            if not admission_snapshot.get("can_admit", True):
+                max_tokens = min(max_tokens, 768 if requested_tier == "secondary" else 640)
 
         # ── Resource Stakes: scale token budget by computational survival state ──
         try:
@@ -2054,6 +2289,14 @@ class InferenceGate:
                     restore_primary = True
 
                 _is_user_facing = self._origin_is_user_facing(origin) or requested_tier == "primary"
+                protected_deep_fallback = bool(
+                    protected_foreground_lane
+                    and _is_user_facing
+                    and requested_tier == "primary"
+                )
+                if protected_deep_fallback:
+                    fallback_client = get_mlx_client(model_path=str(get_deep_model_path()))
+                    fallback_label = DEEP_ENDPOINT
                 logger.info("🧠 Routing to %s (timeout=%.0fs, user_facing=%s)...", local_label, float(timeout_val), _is_user_facing)
                 primary_deadline = get_deadline(primary_timeout)
                 async with self._resource_context(
@@ -2129,7 +2372,11 @@ class InferenceGate:
                         logger.warning("🧠 Escalating to cloud before brainstem for user-facing request.")
                         raise _UserFacingCortexFailure()
                     lane_status = self.get_conversation_status()
-                    if not lane_status.get("conversation_ready") and str(lane_status.get("state", "") or "").lower() != "failed":
+                    if (
+                        not protected_deep_fallback
+                        and not lane_status.get("conversation_ready")
+                        and str(lane_status.get("state", "") or "").lower() != "failed"
+                    ):
                         logger.warning(
                             "🧠 %s is still not ready (state=%s). Refusing local fallback until the primary lane actually finishes recovery.",
                             local_label,
@@ -2137,9 +2384,10 @@ class InferenceGate:
                         )
                         return None
                     logger.warning(
-                        "🧠 %s is still recovering. Falling back to %s for this local-only foreground turn.",
+                        "🧠 %s is still recovering. Falling back to %s for this %s foreground turn.",
                         local_label,
                         fallback_label,
+                        "protected" if protected_deep_fallback else "local-only",
                     )
                 else:
                     logger.warning("🧠 %s returned no text. Trying local fallback.", local_label)
@@ -2154,6 +2402,11 @@ class InferenceGate:
                     worker=fallback_label,
                     timeout=fallback_deadline.remaining or fallback_timeout,
                 ):
+                    fallback_max_tokens = (
+                        min(max_tokens, 768)
+                        if fallback_label == DEEP_ENDPOINT
+                        else min(max_tokens, 384 if requested_tier != "secondary" else 512)
+                    )
                     brainstem_text = await self._generate_with_client(
                         fallback_client,
                         prompt,
@@ -2162,7 +2415,7 @@ class InferenceGate:
                         fallback_deadline,
                         fallback_label,
                         messages=messages,
-                        max_tokens=min(max_tokens, 384 if requested_tier != "secondary" else 512),
+                        max_tokens=fallback_max_tokens,
                         temperature=somatic_temperature,
                         origin=origin,
                         is_background=is_background,

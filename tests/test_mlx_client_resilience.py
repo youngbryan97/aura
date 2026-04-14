@@ -149,6 +149,58 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(client._init_future.done())
         self.assertEqual(client._lane_state, "recovering")
 
+    async def test_generation_waiter_flags_first_token_sla_breach(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        proc = MagicMock()
+        proc.is_alive.return_value = True
+        client._process = proc
+        client._init_done = True
+        client._set_lane_state("ready")
+        req_id = "req-1"
+        future = asyncio.get_running_loop().create_future()
+        client._pending_generations[req_id] = future
+        client._current_request_id = req_id
+        client._current_request_started_at = 100.0
+
+        with patch("core.brain.llm.mlx_client.asyncio.wait_for", side_effect=asyncio.TimeoutError):
+            with patch("core.brain.llm.mlx_client.time.time", return_value=100.0 + client._first_token_sla() + 1.0):
+                result = await client._wait_for_generation_result(
+                    req_id,
+                    future,
+                    get_deadline(30.0),
+                    foreground_request=True,
+                )
+
+        self.assertIsNone(result)
+        self.assertEqual(client._deferred_reboot_reason, "first_token_sla_exceeded")
+
+    async def test_generation_waiter_flags_token_progress_stall(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        proc = MagicMock()
+        proc.is_alive.return_value = True
+        client._process = proc
+        client._init_done = True
+        client._set_lane_state("ready")
+        req_id = "req-2"
+        future = asyncio.get_running_loop().create_future()
+        client._pending_generations[req_id] = future
+        client._current_request_id = req_id
+        client._current_request_started_at = 100.0
+        client._current_first_token_at = 105.0
+        client._last_token_progress_at = 105.0
+
+        with patch("core.brain.llm.mlx_client.asyncio.wait_for", side_effect=asyncio.TimeoutError):
+            with patch("core.brain.llm.mlx_client.time.time", return_value=105.0 + client._token_stall_after() + 1.0):
+                result = await client._wait_for_generation_result(
+                    req_id,
+                    future,
+                    get_deadline(30.0),
+                    foreground_request=True,
+                )
+
+        self.assertIsNone(result)
+        self.assertEqual(client._deferred_reboot_reason, "token_progress_stalled")
+
     async def test_warmup_precompile_accepts_empty_text_as_successful_compile(self):
         client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
         client._warmup_in_flight = True
@@ -162,6 +214,27 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(client.get_lane_status()["state"], "ready")
+
+    async def test_supervision_status_reports_recycle_candidate(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        proc = MagicMock()
+        proc.is_alive.return_value = True
+        client._process = proc
+        client._init_done = True
+        client._process_started_at = 100.0
+        client._last_generation_completed_at = 600.0
+
+        with patch("core.brain.llm.mlx_client.time.time", return_value=2000.0):
+            status = client.get_supervision_status()
+            recyclable = client.should_recycle_for_fragmentation(
+                max_uptime_s=900.0,
+                min_idle_s=300.0,
+            )
+
+        self.assertTrue(status["alive"])
+        self.assertAlmostEqual(status["process_uptime_s"], 1900.0, places=3)
+        self.assertAlmostEqual(status["idle_for_s"], 1400.0, places=3)
+        self.assertTrue(recyclable)
 
     async def test_heavy_model_swap_respects_cooldown_window(self):
         import core.brain.llm.mlx_client as mlx_module

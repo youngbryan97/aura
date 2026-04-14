@@ -990,7 +990,7 @@ async def test_mind_tick_missing_state_uses_single_backoff_path(monkeypatch, cap
         record for record in caplog.records
         if "No current state found. Deferring tick" in record.getMessage()
     ]
-    assert sleeps == pytest.approx([0.5, 1.0, 2.0], rel=0.0, abs=0.05)
+    assert sleeps == pytest.approx([2.0, 4.0, 5.0], rel=0.0, abs=0.05)
     assert len(missing_state_logs) == 1
 
 

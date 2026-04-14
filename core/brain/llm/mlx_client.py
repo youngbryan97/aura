@@ -255,7 +255,9 @@ class MLXLocalClient:
         self._listener_task: Optional[asyncio.Task] = None
         self._last_heartbeat = 0.0
         self._last_progress_at = 0.0
+        self._last_token_progress_at = 0.0
         self._last_ready_at = 0.0
+        self._last_generation_completed_at = 0.0
         self._current_gen_future: Optional[asyncio.Future] = None
         self._init_future: Optional[asyncio.Future] = None
         self._pending_generations: Dict[str, asyncio.Future] = {}
@@ -265,6 +267,10 @@ class MLXLocalClient:
         self._active_generations = 0
         self._warmup_attempted = False
         self._warmup_in_flight = False
+        self._process_started_at = 0.0
+        self._current_request_started_at = 0.0
+        self._current_first_token_at = 0.0
+        self._current_request_id = ""
         
         # Resolve substrate SHM if available
         from core.container import ServiceContainer
@@ -277,6 +283,33 @@ class MLXLocalClient:
 
     def _mark_progress(self) -> None:
         self._last_progress_at = time.time()
+
+    def _mark_generation_started(self, req_id: str) -> None:
+        now = time.time()
+        self._current_request_id = str(req_id or "")
+        self._current_request_started_at = now
+        self._current_first_token_at = 0.0
+        self._last_token_progress_at = 0.0
+        self._mark_progress()
+
+    def _mark_token_progress(self, req_id: Optional[str] = None) -> None:
+        now = time.time()
+        normalized_req_id = str(req_id or "")
+        if normalized_req_id and self._current_request_id and normalized_req_id != self._current_request_id:
+            return
+        self._last_token_progress_at = now
+        if self._current_first_token_at <= 0.0:
+            self._current_first_token_at = now
+        self._mark_progress()
+
+    def _mark_generation_completed(self) -> None:
+        now = time.time()
+        self._last_generation_completed_at = now
+        self._current_request_started_at = 0.0
+        self._current_first_token_at = 0.0
+        self._last_token_progress_at = 0.0
+        self._current_request_id = ""
+        self._mark_progress()
 
     def _set_lane_state(self, state: str, error: str = "") -> None:
         if state != self._lane_state:
@@ -326,6 +359,22 @@ class MLXLocalClient:
             return 60.0 if during_generation else 30.0
         return 20.0 if during_generation else 15.0
 
+    def _first_token_sla(self) -> float:
+        lowered = os.path.basename(self.model_path).lower()
+        if "72b" in lowered or "solver" in lowered:
+            return 30.0
+        if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
+            return 18.0
+        return 8.0
+
+    def _token_stall_after(self) -> float:
+        lowered = os.path.basename(self.model_path).lower()
+        if "72b" in lowered or "solver" in lowered:
+            return 25.0
+        if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
+            return 16.0
+        return 8.0
+
     def _warmup_timeout(self) -> float:
         return 75.0 if self._is_primary_or_deep_lane() else 30.0
 
@@ -364,11 +413,76 @@ class MLXLocalClient:
             "foreground_owned_at": _FOREGROUND_OWNER_ACQUIRED_AT,
             "last_heartbeat": self._last_heartbeat,
             "last_progress_at": self._last_progress_at,
+            "last_token_progress_at": self._last_token_progress_at,
             "last_ready_at": self._last_ready_at,
+            "last_generation_completed_at": self._last_generation_completed_at,
             "last_transition_at": self._lane_transition_at,
             "warmup_attempted": self._warmup_attempted,
             "warmup_in_flight": self._warmup_in_flight,
+            "process_started_at": self._process_started_at,
+            "current_request_started_at": self._current_request_started_at,
+            "current_first_token_at": self._current_first_token_at,
         }
+
+    def get_supervision_status(self) -> Dict[str, Any]:
+        now = time.time()
+        return {
+            "lane": os.path.basename(self.model_path),
+            "state": self._lane_state,
+            "alive": self.is_alive(),
+            "active_generations": int(self._active_generations),
+            "process_uptime_s": max(0.0, now - self._process_started_at) if self._process_started_at else 0.0,
+            "request_age_s": max(0.0, now - self._current_request_started_at) if self._current_request_started_at else 0.0,
+            "time_to_first_token_s": (
+                max(0.0, self._current_first_token_at - self._current_request_started_at)
+                if self._current_request_started_at and self._current_first_token_at
+                else None
+            ),
+            "idle_for_s": max(
+                0.0,
+                now - max(
+                    self._last_generation_completed_at,
+                    self._last_ready_at,
+                    self._last_token_progress_at,
+                    self._last_progress_at,
+                    self._last_heartbeat,
+                ),
+            ) if any(
+                stamp > 0.0
+                for stamp in (
+                    self._last_generation_completed_at,
+                    self._last_ready_at,
+                    self._last_token_progress_at,
+                    self._last_progress_at,
+                    self._last_heartbeat,
+                )
+            ) else 0.0,
+        }
+
+    def should_recycle_for_fragmentation(
+        self,
+        *,
+        max_uptime_s: float = 5400.0,
+        min_idle_s: float = 900.0,
+    ) -> bool:
+        if not self.is_alive() or self._active_generations > 0 or _foreground_owner_active():
+            return False
+        if self._process_started_at <= 0.0:
+            return False
+        idle_anchor = max(
+            self._last_generation_completed_at,
+            self._last_ready_at,
+            self._last_token_progress_at,
+            self._last_progress_at,
+            self._last_heartbeat,
+        )
+        if idle_anchor <= 0.0:
+            return False
+        now = time.time()
+        return bool(
+            (now - self._process_started_at) >= float(max_uptime_s)
+            and (now - idle_anchor) >= float(min_idle_s)
+        )
 
     def note_lane_recovering(self, reason: str) -> None:
         self._warmup_in_flight = False
@@ -476,6 +590,9 @@ class MLXLocalClient:
                         is_heavy = any(k in self.model_path.lower() for k in ["72b", "32b", "zenith"])
                         tier_name = "mlx_heavy" if is_heavy else "mlx_light"
                         audit.heartbeat(tier_name)
+                    continue
+                if status in {"progress", "token"}:
+                    self._mark_token_progress(res.get("id"))
                     continue
 
                 # 2. Route init/generation responses to the correct awaiting future
@@ -653,6 +770,7 @@ class MLXLocalClient:
                     logger.info("📡 [MLX] Respawning worker for %s...", os.path.basename(self.model_path))
                     try:
                         self._process = await self._spawn_worker()
+                        self._process_started_at = time.time()
                     except Exception as exc:
                         detail = str(exc)
                         if "mlx_runtime_probe_failed:" in detail:
@@ -688,6 +806,7 @@ class MLXLocalClient:
                 logger.info("📡 [MLX] Spawning worker for %s...", os.path.basename(self.model_path))
                 try:
                     self._process = await self._spawn_worker()
+                    self._process_started_at = time.time()
                 except Exception as exc:
                     detail = str(exc)
                     if "mlx_runtime_probe_failed:" in detail:
@@ -780,6 +899,8 @@ class MLXLocalClient:
     ) -> Optional[Dict[str, Any]]:
         """Wait in short slices so dead workers fail fast instead of hanging the UI."""
         stall_after = self._stale_after(during_generation=True)
+        first_token_sla = self._first_token_sla()
+        token_stall_after = self._token_stall_after()
         while True:
             remaining = deadline.remaining
             if remaining is not None and remaining <= 0.0:
@@ -802,6 +923,50 @@ class MLXLocalClient:
                         foreground_request=foreground_request,
                     )
                     self._deferred_reboot_reason = "worker_died_during_generation"
+                    return None
+
+                request_started_at = self._current_request_started_at
+                if (
+                    req_id == self._current_request_id
+                    and request_started_at > 0.0
+                    and self._current_first_token_at <= 0.0
+                    and (time.time() - request_started_at) > first_token_sla
+                ):
+                    logger.error(
+                        "🛑 [MLX] First-token SLA exceeded for %s (>%.1fs).",
+                        os.path.basename(self.model_path),
+                        first_token_sla,
+                    )
+                    self._pending_generations.pop(req_id, None)
+                    self._record_degraded_event(
+                        "first_token_sla_exceeded",
+                        detail=f"{os.path.basename(self.model_path)}>{first_token_sla:.1f}s",
+                        severity="error",
+                        foreground_request=foreground_request,
+                    )
+                    self._deferred_reboot_reason = "first_token_sla_exceeded"
+                    return None
+
+                last_token_progress = max(self._last_token_progress_at, self._current_first_token_at)
+                if (
+                    req_id == self._current_request_id
+                    and self._current_first_token_at > 0.0
+                    and last_token_progress > 0.0
+                    and (time.time() - last_token_progress) > token_stall_after
+                ):
+                    logger.error(
+                        "🛑 [MLX] Token progress stalled during generation for %s (>%.1fs).",
+                        os.path.basename(self.model_path),
+                        token_stall_after,
+                    )
+                    self._pending_generations.pop(req_id, None)
+                    self._record_degraded_event(
+                        "token_progress_stalled",
+                        detail=f"{os.path.basename(self.model_path)}>{token_stall_after:.1f}s",
+                        severity="error",
+                        foreground_request=foreground_request,
+                    )
+                    self._deferred_reboot_reason = "token_progress_stalled"
                     return None
 
                 last_progress = max(self._last_heartbeat, self._last_progress_at, self._last_ready_at)
@@ -1045,7 +1210,7 @@ class MLXLocalClient:
         self._pending_generations[req_id] = fut
         self._current_gen_future = fut
         self._active_generations += 1
-        self._mark_progress()
+        self._mark_generation_started(req_id)
         enqueue_timeout = max(0.5, min(2.0, deadline.remaining or 2.0))
         try:
             await run_io_bound(self._req_q.put, req, True, enqueue_timeout)
@@ -1072,6 +1237,7 @@ class MLXLocalClient:
             if res.get("status") == "ok":
                 text = res.get("text", "").strip()
                 self._mark_progress()
+                self._last_generation_completed_at = time.time()
                 if not text:
                     # Empty generation: log as debug, not warning. During warmup
                     # or short max_tokens requests, empty output is NORMAL — the
@@ -1144,6 +1310,8 @@ class MLXLocalClient:
             if self._current_gen_future is fut:
                 self._current_gen_future = None
             self._active_generations = max(0, self._active_generations - 1)
+            if self._current_request_id == req_id:
+                self._mark_generation_completed()
 
     async def think_and_act(
         self,
@@ -1388,6 +1556,13 @@ class MLXLocalClient:
             self._process = None
             self._init_done = False
             self._last_heartbeat = 0.0
+            self._last_progress_at = 0.0
+            self._last_token_progress_at = 0.0
+            self._last_generation_completed_at = 0.0
+            self._process_started_at = 0.0
+            self._current_request_started_at = 0.0
+            self._current_first_token_at = 0.0
+            self._current_request_id = ""
             if self._listener_task:
                 self._listener_task.cancel()
                 self._listener_task = None

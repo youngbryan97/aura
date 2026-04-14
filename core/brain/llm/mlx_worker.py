@@ -639,6 +639,15 @@ def _mlx_worker_loop(
                                     
                                     current_response += response.text
                                     current_response = _strip_leading_chatml_prefix(current_response)
+
+                                    if token_count == 1 or token_count % 16 == 0:
+                                        ipc_writer.put({
+                                            "id": job.get("id"),
+                                            "action": "generate",
+                                            "status": "progress",
+                                            "tokens_generated": token_count,
+                                            "timestamp": time.time(),
+                                        })
                                     
                                     # Let MLX manage VRAM dynamically inline without manual clears
                                     
@@ -726,7 +735,16 @@ def _mlx_worker_loop(
                                 token_text = response.text
                                 full_text += token_text
                                 full_text = _strip_leading_chatml_prefix(full_text)
-                                ipc_writer.put({"status": "token", "text": token_text})
+                                ipc_writer.put(
+                                    {
+                                        "id": job.get("id"),
+                                        "action": "stream",
+                                        "status": "token",
+                                        "text": token_text,
+                                        "tokens_generated": token_count,
+                                        "timestamp": time.time(),
+                                    }
+                                )
                                 
                                 # [AURA HARDENING] Prevent VRAM fragmentation
                                 if token_count % 10 == 0:

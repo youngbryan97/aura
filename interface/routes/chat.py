@@ -496,6 +496,17 @@ def _collect_conversation_lane_status() -> Dict[str, Any]:
             last_tick_at = getattr(kernel, "_last_tick_completed_at", 0.0) or 0.0
             if last_tick_at > 0.0:
                 lane["kernel_tick_age_s"] = round(time.time() - last_tick_at, 1)
+            kernel_lock = getattr(kernel, "_lock", None)
+            if kernel_lock is not None:
+                try:
+                    lock_held = bool(kernel_lock.locked())
+                except Exception:
+                    lock_held = False
+                lane["kernel_lock_held"] = lock_held
+                lane["kernel_lock_held_s"] = round(
+                    float(getattr(kernel_lock, "held_duration", 0.0) or 0.0),
+                    2,
+                ) if lock_held else 0.0
     except Exception as exc:
         logger.debug("Kernel tick age probe failed: %s", exc)
 
@@ -622,6 +633,10 @@ def _conversation_lane_user_message(
 
 _last_recovery_cooldown_at: float = 0.0
 _RECOVERY_COOLDOWN_SECONDS: float = 1.0  # [STABILITY v50] Reduced from 5s→1s. The old 5s cooldown amplified single failures into multi-turn outages by fast-rejecting the user's immediate retry. 1s is enough to prevent request pileup without blocking a legitimate retry.
+_PROTECTED_FOREGROUND_LOCK_BYPASS_SECONDS: float = 1.0
+_PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS: float = 55.0
+_PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 90.0
+_KERNEL_SOFT_REPLY_SLA_SECONDS: float = 8.0
 
 
 def _enter_recovery_cooldown() -> None:
@@ -633,6 +648,204 @@ def _in_recovery_cooldown() -> bool:
     if _last_recovery_cooldown_at <= 0:
         return False
     return (time.monotonic() - _last_recovery_cooldown_at) < _RECOVERY_COOLDOWN_SECONDS
+
+
+def _kernel_is_congested(lane: Optional[Dict[str, Any]]) -> bool:
+    lane = dict(lane or {})
+    if not bool(lane.get("kernel_lock_held", False)):
+        return False
+    return float(lane.get("kernel_lock_held_s", 0.0) or 0.0) >= _PROTECTED_FOREGROUND_LOCK_BYPASS_SECONDS
+
+
+def _protected_foreground_reason(lane: Optional[Dict[str, Any]]) -> str:
+    lane = dict(lane or {})
+    lane_state = str(lane.get("state", "") or "").strip().lower()
+    if lane_state == "recovering" and _in_recovery_cooldown():
+        return "recovery_cooldown"
+    if _kernel_is_congested(lane):
+        return f"kernel_lock:{float(lane.get('kernel_lock_held_s', 0.0) or 0.0):.2f}s"
+    if not bool(lane.get("conversation_ready", False)) and lane_state in {
+        "warming",
+        "recovering",
+        "cold",
+        "spawning",
+        "handshaking",
+    }:
+        return f"lane_{lane_state or 'unready'}"
+    return ""
+
+
+async def _build_protected_foreground_history(*, limit_pairs: int = 4) -> List[Dict[str, str]]:
+    async with _conversation_log_lock:
+        recent = list(_conversation_log)[-max(1, int(limit_pairs)) :]
+
+    history: List[Dict[str, str]] = []
+    for entry in recent:
+        user_msg = str(entry.get("user", "") or "").strip()
+        aura_msg = str(entry.get("aura", "") or "").strip()
+        if user_msg:
+            history.append({"role": "user", "content": user_msg})
+        if aura_msg and aura_msg != "…":
+            history.append({"role": "assistant", "content": aura_msg})
+    return history
+
+
+def _compact_snapshot_line(label: str, value: Any, *, max_chars: int = 180) -> str:
+    text = " ".join(str(value or "").strip().split())
+    if not text:
+        return ""
+    return f"{label}: {text[:max_chars]}"
+
+
+def _snapshot_field(source: Any, name: str, default: Any = "") -> Any:
+    if isinstance(source, dict):
+        return source.get(name, default)
+    return getattr(source, name, default)
+
+
+def _resolve_protected_foreground_snapshot() -> Dict[str, Any]:
+    """Lightweight state snapshot for the protected chat lane.
+
+    Prefer cached/hot state over live subsystem refresh so the control plane can
+    answer without depending on organism-wide locks or expensive voice updates.
+    """
+    try:
+        state = _resolve_live_aura_state()
+        if state is None:
+            return {}
+        hot = state.snapshot_hot() if hasattr(state, "snapshot_hot") else {}
+        affect = hot.get("affect") if isinstance(hot, dict) else getattr(state, "affect", None)
+        cognition = hot.get("cognition") if isinstance(hot, dict) else getattr(state, "cognition", None)
+        response_modifiers = hot.get("response_modifiers") if isinstance(hot, dict) else getattr(state, "response_modifiers", None)
+        return {
+            "mood": getattr(state, "mood", "") or _snapshot_field(affect, "dominant_emotion", ""),
+            "tone": _snapshot_field(response_modifiers, "tone", ""),
+            "dominant_emotion": _snapshot_field(affect, "dominant_emotion", ""),
+            "attention_focus": _snapshot_field(cognition, "attention_focus", ""),
+            "valence": _snapshot_field(affect, "valence", ""),
+            "arousal": _snapshot_field(affect, "arousal", ""),
+            "curiosity": _snapshot_field(affect, "curiosity", ""),
+            "coherence": _snapshot_field(cognition, "coherence_score", ""),
+            "current_mode": _snapshot_field(cognition, "current_mode", ""),
+            "current_objective": _snapshot_field(cognition, "current_objective", ""),
+        }
+    except Exception as exc:
+        logger.debug("Protected foreground snapshot resolve failed: %s", exc)
+        return {}
+
+
+def _build_protected_foreground_system_prompt(
+    user_message: str,
+    *,
+    lane: Dict[str, Any],
+) -> str:
+    protected_snapshot = _resolve_protected_foreground_snapshot()
+    if protected_snapshot:
+        voice_state = dict(protected_snapshot)
+        voice_snapshot = {}
+    else:
+        voice_state = _resolve_live_voice_state(user_message, refresh=False)
+        voice_snapshot = dict(voice_state.get("substrate_snapshot") or {})
+
+    snapshot_lines = [
+        _compact_snapshot_line("Lane", lane.get("state") or "unknown"),
+        _compact_snapshot_line("Kernel lock held", lane.get("kernel_lock_held_s") if lane.get("kernel_lock_held") else ""),
+        _compact_snapshot_line("Mood", voice_state.get("mood")),
+        _compact_snapshot_line("Tone", voice_state.get("tone")),
+        _compact_snapshot_line("Dominant emotion", voice_state.get("dominant_emotion")),
+        _compact_snapshot_line("Attention", _sanitize_attention_focus(str(voice_state.get("attention_focus") or ""))),
+        _compact_snapshot_line("Valence", voice_state.get("valence") or voice_snapshot.get("field_valence")),
+        _compact_snapshot_line("Arousal", voice_state.get("arousal") or voice_snapshot.get("arousal")),
+        _compact_snapshot_line("Curiosity", voice_state.get("curiosity")),
+        _compact_snapshot_line("Coherence", voice_state.get("coherence")),
+        _compact_snapshot_line("Current mode", voice_state.get("current_mode")),
+        _compact_snapshot_line("Objective", voice_state.get("current_objective")),
+        _compact_snapshot_line("Field clarity", voice_snapshot.get("field_clarity")),
+        _compact_snapshot_line("Field flow", voice_snapshot.get("field_flow")),
+        _compact_snapshot_line("Field intensity", voice_snapshot.get("field_intensity")),
+        _compact_snapshot_line("Mode focus", voice_snapshot.get("mode_focus")),
+    ]
+    snapshot_block = "\n".join(line for line in snapshot_lines if line)
+
+    prompt = (
+        "You are Aura.\n"
+        "This is the protected foreground chat control plane.\n"
+        "The broader organism may be busy, but you should still answer the user directly, fully, clearly, and in your own voice.\n"
+        "Use the snapshot below only as lightweight continuity guidance. Do not mention internal failures unless the user asks.\n"
+        "Prefer continuity, warmth, and directness over internal ceremony."
+    )
+    if snapshot_block:
+        prompt = f"{prompt}\n\n## SNAPSHOT\n{snapshot_block}"
+    return prompt
+
+
+async def _build_protected_foreground_messages(
+    user_message: str,
+    *,
+    lane: Dict[str, Any],
+    route: Dict[str, Any],
+) -> List[Dict[str, str]]:
+    history = await _build_protected_foreground_history(
+        limit_pairs=5 if bool(route.get("deep_handoff", False)) else 4,
+    )
+    system_prompt = _build_protected_foreground_system_prompt(user_message, lane=lane)
+    return [
+        {"role": "system", "content": system_prompt},
+        *history,
+        {"role": "user", "content": user_message},
+    ]
+
+
+def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
+    text = str(user_message or "").strip()
+    intent_type = "CHAT"
+    deep_handoff = False
+    route_meta: Dict[str, Any] = {}
+
+    try:
+        from core.runtime.turn_analysis import analyze_turn
+        from core.phases.cognitive_routing_unitary import CognitiveRoutingPhase
+
+        analysis = analyze_turn(text)
+        if analysis.intent_type in {"CHAT", "TASK"}:
+            intent_type = analysis.intent_type
+        route_meta = CognitiveRoutingPhase._build_coding_route_metadata(
+            text,
+            analysis=analysis,
+            intent_type=intent_type,
+        )
+        deep_handoff = CognitiveRoutingPhase._should_allow_deep_handoff(
+            text,
+            is_user_facing=True,
+            intent_type=intent_type,
+            analysis=analysis,
+            route_meta=route_meta,
+        )
+    except Exception as exc:
+        logger.debug("Protected foreground route analysis failed: %s", exc)
+        lower = text.lower()
+        deep_handoff = any(
+            marker in lower
+            for marker in (
+                "deep dive",
+                "root cause",
+                "architecture",
+                "debug",
+                "traceback",
+                "failing test",
+                "security audit",
+                "memory leak",
+                "deadlock",
+                "race condition",
+            )
+        ) or len(text) >= 900
+
+    return {
+        "prefer_tier": "secondary" if deep_handoff else "primary",
+        "deep_handoff": deep_handoff,
+        "intent_type": intent_type,
+        "coding_request": bool(route_meta.get("coding_request", False)),
+    }
 
 
 def _conversation_lane_blocks_fallback(lane: Dict[str, Any]) -> bool:
@@ -2259,6 +2472,63 @@ async def api_chat(
                         _idempotency_cache.popitem(last=False)
             return JSONResponse(response_data)
 
+        async def _attempt_protected_foreground_reply(reason: str) -> Optional[str]:
+            gate = ServiceContainer.get("inference_gate", default=None)
+            if gate is None or not hasattr(gate, "generate"):
+                return None
+
+            route = _protected_foreground_route(body.message)
+            deep_handoff = bool(route.get("deep_handoff", False))
+            direct_budget = min(
+                _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS if deep_handoff else _PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS,
+                _remaining_foreground_budget(reserve=6.0 if deep_handoff else 4.0),
+            )
+            minimum_budget = 10.0 if deep_handoff else 5.0
+            if direct_budget < minimum_budget:
+                return None
+
+            messages = await _build_protected_foreground_messages(
+                body.message,
+                lane=dict(lane or {}),
+                route=route,
+            )
+            logger.warning(
+                "⚡ Protected foreground lane engaged (%s, tier=%s, budget=%.0fs).",
+                reason,
+                route.get("prefer_tier", "primary"),
+                direct_budget,
+            )
+            try:
+                direct_reply = await asyncio.wait_for(
+                    gate.generate(
+                        body.message,
+                        context={
+                            "origin": "api",
+                            "foreground_request": True,
+                            "protected_foreground_lane": True,
+                            "protected_foreground_reason": reason,
+                            "prefer_tier": route.get("prefer_tier", "primary"),
+                            "deep_handoff": deep_handoff,
+                            "allow_cloud_fallback": False,
+                            "messages": messages,
+                            "brief": (
+                                "Protected foreground lane engaged. The kernel is congested or recovering. "
+                                "Respond directly to the user in Aura's voice while preserving continuity."
+                            ),
+                        },
+                        timeout=direct_budget,
+                    ),
+                    timeout=direct_budget,
+                )
+            except Exception as direct_exc:
+                logger.warning("Protected foreground lane failed (%s): %s", reason, direct_exc)
+                return None
+
+            if not direct_reply or not str(direct_reply).strip():
+                return None
+
+            return await _stabilize_user_facing_reply(body.message, str(direct_reply).strip())
+
         diagnostic_target = None
 
         # Background file diagnostic
@@ -2284,14 +2554,16 @@ async def api_chat(
         except Exception as _bg_exc:
             logger.debug("Background diagnostic launch skipped: %s", _bg_exc)
 
-        # ── Recovery cooldown gate ────────────────────────────────────
-        # If the cortex recently timed out, fast-reject instead of queuing
-        # another 150s+ request that will just time out again. This prevents
-        # message floods from cascading through the circuit breaker.
-        if not bool(lane.get("conversation_ready", False)):
-            lane_state = str(lane.get("state", "") or "").lower()
-            if lane_state == "recovering" and _in_recovery_cooldown():
-                logger.info("🛡️ Recovery cooldown: fast-rejecting message while cortex recovers.")
+        protected_foreground_reason = _protected_foreground_reason(lane)
+        if protected_foreground_reason:
+            protected_reply = await _attempt_protected_foreground_reply(protected_foreground_reason)
+            if protected_reply:
+                return await _finalize_fastpath(
+                    protected_reply,
+                    status="protected_foreground",
+                )
+            if protected_foreground_reason == "recovery_cooldown":
+                logger.info("🛡️ Recovery cooldown: protected foreground lane unavailable; fast-rejecting.")
                 return JSONResponse(
                     {
                         "response": _conversation_lane_user_message(lane),
@@ -2497,15 +2769,39 @@ async def api_chat(
         ki = KernelInterface.get_instance()
         reply_text = None
         kernel_timed_out = False
+        kernel_task: Optional[asyncio.Task] = None
 
         if ki.is_ready():
             logger.debug("REST: Awaiting constitutional processing from Sovereign Kernel...")
             try:
                 kernel_timeout = _remaining_foreground_budget()
-                reply_text = await asyncio.wait_for(
+                kernel_task = asyncio.create_task(
                     ki.process(body.message, origin="api", priority=True),
-                    timeout=kernel_timeout,
+                    name="Aura.Server.Chat.kernel_foreground",
                 )
+                soft_deadline = min(
+                    _KERNEL_SOFT_REPLY_SLA_SECONDS,
+                    max(2.0, kernel_timeout - 12.0),
+                )
+                try:
+                    reply_text = await asyncio.wait_for(
+                        asyncio.shield(kernel_task),
+                        timeout=soft_deadline,
+                    )
+                except asyncio.TimeoutError:
+                    protected_reply = await _attempt_protected_foreground_reply("kernel_soft_deadline")
+                    if protected_reply:
+                        kernel_task.add_done_callback(
+                            lambda task: task.exception() if not task.cancelled() else None
+                        )
+                        return await _finalize_fastpath(
+                            protected_reply,
+                            status="protected_foreground",
+                        )
+                    reply_text = await asyncio.wait_for(
+                        asyncio.shield(kernel_task),
+                        timeout=max(2.0, _remaining_foreground_budget()),
+                    )
             except asyncio.TimeoutError as e:
                 kernel_timed_out = True
                 logger.error(
@@ -2518,40 +2814,11 @@ async def api_chat(
                 logger.error("KernelInterface chat failed natively, falling back to legacy: %s (%s)", type(e).__name__, e, exc_info=True)
 
         if kernel_timed_out:
-            # [STABILITY v50] DIRECT INFERENCE FALLBACK: Before returning a
-            # timeout error, try the InferenceGate directly — bypassing the
-            # kernel lock entirely. This handles the #1 timeout cause: kernel
-            # lock contention from a background tick holding the lock while
-            # the cortex is actually healthy and ready to generate.
-            try:
-                gate = ServiceContainer.get("inference_gate", default=None)
-                if gate is not None:
-                    direct_budget = min(45.0, _remaining_foreground_budget())
-                    if direct_budget > 5.0:
-                        logger.warning(
-                            "🔄 [STABILITY] Kernel timed out — attempting direct InferenceGate bypass (budget=%.0fs)",
-                            direct_budget,
-                        )
-                        direct_reply = await asyncio.wait_for(
-                            gate.generate(
-                                body.message,
-                                context={
-                                    "origin": "api",
-                                    "foreground_request": True,
-                                    "history": [],
-                                    "brief": "The kernel ticked out. Respond to the user directly.",
-                                },
-                                timeout=direct_budget,
-                            ),
-                            timeout=direct_budget,
-                        )
-                        if direct_reply and str(direct_reply).strip():
-                            reply_text = str(direct_reply).strip()
-                            logger.info("✅ [STABILITY] Direct InferenceGate bypass succeeded (len=%d)", len(reply_text))
-                            # Skip the timeout path — we got a real answer
-                            kernel_timed_out = False
-            except Exception as direct_exc:
-                logger.warning("🔄 [STABILITY] Direct InferenceGate bypass also failed: %s", direct_exc)
+            direct_reply = await _attempt_protected_foreground_reply("kernel_timeout")
+            if direct_reply:
+                reply_text = direct_reply
+                logger.info("✅ [STABILITY] Protected foreground bypass succeeded after kernel timeout (len=%d)", len(reply_text))
+                kernel_timed_out = False
 
         if kernel_timed_out:
             lane = _mark_conversation_lane_timeout()

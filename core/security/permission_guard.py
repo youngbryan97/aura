@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import subprocess
+import time
 from enum import Enum, auto
 from typing import Any, Dict, Optional
 
@@ -22,6 +23,8 @@ class PermissionGuard(AuraBaseModule):
     def __init__(self):
         super().__init__("PermissionGuard")
         self._cache: Dict[PermissionType, Dict[str, Any]] = {}
+        self._cache_ts: Dict[PermissionType, float] = {}
+        self._force_refresh_floor_s: float = 20.0
 
     async def check_permission(self, ptype: PermissionType, force: bool = False) -> Dict[str, Any]:
         """Check if a hardware permission is granted.
@@ -29,8 +32,13 @@ class PermissionGuard(AuraBaseModule):
         Returns:
             {"granted": bool, "status": str, "guidance": str}
         """
-        if not force and ptype in self._cache:
-            return self._cache[ptype]
+        now = time.monotonic()
+        cached = self._cache.get(ptype)
+        cached_at = float(self._cache_ts.get(ptype, 0.0) or 0.0)
+        if cached is not None:
+            cache_age = max(0.0, now - cached_at)
+            if (not force) or cache_age < self._force_refresh_floor_s:
+                return cached
 
         self.logger.info("Checking %s permission...", ptype.name)
 
@@ -50,6 +58,7 @@ class PermissionGuard(AuraBaseModule):
             }
 
         self._cache[ptype] = result
+        self._cache_ts[ptype] = now
         return result
 
     def _screen_preflight_probe(self) -> Optional[Dict[str, Any]]:

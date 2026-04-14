@@ -164,10 +164,10 @@ class AuraKernel:
     def _phase_timeout_seconds(self, phase_name: str, *, priority: bool) -> float:
         """Give foreground response generation enough headroom without letting background stalls monopolize the lock.
 
-        [STABILITY v49] Priority timeouts raised to accommodate 32B model inference
-        on M5 hardware. Previous 85s cap caused premature phase aborts during
-        complex turns (skill dispatch, research), leading to empty responses
-        and downstream 504 cascades in the chat endpoint.
+        Priority turns must protect the foreground lane. They keep generous
+        headroom for actual response generation, but all non-response phases
+        get tight budgets so a single introspection or consolidation phase
+        cannot monopolize the kernel lock and starve chat.
         """
         if not priority:
             if phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}:
@@ -187,7 +187,16 @@ class AuraKernel:
             if bool(response_modifiers.get("deep_handoff", False)):
                 return 180.0
             return 120.0
-        return 75.0
+        if phase_name == "GodModeToolPhase":
+            return 20.0
+        if phase_name in {
+            "MemoryRetrievalPhase",
+            "CognitiveRoutingPhase",
+            "ExecutiveClosurePhase",
+            "ConversationalDynamicsPhase",
+        }:
+            return 10.0
+        return 8.0
 
     def _should_skip_priority_phase(self, phase_name: str, *, priority: bool) -> bool:
         """Keep user-facing ticks lean without suppressing explicit tool/task execution."""
@@ -198,9 +207,22 @@ class AuraKernel:
             "EternalMemoryPhase",
             "EternalGrowthEngine",
             "TrueEvolutionPhase",
-            "GodModeToolPhase",
             "NativeMultimodalBridge",
             "ShadowExecutionPhase",
+            "PerfectEmotionPhase",
+            "PhiConsciousnessPhase",
+            "CognitiveIntegrationPhase",
+            "InferencePhase",
+            "BondingPhase",
+            "RepairPhase",
+            "MemoryConsolidationPhase",
+            "IdentityReflectionPhase",
+            "InitiativeGenerationPhase",
+            "ConsciousnessPhase",
+            "SelfReviewPhase",
+            "LearningPhase",
+            "LegacyPhase",
+            "GodModeToolPhase",
         }
         if phase_name not in background_only:
             return False

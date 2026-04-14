@@ -240,6 +240,154 @@ async def test_api_chat_returns_structured_timeout_when_kernel_times_out(monkeyp
     assert b"\"status\":\"timeout\"" in response.body
 
 
+@pytest.mark.asyncio
+async def test_api_chat_uses_protected_foreground_lane_when_kernel_lock_is_held(monkeypatch):
+    from interface import server as server_module
+    from interface.routes import chat as chat_routes
+
+    gate_calls = []
+
+    class _FakeGate:
+        async def generate(self, prompt, context=None, timeout=None):
+            gate_calls.append(
+                {
+                    "prompt": prompt,
+                    "context": dict(context or {}),
+                    "timeout": timeout,
+                }
+            )
+            return "Protected foreground reply."
+
+    class _FakeKernelInterface:
+        def is_ready(self):
+            return True
+
+        async def process(self, *_args, **_kwargs):
+            raise AssertionError("Kernel should be bypassed when the protected foreground lane is engaged")
+
+    gate = _FakeGate()
+    monkeypatch.setattr(chat_routes, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_notify_user_spoke", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_log_exchange", AsyncMock())
+    monkeypatch.setattr(
+        chat_routes,
+        "_stabilize_user_facing_reply",
+        AsyncMock(side_effect=lambda _message, reply: reply),
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_collect_conversation_lane_status",
+        lambda: {
+            "conversation_ready": True,
+            "state": "ready",
+            "desired_model": "Cortex (32B)",
+            "desired_endpoint": "Cortex",
+            "foreground_endpoint": "Cortex",
+            "background_endpoint": "Brainstem",
+            "kernel_lock_held": True,
+            "kernel_lock_held_s": 2.8,
+        },
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda name, default=None: gate if name == "inference_gate" else default),
+    )
+
+    from core.kernel.kernel_interface import KernelInterface
+
+    monkeypatch.setattr(KernelInterface, "get_instance", staticmethod(lambda: _FakeKernelInterface()))
+
+    response = await server_module.api_chat(
+        server_module.ChatRequest(message="How are you though"),
+        SimpleNamespace(headers={}),
+        None,
+        None,
+    )
+
+    assert response.status_code == 200
+    assert b"Protected foreground reply." in response.body
+    assert gate_calls
+    assert gate_calls[0]["context"]["protected_foreground_lane"] is True
+    assert gate_calls[0]["context"]["prefer_tier"] == "primary"
+    assert gate_calls[0]["context"]["deep_handoff"] is False
+
+
+@pytest.mark.asyncio
+async def test_api_chat_routes_protected_foreground_deep_prompts_to_secondary_lane(monkeypatch):
+    from interface import server as server_module
+    from interface.routes import chat as chat_routes
+
+    gate_calls = []
+
+    class _FakeGate:
+        async def generate(self, prompt, context=None, timeout=None):
+            gate_calls.append(
+                {
+                    "prompt": prompt,
+                    "context": dict(context or {}),
+                    "timeout": timeout,
+                }
+            )
+            return "Protected deep reply."
+
+    class _FakeKernelInterface:
+        def is_ready(self):
+            return True
+
+        async def process(self, *_args, **_kwargs):
+            raise AssertionError("Kernel should be bypassed when the protected deep lane is engaged")
+
+    gate = _FakeGate()
+    monkeypatch.setattr(chat_routes, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_notify_user_spoke", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_log_exchange", AsyncMock())
+    monkeypatch.setattr(
+        chat_routes,
+        "_stabilize_user_facing_reply",
+        AsyncMock(side_effect=lambda _message, reply: reply),
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_collect_conversation_lane_status",
+        lambda: {
+            "conversation_ready": True,
+            "state": "ready",
+            "desired_model": "Cortex (32B)",
+            "desired_endpoint": "Cortex",
+            "foreground_endpoint": "Cortex",
+            "background_endpoint": "Brainstem",
+            "kernel_lock_held": True,
+            "kernel_lock_held_s": 3.4,
+        },
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda name, default=None: gate if name == "inference_gate" else default),
+    )
+
+    from core.kernel.kernel_interface import KernelInterface
+
+    monkeypatch.setattr(KernelInterface, "get_instance", staticmethod(lambda: _FakeKernelInterface()))
+
+    response = await server_module.api_chat(
+        server_module.ChatRequest(
+            message="Debug the failing pytest in core/runtime/conversation_support.py and core/orchestrator/mixins/tool_execution.py."
+        ),
+        SimpleNamespace(headers={}),
+        None,
+        None,
+    )
+
+    assert response.status_code == 200
+    assert b"Protected deep reply." in response.body
+    assert gate_calls
+    assert gate_calls[0]["context"]["protected_foreground_lane"] is True
+    assert gate_calls[0]["context"]["prefer_tier"] == "secondary"
+    assert gate_calls[0]["context"]["deep_handoff"] is True
+
+
 def test_collect_conversation_lane_status_ignores_router_foreground_override(monkeypatch):
     from interface import server as server_module
 
@@ -280,7 +428,37 @@ def test_collect_conversation_lane_status_ignores_router_foreground_override(mon
 
     assert lane["foreground_endpoint"] == "Cortex"
     assert lane["foreground_tier"] == "local"
-    assert lane["background_endpoint"] == "Brainstem"
+
+
+def test_protected_foreground_system_prompt_prefers_cached_state_snapshot(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    monkeypatch.setattr(
+        chat_routes,
+        "_resolve_protected_foreground_snapshot",
+        lambda: {
+            "mood": "steady",
+            "dominant_emotion": "calm",
+            "attention_focus": "the user",
+            "valence": 0.2,
+            "arousal": 0.4,
+            "current_objective": "Protect continuity",
+        },
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_resolve_live_voice_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("live voice state should not be consulted")),
+    )
+
+    prompt = chat_routes._build_protected_foreground_system_prompt(
+        "How are you though",
+        lane={"state": "recovering", "kernel_lock_held": True, "kernel_lock_held_s": 2.4},
+    )
+
+    assert "steady" in prompt
+    assert "Protect continuity" in prompt
+    assert "the user" in prompt
 
 
 def test_conversation_lane_user_message_reports_local_runtime_failure():

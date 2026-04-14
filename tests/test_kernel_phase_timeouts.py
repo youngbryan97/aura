@@ -6,20 +6,20 @@ from core.kernel.aura_kernel import AuraKernel
 def test_foreground_response_phases_get_extra_headroom():
     kernel = AuraKernel.__new__(AuraKernel)
     kernel.state = SimpleNamespace(response_modifiers={})
-    assert kernel._phase_timeout_seconds("UnitaryResponsePhase", priority=True) == 85.0
-    assert kernel._phase_timeout_seconds("ResponseGenerationPhase", priority=True) == 85.0
+    assert kernel._phase_timeout_seconds("UnitaryResponsePhase", priority=True) == 120.0
+    assert kernel._phase_timeout_seconds("ResponseGenerationPhase", priority=True) == 120.0
 
 
 def test_deep_handoff_response_phases_get_solver_headroom():
     kernel = AuraKernel.__new__(AuraKernel)
     kernel.state = SimpleNamespace(response_modifiers={"deep_handoff": True})
-    assert kernel._phase_timeout_seconds("UnitaryResponsePhase", priority=True) == 145.0
+    assert kernel._phase_timeout_seconds("UnitaryResponsePhase", priority=True) == 180.0
 
 
 def test_non_response_phase_timeouts_remain_stable():
     kernel = AuraKernel.__new__(AuraKernel)
     kernel.state = SimpleNamespace(response_modifiers={})
-    assert kernel._phase_timeout_seconds("MemoryRetrievalPhase", priority=True) == 60.0
+    assert kernel._phase_timeout_seconds("MemoryRetrievalPhase", priority=True) == 10.0
     assert kernel._phase_timeout_seconds("MemoryRetrievalPhase", priority=False) == 45.0
 
 
@@ -49,3 +49,12 @@ def test_priority_turns_skip_skill_phase_for_plain_chat():
     kernel.state = SimpleNamespace(response_modifiers={"intent_type": "CHAT"})
 
     assert kernel._should_skip_priority_phase("GodModeToolPhase", priority=True) is True
+
+
+def test_priority_turns_skip_heavy_post_response_phases():
+    kernel = AuraKernel.__new__(AuraKernel)
+    kernel.state = SimpleNamespace(response_modifiers={"intent_type": "CHAT"})
+
+    assert kernel._should_skip_priority_phase("PhiConsciousnessPhase", priority=True) is True
+    assert kernel._should_skip_priority_phase("MemoryConsolidationPhase", priority=True) is True
+    assert kernel._should_skip_priority_phase("LearningPhase", priority=True) is True

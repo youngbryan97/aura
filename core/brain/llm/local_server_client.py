@@ -152,8 +152,12 @@ class LocalServerClient:
         self._lane_transition_at = time.time()
         self._last_ready_at = 0.0
         self._last_progress_at = 0.0
+        self._last_generation_completed_at = 0.0
         self._warmup_attempted = False
         self._warmup_in_flight = False
+        self._process_started_at = 0.0
+        self._current_request_started_at = 0.0
+        self._current_first_token_at = 0.0
         self._adapter_path = None
         self._detected_runtime_models: list[str] = []
         self._runtime_identity_ok = False
@@ -313,6 +317,19 @@ class LocalServerClient:
     def _mark_progress(self) -> None:
         self._last_progress_at = time.time()
 
+    def _mark_generation_started(self) -> None:
+        now = time.time()
+        self._current_request_started_at = now
+        self._current_first_token_at = 0.0
+        self._mark_progress()
+
+    def _mark_generation_completed(self) -> None:
+        now = time.time()
+        self._last_generation_completed_at = now
+        self._current_request_started_at = 0.0
+        self._current_first_token_at = 0.0
+        self._mark_progress()
+
     def _is_primary_or_deep_lane(self) -> bool:
         return self._lane_name in {PRIMARY_ENDPOINT, DEEP_ENDPOINT}
 
@@ -397,12 +414,52 @@ class LocalServerClient:
             "conversation_ready": self._lane_state == "ready" and self.is_alive(),
             "last_ready_at": self._last_ready_at,
             "last_progress_at": self._last_progress_at,
+            "last_generation_completed_at": self._last_generation_completed_at,
             "last_transition_at": self._lane_transition_at,
             "warmup_attempted": self._warmup_attempted,
             "warmup_in_flight": self._warmup_in_flight,
             "detected_models": list(self._detected_runtime_models),
             "runtime_identity_ok": self._runtime_identity_ok,
+            "process_started_at": self._process_started_at,
+            "current_request_started_at": self._current_request_started_at,
+            "current_first_token_at": self._current_first_token_at,
         }
+
+    def get_supervision_status(self) -> Dict[str, Any]:
+        now = time.time()
+        idle_anchor = max(self._last_generation_completed_at, self._last_ready_at, self._last_progress_at)
+        return {
+            "lane": self._lane_name,
+            "state": self._lane_state,
+            "alive": self.is_alive(),
+            "process_uptime_s": max(0.0, now - self._process_started_at) if self._process_started_at else 0.0,
+            "request_age_s": max(0.0, now - self._current_request_started_at) if self._current_request_started_at else 0.0,
+            "time_to_first_token_s": (
+                max(0.0, self._current_first_token_at - self._current_request_started_at)
+                if self._current_request_started_at and self._current_first_token_at
+                else None
+            ),
+            "idle_for_s": max(0.0, now - idle_anchor) if idle_anchor > 0.0 else 0.0,
+        }
+
+    def should_recycle_for_fragmentation(
+        self,
+        *,
+        max_uptime_s: float = 5400.0,
+        min_idle_s: float = 900.0,
+    ) -> bool:
+        if not self.is_alive() or self._current_request_started_at > 0.0:
+            return False
+        if self._process_started_at <= 0.0:
+            return False
+        idle_anchor = max(self._last_generation_completed_at, self._last_ready_at, self._last_progress_at)
+        if idle_anchor <= 0.0:
+            return False
+        now = time.time()
+        return bool(
+            (now - self._process_started_at) >= float(max_uptime_s)
+            and (now - idle_anchor) >= float(min_idle_s)
+        )
 
     def note_lane_recovering(self, reason: str) -> None:
         self._warmup_in_flight = False
@@ -530,12 +587,14 @@ class LocalServerClient:
         ]
         cmd.append("--cache-prompt" if prompt_cache_enabled else "--no-cache-prompt")
         logger.info("📡 [%s] Spawning local runtime: %s", self._lane_name, " ".join(cmd))
-        return subprocess.Popen(
+        process = subprocess.Popen(
             cmd,
             stdout=self._log_handle,
             stderr=subprocess.STDOUT,
             cwd=str(Path(__file__).resolve().parents[3]),
         )
+        self._process_started_at = time.time()
+        return process
 
     def _runtime_identity_matches(self, model_id: str) -> bool:
         candidate = _normalize_model_identity(model_id)
@@ -679,6 +738,8 @@ class LocalServerClient:
                     if server_healthy:
                         self._set_lane_state("ready")
                         self._last_ready_at = time.time()
+                        if self._process_started_at <= 0.0:
+                            self._process_started_at = time.time()
                         return True
 
                     if identity_mismatch and not self._external_only:
@@ -687,6 +748,8 @@ class LocalServerClient:
                         if server_healthy:
                             self._set_lane_state("ready")
                             self._last_ready_at = time.time()
+                            if self._process_started_at <= 0.0:
+                                self._process_started_at = time.time()
                             return True
 
                     if not self._external_only:
@@ -701,6 +764,8 @@ class LocalServerClient:
                             if server_healthy:
                                 self._set_lane_state("ready")
                                 self._last_ready_at = time.time()
+                                if self._process_started_at <= 0.0:
+                                    self._process_started_at = time.time()
                                 return True
                             await asyncio.sleep(0.5)
                         self.note_lane_failed("local_runtime_unavailable:server_unreachable")
@@ -720,6 +785,8 @@ class LocalServerClient:
                         if server_healthy:
                             self._set_lane_state("handshaking")
                             self._last_ready_at = time.time()
+                            if self._process_started_at <= 0.0:
+                                self._process_started_at = time.time()
                             return True
                         await asyncio.sleep(0.5)
 
@@ -862,6 +929,10 @@ class LocalServerClient:
                 logger.debug("Suppressed Exception: %s", _exc)
 
         self._warmup_in_flight = False
+        self._process_started_at = 0.0
+        self._current_request_started_at = 0.0
+        self._current_first_token_at = 0.0
+        self._last_generation_completed_at = 0.0
         self._set_lane_state("failed" if mark_failed else "cold", reason if mark_failed else "")
 
     async def generate_text_async(self, prompt: str, **kwargs) -> Optional[str]:
@@ -946,113 +1017,120 @@ class LocalServerClient:
         foreground_request: bool,
     ) -> Optional[str]:
         client = await self._client()
-        payload: Dict[str, Any] = {
-            "model": self._runtime_model,
-            "messages": list(messages),
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "min_p": 0.05,                # Filter low-probability tokens for quality
-            "repetition_penalty": 1.1,    # Reduce stale/looping responses
-            "top_p": self.top_p,
-        }
-        if schema:
-            payload["response_format"] = {"type": "json_object"}
-
-        timeout = None
-        if isinstance(deadline, Deadline) and deadline.remaining is not None:
-            timeout = max(1.0, deadline.remaining)
-        else:
-            timeout = 180.0 if self._is_primary_or_deep_lane() else 120.0
-
+        self._mark_generation_started()
         try:
-            response = await client.post(
-                f"{self._runtime_url}/v1/chat/completions",
-                json=payload,
-                timeout=timeout,
-            )
-        except Exception as exc:
-            self._record_degraded_event(
-                "request_failed",
-                detail=f"{self._lane_name}:{type(exc).__name__}",
-                severity="error",
-                foreground_request=foreground_request,
-            )
-            self.note_lane_recovering(f"request_failed:{type(exc).__name__}")
-            return None
+            payload: Dict[str, Any] = {
+                "model": self._runtime_model,
+                "messages": list(messages),
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "min_p": 0.05,                # Filter low-probability tokens for quality
+                "repetition_penalty": 1.1,    # Reduce stale/looping responses
+                "top_p": self.top_p,
+            }
+            if schema:
+                payload["response_format"] = {"type": "json_object"}
 
-        if response.status_code != 200:
-            detail = f"http_{response.status_code}"
-            response_text = (response.text or "")[:240]
-            if response.status_code == 400 and "exceeds the available context size" in response_text.lower():
+            timeout = None
+            if isinstance(deadline, Deadline) and deadline.remaining is not None:
+                timeout = max(1.0, deadline.remaining)
+            else:
+                timeout = 180.0 if self._is_primary_or_deep_lane() else 120.0
+
+            try:
+                response = await client.post(
+                    f"{self._runtime_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=timeout,
+                )
+            except Exception as exc:
                 self._record_degraded_event(
-                    "context_overflow",
-                    detail=f"{self._lane_name}:{response_text[:160]}",
+                    "request_failed",
+                    detail=f"{self._lane_name}:{type(exc).__name__}",
+                    severity="error",
+                    foreground_request=foreground_request,
+                )
+                self.note_lane_recovering(f"request_failed:{type(exc).__name__}")
+                return None
+
+            if response.status_code != 200:
+                detail = f"http_{response.status_code}"
+                response_text = (response.text or "")[:240]
+                if response.status_code == 400 and "exceeds the available context size" in response_text.lower():
+                    self._record_degraded_event(
+                        "context_overflow",
+                        detail=f"{self._lane_name}:{response_text[:160]}",
+                        severity="warning",
+                        foreground_request=foreground_request,
+                    )
+                    if foreground_request:
+                        self.note_lane_recovering("context_overflow")
+                    return None
+
+                # 500 "Compute error" is a fatal server issue — needs restart
+                if response.status_code == 500 and "compute error" in response_text.lower():
+                    logger.error("[%s] COMPUTE ERROR from server. Triggering restart.", self._lane_name)
+                    self._record_degraded_event(
+                        "compute_error",
+                        detail=f"{self._lane_name}:server_compute_error",
+                        severity="critical",
+                        foreground_request=foreground_request,
+                    )
+                    # Don't mark entire lane as recovering for a server bug —
+                    # try restarting the server process instead
+                    try:
+                        import asyncio
+                        asyncio.get_event_loop().create_task(self._restart_server())
+                    except Exception:
+                        pass
+                    return None
+
+                self._record_degraded_event(
+                    "request_failed",
+                    detail=f"{self._lane_name}:{detail}",
+                    severity="error",
+                    foreground_request=foreground_request,
+                )
+                # Don't mark lane as dead for transient errors — only for persistent failures
+                if not foreground_request:
+                    self.note_lane_recovering(detail)
+                return None
+
+            try:
+                data = response.json()
+            except Exception as exc:
+                self.note_lane_recovering(f"invalid_json:{type(exc).__name__}")
+                return None
+
+            text = ""
+            try:
+                text = self._extract_response_text(data)
+            except Exception:
+                text = ""
+
+            if not text.strip():
+                self._record_degraded_event(
+                    "empty_generation",
+                    detail=f"{self._lane_name}:response_keys={','.join(sorted(data.keys())[:6])}",
                     severity="warning",
                     foreground_request=foreground_request,
                 )
-                if foreground_request:
-                    self.note_lane_recovering("context_overflow")
+                self.note_lane_recovering("empty_generation")
                 return None
 
-            # 500 "Compute error" is a fatal server issue — needs restart
-            if response.status_code == 500 and "compute error" in response_text.lower():
-                logger.error("[%s] COMPUTE ERROR from server. Triggering restart.", self._lane_name)
-                self._record_degraded_event(
-                    "compute_error",
-                    detail=f"{self._lane_name}:server_compute_error",
-                    severity="critical",
-                    foreground_request=foreground_request,
-                )
-                # Don't mark entire lane as recovering for a server bug —
-                # try restarting the server process instead
-                try:
-                    import asyncio
-                    asyncio.get_event_loop().create_task(self._restart_server())
-                except Exception:
-                    pass
-                return None
+            from .mlx_client import _notify_closed_loop_output
 
-            self._record_degraded_event(
-                "request_failed",
-                detail=f"{self._lane_name}:{detail}",
-                severity="error",
-                foreground_request=foreground_request,
-            )
-            # Don't mark lane as dead for transient errors — only for persistent failures
-            if not foreground_request:
-                self.note_lane_recovering(detail)
-            return None
-
-        try:
-            data = response.json()
-        except Exception as exc:
-            self.note_lane_recovering(f"invalid_json:{type(exc).__name__}")
-            return None
-
-        text = ""
-        try:
-            text = self._extract_response_text(data)
-        except Exception:
-            text = ""
-
-        if not text.strip():
-            self._record_degraded_event(
-                "empty_generation",
-                detail=f"{self._lane_name}:response_keys={','.join(sorted(data.keys())[:6])}",
-                severity="warning",
-                foreground_request=foreground_request,
-            )
-            self.note_lane_recovering("empty_generation")
-            return None
-
-        from .mlx_client import _notify_closed_loop_output
-
-        self._mark_progress()
-        self._last_ready_at = time.time()
-        self._set_lane_state("ready")
-        _notify_closed_loop_output(text)
-        return text.strip()
-
+            self._current_first_token_at = time.time()
+            self._mark_progress()
+            self._last_generation_completed_at = time.time()
+            self._last_ready_at = time.time()
+            self._set_lane_state("ready")
+            _notify_closed_loop_output(text)
+            return text.strip()
+        finally:
+            self._mark_generation_completed()
+        
+        
     async def generate_stream(
         self,
         prompt: str,

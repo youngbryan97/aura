@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -345,10 +346,11 @@ def test_user_facing_primary_budget_allows_32b_cold_start():
         is_background=False,
     )
     primary, fallback = InferenceGate._split_attempt_timeouts(total, "primary")
-    # Adaptive timeout: 55s (warm) / 75s (recent) / 90s (cold/no-instance).
-    # In tests, no live cortex instance exists so base = 90s.
-    assert 55.0 <= total <= 90.0
-    assert primary >= 40.0
+    # Foreground user chat keeps a generous budget for the 32B lane so
+    # warmup, context assembly, and first-token latency do not look like a
+    # false runtime failure.
+    assert total == 150.0
+    assert primary >= 120.0
     assert fallback >= 5.0
 
 
@@ -502,6 +504,10 @@ async def test_initialize_defers_eager_warmup_when_explicitly_disabled():
 
     client.warmup.assert_not_awaited()
     assert gate._initialized is True
+    if gate._maintenance_task:
+        gate._maintenance_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await gate._maintenance_task
 
 
 @pytest.mark.asyncio
@@ -520,6 +526,10 @@ async def test_initialize_auto_warms_on_high_memory_desktop():
 
     client.warmup.assert_awaited_once()
     assert gate._prewarm_task is not None
+    if gate._maintenance_task:
+        gate._maintenance_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await gate._maintenance_task
 
 
 @pytest.mark.asyncio
@@ -535,6 +545,29 @@ async def test_initialize_allows_opt_in_eager_warmup():
                     await gate.initialize()
 
     client.warmup.assert_awaited_once()
+    if gate._maintenance_task:
+        gate._maintenance_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await gate._maintenance_task
+
+
+@pytest.mark.asyncio
+async def test_initialize_starts_inference_maintenance_loop():
+    gate = InferenceGate()
+    client = MagicMock()
+    client.warmup = AsyncMock()
+
+    with patch.dict(os.environ, {"AURA_EAGER_CORTEX_WARMUP": "0"}, clear=False):
+        with patch("core.brain.llm.mlx_client.get_mlx_client", return_value=client):
+            with patch("core.brain.llm.model_registry.get_runtime_model_path", return_value="/models/active"):
+                with patch("core.brain.llm.model_registry.ACTIVE_MODEL", "ACTIVE"):
+                    await gate.initialize()
+
+    assert gate._maintenance_task is not None
+    assert not gate._maintenance_task.done()
+    gate._maintenance_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await gate._maintenance_task
 
 
 @pytest.mark.asyncio
@@ -561,6 +594,120 @@ async def test_background_requests_defer_under_memory_pressure_when_cortex_is_re
 
     assert result is None
     gate._ensure_cortex_recovery.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_background_requests_defer_when_foreground_headroom_is_reserved():
+    gate = InferenceGate()
+    gate._mlx_client = _LaneWarmupClient()
+    gate._ensure_cortex_recovery = AsyncMock()
+
+    with patch.object(InferenceGate, "_foreground_headroom_reserved", return_value=True):
+        result = await gate.generate(
+            "background reflection",
+            context={"prefer_tier": "primary", "origin": "system"},
+        )
+
+    assert result is None
+    gate._ensure_cortex_recovery.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_foreground_admission_sheds_background_workers_before_retry():
+    gate = InferenceGate()
+    gate._shed_background_workers_for_memory_pressure = AsyncMock()
+
+    with patch.object(
+        gate,
+        "_headroom_snapshot",
+        side_effect=[
+            {
+                "tier": "primary",
+                "pressure_pct": 92.0,
+                "available_gb": 7.0,
+                "max_pressure_pct": 88.0,
+                "min_available_gb": 12.0,
+                "can_admit": False,
+            },
+            {
+                "tier": "primary",
+                "pressure_pct": 80.0,
+                "available_gb": 16.0,
+                "max_pressure_pct": 88.0,
+                "min_available_gb": 12.0,
+                "can_admit": True,
+            },
+        ],
+    ):
+        with patch("core.brain.inference_gate.gc.collect") as gc_collect:
+            snapshot = await gate._enforce_foreground_admission("primary", protected_foreground=False)
+
+    assert snapshot["can_admit"] is True
+    gate._shed_background_workers_for_memory_pressure.assert_awaited_once()
+    gc_collect.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_recycle_idle_local_clients_reboots_fragmented_spare():
+    gate = InferenceGate()
+    spare = MagicMock()
+    spare.should_recycle_for_fragmentation = MagicMock(return_value=True)
+    spare.reboot_worker = AsyncMock()
+
+    with patch.object(gate, "_iter_local_clients", return_value={"/models/brainstem": spare}):
+        await gate._recycle_idle_local_clients()
+
+    spare.reboot_worker.assert_awaited_once_with(
+        reason="scheduled_fragmentation_recycle",
+        mark_failed=False,
+    )
+
+
+@pytest.mark.asyncio
+async def test_secondary_requests_downgrade_to_primary_when_headroom_is_tight():
+    gate = InferenceGate()
+    cortex = _RecordingClient("cortex")
+    solver = _RecordingClient("solver")
+    brainstem = _FakeClient("brainstem")
+    gate._mlx_client = cortex
+    gate._restore_primary_after_deep_handoff = AsyncMock()
+
+    def _fake_get_mlx_client(model_path=None, **kwargs):
+        if model_path == "/models/deep":
+            return solver
+        if model_path == "/models/brainstem":
+            return brainstem
+        raise AssertionError(f"Unexpected model path: {model_path}")
+
+    with patch.object(
+        gate,
+        "_enforce_foreground_admission",
+        side_effect=[
+            {
+                "can_admit": False,
+                "pressure_pct": 91.0,
+                "available_gb": 8.0,
+            },
+            {
+                "can_admit": True,
+                "pressure_pct": 81.0,
+                "available_gb": 18.0,
+            },
+        ],
+    ):
+        with patch("core.brain.llm.mlx_client.get_mlx_client", side_effect=_fake_get_mlx_client):
+            with patch("core.brain.llm.model_registry.get_deep_model_path", return_value="/models/deep"):
+                with patch("core.brain.llm.model_registry.get_brainstem_path", return_value="/models/brainstem"):
+                    with patch("core.brain.llm.model_registry.get_fallback_path", return_value="/models/fallback"):
+                        result = await gate.generate(
+                            "Do a deep architecture audit.",
+                            context={"origin": "user", "prefer_tier": "secondary", "deep_handoff": True},
+                        )
+
+    assert result == "cortex"
+    assert cortex.deadlines
+    assert not solver.deadlines
+    gate._restore_primary_after_deep_handoff.assert_not_awaited()
 
 
 def test_desktop_safe_boot_still_schedules_deferred_cortex_prewarm(monkeypatch):

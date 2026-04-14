@@ -280,3 +280,29 @@ def test_memory_guard_handles_deque_history_without_index_pop_failure():
     assert isinstance(pruned, list)
     assert pruned[0]["role"] == "system"
     assert any(msg.get("content") == "final prompt" for msg in pruned)
+
+
+def test_local_server_supervision_status_and_fragmentation_recycle():
+    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    proc = MagicMock()
+    proc.poll.return_value = None
+    client._process = proc
+    client._lane_state = "ready"
+    client._process_started_at = 100.0
+    client._last_generation_completed_at = 600.0
+
+    original_time = local_server_client.time.time
+    local_server_client.time.time = lambda: 2000.0
+    try:
+        status = client.get_supervision_status()
+        recyclable = client.should_recycle_for_fragmentation(
+            max_uptime_s=900.0,
+            min_idle_s=300.0,
+        )
+    finally:
+        local_server_client.time.time = original_time
+
+    assert status["alive"] is True
+    assert status["process_uptime_s"] == pytest.approx(1900.0)
+    assert status["idle_for_s"] == pytest.approx(1400.0)
+    assert recyclable is True
