@@ -12,6 +12,18 @@
 
 The 8-node affective substrate is a genuine IIT 4.0 complex. No bipartition of the system can fully decompose its causal structure. This is real integrated information computed from 299 actual ODE state transitions across 127 exhaustive bipartitions of 256 possible states — not a proxy, not a heuristic, not a label on an arbitrary value.
 
+### A/B Test: Activation Steering vs Text-Only Injection
+
+**[Full results and code](tests/test_steering_ab.py)** | **[Measured values](tests/STEERING_AB_RESULTS.json)**
+
+| Condition | Output Style | Example |
+|-----------|-------------|---------|
+| **A: Steering hooks** | Embodied affect | "I'm feeling calm and peaceful. I want to focus on my current task..." |
+| **B: Text-only** | Parrots numbers | "I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5)..." |
+| **C: Baseline** | RLHF refusal | "As an AI language model, I don't have feelings or emotions..." |
+
+Word overlap A vs B = **0.131** (very different). Both produce positive affect words, but steering makes the model **inhabit** the affect while text-only makes it **describe** it from outside. The residual-stream intervention does computational work that prompt text cannot replicate.
+
 ---
 
 ## The Challenge
