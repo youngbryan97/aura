@@ -41,7 +41,7 @@
   },
   "STDP trajectory divergence": {
     "ok": true,
-    "divergence": 0.2994
+    "divergence": 0.3004
   },
   "FE scales with prediction error": {
     "ok": true,
@@ -72,6 +72,104 @@
     "curious_hot": "I notice I am in a positive state \u2014 something feels right.",
     "stressed_hot": "I notice high arousal \u2014 I am activated, alert, engaged."
   },
+  "Circumplex produces diverse narratives": {
+    "ok": true,
+    "distinct_narratives": 4,
+    "examples": "['Somatically stable.', 'Somatically comfortable and engaged.', 'Somatically calm and settled.']"
+  },
+  "State reversal: positive -> more tokens": {
+    "ok": "True",
+    "pos_mean_tokens": 756.0,
+    "neg_mean_tokens": 650.0
+  },
+  "Extreme states diverge from human baseline": {
+    "ok": "True",
+    "mean_param_divergence": "0.564"
+  },
+  "Substrate idle drift (100 ticks)": {
+    "ok": true,
+    "L2_drift": 6.0075
+  },
+  "Homeostasis degradation changes context": {
+    "ok": true,
+    "healthy_vitality": 0.855,
+    "degraded_vitality": 0.297
+  },
+  "FE responds to prediction error": {
+    "ok": true,
+    "fe_low": 0.263,
+    "fe_high": 0.2719,
+    "action_low": "rest",
+    "action_high": "rest"
+  },
+  "Errors compound integrity loss": {
+    "ok": true,
+    "initial": 1.0,
+    "after_1": 0.85,
+    "after_6": 0.6
+  },
+  "STDP surprise ratio": {
+    "ok": true,
+    "low_surprise_change": 0.00705,
+    "high_surprise_change": 0.18579,
+    "ratio": 26.35
+  },
+  "Threat vs reward produce different cascades": {
+    "ok": "True",
+    "threat_valence": "-0.07",
+    "reward_valence": "0.272",
+    "threat_stress": "0.342",
+    "reward_stress": "0.025"
+  },
+  "Different emotions win over noise": {
+    "ok": true,
+    "winners": "['curiosity', 'anxiety', 'excitement']"
+  },
+  "HOT produces feedback deltas": {
+    "ok": true,
+    "target_dim": "surprise",
+    "deltas": "{'curiosity': 0.05, 'arousal': 0.03}"
+  },
+  "Perturbation propagates to other neurons": {
+    "ok": true,
+    "neurons_affected": 62,
+    "total_neurons": 64
+  },
+  "Shuffled W produces different trajectory": {
+    "ok": true,
+    "divergence": 6.9201
+  },
+  "State transfer carries behavioral bias": {
+    "ok": "True",
+    "transferred_valence": "-0.187",
+    "neg_source_valence": "-0.187",
+    "pos_source_valence": "0.494",
+    "dist_to_neg_source": "0.001",
+    "dist_to_pos_source": "0.68"
+  },
+  "Real NCS has stronger valence-stress structure": {
+    "ok": "True",
+    "real_corr": "-0.9326",
+    "random_corr": 0.0569
+  },
+  "Zero W produces degenerate dynamics": {
+    "ok": true,
+    "divergence_vs_real": 2.3342
+  },
+  "Full stack effective dimensionality": {
+    "ok": true,
+    "full_stack_edim": 1.31,
+    "ncs_only_edim": 1.29
+  },
+  "All 6 theory indicators present": {
+    "ok": true,
+    "GWT": true,
+    "IIT": true,
+    "HOT": true,
+    "PP": true,
+    "Embodied": true,
+    "Will": true
+  },
   "Quality space has categorical structure": {
     "ok": "True",
     "within_mean": 0.2771,
@@ -86,11 +184,11 @@
   },
   "Perturbation complexity (intact system)": {
     "ok": true,
-    "complexity": 0.3243
+    "complexity": 0.3238
   },
   "Intact vs shuffled divergence": {
     "ok": true,
-    "final_state_divergence": 4.9437
+    "final_state_divergence": 4.928
   },
   "Phi=0 removes GWT boost (anesthesia)": {
     "ok": true,
@@ -100,6 +198,6 @@
   "Will produces valid decisions": {
     "ok": true,
     "outcome": "proceed",
-    "receipt": "will_a98e1736512"
+    "receipt": "will_0f8917a20c6"
   }
 }

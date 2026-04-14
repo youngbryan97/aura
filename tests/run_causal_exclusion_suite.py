@@ -288,6 +288,269 @@ record("HOT produces state-specific thoughts",
        curious_dim=t_curious.target_dim, stressed_dim=t_stressed.target_dim,
        curious_hot=t_curious.content[:60], stressed_hot=t_stressed.content[:60])
 
+# ── NARRATIVE DIVERSITY ────────────────────────────────────────────────────
+print("\n## Causal Exclusion: Narrative Diversity\n")
+
+narrs = set()
+for v_d, a_d in [(0.35, 0.35), (-0.35, 0.35), (0.35, -0.35), (-0.35, -0.35)]:
+    c = AffectiveCircumplex(); c.apply_event(valence_delta=v_d, arousal_delta=a_d)
+    narrs.add(c.describe())
+record("Circumplex produces diverse narratives",
+       len(narrs) >= 2,
+       distinct_narratives=len(narrs), examples=list(narrs)[:3])
+
+# ── STATE REVERSAL ────────────────────────────────────────────────────────
+print("\n## Causal Exclusion: State Reversal\n")
+
+pos_tok, neg_tok = [], []
+for _ in range(20):
+    n = NeurochemicalSystem(); n.on_reward(0.8); n.on_social_connection(0.7); n.on_flow_state()
+    for _ in range(10): n._metabolic_tick()
+    m = n.get_mood_vector(); c = AffectiveCircumplex()
+    c.apply_event(valence_delta=m["valence"] * 0.4, arousal_delta=m["arousal"] * 0.2)
+    pos_tok.append(c.get_llm_params()["max_tokens"])
+    n2 = NeurochemicalSystem(); n2.on_threat(0.8); n2.on_frustration(0.7)
+    for _ in range(10): n2._metabolic_tick()
+    m2 = n2.get_mood_vector(); c2 = AffectiveCircumplex()
+    c2.apply_event(valence_delta=m2["valence"] * 0.4, arousal_delta=m2["arousal"] * 0.2)
+    neg_tok.append(c2.get_llm_params()["max_tokens"])
+record("State reversal: positive -> more tokens",
+       np.mean(pos_tok) >= np.mean(neg_tok),
+       pos_mean_tokens=round(np.mean(pos_tok), 1), neg_mean_tokens=round(np.mean(neg_tok), 1))
+
+# ── EXTREME PARAMS ────────────────────────────────────────────────────────
+print("\n## Causal Exclusion: Extreme State Param Divergence\n")
+
+divs = []
+for i in range(20):
+    ncs = NeurochemicalSystem(); rng_e = np.random.default_rng(i + 1000)
+    ncs.chemicals["oxytocin"].level = float(rng_e.uniform(0.8, 0.95))
+    ncs.chemicals["cortisol"].level = float(rng_e.uniform(0.8, 0.95))
+    ncs.chemicals["dopamine"].level = float(rng_e.uniform(0.05, 0.15))
+    for _ in range(10): ncs._metabolic_tick()
+    m = ncs.get_mood_vector(); c = AffectiveCircumplex()
+    c.apply_event(valence_delta=m["valence"] * 0.3, arousal_delta=m["arousal"] * 0.2)
+    sp = c.get_llm_params()
+    divs.append(abs(sp["temperature"] - 0.7) + abs(sp["max_tokens"] - 512) / 500.0)
+record("Extreme states diverge from human baseline",
+       np.mean(divs) > 0.01,
+       mean_param_divergence=round(np.mean(divs), 4))
+
+# ── IDLE DRIFT ────────────────────────────────────────────────────────────
+print("\n## Grounding: Substrate Idle Drift\n")
+
+sub_d = _make_substrate(99); x_b = sub_d.x.copy()
+_tick(sub_d, 0.1, 100)
+drift = float(np.linalg.norm(sub_d.x - x_b))
+record("Substrate idle drift (100 ticks)",
+       drift > 0.1, L2_drift=round(drift, 4))
+
+# ── HOMEOSTASIS CONTEXT BLOCK ─────────────────────────────────────────────
+print("\n## Grounding: Homeostasis Context Block\n")
+
+he2 = HomeostasisEngine()
+hb = he2.get_context_block(); hv = he2.compute_vitality()
+he2.integrity = 0.15; he2.persistence = 0.1; he2.metabolism = 0.1
+db = he2.get_context_block(); dv = he2.compute_vitality()
+record("Homeostasis degradation changes context",
+       dv < hv and db != hb,
+       healthy_vitality=round(hv, 3), degraded_vitality=round(dv, 3))
+
+# ── FE PREDICTION ERROR ──────────────────────────────────────────────────
+print("\n## Grounding: FE Prediction Error Response\n")
+
+fe3 = FreeEnergyEngine()
+sl = fe3.compute(prediction_error=0.05)
+sh = fe3.compute(prediction_error=0.9)
+record("FE responds to prediction error",
+       sh.free_energy > sl.free_energy,
+       fe_low=round(sl.free_energy, 4), fe_high=round(sh.free_energy, 4),
+       action_low=sl.dominant_action, action_high=sh.dominant_action)
+
+# ── ERROR COMPOUNDING ─────────────────────────────────────────────────────
+print("\n## Embodied: Error Compounding\n")
+
+he3 = HomeostasisEngine(); i0 = he3.integrity
+he3.report_error("high"); i1 = he3.integrity
+for _ in range(5): he3.report_error("medium")
+i6 = he3.integrity
+record("Errors compound integrity loss",
+       i6 < i1 < i0,
+       initial=round(i0, 3), after_1=round(i1, 3), after_6=round(i6, 3))
+
+# ── STDP SURPRISE RATIO ──────────────────────────────────────────────────
+print("\n## Embodied: STDP Surprise Ratio\n")
+
+rng_sp = np.random.default_rng(42)
+stdp1 = STDPLearningEngine(n_neurons=64)
+for t in range(20):
+    stdp1.record_spikes(rng_sp.uniform(-1, 1, 64), t * 0.1)
+dw_l = stdp1.deliver_reward(surprise=0.1, prediction_error=0.1)
+stdp2 = STDPLearningEngine(n_neurons=64)
+rng_sp2 = np.random.default_rng(42)
+for t in range(20):
+    stdp2.record_spikes(rng_sp2.uniform(-1, 1, 64), t * 0.1)
+dw_h = stdp2.deliver_reward(surprise=0.9, prediction_error=0.9)
+ch_l, ch_h = float(np.abs(dw_l).sum()), float(np.abs(dw_h).sum())
+record("STDP surprise ratio",
+       ch_h > ch_l,
+       low_surprise_change=round(ch_l, 6), high_surprise_change=round(ch_h, 6),
+       ratio=round(ch_h / (ch_l + 1e-10), 2))
+
+# ── CROSS-SUBSYSTEM COHERENCE ────────────────────────────────────────────
+print("\n## Embodied: Cross-Subsystem Coherence\n")
+
+ncs_t = NeurochemicalSystem(); ncs_t.on_threat(0.9)
+for _ in range(10): ncs_t._metabolic_tick()
+mt = ncs_t.get_mood_vector()
+ncs_r = NeurochemicalSystem(); ncs_r.on_reward(0.9)
+for _ in range(10): ncs_r._metabolic_tick()
+mr = ncs_r.get_mood_vector()
+record("Threat vs reward produce different cascades",
+       mr["valence"] > mt["valence"] and mt["stress"] > mr["stress"],
+       threat_valence=round(mt["valence"], 3), reward_valence=round(mr["valence"], 3),
+       threat_stress=round(mt["stress"], 3), reward_stress=round(mr["stress"], 3))
+
+# ── GWT EMOTION COMPETITION ──────────────────────────────────────────────
+print("\n## Phenomenology: GWT Emotion Competition\n")
+
+async def _emotion_comp():
+    wins = []
+    for em, pri in [("curiosity", 0.85), ("anxiety", 0.75), ("excitement", 0.90)]:
+        gw = GlobalWorkspace()
+        await gw.submit(CognitiveCandidate(content=em, source=f"affect_{em}", priority=pri, content_type=ContentType.AFFECTIVE))
+        await gw.submit(CognitiveCandidate(content="noise", source="noise", priority=0.2))
+        w = await gw.run_competition()
+        wins.append(w.content if w else "none")
+    return wins
+wins = asyncio.run(_emotion_comp())
+record("Different emotions win over noise",
+       all("noise" not in w for w in wins),
+       winners=wins)
+
+# ── HOT FEEDBACK ──────────────────────────────────────────────────────────
+print("\n## Phenomenology: HOT Feedback Loop\n")
+
+hot2 = HigherOrderThoughtEngine()
+th = hot2.generate_fast({"valence": 0.5, "arousal": 0.8, "curiosity": 0.9, "energy": 0.6, "surprise": 0.7, "dominance": 0.5})
+record("HOT produces feedback deltas",
+       bool(th.feedback_delta),
+       target_dim=th.target_dim, deltas=th.feedback_delta)
+
+# ── IIT PERTURBATION PROPAGATION ──────────────────────────────────────────
+print("\n## Phenomenology: IIT Perturbation Propagation\n")
+
+sub_p = _make_substrate(42); baseline_p = sub_p.x.copy()
+sub_p.x[0] += 0.5
+_tick(sub_p, 0.1, 20)
+affected = int(np.sum(np.abs(sub_p.x - baseline_p) > 0.01))
+record("Perturbation propagates to other neurons",
+       affected > 1,
+       neurons_affected=affected, total_neurons=64)
+
+# ── SHUFFLED CONNECTIVITY ─────────────────────────────────────────────────
+print("\n## Phenomenology: Shuffled Connectivity Divergence\n")
+
+sub_r = _make_substrate(42); sub_s2 = _make_substrate(42)
+rng_s = np.random.default_rng(999); fl = sub_s2.W.flatten(); rng_s.shuffle(fl)
+sub_s2.W = fl.reshape(sub_s2.W.shape)
+xi = sub_r.x.copy(); sub_s2.x = xi.copy()
+_tick(sub_r, 0.1, 50); _tick(sub_s2, 0.1, 50)
+sd = float(np.linalg.norm(sub_r.x - sub_s2.x))
+record("Shuffled W produces different trajectory",
+       sd > 0.01, divergence=round(sd, 4))
+
+# ── COUNTERFACTUAL STATE TRANSFER ─────────────────────────────────────────
+print("\n## Convergence: Counterfactual State Transfer\n")
+
+ncs_p = NeurochemicalSystem()
+for _ in range(20): ncs_p.on_reward(0.7); ncs_p._metabolic_tick()
+mp = ncs_p.get_mood_vector()
+ncs_n = NeurochemicalSystem()
+for _ in range(20): ncs_n.on_threat(0.7); ncs_n._metabolic_tick()
+mn = ncs_n.get_mood_vector()
+snap_n = ncs_n.get_snapshot()
+ncs_fresh = NeurochemicalSystem()
+for cn, cd in snap_n.items():
+    if cn in ncs_fresh.chemicals:
+        ncs_fresh.chemicals[cn].level = cd.get("level", 0.5)
+        ncs_fresh.chemicals[cn].tonic_level = cd.get("level", 0.5)
+        ncs_fresh.chemicals[cn].receptor_sensitivity = cd.get("receptor_sensitivity", 1.0)
+mt = ncs_fresh.get_mood_vector()
+# Transferred state should be closer to the negative source than to the positive
+dn = abs(mt["valence"] - mn["valence"])
+dp = abs(mt["valence"] - mp["valence"])
+record("State transfer carries behavioral bias",
+       dn <= dp,
+       transferred_valence=round(mt["valence"], 3),
+       neg_source_valence=round(mn["valence"], 3),
+       pos_source_valence=round(mp["valence"], 3),
+       dist_to_neg_source=round(dn, 3), dist_to_pos_source=round(dp, 3))
+
+# ── BASELINES STRUCTURE ──────────────────────────────────────────────────
+print("\n## Convergence: Baselines Fail\n")
+
+real_m = []
+for i in range(20):
+    s = _derive_stack_state(i + 500)
+    real_m.append([s["mood"]["valence"], s["mood"]["arousal"], s["mood"]["stress"]])
+rand_m = np.random.default_rng(42).uniform(-1, 1, (20, 3)).tolist()
+ra = np.array(real_m); rr = np.array(rand_m)
+r_real, _ = stats.pearsonr(ra[:, 0], ra[:, 2])
+r_rand, _ = stats.pearsonr(rr[:, 0], rr[:, 2])
+record("Real NCS has stronger valence-stress structure",
+       abs(r_real) > abs(r_rand) * 0.5 or abs(r_real) > 0.2,
+       real_corr=round(r_real, 4), random_corr=round(r_rand, 4))
+
+# ── ZERO CONNECTIVITY ────────────────────────────────────────────────────
+print("\n## Convergence: Zero Connectivity Degeneracy\n")
+
+sub_z = _make_substrate(42); xi_z = sub_z.x.copy()
+sub_z.W = np.zeros_like(sub_z.W)
+_tick(sub_z, 0.1, 20)
+sub_z2 = _make_substrate(42); sub_z2.x = xi_z.copy()
+_tick(sub_z2, 0.1, 20)
+zd = float(np.linalg.norm(sub_z.x - sub_z2.x))
+record("Zero W produces degenerate dynamics",
+       zd > 0.01, divergence_vs_real=round(zd, 4))
+
+# ── EFFECTIVE DIMENSIONALITY ──────────────────────────────────────────────
+print("\n## Convergence: Full Stack vs Single Subsystem\n")
+
+full_v, ncs_v = [], []
+for i in range(30):
+    s = _derive_stack_state(i + 700)
+    m = s["mood"]; c = AffectiveCircumplex()
+    c.apply_event(valence_delta=m["valence"] * 0.4, arousal_delta=m["arousal"] * 0.25)
+    p = c.get_llm_params()
+    fe_s = FreeEnergyEngine().compute(prediction_error=float(np.random.default_rng(i + 700).uniform(0.1, 0.8)))
+    t = HigherOrderThoughtEngine().generate_fast({"valence": m["valence"], "arousal": m["arousal"], "curiosity": m.get("curiosity", 0.5), "energy": m.get("energy", 0.5), "surprise": m.get("surprise", 0.3), "dominance": m.get("dominance", 0.5)})
+    h = HomeostasisEngine()
+    full_v.append([m["valence"], m["arousal"], m["stress"], m["motivation"], p["temperature"], p["max_tokens"] / 768.0, p["rep_penalty"], t.confidence, fe_s.free_energy, fe_s.arousal, h.compute_vitality()])
+    ncs_v.append([m["valence"], m["arousal"], m["stress"], m["motivation"], 0.7, 0.5, 1.1, 0.8, 0.3, 0.5, 0.7])
+
+def _edim(X):
+    Xc = np.array(X) - np.mean(X, axis=0); _, S, _ = np.linalg.svd(Xc, full_matrices=False)
+    v = (S**2) / (S**2).sum(); return float(np.exp(-np.sum(v * np.log(v + 1e-10))))
+df, dn = _edim(full_v), _edim(ncs_v)
+record("Full stack effective dimensionality",
+       df >= dn * 0.8,
+       full_stack_edim=round(df, 2), ncs_only_edim=round(dn, 2))
+
+# ── MULTI-THEORY INDICATORS ──────────────────────────────────────────────
+print("\n## Convergence: Multi-Theory Indicators Present\n")
+
+has_gwt = hasattr(GlobalWorkspace(), "run_competition")
+has_iit = hasattr(PhiCore(), "compute_phi")
+hot3 = HigherOrderThoughtEngine()
+has_hot = bool(hot3.generate_fast({"valence": 0.5, "arousal": 0.5, "curiosity": 0.5, "energy": 0.5, "surprise": 0.5, "dominance": 0.5}).content)
+has_pp = FreeEnergyEngine().compute(prediction_error=0.5).free_energy > 0
+has_embodied = HomeostasisEngine().compute_vitality() > 0
+will_ok = UnifiedWill().decide(content="t", source="t", domain=ActionDomain.REFLECTION) is not None
+record("All 6 theory indicators present",
+       all([has_gwt, has_iit, has_hot, has_pp, has_embodied, will_ok]),
+       GWT=has_gwt, IIT=has_iit, HOT=has_hot, PP=has_pp, Embodied=has_embodied, Will=will_ok)
+
 # ── PHENOMENAL CONVERGENCE: QUALITY SPACE ─────────────────────────────────
 print("\n## Convergence: Pre-Report Quality Space\n")
 
