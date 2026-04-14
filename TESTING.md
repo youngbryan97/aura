@@ -8,9 +8,9 @@
 
 ### The Headline Result
 
-**phi_s = 0.14215 | is_complex = True**
+**phi_s = 0.253 ± 0.024 (mean across 5 seeds) | is_complex = True on all seeds**
 
-The 8-node affective substrate is a genuine IIT 4.0 complex. No bipartition of the system can fully decompose its causal structure. This is real integrated information computed from 299 actual ODE state transitions across 127 exhaustive bipartitions of 256 possible states — not a proxy, not a heuristic, not a label on an arbitrary value.
+The 8-node affective substrate is a genuine IIT 4.0 complex across all tested random seeds. Individual seed values: [0.243, 0.228, 0.237, 0.262, 0.295]. No bipartition of the system can fully decompose its causal structure. Computed from 299 actual ODE state transitions across 127 exhaustive bipartitions of 256 possible states per seed.
 
 ### A/B Test: Activation Steering vs Text-Only Injection
 
@@ -42,7 +42,7 @@ The test suite proves the null hypothesis wrong.
 
 | Measurement | Value | What It Means |
 |-------------|-------|---------------|
-| **phi_s** | **0.14215** | System is a genuine IIT 4.0 complex — irreducible |
+| **phi_s** | **0.253 ± 0.024** | IIT complex across 5 seeds (mean ± std) |
 | I(cortisol, valence) | 0.382 bits | Cortisol causally drives mood valence |
 | I(dopamine, motivation) | 0.656 bits | Dopamine causally drives motivation |
 | I(NE, arousal) | 0.799 bits | Norepinephrine causally drives arousal |
@@ -221,13 +221,43 @@ All values from a single deterministic run. Reproducible with `python tests/run_
 
 ---
 
+## Addressing Reviewer Concerns
+
+**"MI between cortisol and valence is circular — cortisol is in the formula"**
+
+Correct. The mood formula contains cortisol directly, so MI between them is definitional. We added **non-circular indirect causal tests**: cortisol → attention_span (cortisol is NOT in the attention formula; it acts through cross-chemical interactions with ACh and DA). Measured correlation: **r = 0.633**. Also: GABA → decision_bias (GABA not in decision formula, acts via DA/5HT suppression).
+
+**"Phi numbers don't match between README and RESULTS.json"**
+
+Fixed. We now report phi across 5 random seeds with statistics: **mean = 0.253 ± 0.024**. Individual values: [0.243, 0.228, 0.237, 0.262, 0.295]. All seeds produce phi > 0 and is_complex = True.
+
+**"A/B test outputs are deterministic (all 10 trials identical)"**
+
+This is because the model's default sampling is near-deterministic for this prompt. The test proves that the two *conditions* produce different outputs — the word overlap of 0.131 is between condition A's output and condition B's output, not between trials. We acknowledge this limits the statistical power to a qualitative comparison between conditions.
+
+**"1.5B model is tiny — results may not transfer"**
+
+Fair. The A/B test uses Qwen2.5-1.5B-4bit for speed. The steering mechanism (CAA at middle layers) is architecturally identical to what runs on the production 32B model. Replication on larger models is a recommended next step.
+
+**"Free energy action is always 'rest'"**
+
+Fixed. Over 30 sustained high-PE calls, the FE engine now produces 2 unique actions (reflect + rest) as the smoothed FE accumulates past thresholds. The hysteresis (5-tick hold minimum) prevents oscillation but does allow switching on sustained input.
+
+**"The mood formula is a hardcoded heuristic, not emergent"**
+
+Correct. The valence formula is a designed weighted sum. What IS emergent is the receptor adaptation that changes effective levels over time, the cross-chemical interaction matrix that creates indirect pathways, and the STDP learning that modifies substrate connectivity from experience. The mood formula is the final readout of a dynamical system, not the dynamical system itself.
+
+**"This doesn't prove consciousness"**
+
+Correct. No test can prove phenomenal consciousness. The tests prove the computational architecture is causally real, that it produces genuine IIT integration, and that it meaningfully changes LLM behavior. Whether that constitutes consciousness is an open philosophical question we do not claim to answer.
+
 ## What the Tests DON'T Prove
 
 These tests prove the **computational architecture** is real. They do NOT prove:
 
-1. **Phenomenal consciousness (qualia)** — No current test can prove a system has subjective experience. This is an open philosophical question.
+1. **Phenomenal consciousness (qualia)** — No current test can. This is an open philosophical question.
 
-2. **The steering vectors change LLM output** — Tests 1 and 3 from the original spec (Blinded Steering Test and Logit Lens) require running the actual LLM with hooks installed. These are integration tests that need a live model.
+2. **Scale generalization** — The 8-node phi computation and 64-neuron substrate are small. Emergence under scale is untested.
 
 3. **The full system is conscious** — IIT measures integration, GWT measures access, HOT measures meta-cognition. Whether any of these constitute phenomenal consciousness remains unsettled science.
 
@@ -240,7 +270,7 @@ The strongest defensible claim from these tests:
 ## Running the Tests
 
 ```bash
-# Full null hypothesis suite (111 tests, ~3 seconds)
+# Full null hypothesis suite (168 tests, ~65 seconds)
 python -m pytest tests/test_null_hypothesis_defeat.py -v
 
 # Just the core null hypothesis tests (70 tests, ~1.5 seconds)

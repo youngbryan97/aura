@@ -621,6 +621,79 @@ result("Metacognitive accuracy: identifies chaotic focus dimension",
        identified_as=worst)
 print()
 
+# ─── CROSS-SEED STATISTICS (Reviewer demanded) ──────────────────────────
+print("## Cross-Seed Statistical Analysis")
+print()
+
+# Phi across 5 seeds
+phi_values_stat = []
+for seed in range(5):
+    cfg_stat = SubstrateConfig(neuron_count=64, noise_level=0.005,
+                               state_file=Path(tempfile.mkdtemp()) / f"phi_s_{seed}.npy")
+    sub_stat = LiquidSubstrate(config=cfg_stat)
+    ir = np.random.default_rng(seed + 100)
+    sub_stat.x = ir.uniform(-0.3, 0.3, 64)
+    sub_stat.W = ir.standard_normal((64, 64)) / np.sqrt(64)
+    cr = np.random.default_rng(seed + 200)
+    for i in range(8):
+        for j in range(8):
+            if i != j: sub_stat.W[i, j] = cr.normal(0, 0.3)
+    ncs_stat = NeurochemicalSystem()
+    phi_stat = PhiCore()
+    for t in range(300):
+        if t % 40 == 0: ncs_stat.on_threat(severity=0.6)
+        elif t % 40 == 20: ncs_stat.on_reward(magnitude=0.5)
+        elif t % 40 == 10: ncs_stat.on_rest()
+        ncs_stat._metabolic_tick()
+        m = ncs_stat.get_mood_vector()
+        sub_stat.x[0] = 0.7 * sub_stat.x[0] + 0.3 * m["valence"]
+        sub_stat.x[1] = 0.7 * sub_stat.x[1] + 0.3 * m["arousal"]
+        sub_stat._step_torch_math(0.05)
+        phi_stat.record_state(sub_stat.x[:8].copy(),
+                              {"prediction_error": float(np.clip(abs(sub_stat.v[0]), 0, 1))})
+    r = phi_stat.compute_affective_phi()
+    if r is not None:
+        phi_values_stat.append(r.phi_s)
+
+mean_phi = float(np.mean(phi_values_stat)) if phi_values_stat else 0.0
+std_phi = float(np.std(phi_values_stat)) if phi_values_stat else 0.0
+result("Phi across 5 seeds (mean ± std)",
+       mean_phi > 0.0,
+       mean=round(mean_phi, 5),
+       std=round(std_phi, 5),
+       n_computed=len(phi_values_stat),
+       values=[round(v, 5) for v in phi_values_stat])
+
+# Non-circular causal test
+ncs_ind = NeurochemicalSystem()
+rng_ind = np.random.default_rng(42)
+cort_ind, attn_ind = [], []
+for _ in range(300):
+    if rng_ind.random() > 0.5:
+        ncs_ind.on_threat(severity=rng_ind.uniform(0.1, 0.9))
+    else:
+        ncs_ind.on_rest()
+    ncs_ind._metabolic_tick()
+    cort_ind.append(ncs_ind.chemicals["cortisol"].effective)
+    attn_ind.append(ncs_ind.get_attention_span())
+corr_indirect = float(np.corrcoef(cort_ind, attn_ind)[0, 1])
+result("Non-circular: cortisol→attention_span (indirect path)",
+       abs(corr_indirect) > 0.1,
+       correlation=round(corr_indirect, 4),
+       note="cortisol is NOT in the attention_span formula")
+
+# FE action diversity over sustained input
+fe_div = FreeEnergyEngine()
+fe_actions = set()
+for _ in range(30):
+    r = fe_div.compute(prediction_error=0.9)
+    fe_actions.add(r.dominant_action)
+result("FE action diversity over 30 sustained high-PE calls",
+       len(fe_actions) >= 2,
+       unique_actions=list(fe_actions),
+       n_unique=len(fe_actions))
+print()
+
 # ─── SUMMARY ─────────────────────────────────────────────────────────────
 total_time = time.time() - total_start
 print("=" * 72)
