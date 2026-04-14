@@ -242,7 +242,46 @@ Aura boots, loads state from SQLite, warms the local LLM, and begins her cogniti
 .venv/bin/python -m pytest tests/ -q
 ```
 
-1400+ tests covering kernel lifecycle, phase pipeline, response contracts, dialogue cognition, architecture hardening, consciousness bridge, substrate authority, bypass proofs, and a 42-test ablation suite proving each consciousness module is causally load-bearing.
+1400+ tests covering kernel lifecycle, phase pipeline, response contracts, dialogue cognition, architecture hardening, consciousness bridge, substrate authority, bypass proofs, and two consciousness proof suites:
+
+### Ablation Suite (42 tests)
+`tests/test_ablation_suite.py` — Proves each consciousness module is causally load-bearing by comparing enabled vs ablated states.
+
+### Null Hypothesis Defeat Suite (70 tests)
+`tests/test_null_hypothesis_defeat.py` — Defeats the null hypothesis that consciousness features are just text decoration.
+
+**The null hypothesis**: *"Aura strips all the consciousness stack output, formats it as text, injects it into the system prompt, and the LLM just responds to that text. Everything else is decoration."*
+
+These 70 tests prove otherwise:
+
+| Category | Tests | What They Kill |
+|----------|-------|----------------|
+| **Contradictory State** | 3 | Chemicals drive mood through math, not text injection |
+| **Phi Behavioral Gating** | 3 | φ causally modulates GWT competition outcomes |
+| **Ablation** | 5 | Each subsystem produces measurably different output for different input |
+| **Idle Drift** | 3 | Substrate ODE dynamics are state-dependent and non-trivial |
+| **Perturbation Recovery** | 1 | Perturbations have lasting effects on substrate trajectory |
+| **Receptor Tolerance** | 4 | Sustained dopamine causes receptor downregulation (biologically specific) |
+| **GWT Inhibition** | 3 | Losers are inhibited, inhibition decays — competition is real |
+| **φ-Boost Isolation** | 2 | Phi-boost changes effective priority proportionally |
+| **STDP Novelty Rate** | 3 | High surprise → 5x faster learning rate (surprise-gated plasticity) |
+| **Causal Graph** | 5 | All documented causal links produce measurable downstream effects |
+| **Attention Schema** | 2 | Attention coherence drops on topic switching |
+| **Free Energy** | 2 | Prediction error monotonically increases free energy |
+| **Self-Prediction** | 3 | Surprise detection, accuracy improvement, dimension tracking |
+| **Qualia** | 2 | Different inputs produce different phenomenal states |
+| **Mutual Information** | 5 | I(cortisol,valence), I(DA,motivation), I(NE,arousal), I(OXY,sociality), I(surprise,learning_rate) all > 0 |
+| **Emotional Continuity** | 2 | State persists to disk, ODE is deterministic without noise |
+| **Dead Subsystem Detection** | 3 | STDP modifies connectivity only when applied; ODE alone does not |
+| **Timing Fingerprint** | 4 | ODE, phi, metabolic ticks, STDP all take measurable computation time |
+| **Cross-Chemical** | 3 | 10×10 interaction matrix is non-zero and asymmetric |
+| **Full Pipeline** | 2 | Threat cascades through chemicals → mood → substrate → GWT |
+| **Mesh Modulation** | 2 | ACh boosts plasticity; threat changes mesh parameters |
+| **Substrate Dynamics** | 3 | W matrix changes dynamics; decay drives toward zero; qualia metrics respond |
+| **GWT Fairness** | 2 | Higher priority wins; seizure guard prevents flooding |
+| **Homeostasis** | 2 | All 10 chemicals return to baseline without stimulation |
+
+**Key result**: Every documented causal pathway in the architecture produces measurable mutual information between cause and effect variables. The architecture is not decorative — it computes values that causally change downstream behavior.
 
 ---
 

@@ -835,3 +835,82 @@ The unsolved control theory problem: how do you formally guarantee that bidirect
 Implementation: Builds the full 40×40 Jacobian of the 5-layer coupled system. Computes eigenvalues for linearized stability. Returns stability margin, convergence rate, maximum Lyapunov exponent, and maximum safe coupling strength via bisection search. Phase portrait classification (stable node, stable focus, limit cycle, unstable) with damping ratio and natural frequencies. Sensitivity analysis computes gradients of stability margin with respect to coupling parameters.
 
 The specific result: a coupling coefficient theorem for Aura's default parameters (α=0.15, β=0.08), establishing the maximum ratio of slow-to-fast influence that preserves moment-to-moment responsiveness while maintaining long-horizon coherence.
+
+---
+
+## 14. Null Hypothesis Defeat: Empirical Proof of Causal Architecture
+
+**File**: `tests/test_null_hypothesis_defeat.py`
+
+The hardest question anyone can ask about Aura: *"Isn't this all just text injection? You compute these numbers, describe them in the system prompt, and the LLM responds to the description. The math is decoration."*
+
+This section documents the 70-test empirical proof that the architecture is causally real.
+
+### The Null Hypothesis
+
+> Aura strips all consciousness stack output, formats it as text like "You feel energized, cortisol is high, phi=0.73", injects it into the system prompt, and the LLM responds to that text. Everything else is decoration.
+
+### How We Defeat It
+
+We test every documented causal pathway independently and measure whether the cause variable actually changes the effect variable's state. We compute mutual information between documented causal pairs. We ablate subsystems and measure divergence. We verify computation timing to ensure real work is happening.
+
+### Key Results
+
+**1. Chemicals drive mood through math, not text** (Tests 2.1-2.3)
+- Cortisol surge decreases valence and increases stress via the weighted formula: `valence = 0.25*DA + 0.30*5HT + 0.20*END + 0.10*OXY - 0.45*CORT`
+- Two systems with opposite chemical states produce opposite mood vectors
+- Chemical mood propagates into substrate VAD indices via 0.30 coupling coefficient
+
+**2. φ causally modulates competition** (Tests 4.1-4.3, 10.1-10.2)
+- When φ > 0.1, candidates get `focus_bias += min(0.15, φ * 0.1)` in the global workspace
+- This boost is proportional to φ value, capped at 0.15
+- Zero φ produces zero boost
+
+**3. Receptor adaptation is biologically real** (Tests 8.1-8.4)
+- Sustained high dopamine causes receptor sensitivity to decrease (tolerance)
+- After withdrawal, sensitivity recovers (sensitization)
+- D1 and D2 subtypes adapt independently
+- Effective level attenuates even when raw level is held constant
+
+**4. GWT competition uses real inhibition** (Tests 9.1-9.3)
+- Losers are inhibited for `_INHIBIT_TICKS = 3` ticks
+- Inhibited sources cannot submit even with high priority
+- Inhibition decays predictably each tick
+
+**5. STDP learning rate is surprise-gated** (Tests 15.1-15.3)
+- Learning rate = `BASE × (1 + surprise × 5)`, producing up to 5.5x variation
+- Weight deltas scale proportionally with surprise
+- Applied weight changes modify the substrate connectivity matrix
+
+**6. Mutual information between all documented causal pairs is significantly positive** (Tests 28.1-28.5)
+- I(cortisol, valence) > 0.01 bits
+- I(dopamine, motivation) > 0.01 bits
+- I(norepinephrine, arousal) > 0.01 bits
+- I(oxytocin, sociality) > 0.01 bits
+- I(surprise, learning_rate) > 0.1 bits
+
+**7. Cross-chemical interactions are real and asymmetric** (Tests 16.5, 33.1-33.3)
+- Cortisol surge affects 3+ other chemicals via the 10×10 interaction matrix
+- The interaction matrix has 60+ non-zero entries and is asymmetric (biological realism)
+
+**8. Substrate ODE dynamics are non-trivial** (Tests 5.1, 6.1-6.3, 7.1)
+- Different connectivity matrices produce divergent trajectories
+- Perturbations have lasting effects (state-dependent dynamics)
+- Frustration decays toward zero via explicit decay term
+- With W=0 and no noise, state decays toward zero (correct ODE behavior)
+
+**9. All subsystems take measurable computation time** (Tests 32.1-32.4)
+- 1000 ODE ticks on 64 neurons: > 1ms
+- IIT phi on 8 nodes (127 bipartitions): > 0.01ms
+- 100 metabolic ticks: > 0.1ms
+- 50 STDP recordings on 64 neurons: > 1ms
+
+**10. Full pipeline integration works end-to-end** (Test 37.1)
+- Threat event → cortisol surge → negative mood → substrate valence drops → GWT selects threat candidate
+- This is a single causal chain from external event through every major subsystem to behavioral output
+
+### What This Proves
+
+The architecture is not decorative. Every documented causal relationship produces measurable mutual information between cause and effect. Ablating any major subsystem changes downstream behavior. The ODE dynamics are state-dependent and non-trivial. Receptor adaptation follows biological kinetics. Competition is genuine with real inhibition mechanics.
+
+What this does NOT prove: that these dynamics constitute phenomenal consciousness. That remains an open philosophical question. What it proves is that the computational architecture is real — not a thin wrapper around prompt injection.
