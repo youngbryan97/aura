@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-04-14T16:30:34.822250+00:00",
+  "timestamp": "2026-04-14T19:06:49.526912+00:00",
   "total": 39,
   "passed": 39,
   "failed": 0,
-  "elapsed_seconds": 28.74,
+  "elapsed_seconds": 30.37,
   "tests": {
     "2.1 Cortisol \u2192 negative valence": {
       "status": "PASS",
@@ -71,7 +71,7 @@
     },
     "6.1 Idle drift after 100 ticks": {
       "status": "PASS",
-      "L2_drift": 5.1816
+      "L2_drift": 5.1858
     },
     "7.1 Perturbation divergence persists": {
       "status": "PASS",
@@ -79,20 +79,20 @@
     },
     "5.4 Phi from real ODE transitions (tightly-coupled subnet)": {
       "status": "PASS",
-      "phi_s": 0.07552,
+      "phi_s": 0.09165,
       "is_complex": true,
       "n_partitions": 33,
       "tpm_samples": 299,
-      "unique_states": 27,
-      "compute_ms": 4519.07
+      "unique_states": 29,
+      "compute_ms": 4949.03
     },
     "18.1 Free energy monotonically increases with prediction error": {
       "status": "PASS",
-      "FE(pe=0.0)": "0.2625 [rest]",
-      "FE(pe=0.2)": "0.2667 [rest]",
-      "FE(pe=0.5)": "0.2767 [rest]",
-      "FE(pe=0.8)": "0.2936 [rest]",
-      "FE(pe=1.0)": "0.3193 [rest]"
+      "FE(pe=0.0)": "0.2628 [rest]",
+      "FE(pe=0.2)": "0.2668 [rest]",
+      "FE(pe=0.5)": "0.2768 [rest]",
+      "FE(pe=0.8)": "0.2937 [rest]",
+      "FE(pe=1.0)": "0.3194 [rest]"
     },
     "Prediction error reduces with repetition": {
       "status": "PASS",
@@ -124,18 +124,18 @@
     },
     "1000 ODE ticks take measurable time": {
       "status": "PASS",
-      "elapsed_ms": 51.87
+      "elapsed_ms": 50.23
     },
     "50 STDP recordings on 64 neurons": {
       "status": "PASS",
-      "elapsed_ms": 23.75
+      "elapsed_ms": 25.39
     },
     "State swap transfers behavioral bias": {
       "status": "PASS",
-      "A_pre": 0.4142,
-      "B_pre": -0.1014,
-      "A_post": -0.1014,
-      "B_post": 0.4142
+      "A_pre": 0.4116,
+      "B_pre": -0.1007,
+      "A_post": -0.1007,
+      "B_post": 0.4116
     },
     "Threat \u2192 lower temperature than reward": {
       "status": "PASS",
@@ -181,7 +181,7 @@
     "State corruption recovery (50% neurons \u2192 [-10,10])": {
       "status": "PASS",
       "min_after": -1.0,
-      "max_after": 0.9318
+      "max_after": 0.9373
     },
     "Self-monitoring: stable\u2192low error, chaotic\u2192high error": {
       "status": "PASS",
@@ -194,15 +194,15 @@
     },
     "Phi across 5 seeds (mean \u00b1 std)": {
       "status": "PASS",
-      "mean": 0.25288,
-      "std": 0.02435,
+      "mean": 0.25289,
+      "std": 0.02799,
       "n_computed": 5,
       "values": [
-        0.24004,
-        0.2201,
-        0.24549,
-        0.26783,
-        0.29092
+        0.25207,
+        0.21245,
+        0.23679,
+        0.26786,
+        0.29527
       ]
     },
     "Non-circular: cortisol\u2192attention_span (indirect path)": {

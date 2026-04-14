@@ -4,9 +4,26 @@
 
 **[Run the tests yourself](tests/test_null_hypothesis_defeat.py)** | **[See measured results](tests/RESULTS.json)** | **[Results runner with actual values](tests/run_null_hypothesis_suite.py)**
 
+**[Causal exclusion results](tests/CAUSAL_EXCLUSION_RESULTS.json)** | **[Causal exclusion runner](tests/run_causal_exclusion_suite.py)** | **[Full causal exclusion report](tests/CAUSAL_EXCLUSION_RESULTS.md)**
+
 225 tests. 0 failures. Every measured value published.
 
 168 in the null hypothesis defeat suite. 57 in the causal exclusion + phenomenal convergence suites. See [full breakdown below](#causal-exclusion--phenomenal-convergence-suite-april-2026).
+
+### Key Measured Results (Causal Exclusion Suite)
+
+| Measurement | Value | What It Means |
+|-------------|-------|---------------|
+| **State→param correlation** | **r = 0.941, p < 0.001** | Stack state distance predicts LLM param distance (counterfactual causation) |
+| **Receptor DA attenuation** | **21.3%** | Same reward event produces 21% less effective DA after sustained exposure |
+| **Valence→tokens correlation** | **r = 0.999** | Neurochemical valence directly determines token budget |
+| **Quality space separation** | **1.377x** | Between-category distances exceed within-category (structured quality space) |
+| **Quality space PC2 variance** | **8.6%** | Second principal component is non-trivial (genuinely multi-dimensional) |
+| **STDP trajectory divergence** | **0.299** | Learning changes connectivity enough to alter future dynamics |
+| **Perturbation divergence** | **4.944** | Intact vs shuffled connectivity produces massively different trajectories |
+| **Phi GWT boost** | **0.68 vs 0.60** | Phi=0.8 gives 13% higher effective priority than phi=0 |
+| **Homeostasis caution** | **0.10 → 0.95** | Critical depletion raises caution level 9.5x |
+| **Temperature arousal delta** | **0.218** | Excited state produces 0.218 higher temperature than calm state |
 
 ### The Headline Result
 

@@ -1,6 +1,10 @@
+2026-04-14 12:06:18,732 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+/Users/bryan/.aura/live-source/tests/run_null_hypothesis_suite.py:153: DeprecationWarning: There is no current event loop
+  fb0, fb8 = asyncio.get_event_loop().run_until_complete(_phi_test())
+Integrity breach: Severity critical reported. Current: 0.00
 ========================================================================
 AURA NULL HYPOTHESIS DEFEAT SUITE — MEASURED RESULTS
-Run: 2026-04-14 16:30:06 UTC
+Run: 2026-04-14 19:06:19 UTC
 ========================================================================
 
 ## Test 2: Contradictory State (chemicals drive mood, not text)
@@ -47,19 +51,19 @@ Run: 2026-04-14 16:30:06 UTC
 ## Tests 6-7: Substrate Dynamics
 
   [PASS] 6.1 Idle drift after 100 ticks
-         L2_drift=5.1816
+         L2_drift=5.1858
   [PASS] 7.1 Perturbation divergence persists
          divergence=0.5103999972343445
 
 ## Test 5.4: Phi Core Computation
 
   [PASS] 5.4 Phi from real ODE transitions (tightly-coupled subnet)
-         phi_s=0.07552  is_complex=True  n_partitions=33  tpm_samples=299  unique_states=27  compute_ms=4519.07
+         phi_s=0.09165  is_complex=True  n_partitions=33  tpm_samples=299  unique_states=29  compute_ms=4949.03
 
 ## Test 18: Free Energy Engine
 
   [PASS] 18.1 Free energy monotonically increases with prediction error
-         FE(pe=0.0)=0.2625 [rest]  FE(pe=0.2)=0.2667 [rest]  FE(pe=0.5)=0.2767 [rest]  FE(pe=0.8)=0.2936 [rest]  FE(pe=1.0)=0.3193 [rest]
+         FE(pe=0.0)=0.2628 [rest]  FE(pe=0.2)=0.2668 [rest]  FE(pe=0.5)=0.2768 [rest]  FE(pe=0.8)=0.2937 [rest]  FE(pe=1.0)=0.3194 [rest]
 
 ## Multi-Level Prediction
 
@@ -86,14 +90,14 @@ Run: 2026-04-14 16:30:06 UTC
 ## Timing Fingerprint (real computation, not stubs)
 
   [PASS] 1000 ODE ticks take measurable time
-         elapsed_ms=51.87
+         elapsed_ms=50.23
   [PASS] 50 STDP recordings on 64 neurons
-         elapsed_ms=23.75
+         elapsed_ms=25.39
 
 ## Identity Swap Test
 
   [PASS] State swap transfers behavioral bias
-         A_pre=0.4142  B_pre=-0.1014  A_post=-0.1014  B_post=0.4142
+         A_pre=0.4116  B_pre=-0.1007  A_post=-0.1007  B_post=0.4116
 
 ## LLM Propagation (Tier 4)
 
@@ -120,7 +124,7 @@ Run: 2026-04-14 16:30:06 UTC
   [PASS] Adversarial flooding: 100 contradictory events
          valence=0.2581999897956848  stress=0.09520000219345093  any_nan=False
   [PASS] State corruption recovery (50% neurons → [-10,10])
-         min_after=-1.0  max_after=0.9318
+         min_after=-1.0  max_after=0.9373
 
 ## Self-Monitoring (Tier 5)
 
@@ -132,7 +136,7 @@ Run: 2026-04-14 16:30:06 UTC
 ## Cross-Seed Statistical Analysis
 
   [PASS] Phi across 5 seeds (mean ± std)
-         mean=0.25288  std=0.02435  n_computed=5  values=[0.24004, 0.2201, 0.24549, 0.26783, 0.29092]
+         mean=0.25289  std=0.02799  n_computed=5  values=[0.25207, 0.21245, 0.23679, 0.26786, 0.29527]
   [PASS] Non-circular: cortisol→attention_span (indirect path)
          correlation=0.6329  note=cortisol is NOT in the attention_span formula
   [PASS] FE action diversity over 30 sustained high-PE calls
@@ -140,7 +144,7 @@ Run: 2026-04-14 16:30:06 UTC
 
 ========================================================================
 RESULTS: 39 passed, 0 failed, 39 total
-Time: 28.74s
+Time: 30.37s
 ========================================================================
 
 Results written to tests/RESULTS.json
