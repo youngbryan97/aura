@@ -7,17 +7,18 @@ generation layer by running every learned cognitive and artificial life system:
     LEARNED COGNITIVE SYSTEMS:
     1. Sentiment analysis on the latest input (replaces hardware-only mood)
     2. Anomaly detection on the current state (replaces keyword-matching threats)
-    3. Strange loop self-prediction (recursive self-model update)
-    4. Homeostatic RL state update (intrinsic motivation / energy)
-    5. Topology evolution on the neural mesh (structural plasticity)
-    6. Autopoiesis health check (self-maintenance)
+    3. Adaptive immunity on live antigens (clonal repair ecology)
+    4. Strange loop self-prediction (recursive self-model update)
+    5. Homeostatic RL state update (intrinsic motivation / energy)
+    6. Topology evolution on the neural mesh (structural plasticity)
+    7. Autopoiesis health check (self-maintenance)
 
     ARTIFICIAL LIFE SYSTEMS (from Avida, Tierra, Lenia, EcoSim, Evochora):
-    7. Criticality regulation — tune neural dynamics toward edge-of-chaos
-    8. ALife dynamics — Lenia kernels, entropy tracking, differential CPU allocation
-    9. ALife extensions — pattern replication, speciation, toroidal topology,
+    8. Criticality regulation — tune neural dynamics toward edge-of-chaos
+    9. ALife dynamics — Lenia kernels, entropy tracking, differential CPU allocation
+   10. ALife extensions — pattern replication, speciation, toroidal topology,
        thermodynamic costs, ownership-based access costs
-   10. Endogenous fitness — survival-based evolution (Tierra) + behavioral rules (EcoSim)
+   11. Endogenous fitness — survival-based evolution (Tierra) + behavioral rules (EcoSim)
 
 Each subsystem is optional — if it hasn't been initialized (e.g., on first
 boot or if a dependency is missing), it's silently skipped.
@@ -59,6 +60,7 @@ class CognitiveIntegrationPhase(Phase):
         # Lazy references (resolved on first tick)
         self._sentiment_tracker = None
         self._anomaly_detector = None
+        self._adaptive_immune_system = None
         self._strange_loop = None
         self._homeostatic_rl = None
         self._topology_evolution = None
@@ -78,6 +80,7 @@ class CognitiveIntegrationPhase(Phase):
             from core.container import ServiceContainer
             self._sentiment_tracker = ServiceContainer.get("sentiment_tracker", default=None)
             self._anomaly_detector = ServiceContainer.get("anomaly_detector", default=None)
+            self._adaptive_immune_system = ServiceContainer.get("adaptive_immune_system", default=None)
             self._strange_loop = ServiceContainer.get("strange_loop", default=None)
             self._homeostatic_rl = ServiceContainer.get("homeostatic_rl", default=None)
             self._topology_evolution = ServiceContainer.get("topology_evolution", default=None)
@@ -113,28 +116,33 @@ class CognitiveIntegrationPhase(Phase):
         # ── 2. Anomaly Detection ─────────────────────────────────────────
         # Convert the current system state into a feature vector and check
         # whether anything looks abnormal compared to the learned baseline.
-        await self._run_anomaly_detection(new_state, user_text)
+        anomaly_score = await self._run_anomaly_detection(new_state, user_text)
 
-        # ── 3. Strange Loop (Self-Prediction) ────────────────────────────
+        # ── 3. Adaptive Immunity ─────────────────────────────────────────
+        # Convert the current state into a richer antigen that the adaptive
+        # immune population can learn against and emit bounded effectors for.
+        await self._run_adaptive_immunity(new_state, user_text, anomaly_score)
+
+        # ── 4. Strange Loop (Self-Prediction) ────────────────────────────
         # Update the recursive self-model: predict internal state, compare
         # with actual, and feed prediction error back as experience.
         await self._run_strange_loop(new_state)
 
-        # ── 4. Homeostatic RL ────────────────────────────────────────────
+        # ── 5. Homeostatic RL ────────────────────────────────────────────
         # Update the energy/drive system and compute action preferences.
         await self._run_homeostatic_rl(new_state)
 
-        # ── 5. Topology Evolution ────────────────────────────────────────
+        # ── 6. Topology Evolution ────────────────────────────────────────
         # Let the neural mesh grow new connections or prune dead ones based
         # on recent activity patterns.
         await self._run_topology_evolution(new_state)
 
-        # ── 6. Autopoiesis ──────────────────────────────────────────────
+        # ── 7. Autopoiesis ──────────────────────────────────────────────
         # Quick health check — detect degrading subsystems and schedule
         # repairs if needed.
         await self._run_autopoiesis(new_state)
 
-        # ── 7. Criticality Regulation (Wolfram/CA research) ─────────────
+        # ── 8. Criticality Regulation (Wolfram/CA research) ─────────────
         # Tune the neural mesh toward the edge of chaos — the critical
         # point where computation is richest. Adjusts gain, noise, and
         # excitation/inhibition balance via a PID controller.
@@ -193,9 +201,9 @@ class CognitiveIntegrationPhase(Phase):
         except Exception as exc:
             logger.debug("Sentiment analysis skipped: %s", exc)
 
-    async def _run_anomaly_detection(self, state: AuraState, text: str) -> None:
+    async def _run_anomaly_detection(self, state: AuraState, text: str):
         if not self._anomaly_detector:
-            return
+            return None
         try:
             event = {
                 "type": "tick",
@@ -212,8 +220,54 @@ class CognitiveIntegrationPhase(Phase):
                 "score": score.score if hasattr(score, "score") else float(score),
                 "is_anomaly": score.is_anomaly if hasattr(score, "is_anomaly") else threat > 0.7,
             }
+            return score
         except Exception as exc:
             logger.debug("Anomaly detection skipped: %s", exc)
+            return None
+
+    async def _run_adaptive_immunity(self, state: AuraState, text: str, anomaly_score: Any | None) -> None:
+        if not self._adaptive_immune_system:
+            return
+        try:
+            event = {
+                "type": "tick",
+                "text": text,
+                "source": "cognitive_integration",
+                "subsystem": "cognitive_integration",
+                "cpu": getattr(state.soma, "hardware", {}).get("cpu_usage", 0.0),
+                "ram": getattr(state.soma, "hardware", {}).get("ram_usage", 0.0),
+                "resource_pressure": max(
+                    0.0,
+                    min(
+                        1.0,
+                        max(
+                            float(getattr(state.soma, "hardware", {}).get("cpu_usage", 0.0)) / 100.0,
+                            float(getattr(state.soma, "hardware", {}).get("ram_usage", 0.0)) / 100.0,
+                        ),
+                    ),
+                ),
+                "error_count": len(getattr(state.cognition, "recent_errors", [])),
+                "timestamp": time.time(),
+            }
+            immune_response = await self._adaptive_immune_system.observe_event(
+                event,
+                anomaly_score=anomaly_score,
+                state_snapshot={
+                    "health_pressure": state.response_modifiers.get("anomaly_threat_level", 0.0),
+                },
+            )
+            state.response_modifiers["adaptive_immunity"] = immune_response.to_dict()
+            selected = immune_response.selected_artifact
+            if selected is not None:
+                state.response_modifiers["adaptive_effector"] = {
+                    "kind": selected.kind.value,
+                    "component": selected.component,
+                    "confidence": selected.confidence,
+                    "executed": selected.executed,
+                    "success": selected.success,
+                }
+        except Exception as exc:
+            logger.debug("Adaptive immunity skipped: %s", exc)
 
     async def _run_strange_loop(self, state: AuraState) -> None:
         if not self._strange_loop:

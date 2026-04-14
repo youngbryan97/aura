@@ -404,6 +404,15 @@ class AutopoiesisEngine:
                 occurrence_count=1,
             )
 
+        try:
+            from core.container import ServiceContainer
+
+            adaptive_immune = ServiceContainer.get("adaptive_immune_system", default=None)
+            if adaptive_immune and hasattr(adaptive_immune, "observe_signature"):
+                adaptive_immune.observe_signature(component, exception_type)
+        except Exception as exc:
+            logger.debug("Adaptive immune signature feed skipped: %s", exc)
+
     def record_interaction_success(self) -> None:
         """Tell the engine that a user interaction completed successfully.
 

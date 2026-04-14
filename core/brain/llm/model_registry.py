@@ -5,9 +5,11 @@ This module is the single source of truth for:
   - local artifact paths for both MLX and GGUF runtimes
   - the active local backend selection
 """
+import json
 import os
 import re
 import shutil
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -203,6 +205,65 @@ def get_lane_model_name(endpoint_name: str | None) -> str:
 
 def get_lane_runtime_model_path(endpoint_name: str | None) -> str:
     return get_runtime_model_path(get_lane_model_name(endpoint_name))
+
+
+@lru_cache(maxsize=16)
+def get_model_context_window(model_name: str | None = None) -> int:
+    """Return the effective context window for a local model.
+
+    Prefer the model's true architectural limit from ``config.json``.
+    Some tokenizers advertise larger theoretical windows in
+    ``tokenizer_config.json`` that require explicit rope/scaling settings to
+    be enabled; those should not silently become Aura's live runtime budget.
+    """
+    name = model_name or ACTIVE_MODEL
+    model_path = MODEL_PATHS.get(name, BASE_DIR / "models" / str(name))
+    if not isinstance(model_path, Path):
+        return 32768
+
+    config_path = model_path / "config.json"
+    tokenizer_config_path = model_path / "tokenizer_config.json"
+
+    max_position_embeddings = 0
+    sliding_window = 0
+    use_sliding_window = False
+    tokenizer_model_max = 0
+
+    try:
+        if config_path.exists():
+            config_payload = json.loads(config_path.read_text())
+            max_position_embeddings = int(config_payload.get("max_position_embeddings") or 0)
+            sliding_window = int(config_payload.get("sliding_window") or 0)
+            use_sliding_window = bool(config_payload.get("use_sliding_window"))
+    except Exception:
+        max_position_embeddings = 0
+        sliding_window = 0
+        use_sliding_window = False
+
+    try:
+        if tokenizer_config_path.exists():
+            tokenizer_payload = json.loads(tokenizer_config_path.read_text())
+            tokenizer_model_max = int(tokenizer_payload.get("model_max_length") or 0)
+    except Exception:
+        tokenizer_model_max = 0
+
+    if max_position_embeddings > 0:
+        # Respect the on-disk config unless sliding/YaRN is explicitly enabled.
+        if use_sliding_window and sliding_window > max_position_embeddings:
+            return max(sliding_window, max_position_embeddings)
+        return max_position_embeddings
+
+    if sliding_window > 0 and use_sliding_window:
+        return sliding_window
+
+    if tokenizer_model_max > 0:
+        return tokenizer_model_max
+
+    return 32768
+
+
+def get_lane_context_window(endpoint_name: str | None) -> int:
+    return get_model_context_window(get_lane_model_name(endpoint_name))
 
 
 def guard_solver_request(

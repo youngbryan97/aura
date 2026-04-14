@@ -117,6 +117,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
         "homeostatic_rl": ("core.cognitive.homeostatic_rl", "get_homeostatic_rl"),
         "topology_evolution": ("core.cognitive.topology_evolution", "TopologyEvolution"),
         "autopoiesis": ("core.cognitive.autopoiesis", "get_autopoiesis_engine"),
+        "adaptive_immune_system": ("core.adaptation.adaptive_immunity", "get_adaptive_immune_system"),
     }
     # ALife systems (from Avida, Tierra, Lenia, EcoSim, Evochora, CA research)
     _alife_services = {

@@ -258,6 +258,19 @@ class ImmunityHyphae:
             logger.debug("🛡️ [CIRCUIT] Silent suppression for quarantined component: %s", component)
             return True # Pretend handled
 
+        try:
+            from core.container import ServiceContainer
+
+            adaptive_immune = ServiceContainer.get("adaptive_immune_system", default=None)
+            if adaptive_immune and hasattr(adaptive_immune, "observe_error"):
+                adaptive_immune.observe_error(error, {
+                    **(context or {}),
+                    "component": component,
+                    "stack_trace": traceback.format_exc(),
+                })
+        except Exception as exc:
+            logger.debug("Adaptive immune escalation skipped: %s", exc)
+
         repaired = self.registry.match_and_repair(error_msg)
         
         if not repaired and component != "unknown":
