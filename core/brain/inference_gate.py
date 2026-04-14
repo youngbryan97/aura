@@ -90,6 +90,7 @@ class InferenceGate:
         self._cortex_recovery_in_progress: bool = False
         self._last_cortex_check: float = 0.0
         self._cortex_recovery_attempts: int = 0
+        self._cortex_recovery_exhausted_at: float = 0.0  # [STABILITY v53]
         self._last_successful_generation_at: float = time.time()
         self._prewarm_task: Optional[asyncio.Task] = None
         self._deferred_prewarm_task: Optional[asyncio.Task] = None
@@ -99,6 +100,20 @@ class InferenceGate:
         self._last_spare_maintenance_at: float = 0.0
         type(self)._instance_ref = weakref.ref(self)
         logger.info("🛡️ InferenceGate created.")
+
+    @staticmethod
+    def _log_task_exception(task: asyncio.Task) -> None:
+        """Callback for fire-and-forget tasks — ensures exceptions are logged."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error(
+                "🚨 [STABILITY v53] Background task '%s' crashed: %s",
+                task.get_name(),
+                exc,
+                exc_info=exc,
+            )
 
     @staticmethod
     def _desktop_safe_boot_enabled() -> bool:
@@ -336,15 +351,78 @@ class InferenceGate:
                 if self._background_memory_pressure_active():
                     await self._shed_background_workers_for_memory_pressure()
                     continue
+
+                # [STABILITY v53] Proactive cortex health watchdog — detect dead
+                # cortex BEFORE a user request fails. Previously cortex death was
+                # only detected when a user message arrived and timed out.
+                await self._proactive_cortex_watchdog()
+
                 await self._ensure_hot_spare_ready(BRAINSTEM_ENDPOINT)
                 await self._ensure_hot_spare_ready(DEEP_ENDPOINT)
                 await self._recycle_idle_local_clients()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                logger.debug("InferenceGate maintenance loop skipped: %s", exc)
+                # [STABILITY v53] Upgraded from debug to warning — silent maintenance
+                # failures can cascade into cortex death without visibility.
+                logger.warning("⚠️ InferenceGate maintenance loop error: %s", exc, exc_info=True)
+
+    async def _proactive_cortex_watchdog(self) -> None:
+        """[STABILITY v53] Proactive cortex health check — runs every maintenance cycle.
+
+        Detects dead/stuck cortex and triggers recovery BEFORE user requests fail.
+        Also detects stale warming states and resets them.
+        """
+        if not self._mlx_client:
+            return
+        if self._foreground_user_turn_active() or self._foreground_owner_active():
+            return  # Don't interfere with active user turn
+
+        lane = self.get_conversation_status()
+        lane_state = str(lane.get("state", "") or "").lower()
+
+        # 1. Detect dead cortex and trigger recovery
+        if hasattr(self._mlx_client, "is_alive") and not self._mlx_client.is_alive():
+            if lane_state not in ("cold", "failed") and not self._cortex_recovery_in_progress:
+                logger.warning(
+                    "🔍 [WATCHDOG] Cortex is dead (state=%s) but no recovery in progress. Triggering.",
+                    lane_state,
+                )
+                await self._ensure_cortex_recovery()
+
+        # 2. Detect stuck warmup flag on MLX client
+        if hasattr(self._mlx_client, "_warmup_in_flight") and self._mlx_client._warmup_in_flight:
+            transition_at = getattr(self._mlx_client, "_lane_transition_at", 0.0)
+            if transition_at > 0 and (time.time() - transition_at) > 90.0:
+                logger.warning(
+                    "🔍 [WATCHDOG] MLX warmup_in_flight stuck for >90s. Force-clearing."
+                )
+                self._mlx_client._warmup_in_flight = False
+
+        # 3. Detect completed-but-unreaped prewarm tasks
+        if self._prewarm_task and self._prewarm_task.done():
+            try:
+                exc = self._prewarm_task.exception()
+                if exc:
+                    logger.warning("🔍 [WATCHDOG] Stale failed prewarm task found: %s. Clearing.", exc)
+            except (asyncio.CancelledError, asyncio.InvalidStateError):
+                pass
+            self._prewarm_task = None  # Allow fresh warmup on next request
+
+        # 4. Log cortex health for observability
+        if hasattr(self._mlx_client, "is_alive"):
+            alive = self._mlx_client.is_alive()
+            if not alive and lane_state == "ready":
+                logger.warning(
+                    "🔍 [WATCHDOG] Cortex reports ready but is_alive() is False. Correcting state."
+                )
+                if hasattr(self._mlx_client, "note_lane_recovering"):
+                    self._mlx_client.note_lane_recovering("watchdog_state_correction")
 
     def get_conversation_status(self) -> Dict[str, Any]:
+        # [STABILITY v53] Default to "cold" not "warming" — only report warming
+        # when something is actually in flight. Prevents zombie warming state.
+        _default_state = "failed" if self._init_error else "cold"
         lane = {
             "desired_model": "Cortex (32B)",
             "desired_endpoint": PRIMARY_ENDPOINT,
@@ -352,7 +430,7 @@ class InferenceGate:
             "background_endpoint": BRAINSTEM_ENDPOINT,
             "foreground_tier": "local",
             "background_tier": "local_fast",
-            "state": "failed" if self._init_error else "warming",
+            "state": _default_state,
             "last_failure_reason": self._init_error or "",
             "conversation_ready": False,
             "cortex_recovery_attempts": getattr(self, "_cortex_recovery_attempts", 0),
@@ -382,6 +460,29 @@ class InferenceGate:
         # regardless of what the MLX client flag says.
         if self._prewarm_task and self._prewarm_task.done():
             lane["warmup_in_flight"] = False
+            # [STABILITY v53] If prewarm task completed with an exception and
+            # conversation is NOT ready, set state to "recovering" and auto-schedule
+            # a background recovery. This prevents the zombie warming state where
+            # the task finished but the lane never transitions out.
+            if not lane["conversation_ready"]:
+                try:
+                    exc = self._prewarm_task.exception()
+                except asyncio.CancelledError:
+                    exc = asyncio.CancelledError("prewarm_cancelled")
+                except asyncio.InvalidStateError:
+                    exc = None
+                if exc is not None:
+                    lane["state"] = "recovering"
+                    lane["last_failure_reason"] = f"prewarm_failed:{type(exc).__name__}"
+                    # Auto-trigger recovery if not already in progress
+                    if not self._cortex_recovery_in_progress and not (
+                        self._deferred_prewarm_task and not self._deferred_prewarm_task.done()
+                    ):
+                        try:
+                            self._schedule_background_cortex_prewarm(delay=2.0)
+                            logger.info("🔄 [STABILITY v53] Auto-scheduling cortex recovery after failed prewarm: %s", exc)
+                        except Exception:
+                            pass  # Best-effort recovery scheduling
         lane_state = str(lane.get("state", "") or "").lower()
         recent_success = (time.time() - getattr(self, "_last_successful_generation_at", time.time())) <= 30.0
         recent_ready = any(
@@ -402,6 +503,31 @@ class InferenceGate:
         if self._prewarm_task and not self._prewarm_task.done() and not lane["conversation_ready"] and lane_state != "failed":
             lane["state"] = "warming"
             lane["warmup_in_flight"] = True
+        # [STABILITY v53] Stale state watchdog: if lane has been in warming/recovering
+        # for >90s with no progress and no active task, force to "cold" so the next
+        # user request triggers a fresh warmup instead of waiting on a ghost.
+        if lane_state in ("warming", "recovering") and not lane["conversation_ready"]:
+            last_progress = max(
+                float(lane.get("last_transition_at", 0.0) or 0.0),
+                float(lane.get("last_progress_at", 0.0) or 0.0),
+            )
+            if last_progress > 0 and (time.time() - last_progress) > 90.0:
+                has_active_task = (
+                    (self._prewarm_task and not self._prewarm_task.done())
+                    or (self._deferred_prewarm_task and not self._deferred_prewarm_task.done())
+                    or self._cortex_recovery_in_progress
+                )
+                if not has_active_task:
+                    logger.warning(
+                        "🚨 [STABILITY v53] Lane stuck in '%s' for >90s with no active task. "
+                        "Resetting to 'cold' to allow fresh warmup.",
+                        lane_state,
+                    )
+                    lane["state"] = "cold"
+                    lane["warmup_in_flight"] = False
+                    # Clear stale MLX client flags too
+                    if self._mlx_client and hasattr(self._mlx_client, "_warmup_in_flight"):
+                        self._mlx_client._warmup_in_flight = False
         return lane
 
     def note_foreground_timeout(self, reason: str = "foreground_timeout") -> None:
@@ -487,6 +613,8 @@ class InferenceGate:
             _runner(),
             name="InferenceGate.deferred_cortex_prewarm",
         )
+        # [STABILITY v53] Log exceptions from background tasks
+        self._deferred_prewarm_task.add_done_callback(self._log_task_exception)
 
     async def ensure_foreground_ready(self, timeout: Optional[float] = None) -> Dict[str, Any]:
         """Ensure the 32B conversation lane has actually attempted warmup for this turn."""
@@ -540,11 +668,11 @@ class InferenceGate:
         return lane
 
     async def _ensure_cortex_recovery(self) -> None:
-        """Proactively recover the 72B primary brain if it died (e.g., laptop sleep).
+        """Proactively recover the 32B primary brain if it died (e.g., laptop sleep).
 
         Without this, background tasks keep the 7B alive indefinitely and the 32B
         never gets a chance to respawn because background requests are locked to
-        tertiary tier.  Rate-limited to one attempt per 30s.
+        tertiary tier.  Rate-limited to one attempt per 3s.
         """
         if not self._mlx_client:
             return
@@ -555,16 +683,23 @@ class InferenceGate:
 
         now = time.monotonic()
         if (now - self._last_cortex_check) < 3.0:
-            return  # [STABILITY v51] Rate limit: reduced from 10s to 3s for faster cortex recovery
+            return  # [STABILITY v51] Rate limit: 3s between attempts
         self._last_cortex_check = now
 
         if self._cortex_recovery_attempts >= 5:
-            # After 5 failures, slow down recovery attempts but DON'T give up permanently.
-            # Reset the counter every 5 minutes so the system keeps trying.
-            if (now - self._last_cortex_check) < 300.0:
+            # [STABILITY v53] BUG FIX: Previously compared (now - self._last_cortex_check)
+            # which was always ~0 since _last_cortex_check was just set above. This meant
+            # cortex recovery NEVER retried after 5 failures. Use a dedicated timestamp.
+            exhausted_at = getattr(self, "_cortex_recovery_exhausted_at", 0.0)
+            if exhausted_at == 0.0:
+                self._cortex_recovery_exhausted_at = now
+                logger.warning("[RECOVERY] Primary cortex: 5 failures reached. Will retry in 5 minutes.")
+                return
+            if (now - exhausted_at) < 300.0:
                 return  # Rate-limit: try again every 5 min after 5 failures
-            logger.warning("[RECOVERY] Primary cortex: 5 failures. Resetting counter and retrying.")
+            logger.warning("[RECOVERY] Primary cortex: 5-min cooldown elapsed. Resetting counter and retrying.")
             self._cortex_recovery_attempts = 0
+            self._cortex_recovery_exhausted_at = 0.0
 
         if self._cortex_recovery_in_progress:
             return  # Already recovering — don't double-spawn
@@ -583,7 +718,7 @@ class InferenceGate:
         async def _background_recover():
             self._cortex_recovery_in_progress = True
             self._cortex_recovery_attempts += 1
-            
+
             if self._cortex_recovery_attempts == 3:
                 logger.warning("🧹 [RECOVERY] 3 failed attempts. Forcing deep GC and stale process cleanup...")
                 import gc
@@ -592,7 +727,7 @@ class InferenceGate:
                     await asyncio.to_thread(self._mlx_client._kill_and_join_blocking, self._mlx_client._process)
                 except Exception as _e:
                     logger.debug('Ignored Exception in inference_gate.py killing process: %s', _e)
-            
+
             try:
                 logger.warning("♻️ [RECOVERY] Primary 32B cortex is dead. Triggering background respawn (Attempt %d/5)...", self._cortex_recovery_attempts)
                 self._prewarm_task = asyncio.create_task(
@@ -602,15 +737,17 @@ class InferenceGate:
                 await asyncio.wait_for(asyncio.shield(self._prewarm_task), timeout=60.0)
                 logger.info("✅ [RECOVERY] Primary 32B cortex restored after disruption.")
                 self._cortex_recovery_attempts = 0
+                self._cortex_recovery_exhausted_at = 0.0
             except Exception as exc:
-                logger.warning("⚠️ [RECOVERY] Primary 32B cortex respawn failed: %s", exc)
+                logger.error("⚠️ [RECOVERY] Primary 32B cortex respawn failed (attempt %d/5): %s", self._cortex_recovery_attempts, exc)
             finally:
                 # [STABILITY v51] ALWAYS clear the flag, even on unexpected exceptions.
-                # Previously this was inside the try block and could leak if an
-                # exception was raised between the flag set and the finally.
                 self._cortex_recovery_in_progress = False
 
-        asyncio.create_task(_background_recover())
+        # [STABILITY v53] Wrap fire-and-forget task with exception logging
+        # so crashes are visible instead of silently lost.
+        task = asyncio.create_task(_background_recover(), name="cortex_recovery")
+        task.add_done_callback(self._log_task_exception)
 
     async def _respawn_cortex_if_needed(self) -> None:
         """Respawn the primary cortex if it's dead.

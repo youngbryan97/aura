@@ -636,7 +636,14 @@ _RECOVERY_COOLDOWN_SECONDS: float = 1.0  # [STABILITY v50] Reduced from 5s→1s.
 _PROTECTED_FOREGROUND_LOCK_BYPASS_SECONDS: float = 1.0
 _PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS: float = 120.0
 _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 180.0
-_KERNEL_SOFT_REPLY_SLA_SECONDS: float = 8.0
+# [STABILITY v53] Raised from 8s→45s. The old 8s deadline was the #1 cause of
+# false-positive kernel timeouts on first-turn responses. The 32B cortex
+# regularly needs 15-40s for complex responses, and after a 35s warmup the
+# kernel had only 8s before being interrupted by a competing protected
+# foreground request — which itself competes for the same LLM resources,
+# creating a resource contention spiral. 45s gives the kernel real time to
+# respond on turn 1. Subsequent turns (model warm, KV cache hot) are <5s.
+_KERNEL_SOFT_REPLY_SLA_SECONDS: float = 45.0
 
 
 def _enter_recovery_cooldown() -> None:
@@ -2509,7 +2516,9 @@ async def api_chat(
                             "protected_foreground_reason": reason,
                             "prefer_tier": route.get("prefer_tier", "primary"),
                             "deep_handoff": deep_handoff,
-                            "allow_cloud_fallback": False,
+                            # [STABILITY v53] Allow cloud fallback in protected lane.
+                            # When local models are dead, cloud is better than silence.
+                            "allow_cloud_fallback": True,
                             "messages": messages,
                             "brief": (
                                 "Protected foreground lane engaged. The kernel is congested or recovering. "
@@ -2822,9 +2831,14 @@ async def api_chat(
                     ki.process(body.message, origin="api", priority=True),
                     name="Aura.Server.Chat.kernel_foreground",
                 )
+                # [STABILITY v53] Two-phase timeout:
+                # Phase 1 (soft): Give kernel its full SLA. Don't fire competing
+                #   requests during this window — resource contention makes both slower.
+                # Phase 2 (hard): If kernel misses soft deadline, try protected foreground
+                #   OR wait for kernel with remaining budget, whichever finishes first.
                 soft_deadline = min(
                     _KERNEL_SOFT_REPLY_SLA_SECONDS,
-                    max(2.0, kernel_timeout - 12.0),
+                    max(8.0, kernel_timeout - 20.0),
                 )
                 try:
                     reply_text = await asyncio.wait_for(
@@ -2832,6 +2846,9 @@ async def api_chat(
                         timeout=soft_deadline,
                     )
                 except asyncio.TimeoutError:
+                    # Soft deadline missed — try protected foreground as a race
+                    # against the kernel task continuing in background.
+                    hard_budget = max(2.0, _remaining_foreground_budget())
                     protected_reply = await _attempt_protected_foreground_reply("kernel_soft_deadline")
                     if protected_reply:
                         kernel_task.add_done_callback(
@@ -2841,6 +2858,7 @@ async def api_chat(
                             protected_reply,
                             status="protected_foreground",
                         )
+                    # Protected foreground also failed — give kernel remaining time
                     reply_text = await asyncio.wait_for(
                         asyncio.shield(kernel_task),
                         timeout=max(2.0, _remaining_foreground_budget()),
@@ -2988,29 +3006,65 @@ async def api_chat(
         return JSONResponse(response_data)
     except asyncio.TimeoutError:
         lane = _mark_conversation_lane_timeout()
-        was_ready = bool(lane.get("conversation_ready", False)) or str(lane.get("state", "")).lower() in {"ready", "warming", "recovering"}
-        status_code = 503 if was_ready else 504
+        # [STABILITY v53] Last-resort: try protected foreground before returning timeout.
+        # The kernel timed out but the LLM might still be responsive for a direct call.
+        try:
+            gate = ServiceContainer.get("inference_gate", default=None)
+            if gate and hasattr(gate, "generate"):
+                emergency_reply = await asyncio.wait_for(
+                    gate.generate(
+                        body.message,
+                        context={
+                            "origin": "api",
+                            "foreground_request": True,
+                            "protected_foreground_lane": True,
+                            "protected_foreground_reason": "outer_timeout_emergency",
+                            "prefer_tier": "tertiary",  # Use fastest available model
+                            "allow_cloud_fallback": True,  # Try EVERYTHING
+                        },
+                        timeout=15.0,
+                    ),
+                    timeout=15.0,
+                )
+                if emergency_reply and str(emergency_reply).strip():
+                    logger.info("✅ [STABILITY v53] Emergency bypass after outer timeout succeeded.")
+                    return JSONResponse({
+                        "response": str(emergency_reply).strip(),
+                        "conversation_lane": _collect_conversation_lane_status(),
+                        "response_confidence": "degraded",
+                    })
+        except Exception:
+            pass  # Fall through to timeout response
+
+        # [STABILITY v53] Return 200 with status field instead of 503/504.
+        # Non-200 codes can cause frontend retry storms or error displays.
+        # The "status" field tells the frontend it was degraded.
         return JSONResponse(
             {
                 "response": _conversation_lane_user_message(lane, timed_out=True),
                 "status": "timeout",
                 "conversation_lane": lane,
+                "response_confidence": "degraded",
             },
-            status_code=status_code,
+            status_code=200,  # [STABILITY v53] Changed from 503/504 to 200
         )
     except asyncio.CancelledError:
         lane = _mark_conversation_lane_state("foreground_cancelled", state="recovering")
         return JSONResponse(
             {
-                "response": "My foreground conversation was interrupted while Cortex was active. Please try again in a moment.",
+                "response": "I got interrupted mid-thought. Say that again?",
                 "status": "cancelled",
                 "conversation_lane": lane,
+                "response_confidence": "degraded",
             },
-            status_code=503,
+            status_code=200,  # [STABILITY v53] Changed from 503 to 200
         )
     except Exception as e:
         logger.error("Chat error: %s", e, exc_info=True)
+        # [STABILITY v53] ALWAYS return 200 with a response. Chat must never
+        # appear broken to the user. The "status" field conveys error state.
         return JSONResponse({
-            "response": "My neural pathways experienced a severe fault. I had to abort the thought to remain responsive.",
-            "status": "error"
-        }, status_code=500)
+            "response": "I lost my train of thought for a second. Try me again?",
+            "status": "error",
+            "response_confidence": "degraded",
+        }, status_code=200)

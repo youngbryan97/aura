@@ -353,7 +353,13 @@ class LocalServerClient:
         minimum: float,
     ) -> float:
         if isinstance(deadline, Deadline) and deadline.remaining is not None:
-            return max(minimum, min(float(deadline.remaining), default))
+            remaining = float(deadline.remaining)
+            # [STABILITY v53] Respect the deadline even if it's below minimum.
+            # Previously, min floor could exceed the request's actual deadline,
+            # causing locks to hold past the caller's timeout budget.
+            if remaining <= 0.5:
+                return max(0.5, remaining)
+            return max(minimum, min(remaining, default))
         return max(minimum, default)
 
     def _is_runtime_resident(self) -> bool:
@@ -1121,13 +1127,23 @@ class LocalServerClient:
                         severity="critical",
                         foreground_request=foreground_request,
                     )
-                    # Don't mark entire lane as recovering for a server bug —
-                    # try restarting the server process instead
+                    # [STABILITY v53] Mark lane as recovering BEFORE firing restart
+                    # so new requests don't hit the dying server. Previously the lane
+                    # stayed "ready" while restart happened in background.
+                    self.note_lane_recovering("compute_error_restart")
                     try:
                         import asyncio
-                        asyncio.get_event_loop().create_task(self._restart_server())
-                    except Exception:
-                        pass
+                        task = asyncio.get_event_loop().create_task(
+                            self._restart_server(),
+                            name=f"restart_server:{self._lane_name}",
+                        )
+                        # Log if restart task crashes
+                        task.add_done_callback(
+                            lambda t: logger.error("Server restart failed: %s", t.exception())
+                            if not t.cancelled() and t.exception() else None
+                        )
+                    except Exception as restart_err:
+                        logger.error("[%s] Failed to schedule server restart: %s", self._lane_name, restart_err)
                     return None
 
                 self._record_degraded_event(

@@ -817,22 +817,41 @@ class IntelligentLLMRouter:
                         err = metadata.get("error", "Generation failed")
                         logger.warning("❌ %s (Attempt %d) failure: %s", endpoint_name, attempt + 1, err)
                         last_error_str = str(err)
-                        if attempt == 0: await asyncio.sleep(0.5) # Quick retry
+                        if attempt == 0: await asyncio.sleep(0.5)
                         continue
 
                     # 2. Extract text and check for fatal errors hidden in strings
                     final_text_str = str(response)
                     if hasattr(response, "content") and not isinstance(response, str):
                         final_text_str = str(response.content)
-                    
-                    # Prevent MLX/Metal crashes from sticking
-                    fatal_patterns = ["RESOURCE_EXHAUSTED", "MTLCompilerService", "No such process", "MLX Init Error"]
-                    if any(p in final_text_str for p in fatal_patterns):
+
+                    # [STABILITY v53] Catch empty/whitespace-only responses as failures.
+                    # These silently poison conversations — the user sees nothing or gibberish.
+                    stripped_text = final_text_str.strip()
+                    if not stripped_text or len(stripped_text) < 2:
+                        logger.warning(
+                            "❌ %s (Attempt %d) returned empty/trivial response (%d chars). Treating as failure.",
+                            endpoint_name, attempt + 1, len(stripped_text),
+                        )
+                        self.health_monitor.record_failure(endpoint_name, "empty_response")
+                        last_error_str = "empty_response"
+                        if attempt == 0: await asyncio.sleep(0.5)
+                        continue
+
+                    # [STABILITY v53] Expanded fatal patterns — catch more MLX/Metal/GPU crashes
+                    fatal_patterns = [
+                        "RESOURCE_EXHAUSTED", "MTLCompilerService", "No such process",
+                        "MLX Init Error", "Metal device not found", "NSRangeException",
+                        "bus error", "segmentation fault", "SIGKILL", "SIGABRT",
+                        "objectAtIndex", "out of memory", "OOM",
+                    ]
+                    fatal_lower = final_text_str.lower()
+                    if any(p.lower() in fatal_lower for p in fatal_patterns):
                         logger.warning("❌ %s returned FATAL ERROR string. Failing over.", endpoint_name)
                         success = False
                         last_error_str = "MLX/Metal Backend Failure"
-                        break # Don't bother retrying this endpoint
-                    
+                        break  # Don't bother retrying this endpoint
+
                     # 3. Commit Success
                     self.health_monitor.record_success(endpoint_name)
                     self.stats["calls_by_tier"][endpoint.tier.value] += 1
@@ -842,11 +861,16 @@ class IntelligentLLMRouter:
                     self.last_tier = endpoint.tier.value
                     if not is_background:
                         self.last_user_tier = endpoint.tier.value
-                    
+
                     dur = time.monotonic() - start_time
                     logger.info("✅ Brain: Response from %s in %.2fs (Tier: %s)", endpoint_name, dur, endpoint.tier.value)
                     return final_text_str
 
+                except asyncio.TimeoutError:
+                    logger.error("⏱️ %s (Attempt %d) TIMED OUT", endpoint_name, attempt + 1)
+                    last_error_str = f"timeout:{endpoint_name}"
+                    self.health_monitor.record_failure(endpoint_name, last_error_str)
+                    break  # Don't retry timeouts — fail over to next endpoint
                 except Exception as e:
                     logger.error("🚨 Error calling %s (Attempt %d): %s", endpoint_name, attempt + 1, e)
                     last_error_str = str(e)
@@ -1019,7 +1043,10 @@ class IntelligentLLMRouter:
         elif prefer_tier == LLMTier.EMERGENCY:
             tier_priority = [LLMTier.EMERGENCY]
         else:
-            tier_priority = [LLMTier.PRIMARY, LLMTier.TERTIARY, LLMTier.EMERGENCY]
+            # [STABILITY v53] Include SECONDARY (cloud) in default failover.
+            # Previously skipped cloud and went straight from 32B to 7B brainstem,
+            # which is a massive quality drop. Cloud is far better fallback.
+            tier_priority = [LLMTier.PRIMARY, LLMTier.SECONDARY, LLMTier.TERTIARY, LLMTier.EMERGENCY]
         
         if prefer_tier:
             # Add preferred tier's endpoints (minus the ones already added)

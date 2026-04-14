@@ -267,6 +267,7 @@ class MLXLocalClient:
         self._active_generations = 0
         self._warmup_attempted = False
         self._warmup_in_flight = False
+        self._consecutive_empty: int = 0  # [STABILITY v53] Explicit init — was missing
         self._process_started_at = 0.0
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
@@ -1662,6 +1663,7 @@ class MLXLocalClient:
                 self._init_future.cancel()
             self._init_future = None
             self._warmup_in_flight = False
+            self._consecutive_empty = 0  # [STABILITY v53] Reset on reboot — prevents false recovery triggers
         finally:
             self._lock.release()
         self._set_lane_state("failed" if mark_failed else "cold", reason if mark_failed else "")
