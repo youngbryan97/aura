@@ -7,6 +7,7 @@ import time
 import os
 import sys
 import json
+import re
 import threading as _threading
 import traceback
 import fcntl
@@ -232,7 +233,7 @@ class MLXLocalClient:
     Manages the lifecycle, health, and communication with the ForkServer process.
     """
     
-    def __init__(self, model_path: str, device: str = "gpu", max_tokens: int = 512):
+    def __init__(self, model_path: str, device: str = "gpu", max_tokens: int = 4096):
         self.model_path = model_path
         self.device = device
         self.max_tokens = max_tokens
@@ -820,6 +821,7 @@ class MLXLocalClient:
         """Alias for standard interface."""
         messages = kwargs.pop("messages", None)
         system_prompt = kwargs.pop("system_prompt", None)
+        tools = kwargs.pop("tools", None)
         if messages and isinstance(messages, list):
             prompt = self._flatten_messages(
                 messages,
@@ -831,11 +833,65 @@ class MLXLocalClient:
                 system_prompt=system_prompt,
                 model_name=getattr(self, "model_path", None) or getattr(self, "model_name", None),
             )
-        return await self.generate(prompt, **kwargs)
+        return await self.generate(prompt, messages=messages, tools=tools, **kwargs)
 
     @staticmethod
     def _flatten_messages(messages: List[Dict[str, Any]], model_name: Optional[str] = None) -> str:
         return format_chatml_messages(messages, model_name=model_name)
+
+    @staticmethod
+    def _normalize_tool_definitions_for_template(tools: Optional[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+        if not tools:
+            return None
+
+        normalized: List[Dict[str, Any]] = []
+        for name, definition in list((tools or {}).items())[:20]:
+            if not definition:
+                continue
+            if isinstance(definition, dict) and definition.get("type") == "function" and definition.get("function"):
+                normalized.append(definition)
+                continue
+
+            if isinstance(definition, dict):
+                fn = dict(definition)
+                fn.setdefault("name", str(name))
+                fn.setdefault("description", "")
+                fn.setdefault("parameters", {"type": "object", "properties": {}})
+                normalized.append({"type": "function", "function": fn})
+        return normalized or None
+
+    @staticmethod
+    def _extract_tool_call_payload(response_text: str) -> Optional[Dict[str, Any]]:
+        if not response_text:
+            return None
+
+        patterns = (
+            re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL),
+            re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL),
+            re.compile(r'\{"tool"\s*:\s*"[^"]+"\s*,\s*"args"\s*:\s*\{.*?\}\s*\}', re.DOTALL),
+            re.compile(r'\{"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{.*?\}\s*\}', re.DOTALL),
+        )
+
+        for pattern in patterns:
+            match = pattern.search(response_text)
+            if not match:
+                continue
+            candidate = match.group(1) if match.groups() else match.group(0)
+            try:
+                payload = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            if "tool" in payload and "args" in payload:
+                return payload
+            if "name" in payload and "arguments" in payload:
+                args = payload.get("arguments", {})
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except Exception:
+                        args = {"value": args}
+                return {"tool": payload.get("name"), "args": args or {}}
+        return None
 
     async def generate(self, prompt: str, **kwargs) -> Optional[str]:
         """High-level generation endpoint with unified deadlines.
@@ -942,7 +998,7 @@ class MLXLocalClient:
         deadline = kwargs.get("deadline")
         if not isinstance(deadline, Deadline):
             is_heavy = any(k in self.model_path.lower() for k in ["72b", "32b", "zenith"])
-            deadline = get_deadline(120.0 if is_heavy else 45.0)
+            deadline = get_deadline(240.0 if is_heavy else 60.0)
         init_timeout, soft_init_timeout = self._request_scoped_init_timeout(
             deadline,
             foreground_request=foreground_request,
@@ -974,8 +1030,13 @@ class MLXLocalClient:
             "id": req_id,
             "action": "generate",
             "prompt": prompt,
+            "messages": kwargs.get("messages"),
+            "tools": kwargs.get("tools"),
             "temp": kwargs.get("temp", self.temp),
             "top_p": kwargs.get("top_p", self.top_p),
+            "min_p": kwargs.get("min_p", 0.05),
+            "repetition_penalty": kwargs.get("repetition_penalty", 1.08),
+            "repetition_context_size": kwargs.get("repetition_context_size", 64),
             "max_tokens": kwargs.get("max_tokens", self.max_tokens),
             "schema": kwargs.get("schema"),
         }
@@ -1095,20 +1156,17 @@ class MLXLocalClient:
     ) -> Dict[str, Any]:
         """ReAct agentic loop: think → parse tool call → execute → repeat.
 
-        Injects tool definitions into the system prompt so the local MLX model
-        can emit JSON tool calls.  Results are fed back into the conversation
-        history until the model produces a plain-text final answer (no JSON
-        tool call) or max_turns is exhausted.
+        Uses the model's native chat + tool template when available and falls
+        back to a JSON-only tool-call contract otherwise. Results are fed back
+        into the conversation history until the model produces a plain-text
+        final answer or max_turns is exhausted.
 
         Returns:
             {"content": str, "turns": int, "tool_calls": List[Dict]}
         """
-        import json as _json
-        import re as _re
-
-        # ── Build tool block ──────────────────────────────────────────────
+        template_tools = self._normalize_tool_definitions_for_template(tools)
         tool_block = ""
-        if tools:
+        if tools and not template_tools:
             tool_lines = []
             for name, defn in list(tools.items())[:20]:  # cap to avoid bloat
                 desc = defn.get("description", "")
@@ -1118,74 +1176,40 @@ class MLXLocalClient:
             tool_block = (
                 "\n\n## TOOLS AVAILABLE\n"
                 + "\n".join(tool_lines)
-                + '\n\nTo call a tool output EXACTLY this on its own line (nothing else):\n'
+                + "\n\nIf you need a tool and the model supports native tool calling, emit the native tool-call format only.\n"
+                + "Otherwise output EXACTLY this on its own line (nothing else):\n"
                 + '```json\n{"tool": "tool_name", "args": {"param": "value"}}\n```\n'
                 + "When you have your final answer, respond normally — no JSON block."
             )
 
         augmented_system = system_prompt + tool_block
-        history = f"User: {objective}\nAura:"
+        messages: List[Dict[str, Any]] = [
+            {"role": "system", "content": augmented_system},
+            {"role": "user", "content": objective},
+        ]
         tool_calls_made: List[Dict[str, Any]] = []
-
-        _JSON_PATTERN = _re.compile(
-            r'```json\s*(\{.*?\})\s*```',
-            _re.DOTALL,
-        )
-        _INLINE_PATTERN = _re.compile(
-            r'\{"tool"\s*:\s*"[^"]+"\s*,\s*"args"\s*:\s*\{[^}]*\}\s*\}',
-            _re.DOTALL,
-        )
+        last_response_text = ""
 
         for turn in range(max_turns):
             raw = await self.generate_text_async(
-                history,
-                system_prompt=augmented_system,
+                "",
+                messages=messages,
+                tools=template_tools,
                 max_tokens=kwargs.get("max_tokens", self.max_tokens),
             )
             if not raw or not raw.strip():
                 break
 
             response_text = raw.strip()
+            last_response_text = response_text
 
-            # ── Look for a JSON tool call ──────────────────────────────
-            match = _JSON_PATTERN.search(response_text) or _INLINE_PATTERN.search(response_text)
-            if not match or not tools:
-                # No tool call — this is the final answer
+            tool_call = self._extract_tool_call_payload(response_text) if tools else None
+            if not tool_call:
                 return {
                     "content": response_text,
                     "turns": turn + 1,
                     "tool_calls": tool_calls_made,
                 }
-
-            json_str = match.group(1) if _JSON_PATTERN.search(response_text) else match.group(0)
-
-            # ── 3-strike JSON repair ──────────────────────────────────
-            tool_call = None
-            repair_history = history + f" {response_text}\n"
-            for strike in range(3):
-                try:
-                    tool_call = _json.loads(json_str)
-                    break
-                except _json.JSONDecodeError as exc:
-                    if strike == 2:
-                        logger.warning("[think_and_act] JSON repair exhausted: %s", exc)
-                        break
-                    repair_prompt = (
-                        repair_history
-                        + f"SYSTEM: Your JSON was malformed ({exc}). Output only the corrected JSON block.\nAura:"
-                    )
-                    fix_raw = await self.generate_text_async(
-                        repair_prompt,
-                        system_prompt=augmented_system,
-                        max_tokens=200,
-                    )
-                    if fix_raw:
-                        fix_match = _JSON_PATTERN.search(fix_raw) or _INLINE_PATTERN.search(fix_raw)
-                        if fix_match:
-                            json_str = fix_match.group(1) if _JSON_PATTERN.search(fix_raw) else fix_match.group(0)
-
-            if not tool_call or "tool" not in tool_call:
-                return {"content": response_text, "turns": turn + 1, "tool_calls": tool_calls_made}
 
             tool_name = tool_call.get("tool", "")
             tool_args = tool_call.get("args", {})
@@ -1202,7 +1226,7 @@ class MLXLocalClient:
                         context or {"source": "think_and_act"},
                     )
                     if isinstance(raw_result, dict):
-                        tool_result = _json.dumps(raw_result, default=str)
+                        tool_result = json.dumps(raw_result, default=str)
                     else:
                         tool_result = str(raw_result)
             except Exception as exc:
@@ -1213,15 +1237,25 @@ class MLXLocalClient:
             logger.info("[think_and_act] turn=%d tool=%s ok", turn + 1, tool_name)
 
             # ── Feed result back into history ─────────────────────────
-            history = (
-                history
-                + f" {response_text}\n"
-                + f"SYSTEM: Tool result for {tool_name}: {tool_result[:800]}\nAura:"
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": tool_name,
+                                "arguments": tool_args,
+                            }
+                        }
+                    ],
+                }
             )
+            messages.append({"role": "tool", "content": tool_result[:4000]})
 
         # Exhausted turns — return last non-empty response
         return {
-            "content": history.split("Aura:")[-1].strip() or "I ran out of reasoning steps.",
+            "content": last_response_text or "I ran out of reasoning steps.",
             "turns": max_turns,
             "tool_calls": tool_calls_made,
         }

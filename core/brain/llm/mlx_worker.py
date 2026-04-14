@@ -6,6 +6,10 @@ import time
 import os
 import multiprocessing as mp
 import threading
+import copy
+from collections import deque
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, Any
 import numpy as np
 import queue
@@ -141,7 +145,7 @@ def _setup_worker_env():
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
     os.environ["MLX_FORCE_SERIAL_COMPILE"] = "1"
-    os.environ["METAL_COMPILER_TIMEOUT_MS"] = "30000"  # 32B model needs more shader compile time
+    os.environ["METAL_COMPILER_TIMEOUT_MS"] = "60000"  # [FRONTIER UPGRADE] Extended for 32B model complex prompts
     os.environ["METAL_DEVICE_WRAPPER_TYPE"] = "0"
 
 _setup_worker_env()
@@ -155,6 +159,211 @@ def _clear_mlx_cache(mx_module: Any) -> None:
             mx_module.metal.clear_cache()
         except Exception as _exc:
             logger.debug("Suppressed Exception: %s", _exc)
+
+
+def _process_message_content(messages: list[dict[str, Any]]) -> None:
+    """Normalize content for tokenizer.apply_chat_template()."""
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        if isinstance(content, list):
+            text_fragments = [
+                fragment.get("text", "")
+                for fragment in content
+                if isinstance(fragment, dict) and fragment.get("type") == "text"
+            ]
+            if len(text_fragments) != len(content):
+                raise ValueError("Only text content fragments are supported in MLX worker chat templates.")
+            message["content"] = "".join(text_fragments)
+        elif content is None:
+            message["content"] = ""
+
+
+def _load_effective_context_window(model_path: str) -> int:
+    path = Path(str(model_path))
+    if not path.exists():
+        return 32768
+
+    config_path = path / "config.json"
+    tokenizer_config_path = path / "tokenizer_config.json"
+
+    max_position_embeddings = 0
+    sliding_window = 0
+    use_sliding_window = False
+    tokenizer_model_max = 0
+
+    try:
+        if config_path.exists():
+            config_payload = json.loads(config_path.read_text())
+            max_position_embeddings = int(config_payload.get("max_position_embeddings") or 0)
+            sliding_window = int(config_payload.get("sliding_window") or 0)
+            use_sliding_window = bool(config_payload.get("use_sliding_window"))
+    except Exception:
+        max_position_embeddings = 0
+        sliding_window = 0
+        use_sliding_window = False
+
+    try:
+        if tokenizer_config_path.exists():
+            tokenizer_payload = json.loads(tokenizer_config_path.read_text())
+            tokenizer_model_max = int(tokenizer_payload.get("model_max_length") or 0)
+    except Exception:
+        tokenizer_model_max = 0
+
+    if max_position_embeddings > 0:
+        if use_sliding_window and sliding_window > max_position_embeddings:
+            return max(sliding_window, max_position_embeddings)
+        return max_position_embeddings
+    if use_sliding_window and sliding_window > 0:
+        return sliding_window
+    if tokenizer_model_max > 0:
+        return tokenizer_model_max
+    return 32768
+
+
+@dataclass
+class _PromptCacheEntry:
+    prompt_cache: list[Any]
+    count: int
+
+
+@dataclass
+class _PromptCacheSearchResult:
+    exact: list[int] | None
+    shorter: list[int] | None
+    longer: list[int] | None
+    common_prefix: int
+
+
+class _PromptCacheLRU:
+    def __init__(self, max_size: int = 12):
+        self.max_size = max_size
+        self._cache: dict[int, dict[Any, Any]] = {}
+        self._lru = deque()
+
+    def clear(self) -> None:
+        self._cache.clear()
+        self._lru.clear()
+
+    def _search(self, model_key: int, tokens: list[int]) -> _PromptCacheSearchResult:
+        if model_key not in self._cache:
+            return _PromptCacheSearchResult(None, None, None, 0)
+
+        current = self._cache[model_key]
+        last_cache_index = -1
+        index = 0
+
+        while index < len(tokens) and tokens[index] in current:
+            current = current[tokens[index]]
+            if "cache" in current:
+                last_cache_index = index
+            index += 1
+
+        if last_cache_index == len(tokens) - 1:
+            return _PromptCacheSearchResult(tokens, None, None, 0)
+
+        shorter = tokens[: last_cache_index + 1] if last_cache_index > 0 else None
+        longer = None
+        common_prefix = index
+        if index > 0 and last_cache_index <= 0:
+            best = None
+            stack = [(current, [])]
+            while stack:
+                node, extra = stack.pop()
+                if "cache" in node:
+                    if best is None or len(extra) < len(best):
+                        best = extra
+                else:
+                    for tok in node:
+                        stack.append((node[tok], extra + [tok]))
+            if best is not None:
+                longer = tokens[:index] + best
+
+        return _PromptCacheSearchResult(None, shorter, longer, common_prefix)
+
+    def _get(self, model_key: int, tokens: list[int]) -> _PromptCacheEntry:
+        current = self._cache[model_key]
+        for tok in tokens:
+            current = current[tok]
+        return current["cache"]
+
+    def _delete(self, model_key: int, tokens: list[int]) -> None:
+        path = [self._cache[model_key]]
+        for tok in tokens:
+            path.append(path[-1][tok])
+        del path[-1]["cache"]
+        for index in reversed(range(len(tokens))):
+            prev_node, node, tok = path[index], path[index + 1], tokens[index]
+            if len(node) > 0:
+                break
+            del prev_node[tok]
+
+    def _extract(self, model_key: int, tokens: list[int]) -> _PromptCacheEntry:
+        cache_entry = self._get(model_key, tokens)
+        if cache_entry.count == 1:
+            self._delete(model_key, tokens)
+            try:
+                self._lru.remove((model_key, tuple(tokens)))
+            except ValueError:
+                pass
+            return cache_entry
+
+        cache_entry.count -= 1
+        return _PromptCacheEntry(copy.deepcopy(cache_entry.prompt_cache), 1)
+
+    def fetch_nearest_cache(
+        self,
+        model_key: int,
+        tokens: list[int],
+        *,
+        can_trim_prompt_cache: Any,
+        trim_prompt_cache: Any,
+    ) -> tuple[list[Any] | None, list[int]]:
+        result = self._search(model_key, tokens)
+        if result.exact is not None:
+            cache_entry = self._extract(model_key, result.exact)
+            return cache_entry.prompt_cache, []
+
+        if result.shorter is not None:
+            cache_entry = self._extract(model_key, result.shorter)
+            prefix_len = len(result.shorter)
+            return cache_entry.prompt_cache, tokens[prefix_len:]
+
+        if result.longer is not None:
+            cache_entry = self._get(model_key, result.longer)
+            if can_trim_prompt_cache(cache_entry.prompt_cache):
+                trimmed = _PromptCacheEntry(copy.deepcopy(cache_entry.prompt_cache), 1)
+                prefix = min(len(tokens) - 1, result.common_prefix)
+                num_to_trim = len(result.longer) - prefix
+                trim_prompt_cache(trimmed.prompt_cache, num_to_trim)
+                return trimmed.prompt_cache, tokens[prefix:]
+
+        return None, tokens
+
+    def insert_cache(self, model_key: int, tokens: list[int], prompt_cache: list[Any]) -> None:
+        if model_key not in self._cache:
+            self._cache[model_key] = {}
+        current = self._cache[model_key]
+        for tok in tokens:
+            if tok not in current:
+                current[tok] = {}
+            current = current[tok]
+
+        cache_key = (model_key, tuple(tokens))
+        if "cache" in current:
+            current["cache"].count += 1
+            try:
+                self._lru.remove(cache_key)
+            except ValueError:
+                pass
+        else:
+            current["cache"] = _PromptCacheEntry(prompt_cache, 1)
+
+        self._lru.append(cache_key)
+        if len(self._lru) > self.max_size:
+            evict_model_key, evict_tokens = self._lru.popleft()
+            self._delete(evict_model_key, list(evict_tokens))
 
 class JobWatchdog(threading.Thread):
     """
@@ -209,7 +418,7 @@ def _mlx_worker_loop(
     heartbeat = HeartbeatThread(ipc_writer)
     heartbeat.start()
 
-    watchdog = JobWatchdog(timeout=90.0)  # 32B model needs more time on complex prompts
+    watchdog = JobWatchdog(timeout=240.0)  # 128k context compilation on 32B model needs massive headroom
     watchdog.start()
 
     try:
@@ -291,7 +500,8 @@ def _mlx_worker_loop(
         err_detail = f"{e}\n{traceback.format_exc()}"
         logger.error(f"Worker Init Error: {err_detail}")
         ipc_writer.put({"status": "error", "message": f"Init failed: {e}", "detail": err_detail})
-        return
+    # ZENITH: Prompt Cache LRU for massive speedup in multi-turn
+    prompt_cache_lru = _PromptCacheLRU(max_size=12)
 
     while True:
         try:
@@ -301,6 +511,22 @@ def _mlx_worker_loop(
             action = job.get("action")
             if action == "generate":
                 prompt = job.get("prompt")
+                messages = job.get("messages")
+                tools = job.get("tools")
+                
+                # [FRONTIER UPGRADE] Native Tool Templates
+                if messages and hasattr(tokenizer, "apply_chat_template"):
+                    try:
+                        logger.info("🎯 [WORKER] Rendering native chat/tool template.")
+                        prompt = tokenizer.apply_chat_template(
+                            messages, 
+                            tools=tools, 
+                            add_generation_prompt=True, 
+                            tokenize=False
+                        )
+                    except Exception as e:
+                        logger.warning(f"❌ [WORKER] Native template compilation failed: {e}")
+
                 temp = job.get("temp", 0.7)
                 top_p = job.get("top_p", 0.9)
                 max_tokens = job.get("max_tokens", 512)
@@ -382,19 +608,43 @@ def _mlx_worker_loop(
                             try:
                                 current_response = ""
                                 token_count = 0
-                                for response in stream_generate(model, tokenizer, prompt=prompt, **kwargs):
+                                
+                                # [FRONTIER UPGRADE] KV Prompt Caching Injection
+                                tokens = tokenizer.encode(prompt)
+                                import mlx_lm.utils as u
+                                
+                                def _can_trim(pc): return hasattr(u, "trim_prompt_cache")
+                                def _do_trim(pc, num): 
+                                    if hasattr(u, "trim_prompt_cache"): u.trim_prompt_cache(pc, num)
+                                
+                                model_key = id(model)
+                                cache, remaining_tokens = prompt_cache_lru.fetch_nearest_cache(
+                                    model_key, tokens, 
+                                    can_trim_prompt_cache=_can_trim, 
+                                    trim_prompt_cache=_do_trim
+                                )
+                                
+                                gen_prompt = remaining_tokens if cache is not None else prompt
+                                if cache is not None:
+                                    kwargs["prompt_cache"] = cache
+
+                                # Execute 
+                                for response in stream_generate(model, tokenizer, prompt=gen_prompt, **kwargs):
                                     watchdog.activity()
                                     token_count += 1
+                                    
+                                    # Snag the prompt cache from the response if supported to save for next turn
+                                    if hasattr(response, "prompt_cache") and response.prompt_cache is not None:
+                                        prompt_cache_lru.insert_cache(model_key, tokens + [response.token], response.prompt_cache)
+                                    
                                     current_response += response.text
                                     current_response = _strip_leading_chatml_prefix(current_response)
                                     
-                                    # [AURA HARDENING] Prevent VRAM fragmentation
-                                    if token_count % 10 == 0:
-                                        _clear_mlx_cache(mx)
+                                    # Let MLX manage VRAM dynamically inline without manual clears
                                     
-                                    # [AURA HARDENING] Absolute safety cap for local models
-                                    if token_count > 2048:
-                                        logger.warning("🏁 [WORKER] Hard token limit (2048) reached. Truncating.")
+                                    # [FRONTIER UPGRADE] Absolute safety cap expanded so it never stops midway
+                                    if token_count > 8192:
+                                        logger.warning("🏁 [WORKER] Hard token limit (8192) reached. Truncating.")
                                         break
 
                                     stop_hit = False
@@ -482,9 +732,9 @@ def _mlx_worker_loop(
                                 if token_count % 10 == 0:
                                     _clear_mlx_cache(mx)
                                 
-                                # [AURA HARDENING] Absolute safety cap for local models
-                                if token_count > 1024:
-                                    logger.warning("🏁 [WORKER] Hard token limit (1024) reached. Truncating.")
+                                # [FRONTIER UPGRADE] Absolute safety cap natively expanded to frontier levels
+                                if token_count > 8192:
+                                    logger.warning("🏁 [WORKER] Hard token limit (8192) reached. Truncating.")
                                     break
 
                                 stop_hit = False
