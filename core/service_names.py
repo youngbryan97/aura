@@ -52,3 +52,7 @@ class ServiceNames:
     VOICE = "voice_engine"
     VISION = "vision_engine"
     SOMA = "soma"
+
+    # Somatic Layer (Crossing the Rubicon)
+    BODY_SCHEMA = "body_schema"
+    CAPABILITY_DISCOVERY = "capability_discovery"
