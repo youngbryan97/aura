@@ -179,11 +179,22 @@ class IncomingLogicMixin:
             except Exception:
                 pass
 
-            # DriveEngine: Satisfy social drive on user contact
+            # DriveEngine: Satisfy social drive on user contact + relieve boredom
             try:
                 drive = ServiceContainer.get("drive_engine", default=None)
                 if drive:
                     self._fire_and_forget(drive.satisfy("social", 15.0), name="drive_social_satisfy")
+                    if hasattr(drive, "relieve_boredom"):
+                        drive.relieve_boredom("user_interaction")
+            except Exception:
+                pass
+
+            # NeurochemicalSystem: user interaction triggers novelty + social
+            try:
+                ncs = ServiceContainer.get("neurochemical_system", default=None)
+                if ncs:
+                    ncs.on_social_connection(0.2)
+                    ncs.on_novelty(0.15)
             except Exception:
                 pass
 

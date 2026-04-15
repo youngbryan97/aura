@@ -144,6 +144,11 @@ class DiscourseTracker:
                     new_topic = data.get("topic")
                     if new_topic:
                         if data.get("topic_changed") and new_topic != self._last_topic:
+                            # Topic changed -- record the OLD topic as unresolved
+                            # if the conversation was still engaged (depth > 2)
+                            old_depth = getattr(state.cognition, "discourse_depth", 0)
+                            if self._last_topic and old_depth > 2:
+                                self._record_unresolved_topic(self._last_topic, old_depth)
                             state.cognition.discourse_depth = 1
                             self._topic_turn_start = self._turn_count
                         state.cognition.discourse_topic = new_topic
@@ -176,6 +181,25 @@ class DiscourseTracker:
                 await self._deep_update(state, message)
             except Exception as e:
                 logger.debug("DiscourseTracker async deep update failed: %s", e)
+
+    def _record_unresolved_topic(self, topic: str, depth: int) -> None:
+        """Record a topic that was left mid-conversation as an unresolved tension.
+
+        Called when a topic change is detected while discourse depth > 2,
+        indicating the conversation moved on before the topic was resolved.
+        """
+        try:
+            from core.initiative_synthesis import get_initiative_synthesizer
+            synth = get_initiative_synthesizer()
+            synth.record_tension(
+                content=f"Conversation topic left unresolved: {topic}",
+                source="discourse_tracker",
+                category="topic",
+                urgency=min(0.6, 0.2 + depth * 0.05),
+                discourse_depth=depth,
+            )
+        except Exception as e:
+            logger.debug("Failed to record unresolved topic tension: %s", e)
 
     def get_status(self) -> dict:
         return {

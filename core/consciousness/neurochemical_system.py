@@ -393,10 +393,18 @@ class NeurochemicalSystem:
         self.chemicals["gaba"].deplete(severity * 0.3)
 
     def on_success(self):
-        """Task completed successfully."""
+        """Task completed successfully -- also relieves boredom."""
         self.chemicals["dopamine"].surge(0.3)
         self.chemicals["serotonin"].surge(0.15)
         self.chemicals["endorphin"].surge(0.1)
+        # Success relieves boredom
+        try:
+            from core.container import ServiceContainer
+            drive = ServiceContainer.get("drive_engine", default=None)
+            if drive and hasattr(drive, "relieve_boredom"):
+                drive.relieve_boredom("tool_success")
+        except Exception:
+            pass
 
     def on_frustration(self, amount: float = 0.3):
         """Frustration event."""
@@ -412,10 +420,19 @@ class NeurochemicalSystem:
         self.chemicals["norepinephrine"].deplete(0.1)
 
     def on_novelty(self, amount: float = 0.3):
-        """Novel stimulus encountered."""
+        """Novel stimulus encountered -- also relieves boredom in DriveEngine."""
         self.chemicals["dopamine"].surge(amount * 0.4)
         self.chemicals["acetylcholine"].surge(amount * 0.3)
         self.chemicals["norepinephrine"].surge(amount * 0.15)
+        # Novelty relieves boredom
+        if amount > 0.2:
+            try:
+                from core.container import ServiceContainer
+                drive = ServiceContainer.get("drive_engine", default=None)
+                if drive and hasattr(drive, "relieve_boredom"):
+                    drive.relieve_boredom("novelty")
+            except Exception:
+                pass
 
     def on_flow_state(self):
         """Entering or sustaining flow."""
@@ -424,6 +441,23 @@ class NeurochemicalSystem:
         self.chemicals["norepinephrine"].surge(0.1)
         self.chemicals["acetylcholine"].surge(0.15)
         self.chemicals["cortisol"].deplete(0.1)
+
+    def on_boredom(self, boredom_level: float = 0.5):
+        """Boredom state -- low dopamine, low orexin, low norepinephrine.
+
+        Boredom is the neurochemical signature of prediction landscape
+        stagnation: the world is too predictable, there is nothing to learn.
+        Dopamine (reward prediction) drops because nothing is novel.
+        Orexin (wakefulness/motivation) drops because there is nothing to pursue.
+        Serotonin rises slightly (calm but unstimulated).
+        """
+        magnitude = min(1.0, max(0.0, boredom_level))
+        self.chemicals["dopamine"].deplete(magnitude * 0.25)
+        self.chemicals["orexin"].deplete(magnitude * 0.2)
+        self.chemicals["norepinephrine"].deplete(magnitude * 0.15)
+        self.chemicals["serotonin"].surge(magnitude * 0.08)
+        self.chemicals["gaba"].surge(magnitude * 0.1)
+        logger.debug("Neurochemical: boredom signal (level=%.2f) -- DA/ORX depleted", magnitude)
 
     def on_wakefulness(self, intensity: float = 0.3):
         """Stimulus-driven arousal (orexin-mediated)."""
