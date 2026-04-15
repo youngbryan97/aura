@@ -366,6 +366,12 @@ class AutonomyMixin:
             now = time.time()
             boredom = now - (self._last_thought_time or self.status.start_time or now)
             logger.debug("🧠 Autonomous thought triggered (boredom=%.1fs idle)", boredom)
+            emitter.emit(
+                "Autonomous Drift",
+                f"Idle for {boredom:.0f}s. Scanning goals, loose threads, and internal pressure.",
+                level="info",
+                category="Autonomy",
+            )
 
             # 2. Check Goal Hierarchy (Priority 1)
             next_goal = None
@@ -500,6 +506,14 @@ class AutonomyMixin:
                     await self.drives.satisfy("thinking", 0.05)
                 except Exception as e:
                     capture_and_log(e, {'module': __name__})
+
+            emitter.emit(
+                "Autonomous Drift",
+                "No sharp impulse crystallized. Letting the mind wander, cool off, and keep incubating.",
+                level="info",
+                category="Autonomy",
+            )
+            self._last_thought_time = time.time()
         except Exception as e:
             logger.error("Autonomous thought failed: %s", e)
             # Don't crash the loop

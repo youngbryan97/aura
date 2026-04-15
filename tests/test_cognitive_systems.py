@@ -472,6 +472,39 @@ class TestBrowserURLRouting:
         )
         assert "query" in params
 
+    def test_visible_desktop_tab_request_routes_to_computer_use(self):
+        """Visible browser-tab requests should use desktop control, not headless browsing."""
+        from core.kernel.upgrades_10x import GodModeToolPhase
+
+        chosen = GodModeToolPhase._choose_best_skill(
+            "Can you open a tab on my computer and search \"aliens\"?",
+            ["sovereign_browser"],
+        )
+
+        assert chosen == "computer_use"
+
+    def test_visible_desktop_tab_request_opens_search_url(self):
+        """GodMode should produce concrete open_url params without relying on LLM extraction."""
+        from core.kernel.upgrades_10x import GodModeToolPhase
+
+        params = GodModeToolPhase._normalize_skill_params(
+            "computer_use",
+            "Can you open a tab on my computer and search “aliens”?",
+            {"action": "type", "target": "wrong"},
+        )
+
+        assert params["action"] == "open_url"
+        assert params["target"] == "https://duckduckgo.com/?q=aliens"
+
+    def test_capability_engine_detects_visible_desktop_tab_request(self):
+        from core.capability_engine import CapabilityEngine
+
+        engine = CapabilityEngine()
+
+        assert "computer_use" in engine.detect_intent(
+            "Can you open a tab on my computer and search aliens?"
+        )
+
     def test_reddit_url_detected(self):
         """Reddit URLs should route to browse, not search."""
         from core.kernel.upgrades_10x import GodModeToolPhase

@@ -157,6 +157,36 @@ async def test_unitary_response_uses_direct_clock_skill_reply_without_llm(monkey
 
 
 @pytest.mark.asyncio
+async def test_unitary_response_uses_direct_computer_use_reply_without_llm(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Can you open a tab on my computer and search aliens?"
+    state.response_modifiers["matched_skills"] = ["computer_use"]
+    state.response_modifiers["last_skill_run"] = "computer_use"
+    state.response_modifiers["last_skill_ok"] = True
+    state.response_modifiers["last_skill_result_payload"] = {
+        "ok": True,
+        "summary": "I opened a browser tab for https://duckduckgo.com/?q=aliens.",
+        "action": "open_url",
+        "url": "https://duckduckgo.com/?q=aliens",
+    }
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="I should not be called."))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    llm.think.assert_not_awaited()
+    assert new_state.cognition.last_response == "I opened a browser tab for https://duckduckgo.com/?q=aliens."
+
+
+@pytest.mark.asyncio
 async def test_unitary_response_injects_engineering_guidance_for_coding_turns(monkeypatch):
     state = AuraState()
     state.cognition.current_origin = "api"

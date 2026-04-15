@@ -67,6 +67,8 @@ class UnitaryResponsePhase(Phase):
             return ""
         try:
             cap = ServiceContainer.get("capability_engine", default=None)
+            if cap and hasattr(cap, "resolve_skill_name"):
+                return str(cap.resolve_skill_name(normalized))
             aliases = getattr(cap, "SKILL_ALIASES", {}) or {}
             return str(aliases.get(normalized, normalized))
         except Exception:
@@ -116,7 +118,7 @@ class UnitaryResponsePhase(Phase):
 
         if (
             bool(cls._response_contract_attr(contract, "requires_search", False))
-            and resolved_skill in {"web_search", "sovereign_browser"}
+            and resolved_skill in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}
         ):
             return True
 
@@ -1280,7 +1282,7 @@ class UnitaryResponsePhase(Phase):
             return ""
         # ZENITH FIX: Do not short-circuit sovereign_browser. 
         # Browser results should always be synthesized by the LLM.
-        for skill_name in ("web_search",):
+        for skill_name in ("web_search", "search_web", "free_search", "grounded_search"):
             cached = cls._cached_grounded_tool_result(state, skill_name=skill_name)
             if not cached:
                 wm = list(getattr(getattr(state, "cognition", None), "working_memory", []) or [])
@@ -1363,6 +1365,22 @@ class UnitaryResponsePhase(Phase):
             message = cls._normalize_text(payload.get("message", ""), 240)
             return summary or message
 
+        if skill == "computer_use":
+            if summary:
+                return summary
+            action = cls._normalize_text(payload.get("action", ""), 80)
+            url = cls._normalize_text(payload.get("url", ""), 300)
+            opened = cls._normalize_text(payload.get("opened", ""), 160)
+            if action == "open_url" and url:
+                return f"I opened a browser tab for {url}."
+            if opened:
+                return f"I opened {opened}."
+            result = cls._normalize_text(payload.get("result", ""), 240)
+            return result
+
+        if skill == "os_manipulation":
+            return summary or cls._normalize_text(payload.get("result", ""), 240)
+
         if skill == "toggle_senses":
             return summary
 
@@ -1382,7 +1400,15 @@ class UnitaryResponsePhase(Phase):
         skill_name = str(modifiers.get("last_skill_run", "") or "").strip()
         if not skill_name or not modifiers.get("last_skill_ok"):
             return ""
-        if skill_name not in {"clock", "environment_info", "memory_ops", "system_proprioception", "toggle_senses"}:
+        if skill_name not in {
+            "clock",
+            "environment_info",
+            "memory_ops",
+            "system_proprioception",
+            "toggle_senses",
+            "computer_use",
+            "os_manipulation",
+        }:
             return ""
         if not cls._current_turn_targets_skill(state, objective, skill_name, contract=contract):
             return ""

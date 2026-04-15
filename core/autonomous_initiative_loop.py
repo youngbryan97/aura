@@ -15,11 +15,22 @@ logger = logging.getLogger("Aura.Initiative")
 def _background_initiative_allowed(orchestrator=None) -> bool:
     return background_activity_allowed(
         orchestrator,
-        min_idle_seconds=900.0,
+        min_idle_seconds=300.0,
         max_memory_percent=80.0,
         max_failure_pressure=0.12,
         require_conversation_ready=True,
     )
+
+
+def _self_development_allowed(orchestrator=None) -> bool:
+    return background_activity_allowed(
+        orchestrator,
+        min_idle_seconds=240.0,
+        max_memory_percent=82.0,
+        max_failure_pressure=0.15,
+        require_conversation_ready=False,
+    )
+
 
 class AutonomousInitiativeLoop:
     """
@@ -47,6 +58,8 @@ class AutonomousInitiativeLoop:
         self._world_task = None
         self._knowledge_task = None
         self._event_task = None
+        self._self_dev_task = None
+        self._last_self_dev = 0.0
 
     async def start(self):
         """Starts the initiative loops (tracked via task_tracker)."""
@@ -60,6 +73,10 @@ class AutonomousInitiativeLoop:
         self._knowledge_task = task_tracker.create_task(
             self._knowledge_gap_monitor_loop(),
             name="KnowledgeGapMonitor"
+        )
+        self._self_dev_task = task_tracker.create_task(
+            self._self_development_loop(),
+            name="SelfDevelopmentLoop",
         )
 
         # Subscribe to proactive initiations from Fictional Engine
@@ -78,10 +95,24 @@ class AutonomousInitiativeLoop:
 
     async def stop(self):
         self.running = False
-        for task in (self._world_task, self._knowledge_task, self._event_task):
+        for task in (self._world_task, self._knowledge_task, self._event_task, self._self_dev_task):
             if task and not task.done():
                 task.cancel()
         logger.info("AutonomousInitiativeLoop stopped.")
+
+    @staticmethod
+    def _emit_feed(title: str, content: str, *, category: str) -> None:
+        try:
+            from core.thought_stream import get_emitter
+
+            get_emitter().emit(
+                title,
+                content,
+                level="info",
+                category=category,
+            )
+        except Exception as exc:
+            logger.debug("Feed emit failed for %s: %s", title, exc)
 
     async def _event_listener_loop(self, queue: asyncio.Queue):
         while self.running:
@@ -190,6 +221,144 @@ class AutonomousInitiativeLoop:
                 logger.debug(f"Knowledge gap monitor loop error: {e}")
                 
             await asyncio.sleep(30) # Check every 30s
+
+    async def _self_development_loop(self):
+        """Keep a visible self-improvement lane alive during idle windows."""
+        while self.running:
+            try:
+                if not _self_development_allowed(self.orchestrator):
+                    await asyncio.sleep(30)
+                    continue
+
+                now = time.time()
+                if now - self._last_self_dev < 420.0:
+                    await asyncio.sleep(30)
+                    continue
+
+                await self._run_self_development_cycle()
+                self._last_self_dev = time.time()
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.debug("Self-development loop transient error: %s", exc)
+
+            await asyncio.sleep(45)
+
+    async def _run_self_development_cycle(self):
+        capability_engine = optional_service("capability_engine", default=None)
+        if not capability_engine:
+            self._emit_feed(
+                "Self-Development",
+                "Capability engine unavailable. Skipping this improvement pass.",
+                category="SelfDev",
+            )
+            return
+
+        scan_context = {
+            "origin": "autonomous_initiative_loop",
+            "objective": "Autonomous self-development scan",
+        }
+        self._emit_feed(
+            "Self-Development",
+            "Running a quiet codebase scan for complexity, TODOs, and repair opportunities.",
+            category="SelfDev",
+        )
+
+        scan_result = await capability_engine.execute(
+            "auto_refactor",
+            {"path": ".", "run_tests": False},
+            context=scan_context,
+        )
+        if not scan_result.get("ok"):
+            self._emit_feed(
+                "Self-Development",
+                f"Scan stalled: {scan_result.get('error', 'unknown error')}",
+                category="SelfDev",
+            )
+            return
+
+        issues = list(scan_result.get("top_issues") or [])
+        issues_found = int(scan_result.get("issues_found", len(issues)) or len(issues))
+        if not issues:
+            self._emit_feed(
+                "Self-Development",
+                f"Scan completed cleanly. No urgent refactor targets surfaced in this pass ({issues_found} total findings).",
+                category="SelfDev",
+            )
+            return
+
+        top_issue = issues[0]
+        file_name = str(top_issue.get("file") or "unknown file")
+        issue_message = str(top_issue.get("message") or "improvement opportunity")
+        objective = (
+            f"Draft a safe improvement proposal for {file_name}: {issue_message}. "
+            "Prefer a low-risk patch or refactor plan."
+        )
+        self._emit_feed(
+            "Self-Development",
+            f"Top opportunity: {issue_message} ({file_name}). Generating sandbox tests and an improvement artifact.",
+            category="SelfDev",
+        )
+
+        test_result = await capability_engine.execute(
+            "test_generator",
+            {"target_file": file_name},
+            context={
+                "origin": "autonomous_initiative_loop",
+                "objective": f"Generate sandbox tests for {file_name}",
+                "brain": getattr(self.orchestrator, "cognitive_engine", None),
+            },
+        )
+        if test_result.get("ok"):
+            self._emit_feed(
+                "Self-Development",
+                f"Sandbox tests generated and passed for {file_name}.",
+                category="SelfDev",
+            )
+        else:
+            error_text = str(test_result.get("error") or test_result.get("output") or "sandbox test generation failed")
+            self._emit_feed(
+                "Self-Development",
+                f"Sandbox test pass on {file_name} surfaced friction: {error_text[:220]}",
+                category="SelfDev",
+            )
+            objective = (
+                f"Use the latest sandbox test findings to draft a safe improvement plan for {file_name}. "
+                f"Issue: {issue_message}. Test feedback: {error_text[:400]}"
+            )
+
+        proposal_context = {
+            "origin": "autonomous_initiative_loop",
+            "objective": objective,
+            "brain": getattr(self.orchestrator, "cognitive_engine", None),
+            "proprioception": {
+                "memory_percent": float(psutil.virtual_memory().percent or 0.0),
+            },
+        }
+        proposal_result = await capability_engine.execute(
+            "self_evolution",
+            {
+                "action": "propose",
+                "objective": objective,
+                "files": [file_name],
+            },
+            context=proposal_context,
+        )
+        if proposal_result.get("ok"):
+            proposal_path = str(proposal_result.get("proposal_path") or "").strip()
+            location = f" Saved to {proposal_path}." if proposal_path else ""
+            self._emit_feed(
+                "Self-Development",
+                f"Improvement proposal drafted for {file_name}.{location}",
+                category="SelfDev",
+            )
+            return
+
+        self._emit_feed(
+            "Self-Development",
+            f"Proposal pass was blocked or failed: {proposal_result.get('error', 'unknown error')}",
+            category="SelfDev",
+        )
 
     async def trigger_gap_search(self, topic: str):
         """Explicitly triggered when a gap is found."""

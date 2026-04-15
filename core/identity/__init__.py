@@ -131,8 +131,11 @@ class IdentityCore:
             subconscious = ""
             if self.orchestrator and hasattr(self.orchestrator, 'capability_engine'):
                 dormant = self.orchestrator.capability_engine.get_dormant_index()
-                subconscious = f"\n--- SUBCONSCIOUS INDEX (Dormant Capabilities) ---\n{dormant}\n"
-                subconscious += "NOTE: Use 'ManageAbilities' to activate any of the above tools if they are required for your objective.\n"
+                if dormant and dormant != "None":
+                    subconscious = f"\n--- SUBCONSCIOUS INDEX (Dormant Capabilities) ---\n{dormant}\n"
+                    subconscious += "NOTE: Use 'ManageAbilities' only if you intentionally need to reactivate one of the dormant tools above.\n"
+                else:
+                    subconscious = "\n--- SUBCONSCIOUS INDEX ---\nAll registered capabilities are awake right now.\n"
 
             directive += monologue
             directive += subconscious

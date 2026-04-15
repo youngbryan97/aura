@@ -70,6 +70,31 @@ _SEARCH_WITH_TARGET_RE = re.compile(
 )
 
 
+def _humanize_skill_name(name: str) -> str:
+    raw = str(name or "").strip()
+    if not raw:
+        return ""
+    split_camel = re.sub(r"(?<!^)(?=[A-Z])", " ", raw)
+    return re.sub(r"\s+", " ", split_camel.replace("_", " ")).strip().lower()
+
+
+def _generic_skill_invocation_patterns(name: str) -> List[str]:
+    variants = {
+        str(name or "").strip().lower(),
+        _humanize_skill_name(name),
+    }
+    patterns: List[str] = []
+    for variant in sorted(part for part in variants if part):
+        escaped = re.escape(variant).replace(r"\ ", r"\s+")
+        patterns.extend(
+            [
+                rf"\b{escaped}\b",
+                rf"(?:use|run|call|invoke)\s+{escaped}\b",
+            ]
+        )
+    return patterns
+
+
 def _skill_class_name(name: str) -> str:
     """Convert `snake_case` skill ids into their exported class names."""
     return "".join(part.capitalize() for part in name.split("_")) + "Skill"
@@ -336,7 +361,9 @@ class CapabilityEngine(AuraBaseModule):
                 r"click (?:on|the)", r"type (?:in|into|this)", r"press (?:the |key )?(?:enter|tab|escape|ctrl|cmd)",
                 r"scroll (?:down|up|to)", r"drag (?:and drop)?", r"right.?click",
                 r"double.?click", r"keyboard shortcut",
-                r"open (?:application|app|program|window)",
+                r"open (?:application|app|program|window|tab)",
+                r"open (?:a |the )?(?:browser )?tab .*search",
+                r"open .* on my computer",
                 r"take (?:a )?screenshot",
                 r"(?:move|position) (?:the )?(?:cursor|mouse)",
             ],
@@ -366,25 +393,23 @@ class CapabilityEngine(AuraBaseModule):
                 r"append (?:to )?(?:the )?file",
             ],
             # ── Memory / Knowledge ───────────────────────────────────
-            "memory_recall": [
+            "memory_ops": [
                 r"remember", r"recall", r"last time",
                 r"what did we talk about", r"what do you know about",
                 r"from (?:our |the )?(?:last|previous|past) (?:conversation|chat|session)",
                 r"did I (?:mention|tell you|say)", r"our history",
-            ],
-            "memory_ops": [
                 r"save (?:this |that )?(?:to|in) memory", r"remember (?:this|that)",
                 r"store (?:this|that)", r"commit (?:this|that) to memory",
                 r"don't forget", r"make note of",
             ],
             # ── Code / Compute ────────────────────────────────────────
-            "code_execute": [
+            "run_code": [
                 r"calculate", r"run (?:this )?code", r"math(?:ematics)?",
                 r"compute", r"evaluate (?:this )?(?:expression|code|formula)",
                 r"what is \d+", r"solve (?:this )?(?:equation|problem|formula)",
                 r"execute (?:this )?(?:code|script|python|javascript)",
             ],
-            "active_coding": [
+            "coding_skill": [
                 r"write (?:a |the )?(?:function|class|script|program|module|code)",
                 r"implement (?:this|a|the)", r"create (?:a |the )?(?:function|class|script|program)",
                 r"code (?:up|this)", r"program (?:this|a)",
@@ -402,11 +427,6 @@ class CapabilityEngine(AuraBaseModule):
                 r"speech to text",
             ],
             # ── Self / Identity ───────────────────────────────────────
-            "self_modify": [
-                r"improve (?:your|yourself)", r"fix your (?:code|bug|error)",
-                r"refactor (?:your|yourself)", r"update (?:your|yourself)",
-                r"self.?improv", r"optimize (?:your|yourself)",
-            ],
             "self_repair": [
                 r"repair (?:yourself|your code)", r"heal (?:yourself|your code)",
                 r"fix (?:the )?bug", r"debug (?:yourself|your code)",
@@ -418,12 +438,12 @@ class CapabilityEngine(AuraBaseModule):
                 r"self.?learn", r"train (?:yourself|on this)",
             ],
             # ── Screen / Vision ───────────────────────────────────────
-            "visual_context": [
+            "query_visual_context": [
                 r"what(?:'s| is) on (?:my |the )?screen", r"look at (?:this|my screen)",
                 r"camera feed", r"read (?:the )?screen", r"what do you see",
                 r"describe (?:what(?:'s| is)|the screen|this image)",
             ],
-            "vision_actor": [
+            "sovereign_vision": [
                 r"use (?:the )?(?:camera|vision)", r"computer vision",
                 r"analyze (?:this )?(?:image|screenshot|photo)",
                 r"read (?:this )?(?:image|screenshot|photo)",
@@ -433,11 +453,6 @@ class CapabilityEngine(AuraBaseModule):
                 r"explore (?:this|that|the topic|further)", r"dig deeper",
                 r"I(?:'m| am) curious", r"what more", r"tell me more about",
                 r"investigate", r"research (?:this|that)",
-            ],
-            "dream_skill": [
-                r"dream (?:about|of)", r"imagine (?:a world|a scenario|yourself)",
-                r"creative (?:visualization|imagining|dreaming)",
-                r"what if (?:you|we|I) (?:could|were|had)",
             ],
             # ── Image Generation ──────────────────────────────────────
             "sovereign_imagination": [
@@ -466,6 +481,10 @@ class CapabilityEngine(AuraBaseModule):
                 r"timer for", r"remind me (?:in|at|to)",
             ],
             "memory_ops": [
+                r"remember", r"recall", r"last time",
+                r"what did we talk about", r"what do you know about",
+                r"from (?:our |the )?(?:last|previous|past) (?:conversation|chat|session)",
+                r"did I (?:mention|tell you|say)", r"our history",
                 r"remember .*future session",
                 r"remember .*later",
                 r"remember .*about me",
@@ -497,7 +516,7 @@ class CapabilityEngine(AuraBaseModule):
                 r"call (?:the )?(?:api|endpoint|service)",
             ],
             # ── Misc ─────────────────────────────────────────────────
-            "sleep": [
+            "dream_sleep": [
                 r"go to sleep", r"sleep (?:mode|now)", r"rest (?:now|mode)",
                 r"take a (?:break|nap)", r"go dormant",
             ],
@@ -505,7 +524,7 @@ class CapabilityEngine(AuraBaseModule):
                 r"install (?:package|library|module|dependency)",
                 r"pip install", r"npm install", r"brew install",
             ],
-            "manage_abilities": [
+            "ManageAbilities": [
                 r"(?:enable|disable|toggle) (?:skill|ability|feature|capability)",
                 r"turn (?:on|off) (?:your )?(?:skill|ability|feature)",
                 r"what (?:skills|abilities|capabilities) (?:do you have|can you use)",
@@ -516,6 +535,11 @@ class CapabilityEngine(AuraBaseModule):
             if name in self.skills:
                 self.skills[name].trigger_patterns.extend(pats)
 
+        for name, meta in self.skills.items():
+            for pattern in _generic_skill_invocation_patterns(name):
+                if pattern not in meta.trigger_patterns:
+                    meta.trigger_patterns.append(pattern)
+
     def detect_intent(self, message: str) -> List[str]:
         """Aura's 'Cognitive Proprioception': Detects which skills match the user's intent."""
         triggered = []
@@ -523,8 +547,8 @@ class CapabilityEngine(AuraBaseModule):
         skip_web_search = self._looks_like_search_capability_question(message)
         for name, meta in self.skills.items():
             if not meta.enabled: continue
-            canonical_name = self.SKILL_ALIASES.get(name, name)
-            if skip_web_search and canonical_name in {"web_search", "free_search", "sovereign_browser"}:
+            canonical_name = self.resolve_skill_name(name)
+            if skip_web_search and canonical_name in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
                 continue
             for pattern in meta.trigger_patterns:
                 if re.search(pattern, msg):
@@ -562,30 +586,31 @@ class CapabilityEngine(AuraBaseModule):
         objective_text = str(objective or "").strip()
         objective_lower = objective_text.lower()
         skip_web_search = self._looks_like_search_capability_question(objective_text)
-        required = self.SKILL_ALIASES.get(required_skill, required_skill) if required_skill else None
-        if skip_web_search and required in {"web_search", "search_web", "free_search", "sovereign_browser"}:
+        required = self.resolve_skill_name(required_skill) if required_skill else None
+        if skip_web_search and required in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
             required = None
         matched = [
-            self.SKILL_ALIASES.get(name, name)
+            self.resolve_skill_name(name)
             for name in (self.detect_intent(objective_text) if objective_text else [])
             if not (
                 skip_web_search
-                and self.SKILL_ALIASES.get(name, name) in {"web_search", "free_search", "sovereign_browser"}
+                and self.resolve_skill_name(name) in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}
             )
         ]
 
         heuristic_candidates: List[str] = []
         heuristic_rules = (
-            (("latest", "news", "price", "search", "look up", "find online"), ("web_search", "search_web", "free_search")),
+            (("latest", "news", "price", "search", "look up", "find online"), ("web_search", "search_web", "free_search", "grounded_search")),
             (("remember", "recall", "memory", "future sessions"), ("memory_ops", "memory_sync")),
             (("time", "clock", "date"), ("clock",)),
             (("browser", "website", "navigate", "open url", "webpage"), ("sovereign_browser",)),
+            (("open tab", "new tab", "on my computer", "on my screen"), ("computer_use", "os_manipulation")),
             (("terminal", "shell", "command", "cli"), ("sovereign_terminal", "computer_use")),
             (("click", "type", "screen", "desktop", "mouse", "keyboard"), ("computer_use", "os_manipulation")),
             (("file", "directory", "folder", "read file", "write file", "repo", "code"), ("file_operation", "computer_use")),
         )
         for tokens, names in heuristic_rules:
-            if skip_web_search and any(name in {"web_search", "search_web", "free_search"} for name in names):
+            if skip_web_search and any(name in {"web_search", "search_web", "free_search", "grounded_search"} for name in names):
                 continue
             if any(token in objective_lower for token in tokens):
                 heuristic_candidates.extend(names)
@@ -595,7 +620,7 @@ class CapabilityEngine(AuraBaseModule):
         def _push(name: Optional[str]) -> None:
             if not name:
                 return
-            resolved = self.SKILL_ALIASES.get(name, name)
+            resolved = self.resolve_skill_name(name)
             if resolved in by_name and resolved not in ordered:
                 ordered.append(resolved)
 
@@ -829,6 +854,30 @@ class CapabilityEngine(AuraBaseModule):
         """Returns a list of all registered skill names."""
         return list(self.skills.keys())
 
+    def resolve_skill_name(self, skill_name: Any) -> str:
+        """Resolve a requested skill without collapsing real registered skills."""
+        raw = str(skill_name or "").strip()
+        if not raw:
+            return ""
+
+        if raw in self.skills:
+            return raw
+
+        lowered = raw.lower()
+        casefolded = {name.lower(): name for name in self.skills}
+        if lowered in casefolded:
+            return casefolded[lowered]
+
+        alias_target = self.SKILL_ALIASES.get(raw, self.SKILL_ALIASES.get(lowered, raw))
+        if alias_target in self.skills:
+            return alias_target
+
+        alias_lowered = str(alias_target or "").lower()
+        if alias_lowered in casefolded:
+            return casefolded[alias_lowered]
+
+        return raw
+
     def _route_class_for(self, meta: SkillMetadata) -> str:
         target = meta.instance or meta.skill_class
         if target is None:
@@ -944,6 +993,23 @@ class CapabilityEngine(AuraBaseModule):
         )
         return catalog
 
+    def get_catalog(self, *, include_inactive: bool = True) -> Dict[str, Dict[str, Any]]:
+        """Legacy compatibility wrapper expected by older response guards."""
+        catalog: Dict[str, Dict[str, Any]] = {}
+        for tool in self.get_tool_catalog(include_inactive=include_inactive):
+            name = str(tool.get("name") or "")
+            if not name:
+                continue
+            catalog[name] = {
+                "status": "unavailable" if not bool(tool.get("available")) else str(tool.get("state") or "ready").lower(),
+                "available": bool(tool.get("available")),
+                "availability_reason": tool.get("availability_reason"),
+                "policy_state": tool.get("policy_state"),
+                "route_class": tool.get("route_class"),
+                "risk_class": tool.get("risk_class"),
+            }
+        return catalog
+
     def build_tool_affordance_block(
         self,
         *,
@@ -978,7 +1044,7 @@ class CapabilityEngine(AuraBaseModule):
 
     def get(self, skill_name: str) -> Optional[SkillMetadata]:
         """Retrieves metadata for a specific skill (resolves aliases)."""
-        skill_name = self.SKILL_ALIASES.get(skill_name, skill_name)
+        skill_name = self.resolve_skill_name(skill_name)
         return self.skills.get(skill_name)
 
     def get_tool_definitions(self) -> List[Dict[str, Any]]:
@@ -1046,6 +1112,7 @@ class CapabilityEngine(AuraBaseModule):
 
     def activate_skill(self, name: str) -> bool:
         """Wakes up a dormant skill."""
+        name = self.resolve_skill_name(name)
         if name in self.skills:
             self._explicitly_deactivated_skills.discard(name)
             self.active_skills.add(name)
@@ -1056,6 +1123,7 @@ class CapabilityEngine(AuraBaseModule):
     def deactivate_skill(self, name: str) -> bool:
         """Puts a skill back to sleep. All skills are active by default — deactivation
         is only allowed for explicit user request or metabolic emergency."""
+        name = self.resolve_skill_name(name)
         # Never sleep core tools under any circumstance
         NEVER_SLEEP = {
             "ManageAbilities", "talk", "FinalResponse", "web_search", "sovereign_browser",
@@ -1222,9 +1290,7 @@ class CapabilityEngine(AuraBaseModule):
 
     # Skill name aliases — maps legacy/alternate names to actual registered skill names
     SKILL_ALIASES: Dict[str, str] = {
-        "search_web": "web_search",
         "generate_image": "sovereign_imagination",
-        "free_search": "web_search",
     }
 
     @staticmethod
@@ -1242,8 +1308,8 @@ class CapabilityEngine(AuraBaseModule):
                       context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Safe execution wrapper with adaptivity, security, and retries."""
 
-        # Resolve skill aliases (e.g., "search_web" → "web_search")
-        skill_name = self.SKILL_ALIASES.get(skill_name, skill_name)
+        # Resolve compatibility aliases without collapsing real registered skills.
+        skill_name = self.resolve_skill_name(skill_name)
 
         # Sanitize double-nested "params" from LLM hallucinations before execution.
         # Preserve any top-level fields we already inferred instead of discarding them.

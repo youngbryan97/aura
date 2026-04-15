@@ -172,6 +172,30 @@ async def test_ui_control_skills_fail_cleanly_when_accessibility_is_denied(monke
 
 
 @pytest.mark.asyncio
+async def test_computer_use_open_url_uses_default_browser_without_accessibility(monkeypatch):
+    import core.skills.computer_use as computer_use
+
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(computer_use.shutil, "which", lambda name: "/usr/bin/open" if name == "open" else None)
+    monkeypatch.setattr(computer_use.subprocess, "run", fake_run)
+
+    result = await computer_use.ComputerUseSkill().execute(
+        {"action": "open_url", "target": "aliens"},
+        {},
+    )
+
+    assert result["ok"] is True
+    assert result["action"] == "open_url"
+    assert result["url"] == "https://duckduckgo.com/?q=aliens"
+    assert calls[0][0] == ["open", "https://duckduckgo.com/?q=aliens"]
+
+
+@pytest.mark.asyncio
 async def test_web_search_skill_initializes_and_accepts_input():
     """Verify the web search skill initializes correctly and handles empty queries."""
     from core.skills.web_search import EnhancedWebSearchSkill

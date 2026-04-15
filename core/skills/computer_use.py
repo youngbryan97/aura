@@ -1,8 +1,11 @@
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
+import shutil
 import shlex
 import subprocess
+import urllib.parse
+import webbrowser
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -15,9 +18,9 @@ logger = logging.getLogger("Skills.ComputerUse")
 class ComputerUseParams(BaseModel):
     action: str = Field(
         ...,
-        description="click|type|hotkey|scroll|read_screen_text|read_menu_clock|open_app|run_command",
+        description="click|type|hotkey|scroll|read_screen_text|read_menu_clock|open_app|open_url|run_command",
     )
-    target: str = Field("", description="Element description, text to type, key combo, or command")
+    target: str = Field("", description="Element description, text to type, key combo, command, app name, or URL")
     x: int = Field(0, description="Screen x coordinate for click/scroll")
     y: int = Field(0, description="Screen y coordinate for click/scroll")
 
@@ -83,6 +86,15 @@ class ComputerUseSkill(BaseSkill):
         if result.returncode != 0:
             raise RuntimeError(self._normalize_script_error(result.stderr or result.stdout))
         return (result.stdout or "").strip()
+
+    @staticmethod
+    def _normalize_open_url_target(target: str) -> str:
+        text = str(target or "").strip()
+        if not text:
+            return ""
+        if text.startswith(("http://", "https://")):
+            return text
+        return f"https://duckduckgo.com/?q={urllib.parse.quote_plus(text)}"
 
     @staticmethod
     def _runtime_permission_payload(message: str) -> Optional[Dict[str, Any]]:
@@ -236,6 +248,34 @@ class ComputerUseSkill(BaseSkill):
             elif action == "open_app":
                 await asyncio.to_thread(subprocess.run, ["open", "-a", params.target])
                 return {"ok": True, "opened": params.target}
+
+            elif action == "open_url":
+                target_url = self._normalize_open_url_target(params.target)
+                if not target_url:
+                    return {"ok": False, "error": "No URL or search query provided."}
+                if target_url.startswith("file:"):
+                    return {"ok": False, "error": "Refusing to open local file URLs from chat."}
+                if shutil.which("open"):
+                    result = await asyncio.to_thread(
+                        subprocess.run,
+                        ["open", target_url],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    if result.returncode != 0:
+                        error = (result.stderr or result.stdout or "open command failed").strip()
+                        return {"ok": False, "error": error}
+                else:
+                    opened = await asyncio.to_thread(webbrowser.open, target_url, 2)
+                    if not opened:
+                        return {"ok": False, "error": "The default browser did not accept the URL."}
+                return {
+                    "ok": True,
+                    "action": "open_url",
+                    "url": target_url,
+                    "summary": f"I opened a browser tab for {target_url}.",
+                }
 
             else:
                 return {"ok": False, "error": f"Unknown action: {action}"}

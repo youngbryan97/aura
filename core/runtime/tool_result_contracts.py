@@ -65,6 +65,11 @@ def compact_result_payload(result: object) -> dict[str, object]:
         "cwd",
         "stdout",
         "stderr",
+        "action",
+        "opened",
+        "typed",
+        "hotkey",
+        "scrolled",
     ):
         value = result.get(key)
         if value in (None, ""):

@@ -335,6 +335,20 @@ class GodModeToolPhase(Phase):
         if not matched_skills:
             return ""
         lower = str(objective or "").lower()
+        visible_browser_markers = (
+            "open a tab",
+            "open the tab",
+            "open tab",
+            "new tab",
+            "on my computer",
+            "on the computer",
+            "on my screen",
+            "desktop",
+        )
+        if any(marker in lower for marker in visible_browser_markers) and any(
+            marker in lower for marker in ("search", "google", "look up", "open", "browser", "tab")
+        ):
+            return "computer_use"
         if "clock" in matched_skills and any(marker in lower for marker in ("what time", "current time", "the time", "what date", "today", "timer", "remind me")):
             return "clock"
         if (
@@ -343,11 +357,46 @@ class GodModeToolPhase(Phase):
             and any(marker in lower for marker in ("search", "look up", "find out", "online", "internet", "current", "latest", "news"))
         ):
             return "web_search"
-        if "sovereign_browser" in matched_skills and any(marker in lower for marker in ("open the browser", "open a browser", "navigate to", "visit ", "open website", "open webpage")):
+        if "sovereign_browser" in matched_skills and any(marker in lower for marker in ("open the browser", "open a browser", "open tab", "navigate to", "visit ", "open website", "open webpage")):
             return "sovereign_browser"
         if "memory_ops" in matched_skills and any(marker in lower for marker in ("remember", "save this", "store this", "don't forget", "make note of")):
             return "memory_ops"
         return matched_skills[0]
+
+    @staticmethod
+    def _extract_search_query(objective: str) -> str:
+        import re as _re
+
+        text = str(objective or "").strip()
+        if not text:
+            return ""
+
+        quoted = _re.search(r"[\"“”']([^\"“”']{1,180})[\"“”']", text)
+        if quoted:
+            return quoted.group(1).strip()
+
+        patterns = (
+            r"\bsearch(?:\s+(?:the web|online|the internet|for))?\s+(.+?)(?:[.?!])?$",
+            r"\bgoogle\s+(.+?)(?:[.?!])?$",
+            r"\blook up\s+(.+?)(?:[.?!])?$",
+            r"\bfind out(?: about)?\s+(.+?)(?:[.?!])?$",
+        )
+        for pattern in patterns:
+            match = _re.search(pattern, text, flags=_re.IGNORECASE)
+            if match:
+                candidate = match.group(1).strip(" .?!:")
+                if candidate:
+                    return candidate
+        return text
+
+    @staticmethod
+    def _search_url(query: str) -> str:
+        import urllib.parse as _urlparse
+
+        cleaned = str(query or "").strip()
+        if cleaned.startswith(("http://", "https://")):
+            return cleaned
+        return f"https://duckduckgo.com/?q={_urlparse.quote_plus(cleaned)}"
 
     @staticmethod
     def _normalize_skill_params(skill_name: str, objective: str, params: Dict | None) -> Dict:
@@ -367,7 +416,7 @@ class GodModeToolPhase(Phase):
             else:
                 normalized.setdefault("content", objective)
 
-        if skill_name in {"web_search", "sovereign_browser"}:
+        if skill_name in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
             # Detect URLs in the objective — if present, BROWSE the URL directly
             # instead of searching the entire message text on a search engine.
             import re as _re
@@ -376,7 +425,29 @@ class GodModeToolPhase(Phase):
                 normalized.setdefault("mode", "browse")
                 normalized.setdefault("url", url_match.group(0))
             else:
-                normalized.setdefault("query", objective)
+                if skill_name == "sovereign_browser":
+                    normalized.setdefault("mode", "search")
+                query = GodModeToolPhase._extract_search_query(objective)
+                if skill_name == "grounded_search":
+                    normalized.setdefault("objective", objective)
+                    normalized.setdefault("params", {"query": query})
+                else:
+                    normalized.setdefault("query", query)
+
+        if skill_name == "computer_use":
+            import re as _re
+            url_match = _re.search(r'https?://[^\s<>\"\')\]]+', objective)
+            if url_match:
+                normalized["action"] = "open_url"
+                normalized["target"] = url_match.group(0)
+            elif any(marker in lower for marker in ("open a tab", "open tab", "new tab", "browser", "google", "search")):
+                query = GodModeToolPhase._extract_search_query(objective)
+                normalized["action"] = "open_url"
+                normalized["target"] = GodModeToolPhase._search_url(query)
+            elif "open app" in lower or "open application" in lower:
+                app_name = objective.split("open", 1)[-1].strip(" .")
+                normalized.setdefault("action", "open_app")
+                normalized.setdefault("target", app_name or objective)
 
         return normalized
 
@@ -410,7 +481,10 @@ class GodModeToolPhase(Phase):
             if not result:
                 return None
             chosen = result.strip().lower().split()[0].strip(".'\"")
-            chosen = getattr(cap, "SKILL_ALIASES", {}).get(chosen, chosen)
+            if hasattr(cap, "resolve_skill_name"):
+                chosen = cap.resolve_skill_name(chosen)
+            else:
+                chosen = getattr(cap, "SKILL_ALIASES", {}).get(chosen, chosen)
             if chosen == "none" or chosen not in cap.skills:
                 return None
             return chosen

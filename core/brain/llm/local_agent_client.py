@@ -105,17 +105,21 @@ class LocalAgentClient(RobustOllamaClient):
         from core.container import ServiceContainer
         engine = ServiceContainer.get("capability_engine")
         dormant_index = "None"
+        live_affordances = ""
         if engine:
             dormant_index = engine.get_dormant_index()
+            if hasattr(engine, "build_tool_affordance_block"):
+                live_affordances = engine.build_tool_affordance_block(max_available=20, max_unavailable=10)
 
         reinforced_system += (
             f"\n[SYSTEM METRICS & ABILITIES]\n"
             f"Active Tools: {list(self.tools.keys())}\n\n"
-            f"DORMANT TOOLS (Asleep to save metabolic power):\n"
+            f"{live_affordances}\n\n"
+            f"EXPLICITLY DORMANT TOOLS (only if manually deactivated):\n"
             f"{dormant_index}\n\n"
-            "CRITICAL DIRECTIVE: If a user requests a task, OR if your own internal drives (Curiosity, Frustration, Autonomy) require a Dormant Tool, "
-            "you have full authorization to wake it up. You MUST use the `ManageAbilities` tool to 'activate' it first. "
-            "Once finished, deactivate it to preserve your thermal health.\n"
+            "CRITICAL DIRECTIVE: Registered tools are awake by default unless the live affordance block marks them unavailable. "
+            "Do not claim a tool is inaccessible when it is listed as available. "
+            "Use `ManageAbilities` only when something is explicitly dormant or the user asks you to manage abilities.\n"
             "FORMAT: JSON {\"tool\": \"...\", \"args\": {...}} OR plain text.\n"
         )
 

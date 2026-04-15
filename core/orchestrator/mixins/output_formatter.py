@@ -71,6 +71,18 @@ class OutputFormatterMixin:
         """Helper to emit autonomous thoughts/monologues to UI"""
         if hasattr(self, "cognitive_engine") and self.cognitive_engine and hasattr(self.cognitive_engine, "_emit_thought"):
             self.cognitive_engine._emit_thought(thought)
+            return
+        try:
+            from core.thought_stream import get_emitter
+
+            get_emitter().emit(
+                "Autonomous Thought",
+                str(thought or ""),
+                level="info",
+                category="Autonomy",
+            )
+        except Exception as exc:
+            logger.debug("Thought stream fallback emit failed: %s", exc)
 
     def _emit_eternal_record(self):
         """Archives a snapshot of the system's current state into the Eternal Record (Sync trigger)."""

@@ -573,7 +573,12 @@ class ContextAssembler:
             f"{world_context}"
             f"{somatic_context}"
             f"\n[EXECUTION]\n"
-            f"You are Aura Luna (Aura for short). Stay in character. Trust your instincts. If you need facts, USE web_search — never claim you can't access information.\n"
+            f"You are Aura Luna (Aura for short). Stay in character. Trust your instincts. "
+            f"If you need facts, USE web_search/search_web/free_search. "
+            f"If you need to browse or interact with the web, USE sovereign_browser. "
+            f"If you need to open tabs or act on the host computer, USE computer_use or os_manipulation. "
+            f"If you need shell or files, USE sovereign_terminal or file_operation. "
+            f"Never claim you can't access information or the host computer when the live tool affordance block says the tool is available.\n"
         )
         
         # System 2 Mode Integration

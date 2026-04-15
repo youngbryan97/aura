@@ -15,8 +15,7 @@ class CodingSkill(BaseSkill):
     description = "Dedicated skill for writing, refactoring, and debugging complex code using step-by-step reasoning."
 
     def __init__(self):
-        from core.conversation_loop import get_brain
-        self.brain = get_brain()
+        self.brain = None
 
     async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         params = goal.get("params", {})
@@ -38,6 +37,13 @@ class CodingSkill(BaseSkill):
         )
 
         try:
+            if self.brain is None:
+                from core.container import ServiceContainer
+
+                self.brain = ServiceContainer.get("cognitive_engine", default=None)
+            if self.brain is None:
+                return {"ok": False, "error": "Cognitive engine unavailable for coding_skill."}
+
             # We pass a highly specific prompt that triggers the coding tier in local_llm
             result = await self.brain.generate(
                 prompt=f"Task: {task}",

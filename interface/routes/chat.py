@@ -385,7 +385,7 @@ def _log_response_quality_metrics(
 # ── Consistency Check ─────────────────────────────────────────
 _INABILITY_PATTERNS = re.compile(
     r"(i can't|i cannot|i'm unable to|i don't have access to|"
-    r"i'm not able to|i lack the ability to)\s+"
+    r"i'm not able to|i lack the ability to)(?:\s+\w+){0,3}\s+"
     r"(browse|search|access|look up|check|find|open|read|visit|navigate|download|fetch)",
     re.IGNORECASE,
 )
@@ -403,12 +403,29 @@ def _check_response_consistency(reply_text: str, user_message: str) -> tuple[boo
         try:
             from core.container import ServiceContainer
             cap = ServiceContainer.get("capability_engine", default=None)
+            catalog = {}
             if cap and hasattr(cap, "get_catalog"):
                 catalog = cap.get_catalog() or {}
-                web_skills = {"web_search", "sovereign_browser", "browser", "search"}
-                available = {k for k, v in catalog.items()
-                             if isinstance(v, dict) and v.get("status") != "unavailable"}
-                if web_skills & available:
+            elif cap and hasattr(cap, "get_tool_catalog"):
+                tool_catalog = cap.get_tool_catalog(include_inactive=True) or []
+                catalog = {
+                    str(item.get("name") or ""): {
+                        "status": "unavailable" if not bool(item.get("available")) else str(item.get("state") or "ready").lower(),
+                    }
+                    for item in tool_catalog
+                    if isinstance(item, dict) and item.get("name")
+                }
+
+            if catalog:
+                available = {
+                    k for k, v in catalog.items()
+                    if isinstance(v, dict) and v.get("status") != "unavailable"
+                }
+                web_skills = {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}
+                desktop_skills = {"computer_use", "os_manipulation", "sovereign_terminal", "sovereign_vision"}
+                mentions_web = bool(re.search(r"\b(browse|search|look up|check online|find online|open (?:a )?(?:site|page|url|website))\b", reply_text or "", re.IGNORECASE))
+                mentions_desktop = bool(re.search(r"\b(open|control|click|type|use|navigate)\b.{0,40}\b(tab|browser|computer|desktop|screen)\b", reply_text or "", re.IGNORECASE))
+                if (mentions_web and web_skills & available) or (mentions_desktop and desktop_skills & available):
                     return False, "false_inability_claim"
         except Exception:
             pass
@@ -915,6 +932,9 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
         (r"\bi (?:still )?can(?:not|'t) access (?:what|the text|the story|the post) you pasted\b", "false_context_loss"),
         (r"\bi (?:still )?can(?:not|'t) (?:read|see) (?:what|the text|the story|the post) you pasted\b", "false_context_loss"),
         (r"\bi can(?:not|'t) directly access external links\b", "false_tool_limitation"),
+        (r"\bi can(?:not|'t) actually open tabs\b", "false_tool_limitation"),
+        (r"\bi can(?:not|'t) (?:open|control|perform actions on) (?:tabs|your computer|the computer)\b", "false_tool_limitation"),
+        (r"\bi can(?:not|'t) actually .*perform actions on your computer\b", "false_tool_limitation"),
         (r"\bas an ai\b", "assistant_disclaimer"),
         (r"\bas a large language model\b", "assistant_disclaimer"),
         # [STABILITY v53] Added patterns for assistant-speak that was leaking through
