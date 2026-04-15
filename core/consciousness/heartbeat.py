@@ -540,9 +540,11 @@ class CognitiveHeartbeat:
         # --- Baseline cognitive continuity candidate ---
         # Even when nothing is urgent, there should be something in consciousness
         # This prevents empty ticks — ensures there is ALWAYS a cognitive state.
-        # Gate to every 5 ticks to prevent flooding the neural feed when other
-        # subsystems are slow and baseline wins unchallenged repeatedly.
-        if tick % 5 == 0:
+        # [STABILITY v53] Gate to every 30 ticks (30s) to prevent flooding the
+        # neural feed and WebSocket with repetitive baseline messages. The old 5-tick
+        # interval produced ~12 messages/minute that drowned real cognitive events
+        # and caused visible UI lag.
+        if tick % 30 == 0:
             await self.workspace.submit(CognitiveCandidate(
                 content=f"Cognitive baseline tick {tick}: monitoring internal state",
                 source="baseline_continuity",

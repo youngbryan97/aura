@@ -1195,8 +1195,25 @@ class MLXLocalClient:
 
         acquired = await asyncio.to_thread(self._request_lock.acquire, True, 15.0)
         if not acquired:
-            logger.error("🚨 [MLX] DEADLOCK DETECTED: Could not acquire _request_lock within 15s for %s", os.path.basename(self.model_path))
-            return None
+            # [STABILITY v53] Force-release the stuck lock. The previous holder likely
+            # crashed mid-generation (CancelledError or unexpected exception in
+            # _foreground_owner_context) without hitting the finally block. Better to
+            # force-release and risk a brief race than to deadlock ALL future requests.
+            logger.error(
+                "🚨 [MLX] DEADLOCK DETECTED: Could not acquire _request_lock within 15s for %s. "
+                "FORCE-RELEASING to prevent permanent deadlock.",
+                os.path.basename(self.model_path),
+            )
+            try:
+                self._request_lock.release()
+                logger.warning("🔓 [MLX] Force-released stuck _request_lock for %s", os.path.basename(self.model_path))
+            except RuntimeError:
+                pass  # Lock wasn't actually held — no-op
+            # Try one more time after force-release
+            acquired = await asyncio.to_thread(self._request_lock.acquire, True, 5.0)
+            if not acquired:
+                logger.error("🚨 [MLX] Still cannot acquire _request_lock after force-release for %s", os.path.basename(self.model_path))
+                return None
         try:
             if foreground_request:
                 async with _foreground_owner_context(owner_label):
