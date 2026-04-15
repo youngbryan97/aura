@@ -1870,6 +1870,10 @@ class UnitaryResponsePhase(Phase):
             # fetch and read the pages so Aura has real content to discuss
             # instead of hallucinating about pages she never accessed.
             auto_browse_urls = list(new_state.response_modifiers.pop("auto_browse_urls", []) or [])
+            # [STABILITY v53] Limit auto-browse to 1 URL max with 12s timeout.
+            # Previously up to 3 URLs x 30s each = 90s of pre-LLM delay.
+            # Most conversations don't need URL fetching at all.
+            auto_browse_urls = auto_browse_urls[:1]  # Max 1 URL
             if auto_browse_urls and is_user_facing:
                 logger.info("🌐 UnitaryResponse: Auto-browsing %d URL(s) from user input.", len(auto_browse_urls))
                 fetched_content_parts = []
@@ -1884,7 +1888,7 @@ class UnitaryResponsePhase(Phase):
                                         {"mode": "browse", "url": str(url)},
                                         origin=routing_origin,
                                     ),
-                                    timeout=30.0,
+                                    timeout=12.0,  # [STABILITY v53] Reduced from 30s
                                 )
                                 if isinstance(result, dict) and result.get("ok"):
                                     page_title = str(result.get("title", "") or "")[:200]
