@@ -1264,7 +1264,8 @@ async def api_hot_reload(request: Request):
     Query params:
         scope  – reload scope (phases, skills, consciousness, llm, affect,
                  memory, identity, resilience, orchestrator_mixins, learning,
-                 agency, all).  Defaults to "all".
+                 agency, all). Defaults to "all", which is a curated live-safe
+                 union rather than every loaded core module.
         file   – reload a single file by path (relative to project root).
 
     The kernel, ServiceContainer, event loop, loaded models, and
@@ -1318,7 +1319,7 @@ async def api_hot_reload_scopes(request: Request):
     from interface.auth import _require_internal
     _require_internal(request)
 
-    from core.ops.hot_reload import RELOAD_SCOPES, PROTECTED_MODULES
+    from core.ops.hot_reload import RELOAD_SCOPES, PROTECTED_MODULES, PROTECTED_PREFIXES
 
     return JSONResponse({
         "scopes": {
@@ -1326,5 +1327,9 @@ async def api_hot_reload_scopes(request: Request):
             for name, prefixes in RELOAD_SCOPES.items()
         },
         "special_scopes": ["all"],
+        "special_scope_details": {
+            "all": "Curated live-safe union of reload scopes; excludes runtime-owned infrastructure that requires reboot."
+        },
         "protected_modules": sorted(PROTECTED_MODULES),
+        "protected_prefixes": sorted(PROTECTED_PREFIXES),
     })

@@ -4,15 +4,22 @@ Live code reload engine for Aura's cognitive pipeline.
 
 Reloads Python modules in topological (leaf → root) order so that
 code changes take effect without restarting the kernel, LLM servers,
-or dropping active state.  Preserves:
+or dropping active state. Preserves:
   • Running event loop & asyncio tasks
   • ServiceContainer registrations (instances stay alive)
   • Active LLM server processes (llama-server / MLX worker)
   • Loaded model weights in GPU/unified memory
   • Conversation history & episodic memory
 
+Important safety rule:
+    The default "all" scope is a curated live-safe union of reload scopes.
+    It is intentionally not "every loaded core module", because reloading
+    runtime-owned infrastructure such as actor buses, state vault plumbing,
+    supervision, or sensory task engines can partially tear down the session
+    while leaving the process alive.
+
 Usage:
-    POST /api/system/hot-reload          → reload all core modules
+    POST /api/system/hot-reload          → reload all live-safe scopes
     POST /api/system/hot-reload?scope=X  → reload only scope X
 """
 from __future__ import annotations
@@ -76,6 +83,22 @@ RELOAD_SCOPES: Dict[str, List[str]] = {
     ],
 }
 
+# "all" is intentionally a safe union rather than "reload every loaded core
+# module". These scopes cover the parts users typically expect to live-refresh
+# while leaving runtime-owned infrastructure alone.
+LIVE_SAFE_ALL_SCOPES: tuple[str, ...] = (
+    "phases",
+    "skills",
+    "consciousness",
+    "llm",
+    "affect",
+    "memory",
+    "identity",
+    "orchestrator_mixins",
+    "learning",
+    "agency",
+)
+
 # Modules that must NEVER be reloaded — reloading them would
 # destroy running state or break the process.
 PROTECTED_MODULES: Set[str] = {
@@ -89,7 +112,24 @@ PROTECTED_MODULES: Set[str] = {
     "interface.websocket_manager",
     "interface.event_bridge",
     "interface.auth",
+    "core.reliability_engine",
+    "core.resilience.circuit_breaker",
+    "core.resilience.metrics_exporter",
 }
+
+# Prefixes that own live subprocesses, transports, background tasks, or other
+# non-idempotent runtime state. These can still be changed on disk, but must be
+# picked up via a full Aura reboot instead of in-process hot reload.
+PROTECTED_PREFIXES: tuple[str, ...] = (
+    "core.bus.",
+    "core.executive.",
+    "core.ops.",
+    "core.providers.",
+    "core.reaper",
+    "core.senses.",
+    "core.state.",
+    "core.supervisor.",
+)
 
 
 @dataclass
@@ -146,6 +186,9 @@ class HotReloader:
         for protected in PROTECTED_MODULES:
             if module_name == protected or module_name.startswith(protected + "."):
                 return True
+        for prefix in PROTECTED_PREFIXES:
+            if module_name == prefix.rstrip(".") or module_name.startswith(prefix):
+                return True
         return False
 
     def _collect_modules_for_scope(self, scope: str) -> List[str]:
@@ -173,15 +216,16 @@ class HotReloader:
         matched.sort(key=lambda m: m.count("."), reverse=True)
         return matched
 
-    def _collect_all_core_modules(self) -> List[str]:
-        """Collect ALL core.* modules for a full reload."""
-        matched: List[str] = []
-        for module_name in list(sys.modules.keys()):
-            if module_name.startswith("core.") and not self._is_protected(module_name):
-                matched.append(module_name)
-        # Deepest first
-        matched.sort(key=lambda m: m.count("."), reverse=True)
-        return matched
+    def _collect_live_safe_all_modules(self) -> List[str]:
+        """Collect the curated live-safe union used by the default `all` scope."""
+        matched: Set[str] = set()
+        for scope in LIVE_SAFE_ALL_SCOPES:
+            matched.update(self._collect_modules_for_scope(scope))
+        return sorted(
+            (name for name in matched if not self._is_protected(name)),
+            key=lambda m: m.count("."),
+            reverse=True,
+        )
 
     def reload_scope(self, scope: str) -> ReloadResult:
         """Reload all modules in a specific scope."""
@@ -189,7 +233,7 @@ class HotReloader:
         result = ReloadResult(scope=scope)
 
         if scope == "all":
-            modules = self._collect_all_core_modules()
+            modules = self._collect_live_safe_all_modules()
         else:
             modules = self._collect_modules_for_scope(scope)
 
@@ -319,7 +363,9 @@ class HotReloader:
             "last_reload_at": self._last_reload_at,
             "last_result": self._last_result.to_dict() if self._last_result else None,
             "available_scopes": list(RELOAD_SCOPES.keys()) + ["all"],
+            "live_safe_all_scopes": list(LIVE_SAFE_ALL_SCOPES),
             "protected_modules": sorted(PROTECTED_MODULES),
+            "protected_prefixes": sorted(PROTECTED_PREFIXES),
         }
 
 
