@@ -35,7 +35,16 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    transition: color 0.5s ease, border-color 0.5s ease, background 0.5s ease, box-shadow 0.5s ease;
+    /* [PERF] Removed global transition from * selector — was causing
+       500ms animations on every DOM update across thousands of elements,
+       making the UI feel sluggish. Transitions now applied only to
+       specific interactive elements that need them. */
+}
+
+/* Smooth transitions only where they improve UX */
+button, .header-btn, .nav-btn, .stat-bar, .status-dot,
+.chat-msg, .toggle-switch, .panel, .overlay {
+    transition: color 0.3s ease, border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
 }
 
 body {
