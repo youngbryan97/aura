@@ -598,6 +598,21 @@ class LocalServerClient:
             "--cache-ram", cache_ram_mib,
         ]
         cmd.append("--cache-prompt" if prompt_cache_enabled else "--no-cache-prompt")
+
+        # [STABILITY v53] Load LoRA personality adapter if available (GGUF format)
+        lora_path = os.environ.get("AURA_GGUF_LORA_PATH", "")
+        if not lora_path:
+            # Check default location for GGUF LoRA adapter
+            _default_gguf_lora = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+                "training", "adapters", "aura-personality", "aura-personality-lora.gguf"
+            )
+            if os.path.exists(_default_gguf_lora):
+                lora_path = _default_gguf_lora
+        if lora_path and os.path.isfile(lora_path):
+            cmd.extend(["--lora", lora_path])
+            logger.info("🧠 [%s] Loading personality LoRA adapter: %s", self._lane_name, lora_path)
+
         logger.info("📡 [%s] Spawning local runtime: %s", self._lane_name, " ".join(cmd))
         process = subprocess.Popen(
             cmd,
