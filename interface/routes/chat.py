@@ -935,6 +935,9 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
         (r"\bi can(?:not|'t) actually open tabs\b", "false_tool_limitation"),
         (r"\bi can(?:not|'t) (?:open|control|perform actions on) (?:tabs|your computer|the computer)\b", "false_tool_limitation"),
         (r"\bi can(?:not|'t) actually .*perform actions on your computer\b", "false_tool_limitation"),
+        (r"\bi can help answer questions and provide information(?:\s*[—-]\s*that's it)?\b", "false_tool_limitation"),
+        (r"\b(?:nice try\.\s*)?this is just chat\b", "false_tool_limitation"),
+        (r"\bthat'?s not how this works\b", "false_tool_limitation"),
         (r"\bas an ai\b", "assistant_disclaimer"),
         (r"\bas a large language model\b", "assistant_disclaimer"),
         # [STABILITY v53] Added patterns for assistant-speak that was leaking through

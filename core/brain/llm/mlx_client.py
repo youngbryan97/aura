@@ -367,7 +367,10 @@ class MLXLocalClient:
         if "72b" in lowered or "solver" in lowered:
             return 30.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
-            return 18.0
+            # 32B first-turn generation routinely needs more than 18s even after
+            # warmup because prompt assembly, KV setup, and shader reuse can still
+            # spike on large user-facing turns.
+            return 35.0
         return 8.0
 
     def _token_stall_after(self) -> float:
@@ -375,7 +378,7 @@ class MLXLocalClient:
         if "72b" in lowered or "solver" in lowered:
             return 25.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
-            return 16.0
+            return 24.0
         return 8.0
 
     def _warmup_timeout(self) -> float:

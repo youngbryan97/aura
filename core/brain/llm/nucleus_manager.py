@@ -18,14 +18,20 @@ class NucleusManager(LLMProvider):
     """
     
     def __init__(self, **kwargs):
-        from .model_registry import get_model_path, get_brainstem_path, get_adapter_path, get_active_model, BRAINSTEM_MODEL
+        from .model_registry import (
+            get_model_path,
+            get_brainstem_path,
+            get_active_model,
+            BRAINSTEM_MODEL,
+            resolve_personality_adapter,
+        )
         
         self.brainstem_repo = BRAINSTEM_MODEL
         self.cortex_repo = get_active_model()
         
         self.brainstem_path = str(get_brainstem_path())
         self.cortex_path = str(get_model_path())
-        self._adapter_dir = str(get_adapter_path())
+        self._adapter_dir = resolve_personality_adapter(self.cortex_path, backend="mlx") or ""
         
         self.models = {
             "cortex": {"model": None, "tokenizer": None, "loaded": False, "cache": None}
@@ -78,9 +84,7 @@ class NucleusManager(LLMProvider):
 
         adapter_path = None
         if name == "cortex":
-            # Modified: Check for task-specific LoRA based on metadata if available
-            # For now, default to the standard adapter dir, but logic is ready for expansion
-            if os.path.exists(os.path.join(self._adapter_dir, "adapter_config.json")):
+            if self._adapter_dir and os.path.exists(os.path.join(self._adapter_dir, "adapter_config.json")):
                 adapter_path = self._adapter_dir
                 logger.info("🧠 [NUCLEUS] Found LoRA adapter directory for Cortex: %s", adapter_path)
 

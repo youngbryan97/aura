@@ -15,6 +15,7 @@ import numpy as np
 import queue
 
 from core.runtime.desktop_boot_safety import compute_mlx_cache_limit
+from .model_registry import resolve_personality_adapter
 
 
 def _strip_leading_chatml_prefix(text: str) -> str:
@@ -483,27 +484,28 @@ def _mlx_worker_loop(
     # ZENITH: Local Concurrency Gate
     metal_semaphore = threading.Semaphore(1)
 
-    # Load model with personality LoRA adapter if available
+    # Load model with a compatible personality LoRA adapter if available.
+    # The adapter is trained against a specific base model and must not be
+    # applied blindly to every lane.
     try:
-        adapter_path = os.environ.get("AURA_LORA_PATH")
-        if not adapter_path:
-            # Check default location
-            _default_adapter = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-                "training", "adapters", "aura-personality", "adapters.safetensors"
-            )
-            if os.path.exists(_default_adapter):
-                adapter_path = os.path.dirname(_default_adapter)
-                logger.info(f"Found personality LoRA adapter: {adapter_path}")
-
+        adapter_path = resolve_personality_adapter(model_path, backend="mlx")
         logger.info(f"Loading model: {model_path}")
         if adapter_path and os.path.isdir(adapter_path):
-            logger.info(f"Loading with LoRA adapter: {adapter_path}")
-            model, tokenizer = load(model_path, adapter_path=adapter_path)
-            logger.info("Model loaded with Aura personality LoRA fused.")
+            try:
+                logger.info(f"Loading with LoRA adapter: {adapter_path}")
+                model, tokenizer = load(model_path, adapter_path=adapter_path)
+                logger.info("Model loaded with Aura personality LoRA fused.")
+            except Exception as adapter_exc:
+                logger.warning(
+                    "⚠️ [WORKER] Compatible LoRA adapter failed to load for %s: %s. Falling back to base model.",
+                    os.path.basename(model_path),
+                    adapter_exc,
+                )
+                model, tokenizer = load(model_path)
+                logger.info("Model loaded without LoRA after fallback.")
         else:
             model, tokenizer = load(model_path)
-            logger.info(f"Model loaded (no LoRA adapter).")
+            logger.info("Model loaded (no compatible LoRA adapter).")
 
         # Attach Affective Steering
         try:

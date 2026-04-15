@@ -132,6 +132,59 @@ GGUF_DOWNLOAD_TARGETS = {
 ADAPTER_PATH = BASE_DIR / "data" / "adapters"
 
 
+def _normalize_model_identity(value: str | None) -> str:
+    text = os.path.basename(str(value or "").strip()).lower()
+    if text.endswith(".gguf"):
+        text = text[:-5]
+    return text
+
+
+def _model_identity_variants(value: str | None) -> set[str]:
+    normalized = _normalize_model_identity(value)
+    if not normalized:
+        return set()
+
+    variants = {normalized}
+    size_tag = _extract_size_tag(normalized)
+    if size_tag:
+        variants.add(size_tag)
+
+    # Drop common quantization / backend suffixes so the same base family can
+    # match across MLX and GGUF artifacts when explicitly intended.
+    family = re.sub(r"-(?:q\d.*|[248]bit.*)$", "", normalized)
+    if family:
+        variants.add(family)
+
+    return {item for item in variants if item}
+
+
+def model_identities_compatible(expected_model: str | None, candidate_model: str | None) -> bool:
+    expected = _model_identity_variants(expected_model)
+    candidate = _model_identity_variants(candidate_model)
+    if not expected or not candidate:
+        return False
+
+    expected_size = _extract_size_tag(str(expected_model or ""))
+    candidate_size = _extract_size_tag(str(candidate_model or ""))
+    exact_match = _normalize_model_identity(expected_model) == _normalize_model_identity(candidate_model)
+    if exact_match:
+        return True
+    if expected_size and candidate_size and expected_size == candidate_size and expected.intersection(candidate):
+        return True
+    return False
+
+
+def _read_adapter_target_model(adapter_dir: Path) -> str:
+    config_path = Path(adapter_dir) / "adapter_config.json"
+    if not config_path.exists():
+        return ""
+    try:
+        payload = json.loads(config_path.read_text())
+    except Exception:
+        return ""
+    return str(payload.get("model") or "").strip()
+
+
 def get_model_path(model_name: str | None = None) -> str:
     """Resolve the path for a model. Returns absolute path if local, else HF repo ID."""
     name = model_name or ACTIVE_MODEL
@@ -447,3 +500,56 @@ def audit_lane_assignments() -> dict[str, Any]:
 def get_adapter_path() -> Path:
     """Return the LoRA adapter directory."""
     return ADAPTER_PATH
+
+
+def resolve_personality_adapter(
+    target_model: str | None,
+    *,
+    backend: str = "mlx",
+) -> str | None:
+    """Return a compatible Aura personality adapter for the requested model.
+
+    Backend-specific overrides are supported so MLX and GGUF can be pinned
+    differently when needed:
+      - `AURA_LORA_PATH`, `AURA_LORA_TARGET_MODEL`
+      - `AURA_GGUF_LORA_PATH`, `AURA_GGUF_LORA_TARGET_MODEL`
+    """
+    normalized_backend = str(backend or "mlx").strip().lower()
+    target_model = str(target_model or "").strip()
+
+    if normalized_backend == "gguf":
+        adapter_path = os.getenv("AURA_GGUF_LORA_PATH", "").strip()
+        if not adapter_path:
+            default_path = (
+                BASE_DIR / "training" / "adapters" / "aura-personality" / "aura-personality-lora.gguf"
+            )
+            if default_path.exists():
+                adapter_path = str(default_path)
+        if not adapter_path or not Path(adapter_path).is_file():
+            return None
+
+        configured_target = (
+            os.getenv("AURA_GGUF_LORA_TARGET_MODEL", "").strip()
+            or os.getenv("AURA_LORA_TARGET_MODEL", "").strip()
+            or ACTIVE_MODEL
+        )
+        if target_model and configured_target and not model_identities_compatible(configured_target, target_model):
+            return None
+        return adapter_path
+
+    adapter_dir = os.getenv("AURA_LORA_PATH", "").strip()
+    if not adapter_dir:
+        default_dir = BASE_DIR / "training" / "adapters" / "aura-personality"
+        if (default_dir / "adapters.safetensors").exists():
+            adapter_dir = str(default_dir)
+    if not adapter_dir or not Path(adapter_dir).is_dir():
+        return None
+
+    configured_target = (
+        os.getenv("AURA_LORA_TARGET_MODEL", "").strip()
+        or _read_adapter_target_model(Path(adapter_dir))
+        or ACTIVE_MODEL
+    )
+    if target_model and configured_target and not model_identities_compatible(configured_target, target_model):
+        return None
+    return adapter_dir

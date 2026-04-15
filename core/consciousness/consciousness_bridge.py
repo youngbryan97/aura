@@ -563,11 +563,18 @@ class ConsciousnessBridge:
 
                 # Determine action category from candidate source
                 source = candidate.source.lower()
-                if "drive" in source or "curiosity" in source:
+                if "curiosity" in source:
                     category = ActionCategory.EXPLORATION
+                elif "drive_growth" in source or "baseline" in source:
+                    # Growth-depleted internal drives are usually recovery work,
+                    # not novelty-seeking exploration, so don't let dopamine
+                    # crash rules silence them entirely.
+                    category = ActionCategory.STABILIZATION
+                elif "drive" in source:
+                    category = ActionCategory.INITIATIVE
                 elif "affect" in source or "emotion" in source:
                     category = ActionCategory.EXPRESSION
-                elif "embodiment" in source or "baseline" in source:
+                elif "embodiment" in source:
                     category = ActionCategory.STABILIZATION
                 elif "free_energy" in source:
                     category = ActionCategory.INITIATIVE

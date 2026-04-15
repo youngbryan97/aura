@@ -197,3 +197,40 @@ def test_silent_failover_marks_fallback_as_inferred_and_uncommitted():
     assert result["response_class"] == "inferred_fallback"
     assert result["committed_action"] is False
     assert result["will_receipt_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_self_model_deferred_update_persists_inside_governed_scope(service_container, monkeypatch, tmp_path):
+    _live_runtime(service_container)
+    from core.constitution import ConstitutionalDecision, ProposalKind, ProposalOutcome
+    from core.self_model import SelfModel
+
+    monkeypatch.setattr("core.self_model.DATA_FILE", tmp_path / "self_model.json")
+
+    decision = ConstitutionalDecision(
+        proposal_id="belief-1",
+        kind=ProposalKind.BELIEF_MUTATION,
+        outcome=ProposalOutcome.REJECTED,
+        reason="executive_deferred",
+        source="self_model",
+        constraints={"will_receipt_id": "will-self-1", "governance_domain": "memory_write"},
+    )
+
+    fake_core = SimpleNamespace(
+        belief_authority=SimpleNamespace(
+            review_update=lambda namespace, key, value, note=None: SimpleNamespace(
+                key=key,
+                value=value,
+                reason="accepted",
+            )
+        ),
+        approve_belief_update_sync=lambda *args, **kwargs: (False, "executive_deferred", decision),
+    )
+    monkeypatch.setattr("core.constitution.get_constitutional_core", lambda *_a, **_k: fake_core)
+
+    model = SelfModel(id="self-test")
+    snapshot = await model.update_belief("executive_closure", {"phi": 0.12}, note="sync")
+
+    assert snapshot.summary == "deferred update executive_closure"
+    assert model.pending_updates
+    assert (tmp_path / "self_model.json").exists()

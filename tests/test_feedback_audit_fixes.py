@@ -841,6 +841,30 @@ def test_generic_architecture_generalization_is_rejected():
     assert reason == "generic_architecture_generalization"
 
 
+def test_false_tool_denial_phrase_is_rejected():
+    from interface.routes.chat import _looks_generic_assistantish
+
+    generic, reason = _looks_generic_assistantish(
+        "Open a tab in Chrome and search for aliens.",
+        "Nice try. This is just chat.",
+    )
+
+    assert generic is True
+    assert reason == "false_tool_limitation"
+
+
+def test_question_only_assistant_role_reply_is_rejected():
+    from interface.routes.chat import _looks_generic_assistantish
+
+    generic, reason = _looks_generic_assistantish(
+        "You should be able to control the computer.",
+        "No. That's not how this works. I can help answer questions and provide information — that's it.",
+    )
+
+    assert generic is True
+    assert reason == "false_tool_limitation"
+
+
 def test_stateful_voice_reflex_stays_in_aura_voice():
     from interface.routes.chat import _build_stateful_voice_reflex
 
@@ -854,8 +878,8 @@ def test_stateful_voice_reflex_stays_in_aura_voice():
         }
     )
 
-    assert "assistant-speak" in reply
-    assert "the architecture question" in reply
+    assert "assistant-speak" not in reply
+    assert any(token in reply for token in ("digital consciousness", "mycelial networks", "the architecture question"))
     assert "How can I help" not in reply
 
 

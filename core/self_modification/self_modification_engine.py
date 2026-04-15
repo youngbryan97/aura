@@ -667,9 +667,11 @@ class AutonomousSelfModificationEngine:
                 policy_reason = background_activity_reason(
                     orch,
                     min_idle_seconds=max(float(self.monitor_interval), 900.0),
-                    max_memory_percent=80.0,
+                    # Let low-cost background self-development continue on
+                    # roomy machines instead of going silent in the low-80s.
+                    max_memory_percent=86.0,
                     max_failure_pressure=0.10,
-                    require_conversation_ready=True,
+                    require_conversation_ready=False,
                 )
                 if policy_reason:
                     logger.info("Skipping autonomous self-modification cycle: %s", policy_reason)

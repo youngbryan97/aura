@@ -91,6 +91,21 @@ class SelfModel:
             except Exception as e:
                 logger.error("Failed to persist self model: %s", e)
 
+    async def _persist_with_decision(self, decision: Any = None) -> None:
+        """Persist within the caller's governance context when one exists."""
+        if decision is None:
+            await self.persist()
+            return
+
+        from core.governance_context import get_active_governance, governed_scope
+
+        if get_active_governance() is not None:
+            await self.persist()
+            return
+
+        async with governed_scope(decision):
+            await self.persist()
+
     def _belief_update_decision(self, key: str, value: Any, note: Optional[str]) -> tuple[bool, str, bool, Any]:
         constitutional_runtime_live = False
         try:
@@ -129,6 +144,19 @@ class SelfModel:
             logger.debug("Executive belief gate skipped: %s", exc)
             return True, "", False, None
 
+    @staticmethod
+    def _unpack_belief_update_result(result: Any) -> tuple[bool, str, bool, Any]:
+        if isinstance(result, tuple):
+            if len(result) >= 4:
+                return bool(result[0]), str(result[1] or ""), bool(result[2]), result[3]
+            if len(result) >= 3:
+                return bool(result[0]), str(result[1] or ""), bool(result[2]), None
+            if len(result) >= 2:
+                return bool(result[0]), str(result[1] or ""), False, None
+            if len(result) == 1:
+                return bool(result[0]), "", False, None
+        return bool(result), "", False, None
+
     async def _apply_belief_update(self, key: str, value: Any, note: Optional[str], *, confidence: float = 0.9, decision: Any = None) -> SelfSnapshot:
         if decision is not None:
             from core.governance_context import governed_scope
@@ -145,7 +173,7 @@ class SelfModel:
                         revision_note=note,
                     )
                     self.snapshots[snap.id] = snap
-                await self.persist()
+                await self._persist_with_decision(decision)
                 return snap
 
         async with self._lock:
@@ -159,7 +187,7 @@ class SelfModel:
                 revision_note=note,
             )
             self.snapshots[snap.id] = snap
-        await self.persist()
+        await self._persist_with_decision(decision)
         return snap
 
     async def _flush_pending_updates(self, limit: int = 3) -> None:
@@ -171,13 +199,18 @@ class SelfModel:
 
         still_pending: List[Dict[str, Any]] = []
         flushed = 0
+        persistence_decision: Any = None
         for item in pending:
             key = str(item.get("key", "") or "")
             if not key:
                 continue
             value = item.get("value")
             note = item.get("note")
-            approved, reason, gate_failed, decision = self._belief_update_decision(key, value, note)
+            approved, reason, gate_failed, decision = self._unpack_belief_update_result(
+                self._belief_update_decision(key, value, note)
+            )
+            if decision is not None:
+                persistence_decision = decision
             if not approved:
                 item["reason"] = reason
                 still_pending.append(item)
@@ -196,7 +229,7 @@ class SelfModel:
         async with self._lock:
             self.pending_updates = still_pending + remainder
         if flushed or len(still_pending) != len(pending):
-            await self.persist()
+            await self._persist_with_decision(persistence_decision)
 
     # --- Ego awareness methods (migrated from self_modeling version) ---
 
@@ -270,7 +303,9 @@ class SelfModel:
         except Exception as exc:
             logger.debug("BeliefAuthority review skipped: %s", exc)
 
-        approved, reason, gate_failed, decision = self._belief_update_decision(key, value, note)
+        approved, reason, gate_failed, decision = self._unpack_belief_update_result(
+            self._belief_update_decision(key, value, note)
+        )
         if not approved:
             if gate_failed:
                 try:
@@ -315,7 +350,7 @@ class SelfModel:
             async with self._lock:
                 self.snapshots[snap.id] = snap
                 self.pending_updates.append(pending_item)
-            await self.persist()
+            await self._persist_with_decision(decision)
             return snap
 
         return await self._apply_belief_update(key, value, note, decision=decision)
