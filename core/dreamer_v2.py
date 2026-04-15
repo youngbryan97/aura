@@ -154,6 +154,40 @@ class DreamerV2:
             logger.warning("Dream journal step failed: %s", e)
             results["qualia_dream"] = {"error": str(e)}
 
+        # 5.8 Value Autopoiesis (Drive weight evolution from experience)
+        try:
+            from core.adaptation.value_autopoiesis import get_value_autopoiesis
+            autopoiesis = get_value_autopoiesis()
+            logger.info("🧬 Running value autopoiesis cycle...")
+            shifts = await autopoiesis.evolve_cycle()
+            results["value_autopoiesis"] = {
+                "ok": True,
+                "shifts": len(shifts),
+                "drift_report": autopoiesis.get_drift_report(),
+            }
+            if emitter and shifts:
+                shift_desc = ", ".join(f"{s.value_name}:{s.delta:+.3f}" for s in shifts[:4])
+                emitter.emit("Value Evolution 🧬", f"{len(shifts)} value(s) evolved: {shift_desc}", level="info")
+        except Exception as e:
+            logger.warning("Value autopoiesis step failed: %s", e)
+            results["value_autopoiesis"] = {"error": str(e)}
+
+        # 5.9 Scar Healing Tick (prune healed scars during sleep)
+        try:
+            from core.memory.scar_formation import get_scar_formation
+            scars = get_scar_formation()
+            await scars.tick()
+            scar_status = scars.get_status()
+            results["scar_maintenance"] = {
+                "ok": True,
+                "active_scars": scar_status["active_scars"],
+            }
+            if emitter and scar_status["active_scars"] > 0:
+                emitter.emit("Scar Healing", f"{scar_status['active_scars']} active scar(s) maintained", level="info")
+        except Exception as e:
+            logger.warning("Scar maintenance step failed: %s", e)
+            results["scar_maintenance"] = {"error": str(e)}
+
         # 6. Dream (existing knowledge graph exploration)
         try:
             results["dream"] = await self.dream()
