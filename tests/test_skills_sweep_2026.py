@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from core.skills.sovereign_network import NetworkInput, SovereignNetworkSkill
+
 SKILLS_DIR = Path(__file__).resolve().parent.parent / "core" / "skills"
 
 
@@ -99,6 +101,39 @@ def test_all_skills_execute_is_async():
                             f"{py_file.name}:{item.lineno}: "
                             f"execute() is sync (def), must be async def"
                         )
+
+
+@pytest.mark.asyncio
+async def test_sovereign_network_discovery_falls_back_without_nmap(monkeypatch):
+    """Peer discovery should remain useful when Homebrew nmap is unavailable."""
+    skill = SovereignNetworkSkill()
+
+    async def missing_nmap(*_args, **_kwargs):
+        raise FileNotFoundError("nmap")
+
+    class FakeWriter:
+        def close(self):
+            pass
+
+        async def wait_closed(self):
+            pass
+
+    async def fake_open_connection(host, port):
+        if host == "192.168.1.2" and port == 8000:
+            return object(), FakeWriter()
+        raise OSError("closed")
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", missing_nmap)
+    monkeypatch.setattr("asyncio.open_connection", fake_open_connection)
+
+    result = await skill.execute(
+        NetworkInput(mode="discovery", target="192.168.1.0/30", ports="8000"),
+        {},
+    )
+
+    assert result["ok"] is True
+    assert result["fallback"] == "tcp_connect"
+    assert result["peers"] == [{"address": "192.168.1.2", "rpc_port": 8000, "source": "tcp_connect"}]
 
 
 ##

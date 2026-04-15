@@ -1,4 +1,6 @@
 import asyncio
+import ipaddress
+import itertools
 import logging
 import platform
 import socket
@@ -164,11 +166,67 @@ class SovereignNetworkSkill(BaseSkill):
                         ip = match.group(1)
                         peers.append({"address": ip, "rpc_port": int(ports.split(',')[0])})
         except FileNotFoundError:
-            return {"ok": False, "error": "The 'nmap' utility is required for peer discovery."}
+            logger.info("nmap unavailable; falling back to bounded TCP peer discovery.")
+            return await self._perform_tcp_peer_discovery(target, ports)
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
         return {"ok": True, "peers": peers, "count": len(peers)}
+
+    async def _perform_tcp_peer_discovery(self, target: str, ports: str) -> Dict[str, Any]:
+        """Best-effort peer discovery that avoids hard dependency on Homebrew nmap."""
+        first_port = self._first_port(ports)
+        hosts = self._candidate_hosts(target)
+        if not hosts:
+            return {
+                "ok": False,
+                "error": f"No candidate hosts could be derived from target '{target}'.",
+                "fallback": "tcp_connect",
+            }
+
+        semaphore = asyncio.Semaphore(64)
+
+        async def probe(host: str) -> Optional[Dict[str, Any]]:
+            async with semaphore:
+                try:
+                    reader, writer = await asyncio.wait_for(
+                        asyncio.open_connection(host, first_port),
+                        timeout=0.35,
+                    )
+                    writer.close()
+                    await writer.wait_closed()
+                    return {"address": host, "rpc_port": first_port, "source": "tcp_connect"}
+                except Exception as e:
+                    logger.debug("TCP peer probe failed for %s:%s: %s", host, first_port, e)
+                    return None
+
+        results = await asyncio.gather(*(probe(host) for host in hosts))
+        peers = [peer for peer in results if peer]
+        return {
+            "ok": True,
+            "peers": peers,
+            "count": len(peers),
+            "target": target,
+            "fallback": "tcp_connect",
+            "note": "nmap unavailable; used bounded TCP connect discovery instead.",
+        }
+
+    def _first_port(self, ports: str) -> int:
+        try:
+            return int(str(ports).split(",")[0].strip())
+        except (TypeError, ValueError):
+            return 8000
+
+    def _candidate_hosts(self, target: str) -> List[str]:
+        try:
+            network = ipaddress.ip_network(target, strict=False)
+        except ValueError:
+            return [target]
+
+        hosts = list(itertools.islice(network.hosts(), 256))
+        if not hosts and network.num_addresses == 1:
+            hosts = [network.network_address]
+        return [str(host) for host in hosts[:256]]
 
     def _get_primary_ip(self) -> str:
         try:
