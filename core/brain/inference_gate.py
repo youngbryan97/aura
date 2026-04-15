@@ -357,8 +357,12 @@ class InferenceGate:
                 # only detected when a user message arrived and timed out.
                 await self._proactive_cortex_watchdog()
 
-                await self._ensure_hot_spare_ready(BRAINSTEM_ENDPOINT)
-                await self._ensure_hot_spare_ready(DEEP_ENDPOINT)
+                # [STABILITY v53] Don't eagerly load brainstem/deep at boot.
+                # The 7B brainstem consumes ~5GB RAM that the 32B cortex needs.
+                # At 62% RAM with both loaded, the cortex swaps and first-turn
+                # response time balloons to 80+ seconds. Load on demand only.
+                # await self._ensure_hot_spare_ready(BRAINSTEM_ENDPOINT)
+                # await self._ensure_hot_spare_ready(DEEP_ENDPOINT)
                 await self._recycle_idle_local_clients()
             except asyncio.CancelledError:
                 raise
@@ -1126,7 +1130,14 @@ class InferenceGate:
         worker: Optional[str] = None,
         timeout: Optional[float] = None,
     ):
-        if not enabled:
+        # [STABILITY v53] Priority user-facing requests BYPASS the semaphore.
+        # The per-worker semaphore was causing a deadlock: kernel holds cortex
+        # sem → kernel times out → protected foreground tries to acquire same
+        # cortex sem → blocks → user waits 80+ seconds for nothing.
+        # Since per-worker sems already isolate cortex from brainstem,
+        # the semaphore only prevents concurrent cortex requests — but that's
+        # exactly what happens when kernel + protected foreground race.
+        if not enabled or priority:
             yield
             return
         try:

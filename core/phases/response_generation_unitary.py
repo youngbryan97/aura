@@ -154,12 +154,13 @@ class UnitaryResponsePhase(Phase):
             return 15.0
         if deep_handoff or model_tier == "secondary":
             return 120.0
-        # Primary tier — reduced from 150s to 75s.
-        # If the model hasn't generated in 75s, the response is likely stuck
-        # and the user has already waited too long. Better to fail fast and
-        # let the stabilization layer provide a voice reflex than to hold
-        # the HTTP connection for 150s+ and trigger 504 gateway timeouts.
-        return 75.0
+        # [STABILITY v53] Primary tier — 120s. The previous 75s was causing
+        # the cortex to be killed mid-generation on cold first turns. The 32B
+        # model on Apple Silicon can take 60-90s for the first response after
+        # boot (Metal shader compilation + KV cache warmup). Killing it at 75s
+        # means the user NEVER gets a response on turn 1. 120s gives real
+        # headroom while still preventing infinite hangs.
+        return 120.0
 
     @staticmethod
     def _recent_router_history(state: AuraState, limit: int = 6) -> list[dict]:
