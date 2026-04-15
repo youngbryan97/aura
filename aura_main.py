@@ -241,7 +241,7 @@ def clean_artifacts():
 
 
 def _select_preferred_launcher_python(current_executable: Optional[str] = None) -> Optional[Path]:
-    """Prefer the stable Homebrew Python 3.12 launcher when Aura starts from its shimmed venv."""
+    """Prefer a stable Homebrew Python 3.12 launcher over shimmed venv paths."""
     if sys.platform != "darwin":
         return None
 
@@ -250,22 +250,33 @@ def _select_preferred_launcher_python(current_executable: Optional[str] = None) 
     if "/.venv/" not in current_raw_str and "/.venv_aura/" not in current_raw_str:
         return None
 
-    candidates = [Path("/opt/homebrew/opt/python@3.12/bin/python3.12")]
-    cellar = Path("/opt/homebrew/Cellar/python@3.12")
-    if cellar.exists():
-        for version_dir in sorted(cellar.iterdir(), reverse=True):
-            candidate = version_dir / "Frameworks" / "Python.framework" / "Versions" / "3.12" / "Resources" / "Python.app" / "Contents" / "MacOS" / "Python"
-            if candidate.exists():
-                candidates.append(candidate)
+    candidates: list[Path] = []
+    explicit = os.environ.get("AURA_PREFERRED_PYTHON")
+    if explicit:
+        candidates.append(Path(explicit))
+    candidates.extend(
+        [
+            Path("/opt/homebrew/opt/python@3.12/bin/python3.12"),
+            Path("/opt/homebrew/bin/python3.12"),
+        ]
+    )
 
     for candidate in candidates:
         try:
             resolved = candidate.resolve()
+            current_resolved = current_raw.resolve()
         except FileNotFoundError:
             continue
-        if resolved.exists() and candidate != current_raw:
-            return resolved
+        if resolved.exists() and resolved != current_resolved:
+            return candidate
     return None
+
+
+def _launcher_python_executable() -> str:
+    preferred = os.environ.get("AURA_PREFERRED_PYTHON", "").strip()
+    if preferred and Path(preferred).exists():
+        return preferred
+    return sys.executable
 
 
 def _maybe_relaunch_with_preferred_python():
@@ -279,6 +290,7 @@ def _maybe_relaunch_with_preferred_python():
     logger.warning("🔁 Relaunching Aura with preferred interpreter: %s", preferred)
     env = os.environ.copy()
     env["AURA_SKIP_PREFERRED_PYTHON_RELAUNCH"] = "1"
+    env["AURA_PREFERRED_PYTHON"] = str(preferred)
     env["AURA_LOCAL_BACKEND"] = "llama_cpp"
     os.execve(str(preferred), [str(preferred), *sys.argv], env)
 
@@ -527,7 +539,7 @@ async def run_desktop(port: int):
                 restart_count = 0
                 while restart_count < max_restarts:
                     proc = await asyncio.create_subprocess_exec(
-                        sys.executable, "interface/gui_actor.py", str(port),
+                        _launcher_python_executable(), "interface/gui_actor.py", str(port),
                         cwd=str(PROJECT_ROOT),
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
@@ -637,7 +649,7 @@ async def run_watchdog():
         start_time = time.time()
         
         # Use asyncio.create_subprocess_exec for non-blocking wait
-        proc = await asyncio.create_subprocess_exec(sys.executable, __file__, "--cli")
+        proc = await asyncio.create_subprocess_exec(_launcher_python_executable(), __file__, "--cli")
         await proc.wait()
         
         # Perplexity Audit Fix: Detect deterministic config errors (Exit 1)

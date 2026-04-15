@@ -159,6 +159,16 @@ SAFE_TOOLS = {
     "personality_skill", "memory_ops", "query_beliefs",
 }
 
+TEMPORAL_SAFE_AUTONOMOUS_TOOLS = {
+    "clock",
+    "environment_info",
+    "query_beliefs",
+    "system_proprioception",
+    "web_search",
+    "sovereign_browser",
+    "sovereign_network",
+}
+
 # Tool names that require identity assertion before execution
 IDENTITY_SENSITIVE_TOOLS = {
     "self_evolution", "self_repair", "self_improvement",
@@ -344,6 +354,19 @@ class ExecutiveCore:
         if stale:
             logger.info("♻️ Executive: swept %d stale intents (TTL 90s, sync)", len(stale))
 
+    @staticmethod
+    def _is_temporal_safe_autonomous_tool(intent: Intent) -> bool:
+        if intent.action_type != ActionType.TOOL_CALL:
+            return False
+        tool_name = str(intent.payload.get("tool_name", "") or "").strip()
+        if tool_name in TEMPORAL_SAFE_AUTONOMOUS_TOOLS:
+            return True
+        if tool_name == "memory_ops":
+            args = intent.payload.get("args", {}) or {}
+            action = str(args.get("action") or args.get("mode") or "").strip().lower()
+            return action in {"", "recall", "search", "query", "read"}
+        return False
+
     async def _evaluate(self, intent: Intent) -> DecisionRecord:
         """Core evaluation logic. All approval paths converge here."""
 
@@ -408,6 +431,13 @@ class ExecutiveCore:
             }
             and intent.priority < 0.85
         ):
+            if self._is_temporal_safe_autonomous_tool(intent):
+                return self._degrade(
+                    intent,
+                    "temporal_safe_autonomous_tool",
+                    1.0,
+                    constraints={"timeout_s": 45, "read_only": True},
+                )
             return self._defer(
                 intent,
                 f"temporal_obligation_active:{temporal['anchor']}",
@@ -548,6 +578,13 @@ class ExecutiveCore:
             }
             and intent.priority < 0.85
         ):
+            if self._is_temporal_safe_autonomous_tool(intent):
+                return self._degrade(
+                    intent,
+                    "temporal_safe_autonomous_tool",
+                    1.0,
+                    constraints={"timeout_s": 45, "read_only": True},
+                )
             return self._defer(
                 intent,
                 f"temporal_obligation_active:{temporal['anchor']}",

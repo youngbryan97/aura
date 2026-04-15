@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from .bridge import Phase
 from core.state.aura_state import AuraState
 from core.consciousness.executive_authority import get_executive_authority
-from core.phases.response_contract import build_response_contract
+from core.phases.response_contract import build_response_contract, _looks_like_search_capability_question
 from core.runtime.background_policy import background_activity_allowed
 from core.runtime.tool_result_contracts import compact_result_payload
 
@@ -337,7 +337,11 @@ class GodModeToolPhase(Phase):
         lower = str(objective or "").lower()
         if "clock" in matched_skills and any(marker in lower for marker in ("what time", "current time", "the time", "what date", "today", "timer", "remind me")):
             return "clock"
-        if "web_search" in matched_skills and any(marker in lower for marker in ("search", "look up", "find out", "online", "internet", "current", "latest", "news")):
+        if (
+            "web_search" in matched_skills
+            and not _looks_like_search_capability_question(objective)
+            and any(marker in lower for marker in ("search", "look up", "find out", "online", "internet", "current", "latest", "news"))
+        ):
             return "web_search"
         if "sovereign_browser" in matched_skills and any(marker in lower for marker in ("open the browser", "open a browser", "navigate to", "visit ", "open website", "open webpage")):
             return "sovereign_browser"
@@ -528,6 +532,12 @@ class GodModeToolPhase(Phase):
             # 2. Re-run pattern match if routing didn't capture it
             if not matched_skills and hasattr(cap, "detect_intent"):
                 matched_skills = cap.detect_intent(objective)
+
+            if _looks_like_search_capability_question(objective):
+                matched_skills = [
+                    name for name in matched_skills
+                    if name not in {"web_search", "search_web", "free_search", "sovereign_browser"}
+                ]
 
             # 3. LLM-assisted selection when patterns fail
             if not matched_skills:

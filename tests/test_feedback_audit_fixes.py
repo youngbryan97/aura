@@ -337,6 +337,8 @@ def test_aura_main_prefers_stable_homebrew_python_launcher_when_invoked_via_venv
     assert "_maybe_relaunch_with_preferred_python()" in source
     assert "AURA_SKIP_PREFERRED_PYTHON_RELAUNCH" in source
     assert "/opt/homebrew/opt/python@3.12/bin/python3.12" in source
+    assert "return candidate" in source
+    assert "/opt/homebrew/Cellar/python@3.12" not in source
     assert 'env["AURA_LOCAL_BACKEND"] = "llama_cpp"' in source
 
 
@@ -475,6 +477,31 @@ def test_governance_policy_keeps_user_simple_queries_on_governed_path(monkeypatc
 
     assert allow_simple_query_bypass("hey", {"origin": "user"}) is False
     assert allow_simple_query_bypass("hey", {"origin": "background_reflection"}) is True
+
+
+def test_capability_engine_does_not_search_for_capability_questions():
+    from core.capability_engine import CapabilityEngine, SkillMetadata
+
+    engine = CapabilityEngine.__new__(CapabilityEngine)
+    engine.skills = {
+        "web_search": SkillMetadata(
+            name="web_search",
+            description="Search the web",
+            trigger_patterns=[r"search (?:for|the web|online|the internet)"],
+        )
+    }
+
+    assert engine.detect_intent("Can you search the internet?") == []
+    assert engine.detect_intent("Can you search the internet for Aura Luna?") == ["web_search"]
+
+
+def test_capability_engine_treats_foreground_context_as_user_source():
+    from core.capability_engine import CapabilityEngine
+
+    engine = CapabilityEngine.__new__(CapabilityEngine)
+
+    assert engine._resolve_execution_source({"user_facing": True, "objective": "check network"}) == "user"
+    assert engine._resolve_execution_source({"origin": "api", "objective": "check network"}) == "api"
 
 
 def test_grounded_authority_reply_includes_observability_note(monkeypatch):

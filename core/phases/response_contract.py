@@ -27,6 +27,17 @@ _EXPLICIT_SEARCH_PATTERNS = (
     r"https?://[^\s]+",                         # Any URL in the message
 )
 
+_SEARCH_CAPABILITY_QUESTION_RE = re.compile(
+    r"\b(?:can|could|do|does|are|is|have|has)\b.{0,80}\b(?:you|aura)\b.{0,80}"
+    r"\b(?:search|internet access|web access|browse|read links?)\b",
+    re.IGNORECASE,
+)
+
+_SEARCH_WITH_TARGET_RE = re.compile(
+    r"\b(?:search|look up|find|browse|read)\b.{0,40}\b(?:for|about|on|at|this|that)\b\s+\S+",
+    re.IGNORECASE,
+)
+
 _FACTUAL_LOOKUP_PATTERNS = (
     r"\blyrics?\b",
     r"\bauthor\b",
@@ -365,6 +376,20 @@ def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
 
 
+def _looks_like_search_capability_question(text: str) -> bool:
+    raw = str(text or "").strip()
+    if not raw:
+        return False
+    if re.search(r"https?://[^\s]+", raw):
+        return False
+    if _SEARCH_WITH_TARGET_RE.search(raw):
+        return False
+    lowered = raw.lower()
+    if "search the internet for" in lowered or "search the web for" in lowered:
+        return False
+    return bool(_SEARCH_CAPABILITY_QUESTION_RE.search(raw))
+
+
 def has_tool_evidence(state: AuraState) -> bool:
     working_memory = getattr(state.cognition, "working_memory", []) or []
     for msg in reversed(working_memory[-8:]):
@@ -500,6 +525,7 @@ def build_response_contract(
     live_fact_lookup = _matches_any(lower, _LIVE_FACT_PATTERNS)
     time_utility_lookup = _matches_any(lower, _TIME_UTILITY_PATTERNS)
     search_negated = bool(_SEARCH_NEGATION_RE.search(lower))
+    search_capability_question = _looks_like_search_capability_question(text)
 
     requires_memory = bool(is_user_facing and _matches_any(lower, _MEMORY_PATTERNS))
     requires_state = bool(is_user_facing and _matches_any(lower, _STATE_REFLECTION_PATTERNS))
@@ -524,6 +550,11 @@ def build_response_contract(
     )
     # Negation guard: "I didn't mean for you to search" should NOT trigger search.
     if search_negated:
+        explicit_search = False
+        factual_lookup = False
+        factual_followup = False
+        temporal_live_lookup = False
+    if search_capability_question:
         explicit_search = False
         factual_lookup = False
         factual_followup = False

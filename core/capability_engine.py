@@ -58,6 +58,17 @@ _USER_FACING_CONTEXT_ORIGINS = frozenset({
     "user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external",
 })
 
+_SEARCH_CAPABILITY_QUESTION_RE = re.compile(
+    r"\b(?:can|could|do|does|are|is|have|has)\b.{0,80}\b(?:you|aura)\b.{0,80}"
+    r"\b(?:search|internet access|web access|browse|read links?)\b",
+    re.IGNORECASE,
+)
+
+_SEARCH_WITH_TARGET_RE = re.compile(
+    r"\b(?:search|look up|find|browse|read)\b.{0,40}\b(?:for|about|on|at|this|that)\b\s+\S+",
+    re.IGNORECASE,
+)
+
 
 def _skill_class_name(name: str) -> str:
     """Convert `snake_case` skill ids into their exported class names."""
@@ -509,8 +520,12 @@ class CapabilityEngine(AuraBaseModule):
         """Aura's 'Cognitive Proprioception': Detects which skills match the user's intent."""
         triggered = []
         msg = message.lower()
+        skip_web_search = self._looks_like_search_capability_question(message)
         for name, meta in self.skills.items():
             if not meta.enabled: continue
+            canonical_name = self.SKILL_ALIASES.get(name, name)
+            if skip_web_search and canonical_name in {"web_search", "free_search", "sovereign_browser"}:
+                continue
             for pattern in meta.trigger_patterns:
                 if re.search(pattern, msg):
                     triggered.append(name)
@@ -546,10 +561,17 @@ class CapabilityEngine(AuraBaseModule):
 
         objective_text = str(objective or "").strip()
         objective_lower = objective_text.lower()
+        skip_web_search = self._looks_like_search_capability_question(objective_text)
         required = self.SKILL_ALIASES.get(required_skill, required_skill) if required_skill else None
+        if skip_web_search and required in {"web_search", "search_web", "free_search", "sovereign_browser"}:
+            required = None
         matched = [
             self.SKILL_ALIASES.get(name, name)
             for name in (self.detect_intent(objective_text) if objective_text else [])
+            if not (
+                skip_web_search
+                and self.SKILL_ALIASES.get(name, name) in {"web_search", "free_search", "sovereign_browser"}
+            )
         ]
 
         heuristic_candidates: List[str] = []
@@ -563,6 +585,8 @@ class CapabilityEngine(AuraBaseModule):
             (("file", "directory", "folder", "read file", "write file", "repo", "code"), ("file_operation", "computer_use")),
         )
         for tokens, names in heuristic_rules:
+            if skip_web_search and any(name in {"web_search", "search_web", "free_search"} for name in names):
+                continue
             if any(token in objective_lower for token in tokens):
                 heuristic_candidates.extend(names)
 
@@ -1075,12 +1099,32 @@ class CapabilityEngine(AuraBaseModule):
         tokens = {token for token in normalized.split("_") if token}
         return bool(tokens & _USER_FACING_CONTEXT_ORIGINS)
 
+    @staticmethod
+    def _looks_like_search_capability_question(text: str) -> bool:
+        raw = str(text or "").strip()
+        if not raw:
+            return False
+        if re.search(r"https?://[^\s]+", raw):
+            return False
+        if _SEARCH_WITH_TARGET_RE.search(raw):
+            return False
+        lowered = raw.lower()
+        if "search the internet for" in lowered or "search the web for" in lowered:
+            return False
+        return bool(_SEARCH_CAPABILITY_QUESTION_RE.search(raw))
+
     def _resolve_execution_source(self, context: Optional[Dict[str, Any]]) -> str:
         ctx = context or {}
         for key in ("intent_source", "request_origin", "origin", "source"):
             candidate = self._normalize_context_origin(ctx.get(key))
             if self._is_user_facing_origin(candidate):
                 return candidate or "user"
+        if any(bool(ctx.get(key)) for key in ("user_facing", "is_user_facing", "foreground_request", "priority")):
+            return "user"
+        state = ctx.get("state")
+        state_origin = getattr(getattr(state, "cognition", None), "current_origin", "") if state is not None else ""
+        if state_origin and self._is_user_facing_origin(state_origin):
+            return self._normalize_context_origin(state_origin)
         return "capability_engine"
 
     def _augment_execution_context(self, context: Optional[Dict[str, Any]]) -> Dict[str, Any]:

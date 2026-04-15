@@ -81,11 +81,21 @@ async def _thread_lock_context(
     timeout: Optional[float] = None,
     label: str = "lock",
 ):
-    """Acquire a loop-agnostic lock from any event loop."""
-    if timeout is None:
-        acquired = await asyncio.to_thread(lock.acquire)
-    else:
-        acquired = await asyncio.to_thread(lock.acquire, True, max(0.0, float(timeout)))
+    """Acquire a thread lock without parking executor threads behind cancellations."""
+    loop = asyncio.get_running_loop()
+    deadline = None if timeout is None else loop.time() + max(0.0, float(timeout))
+    acquired = False
+    while True:
+        acquired = bool(lock.acquire(False))
+        if acquired:
+            break
+        if deadline is not None:
+            remaining = deadline - loop.time()
+            if remaining <= 0.0:
+                break
+            await asyncio.sleep(min(0.05, remaining))
+        else:
+            await asyncio.sleep(0.05)
     if not acquired:
         raise TimeoutError(f"{label}_timeout")
     try:

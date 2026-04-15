@@ -34,6 +34,32 @@ def test_response_contract_requires_search_for_latest_live_fact_lookup():
     assert "temporal_live_lookup" in contract.reason
 
 
+def test_response_contract_does_not_search_for_search_capability_question():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "Can you search the internet?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_search is False
+    assert contract.required_skill is None
+
+
+def test_response_contract_searches_when_capability_question_has_target():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "Can you search the internet for the official Python docs?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_search is True
+    assert contract.required_skill == "web_search"
+
+
 def test_response_contract_does_not_force_search_for_social_checkin_with_today():
     state = AuraState.default()
 

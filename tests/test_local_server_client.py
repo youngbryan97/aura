@@ -1,11 +1,13 @@
+import asyncio
 import pytest
 import httpx
 import subprocess
+import threading
 from collections import deque
 from unittest.mock import AsyncMock, MagicMock
 
 from core.brain.llm import local_server_client
-from core.brain.llm.local_server_client import LocalServerClient, _SERVER_CLIENTS
+from core.brain.llm.local_server_client import LocalServerClient, _SERVER_CLIENTS, _thread_lock_context
 from core.brain.memory_guard import ContextPruner
 
 
@@ -19,6 +21,27 @@ def _clear_runtime_clients():
     _SERVER_CLIENTS.clear()
     yield
     _SERVER_CLIENTS.clear()
+
+
+@pytest.mark.asyncio
+async def test_thread_lock_context_cancellation_does_not_park_executor_waiter():
+    lock = threading.Lock()
+    lock.acquire()
+
+    async def _wait_for_lock():
+        async with _thread_lock_context(lock, timeout=1.0, label="test_lock"):
+            return True
+
+    task = asyncio.create_task(_wait_for_lock())
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    lock.release()
+    await asyncio.sleep(0.1)
+    assert lock.acquire(False) is True
+    lock.release()
 
 
 @pytest.mark.asyncio

@@ -86,6 +86,37 @@ async def _log_exchange(user_msg: str, aura_response: str):
         logger.debug("Conversation experience recording skipped: %s", exc)
 
 
+async def _preserve_large_user_paste(user_msg: str) -> None:
+    """Keep large pasted text in live working memory for follow-up references."""
+    content = str(user_msg or "").strip()
+    if len(content) < 4000:
+        return
+    try:
+        state = _resolve_live_aura_state()
+        cognition = getattr(state, "cognition", None) if state is not None else None
+        working_memory = getattr(cognition, "working_memory", None)
+        if not isinstance(working_memory, list):
+            return
+        if working_memory and str((working_memory[-1] or {}).get("content", "")) == content:
+            return
+        working_memory.append(
+            {
+                "role": "user",
+                "content": content,
+                "timestamp": time.time(),
+                "metadata": {
+                    "type": "large_user_paste",
+                    "source": "chat_api",
+                    "preserve_for_followup": True,
+                },
+            }
+        )
+        if len(working_memory) > 80:
+            del working_memory[: len(working_memory) - 80]
+    except Exception as exc:
+        logger.debug("Large paste preservation skipped: %s", exc)
+
+
 def _extract_session_memory_pin_request(user_message: str) -> Optional[str]:
     text = str(user_message or "").strip()
     if not text:
@@ -881,6 +912,9 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
         (r"\bcan you provide more details\b", "generic_clarification"),
         (r"\bcould you provide more details\b", "generic_clarification"),
         (r"\bif you share more (?:details|context)\b", "generic_clarification"),
+        (r"\bi (?:still )?can(?:not|'t) access (?:what|the text|the story|the post) you pasted\b", "false_context_loss"),
+        (r"\bi (?:still )?can(?:not|'t) (?:read|see) (?:what|the text|the story|the post) you pasted\b", "false_context_loss"),
+        (r"\bi can(?:not|'t) directly access external links\b", "false_tool_limitation"),
         (r"\bas an ai\b", "assistant_disclaimer"),
         (r"\bas a large language model\b", "assistant_disclaimer"),
         # [STABILITY v53] Added patterns for assistant-speak that was leaking through
@@ -1678,12 +1712,13 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(text)
     lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(text)
     unexpected_cjk = _has_unexpected_cjk(user_message, text)
+    internal_state_leak = bool(_INTERNAL_STATE_PATTERNS.search(text))
     try:
         from core.identity.identity_guard import PersonaEnforcementGate
 
         gate = PersonaEnforcementGate()
         valid, reason, _score = gate.validate_output(text, enforce_supervision=False)
-        if valid and not generic and not lacks_self_anchor and not lacks_live_grounding and not unexpected_cjk:
+        if valid and not generic and not lacks_self_anchor and not lacks_live_grounding and not unexpected_cjk and not internal_state_leak:
             return text
         if generic:
             reason = generic_reason
@@ -1693,6 +1728,8 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             reason = "self_grounding_missing"
         elif unexpected_cjk:
             reason = "unexpected_non_english_script"
+        elif internal_state_leak:
+            reason = "internal_state_leak"
 
         user_message_l = str(user_message or "").lower()
         if any(
@@ -1717,6 +1754,14 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             cleaned_unexpected_cjk = _has_unexpected_cjk(user_message, cleaned)
             if valid_cleaned and not cleaned_generic and not cleaned_lacks_self_anchor and not cleaned_lacks_live_grounding and not cleaned_unexpected_cjk and len(cleaned) >= 16:
                 return cleaned
+        if internal_state_leak:
+            logger.warning("Blocked internal state leak in user-facing reply (len=%d).", len(text))
+            if grounded:
+                return grounded
+            if architecture_self_assessment:
+                return _build_architecture_self_reflex(frame)
+            return _build_stateful_voice_reflex(frame)
+
         logger.warning("User-facing reply failed identity stabilization (%s); generating Aura-voiced fallback.", reason)
     except Exception as exc:
         logger.debug("User-facing reply stabilization skipped: %s", exc)
@@ -2822,6 +2867,7 @@ async def api_chat(
         # the LLM. If the process dies mid-inference, the message is preserved
         # and the conversation can be resumed. (Pattern from Claude Code.)
         try:
+            await _preserve_large_user_paste(body.message)
             from core.runtime.conversation_support import record_conversation_experience
             await _log_exchange(body.message, "")  # Empty response = in-flight
         except Exception:
