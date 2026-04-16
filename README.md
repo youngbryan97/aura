@@ -66,7 +66,6 @@ Multi-tier local LLM router with automatic failover. Supports both MLX (Apple Si
 5. **Cloud**: Gemini Flash/Pro (PII-scrubbed before sending, daily rate-limited to stay within free tier)
 6. **Emergency**: Rule-based static reflex via LazarusBrainstem (never fails)
 
-**Personality LoRA**: The 32B model is fine-tuned on 1,200 personality examples derived from Aura's character fusion (Sara v3, Lucy, Sypha, Alita, MIST, AshleyToo). Val loss: 3.99 → 0.175 (22.8x improvement). Personality is in the weights, not just prompts. Adapter is loaded separately at runtime (not re-quantized into fused model) to preserve quality.
 
 No cloud API required. Optional API tiers available if configured. Circuit breakers with health monitoring (20s recovery window), automatic tier failover, empty response detection, proactive cortex watchdog, GPU semaphore gating (one model load at a time), and 429 rate-limit immediate circuit breaking.
 
