@@ -40,13 +40,20 @@ def _detect_72b_q4() -> bool:
 _72B_READY = _detect_72b_q4()
 # 32B Q5 as Cortex (fast, stable ~20s responses); 72B Q4 as Solver (deep reasoning, hot-swap)
 # 72B Q4 is too slow (~84s) for primary use with Aura's background task architecture
-ACTIVE_MODEL = os.getenv("AURA_MODEL") or "Qwen2.5-32B-Instruct-8bit"
+# [STABILITY v53] Use the fused personality model directly instead of
+# base + separate LoRA adapter. The separate adapter causes intermittent
+# float32 type errors in MLX when LoRA weights interact with 8-bit
+# quantized compute graphs. Fused model has personality in the weights.
+_FUSED_MODEL_DIR = BASE_DIR / "training" / "fused-model" / "Aura-32B-v4"
+_FUSED_AVAILABLE = _FUSED_MODEL_DIR.is_dir() and (_FUSED_MODEL_DIR / "config.json").exists()
+ACTIVE_MODEL = os.getenv("AURA_MODEL") or ("Aura-32B-v4" if _FUSED_AVAILABLE else "Qwen2.5-32B-Instruct-8bit")
 DEEP_MODEL = os.getenv("AURA_DEEP_MODEL") or ("Qwen2.5-72B-Instruct-Q4" if _72B_READY else "Qwen2.5-72B-Instruct-4bit")
 BRAINSTEM_MODEL = os.getenv("AURA_BRAINSTEM_MODEL", "Qwen2.5-7B-Instruct-4bit")
 FALLBACK_MODEL = os.getenv("AURA_FALLBACK_MODEL", "Qwen2.5-1.5B-Instruct-4bit")
 
 GGUF_DIR = BASE_DIR / "models_gguf"
 MODEL_PATHS = {
+    "Aura-32B-v4":                 BASE_DIR / "training" / "fused-model" / "Aura-32B-v4",
     "Qwen2.5-1.5B-Instruct-4bit": BASE_DIR / "models" / "Qwen2.5-1.5B-Instruct-4bit",
     "Qwen2.5-7B-Instruct-4bit":   BASE_DIR / "models" / "Qwen2.5-7B-Instruct-4bit",
     "Qwen2.5-14B-Instruct-4bit":  BASE_DIR / "models" / "Qwen2.5-14B-Instruct-4bit",
