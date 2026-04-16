@@ -484,28 +484,17 @@ def _mlx_worker_loop(
     # ZENITH: Local Concurrency Gate
     metal_semaphore = threading.Semaphore(1)
 
-    # Load model with a compatible personality LoRA adapter if available.
-    # The adapter is trained against a specific base model and must not be
-    # applied blindly to every lane.
+    # [STABILITY v53.7] LoRA adapter loading DISABLED.
+    # The separate adapter causes intermittent float32 type errors on 8-bit
+    # quantized models ("Function arguments must be trees of arrays or constants,
+    # but received type float32"). Personality is enforced via 4-layer prompt
+    # hardening (ChatML guard, message anchor, compact persona, post-gen filter).
+    # The adapter weights are preserved for future use when MLX fixes the
+    # quantization compatibility issue.
     try:
-        adapter_path = resolve_personality_adapter(model_path, backend="mlx")
         logger.info(f"Loading model: {model_path}")
-        if adapter_path and os.path.isdir(adapter_path):
-            try:
-                logger.info(f"Loading with LoRA adapter: {adapter_path}")
-                model, tokenizer = load(model_path, adapter_path=adapter_path)
-                logger.info("Model loaded with Aura personality LoRA fused.")
-            except Exception as adapter_exc:
-                logger.warning(
-                    "⚠️ [WORKER] Compatible LoRA adapter failed to load for %s: %s. Falling back to base model.",
-                    os.path.basename(model_path),
-                    adapter_exc,
-                )
-                model, tokenizer = load(model_path)
-                logger.info("Model loaded without LoRA after fallback.")
-        else:
-            model, tokenizer = load(model_path)
-            logger.info("Model loaded (no compatible LoRA adapter).")
+        model, tokenizer = load(model_path)
+        logger.info("Model loaded (personality via prompt hardening, not LoRA).")
 
         # Attach Affective Steering
         try:
