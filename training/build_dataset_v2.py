@@ -13,6 +13,11 @@ import random
 from pathlib import Path
 
 from personality_spec_v2 import get_training_pairs, get_dpo_pairs, get_personality_prompt
+try:
+    from personality_spec_v2 import DPO_PAIRS_V2
+except ImportError:
+    DPO_PAIRS_V2 = []
+from character_voices import get_all_character_pairs
 
 OUTPUT_DIR = Path(__file__).parent / "data"
 SYSTEM_PROMPT = get_personality_prompt()
@@ -84,28 +89,35 @@ def build_multi_turn_examples(pairs: list) -> list:
 def main():
     pairs = get_training_pairs()
     dpo_pairs = get_dpo_pairs()
+    character_pairs = get_all_character_pairs()
+    dpo_v2 = DPO_PAIRS_V2 if DPO_PAIRS_V2 else []
     print(f"Base pairs: {len(pairs)}")
-    print(f"DPO pairs: {len(dpo_pairs)}")
+    print(f"Character voice pairs: {len(character_pairs)}")
+    print(f"DPO pairs: {len(dpo_pairs)} + {len(dpo_v2)} v2")
+
+    # Merge all conversation pairs
+    all_pairs = pairs + character_pairs
+    all_dpo = dpo_pairs + dpo_v2
 
     all_examples = []
 
     # 1. Single-turn examples with system prompt variants
-    for user_msg, aura_msg in pairs:
+    for user_msg, aura_msg in all_pairs:
         for system in SYSTEM_VARIANTS:
             all_examples.append(build_chat_example(user_msg, aura_msg, system))
 
     # 2. DPO preferred examples (teach the RIGHT way)
-    for user_msg, preferred, _rejected in dpo_pairs:
+    for user_msg, preferred, _rejected in all_dpo:
         for system in SYSTEM_VARIANTS:
             all_examples.append(build_dpo_preferred_example(user_msg, preferred, system))
 
     # 3. DPO contrast examples (teach correction from assistant → Aura)
-    for user_msg, preferred, rejected in dpo_pairs:
+    for user_msg, preferred, rejected in all_dpo:
         for system in SYSTEM_VARIANTS[:3]:  # Fewer variants for contrast
             all_examples.append(build_dpo_contrast_example(user_msg, preferred, rejected, system))
 
-    # 4. Multi-turn conversation examples
-    multi = build_multi_turn_examples(pairs)
+    # 4. Multi-turn conversation examples (from ALL pairs including character voices)
+    multi = build_multi_turn_examples(all_pairs)
     all_examples.extend(multi)
 
     print(f"Total examples: {len(all_examples)}")
