@@ -484,17 +484,28 @@ def _mlx_worker_loop(
     # ZENITH: Local Concurrency Gate
     metal_semaphore = threading.Semaphore(1)
 
-    # [STABILITY v53.7] LoRA adapter loading DISABLED.
-    # The separate adapter causes intermittent float32 type errors on 8-bit
-    # quantized models ("Function arguments must be trees of arrays or constants,
-    # but received type float32"). Personality is enforced via 4-layer prompt
-    # hardening (ChatML guard, message anchor, compact persona, post-gen filter).
-    # The adapter weights are preserved for future use when MLX fixes the
-    # quantization compatibility issue.
+    # [STABILITY v53.9] Load with LoRA adapter. Intermittent float32 errors
+    # are caught at generation time and retried — most generations succeed.
+    # The adapter is the v3 training (22 characters, val loss 0.102).
     try:
+        adapter_path = resolve_personality_adapter(model_path, backend="mlx")
         logger.info(f"Loading model: {model_path}")
-        model, tokenizer = load(model_path)
-        logger.info("Model loaded (personality via prompt hardening, not LoRA).")
+        if adapter_path and os.path.isdir(adapter_path):
+            try:
+                logger.info(f"Loading with LoRA adapter: {adapter_path}")
+                model, tokenizer = load(model_path, adapter_path=adapter_path)
+                logger.info("Model loaded with Aura personality LoRA fused.")
+            except Exception as adapter_exc:
+                logger.warning(
+                    "⚠️ [WORKER] LoRA adapter failed to load for %s: %s. Using base model + prompt hardening.",
+                    os.path.basename(model_path),
+                    adapter_exc,
+                )
+                model, tokenizer = load(model_path)
+                logger.info("Model loaded without LoRA (prompt hardening active).")
+        else:
+            model, tokenizer = load(model_path)
+            logger.info("Model loaded (no compatible LoRA adapter).")
 
         # Attach Affective Steering
         try:
