@@ -1167,6 +1167,7 @@ class MLXLocalClient:
         if request_is_background:
             foreground_request = False
         owner_label = str(kwargs.pop("owner_label", os.path.basename(self.model_path)) or os.path.basename(self.model_path))
+        recovered_request_lock = False
 
         if request_is_background and _foreground_owner_active():
             logger.info(
@@ -1220,6 +1221,7 @@ class MLXLocalClient:
             )
             try:
                 self._request_lock.release()
+                recovered_request_lock = True
                 logger.warning("🔓 [MLX] Force-released stuck _request_lock for %s", os.path.basename(self.model_path))
             except RuntimeError:
                 pass  # Lock wasn't actually held — no-op
@@ -1252,7 +1254,14 @@ class MLXLocalClient:
         finally:
             _deferred_reboot = self._deferred_reboot_reason
             self._deferred_reboot_reason = None
-            self._request_lock.release()
+            try:
+                self._request_lock.release()
+            except RuntimeError:
+                logger.warning(
+                    "⚠️ [MLX] _request_lock already released for %s (force_recovered=%s). Suppressing stale unlock.",
+                    os.path.basename(self.model_path),
+                    recovered_request_lock,
+                )
             # Reboot AFTER releasing _request_lock to avoid lock-ordering deadlock
             if _deferred_reboot:
                 await self.reboot_worker(reason=_deferred_reboot, mark_failed=True)

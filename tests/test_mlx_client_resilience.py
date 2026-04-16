@@ -128,6 +128,19 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(inner.await_args.kwargs["foreground_request"])
         self.assertFalse(inner.await_args.kwargs["request_is_background"])
 
+    async def test_generate_suppresses_stale_unlock_in_finally(self):
+        client = MLXLocalClient(model_path="/tmp/test-model")
+        fake_lock = MagicMock()
+        fake_lock.acquire.return_value = True
+        fake_lock.release.side_effect = RuntimeError("release unlocked lock")
+        client._request_lock = fake_lock
+
+        with patch.object(client, "_generate_inner", new=AsyncMock(return_value="ok")):
+            result = await client.generate("hello")
+
+        self.assertEqual(result, "ok")
+        fake_lock.release.assert_called()
+
     async def test_generate_soft_times_out_init_budget_without_killing_worker(self):
         client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
         proc = MagicMock()
