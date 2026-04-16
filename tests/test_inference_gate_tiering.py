@@ -154,15 +154,18 @@ async def test_deep_handoff_uses_solver_then_returns_response():
         scheduled.append(coro)
         return MagicMock(name="task")
 
+    # Mock memory headroom so test doesn't depend on actual system RAM
+    _low_pressure = {"tier": "secondary", "pressure_pct": 40.0, "total_gb": 64.0, "available_gb": 32.0, "max_pressure_pct": 84.0, "min_available_gb": 16.0, "can_admit": True}
     with patch("asyncio.create_task", side_effect=_capture_task):
         with patch("core.brain.llm.mlx_client.get_mlx_client", side_effect=_fake_get_mlx_client):
             with patch("core.brain.llm.model_registry.get_deep_model_path", return_value="/models/deep"):
                 with patch("core.brain.llm.model_registry.get_runtime_model_path", return_value="/models/active"):
                     with patch("core.brain.llm.model_registry.ACTIVE_MODEL", "ACTIVE"):
-                        result = await gate.generate(
-                            "perform a flagship architecture deep dive",
-                            context={"prefer_tier": "secondary", "deep_handoff": True},
-                        )
+                        with patch.object(InferenceGate, "_headroom_snapshot", staticmethod(lambda *a, **kw: _low_pressure)):
+                            result = await gate.generate(
+                                "perform a flagship architecture deep dive",
+                                context={"prefer_tier": "secondary", "deep_handoff": True},
+                            )
 
     for coro in scheduled:
         await coro
@@ -786,6 +789,10 @@ def test_background_local_deferral_protects_cold_cortex_during_safe_boot(monkeyp
     monkeypatch.setattr(InferenceGate, "_foreground_owner_active", staticmethod(lambda: False))
     monkeypatch.setattr(gate, "_should_quiet_background_for_cortex_startup", lambda: False)
     monkeypatch.setattr(gate, "_background_memory_pressure_active", lambda: False)
+    # Mock headroom so real system RAM doesn't interfere with test logic
+    _low_pressure = {"pressure_pct": 40.0, "available_gb": 32.0, "safe": True, "reason": "ok"}
+    monkeypatch.setattr(InferenceGate, "_headroom_snapshot", staticmethod(lambda *a, **kw: _low_pressure))
+    monkeypatch.setattr(gate, "_foreground_headroom_reserved", lambda *a, **kw: False)
     monkeypatch.setattr(
         gate,
         "get_conversation_status",
