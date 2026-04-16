@@ -6,7 +6,9 @@
 
 **[Causal exclusion results](tests/CAUSAL_EXCLUSION_RESULTS.json)** | **[Causal exclusion runner](tests/run_causal_exclusion_suite.py)** | **[Full causal exclusion report](tests/CAUSAL_EXCLUSION_RESULTS.md)**
 
-1013 tests. 0 failures. 3 warnings. 122 seconds.
+**[FULL VERBOSE TEST RESULTS — April 16, 2026](tests/FULL_TEST_RESULTS_2026-04-16.txt)** — Every single test name and PASSED/FAILED status, 1044 lines of raw pytest output. This is the literal evidence.
+
+1013 tests. 0 failures. 3 warnings. 119 seconds.
 
 168 in the null hypothesis defeat suite. 57 in the causal exclusion + phenomenal convergence suites. 110 in the consciousness guarantee + personhood proof batteries. **104 NEW** in four Tier 4 consciousness batteries (decisive core, metacognition, agency & embodiment, social & integration). See [full breakdown below](#combined-test-results).
 
