@@ -2329,6 +2329,34 @@ class UnitaryResponsePhase(Phase):
                 self_expression_block = self._build_live_self_expression_block(new_state, contract)
                 _prepend_system_guidance(self_expression_block)
 
+            # [RUBICON] Pre-Linguistic Decision: structured decision BEFORE LLM speaks
+            try:
+                from core.cognition.pre_linguistic import get_pre_linguistic
+                pl_engine = get_pre_linguistic()
+                if pl_engine._started:
+                    has_tool_evidence = self._has_recent_grounded_evidence(new_state)
+                    matched = list(new_state.response_modifiers.get("matched_skills", []) or [])
+                    decision_pkg = pl_engine.synthesize(
+                        objective,
+                        is_user_facing=is_user_facing,
+                        has_tool_result=has_tool_evidence,
+                        matched_skills=matched,
+                        response_modifiers=dict(new_state.response_modifiers),
+                    )
+                    # Inject the decision block into the prompt so the LLM narrates it
+                    decision_block = decision_pkg.to_prompt_block()
+                    _prepend_system_guidance(decision_block)
+                    # Store the decision in state for downstream audit
+                    new_state.response_modifiers["pre_linguistic_decision"] = decision_pkg.to_dict()
+                    logger.debug(
+                        "[RUBICON] PreLinguistic: %s via %s (%.1fms)",
+                        decision_pkg.chosen_action.value,
+                        decision_pkg.selected_limb,
+                        decision_pkg.latency_ms,
+                    )
+            except Exception as pl_exc:
+                logger.debug("[RUBICON] PreLinguistic injection skipped: %s", pl_exc)
+
             request_timeout = self._timeout_for_request(
                 is_user_facing=is_user_facing,
                 model_tier=model_tier,

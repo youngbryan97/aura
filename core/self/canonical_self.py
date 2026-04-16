@@ -317,6 +317,26 @@ class CanonicalSelfEngine:
             change_strs = [f"{d.field_changed}" for d in recent]
             lines.append(f"Recent changes: {', '.join(change_strs)}")
 
+        # Behavioral scars (learned caution from experience)
+        try:
+            scar_system = ServiceContainer.get("scar_formation", default=None)
+            if scar_system is not None:
+                scar_block = scar_system.get_context_block()
+                if scar_block:
+                    lines.append(scar_block)
+        except Exception:
+            pass
+
+        # Value evolution drift
+        try:
+            autopoiesis = ServiceContainer.get("value_autopoiesis", default=None)
+            if autopoiesis is not None:
+                drift = autopoiesis.get_drift_report()
+                if drift:
+                    lines.append(f"Value evolution: {drift}")
+        except Exception:
+            pass
+
         return "\n".join(lines)
 
     def get_recent_changes(self) -> List[SelfModelDelta]:

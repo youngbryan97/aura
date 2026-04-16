@@ -116,7 +116,44 @@ class ProprioceptiveLoop(BasePhase):
             logger.debug("Proprioception homeostatic probe failed: %s", e)
             
         soma.updated_at = time.time()
-        
+
+        # ── 4b. [RUBICON] Motor Cortex Awareness ───────────────
+        # Drain pending receipts from the motor cortex so the cognitive
+        # loop becomes aware of reflex actions (screen captures, health
+        # throttles, file reactions) that happened since the last tick.
+        try:
+            from core.container import ServiceContainer as _SC
+            mc = _SC.get("motor_cortex", default=None)
+            if mc is not None:
+                reports = mc.drain_pending_reports()
+                if reports:
+                    soma.hardware["motor_cortex_actions"] = len(reports)
+                    soma.hardware["motor_cortex_failures"] = sum(
+                        1 for r in reports if not r.success
+                    )
+                    # Surface the most recent motor action for phenomenal awareness
+                    latest = reports[-1]
+                    soma.latency["last_reflex_ms"] = latest.latency_ms
+                    soma.expressive["last_reflex"] = (
+                        f"{latest.handler_name}:{latest.result_summary}"[:60]
+                    )
+        except Exception as _mc_exc:
+            logger.debug("Proprioception motor cortex drain failed: %s", _mc_exc)
+
+        # ── 4c. [RUBICON] Limb Health Summary ──────────────────
+        # Surface body schema limb health from the feedback processor
+        # so downstream phases (affect, cognition) can feel degraded limbs.
+        try:
+            from core.container import ServiceContainer as _SC2
+            fp = _SC2.get("feedback_processor", default=None)
+            if fp is not None:
+                unhealthy = fp.get_unhealthy_limbs(threshold=0.5)
+                if unhealthy:
+                    soma.hardware["unhealthy_limbs"] = unhealthy
+                    soma.hardware["unhealthy_limb_count"] = len(unhealthy)
+        except Exception as _fp_exc:
+            logger.debug("Proprioception limb health probe failed: %s", _fp_exc)
+
         logger.debug(
             "🦴 Proprioception: CPU=%.1f%%, VRAM=%.1f%%, Expression=%s, ThoughtLag=%.0fms",
             soma.hardware.get("cpu_usage", 0),
@@ -124,7 +161,7 @@ class ProprioceptiveLoop(BasePhase):
             soma.expressive.get("current_expression", "?"),
             soma.latency.get("last_thought_ms", 0)
         )
-        
+
         # ── 5. Autonomic Reflexes (Phase 23.5) ──────────────────
         await self._autonomic_reflex_check(new_state)
         

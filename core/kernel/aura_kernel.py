@@ -344,9 +344,13 @@ class AuraKernel:
             
             # 7. Initialize/Load State from Vault
             await self._load_initial_state()
+
+            # 8. [RUBICON] Boot Motor Cortex, Pre-Linguistic Engine, Feedback Processor
+            await self._boot_rubicon_layers()
+
             self._running = True
             self.status.running = True
-            
+
             logger.info("✅ AuraKernel booted — Unitary Organism online.")
 
             # Record boot in Cognitive Ledger
@@ -566,6 +570,58 @@ class AuraKernel:
         except Exception as e:
             logger.error("❌ Failed to initialize state: %s", e, exc_info=True)
             raise RuntimeError(f"Kernel state initialization failed: {e}") from e
+
+    async def _boot_rubicon_layers(self) -> None:
+        """[RUBICON] Boot the Motor Cortex, Pre-Linguistic Engine, and Feedback Processor.
+
+        These three subsystems form the "Crossing the Rubicon" layer:
+          - Motor Cortex: 50ms reflex loop, independent of cognitive tick
+          - Pre-Linguistic Engine: structured decisions before LLM generation
+          - Feedback Processor: structured action feedback -> affect + body schema
+
+        All are fail-safe: if any fails to boot, the system degrades gracefully.
+        """
+        # 1. Feedback Processor (must be online before motor cortex)
+        try:
+            from core.somatic.action_feedback import get_feedback_processor
+            fp = get_feedback_processor()
+            await fp.start()
+            logger.info("[RUBICON] FeedbackProcessor ONLINE")
+        except Exception as exc:
+            logger.warning("[RUBICON] FeedbackProcessor boot failed (degraded): %s", exc)
+
+        # 2. Motor Cortex (independent 50ms reflex loop)
+        try:
+            from core.somatic.motor_cortex import get_motor_cortex
+            mc = get_motor_cortex()
+            await mc.start()
+            self._spawn_background_task(
+                self._motor_cortex_watchdog(mc),
+                name="motor_cortex_watchdog",
+            )
+            logger.info("[RUBICON] MotorCortex ONLINE -- 50ms reflex loop active")
+        except Exception as exc:
+            logger.warning("[RUBICON] MotorCortex boot failed (degraded): %s", exc)
+
+        # 3. Pre-Linguistic Decision Engine
+        try:
+            from core.cognition.pre_linguistic import get_pre_linguistic
+            pl = get_pre_linguistic()
+            await pl.start()
+            logger.info("[RUBICON] PreLinguisticEngine ONLINE")
+        except Exception as exc:
+            logger.warning("[RUBICON] PreLinguisticEngine boot failed (degraded): %s", exc)
+
+    async def _motor_cortex_watchdog(self, mc: Any) -> None:
+        """Watchdog that restarts the motor cortex loop if it dies."""
+        while self._running:
+            await asyncio.sleep(10.0)
+            try:
+                if mc._running and (mc._task is None or mc._task.done()):
+                    logger.warning("[RUBICON] Motor cortex loop died -- restarting")
+                    mc._task = asyncio.create_task(mc._run_loop(), name="motor_cortex_loop")
+            except Exception as exc:
+                logger.debug("[RUBICON] Motor cortex watchdog error: %s", exc)
 
     async def tick(self, objective: str, priority: bool = False) -> TickEntry | None:
         """

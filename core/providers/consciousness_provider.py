@@ -169,3 +169,21 @@ def register_consciousness_services(container):
         from core.consciousness.theory_arbitration import get_theory_arbitration
         return get_theory_arbitration()
     container.register('theory_arbitration', create_theory_arbitration, lifetime=ServiceLifetime.SINGLETON, required=False)
+
+    # 57. Time Dilation Engine (Variable Subjective Time)
+    def create_time_dilation():
+        from core.consciousness.time_dilation import get_time_dilation_engine
+        return get_time_dilation_engine()
+    container.register('time_dilation', create_time_dilation, lifetime=ServiceLifetime.SINGLETON, required=False)
+
+    # 58. Precognitive Engine (User Intent Prediction)
+    def create_precognitive():
+        from core.cognition.precognitive_model import get_precognitive_engine
+        return get_precognitive_engine()
+    container.register('precognitive_engine', create_precognitive, lifetime=ServiceLifetime.SINGLETON, required=False)
+
+    # 59. Aesthetic Engine (Creative Expression from Internal State)
+    def create_aesthetic_engine():
+        from core.creativity.aesthetic_engine import AestheticEngine
+        return AestheticEngine()
+    container.register('aesthetic_engine', create_aesthetic_engine, lifetime=ServiceLifetime.SINGLETON, required=False)

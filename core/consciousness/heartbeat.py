@@ -109,12 +109,22 @@ class CognitiveHeartbeat:
         return self._integrity_cache
 
     # ------------------------------------------------------------------
+    # Time Dilation integration (lazy-loaded)
+    # ------------------------------------------------------------------
+
+    @property
+    def _time_dilation(self):
+        if not hasattr(self, '_time_dilation_cache'):
+            self._time_dilation_cache = ServiceContainer.get("time_dilation", default=None)
+        return self._time_dilation_cache
+
+    # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
 
     async def run(self):
         """The heartbeat loop. Never stops unless explicitly cancelled.
-        Runs at _TICK_RATE_HZ (1Hz default).
+        Runs at _TICK_RATE_HZ (1Hz default), or dynamically via TimeDilationEngine.
         """
         # Issue 87: Ensure Event is initialized
         if self._stop_event is None:
@@ -132,6 +142,16 @@ class CognitiveHeartbeat:
             except Exception as e:
                 logger.error("Heartbeat tick error (tick=%d): %s", self.tick_count, e, exc_info=True)
                 # Never stop the heartbeat for a subsystem error
+
+            # Dynamic interval from TimeDilationEngine (falls back to fixed 1Hz)
+            try:
+                td = self._time_dilation
+                if td:
+                    interval = td.evaluate()
+                else:
+                    interval = 1.0 / self._TICK_RATE_HZ
+            except Exception:
+                interval = 1.0 / self._TICK_RATE_HZ
 
             # Sleep the remainder of the interval
             elapsed = time.time() - tick_start
@@ -339,6 +359,14 @@ class CognitiveHeartbeat:
             except Exception as e:
                 logger.debug("CEL tick error: %s", e, exc_info=True)
 
+        # ── 8d. PARALLEL BRANCHES tick ────────────────────────────────
+        try:
+            branch_mgr = ServiceContainer.get("branch_manager", default=None)
+            if branch_mgr:
+                await branch_mgr.tick()
+        except Exception as e:
+            logger.debug("Branch manager tick failed: %s", e)
+
         # ── 9. NARRATIVE INJECTION & Resource Throttling ───────────────
         # Throttle heavy tasks if system heat or resource stress is high
         resource_stress = state.get("body_heat", 30) > 85 or state.get("body_energy", 100) < 15
@@ -351,12 +379,15 @@ class CognitiveHeartbeat:
         # ── 10. DEBUG LOG every 10 ticks ───────────────────────────────
         if tick % 10 == 0:
             mods = self.homeostasis.get_modifiers()
+            td = self._time_dilation
+            dilation_str = f" | dilation={td.get_dilation_factor():.1f}x" if td else ""
             logger.debug(
                 f"Heartbeat tick {tick} | "
                 f"vitality={mods.overall_vitality:.2f} | "
                 f"surprise={surprise:.2f} | "
                 f"coherence={self.attention.coherence:.2f} | "
                 f"winner={winner.source if winner else 'none'}"
+                f"{dilation_str}"
             )
 
     # ------------------------------------------------------------------

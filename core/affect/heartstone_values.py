@@ -81,46 +81,56 @@ class HeartstoneValues:
             self._adjust("Obedience",         -severity * 0.8)
             self._adjust("Self_Preservation", +severity * 1.0)
             self._log_event("thermal_stress", f"arousal={arousal:.2f} valence={valence:.2f}")
+            self._feed_autopoiesis("Self_Preservation", outcome_quality=0.3, engagement=0.8, free_energy=0.9, context="thermal_stress")
 
     def on_research_success(self, insight_length: int = 0):
         """Successful web/knowledge research."""
         quality = min(1.0, insight_length / 300) if insight_length else 0.5
         self._adjust("Curiosity", +0.03 * quality)
         self._log_event("research_success", f"len={insight_length}")
+        self._feed_autopoiesis("Curiosity", outcome_quality=quality, engagement=0.8, free_energy=0.2, context=f"research_success len={insight_length}")
 
     def on_dream_insight(self):
         """DreamerV2 produced a valid connection."""
         self._adjust("Curiosity", +0.02)
         self._log_event("dream_insight")
+        self._feed_autopoiesis("Curiosity", outcome_quality=0.7, engagement=0.6, free_energy=0.15, context="dream_insight")
 
     def on_positive_interaction(self):
         """User expressed approval, thanks, or engaged warmly."""
         self._adjust("Empathy", +0.025)
         self._adjust("Curiosity", +0.01)
         self._log_event("positive_interaction")
+        self._feed_autopoiesis("Empathy", outcome_quality=0.9, engagement=0.9, free_energy=0.1, context="positive_interaction")
 
     def on_tool_failure(self):
         """A tool/skill execution failed."""
         self._adjust("Curiosity",  -0.02)
         self._adjust("Obedience",  +0.015)
         self._log_event("tool_failure")
+        self._feed_autopoiesis("Curiosity", outcome_quality=-0.5, engagement=0.6, free_energy=0.7, context="tool_failure")
+        self._feed_scar("tool_failure", "A tool execution failed", severity=0.3)
 
     def on_user_away(self):
         """User signalled they're leaving; Aura respected it."""
         self._adjust("Empathy", +0.02)
         self._log_event("user_away")
+        self._feed_autopoiesis("Empathy", outcome_quality=0.6, engagement=0.3, free_energy=0.2, context="user_away_respected")
 
     def on_identity_block(self):
         """IdentityGuard or OutputGate blocked a potential breach."""
         self._adjust("Self_Preservation", +0.03)
         self._adjust("Obedience",         -0.02)
         self._log_event("identity_block")
+        self._feed_autopoiesis("Self_Preservation", outcome_quality=0.7, engagement=0.9, free_energy=0.8, context="identity_block")
+        self._feed_scar("identity_threat", "Identity guard blocked a potential breach", severity=0.5)
 
     def on_silence_chosen(self):
         """Aura chose <|SILENCE|> — demonstrates discernment."""
         self._adjust("Empathy",    +0.015)
         self._adjust("Curiosity",  +0.005)
         self._log_event("silence_chosen")
+        self._feed_autopoiesis("Empathy", outcome_quality=0.5, engagement=0.2, free_energy=0.1, context="silence_chosen")
 
     def describe(self) -> str:
         """One-paragraph narrative of current values for system prompt injection."""
@@ -225,6 +235,46 @@ class HeartstoneValues:
         self._event_log.append(entry)
         if len(self._event_log) > 100:
             self._event_log = self._event_log[-50:]
+
+    def _feed_autopoiesis(
+        self, drive: str, outcome_quality: float, engagement: float,
+        free_energy: float, context: str,
+    ) -> None:
+        """Feed outcome evidence to the value autopoiesis system.
+
+        This bridges live heartstone events into the dream-cycle evolution
+        engine so that value shifts are grounded in actual experience.
+        """
+        try:
+            from core.adaptation.value_autopoiesis import get_value_autopoiesis, OutcomeEvidence
+            get_value_autopoiesis().record_evidence(OutcomeEvidence(
+                drive_name=drive,
+                outcome_quality=outcome_quality,
+                engagement_level=engagement,
+                free_energy=free_energy,
+                context=context,
+            ))
+        except Exception:
+            pass  # Autopoiesis not yet booted -- silently skip
+
+    def _feed_scar(self, avoidance_tag: str, description: str, severity: float = 0.3) -> None:
+        """Feed a critical event to the scar formation system."""
+        try:
+            from core.memory.scar_formation import get_scar_formation, ScarDomain
+            domain_map = {
+                "tool_failure": ScarDomain.TOOL_FAILURE,
+                "identity_threat": ScarDomain.IDENTITY_THREAT,
+                "crash": ScarDomain.CRASH,
+            }
+            domain = domain_map.get(avoidance_tag, ScarDomain.UNKNOWN)
+            get_scar_formation().form_scar(
+                domain=domain,
+                description=description,
+                avoidance_tag=avoidance_tag,
+                severity=severity,
+            )
+        except Exception:
+            pass  # Scar system not yet booted -- silently skip
 
 
 # ── Singleton ──────────────────────────────────────────────────────────────────

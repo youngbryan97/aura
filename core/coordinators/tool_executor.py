@@ -136,13 +136,28 @@ class ToolExecutor:
             self._record_acg(goal, context, result, success)
             self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=success)
 
+            # [RUBICON] Action Feedback Loop -- route to affect + body schema
+            self._emit_action_feedback(
+                tool_name, success, elapsed_ms,
+                result_summary=str(result.get("output", result.get("result", "")))[:300],
+                error_detail=str(result.get("error", ""))[:300] if not success else "",
+                source="tool_executor",
+            )
+
             return result
 
         except Exception as e:
             logger.error("Execution Jolt (Pain): Tool %s crashed: %s", tool_name, e)
             await self._record_crash(orch, tool_name, args, e)
+            elapsed_ms = (time.time() - _start) * 1000
             result = {"ok": False, "error": "execution_jolt", "message": str(e)}
             self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=False, error=str(e))
+            # [RUBICON] Action Feedback Loop -- record crash
+            self._emit_action_feedback(
+                tool_name, False, elapsed_ms,
+                error_detail=str(e)[:300],
+                source="tool_executor",
+            )
             return result
 
     async def execute_plan(self, plan: Dict[str, Any]) -> List[Any]:
@@ -200,6 +215,36 @@ class ToolExecutor:
             )
         except Exception as _e:
             logger.debug("ACG record failed: %s", _e)
+
+    @staticmethod
+    def _emit_action_feedback(
+        tool_name: str,
+        success: bool,
+        latency_ms: float,
+        *,
+        result_summary: str = "",
+        error_detail: str = "",
+        cost_tokens: int = 0,
+        source: str = "",
+    ) -> None:
+        """[RUBICON] Route action feedback to the FeedbackProcessor.
+
+        This closes the loop: tool execution -> affect + body schema + learning.
+        """
+        try:
+            from core.somatic.action_feedback import get_feedback_processor
+            fp = get_feedback_processor()
+            fp.process_tool_result(
+                tool_name,
+                success,
+                latency_ms,
+                result_summary=result_summary,
+                error_detail=error_detail,
+                cost_tokens=cost_tokens,
+                source=source,
+            )
+        except Exception as exc:
+            logger.debug("ToolExecutor: action feedback emission failed: %s", exc)
 
     @staticmethod
     async def _record_crash(orch: Any, tool_name: str, args: Dict, error: Exception) -> None:

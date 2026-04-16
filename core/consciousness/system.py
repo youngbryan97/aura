@@ -78,6 +78,8 @@ class ConsciousnessSystem:
         self.stream_of_being = None
         self.closed_loop = None
         self.phi_core = None
+        self.branch_manager: Optional[Any] = None     # ParallelBranches
+        self.aura_protocol: Optional[Any] = None       # AuraProtocolServer
 
     async def start(self):
         if getattr(self, "_running", False):
@@ -145,11 +147,31 @@ class ConsciousnessSystem:
         except Exception as e:
             logger.warning("Could not boot ConsciousnessBridge: %s", e)
 
+        # Layer 7: Parallel Cognitive Branches — concurrent thought streams
+        try:
+            from .parallel_branches import get_branch_manager
+            self.branch_manager = get_branch_manager()
+            await self.branch_manager.start()
+            logger.info("🧠 Layer 7: BranchManager ONLINE (max_branches=%d)",
+                        self.branch_manager.MAX_BRANCHES)
+        except Exception as e:
+            logger.warning("Could not boot BranchManager: %s", e)
+
+        # Layer 8: Aura Protocol — inter-instance communication
+        try:
+            from .aura_protocol import get_protocol_server
+            self.aura_protocol = get_protocol_server()
+            await self.aura_protocol.start()
+            logger.info("🧠 Layer 8: AuraProtocolServer ONLINE (port=%d)",
+                        self.aura_protocol._port)
+        except Exception as e:
+            logger.warning("Could not boot AuraProtocolServer: %s", e)
+
         # ═══════════════════════════════════════════════════════════════════
 
         if self.dreaming:
             await self.dreaming.start()
-            
+
         self._task = asyncio.create_task(self.heartbeat.run())
         logger.info("🧠 Consciousness System ONLINE — full stack active")
 
@@ -174,6 +196,20 @@ class ConsciousnessSystem:
             except Exception as _e:
                 logger.debug('Ignored Exception in system.py: %s', _e)
 
+        # Stop the branch manager
+        if self.branch_manager:
+            try:
+                await self.branch_manager.stop()
+            except Exception as _e:
+                logger.debug('Ignored Exception stopping branch_manager: %s', _e)
+
+        # Stop the aura protocol server
+        if self.aura_protocol:
+            try:
+                await self.aura_protocol.stop()
+            except Exception as _e:
+                logger.debug('Ignored Exception stopping aura_protocol: %s', _e)
+
         await self.liquid_substrate.stop()
         logger.info("🧠 Consciousness System OFFLINE")
 
@@ -197,5 +233,13 @@ class ConsciousnessSystem:
         # Add consciousness bridge status
         if self.bridge:
             state["bridge"] = self.bridge.get_status()
+
+        # Add parallel branches status
+        if self.branch_manager:
+            state["branch_manager"] = self.branch_manager.get_status()
+
+        # Add aura protocol status
+        if self.aura_protocol:
+            state["aura_protocol"] = self.aura_protocol.get_status()
 
         return copy.deepcopy(state)

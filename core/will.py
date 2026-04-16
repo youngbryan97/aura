@@ -257,13 +257,16 @@ class UnifiedWill:
         # ── 4. MEMORY CHECK: What do I know about this? ─────────────
         memory_relevance = self._check_memory_relevance(content, context)
 
-        # ── 5. PHENOMENOLOGICAL INPUT: What is my experiential state? ─
+        # ── 5. SCAR CHECK: Does past experience advise caution? ─────
+        scar_constraints = self._check_behavioral_scars(content, source, domain, context)
+
+        # ── 6. PHENOMENOLOGICAL INPUT: What is my experiential state? ─
         self._apply_phenomenological_modulation()
 
-        # ── 6. WORLD STATE INPUT: What is happening in the environment? ─
+        # ── 7. WORLD STATE INPUT: What is happening in the environment? ─
         self._apply_world_state_modulation(domain, context)
 
-        # ── 7. COMPOSE THE DECISION ─────────────────────────────────
+        # ── 8. COMPOSE THE DECISION ─────────────────────────────────
         outcome, reason, constraints = self._compose_decision(
             domain=domain,
             source=source,
@@ -274,6 +277,13 @@ class UnifiedWill:
             somatic_approach=somatic_approach,
             memory_relevance=memory_relevance,
         )
+
+        # ── 8b. Inject scar constraints (learned caution from experience) ─
+        if scar_constraints:
+            constraints.extend(scar_constraints)
+            if outcome == WillOutcome.PROCEED:
+                outcome = WillOutcome.CONSTRAIN
+                reason = "scar_caution: " + "; ".join(scar_constraints)
 
         decision = WillDecision(
             receipt_id=receipt_id,
@@ -417,6 +427,42 @@ class UnifiedWill:
         except Exception as e:
             logger.debug("Will: substrate consultation failed (degraded): %s", e)
             return 0.6, 0.0, ""
+
+    def _check_behavioral_scars(
+        self, content: str, source: str, domain: ActionDomain,
+        context: Dict[str, Any],
+    ) -> List[str]:
+        """Consult the scar formation system for learned caution.
+
+        Returns a list of constraint strings from active behavioral scars
+        that are relevant to this action.
+        """
+        try:
+            scar_system = ServiceContainer.get("scar_formation", default=None)
+            if scar_system is None:
+                return []
+
+            constraints = []
+            avoidance_tags = scar_system.get_avoidance_tags()
+
+            # Check if any avoidance tags match the content or source
+            content_lower = content.lower()
+            source_lower = source.lower()
+            for tag, severity in avoidance_tags.items():
+                tag_lower = tag.lower()
+                # Match if the tag appears in content, source, or context
+                if (tag_lower in content_lower
+                        or tag_lower in source_lower
+                        or tag_lower in str(context).lower()):
+                    if severity > 0.3:
+                        constraints.append(
+                            f"scar:{tag} (severity={severity:.2f})"
+                        )
+
+            return constraints
+        except Exception as e:
+            logger.debug("Will: scar check failed (degraded): %s", e)
+            return []
 
     def _check_memory_relevance(
         self, content: str, context: Dict[str, Any]

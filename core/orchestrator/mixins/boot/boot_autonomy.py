@@ -454,6 +454,33 @@ class BootAutonomyMixin:
         except Exception as e:
             logger.error("RefusalEngine init failed: %s", e)
 
+        # AutonomousSelfModification — Will-authorized self-modification
+        try:
+            from core.autonomy.self_modification import get_autonomous_self_modification
+            asm = get_autonomous_self_modification()
+            await asm.start()
+            logger.info("🧬 AutonomousSelfModification online — Will-gated evolution active.")
+        except Exception as e:
+            logger.error("AutonomousSelfModification init failed: %s", e)
+
+        # ScarFormation — behavioral scars from critical experiences
+        try:
+            from core.memory.scar_formation import get_scar_formation
+            scars = get_scar_formation()
+            await scars.start()
+            logger.info("🩹 ScarFormation online — learned caution active.")
+        except Exception as e:
+            logger.error("ScarFormation init failed: %s", e)
+
+        # ValueAutopoiesis — drive weight evolution from experience
+        try:
+            from core.adaptation.value_autopoiesis import get_value_autopoiesis
+            vap = get_value_autopoiesis()
+            await vap.start()
+            logger.info("🧬 ValueAutopoiesis online — value evolution active.")
+        except Exception as e:
+            logger.error("ValueAutopoiesis init failed: %s", e)
+
     async def _init_motivation_engine(self):
         """Initialize Motivation Engine (Aura's Awakening)."""
         try:

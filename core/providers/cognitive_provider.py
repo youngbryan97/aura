@@ -334,3 +334,13 @@ def register_cognitive_services(container, is_proxy: bool = False):
             logger.exception("Failed to create agent_delegator")
             return None
     container.register('agent_delegator', create_agent_delegator, lifetime=ServiceLifetime.SINGLETON, required=True)
+
+    # Paraconsistent Logic Core (holds contradictory beliefs without crashing)
+    def create_paraconsistent_engine():
+        try:
+            from core.cognition.paraconsistent_logic import ParaconsistentEngine
+            return ParaconsistentEngine()
+        except Exception:
+            logger.exception("Failed to create paraconsistent_engine")
+            return None
+    container.register('paraconsistent_engine', create_paraconsistent_engine, lifetime=ServiceLifetime.SINGLETON, required=False)
