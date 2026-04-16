@@ -58,7 +58,7 @@ async def test_cognitive_routing_routes_self_preservation_threat_to_deliberate()
     )
 
     assert new_state.cognition.current_mode == CognitiveMode.DELIBERATE
-    assert new_state.response_modifiers["deep_handoff"] is True
+    assert new_state.response_modifiers["deep_handoff"] is False
 
 
 @pytest.mark.asyncio
@@ -256,9 +256,12 @@ async def test_curiosity_explorer_blocks_unapproved_external_search(monkeypatch)
 async def test_curiosity_explorer_finishes_receipt_for_approved_external_search(monkeypatch):
     explorer = CuriosityExplorer()
     orchestrator = SimpleNamespace(
+        execute_tool=AsyncMock(return_value={
+            "summary": "A new paper landed today."
+        }),
         agency=SimpleNamespace(
             execute_skill=AsyncMock(return_value={"summary": "A new paper landed today."})
-        )
+        ),
     )
     fake_core = SimpleNamespace(
         begin_tool_execution=AsyncMock(
@@ -274,7 +277,7 @@ async def test_curiosity_explorer_finishes_receipt_for_approved_external_search(
     result = await explorer._web_search("latest ai papers", orchestrator=orchestrator)
 
     assert "new paper" in result.lower()
-    orchestrator.agency.execute_skill.assert_awaited_once()
+    orchestrator.execute_tool.assert_awaited_once()
     fake_core.finish_tool_execution.assert_awaited_once()
 
 

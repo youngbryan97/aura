@@ -1391,7 +1391,6 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
 
             # 3. Substrate Defrag — clear caches before re-initializing brain
             try:
-                from core.container import ServiceContainer
                 autonomic = ServiceContainer.get("autonomic_core", default=None)
                 if autonomic and hasattr(autonomic, '_substrate_defrag'):
                     await autonomic._substrate_defrag()

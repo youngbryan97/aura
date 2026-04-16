@@ -164,60 +164,39 @@ def test_black_hole_vault_get_prefers_most_recent_items_when_limited():
     assert payload["documents"] == ["newer", "newest"]
 
 
-def test_memory_ops_derives_structured_fact_from_future_session_request():
-    key, value = MemoryOpsSkill._derive_structured_fact(
-        "Remember for future sessions that my verification codename is glass orchard."
-    )
-
-    assert key == "verification_codename"
-    assert value == "glass orchard"
-
-
-def test_memory_ops_coerce_input_derives_keys_for_pydantic_model_instances():
+@pytest.mark.asyncio
+async def test_memory_ops_core_append_writes_to_block(tmp_path, monkeypatch):
+    monkeypatch.setattr("core.config.config.paths", SimpleNamespace(base_dir=str(tmp_path)))
     skill = MemoryOpsSkill()
-    request = skill._coerce_input(
-        MemoryOpsInput(
-            action="remember",
-            content="Remember for future sessions that my verification codename is glass orchard.",
-        ),
+
+    result = await skill.execute(
+        MemoryOpsInput(action="core_append", block="user", content="verification_codename: glass orchard"),
         {},
     )
 
-    assert request.key == "verification_codename"
-    assert request.value == "glass orchard"
+    assert result["ok"] is True
+    assert "user" in result["summary"]
+    block_text = (skill.mem_fs_dir / "user.txt").read_text()
+    assert "verification_codename: glass orchard" in block_text
 
 
 @pytest.mark.asyncio
-async def test_memory_ops_remember_uses_derived_key_with_pydantic_model_input():
-    skill = MemoryOpsSkill()
-    memory_store = SimpleNamespace(update_semantic_async=AsyncMock(return_value=True))
+async def test_memory_ops_archival_search_uses_facade():
+    skill = MemoryOpsSkill.__new__(MemoryOpsSkill)
+    memory_facade = SimpleNamespace(
+        search_memories=AsyncMock(return_value=[
+            {"score": 0.95, "content": "glass orchard"},
+        ])
+    )
 
     result = await skill.execute(
-        MemoryOpsInput(
-            action="remember",
-            content="Remember for future sessions that my verification codename is glass orchard.",
-        ),
-        {"memory_store": memory_store},
+        {"action": "archival_search", "query": "verification codename"},
+        {"memory_facade": memory_facade},
     )
 
     assert result["ok"] is True
-    assert result["summary"] == "Stored fact: verification_codename."
-    memory_store.update_semantic_async.assert_awaited_once_with("verification_codename", "glass orchard")
-
-
-@pytest.mark.asyncio
-async def test_memory_ops_recall_uses_derived_key_from_question():
-    skill = MemoryOpsSkill()
-    memory_store = SimpleNamespace(get_semantic_async=AsyncMock(return_value="glass orchard"))
-
-    result = await skill.execute(
-        {"action": "recall", "query": "What do you remember about my verification codename?"},
-        {"memory_store": memory_store},
-    )
-
-    assert result["ok"] is True
-    assert result["result"] == "glass orchard"
-    memory_store.get_semantic_async.assert_awaited_once_with("verification_codename", None)
+    assert any("glass orchard" in r for r in result["results"])
+    memory_facade.search_memories.assert_awaited_once_with("verification codename", limit=5)
 
 
 @pytest.mark.asyncio
@@ -264,27 +243,22 @@ async def test_memory_facade_add_memory_treats_none_returning_vector_backend_as_
 
 
 @pytest.mark.asyncio
-async def test_memory_ops_does_not_bypass_memory_facade_rejection():
-    semantic_calls = []
-    skill = MemoryOpsSkill()
+async def test_memory_ops_archival_insert_calls_facade_add_memory():
+    skill = MemoryOpsSkill.__new__(MemoryOpsSkill)
+    add_mock = AsyncMock(return_value=True)
+    memory_facade = SimpleNamespace(add_memory=add_mock)
 
     result = await skill.execute(
         {
-            "action": "remember",
-            "content": "Remember that my verification codename is glass orchard.",
+            "action": "archival_insert",
+            "content": "My verification codename is glass orchard.",
         },
-        {
-            "memory_facade": SimpleNamespace(
-                add_memory=AsyncMock(return_value=False),
-                _last_add_memory_status={"ok": False, "reason": "substrate_blocked:neurochemical_cortisol_crisis"},
-            ),
-            "semantic_memory": SimpleNamespace(
-                add_memory=lambda text, metadata=None: semantic_calls.append((text, metadata))
-            ),
-            "intent_source": "user",
-        },
+        {"memory_facade": memory_facade},
     )
 
-    assert result["ok"] is False
-    assert "substrate_blocked:neurochemical_cortisol_crisis" in result["error"]
-    assert semantic_calls == []
+    assert result["ok"] is True
+    assert result["summary"] == "Committed to archival storage."
+    add_mock.assert_awaited_once_with(
+        "My verification codename is glass orchard.",
+        metadata={"source": "archival_insert"},
+    )

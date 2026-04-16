@@ -239,7 +239,7 @@ def test_continuity_apply_to_state_restores_obligations(tmp_path, monkeypatch):
         pending_initiatives=2,
         pending_initiative_details=["Investigate anomaly", "Reconcile contradiction"],
         active_commitments=["Protect continuity"],
-        active_goal_details=["Keep identity stable"],
+        active_goal_details=["Stabilize identity coherence across sessions"],
         subject_thread="Aura was tracking unresolved architectural work.",
         contradiction_count=1,
     )
@@ -250,7 +250,7 @@ def test_continuity_apply_to_state_restores_obligations(tmp_path, monkeypatch):
 
     assert applied.cognition.current_objective == "Protect continuity"
     assert applied.cognition.pending_initiatives[0]["goal"] == "Investigate anomaly"
-    assert applied.cognition.active_goals[0]["goal"] == "Keep identity stable"
+    assert applied.cognition.active_goals[0]["goal"] == "Stabilize identity coherence across sessions"
     assert applied.cognition.modifiers["continuity_obligations"]["contradiction_count"] == 1
 
 

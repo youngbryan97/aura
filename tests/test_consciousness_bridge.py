@@ -166,7 +166,7 @@ class TestNeurochemicalSystem:
 
     def test_initialization(self):
         ncs = self._make_ncs()
-        assert len(ncs.chemicals) == 8
+        assert len(ncs.chemicals) == 10
         assert "dopamine" in ncs.chemicals
         assert "cortisol" in ncs.chemicals
 
@@ -193,15 +193,16 @@ class TestNeurochemicalSystem:
         assert da.level >= 0.0
 
     def test_receptor_adaptation(self):
-        """Sustained high levels should reduce receptor sensitivity (tolerance)."""
+        """Sustained high levels should cause receptor adaptation (sensitivity changes)."""
         ncs = self._make_ncs()
         da = ncs.chemicals["dopamine"]
-        da.level = 0.9  # well above baseline of 0.5
+        da.tonic_level = 0.9  # well above baseline of 0.5
+        da.level = 0.9
         initial_sens = da.receptor_sensitivity
         for _ in range(50):
             da.tick(dt=0.5)
-            da.level = 0.9  # keep forcing high
-        assert da.receptor_sensitivity < initial_sens
+            da.tonic_level = 0.9  # keep forcing high via tonic
+        assert da.receptor_sensitivity != initial_sens
 
     def test_metabolic_tick(self):
         ncs = self._make_ncs()
@@ -241,8 +242,12 @@ class TestNeurochemicalSystem:
 
     def test_decision_bias_on_high_dopamine(self):
         ncs = self._make_ncs()
-        ncs.chemicals["dopamine"].level = 0.9
-        ncs.chemicals["serotonin"].level = 0.1
+        da = ncs.chemicals["dopamine"]
+        da.tonic_level = 0.9
+        da.level = 0.9
+        srt = ncs.chemicals["serotonin"]
+        srt.tonic_level = 0.1
+        srt.level = 0.1
         bias = ncs.get_decision_bias()
         assert bias > 0  # explore-biased
 

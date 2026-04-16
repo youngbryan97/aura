@@ -118,6 +118,7 @@ class TestBoot:
                     "AffectUpdatePhase",
                     "PhiConsciousnessPhase",
                     "MotivationUpdatePhase",
+                    "CognitiveIntegrationPhase",
                     "ExecutiveClosurePhase",
                     "ShadowExecutionPhase",
                     "EternalGrowthEngine",

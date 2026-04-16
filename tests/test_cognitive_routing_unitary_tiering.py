@@ -146,7 +146,7 @@ async def test_state_reflection_routes_to_deliberate_with_affective_pressure():
     assert new_state.cognition.current_mode == CognitiveMode.DELIBERATE
     assert new_state.response_modifiers["intent_type"] == "CHAT"
     assert new_state.response_modifiers["model_tier"] == "primary"
-    assert new_state.response_modifiers["deep_handoff"] is True
+    assert new_state.response_modifiers["deep_handoff"] is False
 
 
 @pytest.mark.asyncio

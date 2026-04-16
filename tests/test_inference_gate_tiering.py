@@ -150,7 +150,7 @@ async def test_deep_handoff_uses_solver_then_returns_response():
 
     scheduled = []
 
-    def _capture_task(coro):
+    def _capture_task(coro, **kwargs):
         scheduled.append(coro)
         return MagicMock(name="task")
 

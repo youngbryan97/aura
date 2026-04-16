@@ -404,11 +404,12 @@ async def test_acquire_next_message(orchestrator, mock_container):
     assert msg == "Test Message"
     assert mock_ls.update.called
 
-def test_enqueue_message(orchestrator):
+@pytest.mark.asyncio
+async def test_enqueue_message(orchestrator):
     orchestrator.message_queue = MagicMock()
-    orchestrator.enqueue_message("Input")
-    # Check that it was called with (priority, timestamp, counter, message)
-    # v Zenith: Corrected index from 2 to 3 for 4-tuple format
+    orchestrator.enqueue_message("Input", _flow_checked=True, _authority_checked=True)
+    # Check that it was called with (priority, timestamp, counter, message, origin)
+    # v61: 5-tuple format now includes origin
     args, kwargs = orchestrator.message_queue.put_nowait.call_args
     val = args[0]
     assert isinstance(val, tuple)
@@ -839,9 +840,10 @@ def test_record_message_in_history_impulse(orchestrator):
     assert orchestrator.conversation_history[-1]["role"] == "internal"
 
 # --- enqueue_message (line 919) ---
-def test_enqueue_message_success(orchestrator):
+@pytest.mark.asyncio
+async def test_enqueue_message_success(orchestrator):
     orchestrator.message_queue = asyncio.Queue(maxsize=10)
-    orchestrator.enqueue_message("Hello")
+    orchestrator.enqueue_message("Hello", _flow_checked=True, _authority_checked=True)
     assert orchestrator.message_queue.qsize() == 1
 
 def test_enqueue_message_full(orchestrator):

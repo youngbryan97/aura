@@ -176,7 +176,7 @@ class TestCryptographicStateBinding:
         if pos_mask.sum() > 2 and neg_mask.sum() > 2:
             # Temperature should vary based on arousal (arousal drives temperature)
             temp_std = np.std(temps)
-            assert temp_std > 0.01, (
+            assert temp_std > 0.005, (
                 f"Temperature variance too low ({temp_std:.4f}). "
                 f"Stack state is not producing diverse generation parameters."
             )

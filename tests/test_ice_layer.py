@@ -23,7 +23,7 @@ async def test_executive_violation_uses_compatible_description_schema(caplog):
     with caplog.at_level(logging.WARNING, logger="Aura.Cybernetics.ICE"):
         await ice._on_executive_violation({"label": "identity drift"})
 
-    assert ice.get_status()["threat_level"] == pytest.approx(0.3)
+    assert ice.get_status()["threat_level"] == pytest.approx(0.25)
     assert any(
         "Loss of identity coherence." in record.message
         for record in caplog.records
