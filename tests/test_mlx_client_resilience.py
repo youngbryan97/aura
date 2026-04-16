@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import queue
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -148,6 +149,22 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertIs(client._process, proc)
         self.assertFalse(client._init_future.done())
         self.assertEqual(client._lane_state, "recovering")
+
+    async def test_listener_routes_init_error_without_action_to_init_future(self):
+        client = MLXLocalClient(model_path="/tmp/test-model")
+        client._init_future = asyncio.get_running_loop().create_future()
+
+        listener = asyncio.create_task(client._response_listener_loop())
+        try:
+            client._res_q.put({"status": "error", "message": "Init failed: boom"})
+            result = await asyncio.wait_for(asyncio.shield(client._init_future), timeout=2.0)
+        finally:
+            listener.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await listener
+
+        self.assertEqual(result["action"], "init")
+        self.assertEqual(result["message"], "Init failed: boom")
 
     async def test_generation_waiter_flags_first_token_sla_breach(self):
         client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")

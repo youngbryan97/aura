@@ -29,6 +29,25 @@ LEGACY_ENDPOINT_ALIASES = {
     "Reflex-CPU": FALLBACK_ENDPOINT,
 }
 
+
+def _normalize_backend_name(value: str | None) -> str:
+    return str(value or LOCAL_BACKEND or "llama_cpp").strip().lower()
+
+
+def normalize_runtime_model_name(model_name: str | None, *, backend: str | None = None) -> str:
+    """Map backend-incompatible logical names onto runnable local artifacts."""
+    name = str(model_name or "").strip()
+    if not name:
+        return name
+
+    normalized_backend = _normalize_backend_name(backend)
+    if normalized_backend == "mlx":
+        return {
+            # GGUF quant alias; the MLX runtime uses the 4-bit artifact/layout.
+            "Qwen2.5-72B-Instruct-Q4": "Qwen2.5-72B-Instruct-4bit",
+        }.get(name, name)
+    return name
+
 # ── Change these lines to upgrade Aura's brain ──
 # Auto-detect: Use 72B Q4 if downloaded, otherwise fall back to stable 32B Q5
 def _detect_72b_q4() -> bool:
@@ -38,6 +57,15 @@ def _detect_72b_q4() -> bool:
     except Exception:
         return False
 _72B_READY = _detect_72b_q4()
+
+
+def _default_deep_model_name(*, backend: str | None = None) -> str:
+    normalized_backend = _normalize_backend_name(backend)
+    if normalized_backend == "mlx":
+        return "Qwen2.5-72B-Instruct-4bit"
+    return "Qwen2.5-72B-Instruct-Q4" if _72B_READY else "Qwen2.5-72B-Instruct-4bit"
+
+
 # 32B Q5 as Cortex (fast, stable ~20s responses); 72B Q4 as Solver (deep reasoning, hot-swap)
 # 72B Q4 is too slow (~84s) for primary use with Aura's background task architecture
 # [STABILITY v53.9] Use 8-bit base model + LoRA adapter at runtime.
@@ -45,7 +73,9 @@ _72B_READY = _detect_72b_q4()
 # The separate adapter has intermittent float32 errors but most generations
 # succeed — the worker catches and retries on failure.
 ACTIVE_MODEL = os.getenv("AURA_MODEL") or "Qwen2.5-32B-Instruct-8bit"
-DEEP_MODEL = os.getenv("AURA_DEEP_MODEL") or ("Qwen2.5-72B-Instruct-Q4" if _72B_READY else "Qwen2.5-72B-Instruct-4bit")
+DEEP_MODEL = normalize_runtime_model_name(
+    os.getenv("AURA_DEEP_MODEL") or _default_deep_model_name()
+)
 BRAINSTEM_MODEL = os.getenv("AURA_BRAINSTEM_MODEL", "Qwen2.5-7B-Instruct-4bit")
 FALLBACK_MODEL = os.getenv("AURA_FALLBACK_MODEL", "Qwen2.5-1.5B-Instruct-4bit")
 
@@ -131,6 +161,10 @@ GGUF_DOWNLOAD_TARGETS = {
         "repo": "mradermacher/Qwen3-72B-Instruct-GGUF",
         "pattern": "Qwen3-72B-Instruct.Q4_K_M.gguf",
     },
+    "Qwen2.5-72B-Instruct-Q4": {
+        "repo": "Qwen/Qwen2.5-72B-Instruct-GGUF",
+        "pattern": "qwen2.5-72b-instruct-q4_k_m*.gguf",
+    },
 }
 
 ADAPTER_PATH = BASE_DIR / "data" / "adapters"
@@ -191,8 +225,13 @@ def _read_adapter_target_model(adapter_dir: Path) -> str:
 
 def get_model_path(model_name: str | None = None) -> str:
     """Resolve the path for a model. Returns absolute path if local, else HF repo ID."""
-    name = model_name or ACTIVE_MODEL
-    
+    raw_name = str(model_name or ACTIVE_MODEL).strip() or ACTIVE_MODEL
+    explicit_path = Path(raw_name).expanduser()
+    if explicit_path.is_absolute() or explicit_path.exists():
+        return str(explicit_path.resolve() if explicit_path.exists() else explicit_path)
+
+    name = normalize_runtime_model_name(raw_name)
+
     # Mapping of local names to HF repo IDs for auto-download fallback
     HF_FALLBACKS = {
         "Qwen2.5-1.5B-Instruct-4bit": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
@@ -200,17 +239,19 @@ def get_model_path(model_name: str | None = None) -> str:
         "Qwen2.5-32B-Instruct-8bit":  "mlx-community/Qwen2.5-32B-Instruct-8bit",
         "Qwen2.5-32B-Instruct-4bit":  "mlx-community/Qwen2.5-32B-Instruct-4bit",
         "Qwen2.5-72B-Instruct-4bit":  "mlx-community/Qwen2.5-72B-Instruct-4bit",
+        "Qwen2.5-72B-Instruct-Q4":    "mlx-community/Qwen2.5-72B-Instruct-4bit",
     }
-    
+
     local_path = MODEL_PATHS.get(name, BASE_DIR / "models" / name)
-    
+
     # If it's a Path object, check if it exists
     if isinstance(local_path, Path):
+        local_path = local_path.expanduser()
         if local_path.exists():
-            return str(local_path)
+            return str(local_path.resolve())
         # Fallback to repo ID if missing locally
-        return HF_FALLBACKS.get(name, name)
-        
+        return HF_FALLBACKS.get(name, str(local_path))
+
     return str(local_path)
 
 
@@ -273,7 +314,7 @@ def get_model_context_window(model_name: str | None = None) -> int:
     ``tokenizer_config.json`` that require explicit rope/scaling settings to
     be enabled; those should not silently become Aura's live runtime budget.
     """
-    name = model_name or ACTIVE_MODEL
+    name = normalize_runtime_model_name(model_name or ACTIVE_MODEL)
     model_path = MODEL_PATHS.get(name, BASE_DIR / "models" / str(name))
     if not isinstance(model_path, Path):
         return 32768

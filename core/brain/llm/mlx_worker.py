@@ -523,7 +523,14 @@ def _mlx_worker_loop(
         import traceback
         err_detail = f"{e}\n{traceback.format_exc()}"
         logger.error(f"Worker Init Error: {err_detail}")
-        ipc_writer.put({"status": "error", "message": f"Init failed: {e}", "detail": err_detail})
+        ipc_writer.put(
+            {
+                "status": "error",
+                "action": "init",
+                "message": f"Init failed: {e}",
+                "detail": err_detail,
+            }
+        )
     # ZENITH: Prompt Cache LRU for massive speedup in multi-turn
     prompt_cache_lru = _PromptCacheLRU(max_size=12)
 
@@ -820,7 +827,14 @@ def _mlx_worker_loop(
             import traceback
             tb = traceback.format_exc()
             logger.error("❌ [WORKER] Fatal error during initialization: %s\n%s", e, tb)
-            ipc_writer.put({"status": "error", "message": "Init failed", "detail": tb})
+            ipc_writer.put(
+                {
+                    "status": "error",
+                    "action": locals().get("action") or "init",
+                    "message": "Init failed",
+                    "detail": tb,
+                }
+            )
 
 if __name__ == "__main__":
     print("MLX Worker: Running in multiprocessing mode. Use mlx_client.py to launch.")

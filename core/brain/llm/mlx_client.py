@@ -674,6 +674,18 @@ class MLXLocalClient:
                         self._current_gen_future.set_result(res)
                         continue
                 elif status == "error":
+                    init_error = (
+                        self._init_future is not None
+                        and not self._init_future.done()
+                        and not self._init_done
+                        and action in {None, "", "init"}
+                    )
+                    if init_error:
+                        self._mark_progress()
+                        payload = dict(res)
+                        payload.setdefault("action", "init")
+                        self._init_future.set_result(payload)
+                        continue
                     if action == "init" and self._init_future and not self._init_future.done():
                         self._mark_progress()
                         self._init_future.set_result(res)
@@ -1716,7 +1728,7 @@ class MLXLocalClient:
 
 def get_mlx_client(model_path: Optional[str] = None, **kwargs) -> MLXLocalClient:
     """Compatibility factory for Aura's active local backend."""
-    from .model_registry import get_local_backend, get_runtime_model_path
+    from .model_registry import get_local_backend, get_model_path, get_runtime_model_path
 
     if model_path is None:
         model_path = get_runtime_model_path()
@@ -1726,8 +1738,16 @@ def get_mlx_client(model_path: Optional[str] = None, **kwargs) -> MLXLocalClient
         from .local_server_client import get_local_server_client
 
         return get_local_server_client(model_path=model_path, **kwargs)
-    
-    abs_path = os.path.realpath(model_path)
-    if abs_path not in _CLIENTS:
-        _CLIENTS[abs_path] = MLXLocalClient(model_path=abs_path, **kwargs)
-    return _CLIENTS[abs_path]
+
+    resolved_model_path = str(get_model_path(model_path)).strip()
+    path_candidate = Path(resolved_model_path).expanduser()
+    if path_candidate.is_absolute() or path_candidate.exists():
+        runtime_path = str(path_candidate.resolve() if path_candidate.exists() else path_candidate)
+        client_key = os.path.realpath(runtime_path)
+    else:
+        runtime_path = resolved_model_path
+        client_key = resolved_model_path
+
+    if client_key not in _CLIENTS:
+        _CLIENTS[client_key] = MLXLocalClient(model_path=runtime_path, **kwargs)
+    return _CLIENTS[client_key]
