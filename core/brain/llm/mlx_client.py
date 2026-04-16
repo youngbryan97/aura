@@ -620,10 +620,12 @@ class MLXLocalClient:
         """
         from core.container import ServiceContainer
         import queue
+        _consecutive_errors = 0
         while True:
             try:
                 # Use polling instead of infinite block to avoid executor thread leaks and zombie stealing
                 res = await run_io_bound(self._res_q.get, True, 0.5)
+                _consecutive_errors = 0
             except queue.Empty:
                 continue
             except asyncio.CancelledError:
@@ -631,6 +633,13 @@ class MLXLocalClient:
             except Exception as e:
                 # If queue is closed/broken, graceful exit
                 if "closed" in str(e).lower() or isinstance(e, ValueError):
+                    break
+                _consecutive_errors += 1
+                # [BUG FIX] After repeated errors, the queue is likely broken
+                # (e.g., worker killed during cascade cleanup). Exit the loop
+                # instead of spinning forever and consuming thread pool resources.
+                if _consecutive_errors >= 10:
+                    logger.warning("⚠️ [MLX] Response listener: %d consecutive errors. Queue likely broken. Exiting.", _consecutive_errors)
                     break
                 logger.error("⚠️ [MLX] Response listener poll error: %s", e)
                 await asyncio.sleep(0.5)

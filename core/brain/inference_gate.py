@@ -2726,6 +2726,38 @@ class InferenceGate:
             # STABILITY FIX: For user-facing requests, trigger immediate cortex recovery
             # and return a genuine acknowledgment instead of None (which causes "I'm having trouble")
             if _is_user_facing:
+                # [BUG FIX] Force-kill stuck worker and drain queues IMMEDIATELY.
+                # Without this, the old worker's IPC feeder threads stay blocked on
+                # nwait(), starving the event loop and causing tick stalls that kill
+                # the WebSocket connection. The recovery task below will respawn cleanly.
+                if self._mlx_client and hasattr(self._mlx_client, "_process"):
+                    try:
+                        proc = self._mlx_client._process
+                        if proc and proc.is_alive():
+                            logger.warning("🧹 [CASCADE CLEANUP] Force-killing stuck cortex worker pid=%s", proc.pid)
+                            proc.kill()
+                            proc.join(timeout=2.0)
+                        self._mlx_client._drain_queue()
+                        # Replace queues to sever any stuck feeder threads
+                        _safe_close = getattr(self._mlx_client, '_safe_close_queue', None)
+                        import multiprocessing as _mp
+                        if hasattr(self._mlx_client, '_req_q'):
+                            try:
+                                self._mlx_client._req_q.close()
+                            except Exception:
+                                pass
+                            self._mlx_client._req_q = _mp.Queue(maxsize=10)
+                        if hasattr(self._mlx_client, '_res_q'):
+                            try:
+                                self._mlx_client._res_q.close()
+                            except Exception:
+                                pass
+                            self._mlx_client._res_q = _mp.Queue(maxsize=10)
+                        self._mlx_client._process = None
+                        self._mlx_client._init_done = False
+                        logger.info("🧹 [CASCADE CLEANUP] Stuck worker killed, queues replaced.")
+                    except Exception as cleanup_exc:
+                        logger.debug("Cascade cleanup error (non-fatal): %s", cleanup_exc)
                 # Force cortex recovery in background
                 if not self._cortex_recovery_in_progress:
                     asyncio.create_task(self._respawn_cortex_if_needed())

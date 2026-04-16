@@ -75,10 +75,18 @@ class IPCWriterThread(threading.Thread):
         while not self._stop_event.is_set():
             try:
                 item = self.local_queue.get(timeout=1.0)
-                self.mp_queue.put(item)
+                # [BUG FIX] Use timeout to prevent indefinite blocking when
+                # the parent's response queue is full. Without this, the feeder
+                # thread blocks on nwait() forever, starving the event loop and
+                # causing tick stalls that kill the WebSocket connection.
+                self.mp_queue.put(item, block=True, timeout=5.0)
             except queue.Empty:
                 continue
             except Exception:
+                # Queue full or broken — drop the item and continue rather
+                # than blocking the entire IPC pipeline.
+                if not self._stop_event.is_set():
+                    continue
                 break
 
 class HeartbeatThread(threading.Thread):
