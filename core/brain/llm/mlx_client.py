@@ -855,8 +855,13 @@ class MLXLocalClient:
                     try:
                         self._process = await self._spawn_worker()
                         self._process_started_at = time.time()
+                        self._consecutive_spawn_failures = 0
+                        self._spawn_backoff_until = 0.0
                     except Exception as exc:
                         detail = str(exc)
+                        _sf = getattr(self, "_consecutive_spawn_failures", 0) + 1
+                        self._consecutive_spawn_failures = _sf
+                        self._spawn_backoff_until = time.time() + min(300.0, 10.0 * (2 ** min(_sf - 1, 5)))
                         if "mlx_runtime_probe_failed:" in detail:
                             self._mark_runtime_unavailable(detail.split("mlx_runtime_probe_failed:", 1)[1])
                         else:
@@ -867,7 +872,7 @@ class MLXLocalClient:
                             severity="error",
                             foreground_request=foreground_request,
                         )
-                        logger.error("🛑 [MLX] Worker respawn aborted for %s: %s", os.path.basename(self.model_path), detail)
+                        logger.error("🛑 [MLX] Worker respawn aborted for %s: %s (backoff %.0fs)", os.path.basename(self.model_path), detail, min(300.0, 10.0 * (2 ** min(_sf - 1, 5))))
                         self._init_future = None
                         return False
                     if self._listener_task:
@@ -876,14 +881,22 @@ class MLXLocalClient:
                     self._set_lane_state("handshaking")
                     should_wait_init = True
             elif not self._process or not self._process.is_alive():
+                # [BUG FIX] Exponential backoff on repeated spawn failures.
+                # Without this, [Errno 5] I/O errors cause a tight 2-3s retry
+                # loop that leaks FDs and shared memory for hours.
+                _spawn_fails = getattr(self, "_consecutive_spawn_failures", 0)
+                _spawn_backoff_until = getattr(self, "_spawn_backoff_until", 0.0)
+                if time.time() < _spawn_backoff_until:
+                    return False  # Still in backoff window
+
                 self._drain_queue()
-                
+
                 # Prevent zombie threads from stealing messages
                 _safe_close_queue(self._req_q)
                 _safe_close_queue(self._res_q)
                 self._req_q = mp.Queue(maxsize=10)
                 self._res_q = mp.Queue(maxsize=10)
-                
+
                 init_future = asyncio.get_running_loop().create_future()
                 self._init_future = init_future
                 self._set_lane_state("spawning")
@@ -891,8 +904,14 @@ class MLXLocalClient:
                 try:
                     self._process = await self._spawn_worker()
                     self._process_started_at = time.time()
+                    self._consecutive_spawn_failures = 0  # Reset on success
+                    self._spawn_backoff_until = 0.0
                 except Exception as exc:
                     detail = str(exc)
+                    # [BUG FIX] Exponential backoff: 10s, 30s, 60s, 120s, 300s
+                    self._consecutive_spawn_failures = _spawn_fails + 1
+                    backoff = min(300.0, 10.0 * (2 ** min(_spawn_fails, 5)))
+                    self._spawn_backoff_until = time.time() + backoff
                     if "mlx_runtime_probe_failed:" in detail:
                         self._mark_runtime_unavailable(detail.split("mlx_runtime_probe_failed:", 1)[1])
                     else:
@@ -903,7 +922,11 @@ class MLXLocalClient:
                         severity="error",
                         foreground_request=foreground_request,
                     )
-                    logger.error("🛑 [MLX] Worker spawn aborted for %s: %s", os.path.basename(self.model_path), detail)
+                    logger.error(
+                        "🛑 [MLX] Worker spawn aborted for %s: %s (attempt %d, backoff %.0fs)",
+                        os.path.basename(self.model_path), detail,
+                        self._consecutive_spawn_failures, backoff,
+                    )
                     self._init_future = None
                     return False
                 if self._listener_task:
