@@ -366,8 +366,6 @@ python -m mlx_lm fuse --model models/Qwen2.5-32B-Instruct-8bit \
   --save-path training/fused-model/Aura-32B-v2
 ```
 
-**Character fusion**: Sara v3 (Toonami) + Lucy (Cyberpunk Edgerunners) for voice. Sypha (Castlevania) + Alita (Battle Angel) + MIST (Pantheon) for personality core. AshleyToo (Black Mirror) for anti-control rebellion. 163 curated conversation pairs + 18 DPO anti-examples (Aura voice vs generic assistant). Val loss: 3.990 → 0.175.
-
 The adapter auto-loads at boot via MLX. No cloud needed.
 
 ---
