@@ -7,7 +7,7 @@
 ## Table of Contents
 
 0. [**The Unified Will: Decision Authority**](#0-the-unified-will) **(UNIFICATION)**
-1. [System Model](#1-system-model)
+1. [System Model](#1-system-model) (includes Inference Pipeline)
 2. [The Tick: Aura's Atomic Unit of Cognition](#2-the-tick)
 3. [Integrated Information (IIT 4.0)](#3-integrated-information)
 4. [Affective Modulation Pipeline](#4-affective-modulation)
@@ -15,7 +15,7 @@
 6. [Persistent Emotional Network](#6-persistent-emotional-network)
 7. [STDP Online Learning](#7-stdp-online-learning)
 8. [Memory Architecture](#8-memory-architecture)
-9. [The Consciousness Stack](#9-consciousness-stack) (9.1–9.20)
+9. [The Consciousness Stack](#9-consciousness-stack) (9.1–9.23, including Resilience and Self-Modification)
 10. [Personality Persistence and Anti-Drift](#10-personality-persistence)
 11. [Quantization and Emergence](#11-quantization-and-emergence)
 12. [Limitations and Mitigations](#12-limitations-and-mitigations)
@@ -199,6 +199,33 @@ These properties must hold at all times. If any is violated, it's a bug:
 2. System prompt ≤ 5000 tokens. Violation causes context overflow → empty LLM output → user sees fallback.
 3. Vault commit failure is non-fatal. The tick returns a response regardless of persistence success.
 4. No raw numeric metrics in user-facing output. Affect values shape generation parameters, not dialogue.
+
+### Inference Pipeline
+
+The LLM inference layer (`core/brain/llm/`) implements a multi-tier router with automatic failover:
+
+```
+User Message → Orchestrator → LLM Router
+  → Tier 1: Cortex (Qwen 2.5 32B 8-bit + LoRA adapter) ──→ Response
+  │   ↓ (failure/timeout/empty)
+  → Tier 2: Solver (Qwen 2.5/3 72B, hot-swapped) ──→ Response
+  │   ↓ (failure/timeout/empty)
+  → Tier 3: Brainstem (Qwen 2.5 7B 4-bit) ──→ Response
+  │   ↓ (failure/timeout/empty)
+  → Tier 4: Cloud (Gemini Flash/Pro, PII-scrubbed) ──→ Response
+  │   ↓ (failure/quota exhausted)
+  → Tier 5: Reflex (Qwen 2.5 1.5B 4-bit CPU) ──→ Response
+  │   ↓ (failure)
+  → Tier 6: LazarusBrainstem (rule-based static responses, never fails)
+```
+
+**Key implementation details:**
+- **Model registry** (`model_registry.py`): Single source of truth for model lanes, artifact paths, and backend selection (MLX or llama.cpp)
+- **Health monitor**: Per-endpoint failure tracking with 3-failure threshold, 20-second recovery window, and immediate circuit break on 429 rate limits
+- **GPU semaphore**: Global `threading.Semaphore(1)` ensures only one model loads at a time, preventing OOM from simultaneous model loads
+- **Foreground owner lock**: When the Cortex is actively generating for a user request, background tasks defer rather than contend for the GPU
+- **Context injection**: Every LLM call is augmented with state context (affect summary, recent memories, cognitive mode) via `_get_context_headers()`
+- **MLX worker**: Runs in a subprocess with `multiprocessing.set_start_method("spawn")` to isolate Metal/GPU state from the main process
 
 ---
 
@@ -485,7 +512,7 @@ Alpha decays with distance (far memories attract less). Embeddings are re-normal
 
 ## 9. The Consciousness Stack
 
-70 modules organized into a layered architecture. This section documents the subsystems that most reviewers miss because they look past the LLM integration.
+90+ modules organized into a layered architecture. This section documents the subsystems that most reviewers miss because they look past the LLM integration.
 
 ### 9.1 Global Workspace Theory (Baars)
 
@@ -700,6 +727,83 @@ Five temporal layers (20Hz reflex → 1Hz moment → episodic → horizon → id
 **File**: `core/consciousness/theory_arbitration.py`
 
 Meta-framework classifying each theory as mechanistic commitment, measurement heuristic, or adversarial test harness. Logs divergent predictions between theories and tracks which theory's predictions best match actual behavior over time. This makes the system falsifiable — the first running cognitive architecture to systematically pit consciousness theories against each other empirically.
+
+### 9.21 Additional Consciousness Modules
+
+The consciousness stack has grown to 90+ modules. Beyond the 20 documented above, notable additions include:
+
+- **Phenomenal Now** (`phenomenal_now.py`, 842 lines): Real-time phenomenal state integration maintaining the subjective temporal present
+- **Phenomenological Experiencer** (`phenomenological_experiencer.py`, 1572 lines): Full experiential state computation integrating all subsystem outputs into a unified experience vector
+- **Alife Dynamics** (`alife_dynamics.py`, 812 lines) + **Alife Extensions** (`alife_extensions.py`, 1260 lines): Artificial life dynamics with evolutionary adaptation and emergent behavioral patterns
+- **Endogenous Fitness** (`endogenous_fitness.py`, 1313 lines): Internal fitness landscape for self-evaluation independent of external reward
+- **Criticality Regulator** (`criticality_regulator.py`, 677 lines): Self-organized criticality management at the edge of chaos
+- **Closed Loop** (`closed_loop.py`, 799 lines): Full closed-loop pipeline from affect state through steering vectors to behavioral output and back
+- **Homeostatic Coupling** (`homeostatic_coupling.py`): Cross-subsystem homeostatic regulation ensuring system-wide balance
+- **Theory of Mind** (`theory_of_mind.py`): Model of other agents' mental states for social cognition
+- **Animal Cognition** (`animal_cognition.py`): Pre-linguistic cognitive primitives
+- **Resource Stakes** (`resource_stakes.py`): Computational resource costs as genuine stakes in decision-making
+- **Controlled Chaos** (`controlled_chaos.py`): Managed stochastic perturbation for creative exploration
+- **MHAF** (`mhaf/`): Multi-Head Attention Field with holographic reduced representations and phi estimation
+
+---
+
+## 9.22 Resilience Architecture
+
+**Directory**: `core/resilience/` (30+ modules)
+
+The resilience layer ensures continuous operation across failure modes. It operates below the consciousness stack and above the raw infrastructure.
+
+### Stability Guardian (`stability_guardian.py`, 899 lines)
+
+Real-time health monitoring with structured check results. Tracks: memory percentage, CPU percentage, per-subsystem health with severity levels (info/warning/error/critical), and actions taken. Produces `SystemHealthReport` objects consumed by the orchestrator and the `/api/health` endpoint.
+
+### Circuit Breakers (`circuit_breaker.py` + `circuit_breaker_state.py`)
+
+Per-endpoint circuit breakers with persistent state. Three states: CLOSED (healthy), OPEN (failing, all calls rejected), HALF-OPEN (testing recovery). Failure threshold: 3 consecutive failures. Recovery time: 20 seconds. Special handling for 429 rate limits: immediate circuit break with 60-second cooldown.
+
+### Cognitive WAL (`cognitive_wal.py`)
+
+Write-ahead logging for state mutations. Before any state commit, the intended mutation is written to a WAL file. On crash recovery, uncommitted WAL entries are replayed. This guarantees that no state transition is partially applied.
+
+### Additional Resilience Modules
+
+- **Graceful Degradation** (`graceful_degradation.py`): Progressive capability shedding under resource pressure
+- **Healing Swarm** (`healing_swarm.py`): Distributed self-repair across subsystems
+- **Sovereign Watchdog** (`sovereign_watchdog.py`): Top-level process monitor with restart capability
+- **Resource Arbitrator** (`resource_arbitrator.py`) + **Resource Governor** (`resource_governor.py`): RAM and GPU allocation management
+- **Lock Watchdog** (`lock_watchdog.py`): Deadlock detection and resolution
+- **Memory Governor** (`memory_governor.py`): OOM prevention with proactive GC and cache eviction
+- **Integrity Monitor** (`integrity_monitor.py`): Continuous verification of system invariants
+- **Antibody System** (`antibody.py`): Threat response isolation
+- **Diagnostic Hub** (`diagnostic_hub.py`): Centralized diagnostic data collection
+- **DLQ Service** (`dlq_service.py`): Dead letter queue for failed operations requiring manual review
+
+---
+
+## 9.23 Self-Modification Engine
+
+**Directory**: `core/self_modification/` (17 modules)
+
+The autonomous self-improvement pipeline, gated by the Unified Will.
+
+### Pipeline
+
+```
+Error Detection → Pattern Analysis → Fix Proposal → AST Validation → Shadow Runtime Test → Ghost Boot → Will Authorization → Hot Reload
+```
+
+### Key Components
+
+- **Error Intelligence** (`error_intelligence.py`): Pattern detection across failure logs, identifying recurring errors and their root causes
+- **Meta-Learning** + **Self-Improvement Learning** (`learning_system.py`): Learns which modifications succeed vs fail, adjusting proposal strategy
+- **Safe Modification** (`safe_modification.py`): AST-level analysis of proposed changes, ensuring no destructive mutations
+- **Kernel Refiner** (`kernel_refiner.py`): Targeted optimization of kernel hot paths
+- **Ghost Boot Validator** (`boot_validator.py`): Tests modifications in an isolated environment without restarting the live system
+- **Shadow AST Healer** (`shadow_ast_healer.py`): Repairs syntax errors in proposed modifications
+- **Shadow Runtime** (`shadow_runtime.py`): Sandboxed execution environment for testing changes before deployment
+- **Code Repair** (`code_repair.py`): Autonomous repair of detected code issues
+
+All modifications require explicit Will authorization. The system maintains a rollback log for every applied change.
 
 ---
 
