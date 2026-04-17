@@ -8,7 +8,7 @@ For the full technical specification with equations and implementation details, 
 
 ## The One-Sentence Version
 
-Aura is a unified digital organism with a single will, embodied drives, live environmental awareness, and durable goals — where emotions actually change how the brain computes, memories consolidate during sleep, and actions are provably authorized through one decision authority.
+Aura is a unified cognitive engine with a single will, embodied drives, live environmental awareness, and durable goals — where emotions actually change how the brain computes, memories consolidate during sleep, and actions are provably authorized through one decision authority.
 
 ---
 
