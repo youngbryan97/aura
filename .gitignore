@@ -38,6 +38,7 @@ audit/aura_critical_source_compilation.txt
 file_list.txt
 source_files*.txt
 source_list.txt
+.claude/
 
 # Python
 __pycache__/
