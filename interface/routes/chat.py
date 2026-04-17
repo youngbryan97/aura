@@ -680,9 +680,9 @@ def _foreground_timeout_for_lane(lane: Optional[Dict[str, Any]]) -> float:
     lane = dict(lane or {})
     state = str(lane.get("state", "") or "").lower()
     if bool(lane.get("conversation_ready", False)):
-        return 180.0
+        return 150.0
     if state in {"warming", "recovering", "cold", "spawning", "handshaking"}:
-        return 200.0
+        return 180.0
     return 180.0
 
 
@@ -933,6 +933,18 @@ def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
             analysis=analysis,
             intent_type=intent_type,
         )
+        if bool(route_meta.get("coding_request")):
+            # Keep the protected lane aligned with the main routing phase so
+            # explicit multi-file debugging/root-cause work can still claim
+            # the deeper solver when the kernel path is bypassed.
+            complexity = float(route_meta.get("coding_complexity_score", 0.0) or 0.0)
+            if (
+                analysis.intent_type == "TASK"
+                or analysis.semantic_mode == "technical"
+                or bool(route_meta.get("active_coding_thread"))
+                or complexity >= 0.45
+            ):
+                intent_type = "TASK"
         deep_handoff = CognitiveRoutingPhase._should_allow_deep_handoff(
             text,
             is_user_facing=True,
@@ -949,6 +961,10 @@ def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
         deep_handoff = any(
             marker in lower
             for marker in (
+                "debug the failing pytest",
+                "fix the failing pytest",
+                "root cause analysis",
+                "multi-file",
                 "deep dive",
                 "mathematical proof",
                 "formal proof",
