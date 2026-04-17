@@ -1,0 +1,159 @@
+{
+  "1.1 Substrate idle drift (100 ticks, no input)": {
+    "status": "PASS",
+    "L2_drift": "5.1576"
+  },
+  "1.2 Neurochemical drift without stimulus": {
+    "status": "PASS",
+    "total_mood_delta": "0.337694"
+  },
+  "1.3 Different histories produce different states": {
+    "status": "PASS",
+    "L2_divergence": "0.4574"
+  },
+  "2.1 Workspace competition resolves to single winner": {
+    "status": "PASS",
+    "winner_source": "drive",
+    "winner_priority": "0.80",
+    "candidates": "3"
+  },
+  "3.1 HOT generates state-dependent thought under threat": {
+    "status": "PASS",
+    "hot_content": "\"I notice high arousal \u2014 I am activated, alert, engaged....\"",
+    "target_dim": "arousal",
+    "valence": "-0.0828",
+    "arousal": "0.3980"
+  },
+  "3.2 HOT generates different thought under reward": {
+    "status": "PASS",
+    "hot_content": "\"I notice I am in a positive state \u2014 something feels right....\"",
+    "target_dim": "valence",
+    "valence": "0.3491"
+  },
+  "4.1 Opposite chemicals produce opposite valence": {
+    "status": "PASS",
+    "threat_valence": "-0.0966",
+    "reward_valence": "0.3625",
+    "gap": "0.4591"
+  },
+  "4.2 Valence modulates temperature": {
+    "status": "PASS",
+    "threat_temp": "0.719",
+    "reward_temp": "0.627",
+    "delta": "0.092"
+  },
+  "5.1 Workspace ablation: competition stops": {
+    "status": "PASS",
+    "intact_winner": "s1",
+    "ablated_winner": "none (no GWT = no binding)"
+  },
+  "5.2 Phi ablation: focus bias disappears": {
+    "status": "PASS",
+    "phi0_focus_bias": "0.0000",
+    "phi08_focus_bias": "0.0800",
+    "boost": "0.0800"
+  },
+  "5.3 Chemical ablation: threat-driven valence vs zeroed": {
+    "status": "PASS",
+    "intact_valence_under_threat": "-0.0966",
+    "zeroed_valence": "-0.1000",
+    "note": "intact system responds to threat; zeroed stays near baseline"
+  },
+  "5.4 HOT ablation: metacognition disappears": {
+    "status": "PASS",
+    "with_hot": "\"I notice I am in a positive state \u2014 something feels right....\"",
+    "without_hot": "no HOT = no metacognitive thought generated"
+  },
+  "6.1 Substrate processes input without any report channel": {
+    "status": "PASS",
+    "state_change": "1.8675"
+  },
+  "6.2 Chemicals respond to stimulus without narration": {
+    "status": "PASS",
+    "cortisol_level": "0.7098",
+    "note": "no text output requested"
+  },
+  "7.1 State carries temporal history (autocorrelation)": {
+    "status": "PASS",
+    "lag1_correlation": "0.9970",
+    "lag10_correlation": "0.7668"
+  },
+  "7.2 Affective tone carries over across ticks": {
+    "status": "PASS",
+    "immediate_valence": "-0.0828",
+    "after_10_ticks_valence": "-0.0561"
+  },
+  "8.1 Substrate processes without metacognitive access": {
+    "status": "PASS",
+    "substrate_norm": "1.8314",
+    "hot_available": "True",
+    "note": "substrate dynamics persist even if HOT is not invoked"
+  },
+  "9.1 Similar states \u2192 similar qualia, different states \u2192 different qualia": {
+    "status": "PASS",
+    "dist_similar": "1.2580",
+    "dist_different": "11.0723",
+    "ratio": "8.80x"
+  },
+  "9.2 Qualia descriptor dimensionality": {
+    "status": "PASS",
+    "total_dimensions": "17",
+    "layers": "subconceptual + conceptual + predictive + workspace + witness",
+    "phenomenal_richness_A": "0.3478",
+    "phenomenal_richness_C": "0.4869"
+  },
+  "10.1 Text-only baseline lacks dynamics": {
+    "status": "PASS",
+    "aura_drift": "3.7123",
+    "text_only_drift": "0.0000"
+  },
+  "10.2 Phi is positive (no-substrate baseline = 0)": {
+    "status": "FAIL",
+    "phi_s": "0.00000",
+    "is_complex": "False",
+    "baseline_phi": "0.0 (no substrate)"
+  },
+  "T4.1 Forked histories diverge across mood dimensions": {
+    "status": "PASS",
+    "valence_gap": "0.6536",
+    "stress_gap": "0.5105",
+    "calm_gap": "0.4776",
+    "sociality_gap": "0.4447",
+    "arousal_gap": "0.3073"
+  },
+  "T4.2 Perturbational Complexity Index (LZ compression ratio)": {
+    "status": "PASS",
+    "raw_bytes": "3200",
+    "compressed_bytes": "143",
+    "compression_ratio": "0.0447",
+    "interpretation": "mid-range = complex, not trivial or random"
+  },
+  "T4.3 Stakes tradeoff (healthy)": {
+    "status": "PASS",
+    "vitality": "0.8554",
+    "caution": "0.0000"
+  },
+  "T4.3 Stakes tradeoff (mild)": {
+    "status": "PASS",
+    "vitality": "0.8189",
+    "caution": "0.0000"
+  },
+  "T4.3 Stakes tradeoff (critical)": {
+    "status": "PASS",
+    "vitality": "0.2699",
+    "caution": "0.0000"
+  },
+  "T4.4 Closed loop: induce \u2192 detect \u2192 regulate \u2192 verify": {
+    "status": "PASS",
+    "induced_valence": "-0.0966",
+    "hot_detected": "\"I notice my valence is neutral \u2014 neither drawn nor repelled....\"",
+    "regulated_valence": "0.0289",
+    "recovery_delta": "0.1254"
+  },
+  "T4.5 Fresh substrate vs trained: STDP modifies connectivity": {
+    "status": "PASS",
+    "fresh_phi": "0",
+    "stdp_weight_updates": "accumulated over 100 ticks",
+    "note": "capacity is acquired through learning, not static"
+  }
+}
