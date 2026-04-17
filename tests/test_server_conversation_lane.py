@@ -26,6 +26,23 @@ def _reset_recovery_cooldown():
         pass
 
 
+@pytest.fixture(autouse=True)
+def _reset_conversation_log():
+    try:
+        from interface.routes import chat as chat_routes
+
+        chat_routes._conversation_log.clear()
+    except Exception:
+        pass
+    yield
+    try:
+        from interface.routes import chat as chat_routes
+
+        chat_routes._conversation_log.clear()
+    except Exception:
+        pass
+
+
 def _mock_orch(**kwargs):
     """Build a SimpleNamespace orchestrator with the minimum interface api_chat expects."""
     ns = SimpleNamespace(**kwargs)
@@ -40,6 +57,37 @@ def test_foreground_timeout_for_cold_or_recovering_lane():
     assert server_module._foreground_timeout_for_lane({"conversation_ready": False, "state": "cold"}) == 180.0
     assert server_module._foreground_timeout_for_lane({"conversation_ready": False, "state": "recovering"}) == 180.0
     assert server_module._foreground_timeout_for_lane({"conversation_ready": True, "state": "ready"}) == 150.0
+
+
+@pytest.mark.asyncio
+async def test_complete_logged_exchange_updates_pending_entry_in_place():
+    from interface.routes import chat as chat_routes
+
+    exchange_id = await chat_routes._begin_logged_exchange("You still with me?")
+    await chat_routes._complete_logged_exchange(exchange_id, "You still with me?", "I'm here.")
+
+    async with chat_routes._conversation_log_lock:
+        assert len(chat_routes._conversation_log) == 1
+        assert chat_routes._conversation_log[0]["id"] == exchange_id
+        assert chat_routes._conversation_log[0]["status"] == "complete"
+        assert chat_routes._conversation_log[0]["user"] == "You still with me?"
+        assert chat_routes._conversation_log[0]["aura"] == "I'm here."
+
+
+@pytest.mark.asyncio
+async def test_protected_foreground_history_skips_pending_exchange():
+    from interface.routes import chat as chat_routes
+
+    first_id = await chat_routes._begin_logged_exchange("First turn")
+    await chat_routes._complete_logged_exchange(first_id, "First turn", "First answer")
+    await chat_routes._begin_logged_exchange("Current in-flight turn")
+
+    history = await chat_routes._build_protected_foreground_history(limit_pairs=4)
+
+    assert history == [
+        {"role": "user", "content": "First turn"},
+        {"role": "assistant", "content": "First answer"},
+    ]
 
 
 @pytest.mark.asyncio

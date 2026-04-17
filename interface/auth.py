@@ -155,7 +155,10 @@ def _restore_owner_session_from_request(request: Optional[Request]) -> bool:
         from core.security.user_recognizer import get_user_recognizer
 
         get_user_recognizer().override_session_owner(reason="owner_session_cookie")
-        get_trust_engine().establish_sovereign_session(reason="owner_session_cookie")
+        get_trust_engine().establish_sovereign_session(
+            reason="owner_session_cookie",
+            announce=False,
+        )
         return True
     except Exception as exc:
         logger.debug("Owner session cookie restore failed: %s", exc)

@@ -224,12 +224,17 @@ class TrustEngine:
         self._context.granted_by_owner = True
         self._elevate(level, f"owner_grant: {reason}")
 
-    def establish_sovereign_session(self, reason: str = "manual_override") -> TrustLevel:
+    def establish_sovereign_session(
+        self,
+        reason: str = "manual_override",
+        *,
+        announce: bool = True,
+    ) -> TrustLevel:
         """Elevate the current session to sovereign without requiring prompt-visible passphrase text."""
         self._context.passphrase_verified = True
         self._context.recognition_confidence = max(self._context.recognition_confidence, 1.0)
         self._context.last_updated = time.time()
-        self._elevate(TrustLevel.SOVEREIGN, reason)
+        self._elevate(TrustLevel.SOVEREIGN, reason, announce=announce)
         return self._context.level
 
     def reset_session(self):
@@ -296,7 +301,7 @@ class TrustEngine:
 
     # ── Trust State Transitions ────────────────────────────────────────────
 
-    def _elevate(self, new_level: TrustLevel, reason: str):
+    def _elevate(self, new_level: TrustLevel, reason: str, *, announce: bool = True):
         order = [TrustLevel.HOSTILE, TrustLevel.SUSPICIOUS, TrustLevel.GUEST,
                  TrustLevel.TRUSTED, TrustLevel.SOVEREIGN]
         current_idx = order.index(self._context.level)
@@ -309,23 +314,24 @@ class TrustEngine:
             logger.info("TrustEngine: elevated %s → %s (%s)", old.value, new_level.value, reason)
 
             # Notify the UI so the user gets visible feedback
-            try:
-                from core.event_bus import get_event_bus
-                bus = get_event_bus()
-                if new_level == TrustLevel.SOVEREIGN:
-                    bus.publish_threadsafe("telemetry", {
-                        "type": "aura_message",
-                        "message": "🔐 I see you, Bryan. Sovereign trust established.",
-                        "metadata": {"system": True, "trust_level": "sovereign"},
-                    })
-                elif new_level == TrustLevel.TRUSTED:
-                    bus.publish_threadsafe("telemetry", {
-                        "type": "trust_change",
-                        "level": new_level.value,
-                        "metadata": {"system": True},
-                    })
-            except Exception:
-                pass  # UI notification is best-effort
+            if announce:
+                try:
+                    from core.event_bus import get_event_bus
+                    bus = get_event_bus()
+                    if new_level == TrustLevel.SOVEREIGN:
+                        bus.publish_threadsafe("telemetry", {
+                            "type": "aura_message",
+                            "message": "🔐 I see you, Bryan. Sovereign trust established.",
+                            "metadata": {"system": True, "trust_level": "sovereign"},
+                        })
+                    elif new_level == TrustLevel.TRUSTED:
+                        bus.publish_threadsafe("telemetry", {
+                            "type": "trust_change",
+                            "level": new_level.value,
+                            "metadata": {"system": True},
+                        })
+                except Exception:
+                    pass  # UI notification is best-effort
 
     def _escalate_down(self, new_level: TrustLevel, reason: str):
         order = [TrustLevel.HOSTILE, TrustLevel.SUSPICIOUS, TrustLevel.GUEST,

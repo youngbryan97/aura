@@ -78,6 +78,14 @@ def test_aura_main_supports_gui_window_mode():
     assert "gui_actor_entry(args.port)" in main_py
 
 
+def test_aura_main_acquires_singleton_lock_before_port_cleanup_and_reaper_boot():
+    main_py = (PROJECT_ROOT / "aura_main.py").read_text(encoding="utf-8")
+
+    assert main_py.index("bootstrap_lock(skip_lock=args.watchdog)") < main_py.index("kill_port(args.port)")
+    assert main_py.index("bootstrap_lock(skip_lock=args.watchdog)") < main_py.index("reaper_proc = multiprocessing.Process(")
+    assert "stop_aura()" in main_py
+
+
 def test_bundle_script_builds_regular_dock_app_and_embeds_version_metadata():
     bundle_script = (PROJECT_ROOT / "scripts" / "bundle_app.sh").read_text(encoding="utf-8")
 

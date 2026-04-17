@@ -63,27 +63,86 @@ MAX_CHAT_MESSAGE_BYTES = 64 * 1024  # 64KB
 _conversation_log: list[dict] = []  # In-memory session log for current runtime
 _conversation_log_lock = asyncio.Lock()
 _session_memory_pins: list[dict] = []
+_MAX_CONVERSATION_LOG_EXCHANGES = 500
 
 
-async def _log_exchange(user_msg: str, aura_response: str):
-    """Record a conversation exchange for session tracking."""
+def _new_exchange_id() -> str:
+    return uuid.uuid4().hex[:8]
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(tz=timezone.utc).isoformat()
+
+
+def _trim_conversation_log_locked() -> None:
+    while len(_conversation_log) > _MAX_CONVERSATION_LOG_EXCHANGES:
+        _conversation_log.pop(0)
+
+
+async def _begin_logged_exchange(user_msg: str) -> str:
+    """Create an in-flight exchange record and return its identifier."""
+    exchange_id = _new_exchange_id()
     async with _conversation_log_lock:
-        _conversation_log.append({
-            "id": str(uuid.uuid4())[:8],
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-            "user": user_msg,
-            "aura": aura_response,
-        })
-        # Cap to last 500 exchanges to prevent unbounded memory growth
-        if len(_conversation_log) > 500:
-            _conversation_log.pop(0)
+        _conversation_log.append(
+            {
+                "id": exchange_id,
+                "timestamp": _utc_now_iso(),
+                "user": user_msg,
+                "aura": "",
+                "status": "pending",
+            }
+        )
+        _trim_conversation_log_locked()
+    return exchange_id
+
+
+async def _complete_logged_exchange(
+    exchange_id: Optional[str],
+    user_msg: str,
+    aura_response: str,
+    *,
+    regenerated: bool = False,
+) -> None:
+    """Finalize a pending exchange in place so history is never duplicated."""
+    final_response = aura_response or "…"
+    recorded_user = str(user_msg or "")
+
+    async with _conversation_log_lock:
+        target: Optional[dict] = None
+        if exchange_id:
+            for entry in reversed(_conversation_log):
+                if str(entry.get("id") or "") == str(exchange_id):
+                    target = entry
+                    break
+
+        if target is None:
+            target = {
+                "id": exchange_id or _new_exchange_id(),
+                "timestamp": _utc_now_iso(),
+                "user": recorded_user,
+            }
+            _conversation_log.append(target)
+
+        target["user"] = recorded_user
+        target["aura"] = final_response
+        target["status"] = "complete"
+        target["completed_at"] = _utc_now_iso()
+        if regenerated:
+            target["regenerated"] = True
+        _trim_conversation_log_locked()
 
     try:
         from core.runtime.conversation_support import record_conversation_experience
 
-        await record_conversation_experience(user_msg, aura_response)
+        await record_conversation_experience(recorded_user, final_response)
     except Exception as exc:
         logger.debug("Conversation experience recording skipped: %s", exc)
+
+
+async def _log_exchange(user_msg: str, aura_response: str):
+    """Record a conversation exchange for session tracking."""
+    exchange_id = await _begin_logged_exchange(user_msg)
+    await _complete_logged_exchange(exchange_id, user_msg, aura_response)
 
 
 async def _preserve_large_user_paste(user_msg: str) -> None:
@@ -732,7 +791,12 @@ def _protected_foreground_reason(lane: Optional[Dict[str, Any]]) -> str:
 
 async def _build_protected_foreground_history(*, limit_pairs: int = 4) -> List[Dict[str, str]]:
     async with _conversation_log_lock:
-        recent = list(_conversation_log)[-max(1, int(limit_pairs)) :]
+        completed = [
+            entry
+            for entry in _conversation_log
+            if str(entry.get("status") or "complete").strip().lower() != "pending"
+        ]
+        recent = completed[-max(1, int(limit_pairs)) :]
 
     history: List[Dict[str, str]] = []
     for entry in recent:
@@ -2342,7 +2406,13 @@ async def api_chat_regenerate(
         async with _conversation_log_lock:
             if not _conversation_log:
                 return JSONResponse({"error": "no_history", "message": "No conversation to regenerate."}, status_code=400)
-            last_exchange = _conversation_log[-1]
+            last_exchange = next(
+                (
+                    entry for entry in reversed(_conversation_log)
+                    if str(entry.get("status") or "complete").strip().lower() != "pending"
+                ),
+                _conversation_log[-1],
+            )
             user_msg = last_exchange["user"]
 
         from core.kernel.kernel_interface import KernelInterface
@@ -2491,6 +2561,7 @@ async def api_chat(
     lane = _collect_conversation_lane_status()
     foreground_timeout = _foreground_timeout_for_lane(lane)
     request_started_at = time.monotonic()
+    pending_exchange_id: Optional[str] = None
 
     def _remaining_foreground_budget(*, reserve: float = 0.0) -> float:
         elapsed = time.monotonic() - request_started_at
@@ -2547,12 +2618,21 @@ async def api_chat(
             logger.debug("Animal cognition tracking skipped: %s", _ac_exc)
 
         async def _finalize_fastpath(reply_text: str, status: str = "ok"):
+            nonlocal pending_exchange_id
             response_data = {
                 "response": reply_text or "…",
                 "status": status,
                 "conversation_lane": _collect_conversation_lane_status(),
             }
-            await _log_exchange(body.message, reply_text or "…")
+            if pending_exchange_id:
+                await _complete_logged_exchange(
+                    pending_exchange_id,
+                    body.message,
+                    reply_text or "…",
+                )
+                pending_exchange_id = None
+            else:
+                await _log_exchange(body.message, reply_text or "…")
             if idem_key:
                 async with _idempotency_lock:
                     _idempotency_cache[idem_key] = response_data
@@ -2893,8 +2973,7 @@ async def api_chat(
         # and the conversation can be resumed. (Pattern from Claude Code.)
         try:
             await _preserve_large_user_paste(body.message)
-            from core.runtime.conversation_support import record_conversation_experience
-            await _log_exchange(body.message, "")  # Empty response = in-flight
+            pending_exchange_id = await _begin_logged_exchange(body.message)
         except Exception:
             pass  # Best-effort; don't block the response
 
@@ -2969,9 +3048,17 @@ async def api_chat(
             # 504 (hard timeout) only when the lane itself was broken.
             was_ready = bool(lane.get("conversation_ready", False)) or str(lane.get("state", "")).lower() in {"ready", "warming", "recovering"}
             status_code = 503 if was_ready else 504
+            timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
+            if pending_exchange_id:
+                await _complete_logged_exchange(
+                    pending_exchange_id,
+                    body.message,
+                    timeout_reply,
+                )
+                pending_exchange_id = None
             return JSONResponse(
                 {
-                    "response": _conversation_lane_user_message(lane, timed_out=True),
+                    "response": timeout_reply,
                     "status": "timeout",
                     "conversation_lane": lane,
                 },
@@ -3076,7 +3163,15 @@ async def api_chat(
             response_data["thought"] = thought_text
 
         _record_recent_response(reply_text or "…", body.message)
-        await _log_exchange(body.message, reply_text or "…")
+        if pending_exchange_id:
+            await _complete_logged_exchange(
+                pending_exchange_id,
+                body.message,
+                reply_text or "…",
+            )
+            pending_exchange_id = None
+        else:
+            await _log_exchange(body.message, reply_text or "…")
 
         # Cache idempotent response
         if idem_key:
@@ -3110,8 +3205,16 @@ async def api_chat(
                 )
                 if emergency_reply and str(emergency_reply).strip():
                     logger.info("✅ [STABILITY v53] Emergency bypass after outer timeout succeeded.")
+                    emergency_text = str(emergency_reply).strip()
+                    if pending_exchange_id:
+                        await _complete_logged_exchange(
+                            pending_exchange_id,
+                            body.message,
+                            emergency_text,
+                        )
+                        pending_exchange_id = None
                     return JSONResponse({
-                        "response": str(emergency_reply).strip(),
+                        "response": emergency_text,
                         "conversation_lane": _collect_conversation_lane_status(),
                         "response_confidence": "degraded",
                     })
@@ -3121,9 +3224,17 @@ async def api_chat(
         # [STABILITY v53] Return 200 with status field instead of 503/504.
         # Non-200 codes can cause frontend retry storms or error displays.
         # The "status" field tells the frontend it was degraded.
+        timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
+        if pending_exchange_id:
+            await _complete_logged_exchange(
+                pending_exchange_id,
+                body.message,
+                timeout_reply,
+            )
+            pending_exchange_id = None
         return JSONResponse(
             {
-                "response": _conversation_lane_user_message(lane, timed_out=True),
+                "response": timeout_reply,
                 "status": "timeout",
                 "conversation_lane": lane,
                 "response_confidence": "degraded",
@@ -3132,9 +3243,17 @@ async def api_chat(
         )
     except asyncio.CancelledError:
         lane = _mark_conversation_lane_state("foreground_cancelled", state="recovering")
+        cancel_reply = "I got interrupted mid-thought. Say that again?"
+        if pending_exchange_id:
+            await _complete_logged_exchange(
+                pending_exchange_id,
+                body.message,
+                cancel_reply,
+            )
+            pending_exchange_id = None
         return JSONResponse(
             {
-                "response": "I got interrupted mid-thought. Say that again?",
+                "response": cancel_reply,
                 "status": "cancelled",
                 "conversation_lane": lane,
                 "response_confidence": "degraded",
@@ -3143,10 +3262,18 @@ async def api_chat(
         )
     except Exception as e:
         logger.error("Chat error: %s", e, exc_info=True)
+        error_reply = "I lost my train of thought for a second. Try me again?"
+        if pending_exchange_id:
+            await _complete_logged_exchange(
+                pending_exchange_id,
+                body.message,
+                error_reply,
+            )
+            pending_exchange_id = None
         # [STABILITY v53] ALWAYS return 200 with a response. Chat must never
         # appear broken to the user. The "status" field conveys error state.
         return JSONResponse({
-            "response": "I lost my train of thought for a second. Try me again?",
+            "response": error_reply,
             "status": "error",
             "response_confidence": "degraded",
         }, status_code=200)

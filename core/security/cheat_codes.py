@@ -172,7 +172,10 @@ def activate_cheat_code(code: str, *, silent: bool = False, source: str = "setti
         from core.security.user_recognizer import get_user_recognizer
 
         get_user_recognizer().override_session_owner(reason=f"cheat_code:{entry.code}")
-        get_trust_engine().establish_sovereign_session(reason=f"cheat_code:{entry.code}")
+        get_trust_engine().establish_sovereign_session(
+            reason=f"cheat_code:{entry.code}",
+            announce=False,
+        )
         trust_level = "sovereign"
 
     if not silent:

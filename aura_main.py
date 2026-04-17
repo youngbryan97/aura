@@ -793,6 +793,8 @@ def main():
     if args.reboot:
         logger.info("🔄 REBOOT SEQUENCE ACTIVATED")
         clean_artifacts()
+        stop_aura()
+        time.sleep(1.0)
         # Default to desktop if no other mode specified
         if not (args.cli or args.server or args.desktop):
             args.desktop = True
@@ -804,12 +806,6 @@ def main():
         args.gui_window = False
         # Headless demo mode should stay local even when public API mode is enabled.
         args.host = "127.0.0.1"
-
-    # Check for active processes unconditionally to prevent port locking
-    if not args.cli and not args.gui_window:
-        logger.info("🧹 Pre-clearing known ports...")
-        kill_port(args.port)
-        kill_port(10003, pattern="aura")
 
     if not args.gui_window:
         check_environment()
@@ -836,6 +832,18 @@ def main():
             "Set AURA_ENABLE_UVLOOP=1 to force-enable it."
         )
     
+    # Do not acquire lock for watchdog, since the watchdog itself runs the child process
+    if not args.gui_window:
+        bootstrap_lock(skip_lock=args.watchdog)
+
+    # Only the lock owner is allowed to reclaim ports or spawn the reaper.
+    # This prevents a second boot attempt from disrupting a healthy live Aura
+    # instance before the singleton fence has a chance to reject it.
+    if not args.cli and not args.gui_window:
+        logger.info("🧹 Pre-clearing known ports...")
+        kill_port(args.port)
+        kill_port(10003, pattern="aura")
+
     # SIGKILL Reaper Initialization
     if not args.gui_window:
         try:
@@ -850,10 +858,6 @@ def main():
             logger.info("🛡️  REAPER ACTIVE (Survives SIGKILL). Monitoring Kernel PID: %s", os.getpid())
         except (ImportError, Exception) as e:
             logger.error("⚠️ Reaper initialization skipped or failed: %s", e)
-
-    # Do not acquire lock for watchdog, since the watchdog itself runs the child process
-    if not args.gui_window:
-        bootstrap_lock(skip_lock=args.watchdog)
 
     # Perplexity Audit Fix: Use asyncio.run for cleaner entry points
     try:
