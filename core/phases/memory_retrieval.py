@@ -157,6 +157,12 @@ class MemoryRetrievalPhase(BasePhase):
         
         memories: list[str] = []
         memory_candidates: list[tuple[float, str]] = []
+
+        # ── Gap 3 Fix: Memory Affect → Steering ──
+        total_valence_hit = 0.0
+        total_arousal_hit = 0.0
+        memory_hits = 0
+
         if dual_res:
             memory_candidates.append((0.45 + float(affect_signature.get("memory_salience", 0.0) or 0.0) * 0.1, str(dual_res)))
         if kg_res:
@@ -168,6 +174,12 @@ class MemoryRetrievalPhase(BasePhase):
                     valence_alignment = 1.0 - min(1.0, abs(float(state.affect.valence or 0.0) - emotional_valence))
                     weighted_score = (0.3 + (importance * 0.3) + (valence_alignment * 0.2) + (float(affect_signature.get("memory_salience", 0.0) or 0.0) * 0.2))
                     memory_candidates.append((weighted_score, f"[{km.get('type', 'fact')}] {km.get('content')}"))
+
+                    if abs(emotional_valence) > 0.3:
+                        total_valence_hit += emotional_valence * importance
+                        total_arousal_hit += importance * 0.5
+                        memory_hits += 1
+
         if facade_res:
             for item in facade_res:
                 if isinstance(item, dict):
@@ -181,6 +193,11 @@ class MemoryRetrievalPhase(BasePhase):
                         valence_alignment = 1.0 - min(1.0, abs(float(state.affect.valence or 0.0) - emotional_valence))
                         weighted_score = round((score * 0.35) + (importance * 0.25) + (valence_alignment * 0.25) + (salience * 0.15), 3)
                         memory_candidates.append((weighted_score, f"[memory score={weighted_score:.3f}] {content}"))
+
+                        if abs(emotional_valence) > 0.3:
+                            total_valence_hit += emotional_valence * importance
+                            total_arousal_hit += importance * 0.5
+                            memory_hits += 1
                 elif item:
                     memory_candidates.append((0.35, f"[memory] {item}"))
 
@@ -194,6 +211,29 @@ class MemoryRetrievalPhase(BasePhase):
                 if content and len(content) > 10:
                     score = 0.5 + importance * 0.3 + abs(valence) * 0.2
                     memory_candidates.append((score, f"[episodic] {content}"))
+
+                    if abs(valence) > 0.3:
+                        total_valence_hit += valence * importance
+                        total_arousal_hit += importance * 0.5
+                        memory_hits += 1
+
+        # Push accumulated affect from memory retrieval
+        if memory_hits > 0:
+            try:
+                from core.container import ServiceContainer
+                affect_engine = ServiceContainer.get("affect_engine", default=None)
+                if affect_engine and hasattr(affect_engine, "modify"):
+                    val_shift = (total_valence_hit / memory_hits) * 0.4
+                    arousal_shift = (total_arousal_hit / memory_hits) * 0.3
+                    
+                    logger.debug("💥 Memory retrieval triggered affective hit: val_shift=%.2f, arousal_shift=%.2f",
+                                 val_shift, arousal_shift)
+                    
+                    asyncio.create_task(
+                        affect_engine.modify(dv=val_shift, da=arousal_shift, de=0.0, source="memory_retrieval")
+                    )
+            except Exception as e:
+                logger.debug("Failed to push memory affect: %s", e)
 
         if memory_candidates:
             memory_candidates.sort(key=lambda item: item[0], reverse=True)

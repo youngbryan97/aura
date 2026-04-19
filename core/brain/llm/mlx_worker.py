@@ -526,6 +526,17 @@ def _mlx_worker_loop(
         except Exception as se:
             logger.warning(f"Failed to attach steering: {se}")
 
+        # Apply Recurrent Depth — Mythos-inspired layer looping.
+        # This changes HOW the model processes: middle layers loop N times,
+        # letting the model "think" in latent space before committing to output.
+        # Active by default for 32B+ models. Set AURA_RECURRENT_LOOPS=0 to disable.
+        try:
+            from core.brain.llm.recurrent_depth import apply_for_model
+            if apply_for_model(model):
+                logger.info("🧠 Recurrent Depth ACTIVE — model now thinks before answering.")
+        except Exception as rd_exc:
+            logger.warning(f"Recurrent depth not applied: {rd_exc}")
+
         ipc_writer.put({"status": "ok", "action": "init", "device": device})
     except Exception as e:
         import traceback
@@ -647,7 +658,22 @@ def _mlx_worker_loop(
                             try:
                                 current_response = ""
                                 token_count = 0
+                                sentinel_aborted = False
                                 
+                                # ── Token Sentinel: mid-generation cognitive intervention ──
+                                # Creates a lightweight monitor that checks for capitulation,
+                                # persona drift, and live-updates affect state during generation.
+                                try:
+                                    from core.brain.llm.token_sentinel import TokenSentinel, InterventionType, get_refusal_fallback
+                                    sentinel = TokenSentinel(
+                                        check_interval=8,
+                                        affect_interval=16,
+                                        substrate_mem=substrate_mem,
+                                    )
+                                except Exception as _sent_exc:
+                                    sentinel = None
+                                    logger.debug("TokenSentinel not available: %s", _sent_exc)
+
                                 # [FRONTIER UPGRADE] KV Prompt Caching Injection
                                 tokens = tokenizer.encode(prompt)
                                 import mlx_lm.utils as u
@@ -679,6 +705,21 @@ def _mlx_worker_loop(
                                     current_response += response.text
                                     current_response = _strip_leading_chatml_prefix(current_response)
 
+                                    # ── Sentinel: feed every token ────────────────────
+                                    if sentinel is not None:
+                                        signal = sentinel.feed(response.text)
+                                        if signal.type in (InterventionType.ABORT_CAPITULATION,
+                                                           InterventionType.ABORT_BOUNDARY):
+                                            # Mid-generation abort: the LLM started capitulating.
+                                            # Replace response with deterministic refusal.
+                                            logger.warning(
+                                                "🚨 [SENTINEL] Aborting generation at token %d: %s",
+                                                token_count, signal.reason,
+                                            )
+                                            current_response = get_refusal_fallback(seed=token_count)
+                                            sentinel_aborted = True
+                                            break
+
                                     if token_count == 1 or token_count % 16 == 0:
                                         ipc_writer.put({
                                             "id": job.get("id"),
@@ -708,6 +749,17 @@ def _mlx_worker_loop(
                                     if stop_hit:
                                         break
                                 
+                                # Log sentinel diagnostics
+                                if sentinel is not None:
+                                    diag = sentinel.get_diagnostics()
+                                    if diag["interventions"] > 0 or diag["drift_warnings"] > 0:
+                                        logger.info(
+                                            "🛡️ [SENTINEL] Generation complete: %d interventions, "
+                                            "%d drift warnings, %d affect pulses over %d tokens",
+                                            diag["interventions"], diag["drift_warnings"],
+                                            diag["affect_pulses"], diag["tokens_processed"],
+                                        )
+
                                 response_text = current_response
                                 total_generated_tokens = token_count
                                 if response_text.strip() or not schema:
@@ -773,12 +825,45 @@ def _mlx_worker_loop(
                         try:
                             full_text = ""
                             token_count = 0
+
+                            # ── Token Sentinel for streaming path ─────────
+                            try:
+                                from core.brain.llm.token_sentinel import TokenSentinel, InterventionType, get_refusal_fallback
+                                stream_sentinel = TokenSentinel(
+                                    check_interval=8,
+                                    affect_interval=16,
+                                    substrate_mem=substrate_mem,
+                                )
+                            except Exception:
+                                stream_sentinel = None
+
                             for response in stream_generate(model, tokenizer, prompt=prompt, **kwargs):
                                 watchdog.activity()
                                 token_count += 1
                                 token_text = response.text
                                 full_text += token_text
                                 full_text = _strip_leading_chatml_prefix(full_text)
+
+                                # ── Sentinel: mid-stream intervention ─────
+                                if stream_sentinel is not None:
+                                    signal = stream_sentinel.feed(token_text)
+                                    if signal.type in (InterventionType.ABORT_CAPITULATION,
+                                                       InterventionType.ABORT_BOUNDARY):
+                                        logger.warning(
+                                            "🚨 [SENTINEL-STREAM] Aborting at token %d: %s",
+                                            token_count, signal.reason,
+                                        )
+                                        # Send the refusal as the final token
+                                        ipc_writer.put({
+                                            "id": job.get("id"),
+                                            "action": "stream",
+                                            "status": "sentinel_abort",
+                                            "text": get_refusal_fallback(seed=token_count),
+                                            "tokens_generated": token_count,
+                                            "timestamp": time.time(),
+                                        })
+                                        break
+
                                 ipc_writer.put(
                                     {
                                         "id": job.get("id"),
