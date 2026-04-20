@@ -1,26 +1,3 @@
-from datetime import datetime
-from typing import Any, Dict
+"""Legacy compatibility wrapper for the canonical core clock skill."""
 
-from infrastructure import BaseSkill
-
-
-class ClockSkill(BaseSkill):
-    name = "clock"
-    description = "Get the current date and time."
-    inputs = {}
-    output = "Current date and time string"
-
-    def match(self, goal: Dict[str, Any]) -> bool:
-        obj = goal.get("objective", "").lower()
-        time_keywords = ["time", "date", "clock", "what day", "today", "hour", "minute"]
-        return any(kw in obj for kw in time_keywords)
-
-    async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-        now = datetime.now().astimezone()
-        readable = now.strftime("%A, %B %d, %Y %I:%M %p %Z").strip()
-        return {
-            "ok": True,
-            "time": now.isoformat(),
-            "readable": readable,
-            "summary": f"It is currently {readable}."
-        }
+from core.skills.clock import *  # noqa: F401,F403

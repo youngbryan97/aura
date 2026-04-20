@@ -1,5 +1,5 @@
 [Unit]
-Description=Aura Sovereign Agent API Server
+Description=Aura Luna Agent API Server
 After=network.target ollama.service
 Wants=ollama.service
 

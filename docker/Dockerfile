@@ -1,4 +1,4 @@
-# Aura Sovereign Sandbox - Dockerfile
+# Aura Luna Sandbox - Dockerfile
 # Provides a secure, network-isolated environment for code execution.
 
 FROM python:3.11-slim

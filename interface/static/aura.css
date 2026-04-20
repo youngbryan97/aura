@@ -173,7 +173,7 @@ header {
     height: 32px;
     border: 1px solid var(--border);
     border-radius: 50%;
-    background-image: url('/static/aura_avatar.png');
+    background-image: url('/static/aura_avatar.svg');
     background-size: cover;
     background-position: center;
     box-shadow: 0 0 15px var(--border-glow);
@@ -363,7 +363,7 @@ header {
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background-image: url('/static/aura_avatar.png');
+    background-image: url('/static/aura_avatar.svg');
     background-size: cover;
     background-position: center;
     border: 1px solid var(--primary);

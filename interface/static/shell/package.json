@@ -1,6 +1,6 @@
 {
   "name": "aura-flagship-shell",
-  "version": "2026.3.29",
+  "version": "2026.4.20",
   "private": true,
   "scripts": {
     "dev": "vite",

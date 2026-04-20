@@ -1,6 +1,6 @@
 """interface/server.py
 ────────────────────
-Aura Sovereign — FastAPI entry-point.
+Aura Luna — FastAPI entry-point.
 
 Decomposed: Routes live in interface/routes/*, auth in interface/auth.py,
 WebSocket infrastructure in interface/websocket_manager.py, event bridge
@@ -325,8 +325,8 @@ async def lifespan(app: FastAPI):
 # ── App ───────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Aura Sovereign Agent",
-    description="Secure interface for the Aura autonomous engine.",
+    title="Aura Luna Agent",
+    description="Secure interface for the Aura Luna autonomous engine.",
     version=VERSION,
     lifespan=lifespan,
 )

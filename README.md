@@ -41,6 +41,7 @@ actually talk to the thing while it's running.
 ## Table of Contents
 
 - [Quick start](#quick-start)
+- [Tracked vs local workspace](#tracked-vs-local-workspace)
 - [Architecture overview](#architecture-overview)
 - [Decision authority](#decision-authority)
 - [Inference-time steering](#inference-time-steering)
@@ -76,7 +77,25 @@ fallback loads on demand. First boot takes 30–60 seconds while Metal compiles
 shaders.
 
 There's also a `Dockerfile` and `docker-compose.yml` if you want Redis and Celery
-running alongside. All services bind to `127.0.0.1` by default.
+running alongside. The tracked workspace defaults to an explicit
+`owner_autonomous` posture for this single-owner machine: autonomy on,
+outbound/network-enabled skills available, and self-repair left active. If you
+want a tighter deployment, override the `AURA_*` security settings in your local
+environment, including `AURA_INTERNAL_ONLY=1` for localhost-only binding.
+
+---
+
+## Tracked vs local workspace
+
+This repository is the tracked baseline. The canonical tracked skill
+implementations live under `core/skills/`; the top-level `skills/` package is
+kept as a legacy compatibility layer for older imports.
+
+Local workspaces can also contain ignored/private modules listed in
+`.gitignore`. Those files are not part of the tracked review surface and can
+change the live risk profile of a specific machine. If you're auditing a real
+deployment rather than the tracked tree alone, review both the repository and
+any local-only modules present on disk.
 
 ---
 
@@ -136,13 +155,15 @@ dimensions. Refusal is a real option here; it isn't content filtering, it's a
 decision the agent can make. Volition levels 0–3 gate progressively autonomous
 behavior up to and including self-modification.
 
-### Skills (`skills/`)
+### Skills (`core/skills/`, legacy wrappers in `skills/`)
 39 modules: shell with sandboxing, web search and browse, coding, sleep and
 dream consolidation, local media generation, social media (Twitter, Reddit),
 screen capture, filesystem, browser automation, network recon, malware
 analysis, self-evolution and self-repair, inter-agent messaging, knowledge
-base, curiosity-driven exploration. Every skill call carries a capability token
-and has to pass the Will gate.
+base, curiosity-driven exploration. The canonical tracked implementations live
+under `core/skills/`; the top-level `skills/` package is retained only as a
+legacy compatibility layer for older imports. Every skill call carries a
+capability token and has to pass the Will gate.
 
 ### Orchestrator (`core/orchestrator/`)
 About 2,200 lines in `main.py` split across 12 mixins: message handling,
@@ -371,12 +392,18 @@ instance.
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest tests/ -q
+./scripts/run_audit_suite.sh
 ```
 
-1,013 tests, 0 failures, about 122 seconds on a local machine. The suite is
-split into batteries with different goals. A summary — the full catalog is in
+The repository includes a large research-heavy test suite plus preserved
+historical result artifacts. The April 16, 2026 snapshot recorded
+`1013 passed, 3 warnings`; current live status should always be re-verified from
+the checked-out tree. A summary — and the historical tables/results — are in
 [TESTING.md](TESTING.md):
+
+- `./scripts/run_audit_suite.sh` is the canonical live validation entrypoint.
+- `./scripts/run_audit_suite.sh quick` runs the contract/regression subset for
+  faster local verification.
 
 - **Null hypothesis defeat** (168 tests) — tries to show the consciousness
   features are just text decoration. Adversarial baselines, 50-shuffle

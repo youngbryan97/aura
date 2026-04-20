@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Aura Main Entry Point (v2026.3.1 "Zenith")
-------------------------------------
+Aura Main Entry Point
+---------------------
 Standardized, single-entry launcher for CLI, Server, Desktop, and Watchdog modes.
 Replaces: aura_launcher.py, aura_desktop.py, run_aura.py, run_aura_loop.py, and reboot.py.
 """
@@ -160,8 +160,8 @@ def check_environment():
     except Exception as e:
         logger.error("   • core import failed: %s", e)
     
-    if sys.version_info < (3, 9):
-        logger.error("Aura requires Python 3.9+")
+    if sys.version_info < (3, 12):
+        logger.error("Aura requires Python 3.12+")
         sys.exit(1)
         
     if config is None:

@@ -1,22 +1,45 @@
-#!/bin/bash
-# Aura Zenith: Audit Suite runner
-source venv/bin/activate || echo "Warning: Virtualenv not active."
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "🔍 Starting Audit Suite..."
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
-echo "1. System Fingerprint"
-uname -a
-python3 --version
+MODE="${1:-full}"
 
-echo "2. Dependency Check"
-pip list | grep -E "mlx|numpy|pydantic|Restricted|prometheus"
+if [[ -n "${PYTHON_BIN:-}" ]]; then
+  PYTHON="$PYTHON_BIN"
+elif [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
+  PYTHON="$ROOT_DIR/.venv/bin/python"
+else
+  PYTHON="python3"
+fi
 
-echo "3. Unit & Integration Tests"
-pytest tests/test_phase3_hardening.py tests/test_phase4_agi.py tests/test_phase5_evolution.py --tb=short
+run() {
+  echo "+ $*"
+  "$@"
+}
 
-echo "4. Performance/Memory Snapshot"
-# Brief run to check observability
-echo "Executing brief health check..."
-# (Logic to run orchestrator briefly and check metrics would go here)
+echo "Aura Luna audit suite (${MODE})"
+echo "Repository: $ROOT_DIR"
+echo "Python: $PYTHON"
 
-echo "✅ Audit Suite Finished."
+case "$MODE" in
+  quick)
+    run "$PYTHON" -m pytest tests/test_audit_contracts.py crucible_test.py -q
+    ;;
+  full)
+    run "$PYTHON" -m pytest -q
+    if command -v npm >/dev/null 2>&1; then
+      run npm --prefix interface/static/shell run build
+      run npm --prefix interface/static/memory run build
+    else
+      echo "npm not found; skipping frontend builds." >&2
+    fi
+    ;;
+  *)
+    echo "Usage: $0 [quick|full]" >&2
+    exit 2
+    ;;
+esac
+
+echo "Audit suite complete."

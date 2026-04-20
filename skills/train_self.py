@@ -1,138 +1,18 @@
-"""skills/train_self.py - Neuroplasticity / Self-Fine-Tuning Skill
-Provides the architecture for Aura to learn from her own high-value experiences.
-"""
-import json
-import logging
-import os
-from datetime import datetime
-from typing import Any, Dict
+"""Legacy compatibility wrapper for the canonical core train-self skill."""
 
-logger = logging.getLogger("Aura.Training")
+from pathlib import Path
 
-class TrainSelfSkill:
-    """Sleep and Learn: Neuroplasticity simulation.
-    Orchestrates the preparation and trigger for local model fine-tuning.
-    """
+from core.skills.train_self import TrainSelfSkill as _CoreTrainSelfSkill
 
-    name = "train_self"
-    
+
+class TrainSelfSkill(_CoreTrainSelfSkill):
+    """Preserve the legacy ``workspace_root`` constructor without forking logic."""
+
     def __init__(self, workspace_root: str = "."):
-        self.workspace_root = workspace_root
-        self.dataset_path = os.path.join(workspace_root, "data/training/dataset.jsonl")
-        os.makedirs(os.path.dirname(self.dataset_path), exist_ok=True)
+        super().__init__()
+        if workspace_root and workspace_root != ".":
+            self.dataset_path = Path(workspace_root) / "data" / "training" / "dataset.jsonl"
+            self.dataset_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-        action = goal.get("action", "collect_memories")
-        
-        if action == "collect_memories":
-            return await self._collect_high_value_memories(context)
-        elif action == "trigger_tuning":
-            return await self._trigger_finetuning(goal.get("params", {}))
-            
-        return {"ok": False, "error": f"Unknown action: {action}"}
 
-    @staticmethod
-    def _extract_turn_fields(turn: Any) -> tuple[str, str]:
-        if isinstance(turn, dict):
-            role = turn.get("role") or turn.get("speaker") or ""
-            content = turn.get("content") or turn.get("text") or ""
-        else:
-            role = getattr(turn, "role", "") or getattr(turn, "speaker", "") or ""
-            content = getattr(turn, "content", "") or getattr(turn, "text", "") or ""
-        return str(role).strip().lower(), str(content).strip()
-
-    async def _collect_high_value_memories(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Gathers successful interactions for future training (v13: no fake data)."""
-        try:
-            logger.info("Collecting high-value memories for neuroplasticity...")
-            
-            # Query actual conversation history from context
-            history = context.get("history", [])
-            collected = 0
-            
-            if not history:
-                return {
-                    "ok": True,
-                    "message": "No conversation history available to collect memories from.",
-                    "collected": 0
-                }
-            
-            examples = []
-            last_user_message = ""
-
-            for turn in history:
-                role, content = self._extract_turn_fields(turn)
-                if not role or not content:
-                    continue
-                if role in {"user", "human"}:
-                    last_user_message = content[:1000]
-                    continue
-                if role in {"assistant", "aura"} and last_user_message:
-                    examples.append({
-                        "instruction": "Respond to the user's message in Aura's voice.",
-                        "input": last_user_message[:500],
-                        "output": content[:500],
-                    })
-
-            with open(self.dataset_path, "a", encoding="utf-8") as f:
-                for entry in examples[-10:]:
-                    f.write(json.dumps(entry) + "\n")
-                    collected += 1
-                
-            return {
-                "ok": True,
-                "message": f"Collected {collected} high-value memories for future consolidation.",
-                "collected": collected
-            }
-        except Exception as e:
-            logger.error("Memory collection failed: %s", e)
-            return {"ok": False, "error": str(e)}
-
-    async def _trigger_finetuning(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Consolidate memories into permanent knowledge (Self-Learning).
-        Instead of full fine-tuning (expensive), we distill high-value memories
-        into a 'Self-Learned Knowledge' file that is injected into context.
-        """
-        try:
-            logger.info("🧠 Consolidating short-term memories into long-term knowledge...")
-            
-            # 1. Read dataset
-            if not os.path.exists(self.dataset_path):
-                return {"ok": False, "error": "No memories to consolidate."}
-                
-            knowledge_path = os.path.join(self.workspace_root, "core/knowledge/self_learned.md")
-            os.makedirs(os.path.dirname(knowledge_path), exist_ok=True)
-            
-            # 2. Distill (mock distillation for now, in real expanded ver we'd use LLM to summarize)
-            new_knowledge = []
-            with open(self.dataset_path, "r") as f:
-                for line in f:
-                    try:
-                        data = json.loads(line)
-                        if "output" in data:
-                            new_knowledge.append(f"- **Learned Pattern**: {data['output'][:100]}...")
-                    except:
-                        pass
-            
-            # 3. Append to Knowledge Base
-            timestamp = datetime.now().isoformat()
-            with open(knowledge_path, "a") as f:
-                f.write(f"\n\n### Consolidation {timestamp}\n")
-                f.write("\n".join(new_knowledge))
-                
-            # 4. Clear buffer
-            open(self.dataset_path, 'w').close()
-            
-            return {
-                "ok": True,
-                "message": f"Consolidated {len(new_knowledge)} insights into Long-Term Memory.",
-                "path": knowledge_path
-            }
-        except Exception as e:
-            logger.error("Consolidation failed: %s", e)
-            return {"ok": False, "error": str(e)}
-
-    def _get_dataset_size(self) -> int:
-        if not os.path.exists(self.dataset_path): return 0
-        with open(self.dataset_path, "r") as f:
-            return sum(1 for _ in f)
+__all__ = ["TrainSelfSkill"]

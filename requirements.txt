@@ -1,4 +1,4 @@
-# Aura Zenith v2026.3.1
+# Aura Luna v2026.4.20-Zenith
 mlx-lm>=0.31.0
 mlx-whisper
 faster-whisper
@@ -28,4 +28,3 @@ mss
 astor
 aiohttp
 prometheus-fastapi-instrumentator
-

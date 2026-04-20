@@ -1,14 +1,3 @@
-from infrastructure.resilience import resilient
+"""Legacy compatibility wrapper for the canonical core free-search skill."""
 
-from .web_search import EnhancedWebSearchSkill
-
-
-class FreeSearchSkill(EnhancedWebSearchSkill):
-    """Compatibility wrapper for legacy 'free_search' skill.
-    Redirects to EnhancedWebSearchSkill.
-    """
-
-    name = "free_search"
-
-# Alias for compatibility
-free_search = FreeSearchSkill
+from core.skills.free_search import *  # noqa: F401,F403

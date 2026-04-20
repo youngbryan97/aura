@@ -1,4 +1,4 @@
-"""Aura Canonical Service Name Registry (v2026.3.1)
+"""Aura Canonical Service Name Registry (v2026.4.20)
 Unifies all string-based service lookups to prevent typos and drift.
 """
 

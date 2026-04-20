@@ -410,7 +410,15 @@ class GodModeToolPhase(Phase):
             else:
                 if skill_name == "sovereign_browser":
                     normalized.setdefault("mode", "search")
+                raw_query = " ".join(str(objective or "").split()).strip()
                 query = GodModeToolPhase._extract_search_query(objective)
+                if (
+                    skill_name == "sovereign_browser"
+                    and query
+                    and raw_query
+                    and query.rstrip(" .?!,:;") == raw_query.rstrip(" .?!,:;")
+                ):
+                    query = raw_query
                 if skill_name == "grounded_search":
                     normalized.setdefault("objective", objective)
                     normalized.setdefault("params", {"query": query})

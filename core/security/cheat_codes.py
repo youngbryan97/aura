@@ -143,7 +143,7 @@ def resolve_cheat_code(code: str) -> Optional[CheatCodeEntry]:
         return CheatCodeEntry(
             code="owner_sovereign",
             effect="sovereign_mode",
-            source_game="Aura Sovereign Override",
+            source_game="Aura Luna Override",
             message="🔐 Eight emeralds aligned. I see you, Bryan. Sovereign mode engaged.",
             aliases=("owner_sovereign",),
             sovereign=True,

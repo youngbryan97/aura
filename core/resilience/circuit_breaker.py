@@ -1,6 +1,9 @@
 import asyncio
-import time
+import collections
 import logging
+import re
+import time
+from difflib import SequenceMatcher
 from functools import wraps
 from typing import Callable, Any, Optional, Dict
 from core.exceptions import CircuitOpenError
@@ -145,3 +148,75 @@ def get_circuit_breaker() -> CircuitBreaker:
     if _breaker_instance is None:
         _breaker_instance = CircuitBreaker(failure_threshold=5, base_recovery_timeout=30)
     return _breaker_instance
+
+
+class RepetitionLoopBreaker:
+    """Compatibility guard for legacy ReAct-style thought loops.
+
+    This is intentionally separate from the failure-count circuit breaker above.
+    It watches successive model generations for near-identical repetitions and
+    trips when the agent appears to be stuck replaying the same action or
+    thought. Older runtime paths still import this as ``loop_killer``.
+    """
+
+    def __init__(
+        self,
+        *,
+        max_repeats: int = 4,
+        similarity_threshold: float = 0.96,
+        history_size: int = 8,
+    ) -> None:
+        self.max_repeats = max(2, int(max_repeats))
+        self.similarity_threshold = max(0.0, min(1.0, float(similarity_threshold)))
+        self.history = collections.deque(maxlen=max(history_size, self.max_repeats))
+        self.is_tripped = False
+        self.last_reason = ""
+
+    def reset(self) -> None:
+        self.history.clear()
+        self.is_tripped = False
+        self.last_reason = ""
+
+    @staticmethod
+    def _normalize(text: str) -> str:
+        normalized = re.sub(r"\s+", " ", str(text or "").strip().lower())
+        normalized = re.sub(r"\b\d+\b", "#", normalized)
+        return normalized
+
+    def _is_repeating_window(self, window: list[str]) -> bool:
+        if len(window) < self.max_repeats:
+            return False
+
+        anchor = window[-1]
+        if not anchor:
+            return False
+
+        for prior in window[:-1]:
+            if SequenceMatcher(None, anchor, prior).ratio() < self.similarity_threshold:
+                return False
+        return True
+
+    def check_and_trip(self, thought: str) -> bool:
+        normalized = self._normalize(thought)
+        if not normalized:
+            return False
+
+        self.history.append(normalized)
+        recent = list(self.history)[-self.max_repeats :]
+        if not self._is_repeating_window(recent):
+            return False
+
+        self.is_tripped = True
+        self.last_reason = f"repeated_generation_{self.max_repeats}"
+        logger.warning(
+            "🛑 Repetition loop breaker tripped after %d near-identical generations.",
+            self.max_repeats,
+        )
+        return True
+
+
+loop_killer = RepetitionLoopBreaker()
+
+
+def get_loop_killer() -> RepetitionLoopBreaker:
+    return loop_killer

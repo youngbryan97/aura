@@ -12,7 +12,7 @@ def generate_grok_audit():
     
     content = []
     content.append("="*80)
-    content.append("AURA ZENITH: ENTERPRISE AUDIT BUNDLE (v2026.3-M1)")
+    content.append("AURA LUNA: ENTERPRISE AUDIT BUNDLE (v2026.4.20-ZENITH)")
     content.append("AESTHETIC: HIGH FIDELITY | FOCUS: 100% SYNTHESIS")
     content.append("="*80 + "\n")
     

@@ -54,6 +54,18 @@ from typing import Dict, Optional, Callable
 import numpy as np
 
 logger = logging.getLogger("Consciousness.Neurochemical")
+_latest_instance: Optional["NeurochemicalSystem"] = None
+
+
+def get_latest_neurochemical_system() -> Optional["NeurochemicalSystem"]:
+    """Return the most recently constructed neurochemical system.
+
+    Runtime wiring should still prefer the ServiceContainer registration, but
+    this fallback keeps the affective stack causally coupled in tests and in
+    lightweight standalone probes where the full container is absent.
+    """
+
+    return _latest_instance
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +222,7 @@ class NeurochemicalSystem:
     _UPDATE_HZ = 2.0  # 2 Hz metabolic tick
 
     def __init__(self):
+        global _latest_instance
         self.chemicals: Dict[str, Chemical] = {
             # Fast neurotransmitters (ms timescale, high uptake rate)
             "glutamate": Chemical(
@@ -278,6 +291,7 @@ class NeurochemicalSystem:
         self._mesh_ref: Optional[object] = None  # NeuralMesh
         self._workspace_ref: Optional[object] = None  # GlobalWorkspace
 
+        _latest_instance = self
         logger.info("NeurochemicalSystem initialized (10 modulators, receptor subtypes active)")
 
     # ── Lifecycle ────────────────────────────────────────────────────────

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Aura avatar</title>
+  <desc id="desc">Abstract gradient portrait used as the tracked default Aura avatar.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6a5cff"/>
+      <stop offset="55%" stop-color="#14c9ff"/>
+      <stop offset="100%" stop-color="#85ffb7"/>
+    </linearGradient>
+    <linearGradient id="halo" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#101424" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.65"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="72" fill="url(#bg)"/>
+  <circle cx="128" cy="98" r="54" fill="url(#halo)" opacity="0.92"/>
+  <path
+    d="M62 214c10-40 36-64 66-64s56 24 66 64"
+    fill="none"
+    stroke="rgba(8,12,24,0.55)"
+    stroke-width="28"
+    stroke-linecap="round"
+  />
+  <path
+    d="M74 213c11-34 33-55 54-55s43 21 54 55"
+    fill="none"
+    stroke="#f6fbff"
+    stroke-opacity="0.72"
+    stroke-width="16"
+    stroke-linecap="round"
+  />
+  <circle cx="105" cy="102" r="7" fill="#14203a"/>
+  <circle cx="151" cy="102" r="7" fill="#14203a"/>
+  <path d="M104 132c8 7 18 10 24 10s16-3 24-10" fill="none" stroke="#1b2745" stroke-width="8" stroke-linecap="round"/>
+</svg>

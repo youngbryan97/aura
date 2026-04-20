@@ -22,13 +22,13 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 | Concern | Owner | File |
 |---------|-------|------|
 | Canonical identity | `CanonicalSelf` | `core/self/canonical_self.py` |
-| Affect / emotion | `AffectEngine` | `core/affect/affect_engine.py` |
+| Affect / emotion | `AffectFacade` | `core/affect/affect_facade.py` |
 | Conversation history | `Orchestrator` | `core/orchestrator/main.py` |
-| Episodic memory | `EpisodicMemory` | `core/memory/episodic.py` |
+| Episodic memory | `EpisodicMemory` | `core/memory/episodic_memory.py` |
 | Beliefs | `BeliefGraph` | `core/world_model/belief_graph.py` |
 | Working memory | `AuraState.cognition` | `core/state/aura_state.py` |
 | Liquid substrate | `LiquidSubstrate` | `core/consciousness/liquid_substrate.py` |
-| Neurochemical state | `NeurochemicalEngine` | `core/consciousness/neurochemical_engine.py` |
+| Neurochemical state | `NeurochemicalSystem` | `core/consciousness/neurochemical_system.py` |
 | Unified field | `UnifiedField` | `core/consciousness/unified_field.py` |
 
 ## Governance domains
@@ -70,7 +70,7 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 | Shutdown | `LifecycleCoordinator` | `core/orchestrator/mixins/boot/` |
 | Health monitoring | `StabilityGuardian` | `core/resilience/stability_guardian.py` |
 | Crash recovery | `LazarusBrainstem` | `core/brain/llm/lazarus_brainstem.py` |
-| Self-modification | `SelfModificationEngine` | `core/adaptation/self_modification.py` |
+| Self-modification | `SelfModificationEngine` | `core/self_modification/self_modification_engine.py` |
 
 ## Consciousness and experience
 
@@ -88,3 +88,7 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 The principle: if you need a new governance check, hang it off
 `UnifiedWill` as an advisor, don't add a parallel gate. If you need a new
 sensor, route it to the existing owner for that domain.
+
+Tracked skill implementations live under `core/skills/`. The top-level
+`skills/` package is maintained only as a legacy compatibility surface for
+older imports and wrappers.

@@ -126,6 +126,9 @@ class SecurityConfig(BaseModel):
 
     Key fields documented for audit clarity:
 
+    - ``security_profile``: Named posture for the local deployment. The tracked
+      repo defaults to ``"owner_autonomous"`` to match the intended single-owner,
+      self-directed operating mode for this workspace.
     - ``internal_only_mode``: When True, blocks all external network access.
     - ``auto_fix_enabled``: Allows the self-modification engine to apply code
       repairs (still gated by ConstitutionalCore and ASTGuard).
@@ -145,6 +148,7 @@ class SecurityConfig(BaseModel):
     - ``force_unity_on``: Forces all consciousness subsystems to synchronize
       on every tick even when some are dormant.
     """
+    security_profile: str = "owner_autonomous"
     internal_only_mode: bool = False
     auto_fix_enabled: bool = True
     aura_full_autonomy: bool = True
@@ -345,6 +349,14 @@ class AuraConfig(BaseSettings):
         # ISSUE #70 - evaluate gemini_api_key env lookup safely
         if not self.llm.gemini_api_key:
             self.llm.gemini_api_key = os.environ.get("GEMINI_API_KEY")
+
+        # Mirror the effective security posture into the process environment so
+        # older boot paths and tests see the same contract as config-backed code.
+        os.environ["AURA_SECURITY_PROFILE"] = self.security.security_profile
+        os.environ["AURA_INTERNAL_ONLY"] = "1" if self.security.internal_only_mode else "0"
+        os.environ["AURA_ALLOW_NETWORK_ACCESS"] = (
+            "1" if self.security.allow_network_access else "0"
+        )
 
         # Canonicalize role expectations so config-backed call sites cannot drift
         # away from the managed runtime registry.

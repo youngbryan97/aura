@@ -32,9 +32,10 @@ import logging
 
 # ── Canonical Version ────────────────────────────────────────
 
+PRODUCT_NAME: str = "Aura Luna"
 MAJOR: int = 2026
-MINOR: int = 3
-PATCH: int = 2
+MINOR: int = 4
+PATCH: int = 20
 
 #: Release label — set to "" for stable, "alpha"/"beta"/"rc.1" otherwise
 LABEL: str = "Zenith"
@@ -51,17 +52,17 @@ def version_string(style: str = "full") -> str:
 
     Args:
         style: one of
-            "full"    → "Aura Sovereign v6.0.0"
-            "short"   → "v6.0.0"
-            "semver"  → "6.0.0"
-            "ui"      → "v6.0"    (major.minor only, for UI badges)
+            "full"    → "Aura Luna v2026.4.20-Zenith"
+            "short"   → "v2026.4.20-Zenith"
+            "semver"  → "2026.4.20-Zenith"
+            "ui"      → "v2026.4"    (major.minor only, for UI badges)
 
     Returns:
         Formatted version string.
 
     """
     if style == "full":
-        return f"Aura Luna v{VERSION}"
+        return f"{PRODUCT_NAME} v{VERSION}"
     if style == "short":
         return f"v{VERSION}"
     if style == "semver":

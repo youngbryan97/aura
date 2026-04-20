@@ -16,12 +16,14 @@ sys.modules["docker"] = mock_docker
 class TestSovereignAura(unittest.TestCase):
 
     def test_config_firewall(self):
-        """Verify that AuraConfig enforces AURA_INTERNAL_ONLY environment variable."""
+        """Verify that AuraConfig mirrors the explicit owner-autonomous posture."""
         from core.config import config
-        # Check if environment was set by config initialization
-        self.assertEqual(os.environ.get("AURA_INTERNAL_ONLY"), "1")
-        self.assertEqual(config.security.internal_only_mode, True)
-        self.assertEqual(config.security.allow_network_access, False)
+        self.assertEqual(os.environ.get("AURA_SECURITY_PROFILE"), "owner_autonomous")
+        self.assertEqual(os.environ.get("AURA_INTERNAL_ONLY"), "0")
+        self.assertEqual(os.environ.get("AURA_ALLOW_NETWORK_ACCESS"), "1")
+        self.assertEqual(config.security.security_profile, "owner_autonomous")
+        self.assertEqual(config.security.internal_only_mode, False)
+        self.assertEqual(config.security.allow_network_access, True)
 
     def test_server_auth_logic(self):
         """Verify server auth logic in server.py (simulated)."""

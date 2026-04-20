@@ -96,8 +96,17 @@ class AuthorityGateway:
                     decision,
                 )
         except Exception as exc:
-            # Will unavailable — degrade gracefully, let domain checks decide
-            logger.debug("UnifiedWill gate unavailable: %s", exc)
+            logger.warning("UnifiedWill gate unavailable; failing closed: %s", exc)
+            return (
+                AuthorityDecision(
+                    approved=False,
+                    outcome="will_unavailable",
+                    reason=f"UnifiedWill unavailable: {exc}",
+                    domain=domain_str,
+                    source=source,
+                ),
+                None,
+            )
         return None, locals().get("decision")
 
     async def authorize_tool_execution(

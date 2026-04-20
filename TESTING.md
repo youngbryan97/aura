@@ -1,8 +1,22 @@
 # Testing
 
-1,013 tests, 0 failures, 3 warnings, about 122 seconds on a local machine. The
-suite is split into batteries with different goals, and the sections below walk
-through what each one is actually checking.
+Canonical live validation:
+
+```bash
+./scripts/run_audit_suite.sh
+```
+
+Fast regression spot-check:
+
+```bash
+./scripts/run_audit_suite.sh quick
+```
+
+Historical snapshot: on April 16, 2026, this suite recorded `1013 passed,
+3 warnings` in about 122 seconds on a local machine. Treat the counts and
+measured values below as preserved historical evidence, not as a substitute for
+re-running the current tree. The sections below explain what each battery is
+checking and point to the preserved artifacts.
 
 The test files and their raw output are all in `tests/`. Useful starting points:
 
@@ -977,8 +991,8 @@ Key measured values:
 | Other core suites | *(various)* | ~450 | ~450 | 100% |
 | Total | | 1013 | 1013 | 100% |
 
-1,013 tests, 0 failures, 3 warnings, 122 seconds. Every measured value
-published.
+Historical April 16, 2026 summary: 1,013 tests, 0 failures, 3 warnings,
+122 seconds. Re-run the current tree before treating any result as live.
 
 Run all tests:
 `python -m pytest tests/ --ignore=tests/integration --ignore=tests/performance -v`
