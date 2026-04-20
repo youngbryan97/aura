@@ -6,7 +6,7 @@
     "fine_tune_type": "lora",
     "grad_accumulation_steps": 1,
     "grad_checkpoint": true,
-    "iters": 2004,
+    "iters": 1754,
     "learning_rate": 2e-06,
     "lora_parameters": {
         "rank": 8,
@@ -28,7 +28,7 @@
     },
     "project_name": null,
     "report_to": null,
-    "resume_adapter_file": "/Users/bryan/.aura/live-source/training/adapters/aura-personality/0001000_adapters.safetensors",
+    "resume_adapter_file": "/Users/bryan/.aura/live-source/training/adapters/aura-personality/0000250_adapters.safetensors",
     "save_every": 250,
     "seed": 0,
     "steps_per_eval": 200,
