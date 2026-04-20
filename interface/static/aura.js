@@ -15,6 +15,7 @@ const state = {
     thoughtDrainTimer: null,
     neuralFeedReadable: false,
     neuralFeedMode: 'live',
+    neuralFeedPaused: false,
     pendingOutboundMessages: [], // ZENITH: Message queueing during disconnect
     processedMessageFingerprints: new Set(), // ZENITH: Chat deduplication
     pacingActive: false,
@@ -335,6 +336,7 @@ const DOM = {
     typingLabel: $('typing-label'),
     neuralFeed: $('neural-feed'),
     neuralBar: $('neural-bar'),
+    neuralPauseToggle: $('neural-pause-toggle'),
     neuralReadableToggle: $('neural-readable-toggle'),
     neuralModeState: $('neural-mode-state'),
     neuralBacklog: $('neural-backlog'),
@@ -1684,10 +1686,20 @@ function queueThought(data) {
     }
     state.thoughtQueue.push(item);
     syncNeuralFeedMode();
-    if (!state.pacingActive) processThoughtQueue();
+    if (!state.pacingActive && !state.neuralFeedPaused) processThoughtQueue();
 }
 
 function syncNeuralFeedMode() {
+    if (state.neuralFeedPaused) {
+        if (state._neuralLiveDebounce) {
+            clearTimeout(state._neuralLiveDebounce);
+            state._neuralLiveDebounce = null;
+        }
+        state.neuralFeedMode = 'paused';
+        renderNeuralFeedMode();
+        return;
+    }
+
     const targetMode = state.neuralFeedReadable
         ? 'readable'
         : (state.thoughtQueue.length > 0 ? 'catchup' : 'live');
@@ -1719,10 +1731,21 @@ function syncNeuralFeedMode() {
 }
 
 function renderNeuralFeedMode() {
+    const pauseToggle = DOM.neuralPauseToggle || $('neural-pause-toggle');
     const toggle = DOM.neuralReadableToggle || $('neural-readable-toggle');
     const status = DOM.neuralModeState || $('neural-mode-state');
     const backlog = DOM.neuralBacklog || $('neural-backlog');
     const queueLen = state.thoughtQueue.length;
+    const neuralPane = $('pane-neural');
+
+    if (pauseToggle) {
+        pauseToggle.classList.toggle('active', state.neuralFeedPaused);
+        pauseToggle.setAttribute('aria-pressed', state.neuralFeedPaused ? 'true' : 'false');
+        pauseToggle.textContent = state.neuralFeedPaused ? 'RESUME' : 'PAUSE';
+        pauseToggle.title = state.neuralFeedPaused
+            ? 'Resume the visible neural feed and flush buffered thought cards'
+            : 'Pause the visible neural feed without pausing Aura’s cognition';
+    }
 
     if (toggle) {
         toggle.classList.toggle('active', state.neuralFeedReadable);
@@ -1734,14 +1757,24 @@ function renderNeuralFeedMode() {
 
     if (status) {
         status.textContent =
+            state.neuralFeedMode === 'paused' ? 'PAUSED' :
             state.neuralFeedMode === 'readable' ? 'READABLE' :
             state.neuralFeedMode === 'catchup' ? 'CATCHING UP' :
             'LIVE';
         status.className = `neural-mode-state${state.neuralFeedMode === 'live' ? '' : ` ${state.neuralFeedMode}`}`;
     }
 
+    if (neuralPane) {
+        neuralPane.classList.toggle('neural-paused', state.neuralFeedPaused);
+    }
+
     if (backlog) {
-        if (queueLen > 0) {
+        if (state.neuralFeedPaused) {
+            backlog.hidden = false;
+            backlog.textContent = queueLen > 0
+                ? `Neural visuals are paused. ${queueLen} thought card${queueLen === 1 ? '' : 's'} queued while Aura keeps thinking.`
+                : 'Neural visuals are paused. Aura keeps thinking in the background until you resume the feed.';
+        } else if (queueLen > 0) {
             backlog.hidden = false;
             backlog.textContent =
                 state.neuralFeedMode === 'readable'
@@ -1760,6 +1793,12 @@ function toggleNeuralReadableMode() {
     if (state.thoughtQueue.length > 0 && !state.pacingActive) {
         processThoughtQueue();
     }
+}
+
+function toggleNeuralVisualPause() {
+    settings.neuralPaused = !settings.neuralPaused;
+    saveSettings(settings);
+    applySettings(settings);
 }
 
 function normalizeThoughtTimestamp(rawTimestamp) {
@@ -1843,6 +1882,14 @@ function saveImageToDevice(url) {
 }
 
 async function processThoughtQueue() {
+    if (state.neuralFeedPaused) {
+        state.pacingActive = false;
+        clearTimeout(state.thoughtDrainTimer);
+        state.thoughtDrainTimer = null;
+        syncNeuralFeedMode();
+        return;
+    }
+
     if (state.thoughtQueue.length === 0) {
         state.pacingActive = false;
         clearTimeout(state.thoughtDrainTimer);
@@ -3639,6 +3686,9 @@ setConnectionVisual('booting');
 hydrateBootstrap({ hydrateConversationHistory: true, quiet: true });
 initializeMetricGuide();
 renderNeuralFeedMode();
+if (DOM.neuralPauseToggle) {
+    DOM.neuralPauseToggle.addEventListener('click', toggleNeuralVisualPause);
+}
 if (DOM.neuralReadableToggle) {
     DOM.neuralReadableToggle.addEventListener('click', toggleNeuralReadableMode);
 }
@@ -3655,7 +3705,8 @@ const SETTINGS_KEY = 'aura_settings';
 const defaultSettings = {
     theme: 'dark', accent: 'violet', voice: true, autolisten: false,
     ttsSpeed: 1.0, enrichment: true, reflection: true, autonomy: true,
-    approval: 'destructive', onboarded: false, cheatStatus: 'IDLE'
+    approval: 'destructive', onboarded: false, cheatStatus: 'IDLE',
+    neuralPaused: false, chatTextSize: 'standard', neuralTextSize: 'standard'
 };
 
 function loadSettings() {
@@ -3671,14 +3722,27 @@ function saveSettings(s) {
 
 function applySettings(s) {
     // Theme
-    document.body.className = document.body.className.replace(/theme-\w+/g, '').replace(/accent-\w+/g, '').trim();
+    document.body.className = document.body.className
+        .replace(/theme-\w+/g, '')
+        .replace(/accent-\w+/g, '')
+        .replace(/chat-text-\w+/g, '')
+        .replace(/neural-text-\w+/g, '')
+        .replace(/\bneural-visual-paused\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
     if (s.theme !== 'dark') document.body.classList.add(`theme-${s.theme}`);
     if (s.accent !== 'violet') document.body.classList.add(`accent-${s.accent}`);
+    document.body.classList.add(`chat-text-${s.chatTextSize || 'standard'}`);
+    document.body.classList.add(`neural-text-${s.neuralTextSize || 'standard'}`);
+    document.body.classList.toggle('neural-visual-paused', !!s.neuralPaused);
 
     // Sync UI controls
     const el = (id) => document.getElementById(id);
     if (el('setting-theme')) el('setting-theme').value = s.theme;
     if (el('setting-accent')) el('setting-accent').value = s.accent;
+    if (el('setting-neural-paused')) el('setting-neural-paused').checked = !!s.neuralPaused;
+    if (el('setting-chat-text-size')) el('setting-chat-text-size').value = s.chatTextSize || 'standard';
+    if (el('setting-neural-text-size')) el('setting-neural-text-size').value = s.neuralTextSize || 'standard';
     if (el('setting-voice')) el('setting-voice').checked = s.voice;
     if (el('setting-autolisten')) el('setting-autolisten').checked = s.autolisten;
     if (el('setting-tts-speed')) el('setting-tts-speed').value = s.ttsSpeed;
@@ -3688,13 +3752,25 @@ function applySettings(s) {
     if (el('setting-approval')) el('setting-approval').value = s.approval;
     if (el('setting-cheat-status')) el('setting-cheat-status').textContent = s.cheatStatus || 'IDLE';
     if (el('setting-version')) el('setting-version').textContent = state.version;
+
+    state.neuralFeedPaused = !!s.neuralPaused;
+    if (state.neuralFeedPaused) {
+        state.pacingActive = false;
+        clearTimeout(state.thoughtDrainTimer);
+        state.thoughtDrainTimer = null;
+    }
+    syncNeuralFeedMode();
+    if (!state.neuralFeedPaused && state.thoughtQueue.length > 0 && !state.pacingActive) {
+        processThoughtQueue();
+    }
 }
 
 const settings = loadSettings();
 applySettings(settings);
 
 // Bind settings controls
-['setting-theme', 'setting-accent', 'setting-voice', 'setting-autolisten',
+['setting-theme', 'setting-accent', 'setting-neural-paused', 'setting-chat-text-size',
+ 'setting-neural-text-size', 'setting-voice', 'setting-autolisten',
  'setting-tts-speed', 'setting-enrichment', 'setting-reflection',
  'setting-autonomy', 'setting-approval'].forEach(id => {
     const el = document.getElementById(id);

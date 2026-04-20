@@ -158,6 +158,7 @@
                         <div class="section-label neural-toolbar-label">LIVE NEURAL FEED <div class="live-dot" id="neural-dot"></div>
                         </div>
                         <div class="neural-toolbar-actions">
+                            <button id="neural-pause-toggle" class="neural-toggle-btn neural-pause-btn" type="button" aria-pressed="false">PAUSE</button>
                             <button id="neural-readable-toggle" class="neural-toggle-btn" type="button" aria-pressed="false">READABLE</button>
                             <span id="neural-mode-state" class="neural-mode-state">LIVE</span>
                         </div>
@@ -474,6 +475,31 @@
                             <option value="emerald">Emerald</option>
                             <option value="amber">Amber</option>
                         </select>
+                    </div>
+
+                    <div class="section-label">ACCESSIBILITY</div>
+                    <div class="settings-row">
+                        <label for="setting-neural-paused">Pause Neural Stream Visuals</label>
+                        <input type="checkbox" id="setting-neural-paused" class="setting-toggle">
+                    </div>
+                    <div class="settings-row">
+                        <label for="setting-chat-text-size">Chat Text Size</label>
+                        <select id="setting-chat-text-size" class="setting-input">
+                            <option value="compact">Compact</option>
+                            <option value="standard">Standard</option>
+                            <option value="large">Large</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="setting-neural-text-size">Neural Stream Text Size</label>
+                        <select id="setting-neural-text-size" class="setting-input">
+                            <option value="compact">Compact</option>
+                            <option value="standard">Standard</option>
+                            <option value="large">Large</option>
+                        </select>
+                    </div>
+                    <div class="settings-help">
+                        Pausing the neural stream only freezes the visible feed. Aura keeps thinking in the background, and buffered thought cards catch up when you resume.
                     </div>
 
                     <div class="section-label">VOICE</div>

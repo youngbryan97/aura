@@ -29,6 +29,11 @@
     --error: #ff3e5e;
     --font-main: 'Space Mono', monospace;
     --font-head: 'Syne', sans-serif;
+    --chat-text-scale: 1;
+    --chat-meta-scale: 1;
+    --chat-input-scale: 1;
+    --neural-text-scale: 1;
+    --neural-meta-scale: 1;
 }
 
 * {
@@ -61,6 +66,39 @@ body {
     -webkit-user-select: text !important;
     /* Safari support */
     user-select: text !important;
+}
+
+body.chat-text-compact {
+    --chat-text-scale: 0.92;
+    --chat-meta-scale: 0.94;
+    --chat-input-scale: 0.95;
+}
+
+body.chat-text-standard {
+    --chat-text-scale: 1;
+    --chat-meta-scale: 1;
+    --chat-input-scale: 1;
+}
+
+body.chat-text-large {
+    --chat-text-scale: 1.14;
+    --chat-meta-scale: 1.08;
+    --chat-input-scale: 1.12;
+}
+
+body.neural-text-compact {
+    --neural-text-scale: 0.92;
+    --neural-meta-scale: 0.94;
+}
+
+body.neural-text-standard {
+    --neural-text-scale: 1;
+    --neural-meta-scale: 1;
+}
+
+body.neural-text-large {
+    --neural-text-scale: 1.16;
+    --neural-meta-scale: 1.1;
 }
 
 ::selection {
@@ -644,7 +682,7 @@ main {
     padding: 30px 40px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: calc(16px * var(--chat-meta-scale));
 }
 
 .sys-box {
@@ -653,7 +691,7 @@ main {
     background: linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(0, 229, 255, 0.05));
     -webkit-backdrop-filter: blur(20px) saturate(150%);
     backdrop-filter: blur(20px) saturate(150%);
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--chat-text-scale));
     color: var(--text-dim);
     text-align: center;
     width: 90%;
@@ -667,7 +705,7 @@ main {
 .msg {
     max-width: 82%;
     line-height: 1.65;
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--chat-text-scale));
     padding: 14px 18px;
     border-radius: 6px;
     animation: fadeIn 0.3s ease;
@@ -733,7 +771,7 @@ main {
     display: none;
     align-self: flex-start;
     color: var(--text-dim);
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--chat-meta-scale));
     padding: 10px 18px;
 }
 
@@ -919,7 +957,7 @@ main {
     color: #fff;
     padding: 12px 5px;
     font-family: var(--font-main);
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--chat-input-scale));
     outline: none;
     letter-spacing: 0.02em;
 }
@@ -1156,7 +1194,7 @@ main {
 .neural-toggle-btn,
 .neural-mode-state {
     border-radius: 999px;
-    font-size: 0.58rem;
+    font-size: calc(0.58rem * var(--neural-meta-scale));
     letter-spacing: 0.12em;
     text-transform: uppercase;
 }
@@ -1184,6 +1222,24 @@ main {
     box-shadow: 0 0 18px rgba(0, 229, 255, 0.18);
 }
 
+.neural-toggle-btn.neural-pause-btn {
+    border-color: rgba(255, 184, 77, 0.22);
+    background: rgba(255, 184, 77, 0.08);
+}
+
+.neural-toggle-btn.neural-pause-btn:hover,
+.neural-toggle-btn.neural-pause-btn:focus-visible {
+    border-color: rgba(255, 184, 77, 0.48);
+    background: rgba(255, 184, 77, 0.16);
+}
+
+.neural-toggle-btn.neural-pause-btn.active {
+    color: #201300;
+    background: rgba(255, 184, 77, 0.92);
+    border-color: rgba(255, 184, 77, 0.96);
+    box-shadow: 0 0 18px rgba(255, 184, 77, 0.16);
+}
+
 .neural-mode-state {
     display: inline-flex;
     align-items: center;
@@ -1209,9 +1265,15 @@ main {
     border-color: rgba(255, 184, 77, 0.95);
 }
 
+.neural-mode-state.paused {
+    color: #fff4db;
+    background: rgba(255, 110, 78, 0.9);
+    border-color: rgba(255, 110, 78, 0.95);
+}
+
 .neural-backlog {
     margin-bottom: 12px;
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--neural-meta-scale));
     line-height: 1.4;
     color: var(--text-dim);
 }
@@ -1245,7 +1307,7 @@ main {
     border-radius: 0 6px 6px 0;
     padding: 12px 14px;
     margin-bottom: 12px;
-    font-size: 0.75rem;
+    font-size: calc(0.75rem * var(--neural-text-scale));
     word-break: break-word;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
@@ -1290,7 +1352,7 @@ main {
 .thought-copy-btn {
     flex: 0 0 auto;
     padding: 4px 10px;
-    font-size: 0.58rem;
+    font-size: calc(0.58rem * var(--neural-meta-scale));
     font-family: var(--font-main);
     letter-spacing: 1px;
     text-transform: uppercase;
@@ -1552,7 +1614,7 @@ main {
 
 .thought-ts {
     color: var(--text-dim);
-    font-size: 0.6rem;
+    font-size: calc(0.6rem * var(--neural-meta-scale));
     display: block;
     margin-bottom: 3px;
 }
@@ -1560,8 +1622,28 @@ main {
 .thought-tag {
     color: var(--primary-bright);
     font-weight: bold;
+    font-size: calc(0.62rem * var(--neural-meta-scale));
     margin-right: 6px;
     display: inline-block;
+}
+
+#pane-neural .section-label {
+    font-size: calc(0.65rem * var(--neural-meta-scale));
+}
+
+body.neural-visual-paused #pane-neural #neural-feed {
+    opacity: 0.46;
+    filter: saturate(0.74);
+}
+
+body.neural-visual-paused #pane-neural .bar-fill.neural {
+    opacity: 0.4;
+}
+
+body.neural-visual-paused #pane-neural .live-dot {
+    background: rgba(255, 184, 77, 0.92);
+    box-shadow: 0 0 8px rgba(255, 184, 77, 0.72);
+    animation-play-state: paused;
 }
 
 /* ── TELEMETRY TAB ────────────────────────────────── */
@@ -2855,7 +2937,7 @@ header { animation: staggerIn 0.6s ease-out both; }
 }
 .input-hint {
     text-align: center;
-    font-size: 9px;
+    font-size: calc(9px * var(--chat-meta-scale));
     letter-spacing: 1.5px;
     color: var(--text-dim);
     opacity: 0.5;
@@ -2867,7 +2949,7 @@ header { animation: staggerIn 0.6s ease-out both; }
     border-radius: 3px;
     padding: 1px 5px;
     font-family: var(--font-main);
-    font-size: 9px;
+    font-size: calc(9px * var(--chat-meta-scale));
     color: var(--text-dim);
 }
 

@@ -136,14 +136,15 @@ private enum LaunchAttemptResult {
 }
 
 private extension NSColor {
-    static let auraCanvasTop = NSColor(calibratedRed: 0.07, green: 0.08, blue: 0.13, alpha: 1.0)
+    static let auraCanvasTop = NSColor(calibratedRed: 0.08, green: 0.09, blue: 0.15, alpha: 1.0)
     static let auraCanvasBottom = NSColor(calibratedRed: 0.03, green: 0.04, blue: 0.08, alpha: 1.0)
-    static let auraPanel = NSColor(calibratedRed: 0.09, green: 0.11, blue: 0.16, alpha: 0.86)
-    static let auraPanelBorder = NSColor(calibratedRed: 0.38, green: 0.30, blue: 0.76, alpha: 0.36)
+    static let auraPanel = NSColor(calibratedRed: 0.10, green: 0.11, blue: 0.18, alpha: 0.90)
+    static let auraPanelBorder = NSColor(calibratedRed: 0.40, green: 0.32, blue: 0.80, alpha: 0.34)
     static let auraTrack = NSColor(calibratedRed: 0.16, green: 0.18, blue: 0.25, alpha: 1.0)
     static let auraCyan = NSColor(calibratedRed: 0.18, green: 0.86, blue: 1.0, alpha: 1.0)
     static let auraBlue = NSColor(calibratedRed: 0.18, green: 0.49, blue: 1.0, alpha: 1.0)
     static let auraViolet = NSColor(calibratedRed: 0.61, green: 0.36, blue: 1.0, alpha: 1.0)
+    static let auraAmber = NSColor(calibratedRed: 1.0, green: 0.73, blue: 0.30, alpha: 1.0)
     static let auraTextMuted = NSColor(calibratedWhite: 0.74, alpha: 1.0)
 }
 
@@ -262,6 +263,73 @@ private final class GradientProgressBar: NSView {
         fillGradientLayer.isHidden = clamped <= 0.0
         fillGlowLayer.frame = fillRect
         fillGradientLayer.frame = fillRect
+    }
+}
+
+private final class LauncherChipLabel: NSTextField {
+    enum Tone {
+        case cyan
+        case violet
+        case neutral
+
+        var foreground: NSColor {
+            switch self {
+            case .cyan:
+                return NSColor.auraCyan
+            case .violet:
+                return NSColor.auraViolet
+            case .neutral:
+                return NSColor(calibratedWhite: 0.92, alpha: 1.0)
+            }
+        }
+
+        var background: NSColor {
+            switch self {
+            case .cyan:
+                return NSColor.auraCyan.withAlphaComponent(0.10)
+            case .violet:
+                return NSColor.auraViolet.withAlphaComponent(0.12)
+            case .neutral:
+                return NSColor.white.withAlphaComponent(0.06)
+            }
+        }
+
+        var border: NSColor {
+            switch self {
+            case .cyan:
+                return NSColor.auraCyan.withAlphaComponent(0.26)
+            case .violet:
+                return NSColor.auraViolet.withAlphaComponent(0.26)
+            case .neutral:
+                return NSColor.white.withAlphaComponent(0.10)
+            }
+        }
+    }
+
+    init(_ text: String, tone: Tone) {
+        super.init(frame: .zero)
+        stringValue = text.uppercased()
+        translatesAutoresizingMaskIntoConstraints = false
+        font = NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
+        alignment = .center
+        textColor = tone.foreground
+        wantsLayer = true
+        layer?.backgroundColor = tone.background.cgColor
+        layer?.borderColor = tone.border.cgColor
+        layer?.borderWidth = 1
+        layer?.cornerRadius = 12
+        maximumNumberOfLines = 1
+        lineBreakMode = .byTruncatingTail
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        let base = super.intrinsicContentSize
+        return NSSize(width: base.width + 22, height: 24)
     }
 }
 
@@ -523,7 +591,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func buildWindow() {
-        let frame = NSRect(x: 0, y: 0, width: 720, height: 412)
+        let frame = NSRect(x: 0, y: 0, width: 860, height: 500)
         window = NSWindow(
             contentRect: frame,
             styleMask: [.titled, .closable],
@@ -546,24 +614,76 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
         contentCard.translatesAutoresizingMaskIntoConstraints = false
         contentCard.wantsLayer = true
         contentCard.layer?.backgroundColor = NSColor.auraPanel.cgColor
-        contentCard.layer?.cornerRadius = 28
+        contentCard.layer?.cornerRadius = 32
         contentCard.layer?.borderColor = NSColor.auraPanelBorder.cgColor
         contentCard.layer?.borderWidth = 1
+        contentCard.layer?.shadowColor = NSColor.black.cgColor
+        contentCard.layer?.shadowOpacity = 0.30
+        contentCard.layer?.shadowRadius = 36
+        contentCard.layer?.shadowOffset = .zero
         contentView.addSubview(contentCard)
+
+        let heroPanel = NSView()
+        heroPanel.translatesAutoresizingMaskIntoConstraints = false
+        heroPanel.wantsLayer = true
+        heroPanel.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.18).cgColor
+        heroPanel.layer?.cornerRadius = 28
+        heroPanel.layer?.borderColor = NSColor.white.withAlphaComponent(0.06).cgColor
+        heroPanel.layer?.borderWidth = 1
+        contentCard.addSubview(heroPanel)
+
+        let actionTray = NSView()
+        actionTray.translatesAutoresizingMaskIntoConstraints = false
+        actionTray.wantsLayer = true
+        actionTray.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.20).cgColor
+        actionTray.layer?.cornerRadius = 22
+        actionTray.layer?.borderColor = NSColor.white.withAlphaComponent(0.06).cgColor
+        actionTray.layer?.borderWidth = 1
+        contentCard.addSubview(actionTray)
 
         let eyebrowLabel = NSTextField(labelWithString: "AURA LAUNCHER")
         eyebrowLabel.translatesAutoresizingMaskIntoConstraints = false
         eyebrowLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
         eyebrowLabel.textColor = NSColor.auraCyan.withAlphaComponent(0.82)
 
+        let headerChips = NSStackView()
+        headerChips.translatesAutoresizingMaskIntoConstraints = false
+        headerChips.orientation = .horizontal
+        headerChips.spacing = 8
+        headerChips.alignment = .centerY
+        let versionChip = LauncherChipLabel(
+            bundledVersionLabel.isEmpty ? "Live Workspace" : bundledVersionLabel,
+            tone: .violet
+        )
+        let routeChip = LauncherChipLabel("Local Boot Monitor", tone: .cyan)
+        let portChip = LauncherChipLabel("127.0.0.1:8000", tone: .neutral)
+        headerChips.addArrangedSubview(versionChip)
+        headerChips.addArrangedSubview(routeChip)
+        headerChips.addArrangedSubview(portChip)
+
+        let orbHalo = NSView()
+        orbHalo.translatesAutoresizingMaskIntoConstraints = false
+        orbHalo.wantsLayer = true
+        orbHalo.layer?.backgroundColor = NSColor.auraViolet.withAlphaComponent(0.24).cgColor
+        orbHalo.layer?.cornerRadius = 76
+        orbHalo.layer?.shadowColor = NSColor.auraViolet.cgColor
+        orbHalo.layer?.shadowOpacity = 0.80
+        orbHalo.layer?.shadowRadius = 60
+        orbHalo.layer?.shadowOffset = .zero
+        heroPanel.addSubview(orbHalo)
+
         let iconPlate = NSView()
         iconPlate.translatesAutoresizingMaskIntoConstraints = false
         iconPlate.wantsLayer = true
-        iconPlate.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.22).cgColor
-        iconPlate.layer?.cornerRadius = 24
-        iconPlate.layer?.borderColor = NSColor.auraViolet.withAlphaComponent(0.40).cgColor
+        iconPlate.layer?.backgroundColor = NSColor(calibratedRed: 0.06, green: 0.05, blue: 0.11, alpha: 0.72).cgColor
+        iconPlate.layer?.cornerRadius = 30
+        iconPlate.layer?.borderColor = NSColor.auraViolet.withAlphaComponent(0.34).cgColor
         iconPlate.layer?.borderWidth = 1
-        contentCard.addSubview(iconPlate)
+        iconPlate.layer?.shadowColor = NSColor.auraBlue.cgColor
+        iconPlate.layer?.shadowOpacity = 0.32
+        iconPlate.layer?.shadowRadius = 18
+        iconPlate.layer?.shadowOffset = .zero
+        heroPanel.addSubview(iconPlate)
 
         let iconView = NSImageView()
         iconView.translatesAutoresizingMaskIntoConstraints = false
@@ -601,6 +721,26 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
         phaseBadge.layer?.borderWidth = 1
         phaseBadge.layer?.cornerRadius = 13
 
+        let phaseSupportLabel = NSTextField(labelWithString: "Runtime handoff, health polling, and GUI wake coordination")
+        phaseSupportLabel.translatesAutoresizingMaskIntoConstraints = false
+        phaseSupportLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        phaseSupportLabel.textColor = NSColor.auraTextMuted.withAlphaComponent(0.95)
+        phaseSupportLabel.lineBreakMode = .byTruncatingTail
+
+        let summaryCard = NSView()
+        summaryCard.translatesAutoresizingMaskIntoConstraints = false
+        summaryCard.wantsLayer = true
+        summaryCard.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.04).cgColor
+        summaryCard.layer?.cornerRadius = 22
+        summaryCard.layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        summaryCard.layer?.borderWidth = 1
+        heroPanel.addSubview(summaryCard)
+
+        let summaryEyebrow = NSTextField(labelWithString: "BOOT HEALTH")
+        summaryEyebrow.translatesAutoresizingMaskIntoConstraints = false
+        summaryEyebrow.font = NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
+        summaryEyebrow.textColor = NSColor.auraCyan.withAlphaComponent(0.84)
+
         footerLabel = NSTextField(wrappingLabelWithString: "You can keep this window open while Aura boots.")
         footerLabel.translatesAutoresizingMaskIntoConstraints = false
         footerLabel.font = NSFont.systemFont(ofSize: 14, weight: .regular)
@@ -612,14 +752,22 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
         progressIndicator.translatesAutoresizingMaskIntoConstraints = false
         progressIndicator.progress = 6
 
-        let progressBelowBadge = progressIndicator.topAnchor.constraint(equalTo: phaseBadge.bottomAnchor, constant: 22)
+        let progressBelowBadge = progressIndicator.topAnchor.constraint(greaterThanOrEqualTo: phaseBadge.bottomAnchor, constant: 24)
         progressBelowBadge.priority = .defaultHigh
-        let progressBelowIcon = progressIndicator.topAnchor.constraint(greaterThanOrEqualTo: iconPlate.bottomAnchor, constant: 22)
+        let progressBelowIcon = progressIndicator.topAnchor.constraint(greaterThanOrEqualTo: iconPlate.bottomAnchor, constant: 28)
+        let progressBelowSummary = progressIndicator.topAnchor.constraint(greaterThanOrEqualTo: summaryCard.bottomAnchor, constant: 24)
 
         progressValueLabel = NSTextField(labelWithString: "6%")
         progressValueLabel.translatesAutoresizingMaskIntoConstraints = false
-        progressValueLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 18, weight: .semibold)
+        progressValueLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 38, weight: .bold)
         progressValueLabel.textColor = NSColor.white
+
+        let summaryCaption = NSTextField(labelWithString: "Boot API listening on the local desktop lane")
+        summaryCaption.translatesAutoresizingMaskIntoConstraints = false
+        summaryCaption.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        summaryCaption.textColor = NSColor.auraTextMuted
+        summaryCaption.maximumNumberOfLines = 3
+        summaryCaption.lineBreakMode = .byWordWrapping
 
         openLogsButton = CapsuleButton(title: "Open Logs", style: .secondary, target: self, action: #selector(openLogs))
         openLogsButton.translatesAutoresizingMaskIntoConstraints = false
@@ -633,17 +781,21 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
         forceStopButton = CapsuleButton(title: "Force Stop", style: .danger, target: self, action: #selector(forceStopAura))
         forceStopButton.translatesAutoresizingMaskIntoConstraints = false
 
-        contentCard.addSubview(eyebrowLabel)
-        contentCard.addSubview(titleLabel)
-        contentCard.addSubview(detailLabel)
-        contentCard.addSubview(phaseBadge)
-        contentCard.addSubview(progressIndicator)
-        contentCard.addSubview(progressValueLabel)
-        contentCard.addSubview(footerLabel)
-        contentCard.addSubview(openLogsButton)
-        contentCard.addSubview(openDesktopButton)
-        contentCard.addSubview(openBrowserButton)
-        contentCard.addSubview(forceStopButton)
+        heroPanel.addSubview(eyebrowLabel)
+        heroPanel.addSubview(headerChips)
+        heroPanel.addSubview(titleLabel)
+        heroPanel.addSubview(detailLabel)
+        heroPanel.addSubview(phaseBadge)
+        heroPanel.addSubview(phaseSupportLabel)
+        heroPanel.addSubview(progressIndicator)
+        heroPanel.addSubview(footerLabel)
+        summaryCard.addSubview(summaryEyebrow)
+        summaryCard.addSubview(progressValueLabel)
+        summaryCard.addSubview(summaryCaption)
+        actionTray.addSubview(openLogsButton)
+        actionTray.addSubview(openDesktopButton)
+        actionTray.addSubview(openBrowserButton)
+        actionTray.addSubview(forceStopButton)
 
         NSLayoutConstraint.activate([
             contentCard.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 22),
@@ -651,21 +803,55 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
             contentCard.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 22),
             contentCard.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -22),
 
-            eyebrowLabel.leadingAnchor.constraint(equalTo: contentCard.leadingAnchor, constant: 30),
-            eyebrowLabel.topAnchor.constraint(equalTo: contentCard.topAnchor, constant: 24),
+            heroPanel.leadingAnchor.constraint(equalTo: contentCard.leadingAnchor, constant: 24),
+            heroPanel.trailingAnchor.constraint(equalTo: contentCard.trailingAnchor, constant: -24),
+            heroPanel.topAnchor.constraint(equalTo: contentCard.topAnchor, constant: 24),
 
-            iconPlate.leadingAnchor.constraint(equalTo: contentCard.leadingAnchor, constant: 30),
-            iconPlate.topAnchor.constraint(equalTo: eyebrowLabel.bottomAnchor, constant: 18),
-            iconPlate.widthAnchor.constraint(equalToConstant: 92),
-            iconPlate.heightAnchor.constraint(equalToConstant: 92),
+            actionTray.leadingAnchor.constraint(equalTo: contentCard.leadingAnchor, constant: 24),
+            actionTray.trailingAnchor.constraint(equalTo: contentCard.trailingAnchor, constant: -24),
+            actionTray.bottomAnchor.constraint(equalTo: contentCard.bottomAnchor, constant: -24),
+            actionTray.heightAnchor.constraint(equalToConstant: 82),
+
+            heroPanel.bottomAnchor.constraint(equalTo: actionTray.topAnchor, constant: -18),
+
+            eyebrowLabel.leadingAnchor.constraint(equalTo: heroPanel.leadingAnchor, constant: 32),
+            eyebrowLabel.topAnchor.constraint(equalTo: heroPanel.topAnchor, constant: 28),
+
+            headerChips.trailingAnchor.constraint(equalTo: heroPanel.trailingAnchor, constant: -32),
+            headerChips.centerYAnchor.constraint(equalTo: eyebrowLabel.centerYAnchor),
+
+            orbHalo.leadingAnchor.constraint(equalTo: heroPanel.leadingAnchor, constant: 24),
+            orbHalo.topAnchor.constraint(equalTo: eyebrowLabel.bottomAnchor, constant: 14),
+            orbHalo.widthAnchor.constraint(equalToConstant: 152),
+            orbHalo.heightAnchor.constraint(equalToConstant: 152),
+
+            iconPlate.leadingAnchor.constraint(equalTo: heroPanel.leadingAnchor, constant: 36),
+            iconPlate.topAnchor.constraint(equalTo: eyebrowLabel.bottomAnchor, constant: 26),
+            iconPlate.widthAnchor.constraint(equalToConstant: 116),
+            iconPlate.heightAnchor.constraint(equalToConstant: 116),
 
             iconView.leadingAnchor.constraint(equalTo: iconPlate.leadingAnchor, constant: 12),
             iconView.trailingAnchor.constraint(equalTo: iconPlate.trailingAnchor, constant: -12),
             iconView.topAnchor.constraint(equalTo: iconPlate.topAnchor, constant: 12),
             iconView.bottomAnchor.constraint(equalTo: iconPlate.bottomAnchor, constant: -12),
 
-            titleLabel.leadingAnchor.constraint(equalTo: iconPlate.trailingAnchor, constant: 24),
-            titleLabel.trailingAnchor.constraint(equalTo: contentCard.trailingAnchor, constant: -30),
+            summaryCard.trailingAnchor.constraint(equalTo: heroPanel.trailingAnchor, constant: -32),
+            summaryCard.topAnchor.constraint(equalTo: eyebrowLabel.bottomAnchor, constant: 18),
+            summaryCard.widthAnchor.constraint(equalToConstant: 218),
+            summaryCard.heightAnchor.constraint(equalToConstant: 148),
+
+            summaryEyebrow.leadingAnchor.constraint(equalTo: summaryCard.leadingAnchor, constant: 18),
+            summaryEyebrow.topAnchor.constraint(equalTo: summaryCard.topAnchor, constant: 18),
+
+            progressValueLabel.leadingAnchor.constraint(equalTo: summaryEyebrow.leadingAnchor),
+            progressValueLabel.topAnchor.constraint(equalTo: summaryEyebrow.bottomAnchor, constant: 10),
+
+            summaryCaption.leadingAnchor.constraint(equalTo: summaryEyebrow.leadingAnchor),
+            summaryCaption.trailingAnchor.constraint(equalTo: summaryCard.trailingAnchor, constant: -18),
+            summaryCaption.topAnchor.constraint(equalTo: progressValueLabel.bottomAnchor, constant: 8),
+
+            titleLabel.leadingAnchor.constraint(equalTo: iconPlate.trailingAnchor, constant: 28),
+            titleLabel.trailingAnchor.constraint(equalTo: summaryCard.leadingAnchor, constant: -24),
             titleLabel.topAnchor.constraint(equalTo: iconPlate.topAnchor, constant: 2),
 
             detailLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
@@ -675,34 +861,35 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
             phaseBadge.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             phaseBadge.topAnchor.constraint(equalTo: detailLabel.bottomAnchor, constant: 12),
             phaseBadge.heightAnchor.constraint(equalToConstant: 28),
-            phaseBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 140),
+            phaseBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 164),
 
-            progressIndicator.leadingAnchor.constraint(equalTo: contentCard.leadingAnchor, constant: 30),
-            progressIndicator.trailingAnchor.constraint(equalTo: progressValueLabel.leadingAnchor, constant: -16),
+            phaseSupportLabel.leadingAnchor.constraint(equalTo: phaseBadge.trailingAnchor, constant: 12),
+            phaseSupportLabel.centerYAnchor.constraint(equalTo: phaseBadge.centerYAnchor),
+            phaseSupportLabel.trailingAnchor.constraint(lessThanOrEqualTo: summaryCard.leadingAnchor, constant: -18),
+
+            progressIndicator.leadingAnchor.constraint(equalTo: heroPanel.leadingAnchor, constant: 32),
+            progressIndicator.trailingAnchor.constraint(equalTo: heroPanel.trailingAnchor, constant: -32),
             progressBelowBadge,
             progressBelowIcon,
+            progressBelowSummary,
             progressIndicator.heightAnchor.constraint(equalToConstant: 20),
 
-            progressValueLabel.trailingAnchor.constraint(equalTo: contentCard.trailingAnchor, constant: -30),
-            progressValueLabel.centerYAnchor.constraint(equalTo: progressIndicator.centerYAnchor),
-            progressValueLabel.widthAnchor.constraint(equalToConstant: 56),
-
-            footerLabel.leadingAnchor.constraint(equalTo: contentCard.leadingAnchor, constant: 30),
-            footerLabel.trailingAnchor.constraint(equalTo: contentCard.trailingAnchor, constant: -30),
+            footerLabel.leadingAnchor.constraint(equalTo: heroPanel.leadingAnchor, constant: 32),
+            footerLabel.trailingAnchor.constraint(equalTo: heroPanel.trailingAnchor, constant: -32),
             footerLabel.topAnchor.constraint(equalTo: progressIndicator.bottomAnchor, constant: 18),
-            footerLabel.bottomAnchor.constraint(lessThanOrEqualTo: openLogsButton.topAnchor, constant: -16),
+            footerLabel.bottomAnchor.constraint(lessThanOrEqualTo: heroPanel.bottomAnchor, constant: -28),
 
-            openLogsButton.leadingAnchor.constraint(equalTo: contentCard.leadingAnchor, constant: 30),
-            openLogsButton.bottomAnchor.constraint(equalTo: contentCard.bottomAnchor, constant: -24),
+            openLogsButton.leadingAnchor.constraint(equalTo: actionTray.leadingAnchor, constant: 20),
+            openLogsButton.centerYAnchor.constraint(equalTo: actionTray.centerYAnchor),
 
             openDesktopButton.leadingAnchor.constraint(equalTo: openLogsButton.trailingAnchor, constant: 10),
-            openDesktopButton.bottomAnchor.constraint(equalTo: openLogsButton.bottomAnchor),
+            openDesktopButton.centerYAnchor.constraint(equalTo: actionTray.centerYAnchor),
 
             openBrowserButton.leadingAnchor.constraint(equalTo: openDesktopButton.trailingAnchor, constant: 10),
-            openBrowserButton.bottomAnchor.constraint(equalTo: openLogsButton.bottomAnchor),
+            openBrowserButton.centerYAnchor.constraint(equalTo: actionTray.centerYAnchor),
 
-            forceStopButton.trailingAnchor.constraint(equalTo: contentCard.trailingAnchor, constant: -30),
-            forceStopButton.bottomAnchor.constraint(equalTo: openLogsButton.bottomAnchor),
+            forceStopButton.trailingAnchor.constraint(equalTo: actionTray.trailingAnchor, constant: -20),
+            forceStopButton.centerYAnchor.constraint(equalTo: actionTray.centerYAnchor),
         ])
     }
 
