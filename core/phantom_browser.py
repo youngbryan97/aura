@@ -40,6 +40,69 @@ USER_AGENTS = [
     "Mozilla/5.0 (iPad; CPU OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1"
 ]
 
+_CONTENT_HINT_RE = re.compile(
+    r"(article|story|content|entry|main|body|markdown|post|read|chapter|prose|text)",
+    re.IGNORECASE,
+)
+_NOISE_HINT_RE = re.compile(
+    r"(nav|footer|header|menu|sidebar|cookie|share|social|comment|promo|banner|breadcrumb|related|recommend|subscribe|login|signup|advert)",
+    re.IGNORECASE,
+)
+_NOISY_LINE_RE = re.compile(
+    r"^(?:home|about|menu|privacy|terms|cookies?|share|subscribe|login|sign up|contact|next|previous|advertisement)$",
+    re.IGNORECASE,
+)
+
+
+def _clean_extracted_page_text(raw_text: str) -> str:
+    seen: set[str] = set()
+    cleaned_lines: list[str] = []
+    for raw_line in str(raw_text or "").splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if not line:
+            continue
+        lower = line.lower()
+        if _NOISY_LINE_RE.match(line):
+            continue
+        if len(line) < 18 and not re.match(r"^(chapter|part|section)\b", lower):
+            continue
+        if lower in seen:
+            continue
+        seen.add(lower)
+        cleaned_lines.append(line)
+    return "\n\n".join(cleaned_lines)
+
+
+def _score_content_block(title: str, block: Dict[str, Any]) -> float:
+    text = _clean_extracted_page_text(str(block.get("text") or ""))
+    if not text:
+        return float("-inf")
+
+    tag = str(block.get("tag") or "").lower()
+    block_id = str(block.get("id") or "").lower()
+    class_name = str(block.get("class_name") or "").lower()
+    meta = " ".join(part for part in (tag, block_id, class_name) if part)
+    title_tokens = set(re.findall(r"[a-z0-9]+", str(title or "").lower()))
+    text_tokens = set(re.findall(r"[a-z0-9]+", text[:1200].lower()))
+    token_overlap = len(title_tokens & text_tokens) / max(1, len(title_tokens)) if title_tokens else 0.0
+
+    sentence_count = max(1, len(re.findall(r"[.!?]", text)))
+    paragraph_count = int(block.get("paragraph_count") or 0)
+    link_density = float(block.get("link_density") or 0.0)
+    score = min(len(text) / 180.0, 8.0)
+    score += min(sentence_count * 0.12, 2.0)
+    score += min(paragraph_count * 0.18, 1.8)
+    score += token_overlap * 1.2
+
+    if tag in {"article", "main"}:
+        score += 1.2
+    if _CONTENT_HINT_RE.search(meta):
+        score += 0.8
+    if _NOISE_HINT_RE.search(meta):
+        score -= 2.4
+    score -= min(link_density, 0.8) * 3.0
+    return score
+
 class PhantomBrowser:
     """High-fidelity browser agent (Async Version).
     """
@@ -316,77 +379,87 @@ class PhantomBrowser:
             logger.error("Scroll failed: %s", e)
 
     async def read_content(self) -> str:
-        """Extract main text content from page using advanced 2026 semantic heuristics."""
+        """Extract page content by scoring likely article/content containers."""
         try:
             if not self.page: return ""
             
             title = await self.page.title()
-            
-            # Phase 40: High-Fidelity Semantic Extraction
-            main_text = await self.page.evaluate("""() => {
+
+            candidate_blocks = await self.page.evaluate("""() => {
                 function isVisible(el) {
                     const style = window.getComputedStyle(el);
-                    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+                    const rect = el.getBoundingClientRect();
+                    return style.display !== 'none' &&
+                        style.visibility !== 'hidden' &&
+                        style.opacity !== '0' &&
+                        rect.width > 0 &&
+                        rect.height > 0;
                 }
 
-                function getSemanticText(node) {
-                    let text = "";
-                    const forbidden = ["nav", "footer", "header", "aside", "script", "style", "noscript", "iframe", "ad"];
-                    
-                    for (let child of node.childNodes) {
-                        if (child.nodeType === Node.TEXT_NODE) {
-                            text += child.textContent;
-                        } else if (child.nodeType === Node.ELEMENT_NODE) {
-                            if (!isVisible(child)) continue;
-                            
-                            const tag = child.tagName.toLowerCase();
-                            const id = (child.id || "").toLowerCase();
-                            const cls = (child.className || "").toString().toLowerCase();
-                            
-                            const isNoise = forbidden.includes(tag) ||
-                                            id.includes("nav") || id.includes("footer") || id.includes("menu") ||
-                                            id.includes("sidebar") || id.includes("banner") || id.includes("cookie") ||
-                                            cls.includes("nav") || cls.includes("footer") || cls.includes("sidebar") ||
-                                            cls.includes("cookie") || cls.includes("ad-") || cls.includes("social");
-                                            
-                            if (isNoise) continue;
-                            
-                            // Boost headers and paragraphs
-                            if (["h1", "h2", "h3", "h4", "p", "li"].includes(tag)) {
-                                text += "\\n" + getSemanticText(child) + "\\n";
-                            } else {
-                                text += getSemanticText(child);
-                            }
+                function collectCandidates() {
+                    const selectors = [
+                        'article',
+                        'main',
+                        '[role="main"]',
+                        '[itemprop="articleBody"]',
+                        '.article',
+                        '.article-body',
+                        '.entry-content',
+                        '.post-content',
+                        '.story-content',
+                        '.story-body',
+                        '.main-content',
+                        '.content',
+                        'section',
+                        'body',
+                    ];
+                    const seen = new Set();
+                    const blocks = [];
+                    for (const selector of selectors) {
+                        const nodes = Array.from(document.querySelectorAll(selector));
+                        for (const el of nodes) {
+                            if (!el || seen.has(el) || !isVisible(el)) continue;
+                            const text = (el.innerText || '').replace(/\\u00a0/g, ' ').trim();
+                            if (text.length < 80) continue;
+                            seen.add(el);
+                            const linkText = Array.from(el.querySelectorAll('a'))
+                                .map(a => (a.innerText || '').trim())
+                                .join(' ');
+                            blocks.push({
+                                tag: (el.tagName || '').toLowerCase(),
+                                id: (el.id || ''),
+                                class_name: (el.className || '').toString(),
+                                text,
+                                paragraph_count: el.querySelectorAll('p, li, blockquote').length,
+                                heading_count: el.querySelectorAll('h1, h2, h3, h4').length,
+                                link_density: text.length ? (linkText.length / text.length) : 0,
+                            });
                         }
                     }
-                    return text;
+                    return blocks.slice(0, 24);
                 }
-                
-                // Identify core content area
-                const mainArea = document.querySelector('main') || 
-                                 document.querySelector('article') || 
-                                 document.querySelector('[role="main"]') || 
-                                 document.body;
-                                 
-                return getSemanticText(mainArea);
+
+                return collectCandidates();
             }""")
-            
-            # Advanced cleaning: Remove excessive whitespace, normalize line breaks
-            lines = []
-            for line in main_text.split('\n'):
-                line = line.strip()
-                if line and len(line) > 20: # Filter out short fragments
-                    lines.append(line)
-            
-            cleaned_text = '\n\n'.join(lines)
-            
-            # Final sanity check: if too small, fallback to raw innerText
-            if len(cleaned_text) < 200:
+
+            best_text = ""
+            best_score = float("-inf")
+            for block in list(candidate_blocks or []):
+                if not isinstance(block, dict):
+                    continue
+                score = _score_content_block(title, block)
+                text = _clean_extracted_page_text(str(block.get("text") or ""))
+                if text and score > best_score:
+                    best_score = score
+                    best_text = text
+
+            if len(best_text) < 200:
                 fallback_text = await self.page.evaluate("() => document.body.innerText")
-                if fallback_text and len(fallback_text) > len(cleaned_text):
-                    cleaned_text = fallback_text
-            
-            return f"# {title}\n\n{cleaned_text[:60000]}"
+                fallback_text = _clean_extracted_page_text(str(fallback_text or ""))
+                if len(fallback_text) > len(best_text):
+                    best_text = fallback_text
+
+            return f"# {title}\n\n{best_text[:60000]}"
         except Exception as e:
             logger.error("Read content failed: %s", e)
             return ""

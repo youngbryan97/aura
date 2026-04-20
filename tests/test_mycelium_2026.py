@@ -46,6 +46,21 @@ def test_hypha_pydantic(network):
     h.pulse(success=True)
     assert h.strength > 1.0
 
+
+def test_dormant_hyphae_are_not_monitored_until_they_carry_traffic(network):
+    network.establish_connection("Dormant", "Edge", priority=2.0)
+    h = network.hyphae["Dormant->Edge"]
+
+    assert h.pulse_count == 0
+    assert network._should_monitor_hypha(h) is False
+
+    h.refresh_heartbeat()
+    assert h.strength == 1.0
+    assert network._should_monitor_hypha(h) is False
+
+    h.pulse(success=True)
+    assert network._should_monitor_hypha(h) is True
+
 def test_infrastructure_mapping(network):
     # Mock some mapped files
     network.mapped_files = {"core.logic": {"path": "/path/to/logic.py"}}

@@ -9,7 +9,7 @@ import pytest
 
 from core.resilience.stability_guardian import StabilityGuardian
 from core.runtime import runtime_hygiene as runtime_hygiene_module
-from core.runtime.runtime_hygiene import RuntimeHygieneManager
+from core.runtime.runtime_hygiene import MemorySample, RuntimeHygieneManager
 from core.utils.task_tracker import TaskTracker
 
 
@@ -54,8 +54,8 @@ async def test_runtime_hygiene_tracks_non_daemon_threads():
         report = hygiene.audit()
 
         assert report["threads"]["active_non_daemon"] >= 1
-        assert not report["healthy"]
-        assert any("thread" in issue for issue in report["issues"])
+        assert report["healthy"]
+        assert report["threads"]["stale_non_daemon"] >= 1
     finally:
         release.set()
         thread.join(timeout=1.0)
@@ -130,6 +130,36 @@ def test_runtime_hygiene_can_opt_in_tracemalloc(monkeypatch):
     hygiene._start_tracemalloc()
 
     assert calls == [3]
+
+
+def test_runtime_hygiene_treats_active_model_growth_as_transient(monkeypatch):
+    hygiene = RuntimeHygieneManager()
+    now = time.monotonic()
+    hygiene._samples.clear()
+
+    for idx in range(hygiene.memory_growth_window):
+        hygiene._samples.append(
+            MemorySample(
+                timestamp=now + idx,
+                rss_bytes=int((100 + (idx * 35)) * 1024 * 1024),
+                traced_bytes=0,
+                task_count=0,
+                thread_count=1,
+                child_process_count=1,
+            )
+        )
+
+    monkeypatch.setattr(
+        hygiene,
+        "_active_local_model_activity",
+        lambda: ["Qwen2.5-32B-Instruct-8bit:warming"],
+    )
+
+    summary = hygiene._memory_summary()
+
+    assert summary["sustained_growth"] is False
+    assert summary["transient_growth"] is True
+    assert "local model activity" in summary["message"].lower()
 
 
 @pytest.mark.asyncio

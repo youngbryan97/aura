@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import queue
+import threading
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -95,6 +96,47 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         spawn_mock.assert_not_awaited()
         live_process.kill.assert_not_called()
         self.assertTrue(client._init_done)
+
+    async def test_ensure_worker_reuses_cross_loop_handshake_future(self):
+        client = MLXLocalClient(model_path="/tmp/test-model")
+
+        live_process = MagicMock()
+        live_process.is_alive.return_value = True
+        client._process = live_process
+        client._init_done = False
+
+        holder = {}
+        ready = threading.Event()
+
+        def _loop_thread():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            future = loop.create_future()
+            holder["future"] = future
+            ready.set()
+
+            async def _complete():
+                await asyncio.sleep(0.05)
+                future.set_result({"status": "ok", "action": "init"})
+                await asyncio.sleep(0.05)
+
+            loop.run_until_complete(_complete())
+            loop.close()
+
+        thread = threading.Thread(target=_loop_thread, name="mlx-cross-loop-init", daemon=True)
+        thread.start()
+        ready.wait(timeout=1.0)
+        client._init_future = holder["future"]
+
+        try:
+            with patch.object(client, "_spawn_worker", new=AsyncMock()) as spawn_mock:
+                await client._ensure_worker_alive()
+        finally:
+            thread.join(timeout=1.0)
+
+        spawn_mock.assert_not_awaited()
+        self.assertTrue(client._init_done)
+        live_process.kill.assert_not_called()
 
     async def test_cancelled_generation_preserves_healthy_worker(self):
         client = MLXLocalClient(model_path="/tmp/test-model")

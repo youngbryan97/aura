@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
 
 from core.search import ResearchSearchPipeline
+from core.search.research_pipeline import query_requires_source_reading
 from core.skills.base_skill import BaseSkill
 from core.skills.deep_research import run_deep_research
 
@@ -66,12 +67,19 @@ class EnhancedWebSearchSkill(BaseSkill):
         if not query:
             return {"ok": False, "error": "No search query provided."}
 
-        # Component A6: Heuristics for auto-deep mode (Legacy removed. Let the Orchestrator/User decide if deep=True contextually instead of blocking it)
-        pass
+        source_reading = query_requires_source_reading(query)
+        effective_deep = bool(deep or source_reading)
 
-        logger.info("🔍 WebSearch: '%s' (deep=%s, retain=%s, force_refresh=%s)", query[:80], deep, retain, force_refresh)
+        logger.info(
+            "🔍 WebSearch: '%s' (deep=%s, effective_deep=%s, retain=%s, force_refresh=%s)",
+            query[:80],
+            deep,
+            effective_deep,
+            retain,
+            force_refresh,
+        )
         
-        if deep:
+        if deep and not source_reading:
             # v2.0: Deep Research LangGraph Pipeline implementation
             try:
                 from core.conversation_loop import get_brain
@@ -95,7 +103,7 @@ class EnhancedWebSearchSkill(BaseSkill):
         result = await self.pipeline.search(
             query,
             num_results=num_results,
-            deep=deep,
+            deep=effective_deep,
             retain=retain,
             context=context or {},
             force_refresh=force_refresh,

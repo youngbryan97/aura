@@ -33,7 +33,7 @@ from core.brain.llm.context_assembler import ContextAssembler
 from core.container import ServiceContainer
 from core.kernel.bridge import Phase
 from core.phases.dialogue_policy import enforce_dialogue_contract, validate_dialogue_response
-from core.phases.response_contract import build_response_contract
+from core.phases.response_contract import build_response_contract, extract_search_query_focus
 from core.runtime import background_policy, response_policy
 from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState
@@ -691,6 +691,7 @@ class UnitaryResponsePhase(Phase):
         ]
         source = cls._normalize_text(payload.get("source") or payload.get("url", ""), 400)
         title = cls._normalize_text(payload.get("title", ""), 220)
+        needs_page_synthesis = cls._objective_requires_page_grounded_synthesis(objective)
         if title:
             lines.append(f"Title: {title}")
         if source:
@@ -700,6 +701,27 @@ class UnitaryResponsePhase(Phase):
             answer = cls._normalize_text(payload.get("answer") or payload.get("summary") or payload.get("message", ""), 2400)
             if answer:
                 lines.extend(("", "Search summary:", answer))
+
+            facts = [
+                cls._normalize_text(item, 400)
+                for item in list(payload.get("facts") or [])[:6]
+                if cls._normalize_text(item, 400)
+            ]
+            if facts:
+                lines.extend(("", "Facts:"))
+                lines.extend(f"- {fact}" for fact in facts)
+
+            citations = list(payload.get("citations") or [])
+            rendered_citations: list[str] = []
+            for item in citations[:5]:
+                if not isinstance(item, dict):
+                    continue
+                citation_title = cls._normalize_text(item.get("title", ""), 220)
+                citation_url = cls._normalize_text(item.get("url", ""), 320)
+                rendered_citations.append(" - ".join(part for part in (citation_title, citation_url) if part))
+            if rendered_citations:
+                lines.extend(("", "Citations:"))
+                lines.extend(rendered_citations)
 
             results = list(payload.get("results") or [])
             if results:
@@ -717,8 +739,29 @@ class UnitaryResponsePhase(Phase):
                     lines.extend(("", "Top results:"))
                     lines.extend(rendered_results)
 
+            evidence_chunks = list(payload.get("chunks") or payload.get("evidence") or [])
+            rendered_evidence: list[str] = []
+            for item in evidence_chunks[:4]:
+                if not isinstance(item, dict):
+                    continue
+                evidence_title = cls._normalize_text(item.get("title", ""), 180)
+                evidence_url = cls._normalize_text(item.get("url", ""), 260)
+                evidence_text = cls._normalize_text(item.get("text", ""), 900)
+                if evidence_text:
+                    rendered_evidence.append(
+                        "\n".join(
+                            part for part in (
+                                " | ".join(part for part in (evidence_title, evidence_url) if part),
+                                evidence_text,
+                            ) if part
+                        )
+                    )
+            if rendered_evidence and (needs_page_synthesis or not answer):
+                lines.extend(("", "Evidence excerpts:"))
+                lines.extend(rendered_evidence)
+
             content = cls._normalize_text(payload.get("content", "") or payload.get("result", ""), 12000)
-            if content and not answer:
+            if content and (needs_page_synthesis or not answer):
                 lines.extend(("", "Retrieved content excerpt:", content))
         else:
             content = str(payload.get("content", "") or payload.get("result", "") or "").strip()
@@ -1215,10 +1258,64 @@ class UnitaryResponsePhase(Phase):
             if match:
                 candidate = cls._normalize_text(match.group(1), 400)
                 if candidate:
-                    return candidate
+                    return extract_search_query_focus(candidate)
 
         contract_query = cls._normalize_text(getattr(contract, "search_query", "") or "", 400)
-        return contract_query or text
+        focused = extract_search_query_focus(contract_query or text)
+        return cls._normalize_text(focused or contract_query or text, 400)
+
+    @classmethod
+    def _objective_requires_page_grounded_synthesis(cls, objective: str) -> bool:
+        lowered = cls._normalize_text(objective).lower()
+        if not lowered:
+            return False
+        if any(
+            marker in lowered
+            for marker in (
+                "page title",
+                "title only",
+                "only the title",
+                "only the url",
+                "just the url",
+                "homepage url",
+            )
+        ):
+            return False
+        summary_markers = (
+            "what happens",
+            "summarize",
+            "summarise",
+            "summary",
+            "recap",
+            "plot",
+            "ending",
+            "how does it end",
+            "what does it say",
+            "read it",
+            "read this",
+            "read that",
+        )
+        document_markers = (
+            "story",
+            "article",
+            "post",
+            "page",
+            "thread",
+            "document",
+            "source",
+            "text",
+            "paper",
+            "report",
+            "guide",
+            "link",
+        )
+        if any(marker in lowered for marker in summary_markers):
+            return True
+        if any(marker in lowered for marker in document_markers) and any(
+            marker in lowered for marker in ("tell me", "look up", "search", "find", "read", "what")
+        ):
+            return True
+        return bool(re.search(r"[\"“”'][^\"“”']{4,180}[\"“”']", objective))
 
     @classmethod
     def _format_grounded_search_reply(cls, objective: str, result: dict[str, Any], skill_name: str | None = None) -> str:
@@ -1242,6 +1339,9 @@ class UnitaryResponsePhase(Phase):
         if "only the url" in lowered or "just the url" in lowered or "homepage url" in lowered:
             if top_source:
                 return top_source
+
+        if cls._objective_requires_page_grounded_synthesis(objective):
+            return ""
 
         if answer and top_source:
             return f"I searched it live. {answer} Source: {top_source}"
@@ -1472,18 +1572,20 @@ class UnitaryResponsePhase(Phase):
         contract: Any,
         *,
         origin: str,
-    ) -> str:
+    ) -> dict[str, Any]:
         query = cls._extract_grounded_search_query(objective, contract)
         if not query:
-            return ""
+            return {"reply": "", "payload": None, "skill_name": "", "attempted": False}
 
         # If the query IS a URL, browse it directly instead of searching
         is_url = query.startswith("http://") or query.startswith("https://")
+        source_summary_request = cls._objective_requires_page_grounded_synthesis(objective)
+        attempted = False
 
         try:
             orchestrator = ServiceContainer.get("orchestrator", default=None)
             if not orchestrator or not hasattr(orchestrator, "execute_tool"):
-                return ""
+                return {"reply": "", "payload": None, "skill_name": "", "attempted": False}
 
             if is_url:
                 # Direct navigation — fetch the page content
@@ -1499,6 +1601,7 @@ class UnitaryResponsePhase(Phase):
 
             for tool_name, args in tool_sequence:
                 try:
+                    attempted = True
                     result = await asyncio.wait_for(
                         orchestrator.execute_tool(tool_name, args, origin=origin),
                         timeout=45.0,
@@ -1512,11 +1615,24 @@ class UnitaryResponsePhase(Phase):
 
                 if isinstance(result, dict) and result.get("ok"):
                     reply = cls._format_grounded_search_reply(objective, result, skill_name=tool_name)
-                    if reply:
-                        return reply
+                    payload = dict(result)
+                    has_evidence = bool(
+                        payload.get("facts")
+                        or payload.get("chunks")
+                        or payload.get("evidence")
+                        or payload.get("content")
+                        or payload.get("answer")
+                    )
+                    if reply or has_evidence or not source_summary_request:
+                        return {
+                            "reply": reply,
+                            "payload": payload,
+                            "skill_name": tool_name,
+                            "attempted": attempted,
+                        }
         except Exception as exc:
             logger.debug("UnitaryResponse: grounded search execution failed: %s", exc)
-        return ""
+        return {"reply": "", "payload": None, "skill_name": "", "attempted": attempted}
 
     @classmethod
     def _build_subjective_recovery_reply(
@@ -2142,27 +2258,39 @@ class UnitaryResponsePhase(Phase):
                     logger.info("🔎 UnitaryResponse: answered explicit search from grounded tool evidence.")
                     return self._commit_response(new_state, cached_search_reply)
                 if not contract.tool_evidence_available:
-                    grounded_search_reply = await self._attempt_grounded_search_reply(
+                    grounded_search_outcome = await self._attempt_grounded_search_reply(
                         objective,
                         contract,
                         origin=routing_origin,
                     )
+                    grounded_payload = grounded_search_outcome.get("payload")
+                    grounded_skill = str(grounded_search_outcome.get("skill_name") or "")
+                    grounded_search_reply = str(grounded_search_outcome.get("reply") or "")
+                    if grounded_payload and grounded_skill:
+                        new_state.response_modifiers["last_skill_run"] = grounded_skill
+                        new_state.response_modifiers["last_skill_ok"] = True
+                        new_state.response_modifiers["last_skill_result_payload"] = grounded_payload
+                        contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing)
+                        new_state.response_modifiers["response_contract"] = contract.to_dict()
                     if grounded_search_reply:
                         logger.info("🔎 UnitaryResponse: satisfied explicit search request through grounded tool execution.")
                         return self._commit_response(new_state, grounded_search_reply)
-                    attempted_skill = str(new_state.response_modifiers.get("last_skill_run", "") or "")
-                    skill_ok = bool(new_state.response_modifiers.get("last_skill_ok", False))
-                    if attempted_skill and not skill_ok:
-                        new_state.cognition.last_response = (
-                            "I don't have grounded results yet. The search path didn't come back cleanly, "
-                            "so I shouldn't fake an answer."
-                        )
+                    if grounded_payload:
+                        logger.info("🔎 UnitaryResponse: collected grounded search evidence and will synthesize from it.")
                     else:
-                        new_state.cognition.last_response = (
-                            "I don't have grounded results for that yet, and I shouldn't guess. "
-                            "I need to search it first."
-                        )
-                    return new_state
+                        attempted_skill = str(new_state.response_modifiers.get("last_skill_run", "") or "")
+                        skill_ok = bool(new_state.response_modifiers.get("last_skill_ok", False))
+                        if attempted_skill and not skill_ok:
+                            new_state.cognition.last_response = (
+                                "I don't have grounded results yet. The search path didn't come back cleanly, "
+                                "so I shouldn't fake an answer."
+                            )
+                        else:
+                            new_state.cognition.last_response = (
+                                "I don't have grounded results for that yet, and I shouldn't guess. "
+                                "I need to search it first."
+                            )
+                        return new_state
 
             if is_user_facing and self._should_direct_answer_live_voice(
                 objective,

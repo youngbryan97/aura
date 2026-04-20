@@ -122,7 +122,9 @@ class Hypha(BaseModel):
     target: str
     priority: float = 1.0
     strength: float = 1.0
+    created_at: float = Field(default_factory=time.monotonic)
     last_pulse: float = Field(default_factory=time.monotonic)
+    pulse_count: int = 0
     active: bool = True
     is_physical: bool = False
     source_file: Optional[str] = None
@@ -135,10 +137,15 @@ class Hypha(BaseModel):
     def pulse(self, success: bool = True):
         """Reinforce or prune the hypha based on successful transmission."""
         self.last_pulse = time.monotonic()
+        self.pulse_count += 1
         if success:
             self.strength = min(10.0, self.strength + 0.5)
         else:
             self.strength = max(0.1, self.strength - 1.0)
+
+    def refresh_heartbeat(self):
+        """Refresh liveness without mutating the learned strength of the edge."""
+        self.last_pulse = time.monotonic()
 
     @property
     def thickness(self) -> float:
@@ -491,6 +498,22 @@ class MycelialNetwork:
             await self.reflex.trigger_reflex(signal_type, metadata)
         else:
             logger.warning("No Reflex Core online to handle signal: %s", signal_type)
+
+    async def emit(self, signal_type: str, metadata: Dict = None):
+        """Compatibility event-bus bridge for callers that treat mycelium like a bus."""
+        payload = dict(metadata or {})
+        payload.setdefault("signal_type", signal_type)
+        try:
+            from core.event_bus import EventPriority, get_event_bus
+
+            await get_event_bus().publish(signal_type, payload, priority=EventPriority.COGNITIVE)
+        except Exception as exc:
+            logger.debug("🍄 [MYCELIUM] emit bridge publish failed: %s", exc)
+        return payload
+
+    def _should_monitor_hypha(self, hypha: Hypha) -> bool:
+        """Only alarm on edges that have actually carried traffic or map to hardware."""
+        return bool(hypha.is_physical or hypha.pulse_count > 0 or hypha.trace)
 
     def establish_neural_root(self, source: str, hardware_id: str = "gpu_metal") -> NeuralRoot:
         """Builds a direct, pinned connection between a subsystem and hardware."""
@@ -1092,7 +1115,11 @@ class MycelialNetwork:
 
                     # Pulse critical hyphae
                     for name, hypha in self.hyphae.items():
-                        if now - hypha.last_pulse > 300 and hypha.priority >= 1.0:
+                        if (
+                            now - hypha.last_pulse > 300
+                            and hypha.priority >= 1.0
+                            and self._should_monitor_hypha(hypha)
+                        ):
                             # [WHOLESALE FIX] Rate-limit HYPHA_SEVERED alerts
                             # to prevent log spam (was firing every 30s for EVERY dead hypha)
                             if not hasattr(self, '_hypha_alert_times'):
@@ -1102,8 +1129,8 @@ class MycelialNetwork:
                                 logger.warning("🍄 [MYCELIUM] Hypha inactive: %s. Auto-pulsing.", name)
                                 self._hypha_alert_times[name] = now
                             
-                            # Always auto-pulse to keep hyphae alive (silently)
-                            hypha.pulse(False) 
+                            # Keep the heartbeat fresh without degrading an otherwise healthy route.
+                            hypha.refresh_heartbeat()
 
                     # Report weak pathways (don't auto-prune — that's dangerous)
                     for pw_id, pw in self.pathways.items():

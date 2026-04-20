@@ -367,13 +367,42 @@ class IncomingLogicMixin:
                     except asyncio.CancelledError:
                         logger.debug("Autonomous task cancelled successfully.")
                 elif is_user_origin and not current_is_replaceable:
-                    # Previous task is ALSO a user message — wait for it, don't cancel
-                    # Increase to 125s to accommodate 72B model swaps
-                    logger.info("⏳ Previous user response in flight — waiting (max 125s)...")
-                    try:
-                        await asyncio.wait_for(task, timeout=125.0)
-                    except (TimeoutError, asyncio.CancelledError, asyncio.exceptions.TimeoutError):
-                        logger.warning("⏳ Previous user response timed out (125s), proceeding")
+                    in_flight_age_s = max(
+                        0.0,
+                        time.monotonic() - float(getattr(self, "_current_processing_start", 0.0) or 0.0),
+                    )
+                    supersede_after_s = 20.0
+                    grace_wait_s = 8.0 if in_flight_age_s < supersede_after_s else 0.0
+
+                    if grace_wait_s > 0.0:
+                        logger.info(
+                            "⏳ Previous user response in flight — giving it %.0fs to finish (age %.1fs)...",
+                            grace_wait_s,
+                            in_flight_age_s,
+                        )
+                        try:
+                            await asyncio.wait_for(asyncio.shield(task), timeout=grace_wait_s)
+                        except (TimeoutError, asyncio.CancelledError, asyncio.exceptions.TimeoutError):
+                            pass
+
+                    if task.done():
+                        try:
+                            await task
+                        except asyncio.CancelledError:
+                            logger.debug("Previous user task finished via cancellation before supersede.")
+                    else:
+                        logger.warning(
+                            "🛑 Superseding stalled user response after %.1fs to honor the latest user turn.",
+                            max(
+                                in_flight_age_s,
+                                time.monotonic() - float(getattr(self, "_current_processing_start", 0.0) or 0.0),
+                            ),
+                        )
+                        task.cancel()
+                        try:
+                            await asyncio.wait_for(task, timeout=2.0)
+                        except (TimeoutError, asyncio.CancelledError, asyncio.exceptions.TimeoutError):
+                            logger.debug("Previous user task did not finish cleanly after supersede cancel.")
                 else:
                     logger.info("🛡️ Guardian: Preserving in-flight task (origin=%s is not user)", origin)
                     try:

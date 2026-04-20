@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import concurrent.futures as cfutures
 import contextlib
 import gc
 import logging
@@ -15,7 +16,7 @@ import multiprocessing as mp
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Optional, List, Any, Dict, Tuple
+from typing import Optional, List, Any, Dict, Tuple, Union
 import psutil
 
 from core.utils.deadlines import Deadline, get_deadline
@@ -45,6 +46,7 @@ _MLX_RUNTIME_PROBE: Dict[str, Any] = {
     "checked_at": 0.0,
 }
 _MLX_RUNTIME_PROBE_CACHE_PATH = Path.home() / ".aura" / "data" / "mlx_runtime_probe.json"
+SharedFuture = Union[asyncio.Future, cfutures.Future]
 
 def _safe_close_queue(q: Optional[mp.Queue]) -> None:
     """Close an mp.Queue to release its shared-memory file descriptor."""
@@ -55,6 +57,11 @@ def _safe_close_queue(q: Optional[mp.Queue]) -> None:
         q.join_thread()
     except Exception:
         pass
+
+
+def _new_shared_future() -> SharedFuture:
+    """Create a loop-agnostic future for singleton clients shared across loops."""
+    return cfutures.Future()
 
 
 @contextlib.asynccontextmanager
@@ -77,26 +84,155 @@ async def _foreground_owner_context(owner_name: str):
     global _FOREGROUND_OWNER_NAME, _FOREGROUND_OWNER_ACQUIRED_AT
 
     while True:
-        await asyncio.to_thread(_FOREGROUND_OWNER_LOCK.acquire)
+        acquired = _FOREGROUND_OWNER_LOCK.acquire(False)
         try:
-            if _FOREGROUND_OWNER_NAME is None:
+            if acquired and _FOREGROUND_OWNER_NAME is None:
                 _FOREGROUND_OWNER_NAME = owner_name
                 _FOREGROUND_OWNER_ACQUIRED_AT = time.time()
                 break
         finally:
-            _FOREGROUND_OWNER_LOCK.release()
+            if acquired:
+                _FOREGROUND_OWNER_LOCK.release()
         await asyncio.sleep(0.05)
 
     try:
         yield
     finally:
-        await asyncio.to_thread(_FOREGROUND_OWNER_LOCK.acquire)
+        while True:
+            acquired = _FOREGROUND_OWNER_LOCK.acquire(False)
+            if not acquired:
+                await asyncio.sleep(0.01)
+                continue
+            try:
+                if _FOREGROUND_OWNER_NAME == owner_name:
+                    _FOREGROUND_OWNER_NAME = None
+                    _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
+                break
+            finally:
+                _FOREGROUND_OWNER_LOCK.release()
+
+
+def _bridge_asyncio_future_to_concurrent(future: asyncio.Future) -> cfutures.Future:
+    """Relay an asyncio.Future into a thread-safe future for cross-loop awaiting."""
+    proxy: cfutures.Future = cfutures.Future()
+
+    def _relay(done_future: asyncio.Future) -> None:
+        if proxy.done():
+            return
+        if done_future.cancelled():
+            proxy.cancel()
+            return
         try:
-            if _FOREGROUND_OWNER_NAME == owner_name:
-                _FOREGROUND_OWNER_NAME = None
-                _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
-        finally:
-            _FOREGROUND_OWNER_LOCK.release()
+            proxy.set_result(done_future.result())
+        except Exception as exc:
+            try:
+                proxy.set_exception(exc)
+            except Exception:
+                pass
+
+    if future.done():
+        _relay(future)
+        return proxy
+
+    try:
+        future_loop = future.get_loop()
+    except Exception:
+        _relay(future)
+        return proxy
+
+    if future_loop.is_closed():
+        _relay(future)
+        return proxy
+
+    future_loop.call_soon_threadsafe(future.add_done_callback, _relay)
+    return proxy
+
+
+def _wrap_shared_future_for_current_loop(future: SharedFuture) -> asyncio.Future:
+    if isinstance(future, asyncio.Future):
+        current_loop = asyncio.get_running_loop()
+        if future.get_loop() is current_loop:
+            return future
+        return asyncio.wrap_future(_bridge_asyncio_future_to_concurrent(future))
+    if isinstance(future, cfutures.Future):
+        return asyncio.wrap_future(future)
+    raise TypeError(f"Unsupported future type: {type(future)!r}")
+
+
+async def _await_shared_future(future: SharedFuture, *, timeout: Optional[float] = None) -> Any:
+    wrapped = _wrap_shared_future_for_current_loop(future)
+    protected = asyncio.shield(wrapped)
+    if timeout is None:
+        return await protected
+    return await asyncio.wait_for(protected, timeout=timeout)
+
+
+def _set_shared_future_result(future: Optional[SharedFuture], result: Any) -> bool:
+    if future is None or future.done():
+        return False
+
+    if isinstance(future, cfutures.Future):
+        future.set_result(result)
+        return True
+
+    if not isinstance(future, asyncio.Future):
+        return False
+
+    try:
+        future_loop = future.get_loop()
+    except Exception:
+        return False
+    if future_loop.is_closed():
+        return False
+
+    def _setter() -> None:
+        if not future.done():
+            future.set_result(result)
+
+    future_loop.call_soon_threadsafe(_setter)
+    return True
+
+
+def _cancel_shared_future(future: Optional[SharedFuture]) -> None:
+    if future is None or future.done():
+        return
+
+    if isinstance(future, cfutures.Future):
+        future.cancel()
+        return
+
+    if not isinstance(future, asyncio.Future):
+        return
+
+    try:
+        future_loop = future.get_loop()
+    except Exception:
+        return
+    if future_loop.is_closed():
+        return
+
+    def _canceller() -> None:
+        if not future.done():
+            future.cancel()
+
+    future_loop.call_soon_threadsafe(_canceller)
+
+
+def _cancel_task_threadsafe(task: Optional[asyncio.Task]) -> None:
+    if task is None or task.done():
+        return
+    try:
+        task_loop = task.get_loop()
+    except Exception:
+        return
+    if task_loop.is_closed():
+        return
+
+    def _canceller() -> None:
+        if not task.done():
+            task.cancel()
+
+    task_loop.call_soon_threadsafe(_canceller)
 
 
 def _notify_closed_loop_output(text: str) -> None:
@@ -258,9 +394,11 @@ class MLXLocalClient:
         self._last_token_progress_at = 0.0
         self._last_ready_at = 0.0
         self._last_generation_completed_at = 0.0
-        self._current_gen_future: Optional[asyncio.Future] = None
-        self._init_future: Optional[asyncio.Future] = None
-        self._pending_generations: Dict[str, asyncio.Future] = {}
+        self._current_gen_future: Optional[SharedFuture] = None
+        self._init_future: Optional[SharedFuture] = None
+        self._pending_generations: Dict[str, SharedFuture] = {}
+        self._request_lock_owner_label = ""
+        self._request_lock_acquired_at = 0.0
         self._lane_state = "cold"
         self._lane_error = ""
         self._lane_transition_at = time.time()
@@ -494,6 +632,108 @@ class MLXLocalClient:
         self._warmup_in_flight = False
         self._set_lane_state("recovering", reason)
 
+    def _request_lock_timeout(
+        self,
+        deadline: Optional[Deadline],
+        *,
+        foreground_request: bool,
+    ) -> float:
+        default = 30.0 if foreground_request else 10.0
+        if not isinstance(deadline, Deadline):
+            return default
+
+        remaining = deadline.remaining
+        if remaining is None:
+            return default
+
+        reserve = 5.0 if foreground_request else 2.0
+        return max(0.25, min(default, remaining - reserve))
+
+    async def _acquire_request_lock(
+        self,
+        *,
+        owner_label: str,
+        deadline: Optional[Deadline],
+        foreground_request: bool,
+    ) -> bool:
+        wait_budget = self._request_lock_timeout(
+            deadline,
+            foreground_request=foreground_request,
+        )
+        loop = asyncio.get_running_loop()
+        wait_started = loop.time()
+        last_log_at = 0.0
+
+        while True:
+            if self._request_lock.acquire(False):
+                self._request_lock_owner_label = str(owner_label or "")
+                self._request_lock_acquired_at = time.time()
+                return True
+
+            now = loop.time()
+            waited = max(0.0, now - wait_started)
+            if waited >= wait_budget:
+                holder = self._request_lock_owner_label or "another_request"
+                holder_age = (
+                    max(0.0, time.time() - self._request_lock_acquired_at)
+                    if self._request_lock_acquired_at
+                    else 0.0
+                )
+                logger.warning(
+                    "⏳ [MLX] Request queue timeout after %.1fs for %s while waiting on %s (held %.1fs).",
+                    wait_budget,
+                    os.path.basename(self.model_path),
+                    holder,
+                    holder_age,
+                )
+                self._record_degraded_event(
+                    "request_lock_timeout",
+                    detail=f"{os.path.basename(self.model_path)} owner={holder} held={holder_age:.1f}s",
+                    severity="warning",
+                    foreground_request=foreground_request,
+                )
+                return False
+
+            if waited >= 5.0 and (now - last_log_at) >= 5.0:
+                holder = self._request_lock_owner_label or "another_request"
+                holder_age = (
+                    max(0.0, time.time() - self._request_lock_acquired_at)
+                    if self._request_lock_acquired_at
+                    else 0.0
+                )
+                logger.info(
+                    "⏳ [MLX] Waiting for in-flight request on %s (owner=%s, held %.1fs).",
+                    os.path.basename(self.model_path),
+                    holder,
+                    holder_age,
+                )
+                last_log_at = now
+
+            await asyncio.sleep(min(0.05, max(0.0, wait_budget - waited)))
+
+    def _release_request_lock(self) -> None:
+        self._request_lock_owner_label = ""
+        self._request_lock_acquired_at = 0.0
+        try:
+            self._request_lock.release()
+        except RuntimeError:
+            logger.debug(
+                "Loop-agnostic request lock for %s was already released.",
+                os.path.basename(self.model_path),
+            )
+
+    async def _ensure_listener_task(self) -> None:
+        task = self._listener_task
+        if task is not None and not task.done():
+            try:
+                if not task.get_loop().is_closed():
+                    return
+            except Exception:
+                pass
+            _cancel_task_threadsafe(task)
+
+        self._listener_task = asyncio.create_task(self._response_listener_loop())
+
     def note_lane_failed(self, reason: str) -> None:
         self._warmup_in_flight = False
         self._set_lane_state("failed", reason)
@@ -670,17 +910,17 @@ class MLXLocalClient:
                 if action == "init":
                     if self._init_future and not self._init_future.done():
                         self._mark_progress()
-                        self._init_future.set_result(res)
+                        _set_shared_future_result(self._init_future, res)
                         continue
                 elif action in ("generate", "stream_done"):
                     future = self._pending_generations.pop(req_id, None) if req_id else None
                     if future and not future.done():
                         self._mark_progress()
-                        future.set_result(res)
+                        _set_shared_future_result(future, res)
                         continue
                     if self._current_gen_future and not self._current_gen_future.done():
                         self._mark_progress()
-                        self._current_gen_future.set_result(res)
+                        _set_shared_future_result(self._current_gen_future, res)
                         continue
                 elif status == "error":
                     init_error = (
@@ -693,20 +933,20 @@ class MLXLocalClient:
                         self._mark_progress()
                         payload = dict(res)
                         payload.setdefault("action", "init")
-                        self._init_future.set_result(payload)
+                        _set_shared_future_result(self._init_future, payload)
                         continue
                     if action == "init" and self._init_future and not self._init_future.done():
                         self._mark_progress()
-                        self._init_future.set_result(res)
+                        _set_shared_future_result(self._init_future, res)
                         continue
                     future = self._pending_generations.pop(req_id, None) if req_id else None
                     if future and not future.done():
                         self._mark_progress()
-                        future.set_result(res)
+                        _set_shared_future_result(future, res)
                         continue
                     if self._current_gen_future and not self._current_gen_future.done():
                         self._mark_progress()
-                        self._current_gen_future.set_result(res)
+                        _set_shared_future_result(self._current_gen_future, res)
                         continue
 
                 # 3. Log errors if no future is waiting
@@ -763,7 +1003,7 @@ class MLXLocalClient:
     ) -> bool:
         """Inner implementation — called while holding the global spawn gate."""
         should_wait_init = False
-        init_future: Optional[asyncio.Future] = None
+        init_future: Optional[SharedFuture] = None
         
         # [PIPELINE HARDENING] 12s Swap Cooldown
         from .model_registry import get_model_path, ACTIVE_MODEL, DEEP_MODEL
@@ -848,7 +1088,7 @@ class MLXLocalClient:
                     self._req_q = mp.Queue()
                     self._res_q = mp.Queue()
                     
-                    init_future = asyncio.get_running_loop().create_future()
+                    init_future = _new_shared_future()
                     self._init_future = init_future
                     self._set_lane_state("spawning")
                     logger.info("📡 [MLX] Respawning worker for %s...", os.path.basename(self.model_path))
@@ -876,8 +1116,8 @@ class MLXLocalClient:
                         self._init_future = None
                         return False
                     if self._listener_task:
-                        self._listener_task.cancel()
-                    self._listener_task = asyncio.create_task(self._response_listener_loop())
+                        _cancel_task_threadsafe(self._listener_task)
+                    await self._ensure_listener_task()
                     self._set_lane_state("handshaking")
                     should_wait_init = True
             elif not self._process or not self._process.is_alive():
@@ -897,7 +1137,7 @@ class MLXLocalClient:
                 self._req_q = mp.Queue(maxsize=10)
                 self._res_q = mp.Queue(maxsize=10)
 
-                init_future = asyncio.get_running_loop().create_future()
+                init_future = _new_shared_future()
                 self._init_future = init_future
                 self._set_lane_state("spawning")
                 logger.info("📡 [MLX] Spawning worker for %s...", os.path.basename(self.model_path))
@@ -930,8 +1170,8 @@ class MLXLocalClient:
                     self._init_future = None
                     return False
                 if self._listener_task:
-                    self._listener_task.cancel()
-                self._listener_task = asyncio.create_task(self._response_listener_loop())
+                    _cancel_task_threadsafe(self._listener_task)
+                await self._ensure_listener_task()
                 should_wait_init = True
                 self._init_done = False
                 self._set_lane_state("handshaking")
@@ -944,7 +1184,7 @@ class MLXLocalClient:
                 raise RuntimeError("MLX worker init future missing during startup")
             handshake_timeout = float(init_timeout or self._handshake_timeout())
             try:
-                res = await asyncio.wait_for(asyncio.shield(fut), timeout=handshake_timeout)
+                res = await _await_shared_future(fut, timeout=handshake_timeout)
                 if res.get("status") == "ok":
                     self._init_done = True
                     self._last_heartbeat = time.time()
@@ -999,7 +1239,7 @@ class MLXLocalClient:
     async def _wait_for_generation_result(
         self,
         req_id: str,
-        future: asyncio.Future,
+        future: SharedFuture,
         deadline: Deadline,
         *,
         foreground_request: bool = False,
@@ -1015,7 +1255,7 @@ class MLXLocalClient:
 
             slice_timeout = min(2.0, remaining) if remaining is not None else 2.0
             try:
-                return await asyncio.wait_for(asyncio.shield(future), timeout=slice_timeout)
+                return await _await_shared_future(future, timeout=slice_timeout)
             except asyncio.TimeoutError:
                 if future.done():
                     return future.result()
@@ -1199,7 +1439,7 @@ class MLXLocalClient:
         if request_is_background:
             foreground_request = False
         owner_label = str(kwargs.pop("owner_label", os.path.basename(self.model_path)) or os.path.basename(self.model_path))
-        recovered_request_lock = False
+        deadline = kwargs.get("deadline")
 
         if request_is_background and _foreground_owner_active():
             logger.info(
@@ -1240,28 +1480,13 @@ class MLXLocalClient:
         except Exception:
             pass
 
-        acquired = await asyncio.to_thread(self._request_lock.acquire, True, 15.0)
+        acquired = await self._acquire_request_lock(
+            owner_label=owner_label,
+            deadline=deadline,
+            foreground_request=foreground_request,
+        )
         if not acquired:
-            # [STABILITY v53] Force-release the stuck lock. The previous holder likely
-            # crashed mid-generation (CancelledError or unexpected exception in
-            # _foreground_owner_context) without hitting the finally block. Better to
-            # force-release and risk a brief race than to deadlock ALL future requests.
-            logger.error(
-                "🚨 [MLX] DEADLOCK DETECTED: Could not acquire _request_lock within 15s for %s. "
-                "FORCE-RELEASING to prevent permanent deadlock.",
-                os.path.basename(self.model_path),
-            )
-            try:
-                self._request_lock.release()
-                recovered_request_lock = True
-                logger.warning("🔓 [MLX] Force-released stuck _request_lock for %s", os.path.basename(self.model_path))
-            except RuntimeError:
-                pass  # Lock wasn't actually held — no-op
-            # Try one more time after force-release
-            acquired = await asyncio.to_thread(self._request_lock.acquire, True, 5.0)
-            if not acquired:
-                logger.error("🚨 [MLX] Still cannot acquire _request_lock after force-release for %s", os.path.basename(self.model_path))
-                return None
+            return None
         try:
             if foreground_request:
                 async with _foreground_owner_context(owner_label):
@@ -1286,14 +1511,7 @@ class MLXLocalClient:
         finally:
             _deferred_reboot = self._deferred_reboot_reason
             self._deferred_reboot_reason = None
-            try:
-                self._request_lock.release()
-            except RuntimeError:
-                logger.warning(
-                    "⚠️ [MLX] _request_lock already released for %s (force_recovered=%s). Suppressing stale unlock.",
-                    os.path.basename(self.model_path),
-                    recovered_request_lock,
-                )
+            self._release_request_lock()
             # Reboot AFTER releasing _request_lock to avoid lock-ordering deadlock
             if _deferred_reboot:
                 await self.reboot_worker(reason=_deferred_reboot, mark_failed=True)
@@ -1361,7 +1579,7 @@ class MLXLocalClient:
             "schema": kwargs.get("schema"),
         }
 
-        fut = asyncio.get_running_loop().create_future()
+        fut = _new_shared_future()
         self._pending_generations[req_id] = fut
         self._current_gen_future = fut
         self._active_generations += 1
@@ -1736,7 +1954,7 @@ class MLXLocalClient:
             self._current_first_token_at = 0.0
             self._current_request_id = ""
             if self._listener_task:
-                self._listener_task.cancel()
+                _cancel_task_threadsafe(self._listener_task)
                 self._listener_task = None
 
             # [OOM FIX] Force memory reclaim after killing heavy model process
@@ -1749,13 +1967,12 @@ class MLXLocalClient:
             self._res_q = mp.Queue(maxsize=10)
             
             for future in list(self._pending_generations.values()):
-                if not future.done():
-                    future.cancel()
+                _cancel_shared_future(future)
             self._pending_generations.clear()
             self._current_gen_future = None
             self._active_generations = 0
-            if self._init_future and not self._init_future.done():
-                self._init_future.cancel()
+            if self._init_future is not None:
+                _cancel_shared_future(self._init_future)
             self._init_future = None
             self._warmup_in_flight = False
             self._consecutive_empty = 0  # [STABILITY v53] Reset on reboot — prevents false recovery triggers

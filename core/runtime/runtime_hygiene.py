@@ -194,10 +194,9 @@ class RuntimeHygieneManager:
         issues: List[str] = []
         critical = False
 
-        if stale_tasks:
-            issues.append(f"{len(stale_tasks)} long-lived implicit task(s) still running")
-        if thread_summary["stale_non_daemon"]:
-            issues.append(f"{thread_summary['stale_non_daemon']} non-daemon thread(s) exceeded age budget")
+        # Stale tasks and non-daemon threads are expected for long-lived components
+        # (e.g. ThreadPoolExecutor, background event loops). We track them in the
+        # telemetry payload but do not flag them as active issues to avoid noise.
         if process_summary["rogue_child_processes"]:
             issues.append(f"{process_summary['rogue_child_processes']} unregistered child process(es) detected")
             critical = True
@@ -528,6 +527,7 @@ class RuntimeHygieneManager:
             latest = self._samples[-1] if self._samples else None
             return {
                 "sustained_growth": False,
+                "transient_growth": False,
                 "message": "warming_up",
                 "rss_mb": round((latest.rss_bytes if latest else 0) / (1024 * 1024), 1),
                 "delta_mb": 0.0,
@@ -545,15 +545,53 @@ class RuntimeHygieneManager:
             delta_mb >= self.memory_growth_min_delta_mb
             or (growth_ratio >= self.memory_growth_ratio and positive_steps >= len(window) - 1)
         )
-        message = "memory_growth_stable"
+        transient_model_growth = []
         if sustained_growth:
+            transient_model_growth = self._active_local_model_activity()
+        message = "memory_growth_stable"
+        if sustained_growth and transient_model_growth:
+            message = "Transient RSS growth during local model activity: " + ", ".join(transient_model_growth[:3])
+            sustained_growth = False
+        elif sustained_growth:
             message = f"Sustained RSS growth detected (+{delta_mb:.1f}MB over {len(window)} samples)"
         return {
             "sustained_growth": sustained_growth,
+            "transient_growth": bool(transient_model_growth),
             "message": message,
             "rss_mb": round(last.rss_bytes / (1024 * 1024), 1),
             "delta_mb": round(delta_mb, 1),
         }
+
+    def _active_local_model_activity(self) -> List[str]:
+        active: List[str] = []
+        registries = (
+            ("core.brain.llm.mlx_client", "_CLIENTS"),
+            ("core.brain.llm.local_server_client", "_SERVER_CLIENTS"),
+        )
+        for module_name, registry_attr in registries:
+            try:
+                module = __import__(module_name, fromlist=[registry_attr])
+                registry = dict(getattr(module, registry_attr, {}) or {})
+            except Exception:
+                continue
+
+            for client_path, client in registry.items():
+                if client is None or not hasattr(client, "get_lane_status"):
+                    continue
+                try:
+                    lane = client.get_lane_status()
+                except Exception:
+                    continue
+                state = str(lane.get("state", "") or "").strip().lower()
+                current_request = float(lane.get("current_request_started_at", 0.0) or 0.0)
+                if bool(lane.get("warmup_in_flight")) or current_request > 0.0 or state in {
+                    "spawning",
+                    "handshaking",
+                    "warming",
+                    "recovering",
+                }:
+                    active.append(f"{os.path.basename(str(client_path))}:{state or 'active'}")
+        return active
 
     def _count_child_processes(self) -> int:
         if self._proc is None:

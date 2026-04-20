@@ -91,6 +91,46 @@ _PROMPT_FILLERS = (
     "tell me",
 )
 
+_SOURCE_DOCUMENT_TERMS = (
+    "story",
+    "article",
+    "post",
+    "page",
+    "thread",
+    "document",
+    "source",
+    "text",
+    "link",
+    "paper",
+    "report",
+    "guide",
+    "entry",
+)
+
+_SOURCE_SUMMARY_TERMS = (
+    "what happens",
+    "summary",
+    "summarize",
+    "summarise",
+    "recap",
+    "plot",
+    "ending",
+    "how does it end",
+    "what does it say",
+    "read it",
+    "read this",
+    "read that",
+)
+
+_NOISY_RESULT_HOST_TERMS = (
+    "youtube.com",
+    "youtu.be",
+    "google.com",
+    "bing.com",
+    "duckduckgo.com",
+    "googleadservices.com",
+)
+
 
 def _normalize_text(text: str, *, limit: int = 0) -> str:
     cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
@@ -137,6 +177,52 @@ def _freshness_window(query: str) -> int:
 def _query_is_current(query: str) -> bool:
     lowered = str(query or "").lower()
     return any(term in lowered for term in _CURRENTNESS_TERMS)
+
+
+def _quoted_phrases(text: str) -> list[str]:
+    phrases: list[str] = []
+    for phrase in re.findall(r"[\"“”']([^\"“”']{4,200})[\"“”']", str(text or "")):
+        cleaned = _normalize_text(phrase)
+        if cleaned and cleaned not in phrases:
+            phrases.append(cleaned)
+    return phrases
+
+
+def query_requires_source_reading(query: str) -> bool:
+    lowered = _normalize_query(query)
+    if not lowered:
+        return False
+    if _quoted_phrases(query):
+        return True
+    if any(term in lowered for term in _SOURCE_SUMMARY_TERMS):
+        return True
+    if any(term in lowered for term in _SOURCE_DOCUMENT_TERMS) and any(
+        marker in lowered
+        for marker in (
+            "what happens",
+            "summary",
+            "summarize",
+            "summarise",
+            "ending",
+            "read",
+            "tell me",
+            "what does it say",
+            "look up",
+            "search for",
+            "find",
+        )
+    ):
+        return True
+    if re.search(r"\btitle\b", lowered) or re.search(r"\burl\b", lowered):
+        return True
+    return False
+
+
+def _normalized_match_text(*parts: str) -> str:
+    combined = " ".join(str(part or "") for part in parts if str(part or "").strip())
+    combined = combined.lower()
+    combined = re.sub(r"[^a-z0-9]+", " ", combined)
+    return re.sub(r"\s+", " ", combined).strip()
 
 
 def _html_to_text(raw_html: str) -> str:
@@ -343,6 +429,7 @@ class ResearchSearchPipeline:
         emitter.emit("🔍 Searching...", f"Gathering sources for: {cleaned_query}", category="Research")
         expanded_queries = await self._expand_queries(cleaned_query, ctx)
         hits = await self._search_candidates(expanded_queries, num_results=max(num_results, 5))
+        hits = self._rerank_hits(cleaned_query, hits)
         if not hits:
             emitter.emit("⚠️ Search Failed", f"No results found for '{cleaned_query}'.", level="warning", category="Research")
             return {
@@ -355,10 +442,25 @@ class ResearchSearchPipeline:
                 "mode": "standard",
             }
 
+        source_reading = query_requires_source_reading(cleaned_query)
         max_pages = 6 if deep else 3
+        if deep and source_reading:
+            max_pages = max(max_pages, 4)
         emitter.emit("📖 Reading Sources", f"Fetching top {max_pages} pages...", category="Research")
         
         pages = await self._fetch_pages(hits[:max_pages], deep=deep)
+
+        if deep and source_reading:
+            emitter.emit(
+                "📚 Source Grounding",
+                "This looks like a specific source/story request. Prioritizing direct page reads.",
+                category="Research",
+            )
+            for hit in hits[: min(max_pages, 3)]:
+                browser_page = await self._fetch_page_with_browser(hit)
+                if browser_page:
+                    pages = [page for page in pages if page.url != browser_page.url]
+                    pages.append(browser_page)
         
         # Component A2: Multi-pass retrieval / quality gate
         if len(pages) < 2 and deep:
@@ -669,7 +771,8 @@ class ResearchSearchPipeline:
         hits: list[SearchHit],
     ) -> list[dict[str, Any]]:
         query_tokens = set(_tokenize(" ".join(expanded_queries)))
-        quoted_phrases = re.findall(r'"([^"]+)"', query)
+        quoted_phrases = _quoted_phrases(query)
+        source_reading = query_requires_source_reading(query)
         page_by_url = {page.url: page for page in pages}
         ranked: list[dict[str, Any]] = []
 
@@ -683,7 +786,15 @@ class ResearchSearchPipeline:
                             "title": hit.title,
                             "url": hit.url,
                             "text": pseudo_text,
-                            "score": self._score_chunk(query_tokens, quoted_phrases, pseudo_text, rank=hit.position),
+                            "score": self._score_chunk(
+                                query_tokens,
+                                quoted_phrases,
+                                pseudo_text,
+                                rank=hit.position,
+                                title=hit.title,
+                                url=hit.url,
+                                source_reading=source_reading,
+                            ),
                             "source_engine": hit.source_engine,
                         }
                     )
@@ -691,13 +802,21 @@ class ResearchSearchPipeline:
 
             for chunk in self._chunk_page(page):
                 ranked.append(
-                    {
-                        "title": page.title,
-                        "url": page.url,
-                        "text": chunk,
-                        "score": self._score_chunk(query_tokens, quoted_phrases, chunk, rank=page.position),
-                        "source_engine": page.source_engine,
-                    }
+                        {
+                            "title": page.title,
+                            "url": page.url,
+                            "text": chunk,
+                            "score": self._score_chunk(
+                                query_tokens,
+                                quoted_phrases,
+                                chunk,
+                                rank=page.position,
+                                title=page.title,
+                                url=page.url,
+                                source_reading=source_reading,
+                            ),
+                            "source_engine": page.source_engine,
+                        }
                 )
 
         ranked.sort(key=lambda item: float(item["score"]), reverse=True)
@@ -725,6 +844,75 @@ class ResearchSearchPipeline:
             chunks.append(current)
         return chunks[:6]
 
+    def _rerank_hits(self, query: str, hits: Iterable[SearchHit]) -> list[SearchHit]:
+        source_reading = query_requires_source_reading(query)
+        ranked = sorted(
+            list(hits),
+            key=lambda hit: self._hit_relevance_score(
+                query,
+                hit.title,
+                hit.url,
+                rank=hit.position,
+                source_reading=source_reading,
+            ),
+            reverse=True,
+        )
+        return ranked
+
+    def _hit_relevance_score(
+        self,
+        query: str,
+        title: str,
+        url: str,
+        *,
+        rank: int,
+        source_reading: bool,
+    ) -> float:
+        query_tokens = set(_tokenize(query))
+        title_tokens = set(_tokenize(f"{title} {url}"))
+        overlap = len(query_tokens & title_tokens) / max(1, len(query_tokens))
+        normalized_target = _normalized_match_text(title, url)
+        phrase_bonus = 0.0
+        for phrase in _quoted_phrases(query):
+            normalized_phrase = _normalized_match_text(phrase)
+            if normalized_phrase and normalized_phrase in normalized_target:
+                phrase_bonus += 1.2
+        rank_bonus = max(0.0, 0.25 - ((max(rank, 1) - 1) * 0.03))
+        document_bonus = 0.0
+        if source_reading and re.search(r"(story|article|post|chapter|thread|page|document|report)", normalized_target):
+            document_bonus += 0.2
+        host_penalty = 0.0
+        if any(term in str(url or "").lower() for term in _NOISY_RESULT_HOST_TERMS):
+            host_penalty -= 0.45
+        if str(url or "").lower().endswith(".pdf"):
+            host_penalty -= 0.15
+        return round(overlap + phrase_bonus + rank_bonus + document_bonus + host_penalty, 4)
+
+    def _title_alignment_bonus(
+        self,
+        query_tokens: set[str],
+        quoted_phrases: list[str],
+        title: str,
+        url: str,
+        *,
+        rank: int,
+        source_reading: bool,
+    ) -> float:
+        title_tokens = set(_tokenize(f"{title} {url}"))
+        overlap = len(query_tokens & title_tokens) / max(1, len(query_tokens))
+        normalized_target = _normalized_match_text(title, url)
+        phrase_bonus = 0.0
+        for phrase in quoted_phrases:
+            normalized_phrase = _normalized_match_text(phrase)
+            if normalized_phrase and normalized_phrase in normalized_target:
+                phrase_bonus += 1.0
+        rank_bonus = max(0.0, 0.2 - ((max(rank, 1) - 1) * 0.025))
+        document_bonus = 0.15 if source_reading and re.search(
+            r"(story|article|post|chapter|thread|page|document|report)",
+            normalized_target,
+        ) else 0.0
+        return overlap + phrase_bonus + rank_bonus + document_bonus
+
     def _score_chunk(
         self,
         query_tokens: set[str],
@@ -732,6 +920,9 @@ class ResearchSearchPipeline:
         text: str,
         *,
         rank: int,
+        title: str = "",
+        url: str = "",
+        source_reading: bool = False,
     ) -> float:
         lowered = text.lower()
         tokens = set(_tokenize(lowered))
@@ -743,7 +934,15 @@ class ResearchSearchPipeline:
             currentness_bonus += 0.05
         if re.search(r"\b20\d{2}\b", lowered):
             currentness_bonus += 0.05
-        return round(overlap + phrase_bonus + rank_bonus + currentness_bonus, 4)
+        title_bonus = self._title_alignment_bonus(
+            query_tokens,
+            quoted_phrases,
+            title,
+            url,
+            rank=rank,
+            source_reading=source_reading,
+        ) * 0.35
+        return round(overlap + phrase_bonus + rank_bonus + currentness_bonus + title_bonus, 4)
 
     async def _synthesize_answer(
         self,
@@ -752,6 +951,7 @@ class ResearchSearchPipeline:
         context: dict[str, Any],
     ) -> dict[str, Any]:
         top_chunks = chunks[:5]
+        source_reading = query_requires_source_reading(query)
         citations = [
             {"title": item["title"], "url": item["url"]}
             for item in top_chunks
@@ -777,6 +977,11 @@ class ResearchSearchPipeline:
             f"Question: {query}",
             "Evidence:",
         ]
+        if source_reading:
+            prompt_lines.insert(
+                1,
+                "This query is asking about a specific document, story, page, or source. Summarize ONLY what the retrieved page evidence actually says, and include concrete details that would only be visible after reading it.",
+            )
         # Use much more content per source for M5/64GB — 8000 chars for deep, 4000 for standard
         chars_per_source = 8000 if len(top_chunks) <= 3 else 4000
         for index, item in enumerate(top_chunks, start=1):
@@ -837,20 +1042,32 @@ class ResearchSearchPipeline:
         chunks: list[dict[str, Any]],
     ) -> tuple[str, list[str], float]:
         query_tokens = set(_tokenize(query))
+        source_reading = query_requires_source_reading(query)
+        quoted_phrases = _quoted_phrases(query)
         
         # Extract sentences with keyword matches
         scored_sentences = []
-        for item in chunks[:3]:
+        for item in chunks[:4]:
             sentences = re.split(r"(?<=[.!?])\s+", item["text"])
-            for sentence in sentences:
+            for idx, sentence in enumerate(sentences):
                 clean = _normalize_text(sentence, limit=200)
                 if not clean or len(clean) < 35:
                     continue
                     
                 sentence_tokens = set(_tokenize(clean))
                 overlap = len(query_tokens & sentence_tokens)
-                if overlap > 0:
-                    scored_sentences.append((overlap, clean))
+                if not source_reading and overlap <= 0:
+                    continue
+                score = float(item.get("score", 0.0) or 0.0)
+                score += overlap * 0.08
+                if idx == 0:
+                    score += 0.08
+                if source_reading:
+                    score += 0.2
+                lower = clean.lower()
+                if any(phrase.lower() in lower for phrase in quoted_phrases):
+                    score += 0.35
+                scored_sentences.append((score, clean))
                     
         # Sort by overlap score and pick top sentences
         scored_sentences.sort(key=lambda x: x[0], reverse=True)
@@ -886,7 +1103,8 @@ class ResearchSearchPipeline:
             answer = " ".join(best_sentences)
             facts = best_sentences[:4]
             
-        confidence = min(0.9, max(0.40, 0.40 + (len(chunks) * 0.05)))
+        top_score = float(chunks[0].get("score", 0.0) or 0.0) if chunks else 0.0
+        confidence = min(0.92, max(0.40, 0.42 + (len(chunks) * 0.05) + min(top_score, 1.5) * 0.12))
         
         # Component A4: Confidence marker
         if confidence < 0.5:

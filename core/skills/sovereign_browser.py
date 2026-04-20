@@ -5,11 +5,13 @@ import subprocess
 import os
 import base64
 import random
+import re
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 from core.phantom_browser import PhantomBrowser
+from core.search.research_pipeline import query_requires_source_reading
 from core.thought_stream import get_emitter
 
 logger = logging.getLogger("Skills.SovereignBrowser")
@@ -230,7 +232,7 @@ class SovereignBrowserSkill(BaseSkill):
                         links = await asyncio.wait_for(browser.get_links(), timeout=10.0)
                     except Exception:
                         links = []
-                    target = self._select_search_result(links)
+                    target = self._select_search_result(links, query=query)
                     if target:
                         get_emitter().emit("🌊 Deep-Diving", f"Navigating to exact source: {target}", category="Browser")
                         logger.info("🌊 Deep-diving into: %s", target)
@@ -250,13 +252,19 @@ class SovereignBrowserSkill(BaseSkill):
 
                                 get_emitter().emit("📄 Extracting Content", f"Reading content from {target}", category="Browser")
                                 content = target_content or await self._safe_read_content(browser)
+                                title = ""
+                                try:
+                                    if browser.page is not None:
+                                        title = (await browser.page.title() or "").strip()
+                                except Exception:
+                                    title = ""
                                 # Phase 39: Deep Synthesis — Provide major content for the LLM
                                 snippet_size = 5000
                                 snippet = content[:snippet_size].strip() if content else "Content could not be extracted."
 
                                 logger.info("✅ Deep synthesized %d chars from %s", len(snippet), target)
                                 return {
-                                    "ok": True, "source": target, "content": content, "mode": "deep_search",
+                                    "ok": True, "source": target, "title": title, "content": content, "mode": "deep_search",
                                     "message": f"I have deeply synthesized the content from {target}. Here is the core information:\n\n{snippet[:2000]}..."
                                 }
                         except Exception as e:
@@ -360,17 +368,58 @@ class SovereignBrowserSkill(BaseSkill):
         ]
         return sum(1 for s in block_signals if s in lower) >= 2
 
-    def _select_search_result(self, links: List[Dict[str, str]]) -> Optional[str]:
-        """Heuristic to find the first real organic search result."""
+    def _select_search_result(self, links: List[Dict[str, str]], query: str = "") -> Optional[str]:
+        """Choose the most query-aligned organic result instead of the first link-shaped thing."""
+        query_tokens = {
+            token for token in re.findall(r"[a-z0-9]+", str(query or "").lower())
+            if len(token) >= 3
+        }
+        source_reading = query_requires_source_reading(query)
+        quoted = [
+            phrase.lower()
+            for phrase in re.findall(r"[\"“”']([^\"“”']{4,200})[\"“”']", str(query or ""))
+        ]
+
+        best_url: Optional[str] = None
+        best_score = float("-inf")
+
         for link in links:
-            u = link.get('url', '')
-            text = link.get('text', '').lower()
-            if any(x in u for x in ['duckduckgo.com', 'google.com', 'bing.com', 'googleadservices.com']): continue
-            if any(x in text for x in ['privacy', 'settings', 'help', 'about', 'login', 'signup']): continue
-            if not u.startswith('http'): continue
-            if len(text) < 10: continue
-            return u
-        return None
+            url = str(link.get("url") or "").strip()
+            text = str(link.get("text") or "").strip()
+            if not url.startswith("http"):
+                continue
+
+            lower_url = url.lower()
+            lower_text = text.lower()
+            if any(x in lower_url for x in ("duckduckgo.com", "google.com", "bing.com", "googleadservices.com")):
+                continue
+            if any(x in lower_text for x in ("privacy", "settings", "help", "about", "login", "signup")):
+                continue
+
+            score = 0.0
+            tokens = {
+                token for token in re.findall(r"[a-z0-9]+", f"{lower_text} {lower_url}")
+                if len(token) >= 3
+            }
+            if query_tokens:
+                score += len(query_tokens & tokens) / max(1, len(query_tokens))
+            for phrase in quoted:
+                normalized_phrase = re.sub(r"[^a-z0-9]+", " ", phrase).strip()
+                normalized_target = re.sub(r"[^a-z0-9]+", " ", f"{lower_text} {lower_url}").strip()
+                if normalized_phrase and normalized_phrase in normalized_target:
+                    score += 1.2
+            if source_reading and re.search(r"(story|article|post|thread|chapter|page|document)", lower_text):
+                score += 0.25
+            if lower_url.endswith(".pdf") or "youtube.com" in lower_url or "youtu.be" in lower_url:
+                score -= 0.35
+            if len(text) >= 10:
+                score += 0.05
+
+            if score > best_score:
+                best_score = score
+                best_url = url
+
+        return best_url
 
     async def on_stop_async(self):
         """No-op: browsers are now ephemeral per-invocation."""

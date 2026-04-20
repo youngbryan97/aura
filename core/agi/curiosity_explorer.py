@@ -161,9 +161,13 @@ class CuriosityExplorer:
         q = question.lower()
         if any(w in q for w in ["remember", "memory", "did i", "have i", "before"]):
             return "MEMORY_QUERY"
+        if any(w in q for w in ["what do i feel", "how do i feel", "my own state", "my internal state"]):
+            return "LLM_SYNTHESIS"
         if any(w in q for w in ["latest", "current", "news", "recent", "today"]):
             return "WEB_SEARCH"
-        return "LLM_SYNTHESIS"
+        if "?" in q or any(w in q for w in ["what ", "why ", "how ", "who ", "when ", "where ", "which "]):
+            return "WEB_SEARCH"
+        return "WEB_SEARCH"
 
     async def _execute(self, item: ExplorationItem, orchestrator=None) -> str:
         if item.action_type == "MEMORY_QUERY":
@@ -227,10 +231,10 @@ class CuriosityExplorer:
                     result = await asyncio.wait_for(
                         orchestrator.execute_tool(
                             "web_search",
-                            {"query": question, "deep": False, "retain": True},
+                            {"query": question, "deep": True, "retain": True, "num_results": 6},
                             origin="curiosity_explorer",
                         ),
-                        timeout=20.0,
+                        timeout=25.0,
                     )
                     if isinstance(result, dict):
                         summary = (
