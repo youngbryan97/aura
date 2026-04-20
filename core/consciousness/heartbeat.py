@@ -258,6 +258,16 @@ class CognitiveHeartbeat:
                 if predictive and hasattr(predictive, 'accept_feedback'):
                     # The predictive engine can use FE state as a meta-signal
                     pass  # Surprise already flows via heartbeat wiring
+
+                # ── BOREDOM ACCUMULATOR tick ──────────────────────────
+                # Feed current FE into DriveEngine's boredom tracker.
+                # Low FE for extended periods = nothing surprising = boredom.
+                try:
+                    drive_engine = ServiceContainer.get("drive_engine", default=None)
+                    if drive_engine and hasattr(drive_engine, "tick_boredom"):
+                        drive_engine.tick_boredom(fe_state.free_energy)
+                except Exception as be:
+                    logger.debug("Boredom accumulator tick failed: %s", be)
         except Exception as e:
             logger.debug("Free energy computation failed: %s", e)
 
@@ -508,6 +518,25 @@ class CognitiveHeartbeat:
                     priority=qualia_synthesizer.q_norm * 0.8,
                     affect_weight=affect_weight * 2.0,
                 ))
+
+        # --- Boredom candidate ---
+        # When DriveEngine's boredom accumulator crosses threshold, inject
+        # a high-priority candidate to push Aura toward novelty-seeking.
+        try:
+            drive_engine = ServiceContainer.get("drive_engine", default=None)
+            if drive_engine and getattr(drive_engine, "seek_novelty", False):
+                boredom_lvl = drive_engine.boredom_level
+                last_boredom_alert = self._last_alert_times.get("boredom_seek", 0)
+                if current_time - last_boredom_alert > 120:  # max once per 2 min
+                    self._last_alert_times["boredom_seek"] = current_time
+                    await self.workspace.submit(CognitiveCandidate(
+                        content=f"Boredom: prediction landscape stale ({boredom_lvl:.0%}). Seeking novelty.",
+                        source="boredom_accumulator",
+                        priority=min(0.85, 0.5 + boredom_lvl * 0.4),
+                        affect_weight=affect_weight * 1.5,
+                    ))
+        except Exception as e:
+            logger.debug("Boredom candidate submission failed: %s", e)
 
         # --- Free Energy action tendency candidate ---
         # When FE is notable, its dominant_action competes for workspace attention
