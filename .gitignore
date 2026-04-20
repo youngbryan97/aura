@@ -25,6 +25,8 @@ FINAL_STABLE_BOOT.txt
 boot_log.txt
 my_debug.log
 test_out.txt
+training/train_log.txt
+training/adapters/**/*.safetensors
 
 # Node
 node_modules/
