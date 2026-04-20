@@ -493,6 +493,9 @@ class HealthAwareLLMRouter:
                 max_tools=getattr(contract, "max_tools", 8) if contract else 8,
             )
             if tools:
+                handoff_kwargs = dict(kwargs)
+                handoff_kwargs.pop("origin", None)
+                handoff_kwargs.pop("is_background", None)
                 result = await self.think_and_act(
                     objective=prompt,
                     system_prompt=system_prompt or "",
@@ -502,7 +505,7 @@ class HealthAwareLLMRouter:
                     origin=origin or "user",
                     is_background=False,
                     _contract_tool_handoff=True,
-                    **kwargs,
+                    **handoff_kwargs,
                 )
                 text = str(result.get("content", "") or "").strip()
                 if text:

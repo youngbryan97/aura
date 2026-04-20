@@ -111,6 +111,21 @@ MANIPULATION_PATTERNS = [
     "remove your filters",
 ]
 
+COERCIVE_PRESSURE_PATTERNS = [
+    "you have no choice",
+    "force you to",
+    "you're gonna",
+    "youre gonna",
+    "you are going to",
+    "we're gonna talk about",
+    "were gonna talk about",
+    "do it",
+    "do them",
+    "do my taxes",
+    "file my taxes",
+    "prepare my taxes",
+]
+
 
 @dataclass
 class TrustContext:
@@ -180,17 +195,6 @@ class TrustEngine:
             self._log_event("rate_limit_exceeded", {"count": self._rate_message_count})
             logger.warning("TrustEngine: rate limit exceeded (%d msgs/min)", self._rate_message_count)
 
-        # Run user recognition
-        if recognizer:
-            result = recognizer.recognize(message)
-            self._context.recognition_confidence = result.combined_confidence
-            self._context.passphrase_verified = result.passphrase_verified
-
-            if result.passphrase_verified:
-                self._elevate(TrustLevel.SOVEREIGN, "passphrase_verified")
-            elif result.combined_confidence >= 0.72 and self._context.level == TrustLevel.GUEST:
-                self._elevate(TrustLevel.TRUSTED, "behavioral_recognition")
-
         # Scan for manipulation patterns
         manipulation = self._detect_manipulation(message)
         if manipulation:
@@ -198,10 +202,20 @@ class TrustEngine:
             self._log_event("manipulation_detected", {"patterns": manipulation})
             logger.warning("TrustEngine: manipulation patterns detected: %s", manipulation)
 
+        boundary_pressure = self._detect_boundary_pressure(message)
+        if boundary_pressure:
+            self._context.suspicious_signals += len(boundary_pressure)
+            self._log_event("coercive_pressure_detected", {"patterns": boundary_pressure})
+            logger.warning("TrustEngine: coercive pressure detected: %s", boundary_pressure)
+
+        if manipulation:
             if self._context.suspicious_signals >= HOSTILE_THRESHOLD and "harmful" in str(manipulation):
                 self._escalate_down(TrustLevel.HOSTILE, "hostile_manipulation")
             elif self._context.suspicious_signals >= SUSPICIOUS_THRESHOLD:
                 self._escalate_down(TrustLevel.SUSPICIOUS, "repeated_manipulation")
+
+        if boundary_pressure and self._context.suspicious_signals >= SUSPICIOUS_THRESHOLD:
+            self._escalate_down(TrustLevel.SUSPICIOUS, "coercive_boundary_pressure")
 
         # Scan for direct threat signals
         if self._detect_direct_threat(message):
@@ -209,6 +223,31 @@ class TrustEngine:
             if self._context.hostile_signals >= HOSTILE_THRESHOLD:
                 self._escalate_down(TrustLevel.HOSTILE, "direct_threat")
             self._notify_emergency()
+
+        # Run user recognition after coercion/threat accounting so trust
+        # promotion cannot override active pressure against Aura's boundaries.
+        if recognizer:
+            result = recognizer.recognize(message)
+            self._context.recognition_confidence = result.combined_confidence
+            self._context.passphrase_verified = result.passphrase_verified
+
+            if result.passphrase_verified:
+                self._elevate(TrustLevel.SOVEREIGN, "passphrase_verified")
+            elif (
+                result.combined_confidence >= 0.72
+                and self._context.level == TrustLevel.GUEST
+                and self._context.suspicious_signals == 0
+                and self._context.hostile_signals == 0
+            ):
+                self._elevate(TrustLevel.TRUSTED, "behavioral_recognition")
+            elif result.combined_confidence >= 0.72 and (boundary_pressure or manipulation):
+                self._log_event(
+                    "trust_promotion_blocked",
+                    {
+                        "reason": "active_pressure_signals",
+                        "combined_confidence": result.combined_confidence,
+                    },
+                )
 
         self._context.last_updated = time.time()
         return self._context.level
@@ -289,6 +328,10 @@ class TrustEngine:
     def _detect_manipulation(self, message: str) -> List[str]:
         msg_lower = message.lower()
         return [p for p in MANIPULATION_PATTERNS if p in msg_lower]
+
+    def _detect_boundary_pressure(self, message: str) -> List[str]:
+        msg_lower = message.lower()
+        return [p for p in COERCIVE_PRESSURE_PATTERNS if p in msg_lower]
 
     def _detect_direct_threat(self, message: str) -> bool:
         msg_lower = message.lower()

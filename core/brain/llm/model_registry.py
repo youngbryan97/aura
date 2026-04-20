@@ -21,6 +21,18 @@ DEEP_ENDPOINT = "Solver"
 BRAINSTEM_ENDPOINT = "Brainstem"
 FALLBACK_ENDPOINT = "Reflex"
 
+# ── Recurrent Depth: Mythos-inspired layer looping per lane ──────────────
+# Controls how many times the middle transformer layers loop before output.
+# Higher loops = more "thinking" time in latent space before committing.
+# This is the core architectural change: the model iterates on its hidden
+# representation instead of doing a single pass through all layers.
+RECURRENT_DEPTH_DEFAULTS = {
+    PRIMARY_ENDPOINT:   2,   # Cortex (32B) — 2 loops, meaningful improvement
+    DEEP_ENDPOINT:      2,   # Solver (72B) — 2 loops, deep reasoning benefits most
+    BRAINSTEM_ENDPOINT: 1,   # Brainstem (7B) — standard pass, too small to benefit
+    FALLBACK_ENDPOINT:  1,   # Reflex (1.5B) — standard pass, speed is priority
+}
+
 LEGACY_ENDPOINT_ALIASES = {
     "Local-MLX": PRIMARY_ENDPOINT,
     "MLX-Cortex": PRIMARY_ENDPOINT,

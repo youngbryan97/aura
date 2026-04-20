@@ -156,6 +156,45 @@ _ANCHOR_STOPWORDS = frozenset({
     "those", "thread", "what", "when", "where", "which", "while", "with", "would",
 })
 
+_SEARCH_QUERY_DIRECT_PATTERNS = (
+    re.compile(
+        r"^(?:please\s+|can you\s+|could you\s+|would you\s+|aura[,:\s]+)?"
+        r"(?:search(?: the web)?|look(?: it)? up|google|find out|check online)\s+"
+        r"(?:for\s+)?(.+?)(?:\s+and\s+tell me\b.*)?[.?!]*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:please\s+|can you\s+|could you\s+|would you\s+|aura[,:\s]+)?"
+        r"(?:search(?: the web)?|look(?: it)? up|google|find out|check online)\b\s*(.+?)[.?!]*$",
+        re.IGNORECASE,
+    ),
+)
+
+_SEARCH_QUERY_ENTITY_PATTERNS = (
+    re.compile(r"^(?:do you know\s+)?what is (?:a|an|the)\s+(.+?)[.?!]*$", re.IGNORECASE),
+    re.compile(r"^(?:do you know\s+)?who is\s+(.+?)[.?!]*$", re.IGNORECASE),
+    re.compile(r"^(?:do you know\s+)?what does\s+(.+?)\s+mean[.?!]*$", re.IGNORECASE),
+    re.compile(
+        r"^(?:send|show)(?: me)?\s+(?:a|an|the)?\s*(.+?)\s+emoji[.?!]*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:what(?:'s| is)\s+the\s+)?(.+?)\s+emoji[.?!]*$",
+        re.IGNORECASE,
+    ),
+)
+
+_SEARCH_QUERY_FILLER_PREFIX_RE = re.compile(
+    r"^(?:please\s+|can you\s+|could you\s+|would you\s+|do you know\s+|"
+    r"do you happen to know\s+|tell me\s+|show me\s+|send me\s+|send\s+)+",
+    re.IGNORECASE,
+)
+
+_SEARCH_QUERY_FILLER_SUFFIX_RE = re.compile(
+    r"(?:\s+(?:please|for me|exactly|actually|right now|real quick))+$",
+    re.IGNORECASE,
+)
+
 _MEMORY_PATTERNS = (
     r"\bremember\b",
     r"\bwhat do you know about me\b",
@@ -506,6 +545,49 @@ def _looks_like_grounded_followup(state: AuraState, text: str) -> bool:
     return False
 
 
+def extract_search_query_focus(text: str) -> str:
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+
+    url_match = re.search(r'https?://[^\s<>"\')\]]+', raw)
+    if url_match:
+        return url_match.group(0)
+
+    quoted = re.search(r"[\"“”']([^\"“”']{1,180})[\"“”']", raw)
+    if quoted:
+        candidate = " ".join(quoted.group(1).split()).strip(" .?!,:;")
+        if candidate:
+            return candidate
+
+    for pattern in _SEARCH_QUERY_DIRECT_PATTERNS:
+        match = pattern.match(raw)
+        if match:
+            candidate = extract_search_query_focus(match.group(1))
+            if candidate:
+                return candidate
+
+    lowered = raw.lower()
+    for pattern in _SEARCH_QUERY_ENTITY_PATTERNS:
+        match = pattern.match(raw)
+        if not match:
+            continue
+        candidate = " ".join(match.group(1).split()).strip(" .?!,:;")
+        candidate = _SEARCH_QUERY_FILLER_PREFIX_RE.sub("", candidate).strip()
+        candidate = _SEARCH_QUERY_FILLER_SUFFIX_RE.sub("", candidate).strip()
+        candidate = re.sub(r"\s+is\s*$", "", candidate, flags=re.IGNORECASE).strip()
+        if "emoji" in lowered and "emoji" not in candidate.lower():
+            candidate = f"{candidate} emoji".strip()
+        if candidate:
+            return candidate[:180]
+
+    candidate = " ".join(raw.split())
+    candidate = _SEARCH_QUERY_FILLER_PREFIX_RE.sub("", candidate).strip()
+    candidate = _SEARCH_QUERY_FILLER_SUFFIX_RE.sub("", candidate).strip()
+    candidate = candidate.strip(" .?!,:;")
+    return candidate[:180]
+
+
 def build_response_contract(
     state: AuraState,
     objective: str,
@@ -642,5 +724,5 @@ def build_response_contract(
         max_tool_turns=max_tool_turns,
         max_tools=max_tools,
         reason=", ".join(reasons) if reasons else "ordinary_dialogue",
-        search_query=text if requires_search else "",
+        search_query=extract_search_query_focus(text) if requires_search else "",
     )

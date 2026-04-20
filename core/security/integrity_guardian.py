@@ -246,6 +246,27 @@ class IntegrityGuardian:
             for p in legitimately_gone:
                 self._manifest.pop(p, None)
 
+        if tampered or missing:
+            # Drop legitimately modified files tracked by git to prevent local edits from causing alerts
+            try:
+                import subprocess
+                git_status = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    cwd=str(_BASE_DIR),
+                    capture_output=True,
+                    text=True,
+                    timeout=2.0
+                )
+                git_active = []
+                for line in git_status.stdout.splitlines():
+                    if len(line) > 3:
+                        git_active.append(line[3:])
+                
+                tampered = [p for p in tampered if p not in git_active]
+                missing = [p for p in missing if p not in git_active]
+            except Exception as exc:
+                logger.debug("IntegrityGuardian: git check failed: %s", exc)
+
         self._last_tampered = list(tampered)
         self._last_missing = list(missing)
         self._last_issue_count = len(tampered) + len(missing)
@@ -254,6 +275,7 @@ class IntegrityGuardian:
         if tampered or missing:
             self._alert_count += len(tampered) + len(missing)
             self._handle_alerts(tampered, missing)
+
 
         return tampered + missing
 

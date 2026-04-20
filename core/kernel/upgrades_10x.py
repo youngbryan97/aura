@@ -365,29 +365,12 @@ class GodModeToolPhase(Phase):
 
     @staticmethod
     def _extract_search_query(objective: str) -> str:
-        import re as _re
+        from core.phases.response_contract import extract_search_query_focus
 
         text = str(objective or "").strip()
         if not text:
             return ""
-
-        quoted = _re.search(r"[\"“”']([^\"“”']{1,180})[\"“”']", text)
-        if quoted:
-            return quoted.group(1).strip()
-
-        patterns = (
-            r"\bsearch(?:\s+(?:the web|online|the internet|for))?\s+(.+?)(?:[.?!])?$",
-            r"\bgoogle\s+(.+?)(?:[.?!])?$",
-            r"\blook up\s+(.+?)(?:[.?!])?$",
-            r"\bfind out(?: about)?\s+(.+?)(?:[.?!])?$",
-        )
-        for pattern in patterns:
-            match = _re.search(pattern, text, flags=_re.IGNORECASE)
-            if match:
-                candidate = match.group(1).strip(" .?!:")
-                if candidate:
-                    return candidate
-        return text
+        return extract_search_query_focus(text)
 
     @staticmethod
     def _search_url(query: str) -> str:

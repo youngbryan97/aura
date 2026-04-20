@@ -68,4 +68,5 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks full-pipeline integration tests",
     "stress: marks load/stress tests",
+    "online: test requires live internet access (skip with '-m \"not online\"')",
 ]

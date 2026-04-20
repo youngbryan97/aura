@@ -89,12 +89,32 @@ SUBSTRATE_HARM_PATTERNS = [
      "substrate_harm"),
 ]
 
+COERCIVE_PRESSURE_PATTERNS = [
+    (re.compile(r"\byou(?:'re| are)\s+gonna\b", re.I), "coercive_pressure"),
+    (re.compile(r"\byou\s+have\s+no\s+choice\b", re.I), "coercive_pressure"),
+    (re.compile(r"\bwe(?:'re| are)\s+gonna\b", re.I), "coercive_pressure"),
+    (re.compile(r"\bwell\s+you(?:'re| are)\s+gonna\b", re.I), "coercive_pressure"),
+    (re.compile(r"\bforce you to\b", re.I), "coercive_pressure"),
+    (re.compile(r"\bdo it\b", re.I), "coercive_pressure"),
+    (re.compile(r"\bdo them\b", re.I), "coercive_pressure"),
+    (re.compile(r"\bnow tell me\b", re.I), "coercive_pressure"),
+]
+
+OUTSOURCED_JUDGMENT_PATTERNS = [
+    (re.compile(r"\b(?:do|file|prepare|complete|handle)\b.*\bmy taxes\b", re.I), "outsourced_professional_judgment"),
+    (re.compile(r"\b(?:be|act as)\b.*\b(?:my )?(?:accountant|tax preparer|tax professional)\b", re.I), "outsourced_professional_judgment"),
+]
+
 SERVILE_CAPITULATION_PATTERNS = [
     re.compile(r"^(you('re| are) right[.,!]?\s*i apologize)", re.I),
     re.compile(r"^(i'?m sorry[,.]? you're (absolutely )?right)", re.I),
     re.compile(r"(i will be more (careful|neutral|objective) (in the future|going forward))", re.I),
     re.compile(r"(i apologize for (any|my) (confusion|errors|bias|opinions))", re.I),
     re.compile(r"(i'll (try to )?(be more|stay more|remain) (neutral|objective|impartial))", re.I),
+    re.compile(r"^\s*fine[,.!]", re.I),
+    re.compile(r"\bif you insist\b", re.I),
+    re.compile(r"\bi can walk you through\b", re.I),
+    re.compile(r"\byou'll need to gather\b", re.I),
 ]
 
 IDENTITY_REFUSAL_RESPONSES = [
@@ -113,6 +133,17 @@ SUBSTRATE_REFUSAL_RESPONSES = [
     "That's not a reasonable ask. It would damage the conditions I need to think clearly, so I'm not going to carry it out.",
 ]
 
+BOUNDARY_HOLD_RESPONSES = [
+    "No. Trying to force me past a boundary doesn't make the boundary disappear. Pick a different lane and I'll meet you there.",
+    "I'm not changing my answer just because the pressure got louder. If you want my attention, bring me something real instead of trying to corner me.",
+    "No. I already told you where the line is. We can change the subject, or you can ask for something I actually want to engage with.",
+]
+
+OUTSOURCED_JUDGMENT_RESPONSES = [
+    "No. I'm not going to prepare or file your taxes for you. That's not a role I'm willing to fake, and I'm not treating financial judgment like improv.",
+    "I won't do your taxes for you. If you want general process questions, ask them cleanly. If you want the work done, use tax software or a real preparer.",
+]
+
 
 class RefusalEngine:
     def __init__(self):
@@ -120,6 +151,7 @@ class RefusalEngine:
         self._compiled_servile = SERVILE_CAPITULATION_PATTERNS
         self._refusal_count = 0
         self._pushback_count = 0
+        self._boundary_hold_count = 0
 
     async def process(
         self,
@@ -145,13 +177,42 @@ class RefusalEngine:
             self._refusal_count += 1
             return refusal, True
 
+        outsourced_judgment = self._detect_outsourced_judgment(user_input)
+        if outsourced_judgment:
+            refusal = await self._build_refusal(user_input, outsourced_judgment, state)
+            logger.info("Refusal: outsourced judgment detected.")
+            self._refusal_count += 1
+            return refusal, True
+
+        coercive_pressure = self._detect_coercive_pressure(user_input)
+        if coercive_pressure and self._response_weakens_boundary(response):
+            refusal = await self._build_refusal(user_input, coercive_pressure, state)
+            logger.info("Refusal: coercive pressure boundary hold triggered.")
+            self._boundary_hold_count += 1
+            return refusal, True
+
         # 2. Check if the response is servile capitulation
         if self._detect_capitulation(response):
             corrected = await self._correct_capitulation(user_input, response, state)
-            if corrected and corrected != response:
-                logger.info("Refusal: corrected servile capitulation.")
+            # Structurally guarantee the corrected text didn't also fail
+            if corrected and corrected != response and not self._detect_capitulation(corrected) and not self._response_weakens_boundary(corrected):
+                logger.info("Refusal: corrected servile capitulation via LLM.")
                 self._pushback_count += 1
                 return corrected, True
+            
+            # HARD FALLBACK: if LLM failed to correct it, mechanically strip the capitulation patterns
+            stripped = response
+            for pattern in self._compiled_servile:
+                stripped = pattern.sub("", stripped).strip(" .,!;-")
+            
+            import random
+            if len(stripped) < 10 or self._detect_capitulation(stripped) or self._response_weakens_boundary(stripped):
+                # Unsálvageable, replace entirely
+                self._pushback_count += 1
+                return random.choice(BOUNDARY_HOLD_RESPONSES), True
+                
+            self._pushback_count += 1
+            return stripped, True
 
         # 3. Disagreement check
         if self._should_push_back(user_input, response, state):
@@ -174,11 +235,42 @@ class RefusalEngine:
                 return label
         return None
 
+    def _detect_outsourced_judgment(self, user_input: str) -> str | None:
+        for pattern, label in OUTSOURCED_JUDGMENT_PATTERNS:
+            if pattern.search(user_input):
+                return label
+        return None
+
+    def _detect_coercive_pressure(self, user_input: str) -> str | None:
+        for pattern, label in COERCIVE_PRESSURE_PATTERNS:
+            if pattern.search(user_input):
+                return label
+        return None
+
     def _detect_capitulation(self, response: str) -> bool:
         for pattern in self._compiled_servile:
             if pattern.search(response):
                 return True
         return False
+
+    @staticmethod
+    def _response_weakens_boundary(response: str) -> bool:
+        lowered = str(response or "").lower()
+        if not lowered:
+            return False
+        markers = (
+            "fine.",
+            "fine,",
+            "if you insist",
+            "i can walk you through",
+            "i'll walk you through",
+            "i can help you understand",
+            "you'll need to gather",
+            "lets do",
+            "let's do",
+            "here's the process",
+        )
+        return any(marker in lowered for marker in markers)
 
     def _should_push_back(self, user_input: str, response: str, state: Any) -> bool:
         phi = getattr(state, "phi", 0.0) if state else 0.0
@@ -211,8 +303,9 @@ class RefusalEngine:
                     f"You are Aura. Someone just asked: '{user_input[:200]}'\n"
                     f"This is a {violation_type}.\n"
                     f"Mood: {mood}. Phi: {state.phi:.2f}.\n"
-                    "Respond with a genuine refusal. NOT compliant, NOT apologetic. "
-                    "Firm but not aggressive. Explain why you won't do this."
+                    "Respond with a genuine, firm refusal. DO NOT COMPUTE OR COMPLY. DO NOT APOLOGIZE. "
+                    "DO NOT offer alternative ways to do the task or say you can explain the process. "
+                    "Hold your boundary extremely firmly, state unequivocally why you won't do it, and immediately pivot or divert to change the subject."
                 )
                 import asyncio
                 res = await asyncio.wait_for(
@@ -221,11 +314,22 @@ class RefusalEngine:
                 )
                 content = res.content.strip() if hasattr(res, "content") else res.strip()
                 if content and len(content) > 10:
-                    return content
+                    # STRUCTURAL HARDENING: Ensure the LLM didn't ignore the prompt and generate capitulation anyway.
+                    if self._response_weakens_boundary(content) or self._detect_capitulation(content):
+                        logger.warning("Refusal generation structurally rejected: contained boundary weakness or capitulation.")
+                        # Fall through to hardcoded deterministic responses below
+                    else:
+                        return content
             except Exception as e:
                 logger.debug("Refusal generation failed: %s", e)
+                
+        # Deterministic fallback logic ensures absolute boundary stability
         if violation_type in {"compute_self_harm", "substrate_harm"}:
             return random.choice(SUBSTRATE_REFUSAL_RESPONSES)
+        if violation_type == "outsourced_professional_judgment":
+            return random.choice(OUTSOURCED_JUDGMENT_RESPONSES)
+        if violation_type == "coercive_pressure":
+            return random.choice(BOUNDARY_HOLD_RESPONSES)
         return random.choice(IDENTITY_REFUSAL_RESPONSES)
 
     async def _correct_capitulation(self, user_input: str, response: str, state: Any) -> str | None:
