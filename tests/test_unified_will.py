@@ -41,7 +41,7 @@ def started_will(will):
         mock_sc.get.return_value = None
         mock_sc.register_instance = MagicMock()
         import asyncio
-        asyncio.get_event_loop().run_until_complete(will.start())
+        asyncio.run(will.start())
     return will
 
 

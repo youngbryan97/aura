@@ -915,7 +915,7 @@ class PhiCore:
                 N_NODES, best_phi,
             )
 
-        return (best_subset, best_phi)
+        return (best_subset, self._max_phi_value)
 
     def _estimate_subset_phi_from_history(
         self,
@@ -1003,6 +1003,74 @@ class PhiCore:
         k = len(subset)
         if k < 2:
             return 0.0
+
+        ordered_subset = tuple(subset)
+        full_complex = tuple(range(N_NODES))
+        affective_complex = tuple(range(N_AFFECTIVE_NODES))
+
+        # Fast paths:
+        # - The full 16-node subset should agree with the canonical full-system
+        #   phi computation used elsewhere in the runtime.
+        # - The original 8-node affective subset already has an exact dedicated
+        #   implementation that is much cheaper than generic marginalization.
+        if ordered_subset == full_complex:
+            result = self.compute_phi()
+            return float(result.phi_s) if result is not None else 0.0
+
+        if ordered_subset == affective_complex:
+            result = self.compute_affective_phi()
+            return float(result.phi_s) if result is not None else 0.0
+
+        # For arbitrary proper subsets, projecting the observed history down to
+        # the requested nodes is dramatically cheaper than marginalizing the full
+        # 16-node TPM. This keeps the computation exact on the observed
+        # transition history while avoiding a 65536x65536 expansion.
+        history = list(self._state_history)
+        n_transitions = len(history) - 1
+        if n_transitions >= MIN_HISTORY_FOR_TPM:
+            k_states = 1 << k
+            subset_history = np.zeros(len(history), dtype=np.int32)
+
+            for idx, full_state in enumerate(history):
+                projected_state = 0
+                for bit_pos, node_idx in enumerate(ordered_subset):
+                    if (full_state >> node_idx) & 1:
+                        projected_state |= (1 << bit_pos)
+                subset_history[idx] = projected_state
+
+            counts = np.zeros((k_states, k_states), dtype=np.float64)
+            for src, dst in zip(subset_history[:-1], subset_history[1:]):
+                counts[int(src), int(dst)] += 1.0
+
+            counts += LAPLACE_ALPHA
+            row_sums = np.maximum(counts.sum(axis=1, keepdims=True), 1e-10)
+            tpm_sub = counts / row_sums
+
+            p_sub = np.full(k_states, LAPLACE_ALPHA, dtype=np.float64)
+            for state in subset_history:
+                p_sub[int(state)] += 1.0
+            p_sub /= np.maximum(p_sub.sum(), 1e-10)
+
+            subset_nodes = list(range(k))
+            min_phi = float("inf")
+
+            for bp_mask in range(1, 1 << (k - 1)):
+                part_a = tuple(i for i in subset_nodes if (bp_mask >> i) & 1)
+                part_b = tuple(i for i in subset_nodes if not (bp_mask >> i) & 1)
+                if not part_a or not part_b:
+                    continue
+
+                phi_ab = self._phi_for_subset_bipartition(
+                    tpm_sub,
+                    p_sub,
+                    part_a,
+                    part_b,
+                    k,
+                )
+                if phi_ab < min_phi:
+                    min_phi = phi_ab
+
+            return float(max(0.0, min_phi)) if min_phi != float("inf") else 0.0
 
         non_subset = tuple(i for i in range(N_NODES) if i not in subset)
         k_states = 1 << k
@@ -1687,15 +1755,6 @@ class PhiCore:
         if result is None:
             return "φs computation pending (building state history)."
 
-        if not result.is_complex:
-            return (
-                f"φs={result.phi_s:.6f}: Substrate is currently decomposable. "
-                f"MIP={result.mip_description}. Not a complex under IIT 4.0."
-            )
-
-        rich = result.phi_structure_entropy
-
-        # Exclusion postulate addendum
         exclusion_note = ""
         if self._max_phi_complex is not None:
             full_complex = tuple(range(N_NODES))
@@ -1709,6 +1768,15 @@ class PhiCore:
                 exclusion_note = (
                     f" EXCLUSION: Full {N_NODES}-node system confirmed as maximal complex."
                 )
+
+        if not result.is_complex:
+            return (
+                f"φs={result.phi_s:.6f}: Substrate is currently decomposable. "
+                f"MIP={result.mip_description}. Not a complex under IIT 4.0."
+                f"{exclusion_note}"
+            )
+
+        rich = result.phi_structure_entropy
 
         return (
             f"φs={result.phi_s:.5f}: Substrate is a CONSCIOUS COMPLEX under IIT 4.0. "

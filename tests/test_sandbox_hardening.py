@@ -140,7 +140,7 @@ class TestShadowASTHealerGovernance:
             healer = ShadowASTHealer()
             # Mock governance to deny
             with patch.object(healer, "_check_governance", return_value=False):
-                result = asyncio.get_event_loop().run_until_complete(
+                result = asyncio.run(
                     healer.attempt_repair(temp_path, "name 'undefined_var' is not defined")
                 )
             # File should be unchanged
@@ -158,7 +158,7 @@ class TestShadowASTHealerGovernance:
         outside_path = Path("/tmp/evil_target.py")
         outside_path.write_text("x = 1")
         try:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 healer.attempt_repair(outside_path, "name 'asyncio' is not defined")
             )
             assert result is False, "Healer must refuse to modify files outside codebase root"

@@ -613,8 +613,16 @@ class InferenceGate:
 
             logger.warning("⚠️ Deferred cortex prewarm exhausted retries; foreground turn will retry on demand.")
 
-        self._deferred_prewarm_task = asyncio.create_task(
-            _runner(),
+        runner_coro = _runner()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            runner_coro.close()
+            logger.debug("Deferred cortex prewarm skipped: no running event loop.")
+            return
+
+        self._deferred_prewarm_task = loop.create_task(
+            runner_coro,
             name="InferenceGate.deferred_cortex_prewarm",
         )
         # [STABILITY v53] Log exceptions from background tasks
@@ -750,7 +758,15 @@ class InferenceGate:
 
         # [STABILITY v53] Wrap fire-and-forget task with exception logging
         # so crashes are visible instead of silently lost.
-        task = asyncio.create_task(_background_recover(), name="cortex_recovery")
+        recovery_coro = _background_recover()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            recovery_coro.close()
+            logger.debug("Cortex recovery skipped: no running event loop.")
+            return
+
+        task = loop.create_task(recovery_coro, name="cortex_recovery")
         task.add_done_callback(self._log_task_exception)
 
     async def _respawn_cortex_if_needed(self) -> None:

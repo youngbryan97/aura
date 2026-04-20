@@ -160,7 +160,7 @@ def test_tracked_avatar_asset_is_self_contained():
     ).read_text(encoding="utf-8")
 
     assert "/static/aura_avatar.svg" in aura_css
-    assert "/static/aura_avatar.svg" in shell_css
+    assert "aura_avatar.svg" in shell_css
     assert "/static/aura_avatar.png" not in aura_css
     assert "/static/aura_avatar.png" not in shell_css
 

@@ -23,6 +23,7 @@ during error recovery, not because it hides from governance.
 import ast
 import asyncio
 import hashlib
+import inspect
 import logging
 from pathlib import Path
 from typing import Optional
@@ -66,18 +67,24 @@ class ShadowASTHealer:
         If the governance system is unavailable, returns False (fail-closed).
         """
         try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self._check_governance_async(file_path, action))
+        return self._check_governance_async(file_path, action)
+
+    async def _check_governance_async(self, file_path: Path, action: str) -> bool:
+        """Async governance check used by the repair coroutine."""
+        try:
             from core.will import get_will, ActionDomain
             will = get_will()
             if will is None:
                 logger.warning("ShadowHealer: Will unavailable — refusing repair (fail-closed)")
                 return False
-            decision = asyncio.get_event_loop().run_until_complete(
-                will.decide(
-                    action=action,
-                    domain=ActionDomain.STATE_MUTATION,
-                    context={"file": str(file_path), "source": "shadow_ast_healer"},
-                    priority=0.6,
-                )
+            decision = await will.decide(
+                action=action,
+                domain=ActionDomain.STATE_MUTATION,
+                context={"file": str(file_path), "source": "shadow_ast_healer"},
+                priority=0.6,
             )
             approved = decision.is_approved() if hasattr(decision, "is_approved") else False
             if not approved:
@@ -136,7 +143,13 @@ class ShadowASTHealer:
 
             if repaired:
                 # GOVERNANCE GATE: check before writing
-                if not self._check_governance(file_path, f"ast_repair:{file_path.name}"):
+                governance_result = self._check_governance(
+                    file_path,
+                    f"ast_repair:{file_path.name}",
+                )
+                if inspect.isawaitable(governance_result):
+                    governance_result = await governance_result
+                if not governance_result:
                     logger.info("ShadowHealer: Repair blocked by governance for %s", file_path.name)
                     return False
 

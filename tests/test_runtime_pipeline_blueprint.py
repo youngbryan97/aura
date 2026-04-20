@@ -50,6 +50,7 @@ def test_kernel_phase_attribute_order_matches_shared_runtime_pipeline():
         "affect_phase",
         "phi_phase",
         "motivation_phase",
+        "cognitive_integration",
         "executive_closure_phase",
         "evolution_guard",
         "growth",

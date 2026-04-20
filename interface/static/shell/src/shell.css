@@ -170,7 +170,7 @@ button, textarea {
   border-radius: 16px;
   background:
     linear-gradient(145deg, rgba(180,77,255,0.96), rgba(0,229,255,0.7)),
-    url("/static/aura_avatar.svg") center/cover;
+    url("../../aura_avatar.svg") center/cover;
   box-shadow: 0 0 20px rgba(138, 43, 226, 0.34), 0 0 42px rgba(0, 229, 255, 0.14);
   border: 1px solid rgba(255,255,255,0.16);
 }
