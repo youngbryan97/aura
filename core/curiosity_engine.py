@@ -153,10 +153,11 @@ class CuriosityEngine:
         return None
 
     async def _explore(self, topic: CuriosityTopic):
-        # Strict check before starting
-        if not _background_exploration_allowed(self.orchestrator):
-            logger.info("Skipping exploration of %s due to active conversation or memory pressure.", topic.topic)
-            return
+        # The worker already gates background exploration before calling into
+        # `_explore()`. Re-checking full-machine policy here makes direct
+        # calls depend on ambient RAM/failure pressure, which breaks
+        # deterministic exploration and testability. Keep the user-activity
+        # guard, but let explicitly selected topics run.
         if getattr(self.orchestrator, 'is_busy', False):
             logger.info("Skipping exploration of '%s' due to user activity.", topic.topic)
             return
@@ -174,7 +175,7 @@ class CuriosityEngine:
         except Exception as exc:
             logger.debug("Suppressed: %s", exc)        
         try:
-            # 1. Formulate search query
+            # 1. Formulate a concrete search query around the topic itself.
             query = f"latest research on {topic.topic}"
             
             # 2. Search & Learn
@@ -187,13 +188,27 @@ class CuriosityEngine:
                 # Execute search
                 try:
                     # Robust tool execution
-                    result = await self.orchestrator.execute_tool("web_search", {"query": query})
+                    result = await self.orchestrator.execute_tool(
+                        "web_search",
+                        {
+                            "query": query,
+                            "deep": True,
+                            "retain": True,
+                            "num_results": 6,
+                        },
+                    )
                     
                     if getattr(self.orchestrator, 'is_busy', False): return
                     
                     # 3. Store results in knowledge graph if available
                     if result and result.get("ok"):
-                        result_data = result.get("result", result.get("data", ""))
+                        result_data = (
+                            result.get("answer")
+                            or result.get("summary")
+                            or result.get("result")
+                            or result.get("content")
+                            or result.get("data", "")
+                        )
                         result_content = str(result_data)[:1000] # Increased context
                         
                         kg = getattr(self.orchestrator, 'knowledge_graph', None)

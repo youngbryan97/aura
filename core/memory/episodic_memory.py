@@ -879,37 +879,90 @@ class EpisodicMemory:
         return [self._row_to_episode(r) for r in rows]
 
     def _keyword_search(self, query: str, limit: int) -> List[Episode]:
-        """Simple keyword search across context + action + outcome."""
-        words = query.lower().split()[:5]  # Limit search terms
+        """Keyword search across context + action + outcome.
+
+        Strategy (progressive relaxation so natural-language LLM queries can
+        still recall partial matches without flooding the caller):
+
+        1. Strict AND match across recent episodes — highest precision.
+        2. If the strict path finds nothing, retry AND across ALL episodes
+           (used to be gated behind a narrow "exact phrase" heuristic; now
+           always attempted because the strict path already narrowed scan).
+        3. If AND still finds nothing, run an OR match and rank by the number
+           of distinct query words that matched. Episodes that match more
+           words rank higher; ties break on recency.
+        """
+        # Normalize and deduplicate words; drop very short tokens that
+        # produce false-positive `LIKE '%a%'` matches.
+        raw_words = query.lower().split()[:8]
+        words = []
+        seen = set()
+        for w in raw_words:
+            w = w.strip(".,;:?!\"'()[]{}")
+            if len(w) < 3 or w in seen:
+                continue
+            seen.add(w)
+            words.append(w)
+        words = words[:5]
         if not words:
             return []
-        conditions = " AND ".join(
+
+        and_conditions = " AND ".join(
             "(LOWER(context) LIKE ? OR LOWER(action) LIKE ? OR LOWER(outcome) LIKE ?)"
             for _ in words
         )
-        params = []
+        params: List[str] = []
         for w in words:
             pattern = f"%{w}%"
             params.extend([pattern, pattern, pattern])
         recent_scan_limit = max(self.KEYWORD_SEARCH_SCAN_LIMIT, limit * 60)
         with self._get_conn() as conn:
+            # 1. Strict AND on recent slice
             rows = conn.execute(
                 f"""
                 SELECT * FROM (
                     SELECT * FROM episodes ORDER BY timestamp DESC LIMIT ?
                 )
-                WHERE {conditions}
+                WHERE {and_conditions}
                 ORDER BY timestamp DESC
                 LIMIT ?
                 """,
                 [recent_scan_limit, *params, limit],
             ).fetchall()
-            if not rows and self._query_needs_keyword_fallback(query):
+            # 2. Strict AND across the full table
+            if not rows:
                 rows = conn.execute(
-                    f"SELECT * FROM episodes WHERE {conditions} ORDER BY timestamp DESC LIMIT ?",
+                    f"SELECT * FROM episodes WHERE {and_conditions} ORDER BY timestamp DESC LIMIT ?",
                     [*params, limit],
                 ).fetchall()
-        return [self._row_to_episode(r) for r in rows]
+            if rows:
+                return [self._row_to_episode(r) for r in rows]
+
+            # 3. OR fallback ranked by match count.
+            or_conditions = " OR ".join(
+                "(LOWER(context) LIKE ? OR LOWER(action) LIKE ? OR LOWER(outcome) LIKE ?)"
+                for _ in words
+            )
+            or_rows = conn.execute(
+                f"""
+                SELECT * FROM (
+                    SELECT * FROM episodes ORDER BY timestamp DESC LIMIT ?
+                )
+                WHERE {or_conditions}
+                """,
+                [recent_scan_limit, *params],
+            ).fetchall()
+
+        def _match_score(row) -> int:
+            haystack = " ".join(
+                str(row[k] or "").lower() for k in ("context", "action", "outcome")
+            )
+            return sum(1 for w in words if w in haystack)
+
+        scored = [(row, _match_score(row)) for row in or_rows]
+        scored = [item for item in scored if item[1] > 0]
+        scored.sort(key=lambda item: (item[1], item[0]["timestamp"]), reverse=True)
+        return [self._row_to_episode(row) for row, _ in scored[:limit]]
 
     @staticmethod
     def _query_needs_keyword_fallback(query: str) -> bool:
