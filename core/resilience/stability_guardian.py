@@ -113,7 +113,7 @@ class StabilityGuardian:
         self._running       = False
         self._task: Optional[asyncio.Task] = None
         self._report_history: deque = deque(maxlen=100)
-        self._tick_times:     Deque[Tuple[float, float]] = deque(maxlen=60)   # (timestamp, duration_ms)
+        self._tick_times:     Deque[Tuple[Any, ...]] = deque(maxlen=60)   # (timestamp, duration_ms, priority_tick?)
         self._last_tick_at:   float = time.time()
         self._extra_checks:   List[Callable] = []
         self._last_repair_at: Dict[str, float] = {}
@@ -172,16 +172,31 @@ class StabilityGuardian:
         if hasattr(tick_entry, "tick_duration_ms"):
             duration_ms = float(getattr(tick_entry, "tick_duration_ms", 0.0) or 0.0)
             if duration_ms > 0.0:
-                self._tick_times.append((now, duration_ms))
+                self._tick_times.append(
+                    (now, duration_ms, bool(getattr(tick_entry, "priority_tick", False)))
+                )
         self._last_tick_at = now
 
-    def _recent_tick_durations(self, now: Optional[float] = None, window_s: float = 300.0) -> List[float]:
+    def _recent_tick_entries(
+        self,
+        now: Optional[float] = None,
+        window_s: float = 300.0,
+    ) -> List[Tuple[float, float, bool]]:
         current_time = now or time.time()
-        return [
-            duration_ms
-            for timestamp, duration_ms in self._tick_times
-            if (current_time - timestamp) <= window_s
-        ]
+        entries: List[Tuple[float, float, bool]] = []
+        for item in self._tick_times:
+            try:
+                timestamp = float(item[0])
+                duration_ms = float(item[1])
+                priority_tick = bool(item[2]) if len(item) >= 3 else False
+            except Exception:
+                continue
+            if (current_time - timestamp) <= window_s:
+                entries.append((timestamp, duration_ms, priority_tick))
+        return entries
+
+    def _recent_tick_durations(self, now: Optional[float] = None, window_s: float = 300.0) -> List[float]:
+        return [duration_ms for _timestamp, duration_ms, _priority_tick in self._recent_tick_entries(now, window_s)]
 
     # ── Main check loop ───────────────────────────────────────────────────────
 
@@ -257,9 +272,10 @@ class StabilityGuardian:
 
         # Tick stats
         now = time.time()
-        recent_ticks = self._recent_tick_durations(now)
+        recent_entries = self._recent_tick_entries(now)
+        recent_ticks = [duration_ms for _timestamp, duration_ms, _priority_tick in recent_entries]
         if recent_ticks:
-            oldest_timestamp = min(timestamp for timestamp, _duration in self._tick_times if (now - timestamp) <= 300.0)
+            oldest_timestamp = min(timestamp for timestamp, _duration, _priority_tick in recent_entries)
             tick_rate = len(recent_ticks) / max(1.0, now - oldest_timestamp)
             mean_tick = sum(recent_ticks) / len(recent_ticks)
         else:
@@ -408,7 +424,8 @@ class StabilityGuardian:
     def _check_tick_rate(self) -> HealthCheckResult:
         now = time.time()
         elapsed = now - self._last_tick_at
-        recent_ticks = self._recent_tick_durations(now)
+        recent_entries = self._recent_tick_entries(now)
+        recent_ticks = [duration_ms for _timestamp, duration_ms, _priority_tick in recent_entries]
 
         if not recent_ticks:
             if elapsed > 300.0:
@@ -427,17 +444,52 @@ class StabilityGuardian:
                 severity="info",
             )
         slow_ticks = [duration for duration in recent_ticks if duration > self.MAX_TICK_LAG_MS]
-        if mean_ms > self.MAX_TICK_LAG_MS and len(recent_ticks) >= 5 and len(slow_ticks) >= 3:
+        background_entries = [
+            (timestamp, duration_ms)
+            for timestamp, duration_ms, priority_tick in recent_entries
+            if not priority_tick
+        ]
+        foreground_slow_ticks = [
+            duration_ms
+            for _timestamp, duration_ms, priority_tick in recent_entries
+            if priority_tick and duration_ms > self.MAX_TICK_LAG_MS
+        ]
+        background_slow_ticks = [
+            duration_ms
+            for _timestamp, duration_ms in background_entries
+            if duration_ms > self.MAX_TICK_LAG_MS
+        ]
+        background_mean_ms = (
+            sum(duration_ms for _timestamp, duration_ms in background_entries) / len(background_entries)
+            if background_entries
+            else 0.0
+        )
+        if (
+            background_entries
+            and background_mean_ms > self.MAX_TICK_LAG_MS
+            and len(background_entries) >= 5
+            and len(background_slow_ticks) >= 3
+        ):
             import sys
             import traceback
             dump = "\n".join("".join(traceback.format_stack(f)) for thread_id, f in sys._current_frames().items())
-            logger.error("🚨 [StabilityGuardian] TICK STALL DETECTED (%.0fms). THREAD DUMP:\n%s", mean_ms, dump[:1500])
+            logger.error("🚨 [StabilityGuardian] TICK STALL DETECTED (%.0fms background mean). THREAD DUMP:\n%s", background_mean_ms, dump[:1500])
             
             return HealthCheckResult(
                 "tick_rate", False,
-                f"Mean tick too slow: {mean_ms:.0f}ms (max {self.MAX_TICK_LAG_MS:.0f}ms) — possible event loop blocking",
+                f"Background mean tick too slow: {background_mean_ms:.0f}ms (max {self.MAX_TICK_LAG_MS:.0f}ms) — possible event loop blocking",
                 severity="warning",
                 action_taken="Dumped thread stacks to aura_json.log"
+            )
+        if foreground_slow_ticks and not background_slow_ticks:
+            return HealthCheckResult(
+                "tick_rate",
+                True,
+                (
+                    f"Observed {len(foreground_slow_ticks)} long foreground tick(s); "
+                    f"mean={mean_ms:.0f}ms but background tick health remains OK"
+                ),
+                severity="info",
             )
         if slow_ticks:
             return HealthCheckResult(

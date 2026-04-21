@@ -35,6 +35,21 @@ def _strip_leading_chatml_prefix(text: str) -> str:
                 changed = True
     return cleaned
 
+
+def _should_emit_generation_progress(
+    token_count: int,
+    *,
+    last_emit_at: float,
+    now: float,
+    every_tokens: int = 4,
+    every_seconds: float = 1.5,
+) -> bool:
+    if token_count <= 1:
+        return True
+    if every_tokens > 0 and token_count % every_tokens == 0:
+        return True
+    return (now - float(last_emit_at or 0.0)) >= max(0.1, float(every_seconds))
+
 class IPCWriterThread(threading.Thread):
     """
     ZENITH LOCKDOWN: Non-blocking IPC writer.
@@ -658,6 +673,7 @@ def _mlx_worker_loop(
                             try:
                                 current_response = ""
                                 token_count = 0
+                                last_progress_emit_at = time.time()
                                 sentinel_aborted = False
                                 
                                 # ── Token Sentinel: mid-generation cognitive intervention ──
@@ -697,6 +713,7 @@ def _mlx_worker_loop(
                                 for response in stream_generate(model, tokenizer, prompt=gen_prompt, **kwargs):
                                     watchdog.activity()
                                     token_count += 1
+                                    progress_now = time.time()
                                     
                                     # Snag the prompt cache from the response if supported to save for next turn
                                     if hasattr(response, "prompt_cache") and response.prompt_cache is not None:
@@ -720,14 +737,19 @@ def _mlx_worker_loop(
                                             sentinel_aborted = True
                                             break
 
-                                    if token_count == 1 or token_count % 16 == 0:
+                                    if _should_emit_generation_progress(
+                                        token_count,
+                                        last_emit_at=last_progress_emit_at,
+                                        now=progress_now,
+                                    ):
                                         ipc_writer.put({
                                             "id": job.get("id"),
                                             "action": "generate",
                                             "status": "progress",
                                             "tokens_generated": token_count,
-                                            "timestamp": time.time(),
+                                            "timestamp": progress_now,
                                         })
+                                        last_progress_emit_at = progress_now
                                     
                                     # [STABILITY v52] Explicit manual cache clearing to prevent MLX memory 
                                     # fragmentation mapping failures on long context 32B inferences.

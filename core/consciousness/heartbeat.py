@@ -342,10 +342,19 @@ class CognitiveHeartbeat:
         # ── 8b. Φ → WORKSPACE FEED ────────────────────────────────────
         try:
             substrate = self._liquid_substrate
-            if substrate and hasattr(substrate, '_current_phi'):
+            phi = 0.0
+            try:
+                phi_core = ServiceContainer.get("phi_core", default=None)
+                if phi_core is not None and hasattr(phi_core, "get_live_phi"):
+                    phi = float(phi_core.get_live_phi(include_surrogate=True))
+            except Exception:
+                phi = 0.0
+
+            if phi <= 0.0 and substrate and hasattr(substrate, '_current_phi'):
                 phi = float(getattr(substrate, '_current_phi', 0.0))
-                if hasattr(self.workspace, 'update_phi'):
-                    self.workspace.update_phi(phi)
+
+            if hasattr(self.workspace, 'update_phi'):
+                self.workspace.update_phi(phi)
         except Exception as e:
             capture_and_log(e, {'module': __name__})
 

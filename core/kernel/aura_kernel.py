@@ -659,7 +659,7 @@ class AuraKernel:
             logger.info("🌀 Unitary Tick Initiated: '%s' (priority=%s)", objective, priority)
             
             # 1. Feedback Loop: Begin
-            entry = self.feedback_observer.begin_tick(state, objective)
+            entry = self.feedback_observer.begin_tick(state, objective, priority=priority)
             
             # Initial derivation for the tick itself
             state = await state.derive_async(f"tick_start: {objective[:50]}", origin="tick")

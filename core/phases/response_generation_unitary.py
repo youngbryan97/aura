@@ -2381,7 +2381,11 @@ class UnitaryResponsePhase(Phase):
                     response_policy.clear_background_generation(new_state, objective)
                     return new_state
 
-            live_voice_required = bool(is_user_facing and contract.requires_live_aura_voice())
+            live_grounding_required = bool(
+                is_user_facing
+                and callable(getattr(contract, "requires_explicit_live_grounding", None))
+                and contract.requires_explicit_live_grounding()
+            )
             grounding_evidence_active = self._current_turn_targets_grounding_evidence(
                 new_state,
                 objective,
@@ -2390,7 +2394,7 @@ class UnitaryResponsePhase(Phase):
             use_compact_router_payload = bool(
                 not contract.requires_search
                 and not grounding_evidence_active
-                and not live_voice_required
+                and not live_grounding_required
                 and (
                     not is_user_facing
                     or contract.reason == "ordinary_dialogue"
@@ -2463,7 +2467,7 @@ class UnitaryResponsePhase(Phase):
             if is_user_facing:
                 voice_block = self._build_user_facing_voice_block(new_state, contract)
                 _prepend_system_guidance(voice_block)
-            if live_voice_required:
+            if live_grounding_required:
                 self_expression_block = self._build_live_self_expression_block(new_state, contract)
                 _prepend_system_guidance(self_expression_block)
 
@@ -2685,7 +2689,7 @@ class UnitaryResponsePhase(Phase):
                         response_text = candidate
                         final_validation = candidate_validation
 
-            if is_user_facing and not final_validation.ok and contract.requires_live_aura_voice():
+            if is_user_facing and not final_validation.ok and live_grounding_required:
                 minimal, minimal_validation = self._select_valid_recovery_variant(
                     self._build_minimal_live_voice_reply(new_state),
                     contract,

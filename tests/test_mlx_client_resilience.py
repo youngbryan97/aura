@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.brain.llm.mlx_client import MLXLocalClient
-from core.brain.llm.mlx_worker import IPCWriterThread
+from core.brain.llm.mlx_worker import IPCWriterThread, _should_emit_generation_progress
 from core.utils.deadlines import get_deadline
 
 
@@ -233,9 +233,14 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         client._pending_generations[req_id] = future
         client._current_request_id = req_id
         client._current_request_started_at = 100.0
+        client._last_generation_completed_at = 1.0
+        client._current_request_prompt_chars = 0
 
         with patch("core.brain.llm.mlx_client.asyncio.wait_for", side_effect=asyncio.TimeoutError):
-            with patch("core.brain.llm.mlx_client.time.time", return_value=100.0 + client._first_token_sla() + 1.0):
+            with patch(
+                "core.brain.llm.mlx_client.time.time",
+                return_value=100.0 + client._first_token_sla(foreground_request=True) + 1.0,
+            ):
                 result = await client._wait_for_generation_result(
                     req_id,
                     future,
@@ -245,6 +250,18 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
         self.assertEqual(client._deferred_reboot_reason, "first_token_sla_exceeded")
+
+    async def test_long_prompt_extends_first_token_sla_for_heavy_lane(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        cold_sla = client._first_token_sla(foreground_request=True)
+
+        client._last_generation_completed_at = 1.0
+        client._current_request_prompt_chars = 24_740
+
+        warm_long_prompt_sla = client._first_token_sla(foreground_request=True)
+
+        self.assertGreater(warm_long_prompt_sla, 22.0)
+        self.assertGreater(warm_long_prompt_sla, cold_sla)
 
     async def test_generation_waiter_flags_token_progress_stall(self):
         client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
@@ -365,6 +382,35 @@ class TestIPCWriterThread(unittest.TestCase):
         writer.put({"status": "heartbeat", "timestamp": 1.0})
 
         mp_queue.put.assert_not_called()
+
+
+class TestMLXWorkerProgress(unittest.TestCase):
+    def test_generation_progress_emits_on_first_token(self):
+        self.assertTrue(
+            _should_emit_generation_progress(
+                1,
+                last_emit_at=100.0,
+                now=100.2,
+            )
+        )
+
+    def test_generation_progress_emits_on_time_gap_before_token_modulus(self):
+        self.assertTrue(
+            _should_emit_generation_progress(
+                3,
+                last_emit_at=100.0,
+                now=101.7,
+            )
+        )
+
+    def test_generation_progress_stays_quiet_when_recent_and_off_cycle(self):
+        self.assertFalse(
+            _should_emit_generation_progress(
+                3,
+                last_emit_at=100.0,
+                now=100.4,
+            )
+        )
 
 
 class TestMLXRuntimeProbeFailure(unittest.IsolatedAsyncioTestCase):

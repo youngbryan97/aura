@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -119,3 +120,19 @@ async def test_phi_phase_publishes_policy_from_richer_state_channels():
     assert new_state.response_modifiers["phi"] == new_state.phi
     assert new_state.response_modifiers["phi_autonomy_scale"] >= 0.5
     assert "phi_memory_threshold" in new_state.response_modifiers
+
+
+@pytest.mark.asyncio
+async def test_phi_phase_uses_phi_core_phi_s_field():
+    kernel = SimpleNamespace(organs={})
+    phase = PhiConsciousnessPhase(kernel)
+
+    fake_phi_core = SimpleNamespace(
+        compute_phi=lambda: SimpleNamespace(phi_s=0.3471),
+        compute_surrogate_phi=lambda: 0.0,
+    )
+
+    with patch.object(phase, "_get_phi_core", return_value=fake_phi_core):
+        phi = await phase._compute_phi(AuraState.default())
+
+    assert phi == pytest.approx(0.3471, rel=0.0, abs=1e-4)

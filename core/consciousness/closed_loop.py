@@ -465,6 +465,8 @@ class ClosedCausalLoop:
         self._last_output_at: float = 0.0
 
         self._task: Optional[asyncio.Task] = None
+        self._phi_core_task: Optional[asyncio.Task] = None
+        self._last_phi_core_schedule_at: float = 0.0
         self._save_dir: Optional[Path] = None
 
         self._setup_save_dir()
@@ -508,7 +510,51 @@ class ClosedCausalLoop:
                 await self._task
             except asyncio.CancelledError as _e:
                 logger.debug('Ignored asyncio.CancelledError in closed_loop.py: %s', _e)
+        if self._phi_core_task:
+            self._phi_core_task.cancel()
+            try:
+                await self._phi_core_task
+            except asyncio.CancelledError as _e:
+                logger.debug('Ignored asyncio.CancelledError in closed_loop.py: %s', _e)
         logger.info("🔄 ClosedCausalLoop OFFLINE")
+
+    @staticmethod
+    def _build_phi_core_cognitive_values(current_x: np.ndarray) -> Dict[str, float]:
+        values = np.zeros(8, dtype=np.float64)
+        if len(current_x) > 8:
+            upper = min(len(current_x), 16)
+            values[:upper - 8] = current_x[8:upper]
+        return {
+            "phi": float(values[0]),
+            "social_hunger": float(values[1]),
+            "prediction_error": float(values[2]),
+            "agency_score": float(values[3]),
+            "narrative_tension": float(values[4]),
+            "peripheral_richness": float(values[5]),
+            "arousal_gate": float(values[6]),
+            "cross_timescale_fe": float(values[7]),
+        }
+
+    @staticmethod
+    def _foreground_request_active() -> bool:
+        """Keep expensive consciousness maintenance off the critical reply path."""
+        try:
+            from core.container import ServiceContainer
+
+            gate = ServiceContainer.get("inference_gate", default=None)
+            mlx = getattr(gate, "_mlx_client", None)
+            if mlx is None or not hasattr(mlx, "get_lane_status"):
+                return False
+
+            lane = mlx.get_lane_status()
+            if bool(lane.get("foreground_owned")):
+                return True
+
+            started_at = float(lane.get("current_request_started_at", 0.0) or 0.0)
+            completed_at = float(lane.get("last_generation_completed_at", 0.0) or 0.0)
+            return started_at > 0.0 and started_at > completed_at
+        except Exception:
+            return False
 
     # ── Background Prediction Loop ─────────────────────────────────────────────
 
@@ -565,7 +611,24 @@ class ClosedCausalLoop:
                     from core.container import ServiceContainer
                     phi_core = ServiceContainer.get("phi_core", default=None)
                     if phi_core is not None:
-                        phi_core.record_state(current_x)
+                        phi_core.record_state(
+                            current_x,
+                            cognitive_values=self._build_phi_core_cognitive_values(current_x),
+                        )
+                        should_refresh_phi = (
+                            self._loop_state.cycle_count > 0
+                            and self._loop_state.cycle_count % 6 == 0
+                            and not self._foreground_request_active()
+                            and (time.time() - self._last_phi_core_schedule_at) >= 45.0
+                        )
+                        if should_refresh_phi and (
+                            self._phi_core_task is None or self._phi_core_task.done()
+                        ):
+                            self._last_phi_core_schedule_at = time.time()
+                            self._phi_core_task = asyncio.create_task(
+                                asyncio.to_thread(phi_core.compute_phi),
+                                name="ClosedCausalLoop.phi_core_refresh",
+                            )
                 except Exception as _e:
                     logger.debug('Ignored Exception in closed_loop.py: %s', _e)
 

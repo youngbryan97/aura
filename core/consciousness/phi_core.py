@@ -1504,11 +1504,11 @@ class PhiCore:
         visits = self._state_visits + 1e-10
         probs = visits / visits.sum()
         entropy = -np.sum(probs * np.log2(probs))
-        
+
         # 2. Calculate recent covariance across nodes (if history exists)
         # We use the binarized state history to see how nodes co-vary
         if len(self._state_history) < 20:
-            return entropy / 8.0 # Rough fallback
+            return 0.0
 
         # Extract bits for the last 20 states
         recent = list(self._state_history)[-20:]
@@ -1528,6 +1528,21 @@ class PhiCore:
         self._norm_history.append(self._surrogate_phi)
         
         return self._surrogate_phi
+
+    def get_live_phi(self, *, include_surrogate: bool = True) -> float:
+        """Best current live phi estimate for user-facing telemetry.
+
+        Returns the full IIT φs value when available. If the exact compute has
+        not completed yet, optionally falls back to the cached/live surrogate.
+        """
+        if self._last_result is not None:
+            return float(self._last_result.phi_s)
+        if include_surrogate and len(self._state_history) >= 20:
+            try:
+                return float(self.compute_surrogate_phi())
+            except Exception:
+                return 0.0
+        return 0.0
 
     def _marginal_tpm(
         self,
