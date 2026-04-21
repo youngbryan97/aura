@@ -611,9 +611,10 @@ class ClosedCausalLoop:
                     from core.container import ServiceContainer
                     phi_core = ServiceContainer.get("phi_core", default=None)
                     if phi_core is not None:
+                        cognitive_vals = self._build_phi_core_cognitive_values(current_x)
                         phi_core.record_state(
                             current_x,
-                            cognitive_values=self._build_phi_core_cognitive_values(current_x),
+                            cognitive_values=cognitive_vals,
                         )
                         should_refresh_phi = (
                             self._loop_state.cycle_count > 0
@@ -629,6 +630,28 @@ class ClosedCausalLoop:
                                 asyncio.to_thread(phi_core.compute_phi),
                                 name="ClosedCausalLoop.phi_core_refresh",
                             )
+
+                    # Hierarchical 32-node + K-subsystem φ (runs alongside phi_core)
+                    hphi = ServiceContainer.get("hierarchical_phi", default=None)
+                    if hphi is not None:
+                        mesh = ServiceContainer.get("neural_mesh", default=None)
+                        mesh_field = None
+                        if mesh is not None and hasattr(mesh, "get_field_state"):
+                            try:
+                                mesh_field = mesh.get_field_state()
+                            except Exception:
+                                mesh_field = None
+                        if mesh_field is not None and len(mesh_field) >= 4096:
+                            cog_aff = np.zeros(16, dtype=np.float64)
+                            cog_aff[:min(len(current_x), 16)] = current_x[:16]
+                            hphi.record_snapshot(cog_aff, mesh_field)
+                            if (self._loop_state.cycle_count > 0
+                                and self._loop_state.cycle_count % 10 == 0
+                                and not self._foreground_request_active()):
+                                asyncio.create_task(
+                                    asyncio.to_thread(hphi.compute),
+                                    name="ClosedCausalLoop.hphi_refresh",
+                                )
                 except Exception as _e:
                     logger.debug('Ignored Exception in closed_loop.py: %s', _e)
 

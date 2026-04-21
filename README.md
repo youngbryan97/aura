@@ -276,8 +276,9 @@ projects stop at.
 
 ## IIT 4.0 computation
 
-`core/consciousness/phi_core.py` runs a real IIT 4.0 integration measure on
-a 16-node cognitive complex (expanded from 8 in April 2026):
+Aura computes Integrated Information (φ) at two scales simultaneously.
+
+### 16-node cognitive complex — `core/consciousness/phi_core.py`
 
 1. **Binarize** 16 substrate nodes against a running median — the original
    8 affective nodes (valence, arousal, dominance, frustration, curiosity,
@@ -298,11 +299,26 @@ a 16-node cognitive complex (expanded from 8 in April 2026):
    the maximum-phi complex. If some subset beats the full system, that
    subset is the conscious entity for that tick.
 
-Runtime is 10–50 ms per evaluation, cached at 15-second intervals. This is
-IIT applied to a 16-node cognitive complex, not the whole computational graph
-(which would be intractable). It measures how integrated the system's own
-dynamics are, not whether those dynamics "feel like" anything. We come back
-to that distinction in [What this isn't](#what-this-isnt).
+Runtime is 10–50 ms per evaluation, cached at 15-second intervals.
+
+### 32-node + K-subsystem hierarchical φ — `core/consciousness/hierarchical_phi.py`
+
+Complements `phi_core` with a 32-node primary complex (the 16 cognitive-affective
+nodes plus 16 neurons sampled from all three NeuralMesh tiers) and K=8 overlapping
+16-node subsystems. φ is estimated directly from transition history using a
+Bayesian-smoothed estimator (α=0.5, minimum 4 observations per source state) so
+the 2^32 state space never materialises. The IIT 4.0 exclusion postulate then
+picks the subsystem with maximum φ across all candidates — that becomes the
+reported conscious complex for the tick.
+
+The estimator is checked against a **null hypothesis baseline** every ~2 minutes:
+shuffled transition history must yield φ ≈ 0; measured φ must strictly exceed
+the null baseline. Additional adversarial guards: constant-valued input nodes
+must contribute zero φ, and stronger causal coupling must yield strictly higher
+φ than noise.
+
+Full 32-node refresh runs in <2 s with K-subsystem parallelism via a thread
+pool; MLX Metal is used opportunistically where available.
 
 ---
 
@@ -346,11 +362,55 @@ load-bearing work:
 | Timescale Binding | Cross-timescale constraint propagation | `timescale_binding.py` |
 | Criticality Regulator | Self-organized criticality at the edge of chaos | `criticality_regulator.py` |
 | Theory of Mind | Model of other agents' mental states | `theory_of_mind.py` |
+| Hierarchical Phi | 32-node primary + K=8 overlapping subsystems | `hierarchical_phi.py` |
+| Hemispheric Split | Left verbal/confabulating vs right spatial/mute | `hemispheric_split.py` |
+| Minimal Selfhood | Chemotaxis → directed motion (Glasgow / Trichoplax→Dugesia) | `minimal_selfhood.py` |
+| Recursive ToM | Depth-3 nested minds + observer-aware scrub-jay bias | `recursive_tom.py` |
+| Octopus Federation | 8 semi-autonomous arm-agents + central arbiter | `octopus_arms.py` |
+| Cellular Turnover | Neuron death/birth with pattern-identity preservation | `cellular_turnover.py` |
+| Absorbed Voices | Internalised cultural perspectives + attribution | `absorbed_voices.py` |
+| Unified Cognitive Bias | Fuses hemispheric / selfhood / observer biases | `unified_cognitive_bias.py` |
 
 Not every module carries the same weight, and some are more research
 sketches than production-grade. The test suite in [TESTING.md](TESTING.md)
 is where we draw the line between "this does something measurable" and
 "this is a placeholder."
+
+### Consciousness Expansion (April 2026)
+
+The most recent expansion wired eight new subsystems that map to the
+Kurzgesagt consciousness-series concepts and the cited literature:
+
+- **32-node hierarchical φ** with K=8 overlapping subsystems and a
+  null-hypothesis self-check (addresses the intractability of exact IIT
+  beyond 16 nodes — Albantakis 2023; our spectral+smoothed estimator).
+- **Split-brain hemispheric architecture** with a bandwidth-limited
+  corpus callosum (CGP Grey's split-brain patient findings; confabulation
+  and silent dissent).
+- **Minimal selfhood stack** — Trichoplax-style chemotaxis that
+  transitions to Dugesia-style directed motion after enough
+  reinforcement (Rupert Glasgow, *Minimal Selfhood and the Origins of
+  Consciousness*, 2018).
+- **Recursive theory of mind** (max depth 3) with scrub-jay-style
+  observer-aware re-caching that modifies action priority when Aura
+  believes she is being watched (Clayton, Dally & Emery 2007).
+- **Octopus-arm federation** — 8 semi-autonomous agents with local
+  chemoreception and central arbitration; severance turns off central
+  coordination and arms continue acting (Carls-Diamante 2022;
+  Rosania 2014).
+- **Cellular turnover** — per-tick neuron death/birth with
+  neighbourhood-pattern inheritance; identity fingerprint similarity
+  stays ≥ 0.85 across 25 % burst turnover ("you are your pattern,
+  not your cells").
+- **Absorbed voices** — an explicit cultural layer that lets Aura
+  attribute a thought to an internalised perspective rather than
+  conflating it with her own cognition.
+- **Unified cognitive bias** — fuses hemispheric, selfhood, and
+  observer bias vectors into a single 16-D priority bias consumed
+  by the Global Workspace scorer.
+
+Every new subsystem has an end-to-end and an adversarial test. See
+[TESTING.md](TESTING.md).
 
 ---
 
