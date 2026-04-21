@@ -490,33 +490,43 @@ class MLXLocalClient:
         except Exception as exc:
             logger.debug("Failed to record MLX degraded event: %s", exc)
 
-    def _stale_after(self, *, during_generation: bool = False) -> float:
+    def _stale_after(self, *, during_generation: bool = False,
+                     foreground_request: bool = False) -> float:
         """[STABILITY v51] Tightened from 30/60s to 20/40s for 32B.
-        Faster stall detection means faster recovery for user-facing requests."""
+        Foreground (user-facing) requests get an even tighter budget so the
+        chat UI never sees more than ~25s of silent stalling before the lock
+        releases and the fallback cascade kicks in."""
         lowered = os.path.basename(self.model_path).lower()
         if "72b" in lowered or "solver" in lowered:
+            if foreground_request and during_generation:
+                return 45.0
             return 90.0 if during_generation else 45.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
+            if foreground_request and during_generation:
+                return 22.0
             return 40.0 if during_generation else 20.0
         return 20.0 if during_generation else 15.0
 
-    def _first_token_sla(self) -> float:
+    def _first_token_sla(self, *, foreground_request: bool = False) -> float:
         lowered = os.path.basename(self.model_path).lower()
         if "72b" in lowered or "solver" in lowered:
-            return 30.0
+            return 20.0 if foreground_request else 30.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
             # 32B first-turn generation routinely needs more than 18s even after
             # warmup because prompt assembly, KV setup, and shader reuse can still
-            # spike on large user-facing turns.
-            return 35.0
+            # spike on large user-facing turns.  We keep 35s for background
+            # refills but cap foreground at 22s so the user-visible lock hold
+            # never exceeds what the chat UI tolerates before its WebSocket
+            # times out.
+            return 22.0 if foreground_request else 35.0
         return 8.0
 
-    def _token_stall_after(self) -> float:
+    def _token_stall_after(self, *, foreground_request: bool = False) -> float:
         lowered = os.path.basename(self.model_path).lower()
         if "72b" in lowered or "solver" in lowered:
-            return 25.0
+            return 18.0 if foreground_request else 25.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
-            return 24.0
+            return 14.0 if foreground_request else 24.0
         return 8.0
 
     def _warmup_timeout(self) -> float:
@@ -1245,9 +1255,11 @@ class MLXLocalClient:
         foreground_request: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Wait in short slices so dead workers fail fast instead of hanging the UI."""
-        stall_after = self._stale_after(during_generation=True)
-        first_token_sla = self._first_token_sla()
-        token_stall_after = self._token_stall_after()
+        stall_after = self._stale_after(
+            during_generation=True, foreground_request=foreground_request
+        )
+        first_token_sla = self._first_token_sla(foreground_request=foreground_request)
+        token_stall_after = self._token_stall_after(foreground_request=foreground_request)
         while True:
             remaining = deadline.remaining
             if remaining is not None and remaining <= 0.0:

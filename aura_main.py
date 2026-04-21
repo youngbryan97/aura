@@ -611,9 +611,25 @@ async def run_desktop(port: int):
                     stderr_output = await err_task
                     
                     if proc.returncode == 0:
-                        logger.info("🎨 GUI Process exited cleanly. Disabling auto-restart.")
-                        break
-                        
+                        # User closed the window cleanly — treat this as "quit
+                        # Aura", not "restart the GUI in the background".
+                        # Otherwise the orchestrator stays alive pinned to
+                        # MLX workers while the user believes they've quit,
+                        # which is how "multiple versions in the background"
+                        # happens.
+                        logger.info("🎨 GUI closed by user — initiating full shutdown.")
+                        try:
+                            supervisor._is_running = False
+                        except Exception:
+                            pass
+                        # Signal the main process so the outer event loop
+                        # cancels its pending tasks and runs shutdown hooks.
+                        try:
+                            os.kill(os.getpid(), signal.SIGTERM)
+                        except Exception:
+                            pass
+                        return
+
                     restart_count += 1
                     logger.critical(f"🛑 GUI Process crashed (code: {proc.returncode}). Reason:\n{stderr_output}")
                     logger.warning(f"🎨 Restarting GUI in 5s... (Attempt {restart_count}/{max_restarts})")
@@ -702,8 +718,86 @@ async def run_watchdog():
 # ---------------------------------------------------------------------------
 from core.utils.singleton import acquire_instance_lock, release_instance_lock
 
+def _reap_orphaned_aura_processes() -> int:
+    """Kill any stale Aura main processes owned by this user before taking the
+    singleton lock.
+
+    Why: the singleton lock file is cleared on clean exit, but if a previous
+    launch hard-crashed (SIGKILL, power cut, WebView hang that left the
+    supervisor orphaned) the orchestrator process can live on as a headless
+    background job consuming 3–6 GB of RAM and pinning MLX worker subprocesses.
+    Users then relaunch, see the new window, close it, and end up with two (or
+    three, or five) full Aura stacks running simultaneously — which is exactly
+    what the "multiple versions eating up resources" report describes.
+
+    We match processes conservatively: only Python interpreters whose argv
+    contains aura_main.py and whose PID is NOT ours or our parent's, and only
+    processes owned by the current user. TERM first, KILL after a short grace
+    window.
+    """
+    if sys.platform not in ("darwin", "linux"):
+        return 0
+    me = os.getpid()
+    parent = os.getppid()
+    killed = 0
+    try:
+        out = subprocess.check_output(
+            ["ps", "-axo", "pid=,user=,command="], text=True, timeout=5
+        )
+    except Exception:
+        return 0
+    current_user = os.environ.get("USER") or ""
+    stale_pids: list[int] = []
+    for line in out.splitlines():
+        parts = line.strip().split(None, 2)
+        if len(parts) < 3:
+            continue
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            continue
+        user = parts[1]
+        cmd = parts[2]
+        if pid in (me, parent):
+            continue
+        if current_user and user != current_user:
+            continue
+        if "aura_main.py" not in cmd:
+            continue
+        # Skip launcher/reaper children; we only want the top-level orchestrator.
+        if "gui_actor.py" in cmd or "reaper" in cmd.lower():
+            continue
+        stale_pids.append(pid)
+    for pid in stale_pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed += 1
+        except ProcessLookupError:
+            continue
+        except PermissionError:
+            continue
+    if stale_pids:
+        time.sleep(1.5)
+        for pid in stale_pids:
+            try:
+                os.kill(pid, 0)  # still alive?
+            except OSError:
+                continue
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+        logger.warning(
+            "🧹 Reaped %d orphaned Aura process(es) before boot: %s",
+            killed, stale_pids,
+        )
+    return killed
+
+
 def bootstrap_lock(skip_lock: bool = False):
     """Bridge to the shared singleton utility."""
+    # Clean up orphaned stacks from prior hard-crashes before grabbing the lock.
+    _reap_orphaned_aura_processes()
     acquire_instance_lock(lock_name="orchestrator", skip_lock=skip_lock)
 
 def stop_aura():
