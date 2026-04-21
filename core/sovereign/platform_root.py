@@ -19,9 +19,13 @@ try:
 except ImportError:
     psutil = None
 
-try:
-    import mlx.core as mx
-except ImportError:
+_METAL_ALLOWED, _METAL_REASON = inprocess_mlx_metal_enabled()
+if _METAL_ALLOWED:
+    try:
+        import mlx.core as mx
+    except ImportError:
+        mx = None
+else:
     mx = None
 
 logger = logging.getLogger("Aura.PlatformRoot")
@@ -52,7 +56,7 @@ class PlatformRoot:
         self._last_pulse = 0.0
         self.device_active = False
         self._pulse_interval = 15.0
-        self._metal_allowed, self._metal_reason = inprocess_mlx_metal_enabled()
+        self._metal_allowed, self._metal_reason = _METAL_ALLOWED, _METAL_REASON
         
         logger.info("🌿 [PLATFORM ROOT] Sovereign Root initialized. Building direct hardware connection...")
         self._connect_hardware()

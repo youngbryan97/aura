@@ -579,8 +579,24 @@ class InferenceGate:
                 if lane.get("conversation_ready") or lane.get("warmup_in_flight"):
                     return
                 if lane_state == "failed":
-                    logger.warning("⏸️ Deferred cortex prewarm cancelled: lane is in a failed state (%s).", lane.get("last_failure_reason") or "unknown")
-                    return
+                    if self._rearm_runtime_failed_lane(force_probe=False):
+                        lane = self.get_conversation_status()
+                        lane_state = str(lane.get("state", "") or "").lower()
+                    elif str(lane.get("last_failure_reason", "") or "").startswith(
+                        ("mlx_runtime_unavailable", "local_runtime_unavailable")
+                    ):
+                        logger.info(
+                            "⏸️ Deferred cortex prewarm postponing while runtime lane is still unavailable (%s).",
+                            lane.get("last_failure_reason") or "unknown",
+                        )
+                        next_delay = min(45.0, max(12.0, next_delay * 1.5))
+                        continue
+                    else:
+                        logger.warning(
+                            "⏸️ Deferred cortex prewarm cancelled: lane is in a failed state (%s).",
+                            lane.get("last_failure_reason") or "unknown",
+                        )
+                        return
                 if self._foreground_user_turn_active() or self._foreground_owner_active():
                     next_delay = min(20.0, max(6.0, next_delay))
                     continue
@@ -628,6 +644,32 @@ class InferenceGate:
         # [STABILITY v53] Log exceptions from background tasks
         self._deferred_prewarm_task.add_done_callback(self._log_task_exception)
 
+    def _rearm_runtime_failed_lane(self, *, force_probe: bool) -> bool:
+        client = self._mlx_client
+        if client is None or not hasattr(client, "refresh_runtime_availability"):
+            return False
+
+        lane = self.get_conversation_status()
+        lane_state = str(lane.get("state", "") or "").lower()
+        lane_reason = str(lane.get("last_failure_reason", "") or "")
+        if lane_state != "failed" or not lane_reason.startswith(
+            ("mlx_runtime_unavailable", "local_runtime_unavailable")
+        ):
+            return False
+
+        try:
+            rearmed = bool(client.refresh_runtime_availability(force_probe=force_probe))
+        except Exception as exc:
+            logger.debug("Failed to re-arm runtime-blocked Cortex lane: %s", exc)
+            return False
+
+        if rearmed:
+            logger.info(
+                "♻️ InferenceGate: re-armed the Cortex lane after transient runtime failure (%s).",
+                lane_reason,
+            )
+        return rearmed
+
     async def ensure_foreground_ready(self, timeout: Optional[float] = None) -> Dict[str, Any]:
         """Ensure the 32B conversation lane has actually attempted warmup for this turn."""
         timeout = max(15.0, float(timeout or 90.0))
@@ -637,7 +679,10 @@ class InferenceGate:
         lane_state = str(lane.get("state", "") or "").lower()
         lane_reason = str(lane.get("last_failure_reason", "") or "")
         if lane_state == "failed" and lane_reason.startswith(("mlx_runtime_unavailable", "local_runtime_unavailable")):
-            raise RuntimeError(lane_reason)
+            if self._rearm_runtime_failed_lane(force_probe=True):
+                lane = self.get_conversation_status()
+            else:
+                raise RuntimeError(lane_reason)
         if not self._mlx_client or not hasattr(self._mlx_client, "warmup"):
             raise RuntimeError("foreground_lane_unavailable")
 
@@ -721,7 +766,12 @@ class InferenceGate:
         lane_state = str(lane.get("state", "") or "").lower()
         lane_reason = str(lane.get("last_failure_reason", "") or "")
         if lane_state == "failed" and lane_reason.startswith(("mlx_runtime_unavailable", "local_runtime_unavailable")):
-            return
+            if self._rearm_runtime_failed_lane(force_probe=True):
+                lane = self.get_conversation_status()
+                lane_state = str(lane.get("state", "") or "").lower()
+                lane_reason = str(lane.get("last_failure_reason", "") or "")
+            else:
+                return
         if lane.get("warmup_in_flight"):
             return
         if self._foreground_user_turn_active() or self._foreground_owner_active():
@@ -2081,6 +2131,7 @@ class InferenceGate:
             context = {}
 
         origin = str(context.get("origin", "") or "").lower()
+        purpose = str(context.get("purpose", "") or "").lower()
         requested_tier = self._normalize_tier(context.get("prefer_tier"))
         explicit_background = "is_background" in context
         explicit_foreground = bool(context.get("foreground_request", False))
@@ -2091,6 +2142,8 @@ class InferenceGate:
         elif not is_background:
             if origin:
                 is_background = not self._origin_is_user_facing(origin)
+            elif purpose in {"reply", "expression", "chat", "conversation", "user_response"}:
+                is_background = False
             elif not explicit_background:
                 # Origin-less requests are internal by default. User-facing turns
                 # must carry an explicit origin such as api/user/voice.
@@ -2961,19 +3014,44 @@ class InferenceGate:
             logger.debug("Suppressed Exception in world model feedback: %s", _exc)
 
     async def think(self, prompt: str, system_prompt: str = "", **kwargs) -> Optional[str]:
-        """Unified thinking interface for cognitive components."""
-        context = {
-            "brief": system_prompt,
-        }
+        """Unified thinking interface for cognitive components.
+
+        Preserve standard LLM adapter semantics:
+        - explicit ``messages`` stay as passthrough chat messages
+        - ``system_prompt`` is treated as a real system prompt by default
+        - callers that truly mean "brief" can pass ``brief=...`` or
+          ``system_prompt_is_brief=True``
+        """
         timeout = kwargs.pop("timeout", None)
+        brief = kwargs.pop("brief", None)
+        system_prompt_is_brief = bool(kwargs.pop("system_prompt_is_brief", False))
+        provided_messages = kwargs.get("messages")
+
+        context: Dict[str, Any] = {}
+        if provided_messages is not None:
+            context["messages"] = provided_messages
+        elif brief is not None:
+            context["brief"] = brief
+        elif system_prompt and not system_prompt_is_brief:
+            context["messages"] = [
+                {"role": "system", "content": str(system_prompt)},
+                {"role": "user", "content": str(prompt or "")},
+            ]
+        else:
+            context["brief"] = system_prompt
+
         for key in (
             "history",
             "messages",
             "max_tokens",
+            "temperature",
+            "temp",
+            "schema",
             "deep_handoff",
             "allow_cloud_fallback",
             "prefer_tier",
             "origin",
+            "purpose",
             "is_background",
             "foreground_request",
         ):

@@ -38,14 +38,16 @@ class _LaneWarmupClient:
     def __init__(self):
         self.warmup = AsyncMock(side_effect=self._finish_warmup)
         self.state = "cold"
+        self.last_error = ""
 
     async def _finish_warmup(self):
         self.state = "ready"
+        self.last_error = ""
 
     def get_lane_status(self):
         return {
             "state": self.state,
-            "last_error": "",
+            "last_error": self.last_error,
             "conversation_ready": self.state == "ready",
             "warmup_attempted": self.state != "cold",
             "warmup_in_flight": False,
@@ -54,9 +56,25 @@ class _LaneWarmupClient:
 
     def note_lane_recovering(self, reason):
         self.state = "recovering"
+        self.last_error = str(reason or "")
 
     def note_lane_failed(self, reason):
         self.state = "failed"
+        self.last_error = str(reason or "")
+
+
+class _RecoverableFailedLaneClient(_LaneWarmupClient):
+    def __init__(self):
+        super().__init__()
+        self.state = "failed"
+        self.last_error = "mlx_runtime_unavailable:metal_device_enumeration_crash"
+        self.refresh_runtime_availability = MagicMock(side_effect=self._refresh)
+        self.is_alive = MagicMock(return_value=False)
+
+    def _refresh(self, *, force_probe=False):
+        self.state = "cold"
+        self.last_error = ""
+        return True
 
 
 @pytest.mark.asyncio
@@ -476,6 +494,60 @@ async def test_ensure_foreground_ready_warms_cold_lane_once():
 
 
 @pytest.mark.asyncio
+async def test_ensure_foreground_ready_rearms_runtime_failed_lane_before_warmup():
+    gate = InferenceGate()
+    client = _RecoverableFailedLaneClient()
+    gate._mlx_client = client
+
+    lane = await gate.ensure_foreground_ready(timeout=10.0)
+
+    client.refresh_runtime_availability.assert_called_once_with(force_probe=True)
+    client.warmup.assert_awaited_once()
+    assert lane["conversation_ready"] is True
+    assert lane["state"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_think_wraps_system_prompt_as_passthrough_messages():
+    gate = InferenceGate()
+    gate.generate = AsyncMock(return_value="ok")
+
+    result = await gate.think(
+        "Hello there",
+        system_prompt="Stay direct.",
+        origin="user",
+        max_tokens=42,
+    )
+
+    assert result == "ok"
+    gate.generate.assert_awaited_once()
+    context = gate.generate.await_args.kwargs["context"]
+    assert context["messages"] == [
+        {"role": "system", "content": "Stay direct."},
+        {"role": "user", "content": "Hello there"},
+    ]
+    assert context["origin"] == "user"
+    assert context["max_tokens"] == 42
+
+
+@pytest.mark.asyncio
+async def test_think_allows_explicit_brief_mode():
+    gate = InferenceGate()
+    gate.generate = AsyncMock(return_value="ok")
+
+    await gate.think(
+        "Hello there",
+        system_prompt="legacy brief",
+        system_prompt_is_brief=True,
+        origin="user",
+    )
+
+    context = gate.generate.await_args.kwargs["context"]
+    assert context["brief"] == "legacy brief"
+    assert "messages" not in context
+
+
+@pytest.mark.asyncio
 async def test_think_forwards_explicit_timeout_to_generate():
     gate = InferenceGate()
     gate.generate = AsyncMock(return_value="hello")
@@ -491,6 +563,25 @@ async def test_think_forwards_explicit_timeout_to_generate():
     assert result == "hello"
     gate.generate.assert_awaited_once()
     assert gate.generate.await_args.kwargs["timeout"] == 67.0
+
+
+@pytest.mark.asyncio
+async def test_think_forwards_purpose_for_originless_expression_calls():
+    gate = InferenceGate()
+    gate.generate = AsyncMock(return_value="hello")
+
+    await gate.think(
+        "Hello there",
+        system_prompt="Speak as Aura.",
+        purpose="expression",
+    )
+
+    context = gate.generate.await_args.kwargs["context"]
+    assert context["purpose"] == "expression"
+    assert context["messages"] == [
+        {"role": "system", "content": "Speak as Aura."},
+        {"role": "user", "content": "Hello there"},
+    ]
 
 
 @pytest.mark.asyncio

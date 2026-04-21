@@ -73,6 +73,18 @@ def test_response_contract_does_not_force_search_for_social_checkin_with_today()
     assert contract.requires_state_reflection is True
 
 
+def test_response_contract_does_not_search_for_casual_reddit_reference():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "No, I just mean it shouldn't take you that long to ponder a Reddit story, right?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_search is False
+
+
 def test_response_contract_requires_search_for_grounded_followup_with_recent_browser_evidence():
     state = AuraState.default()
     state.response_modifiers["last_skill_run"] = "sovereign_browser"
@@ -91,6 +103,7 @@ def test_response_contract_requires_search_for_grounded_followup_with_recent_bro
     )
 
     assert contract.requires_search is True
+    assert contract.tool_evidence_available is True
     assert "grounded_followup" in contract.reason
 
 
@@ -209,6 +222,66 @@ def test_response_contract_detects_recent_tool_evidence():
     )
 
     assert has_tool_evidence(state) is True
+
+
+def test_response_contract_detects_modifier_tool_evidence():
+    state = AuraState.default()
+    state.response_modifiers["last_skill_run"] = "web_search"
+    state.response_modifiers["last_skill_ok"] = True
+    state.response_modifiers["last_skill_result_payload"] = {
+        "ok": True,
+        "answer": "Grounded answer",
+    }
+
+    assert has_tool_evidence(state) is True
+
+
+def test_response_contract_requires_biographical_grounding_for_origin_questions():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "When were you born?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_memory_grounding is True
+    assert contract.requires_biographical_grounding is True
+    assert contract.requires_aura_stance is True
+    assert contract.memory_evidence_available is False
+
+
+def test_dialogue_policy_rejects_unsupported_biographical_claim():
+    state = AuraState.default()
+    contract = build_response_contract(
+        state,
+        "When were you born?",
+        is_user_facing=True,
+    )
+
+    validation = validate_dialogue_response(
+        "I was initialized as a cognitive entity on February 25, 2024.",
+        contract,
+    )
+
+    assert validation.ok is False
+    assert "unsupported_biographical_claim" in validation.violations
+
+
+def test_dialogue_policy_allows_honest_biographical_uncertainty():
+    state = AuraState.default()
+    contract = build_response_contract(
+        state,
+        "How long have you been around?",
+        is_user_facing=True,
+    )
+
+    validation = validate_dialogue_response(
+        "I don't have grounded memory evidence for a start date yet.",
+        contract,
+    )
+
+    assert validation.ok is True
 
 
 def test_response_contract_prompt_block_includes_runtime_facts_and_tool_budget():

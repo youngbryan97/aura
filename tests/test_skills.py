@@ -209,7 +209,43 @@ async def test_web_search_skill_initializes_and_accepts_input():
     assert result["ok"] is False
     assert "error" in result
 
-    # Valid query format should be accepted (actual search depends on network)
+    async def _fake_search(query, **kwargs):
+        return {"ok": True, "query": query, "answer": "stubbed", "summary": "stubbed"}
+
+    skill.pipeline.search = _fake_search  # type: ignore[method-assign]
+
+    # Valid query format should be accepted without touching the live network
     result = await skill.execute({"query": "test query", "num_results": 1}, {})
-    # Should either succeed or fail gracefully — never crash
-    assert "ok" in result
+    assert result["ok"] is True
+    assert result["query"] == "test query"
+
+
+@pytest.mark.asyncio
+async def test_web_search_skill_uses_cognitive_engine_for_deep_research(monkeypatch):
+    from core.skills.web_search import EnhancedWebSearchSkill
+
+    engine_calls = []
+
+    class _Engine:
+        async def generate(self, prompt, **kwargs):
+            engine_calls.append({"prompt": prompt, "kwargs": dict(kwargs)})
+            return "deep research draft"
+
+    async def _fake_run_deep_research(question, brain, search_fn, max_loops=3, on_phase=None):
+        generated = await brain.generate("expand query")
+        assert generated == {"response": "deep research draft"}
+        return {"answer": f"researched: {question}", "sources": []}
+
+    monkeypatch.setattr(
+        "core.skills.web_search.ServiceContainer.get",
+        staticmethod(lambda name, default=None: _Engine() if name == "cognitive_engine" else default),
+    )
+    monkeypatch.setattr("core.skills.web_search.run_deep_research", _fake_run_deep_research)
+
+    skill = EnhancedWebSearchSkill()
+    result = await skill.execute({"query": "history of basalt", "deep": True}, {})
+
+    assert result["answer"] == "researched: history of basalt"
+    assert result["summary"] == "researched: history of basalt"
+    assert engine_calls
+    assert engine_calls[0]["kwargs"]["purpose"] == "research"

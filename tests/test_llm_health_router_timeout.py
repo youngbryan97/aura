@@ -34,6 +34,38 @@ class _PromptOnlyClient:
         return "ready"
 
 
+class _EmptyClient:
+    async def think(self, prompt: str, system_prompt: str = "", **kwargs):
+        return ""
+
+
+class _DualGenerateClient:
+    def __init__(self):
+        self.calls = []
+
+    async def generate(self, prompt: str, system_prompt: str = "", **kwargs):
+        self.calls.append(
+            {
+                "method": "generate",
+                "prompt": prompt,
+                "system_prompt": system_prompt,
+                "messages": kwargs.get("messages"),
+            }
+        )
+        return "wrong-path"
+
+    async def generate_text_async(self, prompt: str, system_prompt: str = "", **kwargs):
+        self.calls.append(
+            {
+                "method": "generate_text_async",
+                "prompt": prompt,
+                "system_prompt": system_prompt,
+                "messages": kwargs.get("messages"),
+            }
+        )
+        return "right-path"
+
+
 @pytest.mark.asyncio
 async def test_direct_client_think_receives_timeout_budget():
     router = HealthAwareLLMRouter()
@@ -88,6 +120,87 @@ async def test_public_think_serializes_full_messages_for_clients_without_kwargs(
     assert "I remember that thread." in client.calls[0]["prompt"]
     assert "Search the web for the song" in client.calls[0]["prompt"]
     assert client.calls[0]["system_prompt"] == "Speak as Aura."
+
+
+@pytest.mark.asyncio
+async def test_call_endpoint_prefers_generate_text_async_over_generate_for_dual_clients():
+    router = HealthAwareLLMRouter()
+    client = _DualGenerateClient()
+    endpoint = EndpointHealth(
+        name="Cortex",
+        url="internal",
+        model="local-test",
+        is_local=True,
+        tier="local",
+        client=client,
+    )
+
+    result = await router._call_endpoint(
+        endpoint,
+        "Reply cleanly.",
+        "Speak as Aura.",
+        timeout=30.0,
+        messages=[
+            {"role": "system", "content": "Speak as Aura."},
+            {"role": "user", "content": "Reply cleanly."},
+        ],
+    )
+
+    assert result["ok"] is True
+    assert result["text"] == "right-path"
+    assert [call["method"] for call in client.calls] == ["generate_text_async"]
+    assert client.calls[0]["messages"][-1]["content"] == "Reply cleanly."
+
+
+@pytest.mark.asyncio
+async def test_router_think_failsofts_when_client_returns_no_text():
+    router = HealthAwareLLMRouter()
+    router.register(
+        name="Gemini-Fast",
+        url="cloud",
+        model="gemini-test",
+        is_local=False,
+        tier="api_fast",
+        client=_EmptyClient(),
+    )
+
+    result = await router.think(
+        prompt="With me?",
+        origin="user",
+        prefer_tier="api_fast",
+    )
+
+    assert result == "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
+
+
+@pytest.mark.asyncio
+async def test_router_recovers_to_cloud_when_foreground_local_lane_returns_no_text():
+    router = HealthAwareLLMRouter()
+    cloud = _TimeoutRecordingClient()
+    router.register(
+        name="Cortex",
+        url="internal",
+        model="local-test",
+        is_local=True,
+        tier="local",
+        client=_EmptyClient(),
+    )
+    router.register(
+        name="Gemini-Fast",
+        url="cloud",
+        model="gemini-test",
+        is_local=False,
+        tier="api_fast",
+        client=cloud,
+    )
+
+    result = await router.think(
+        prompt="With me?",
+        origin="user",
+    )
+
+    assert result == "ready"
+    assert cloud.calls
 
 
 def test_missing_origin_defaults_to_background_when_purpose_is_not_user_facing():
@@ -235,6 +348,47 @@ async def test_router_surfaces_hard_local_lane_failure_without_calling_client():
 
     assert result["ok"] is False
     assert result["error"] == "local_runtime_unavailable:server_unreachable"
+    assert client.calls == 0
+
+
+class _FailedInferenceGateClient:
+    def __init__(self):
+        self.calls = 0
+
+    def get_conversation_status(self):
+        return {
+            "state": "failed",
+            "last_failure_reason": "mlx_runtime_unavailable:metal_device_enumeration_crash",
+            "conversation_ready": False,
+        }
+
+    async def think(self, prompt: str, system_prompt: str = "", **kwargs):
+        self.calls += 1
+        return None
+
+
+@pytest.mark.asyncio
+async def test_router_reads_failed_inference_gate_lane_without_calling_client():
+    router = HealthAwareLLMRouter()
+    client = _FailedInferenceGateClient()
+    endpoint = EndpointHealth(
+        name="Cortex",
+        url="internal",
+        model="test",
+        is_local=True,
+        tier="local",
+        client=client,
+    )
+
+    result = await router._call_endpoint(
+        endpoint,
+        "With me?",
+        "Be helpful",
+        timeout=10.0,
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "mlx_runtime_unavailable:metal_device_enumeration_crash"
     assert client.calls == 0
 
 

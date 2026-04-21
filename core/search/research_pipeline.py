@@ -5,7 +5,9 @@ import hashlib
 import html
 import json
 import logging
+import os
 import re
+import sys
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -130,6 +132,22 @@ _NOISY_RESULT_HOST_TERMS = (
     "duckduckgo.com",
     "googleadservices.com",
 )
+
+
+def _ddgs_enabled() -> bool:
+    """Gate the native DDGS/primp lane behind an explicit opt-in on macOS.
+
+    We have observed hard SIGABRT crashes inside primp on macOS 26.x. The
+    legacy HTML search is less capable, but it fails gracefully instead of
+    taking down the whole interpreter. Operators can opt back in explicitly
+    once that upstream stack is stable again.
+    """
+    flag = os.getenv("AURA_ENABLE_UNSAFE_DDGS", "").strip().lower()
+    if flag in {"1", "true", "yes", "on"}:
+        return True
+    if sys.platform == "darwin":
+        return False
+    return True
 
 
 def _normalize_text(text: str, *, limit: int = 0) -> str:
@@ -553,10 +571,14 @@ class ResearchSearchPipeline:
     async def _search_candidates(self, queries: Iterable[str], *, num_results: int) -> list[SearchHit]:
         aggregated: dict[str, SearchHit] = {}
         ordered: list[SearchHit] = []
+        use_ddgs = _ddgs_enabled()
 
         for query in queries:
-            ddgs_hits = await asyncio.to_thread(self._ddgs_search, query, num_results)
-            hits = ddgs_hits or await asyncio.to_thread(self._legacy_html_search, query, num_results)
+            if use_ddgs:
+                ddgs_hits = await asyncio.to_thread(self._ddgs_search, query, num_results)
+                hits = ddgs_hits or await asyncio.to_thread(self._legacy_html_search, query, num_results)
+            else:
+                hits = await asyncio.to_thread(self._legacy_html_search, query, num_results)
             for hit in hits:
                 normalized_url = hit.url.rstrip("/")
                 if not normalized_url or normalized_url in aggregated:
@@ -568,6 +590,9 @@ class ResearchSearchPipeline:
         return ordered
 
     def _ddgs_search(self, query: str, num_results: int) -> list[SearchHit]:
+        if not _ddgs_enabled():
+            return []
+
         ddgs_cls = None
         try:
             from ddgs import DDGS as ddgs_cls  # type: ignore[assignment]

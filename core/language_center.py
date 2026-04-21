@@ -122,6 +122,8 @@ class LanguageCenter:
         thought: ThoughtPacket,
         user_input: str,
         history: Optional[List[Dict[str, str]]] = None,
+        *,
+        origin: str = "user",
     ) -> str:
         """
         v24 Hardening: Express a ThoughtPacket as natural language with fail-soft.
@@ -137,11 +139,22 @@ class LanguageCenter:
             history = history or []
             start = time.monotonic()
 
-            # Build the full prompt
+            # Build the full prompt for compatibility/debugging, but prefer
+            # structured chat messages for the actual dispatch. The local
+            # MLX lane is more reliable when it receives a clean message list
+            # instead of a pre-flattened prompt that gets wrapped again
+            # downstream by the InferenceGate adapter.
             prompt = self._build_prompt(thought, user_input, history)
 
             # Route to appropriate model
-            response = await self._dispatch(prompt, thought)
+            response = await self._dispatch_with_messages(
+                thought,
+                user_input,
+                history,
+                origin=origin,
+            )
+            if not response:
+                response = await self._dispatch(prompt, thought, origin=origin)
             
             # Harden: Ensure response is a string before regex processing
             response = str(response)
@@ -185,6 +198,8 @@ class LanguageCenter:
         thought: ThoughtPacket,
         user_input: str,
         history: Optional[List[Dict[str, str]]] = None,
+        *,
+        origin: str = "user",
     ) -> AsyncGenerator[str, None]:
         """Streaming variant for WebSocket / SSE endpoints."""
         if self._fallback_mode:
@@ -194,7 +209,7 @@ class LanguageCenter:
         history = history or []
         prompt = self._build_prompt(thought, user_input, history)
 
-        async for chunk in self._dispatch_stream(prompt, thought):
+        async for chunk in self._dispatch_stream(prompt, thought, origin=origin):
             yield chunk
 
     # ─── Prompt construction ─────────────────────────────────────────────────
@@ -230,6 +245,32 @@ class LanguageCenter:
 
         return "\n".join(parts)
 
+    def _build_messages(
+        self,
+        thought: ThoughtPacket,
+        user_input: str,
+        history: List[Dict],
+    ) -> List[Dict[str, str]]:
+        """Build structured chat messages for the router/local runtimes."""
+        messages: List[Dict[str, str]] = []
+        system_content = thought.llm_briefing or thought.to_system_prompt()
+        if system_content:
+            messages.append({"role": "system", "content": str(system_content)})
+
+        for entry in history[-10:]:
+            if not isinstance(entry, dict):
+                continue
+            role = str(entry.get("role", "") or "").strip().lower()
+            if role not in {"user", "assistant"}:
+                continue
+            content = str(entry.get("content", "") or "").strip()
+            if not content:
+                continue
+            messages.append({"role": role, "content": content[:200]})
+
+        messages.append({"role": "user", "content": str(user_input or "")})
+        return messages
+
     def _format_history(self, history: List[Dict], budget_chars: int = 1200) -> str:
         """Format recent history within a character budget."""
         lines = []
@@ -247,7 +288,7 @@ class LanguageCenter:
 
     # ─── Dispatch ────────────────────────────────────────────────────────────
 
-    async def _dispatch(self, prompt: str, thought: ThoughtPacket) -> str:
+    async def _dispatch(self, prompt: str, thought: ThoughtPacket, *, origin: str = "user") -> str:
         """Route to the right model tier via unified router."""
         if not self._router:
             return ""
@@ -262,14 +303,48 @@ class LanguageCenter:
                 prefer_tier=tier,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                purpose="expression"
+                purpose="expression",
+                origin=origin,
+                is_background=origin not in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"},
+            )
+        except Exception as e:
+            logger.error("LanguageCenter router dispatch failed: %s", e)
+            return ""
+
+    async def _dispatch_with_messages(
+        self,
+        thought: ThoughtPacket,
+        user_input: str,
+        history: List[Dict],
+        *,
+        origin: str = "user",
+    ) -> str:
+        """Route the expression turn as structured chat messages."""
+        if not self._router:
+            return ""
+
+        tier = thought.model_tier
+        temperature = self._select_temperature(thought)
+        max_tokens = self._select_max_tokens(thought)
+        messages = self._build_messages(thought, user_input, history)
+
+        try:
+            return await self._router.generate(
+                user_input,
+                messages=messages,
+                prefer_tier=tier,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                purpose="expression",
+                origin=origin,
+                is_background=origin not in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"},
             )
         except Exception as e:
             logger.error("LanguageCenter router dispatch failed: %s", e)
             return ""
 
     async def _dispatch_stream(
-        self, prompt: str, thought: ThoughtPacket
+        self, prompt: str, thought: ThoughtPacket, *, origin: str = "user"
     ) -> AsyncGenerator[str, None]:
         """Streaming dispatch via unified router."""
         if not self._router:
@@ -281,7 +356,9 @@ class LanguageCenter:
                 prefer_tier=thought.model_tier,
                 temperature=self._select_temperature(thought),
                 max_tokens=self._select_max_tokens(thought),
-                purpose="expression"
+                purpose="expression",
+                origin=origin,
+                is_background=origin not in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"},
             ):
                 if hasattr(event, "content"):
                     yield event.content

@@ -115,6 +115,16 @@ def configure_inprocess_mlx_runtime(
         ):
             return dict(_INPROCESS_MLX_STATE)
 
+        if not enabled:
+            _INPROCESS_MLX_STATE.update(
+                {
+                    "configured": True,
+                    "device": "cpu",
+                    "reason": reason,
+                }
+            )
+            return dict(_INPROCESS_MLX_STATE)
+
         try:
             import mlx.core as mx
         except Exception:
@@ -127,22 +137,11 @@ def configure_inprocess_mlx_runtime(
             )
             return dict(_INPROCESS_MLX_STATE)
 
-        if enabled:
+        try:
             _INPROCESS_MLX_STATE.update(
                 {
                     "configured": True,
                     "device": "metal",
-                    "reason": reason,
-                }
-            )
-            return dict(_INPROCESS_MLX_STATE)
-
-        try:
-            mx.set_default_device(mx.cpu())
-            _INPROCESS_MLX_STATE.update(
-                {
-                    "configured": True,
-                    "device": "cpu",
                     "reason": reason,
                 }
             )

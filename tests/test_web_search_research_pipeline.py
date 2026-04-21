@@ -126,6 +126,39 @@ async def test_search_pipeline_retains_successful_search(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_search_pipeline_skips_ddgs_when_runtime_disables_it(tmp_path: Path, monkeypatch):
+    store = SearchArtifactStore(tmp_path / "web_artifacts.jsonl")
+    pipeline = ResearchSearchPipeline(store)
+    calls = {"ddgs": 0, "legacy": 0}
+
+    def _unexpected_ddgs(*args, **kwargs):
+        calls["ddgs"] += 1
+        return []
+
+    def _fake_legacy(query, num_results):
+        calls["legacy"] += 1
+        return [
+            SearchHit(
+                title="Example",
+                url="https://example.com/result",
+                snippet="Fallback result",
+                source_engine="test",
+                position=1,
+            )
+        ]
+
+    monkeypatch.setattr("core.search.research_pipeline._ddgs_enabled", lambda: False)
+    monkeypatch.setattr(pipeline, "_ddgs_search", _unexpected_ddgs)
+    monkeypatch.setattr(pipeline, "_legacy_html_search", _fake_legacy)
+
+    hits = await pipeline._search_candidates(["fallback query"], num_results=1)
+
+    assert calls["ddgs"] == 0
+    assert calls["legacy"] == 1
+    assert hits[0].url == "https://example.com/result"
+
+
+@pytest.mark.asyncio
 async def test_research_cycle_integrates_findings_into_semantic_memory(monkeypatch):
     kg_entries = []
     semantic_entries = []

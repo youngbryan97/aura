@@ -48,6 +48,19 @@ _MLX_RUNTIME_PROBE: Dict[str, Any] = {
 _MLX_RUNTIME_PROBE_CACHE_PATH = Path.home() / ".aura" / "data" / "mlx_runtime_probe.json"
 SharedFuture = Union[asyncio.Future, cfutures.Future]
 
+
+def _probe_cache_ttl_seconds(ok: Optional[bool], *, disk: bool) -> float:
+    """Keep positive probe results sticky, but let failures expire quickly.
+
+    A transient probe failure should not strand the embedded runtime in a
+    "dead" state for many minutes after the host is healthy again.
+    """
+    if ok is None:
+        return 0.0
+    if ok:
+        return 900.0 if disk else 300.0
+    return 30.0 if disk else 10.0
+
 def _safe_close_queue(q: Optional[mp.Queue]) -> None:
     """Close an mp.Queue to release its shared-memory file descriptor."""
     if q is None:
@@ -306,11 +319,18 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
         cached_ok = _MLX_RUNTIME_PROBE.get("ok")
         cached_at = float(_MLX_RUNTIME_PROBE.get("checked_at", 0.0) or 0.0)
         cached_detail = str(_MLX_RUNTIME_PROBE.get("detail", "") or "")
-        if not force and cached_ok is not None and (now - cached_at) < 300.0:
+        if (
+            not force
+            and cached_ok is not None
+            and (now - cached_at) < _probe_cache_ttl_seconds(cached_ok, disk=False)
+        ):
             return bool(cached_ok), cached_detail
         if not force:
             disk_ok, disk_detail, disk_checked_at = _load_probe_cache_from_disk()
-            if disk_ok is not None and (now - disk_checked_at) < 900.0:
+            if (
+                disk_ok is not None
+                and (now - disk_checked_at) < _probe_cache_ttl_seconds(disk_ok, disk=True)
+            ):
                 _MLX_RUNTIME_PROBE.update(
                     {
                         "ok": disk_ok,
@@ -651,6 +671,42 @@ class MLXLocalClient:
     def note_lane_recovering(self, reason: str) -> None:
         self._warmup_in_flight = False
         self._set_lane_state("recovering", reason)
+
+    def _lane_runtime_failure(self) -> str:
+        error = str(getattr(self, "_lane_error", "") or "")
+        if error.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:")):
+            return error
+        return ""
+
+    def refresh_runtime_availability(self, *, force_probe: bool = False) -> bool:
+        """Clear stale runtime-failure poison when the host probe is healthy again.
+
+        A transient MLX runtime failure should not strand the lane in a failed
+        state or an exponential spawn backoff once the runtime is healthy again.
+        """
+        runtime_error = self._lane_runtime_failure()
+        if not runtime_error and time.time() >= float(getattr(self, "_spawn_backoff_until", 0.0) or 0.0):
+            return False
+
+        ok, detail = _probe_mlx_runtime(force=force_probe)
+        if not ok:
+            self._mark_runtime_unavailable(detail)
+            return False
+
+        recovered = bool(runtime_error) or float(getattr(self, "_spawn_backoff_until", 0.0) or 0.0) > 0.0
+        if recovered:
+            logger.info(
+                "♻️ [MLX] Runtime probe recovered for %s. Clearing failed lane/backoff state.",
+                os.path.basename(self.model_path),
+            )
+        self._consecutive_spawn_failures = 0
+        self._spawn_backoff_until = 0.0
+        self._warmup_in_flight = False
+        if self._lane_state == "failed" or runtime_error:
+            self._set_lane_state("cold")
+        else:
+            self._lane_error = ""
+        return recovered
 
     def _request_lock_timeout(
         self,
@@ -1196,7 +1252,8 @@ class MLXLocalClient:
                 _spawn_fails = getattr(self, "_consecutive_spawn_failures", 0)
                 _spawn_backoff_until = getattr(self, "_spawn_backoff_until", 0.0)
                 if time.time() < _spawn_backoff_until:
-                    return False  # Still in backoff window
+                    if not self.refresh_runtime_availability(force_probe=True):
+                        return False  # Still in backoff window
 
                 self._drain_queue()
 
@@ -1585,7 +1642,9 @@ class MLXLocalClient:
             self._release_request_lock()
             # Reboot AFTER releasing _request_lock to avoid lock-ordering deadlock
             if _deferred_reboot:
-                await self.reboot_worker(reason=_deferred_reboot, mark_failed=True)
+                recoverable = str(_deferred_reboot).startswith("recoverable_")
+                reboot_reason = str(_deferred_reboot).removeprefix("recoverable_")
+                await self.reboot_worker(reason=reboot_reason, mark_failed=not recoverable)
 
     async def _generate_inner(
         self,
@@ -1732,9 +1791,12 @@ class MLXLocalClient:
                             owner_label=owner_label,
                             **inline_kwargs,
                         )
+                    if foreground_request:
+                        self._deferred_reboot_reason = "recoverable_empty_generation"
                     if foreground_request and self._is_primary_or_deep_lane() and empty_count >= 3:
                         self._set_lane_state("recovering", "repeated_empty_generation")
                     return None
+                self._consecutive_empty = 0
                 self._set_lane_state("ready")
                 self._consecutive_empty = 0  # Reset on successful generation
                 # Record user-facing completions so the cross-client yield

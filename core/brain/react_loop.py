@@ -346,18 +346,23 @@ class ActionExecutor:
         except Exception as e:
             logger.debug(f"ReAct: Sovereign browser search failed: {e}")
 
-        # Fallback Pipeline 2: Deep Crawler (Native Scrape without APIs)
+        # Fallback Pipeline 2: Deep Crawler (legacy HTML search + scrape)
         try:
-            logger.info("Executing Fallback 2: Deep Crawler (GoogleSearch + BeautifulSoup) for '%s'", query)
+            logger.info("Executing Fallback 2: Deep Crawler (legacy HTML search + BeautifulSoup) for '%s'", query)
             
             def _deep_crawl():
-                from ddgs import DDGS
                 import httpx
                 from bs4 import BeautifulSoup
+                from core.search.research_pipeline import ResearchSearchPipeline
                 
                 try:
-                    # Fetch top 2 results
-                    results = list(DDGS().text(query, max_results=2))
+                    # DDGS/primp has hard-aborted the interpreter on macOS, so
+                    # keep the resilient fallback on the legacy HTML lane.
+                    pipeline = ResearchSearchPipeline()
+                    results = [
+                        {"href": hit.url, "title": hit.title, "body": hit.snippet}
+                        for hit in pipeline._legacy_html_search(query, 2)
+                    ]
                 except Exception as sc_err:
                     return Observation(content=f"Search index completely blocked: {sc_err}", success=False)
                 

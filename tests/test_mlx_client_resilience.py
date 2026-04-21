@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import queue
 import threading
+import time
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -233,13 +234,17 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         client._pending_generations[req_id] = future
         client._current_request_id = req_id
         client._current_request_started_at = 100.0
+        deadline = get_deadline(None)
 
         with patch("core.brain.llm.mlx_client.asyncio.wait_for", side_effect=asyncio.TimeoutError):
-            with patch("core.brain.llm.mlx_client.time.time", return_value=100.0 + client._first_token_sla() + 1.0):
+            with patch(
+                "core.brain.llm.mlx_client.time.time",
+                return_value=100.0 + client._first_token_sla(foreground_request=True) + 1.0,
+            ):
                 result = await client._wait_for_generation_result(
                     req_id,
                     future,
-                    get_deadline(30.0),
+                    deadline,
                     foreground_request=True,
                 )
 
@@ -286,6 +291,44 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(client.get_lane_status()["state"], "ready")
+
+    async def test_foreground_empty_generation_marks_recoverable_reboot(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client._process = MagicMock()
+        client._process.is_alive.return_value = True
+        client._init_done = True
+        client._set_lane_state("ready")
+
+        with patch.object(client, "_ensure_worker_alive", new=AsyncMock(return_value=True)):
+            with patch.object(
+                client,
+                "_wait_for_generation_result",
+                new=AsyncMock(return_value={"status": "ok", "text": ""}),
+            ):
+                result = await client._generate_inner(
+                    "hello",
+                    _retry=False,
+                    foreground_request=True,
+                    owner_label="test",
+                    deadline=get_deadline(30.0),
+                )
+
+        self.assertIsNone(result)
+        self.assertEqual(client._deferred_reboot_reason, "recoverable_empty_generation")
+
+    async def test_generate_reboots_recoverable_empty_generation_without_failed_lane(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+
+        async def _empty_then_request_reboot(*args, **kwargs):
+            client._deferred_reboot_reason = "recoverable_empty_generation"
+            return None
+
+        with patch.object(client, "_generate_inner", new=AsyncMock(side_effect=_empty_then_request_reboot)):
+            with patch.object(client, "reboot_worker", new=AsyncMock()) as reboot_mock:
+                result = await client.generate("hello", foreground_request=True, owner_label="test")
+
+        self.assertIsNone(result)
+        reboot_mock.assert_awaited_once_with(reason="empty_generation", mark_failed=False)
 
     async def test_supervision_status_reports_recycle_candidate(self):
         client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
@@ -385,3 +428,84 @@ class TestMLXRuntimeProbeFailure(unittest.IsolatedAsyncioTestCase):
             client.get_lane_status()["last_error"],
             "mlx_runtime_unavailable:metal_device_enumeration_crash",
         )
+
+    async def test_runtime_probe_recovery_clears_failed_lane_and_backoff(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client.note_lane_failed("mlx_runtime_unavailable:metal_device_enumeration_crash")
+        client._spawn_backoff_until = time.time() + 120.0
+        client._consecutive_spawn_failures = 3
+
+        proc = MagicMock()
+        proc.is_alive.return_value = True
+
+        async def _spawn():
+            client._init_future.set_result({"status": "ok", "action": "init"})
+            return proc
+
+        with patch("core.brain.llm.mlx_client._probe_mlx_runtime", return_value=(True, "mlx_runtime_ok")):
+            with patch.object(client, "_spawn_worker", side_effect=_spawn) as spawn_mock:
+                alive = await client._ensure_worker_alive()
+
+        self.assertTrue(alive)
+        spawn_mock.assert_awaited_once()
+        self.assertEqual(client.get_lane_status()["state"], "ready")
+        self.assertEqual(client.get_lane_status()["last_error"], "")
+        self.assertEqual(client._consecutive_spawn_failures, 0)
+        self.assertEqual(client._spawn_backoff_until, 0.0)
+
+
+def test_probe_reuses_fresh_positive_disk_cache(monkeypatch):
+    import core.brain.llm.mlx_client as mlx_module
+
+    monkeypatch.setattr(mlx_module.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(mlx_module, "_load_probe_cache_from_disk", lambda: (True, "mlx_runtime_ok", 950.0))
+    monkeypatch.setattr(
+        mlx_module.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("probe should not run")),
+    )
+    monkeypatch.setattr(
+        mlx_module,
+        "_MLX_RUNTIME_PROBE",
+        {"ok": None, "detail": "", "checked_at": 0.0},
+    )
+
+    ok, detail = mlx_module._probe_mlx_runtime(force=False)
+
+    assert ok is True
+    assert detail == "mlx_runtime_ok"
+
+
+def test_probe_does_not_trust_stale_negative_disk_cache(monkeypatch):
+    import core.brain.llm.mlx_client as mlx_module
+
+    class _Completed:
+        returncode = 0
+        stdout = "mlx_runtime_ok\n"
+        stderr = ""
+
+    calls = []
+
+    monkeypatch.setattr(mlx_module.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(
+        mlx_module,
+        "_load_probe_cache_from_disk",
+        lambda: (False, "metal_device_enumeration_crash", 900.0),
+    )
+    monkeypatch.setattr(
+        mlx_module.subprocess,
+        "run",
+        lambda *args, **kwargs: calls.append((args, kwargs)) or _Completed(),
+    )
+    monkeypatch.setattr(
+        mlx_module,
+        "_MLX_RUNTIME_PROBE",
+        {"ok": None, "detail": "", "checked_at": 0.0},
+    )
+    monkeypatch.setattr(mlx_module, "_store_probe_cache_to_disk", lambda ok, detail: None)
+
+    ok, detail = mlx_module._probe_mlx_runtime(force=False)
+
+    assert ok is True
+    assert detail == "mlx_runtime_ok"
+    assert calls

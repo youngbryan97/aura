@@ -35,21 +35,26 @@ logger = logging.getLogger("Consciousness.NeuralMesh")
 # Falls back to numpy einsum if MLX is not installed.
 _MLX_ACCELERATOR = "numpy"
 _MLX_ACCELERATOR_REASON = "mlx_unavailable"
-try:
-    import mlx.core as mx
-    _HAS_MLX = True
-    _MLX_METAL_ENABLED, _MLX_ACCELERATOR_REASON = inprocess_mlx_metal_enabled()
-    if _MLX_METAL_ENABLED:
+_MLX_METAL_ENABLED, _MLX_ACCELERATOR_REASON = inprocess_mlx_metal_enabled()
+if _MLX_METAL_ENABLED:
+    try:
+        import mlx.core as mx
+        _HAS_MLX = True
         _MLX_ACCELERATOR = "metal"
         logger.info("NeuralMesh: MLX Metal enabled for batched matmuls.")
-    else:
-        logger.info(
-            "NeuralMesh: MLX Metal disabled (%s); using NumPy fallback.",
-            _MLX_ACCELERATOR_REASON,
-        )
-except ImportError:
+    except ImportError:
+        _HAS_MLX = False
+        _MLX_METAL_ENABLED = False
+        _MLX_ACCELERATOR_REASON = "mlx_unavailable"
+        mx = None
+        logger.info("NeuralMesh: MLX unavailable; using NumPy fallback.")
+else:
     _HAS_MLX = False
-    _MLX_METAL_ENABLED = False
+    mx = None
+    logger.info(
+        "NeuralMesh: MLX Metal disabled (%s); using NumPy fallback.",
+        _MLX_ACCELERATOR_REASON,
+    )
 
 # ---------------------------------------------------------------------------
 # Config & enums

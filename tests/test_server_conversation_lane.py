@@ -248,6 +248,53 @@ async def test_api_chat_returns_hard_local_failure_without_kernel_fallback(monke
 
 
 @pytest.mark.asyncio
+async def test_stabilize_user_facing_reply_blocks_ungrounded_search_turn_fallback(monkeypatch):
+    from interface.routes import chat as chat_routes
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.response_modifiers["last_skill_run"] = "web_search"
+    state.response_modifiers["last_skill_ok"] = True
+    state.response_modifiers["last_skill_result_payload"] = {
+        "ok": True,
+        "answer": "The text is about a lab accident.",
+        "source": "https://example.com/story",
+        "content": "The text is about a lab accident.",
+    }
+
+    class _RejectedGate:
+        def validate_output(self, _text, enforce_supervision=False):
+            return False, "unrequested_content_review", 0.0
+
+        def sanitize(self, _text):
+            return ""
+
+    monkeypatch.setattr(chat_routes, "_resolve_live_aura_state", lambda: state)
+    monkeypatch.setattr(chat_routes, "_build_grounded_introspection_reply", lambda _msg: "")
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping", lambda text: str(text))
+    monkeypatch.setattr(chat_routes, "_looks_generic_assistantish", lambda _msg, _text: (False, ""))
+    monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "core.identity.identity_guard.PersonaEnforcementGate",
+        lambda: _RejectedGate(),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "So what happens?",
+        "The alien took me through a gate. I was inside the story.",
+    )
+
+    assert "stick to the source instead of guessing" in result
+
+
+@pytest.mark.asyncio
 async def test_api_chat_returns_structured_timeout_when_kernel_times_out(monkeypatch):
     from interface import server as server_module
 

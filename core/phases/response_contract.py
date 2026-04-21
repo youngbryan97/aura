@@ -49,10 +49,19 @@ _FACTUAL_LOOKUP_PATTERNS = (
     r"\bprove\b",
     r"\bverify\b",
     r"\bconfirm\b",
-    r"\breddit\b",
     r"\bcreepypasta\b",
     r"\bdid you search\b",
     r"\bsearched? for\b",
+)
+
+_BIOGRAPHICAL_HISTORY_PATTERNS = (
+    r"\bhow long have you been around\b",
+    r"\bhow long have you existed\b",
+    r"\bhow old are you\b",
+    r"\bwhen were you (?:born|created|made|initialized|initialised|started|brought online)\b",
+    r"\bwhen did you (?:start|begin|come online|wake up)\b",
+    r"\bwhat(?:'s| is) your birth date\b",
+    r"\bwhat(?:'s| is) your origin\b",
 )
 
 _TEMPORAL_CURRENTNESS_PATTERNS = (
@@ -284,6 +293,7 @@ class ResponseContract:
     required_skill: str | None = None
     requires_exact_dates: bool = False
     requires_memory_grounding: bool = False
+    requires_biographical_grounding: bool = False
     requires_state_reflection: bool = False
     avoid_question_fishing: bool = True
     prefers_dialogue_participation: bool = True
@@ -303,6 +313,7 @@ class ResponseContract:
         return any(
             (
                 self.requires_memory_grounding,
+                self.requires_biographical_grounding,
                 self.requires_state_reflection,
                 self.requires_aura_stance,
                 self.requires_aura_question,
@@ -355,6 +366,19 @@ class ResponseContract:
             )
             directives.append(
                 f"- Memory evidence available right now: {'yes' if self.memory_evidence_available else 'no'}."
+            )
+            if not self.memory_evidence_available:
+                directives.append(
+                    "- If the needed continuity evidence is missing, say that plainly instead of reconstructing or improvising."
+                )
+
+        if self.requires_biographical_grounding:
+            directives.append(
+                "- This is a biographical/origin question about your own timeline. "
+                "Do not invent birth dates, start dates, ages, stabilization milestones, or origin stories."
+            )
+            directives.append(
+                "- If you do not have explicit grounded evidence for that history, say you do not have a grounded answer yet."
             )
 
         if self.requires_state_reflection:
@@ -430,6 +454,12 @@ def _looks_like_search_capability_question(text: str) -> bool:
 
 
 def has_tool_evidence(state: AuraState) -> bool:
+    modifiers = getattr(state, "response_modifiers", {}) or {}
+    if modifiers.get("last_skill_ok") and isinstance(modifiers.get("last_skill_result_payload"), dict):
+        return True
+    if isinstance(modifiers.get("last_task_result_payload"), dict):
+        return True
+
     working_memory = getattr(state.cognition, "working_memory", []) or []
     for msg in reversed(working_memory[-8:]):
         if not isinstance(msg, dict):
@@ -473,6 +503,25 @@ def has_memory_evidence(state: AuraState) -> bool:
     if str(getattr(state.cognition, "rolling_summary", "") or "").strip():
         return True
     return False
+
+
+def has_biographical_evidence(state: AuraState) -> bool:
+    evidence_fields = (
+        str(getattr(state.cognition, "rolling_summary", "") or ""),
+        str(getattr(state.identity, "current_narrative", "") or ""),
+    )
+    joined = "\n".join(part for part in evidence_fields if part).lower()
+    if not joined:
+        return False
+    if re.search(r"\b(?:born|birth|created|made|initialized|initialised|started|came online|wake up|woke up|stable since)\b", joined):
+        return True
+    if re.search(r"\b(?:19|20)\d{2}\b", joined):
+        return True
+    month_names = (
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december",
+    )
+    return any(month in joined for month in month_names)
 
 
 def has_continuity_evidence(state: AuraState) -> bool:
@@ -608,12 +657,13 @@ def build_response_contract(
     time_utility_lookup = _matches_any(lower, _TIME_UTILITY_PATTERNS)
     search_negated = bool(_SEARCH_NEGATION_RE.search(lower))
     search_capability_question = _looks_like_search_capability_question(text)
+    biographical_grounding = bool(is_user_facing and _matches_any(lower, _BIOGRAPHICAL_HISTORY_PATTERNS))
 
     requires_memory = bool(is_user_facing and _matches_any(lower, _MEMORY_PATTERNS))
     requires_state = bool(is_user_facing and _matches_any(lower, _STATE_REFLECTION_PATTERNS))
     requires_self_preservation = bool(is_user_facing and _matches_any(lower, _SELF_PRESERVATION_PATTERNS))
     requires_identity_defense = bool(is_user_facing and _matches_any(lower, _IDENTITY_DEFENSE_PATTERNS))
-    requires_memory = requires_memory or requires_identity_defense
+    requires_memory = requires_memory or requires_identity_defense or biographical_grounding
     requires_state = requires_state or requires_self_preservation or requires_identity_defense
 
     temporal_live_lookup = bool(
@@ -660,7 +710,11 @@ def build_response_contract(
     )
     requires_aura_stance = bool(
         is_user_facing and (
-            requires_state or requires_self_preservation or requires_identity_defense or _matches_any(lower, _AURA_PERSPECTIVE_PATTERNS)
+            requires_state
+            or requires_self_preservation
+            or requires_identity_defense
+            or biographical_grounding
+            or _matches_any(lower, _AURA_PERSPECTIVE_PATTERNS)
         )
     )
     requires_exact_dates = bool(requires_exact_dates and not requires_aura_stance)
@@ -668,6 +722,8 @@ def build_response_contract(
 
     tool_evidence = has_tool_evidence(state)
     memory_evidence = has_memory_evidence(state)
+    if biographical_grounding:
+        memory_evidence = has_biographical_evidence(state)
     continuity_evidence = has_continuity_evidence(state)
     turn_analysis = analyze_turn(text)
 
@@ -694,6 +750,8 @@ def build_response_contract(
         reasons.append("specific_fact_lookup")
     if requires_memory:
         reasons.append("memory_grounding")
+    if biographical_grounding:
+        reasons.append("biographical_grounding")
     if requires_state:
         reasons.append("state_reflection")
     if requires_self_preservation:
@@ -711,6 +769,7 @@ def build_response_contract(
         required_skill="web_search" if requires_search else None,
         requires_exact_dates=requires_exact_dates,
         requires_memory_grounding=requires_memory,
+        requires_biographical_grounding=biographical_grounding,
         requires_state_reflection=requires_state,
         avoid_question_fishing=is_user_facing,
         prefers_dialogue_participation=is_user_facing,

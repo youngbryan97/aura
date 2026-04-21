@@ -435,7 +435,7 @@ async def run_console():
     logger.info("🛡️ Registry Locked. Aura Ready (CLI).")
 
     from core.main import conversation_loop
-    await conversation_loop()
+    await conversation_loop(orchestrator=orchestrator)
 
 async def run_server_async(host: str, port: int):
     """API Server Mode (Unified Loop)"""

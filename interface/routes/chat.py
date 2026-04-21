@@ -1253,6 +1253,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
         "free_energy": None,
         "dominant_action": "",
         "contract_block": "",
+        "contract": None,
         "needs_self_expression": False,
     }
 
@@ -1262,6 +1263,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
             from core.phases.response_contract import build_response_contract
 
             contract = build_response_contract(state, user_message, is_user_facing=True)
+            frame["contract"] = contract
             frame["contract_block"] = contract.to_prompt_block().strip()
             frame["needs_self_expression"] = bool(contract.requires_live_aura_voice())
     except Exception as exc:
@@ -1807,8 +1809,25 @@ def _has_unexpected_cjk(user_message: str, reply_text: Any) -> bool:
     return True
 
 
+def _looks_safely_grounded_search_reply(reply_text: Any) -> bool:
+    lowered = str(reply_text or "").strip().lower()
+    if not lowered:
+        return False
+    grounding_markers = (
+        "i searched it live",
+        "i read it live",
+        "i checked it live",
+        "according to",
+        "source:",
+        "http://",
+        "https://",
+    )
+    return any(marker in lowered for marker in grounding_markers)
+
+
 async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> str:
     frame = _build_aura_expression_frame(user_message)
+    contract = frame.get("contract")
     architecture_self_assessment = _is_architecture_self_assessment_request(user_message)
     text = _apply_aura_voice_shaping(str(reply_text or "").strip() or "…")
     grounded = _build_grounded_introspection_reply(user_message)
@@ -1983,10 +2002,13 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     # BUT detect when the same stale response is being served repeatedly
     # (e.g. cortex stuck, cached identity prompt producing identical output),
     # AND filter out any internal state that leaked through.
+    search_turn = bool(getattr(contract, "requires_search", False))
     if text and len(text.strip()) > 5 and text.strip() != "…" and not unexpected_cjk:
         # Block responses that contain internal state dumps
         if _INTERNAL_STATE_PATTERNS.search(text):
             logger.warning("Blocked internal state leak in LLM response (len=%d).", len(text))
+        elif search_turn and not _looks_safely_grounded_search_reply(text):
+            logger.warning("Blocked ungrounded search-turn fallback (len=%d).", len(text))
         elif not _is_stale_repeated_response(text):
             _record_recent_response(text, user_message)
             return text
@@ -1995,6 +2017,10 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 "Suppressed stale repeated response (len=%d). Falling through to voice reflex.",
                 len(text),
             )
+    if search_turn:
+        safe = "I don't have a clean grounded answer on that yet. I need to stick to the source instead of guessing."
+        _record_recent_response(safe, user_message)
+        return safe
     if grounded:
         return grounded
     if architecture_self_assessment:

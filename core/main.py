@@ -34,25 +34,28 @@ MAX_BACKOFF_SECONDS = 30.0
 CIRCUIT_BREAKER_COOLDOWN = 30.0
 
 
-async def conversation_loop():
+async def conversation_loop(orchestrator: RobustOrchestrator | None = None):
     logger.info(">>> AURA ONLINE (Sovereign AGI Mode) <<<")
     logger.info(">>> Type 'exit' to enter REM sleep  <<<")
 
-    # 0. Global Registration
-    from core.service_registration import register_all_services
-    register_all_services()
-
-    # 1. Initialize Orchestrator via Factory (Standardized)
-    from .orchestrator import create_orchestrator
-    orchestrator = create_orchestrator()
-    if orchestrator is None:
-        logger.critical("Failed to create orchestrator. Exiting.")
-        return
-
-    # Start and run in background so cycles process (Metabolism, etc.)
     from core.utils.task_tracker import fire_and_track
-    await orchestrator.start()
-    fire_and_track(orchestrator.run(), name="OrchestratorMainLoop")
+    if orchestrator is None:
+        # 0. Global Registration
+        from core.service_registration import register_all_services
+        register_all_services()
+
+        # 1. Initialize Orchestrator via Factory (Standardized)
+        from .orchestrator import create_orchestrator
+        orchestrator = create_orchestrator()
+        if orchestrator is None:
+            logger.critical("Failed to create orchestrator. Exiting.")
+            return
+
+        await orchestrator.start()
+
+    if not getattr(orchestrator, "_conversation_loop_heartbeat_started", False):
+        fire_and_track(orchestrator.run(), name="OrchestratorMainLoop")
+        setattr(orchestrator, "_conversation_loop_heartbeat_started", True)
 
     consecutive_failures = 0
     backoff = INITIAL_BACKOFF_SECONDS

@@ -249,19 +249,74 @@ def _background_error_is_quiet(error: str) -> bool:
 
 
 def _local_client_failure_reason(client: Any) -> str:
-    try:
-        if not hasattr(client, "get_lane_status"):
-            return ""
-        lane = client.get_lane_status()
+    def _extract_lane_failure(candidate: Any) -> str:
+        lane = None
+        if hasattr(candidate, "get_lane_status"):
+            lane = candidate.get_lane_status()
+        elif hasattr(candidate, "get_conversation_status"):
+            lane = candidate.get_conversation_status()
+
         if not isinstance(lane, dict):
             return ""
+
         state = str(lane.get("state", "") or "").strip().lower()
-        error = str(lane.get("last_error", "") or lane.get("last_failure_reason", "") or "")
+        error = str(
+            lane.get("last_error", "")
+            or lane.get("last_failure_reason", "")
+            or ""
+        )
         if state == "failed":
             return error or "lane_failed"
+
+        conversation_ready = bool(lane.get("conversation_ready", False))
+        if (
+            not conversation_ready
+            and state in {"recovering", "spawning", "handshaking", "warming"}
+            and error.startswith(
+                (
+                    "mlx_runtime_unavailable:",
+                    "mlx_runtime_probe_failed:",
+                    "local_runtime_unavailable:",
+                    "prewarm_failed:",
+                    "foreground_warmup_failed",
+                )
+            )
+        ):
+            return error
+        return ""
+
+    try:
+        seen: set[int] = set()
+        candidate = client
+        while candidate is not None and id(candidate) not in seen:
+            seen.add(id(candidate))
+            failure = _extract_lane_failure(candidate)
+            if failure:
+                return failure
+
+            next_candidate = None
+            for attr in ("_client", "_mlx_client"):
+                nested = getattr(candidate, attr, None)
+                if nested is not None:
+                    next_candidate = nested
+                    break
+            candidate = next_candidate
     except Exception as exc:
         logger.debug("Local client lane inspection failed: %s", exc)
     return ""
+
+
+def _supports_foreground_cloud_recovery(error: str) -> bool:
+    normalized = str(error or "").strip().lower()
+    return normalized == "client_returned_no_text" or normalized.startswith(
+        (
+            "mlx_runtime_unavailable:",
+            "mlx_runtime_probe_failed:",
+            "local_runtime_unavailable:",
+            "prewarm_failed:",
+            "lane_failed",
+        )
+    )
 
 
 # ── Main Router ───────────────────────────────────────────────────────────────
@@ -424,6 +479,8 @@ class HealthAwareLLMRouter:
                 "⚠️ [LLM ROUTER] All endpoints exhausted. Last error: %s (endpoint: %s)",
                 error, endpoint
             )
+            if str(error or "").strip() == "client_returned_no_text":
+                return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
             # v10.5 HARDENING: Return a diagnostic label so StructuredLLM can report it accurately
             # instead of a silent empty string.
             return f"ROUTER_ERROR: {error} (at {endpoint})"
@@ -561,7 +618,11 @@ class HealthAwareLLMRouter:
             if text is None:
                 return None
             stripped = text.strip()
-            return stripped if stripped else None
+            if stripped:
+                return stripped
+            if isinstance(result, dict) and str(result.get("error", "") or "").strip() == "client_returned_no_text":
+                return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
+            return None
         except Exception as exc:
             logger.warning("[LLMRouter.think] Failed: %s", exc)
             return None
@@ -1212,6 +1273,16 @@ class HealthAwareLLMRouter:
             allow_cloud_fallback = True
         if prefer_endpoint in {"Gemini-Fast", "Gemini-Pro", "Gemini-Thinking"}:
             allow_cloud_fallback = True
+        if (
+            not is_bg
+            and not allow_cloud_fallback
+            and any(
+                ep.is_local and _supports_foreground_cloud_recovery(_local_client_failure_reason(ep.client))
+                for ep in available
+            )
+        ):
+            allow_cloud_fallback = True
+            logger.warning("Router: enabling cloud fallback because the local foreground lane is unavailable.")
 
         if is_bg:
             if prefer_tier in ("primary", "secondary"):
@@ -1350,6 +1421,7 @@ class HealthAwareLLMRouter:
                 }
 
         last_error = "unknown"
+        cloud_recovery_injected = False
         for ep in available:
             # Guard: background tasks must NEVER use the primary conversation lane.
             if is_bg and ep.name == PRIMARY_ENDPOINT:
@@ -1397,6 +1469,26 @@ class HealthAwareLLMRouter:
                         self.last_background_error = last_error
                     else:
                         self.last_user_error = last_error
+                    if (
+                        not is_bg
+                        and ep.is_local
+                        and not cloud_recovery_injected
+                        and _supports_foreground_cloud_recovery(last_error)
+                    ):
+                        cloud_recovery_injected = True
+                        recovery_names = self._fallback_endpoint_names(
+                            prefer_tier or "primary",
+                            True,
+                            is_background=False,
+                        )
+                        for name in recovery_names:
+                            recovery_ep = self.endpoints.get(name)
+                            if recovery_ep is not None and recovery_ep not in available:
+                                available.append(recovery_ep)
+                        logger.warning(
+                            "Router: local foreground lane failed (%s). Expanding to cloud recovery endpoints.",
+                            last_error,
+                        )
                     if is_bg and _background_error_is_quiet(last_error):
                         logger.debug("Endpoint %s background validation skipped: %s", ep.name, last_error)
                     else:
@@ -1509,17 +1601,20 @@ class HealthAwareLLMRouter:
                             client_failure = meta.get("error")
                             ep.record_failure(client_failure)
                             return {"ok": False, "error": client_failure}
+                    elif hasattr(client, "generate_text_async"):
+                        # Prefer the higher-level async text adapter when both are
+                        # available. Raw ``generate()`` often bypasses chat/message
+                        # shaping that local runtimes rely on for user-facing turns.
+                        raw_text = await client.generate_text_async(
+                            final_prompt,
+                            system_prompt=system_prompt,
+                            **_call_kwargs(client.generate_text_async),
+                        )
                     elif hasattr(client, "generate"):
                         raw_text = await client.generate(
                             final_prompt,
                             system_prompt=system_prompt,
                             **_call_kwargs(client.generate),
-                        )
-                    elif hasattr(client, "generate_text_async"):
-                        raw_text = await client.generate_text_async(
-                            final_prompt,
-                            system_prompt=system_prompt,
-                            **_call_kwargs(client.generate_text_async),
                         )
                     elif hasattr(client, "generate_text"):
                         raw_text = await asyncio.to_thread(

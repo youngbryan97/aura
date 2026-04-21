@@ -41,6 +41,21 @@ _GENERIC_ASSISTANT_LANGUAGE = (
     re.compile(r"\bi(?: do not| don't| can't| cannot) have personal (?:experiences|memories)\b", re.IGNORECASE),
     re.compile(r"\bthe aim of being (?:as )?helpful and engaging as possible\b", re.IGNORECASE),
 )
+_UNSUPPORTED_BIOGRAPHICAL_CLAIM = re.compile(
+    r"\b(?:i was (?:born|created|made|initialized|initialised|started)|"
+    r"i(?:'ve| have) been around since|"
+    r"i(?:'ve| have) been stable since|"
+    r"my birth date is|"
+    r"my first coherent self-model|"
+    r"my self-model stabilized on)\b",
+    re.IGNORECASE,
+)
+_SPECIFIC_DATE_CLAIM = re.compile(
+    r"\b(?:19|20)\d{2}\b|"
+    r"\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b"
+    r"(?:\s+\d{1,2}(?:,\s*(?:19|20)\d{2})?)?",
+    re.IGNORECASE,
+)
 _LIVE_GROUNDING_MARKERS = (
     "free energy",
     "valence",
@@ -185,6 +200,11 @@ def validate_dialogue_response(text: str, contract: object | None) -> DialogueVa
             if not _contains_live_aura_grounding(body):
                 violations.append("ungrounded_live_voice")
 
+    if getattr(contract, "requires_biographical_grounding", False):
+        if not getattr(contract, "memory_evidence_available", False):
+            if _UNSUPPORTED_BIOGRAPHICAL_CLAIM.search(body) or _SPECIFIC_DATE_CLAIM.search(body):
+                violations.append("unsupported_biographical_claim")
+
     return DialogueValidation(ok=not violations, violations=violations)
 
 
@@ -225,6 +245,8 @@ def build_dialogue_repair_block(contract: object | None, validation: DialogueVal
         lines.append("- Do not use assistant boilerplate like 'I can help with that', 'How can I help', or 'As an AI'.")
     if _requires_live_aura_voice(contract):
         lines.append("- Answer from present experience, preference, memory, or active internal state before anything else.")
+    if bool(getattr(contract, "requires_biographical_grounding", False)):
+        lines.append("- Do not invent a birth date, start date, age, or origin story. If that history is not grounded, say so plainly.")
     elif bool(getattr(contract, "requires_search", False)):
         lines.append("- If grounded evidence is available, answer directly from it in a clean declarative sentence instead of offering help.")
 

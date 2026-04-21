@@ -7,12 +7,34 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
+from core.container import ServiceContainer
 from core.search import ResearchSearchPipeline
 from core.search.research_pipeline import query_requires_source_reading
 from core.skills.base_skill import BaseSkill
 from core.skills.deep_research import run_deep_research
 
 logger = logging.getLogger("Skills.WebSearch")
+
+
+class _DeepResearchBrainAdapter:
+    """Compat adapter for deep_research's ``brain.generate() -> {'response': ...}`` contract."""
+
+    def __init__(self, engine: Any):
+        self.engine = engine
+
+    async def generate(self, prompt: str, **kwargs) -> Dict[str, str]:
+        raw = await self.engine.generate(
+            prompt,
+            origin="system",
+            purpose="research",
+            use_strategies=False,
+            is_background=True,
+        )
+        if isinstance(raw, dict):
+            text = raw.get("response") or raw.get("content") or raw.get("result") or ""
+        else:
+            text = str(raw or "")
+        return {"response": str(text or "")}
 
 
 class WebSearchInput(BaseModel):
@@ -82,8 +104,13 @@ class EnhancedWebSearchSkill(BaseSkill):
         if deep and not source_reading:
             # v2.0: Deep Research LangGraph Pipeline implementation
             try:
-                from core.conversation_loop import get_brain
-                brain = get_brain()
+                engine = (
+                    ServiceContainer.get("cognitive_engine", default=None)
+                    or ServiceContainer.get("brain", default=None)
+                )
+                if engine is None:
+                    raise RuntimeError("No cognitive engine available for deep research")
+                brain = _DeepResearchBrainAdapter(engine)
                 
                 # Adapting existing Search pipeline format to standard search_fn format
                 async def _search_fn(q: str):

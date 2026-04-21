@@ -469,7 +469,7 @@ class CognitiveIntegrationLayer:
             
             # 4. Express (internally)
             if self.language_center:
-                return await self.language_center.express(packet, spark)
+                return await self.language_center.express(packet, spark, origin="autonomous")
             
             return brief.stance
         except Exception as e:
