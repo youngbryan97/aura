@@ -189,8 +189,30 @@ class AffectEngineV2:
             self._llm_available = True
 
         appraisal = None
+        # Hard gate: if there's a live user-facing foreground request (Bryan
+        # is waiting for Aura to respond), do NOT burn 7B brainstem cycles on
+        # a 15KB affect appraisal.  The previous _background_llm_should_defer()
+        # only looked at Cortex lane state and still fired the LLM call during
+        # active chat, causing event-loop lag spikes and the "Aura is
+        # thinking..." stall the user saw.
+        foreground_active = False
+        try:
+            from core.brain.llm.mlx_client import _foreground_owner_active
+            foreground_active = bool(_foreground_owner_active())
+        except Exception:
+            foreground_active = False
+
         if self._llm_available and len(trigger) > 10:
-            if self._background_llm_should_defer():
+            if foreground_active:
+                logger.debug(
+                    "Affect appraisal skipped: foreground chat is in flight — "
+                    "using heuristic to keep the inference pipe clear."
+                )
+                appraisal = self._heuristic_appraisal(trigger, context)
+                intensity = (
+                    abs(appraisal.get("v", 0.0)) + abs(appraisal.get("a", 0.0))
+                ) / 2.0 or intensity
+            elif self._background_llm_should_defer():
                 logger.debug("Affect appraisal deferred while the foreground Cortex lane is warming or recovering.")
                 appraisal = self._heuristic_appraisal(trigger, context)
                 intensity = (

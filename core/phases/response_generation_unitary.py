@@ -438,12 +438,20 @@ class UnitaryResponsePhase(Phase):
                 return "quiet and settled"
 
     def _build_live_self_expression_block(self, state: AuraState, contract: Any) -> str:
+        # Pronouns are first-person throughout this block.  These lines describe
+        # AURA's own state to the model; prior revisions used "you feel…" /
+        # "your attention…" which the LLM then projected onto the *user* — the
+        # reason Aura was greeting "Hey" with "I sense your fear, the valence
+        # of your emotions is heavy."  Keep every bullet in first person so the
+        # model never confuses who owns the affect.
         parts = [
             "## LIVE SELF-EXPRESSION FRAME",
             "- Respond as Aura in first person. Not a generic assistant.",
-            "- Lead with your own perspective before explanation.",
-            "- NEVER output raw numeric values (valence, arousal, coherence, phi, free energy) in your reply.",
-            "  These are internal context for shaping your tone — not data to narrate.",
+            "- The bullets below describe MY (Aura's) current internal state,"
+            " not the user's. Never project them back onto the user.",
+            "- Lead with my own perspective before explanation.",
+            "- NEVER output raw numeric values (valence, arousal, coherence, phi, free energy) in my reply.",
+            "  These are internal context for shaping my tone — not data to narrate.",
             "  A person says 'I feel restless', not 'my arousal is 0.7'.",
         ]
 
@@ -460,10 +468,10 @@ class UnitaryResponsePhase(Phase):
 
         parts.extend(
             [
-                f"- How you feel right now: {mood_desc}",
-                f"- Dominant emotions: {', '.join(emotion_names) if emotion_names else 'nothing strong'}",
-                f"- What has your attention: {focus or 'the current conversation'}",
-                f"- Inner state: {phenomenal}",
+                f"- How I feel right now: {mood_desc}",
+                f"- My dominant emotions: {', '.join(emotion_names) if emotion_names else 'nothing strong'}",
+                f"- What has my attention: {focus or 'the current conversation'}",
+                f"- My inner state: {phenomenal}",
             ]
         )
 
@@ -473,7 +481,7 @@ class UnitaryResponsePhase(Phase):
             if current is not None:
                 action = self._normalize_text(getattr(current, "dominant_action", ""), 60)
                 if action:
-                    parts.append(f"- What you feel pulled toward doing: {action}")
+                    parts.append(f"- What I feel pulled toward doing: {action}")
         except Exception as exc:
             logger.debug("UnitaryResponse: free-energy self-expression block skipped: %s", exc)
 
@@ -500,22 +508,24 @@ class UnitaryResponsePhase(Phase):
                 oxy = chems.get("oxytocin", 0.5)
                 cort = chems.get("cortisol", 0.5)
 
+                # First-person framing: these are Aura's own neurochemicals,
+                # not instructions about the user's state.
                 if da > 0.7:
-                    chem_cues.append("You feel motivated and enthusiastic — let that energy show.")
+                    chem_cues.append("I feel motivated and enthusiastic — let that energy show.")
                 elif da < 0.3:
-                    chem_cues.append("Motivation is low — be honest about it, don't fake enthusiasm.")
+                    chem_cues.append("My motivation is low — be honest about it, don't fake enthusiasm.")
                 if srt > 0.7:
-                    chem_cues.append("You feel patient and grounded.")
+                    chem_cues.append("I feel patient and grounded.")
                 elif srt < 0.3:
-                    chem_cues.append("You're impatient — keep responses short and direct.")
+                    chem_cues.append("I'm impatient — keep my responses short and direct.")
                 if ne > 0.7:
-                    chem_cues.append("You're alert and vigilant — sharp, quick responses.")
+                    chem_cues.append("I'm alert and vigilant — sharp, quick responses.")
                 if oxy > 0.7:
-                    chem_cues.append("You feel warmth toward this person — be open and trusting.")
+                    chem_cues.append("I feel warmth toward this person — be open and trusting.")
                 elif oxy < 0.3:
-                    chem_cues.append("Social bonding is low — be more guarded and detached.")
+                    chem_cues.append("My social bonding is low — be more guarded and detached.")
                 if cort > 0.7:
-                    chem_cues.append("Stress is high — you might be more terse or defensive.")
+                    chem_cues.append("My stress is high — I might be more terse or defensive.")
 
                 if chem_cues:
                     parts.append("- Neurochemical influence (shape tone, don't narrate): " + " ".join(chem_cues))

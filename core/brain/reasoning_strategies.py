@@ -122,7 +122,16 @@ class ReasoningStrategies:
             or query_lower.startswith("you are **aura luna**")
             or query_lower.startswith("you are aura luna")
         )
-        marker_hits = sum(1 for marker in cls._INSTRUCTIONAL_MARKERS if marker in query_lower)
+        # Marker scan only applies to prompts that actually look like an
+        # assembled system scaffold (long + multi-section).  Short casual
+        # chat turns like "I'm just confused what you were trying to convey"
+        # were previously getting flagged as instructional whenever two of
+        # the generic markers ("hard rules:", "conversational depth:") leaked
+        # into a retrieved memory snippet, which routed user chat to DIRECT
+        # and stripped the conversational reasoning path.
+        marker_hits = 0
+        if len(query_lower) >= 400 and query_lower.count("\n") >= 3:
+            marker_hits = sum(1 for marker in cls._INSTRUCTIONAL_MARKERS if marker in query_lower)
         return prefix_matches or marker_hits >= 2
 
     def classify(self, query: str) -> StrategyType:
