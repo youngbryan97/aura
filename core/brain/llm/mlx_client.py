@@ -1645,6 +1645,34 @@ class MLXLocalClient:
                     # not a single occurrence
                     empty_count = getattr(self, "_consecutive_empty", 0) + 1
                     self._consecutive_empty = empty_count
+                    # Inline one-shot retry for user-facing requests.  The
+                    # worker self-clears its prompt cache after a zero-token
+                    # generation, so an immediate second attempt on the same
+                    # lock usually succeeds — and that beats letting the
+                    # InferenceGate 30-second cascade fire.  Gate on _retry so
+                    # we never loop, and only trigger for foreground to avoid
+                    # burning background budget on speculative retries.
+                    if (
+                        _retry
+                        and foreground_request
+                        and empty_count < 3
+                        and (deadline.remaining is None or deadline.remaining > 5.0)
+                    ):
+                        logger.info(
+                            "🔁 [MLX] Empty foreground generation — "
+                            "inline retry after worker cache reset (%d/2).",
+                            empty_count,
+                        )
+                        inline_kwargs = dict(kwargs)
+                        inline_kwargs["deadline"] = deadline
+                        return await self._generate_inner(
+                            prompt,
+                            _retry=False,  # prevent recursion
+                            request_is_background=request_is_background,
+                            foreground_request=foreground_request,
+                            owner_label=owner_label,
+                            **inline_kwargs,
+                        )
                     if foreground_request and self._is_primary_or_deep_lane() and empty_count >= 3:
                         self._set_lane_state("recovering", "repeated_empty_generation")
                     return None

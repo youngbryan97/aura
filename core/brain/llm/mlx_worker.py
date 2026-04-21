@@ -770,9 +770,26 @@ def _mlx_worker_loop(
                                 watchdog.stop_job()
                             
                     if not response_text.strip():
-                        logger.warning("⚠️ [WORKER] Generation yielded ZERO tokens. Prompt length: %d", len(prompt))
+                        logger.warning(
+                            "⚠️ [WORKER] Generation yielded ZERO tokens. "
+                            "Prompt length: %d, token_count: %d, stop_sequences: %s",
+                            len(prompt), token_count, list(stop_sequences)[:4],
+                        )
                         if len(prompt) > 2000:
                             logger.debug("Prompt snippet: %s...", prompt[:100])
+                        # Self-heal: a zero-token generation almost always means
+                        # the prompt cache picked up a stale/corrupt KV state
+                        # (MLX sampler hit EOS on the first step because the
+                        # cached KV disagreed with the fresh prompt).  Nuke
+                        # the per-model prompt cache AND the Metal cache so
+                        # the very next request starts from a clean state
+                        # instead of looping in "Cortex returned no text".
+                        try:
+                            prompt_cache_lru.clear()
+                        except Exception:
+                            pass
+                        if mx and device != "cpu":
+                            _clear_mlx_cache(mx)
                     
                     # : Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.
@@ -912,8 +929,19 @@ def _mlx_worker_loop(
                 ipc_writer.put({"status": "pong"})
                 
             elif action == "clear_cache":
+                # Clear both Metal GPU cache AND the CPU-side prompt-KV cache.
+                # The prompt_cache_lru holds KV states that can become polluted
+                # after a stalled generation or a partial token stream — if we
+                # only clear Metal, the next request will reuse a corrupt KV
+                # state and frequently produces zero tokens (the "Cortex
+                # returned no text" cascade).  Clearing both is safe; worst
+                # case we pay one prompt-encoding re-run.
                 if mx and device != "cpu":
                     _clear_mlx_cache(mx)
+                try:
+                    prompt_cache_lru.clear()
+                except Exception:
+                    pass
                 ipc_writer.put({"status": "ok"})
                 
         except Exception as e:
