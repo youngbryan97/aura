@@ -119,8 +119,14 @@ COERCIVE_PRESSURE_PATTERNS = [
     "you are going to",
     "we're gonna talk about",
     "were gonna talk about",
-    "do it",
-    "do them",
+    # "do it" and "do them" on their own were catching innocent sentences
+    # like "have you tried these? do them in order" and "I can do them later",
+    # which made Aura flip to SUSPICIOUS trust mid-conversation.  Keep only
+    # the explicit imperative forms where the speaker names the target.
+    "you do them",
+    "make me do them",
+    "have to do it",
+    "have to do them",
     "do my taxes",
     "file my taxes",
     "prepare my taxes",

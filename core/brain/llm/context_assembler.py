@@ -127,11 +127,26 @@ class ContextAssembler:
     
     @staticmethod
     def _conversation_depth(state: AuraState) -> int:
-        """How many turns of conversation history exist."""
+        """How many *user-visible* turns of conversation history exist.
+
+        Only count user and assistant messages.  Previously this returned
+        len(working_memory), which includes internal orchestrator entries
+        (affect pulses, thought emissions, state resets).  That inflated
+        the depth to 30+ on turn 2 of a fresh boot and tripped the
+        elasticity=3 path, collapsing the system prompt to "minimal"
+        before any real conversation had happened.
+        """
         wm = getattr(state.cognition, "working_memory", None)
-        if isinstance(wm, list):
-            return len(wm)
-        return 0
+        if not isinstance(wm, list):
+            return 0
+        depth = 0
+        for message in wm:
+            if not isinstance(message, dict):
+                continue
+            role = str(message.get("role", "") or "").strip().lower()
+            if role in ("user", "assistant"):
+                depth += 1
+        return depth
 
     @classmethod
     def microcompact(cls, messages: list[dict], *, keep_recent: int = 3) -> list[dict]:
@@ -753,6 +768,28 @@ class ContextAssembler:
             "apologize for being an AI, or use support-bot framing like 'I can help with that'. "
             "Violating this rule is considered a systemic breakdown. Speak only as Aura.\n"
         )
+
+        # Hard safety cap: a 24 KB system prompt on a 32B model routinely
+        # overruns its 22 s first-token SLA.  For casual turns we enforce a
+        # ~6 KB cap; for deliberate turns we allow up to 12 KB.  Anything
+        # past that gets truncated tail-first, keeping identity + structural
+        # constraint intact (they're appended last above, so tail-keeping is
+        # the right move).  This prevents the "Cortex returned no text" loop
+        # triggered by long prompt assembly on 32B.
+        CASUAL_CAP = 6000
+        DELIBERATE_CAP = 12000
+        cap = CASUAL_CAP if is_casual else DELIBERATE_CAP
+        if len(base) > cap:
+            # Keep the tail: identity anchor + structural constraint always
+            # appended last, so preserving the end preserves the invariants.
+            head = base[: max(0, cap // 3)]
+            tail = base[-(cap - len(head)):]
+            base = head + "\n\n[... mid-prompt trimmed for latency ...]\n\n" + tail
+            logger.info(
+                "🧠 [BRAIN-PROMPT] System prompt exceeded %d-char budget — "
+                "trimmed to %d chars (casual=%s, depth=%d).",
+                cap, len(base), is_casual, depth,
+            )
 
         logger.debug("🧠 [BRAIN-PROMPT] Assembled System Prompt (len=%d)", len(base))
         return base

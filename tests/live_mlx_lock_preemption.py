@@ -37,17 +37,20 @@ def _make_client():
 
 
 async def scenario_a_preemption_fires() -> tuple[bool, str]:
-    """Holder has been stuck for 25s — past the 22s foreground SLA.
+    """Holder has been stuck past the warm-path foreground SLA (22s).
     Foreground caller should time out on the 12s lock budget AND
-    trigger preemption (cancel future + defer reboot)."""
+    trigger preemption (cancel future + defer reboot).
+
+    We simulate a warm lane by stamping _last_generation_completed_at so
+    the SLA resolves to 22s instead of the 40s cold-start grace."""
     client = _make_client()
 
-    # Simulate a wedged in-flight generation: acquire lock directly, set an
-    # old acquired_at timestamp, plant a stuck SharedFuture.
     from core.brain.llm.mlx_client import _new_shared_future
+    # Mark the client as post-warmup so cold-start SLA doesn't apply.
+    client._last_generation_completed_at = time.time() - 60.0
     client._request_lock.acquire()
     client._request_lock_owner_label = "Cortex"
-    client._request_lock_acquired_at = time.time() - 25.0  # 25s ago
+    client._request_lock_acquired_at = time.time() - 25.0  # 25s > 22s warm SLA
     stuck = _new_shared_future()
     client._current_gen_future = stuck
 
@@ -129,22 +132,28 @@ async def scenario_c_lock_timeout_tightened() -> tuple[bool, str]:
 
 
 async def scenario_d_empty_retry_path_compiles() -> tuple[bool, str]:
-    """Smoke test: the new inline empty-retry code path parses and the
-    foreground threshold methods now accept foreground_request kwarg."""
+    """Threshold methods accept foreground_request kwarg and cold-start
+    exemption grants ~40s on first gen, tightens to 22s after warmup."""
     client = _make_client()
-    fto = client._first_token_sla(foreground_request=True)
+    # Cold-start (no generation completed yet): SLA is generous
+    fto_cold = client._first_token_sla(foreground_request=True)
+    # After first completion, SLA tightens to the warm-path value
+    client._last_generation_completed_at = time.time() - 30.0
+    fto_warm = client._first_token_sla(foreground_request=True)
     bg_fto = client._first_token_sla(foreground_request=False)
     ts = client._token_stall_after(foreground_request=True)
     stale = client._stale_after(during_generation=True, foreground_request=True)
-    if fto >= 30.0:
-        return False, f"foreground first_token_sla not tightened: {fto}s"
+    if not (35.0 <= fto_cold <= 50.0):
+        return False, f"cold-start SLA out of expected 35–50s band: {fto_cold}s"
+    if fto_warm >= 30.0:
+        return False, f"warm foreground SLA not tightened: {fto_warm}s"
     if ts >= 24.0:
         return False, f"foreground token_stall_after not tightened: {ts}s"
     if stale >= 40.0:
         return False, f"foreground stale_after not tightened: {stale}s"
     return True, (
-        f"foreground first_token_sla={fto}s (bg={bg_fto}s), "
-        f"token_stall_after={ts}s, stale_after={stale}s"
+        f"cold_sla={fto_cold}s, warm_sla={fto_warm}s (bg={bg_fto}s), "
+        f"token_stall={ts}s, stale={stale}s"
     )
 
 

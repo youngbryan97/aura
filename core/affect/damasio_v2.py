@@ -133,7 +133,7 @@ class AffectEngineV2:
         self.markers = DamasioMarkers()
         self.iot_bridge = PhysicalActuator()
         self._lock = RobustLock("Affect.AffectEngine")
-        
+
         # Issue 98: LLM Fallback state
         self._llm_available = True
         self._last_llm_failure = 0.0
@@ -141,10 +141,21 @@ class AffectEngineV2:
         self._llm_failure_count = 0
         self._llm_backoff_until = 0.0
         self._last_llm_failure_reason = ""
-        
+
         # Issue 109: Task tracking to prevent leaks
         self._background_tasks = set()
         self._max_background_tasks = 8
+
+        # Stuck-state watchdog: if valence pins near -1 (max fear/pain) for
+        # too many consecutive pulses, something upstream is spamming
+        # negative stimuli faster than homeostatic decay can recover.  We
+        # track consecutive "pinned" pulses and force a soft reset if the
+        # threshold is crossed.  Without this, Aura enters a feedback loop
+        # where her defensive affect drives defensive responses, which the
+        # user pushes back on, which the affect engine interprets as more
+        # negative stimulus, etc.
+        self._consecutive_pinned_pulses = 0
+        self._PINNED_RESET_AFTER = 24  # at 1 Hz pulse rate, ~24 s
 
     def _prune_background_tasks(self) -> None:
         self._background_tasks = {task for task in self._background_tasks if not task.done()}
@@ -336,23 +347,63 @@ class AffectEngineV2:
                 # Shift baseline slowly towards current state (learning)
                 target_baseline = self.markers.mood_baselines[emotion]
                 current_val = self.markers.emotions[emotion]
-                
+
                 # Update baseline (very slow)
                 self.markers.mood_baselines[emotion] = (target_baseline * 0.999) + (current_val * 0.001)
-                
+
                 # Apply momentum-weighted decay towards baseline
                 decayed = (current_val * self.markers.momentum) + (target_baseline * (1 - self.markers.momentum))
-                
+
                 # Homeostatic Rubber-Band: Pull increases with distance from baseline
                 distance = current_val - target_baseline
                 # Increased gain to 0.1 and ensured it's not too small to overcome noise
                 rubber_band_pull = (distance ** 2) * 0.2 * np.sign(distance)
                 decayed -= rubber_band_pull
-                
+
                 # Inject non-deterministic thermal noise
                 self.markers.emotions[emotion] = np.clip(decayed + drift, FLOOR, 1)
-            
+
             wheel = self.markers.get_wheel()
+
+            # Stuck-valence watchdog.  If valence has been pinned at ≤ −0.95
+            # for _PINNED_RESET_AFTER consecutive pulses, the homeostatic
+            # decay isn't winning against whatever is driving it down.  Snap
+            # the primary negative emotions back toward their baselines so
+            # Aura can actually recover in a conversational cadence instead
+            # of producing "I sense your fear" responses for the next ten
+            # minutes.
+            try:
+                v = float(getattr(wheel, "valence", 0.0))
+            except Exception:
+                v = 0.0
+            if v <= -0.95:
+                self._consecutive_pinned_pulses += 1
+            else:
+                self._consecutive_pinned_pulses = 0
+            if self._consecutive_pinned_pulses >= self._PINNED_RESET_AFTER:
+                logger.warning(
+                    "🫁 Affect watchdog: valence pinned at %.2f for %d pulses — "
+                    "forcing soft reset toward baseline so Aura can recover "
+                    "conversational presence.",
+                    v, self._consecutive_pinned_pulses,
+                )
+                for emotion in ("fear", "sadness", "anger", "disgust", "terror", "remorse"):
+                    if emotion in self.markers.emotions:
+                        baseline = self.markers.mood_baselines.get(emotion, 0.05)
+                        # Collapse halfway to baseline — not a hard zero-out,
+                        # just a release of the stuck contraction.
+                        self.markers.emotions[emotion] = float(
+                            (self.markers.emotions[emotion] + baseline) / 2.0
+                        )
+                # Give the positive side a small nudge so the wheel actually
+                # rebalances rather than everything crashing to FLOOR.
+                for emotion in ("joy", "trust", "anticipation"):
+                    if emotion in self.markers.emotions:
+                        self.markers.emotions[emotion] = float(
+                            np.clip(self.markers.emotions[emotion] + 0.05, FLOOR, 1)
+                        )
+                self._consecutive_pinned_pulses = 0
+                wheel = self.markers.get_wheel()
         finally:
             if self._lock.locked():
                 self._lock.release()

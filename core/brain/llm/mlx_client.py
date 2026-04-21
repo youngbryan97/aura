@@ -509,16 +509,25 @@ class MLXLocalClient:
 
     def _first_token_sla(self, *, foreground_request: bool = False) -> float:
         lowered = os.path.basename(self.model_path).lower()
+        # Cold-start exemption: the FIRST real foreground generation after a
+        # worker warmup or reboot legitimately needs 30–45 s on 32B because
+        # Metal shaders are still JIT-compiling and the KV cache is empty.
+        # Tripping the SLA at 22 s on the very first user turn was bouncing
+        # Cortex to UNAVAILABLE before the model could produce a token.
+        # _last_generation_completed_at is zero until a real generation has
+        # finished; we use that as the cold-start signal.
+        is_cold_start = float(getattr(self, "_last_generation_completed_at", 0.0) or 0.0) <= 0.0
         if "72b" in lowered or "solver" in lowered:
-            return 20.0 if foreground_request else 30.0
+            if foreground_request:
+                return 40.0 if is_cold_start else 20.0
+            return 30.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
-            # 32B first-turn generation routinely needs more than 18s even after
-            # warmup because prompt assembly, KV setup, and shader reuse can still
-            # spike on large user-facing turns.  We keep 35s for background
-            # refills but cap foreground at 22s so the user-visible lock hold
-            # never exceeds what the chat UI tolerates before its WebSocket
-            # times out.
-            return 22.0 if foreground_request else 35.0
+            # Warm foreground cap stays tight (22 s) so the UI never sees a
+            # wedged generation. Cold-start gets 40 s once, then shrinks
+            # automatically after the first completion sets the anchor.
+            if foreground_request:
+                return 40.0 if is_cold_start else 22.0
+            return 35.0
         return 8.0
 
     def _token_stall_after(self, *, foreground_request: bool = False) -> float:
