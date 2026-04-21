@@ -648,7 +648,12 @@ class MLXLocalClient:
         *,
         foreground_request: bool,
     ) -> float:
-        default = 30.0 if foreground_request else 10.0
+        # Tightened from 30s to 12s for foreground: if the current holder has
+        # been in-flight for longer than this budget, the second user message
+        # should cascade to brainstem/cloud rather than keep waiting.  The
+        # prior 30s budget stacked on top of a hung 32B generation produced
+        # the 60–90 s "Aura is thinking..." windows the user reported.
+        default = 12.0 if foreground_request else 10.0
         if not isinstance(deadline, Deadline):
             return default
 
@@ -656,7 +661,7 @@ class MLXLocalClient:
         if remaining is None:
             return default
 
-        reserve = 5.0 if foreground_request else 2.0
+        reserve = 3.0 if foreground_request else 2.0
         return max(0.25, min(default, remaining - reserve))
 
     async def _acquire_request_lock(
@@ -702,6 +707,29 @@ class MLXLocalClient:
                     severity="warning",
                     foreground_request=foreground_request,
                 )
+                # Preemption: if a foreground caller has been waiting past its
+                # budget AND the current lock holder has itself exceeded the
+                # first-token SLA (i.e. it's almost certainly wedged, not just
+                # slow), cancel the in-flight future and defer a worker reboot
+                # so the NEXT caller can make progress rather than pile on
+                # another 30 s timeout.  Without this, two user messages in
+                # quick succession can stack a 60–90 s visible hang even
+                # though the first message was already dead in the water.
+                if foreground_request:
+                    sla = self._first_token_sla(foreground_request=True)
+                    if holder_age > sla:
+                        logger.error(
+                            "🛑 [MLX] Preempting wedged holder %s (age=%.1fs > sla=%.1fs). "
+                            "Cancelling in-flight future and scheduling worker reboot.",
+                            holder, holder_age, sla,
+                        )
+                        try:
+                            stuck_future = self._current_gen_future
+                            if stuck_future is not None:
+                                _cancel_shared_future(stuck_future)
+                        except Exception:
+                            pass
+                        self._deferred_reboot_reason = "foreground_preemption_wedged_holder"
                 return False
 
             if waited >= 5.0 and (now - last_log_at) >= 5.0:

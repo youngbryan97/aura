@@ -27,13 +27,30 @@
     --success: #00ffa3;
     --warn: #ffaa00;
     --error: #ff3e5e;
-    --font-main: 'Space Mono', monospace;
-    --font-head: 'Syne', sans-serif;
+    /* v15.1 typography pass: Inter for body (Linear / Stripe / Notion-class
+       legibility), JetBrains Mono for code + telemetry readouts, Syne for
+       display headings.  Same placement and cadence as before — this is a
+       finish upgrade, not a redesign. */
+    --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+    --font-head: 'Syne', 'Inter', sans-serif;
     --chat-text-scale: 1;
     --chat-meta-scale: 1;
     --chat-input-scale: 1;
     --neural-text-scale: 1;
     --neural-meta-scale: 1;
+}
+
+/* Flagship-grade font rendering: antialiased glyphs, tabular numerics for
+   telemetry, Inter stylistic sets for a rounder single-story 'a' and curved
+   'l'.  Applies globally; specific mono blocks opt in via --font-mono. */
+html, body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01', 'ss03';
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.005em;
 }
 
 * {
@@ -3170,7 +3187,7 @@ body.theme-light .hdr-btn:hover {
     padding: 14px 16px;
     margin: 10px 0;
     overflow-x: auto;
-    font-family: 'Space Mono', 'Fira Code', monospace;
+    font-family: var(--font-mono);
     font-size: 0.82rem;
     line-height: 1.5;
     -webkit-overflow-scrolling: touch;
@@ -3190,7 +3207,7 @@ body.theme-light .msg pre {
     background: rgba(255, 255, 255, 0.06);
     padding: 2px 7px;
     border-radius: 4px;
-    font-family: 'Space Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.84em;
     color: var(--accent);
     border: 1px solid rgba(255, 255, 255, 0.06);
