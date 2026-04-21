@@ -92,13 +92,31 @@ BRAINSTEM_MODEL = os.getenv("AURA_BRAINSTEM_MODEL", "Qwen2.5-7B-Instruct-4bit")
 FALLBACK_MODEL = os.getenv("AURA_FALLBACK_MODEL", "Qwen2.5-1.5B-Instruct-4bit")
 
 GGUF_DIR = BASE_DIR / "models_gguf"
+
+# Env-override for the primary (Cortex), solver, and brainstem model paths so
+# a .env swap actually takes effect.  This is how we point Aura at the fused
+# weight artifact from training/fused-model/ after a LoRA fuse — previously
+# the hard-coded dict below made AURA_LLM__MLX_MODEL_PATH a no-op.
+_CORTEX_PATH = Path(
+    os.getenv("AURA_LLM__MLX_MODEL_PATH")
+    or str(BASE_DIR / "models" / "Qwen2.5-32B-Instruct-8bit")
+)
+_SOLVER_PATH = Path(
+    os.getenv("AURA_LLM__MLX_DEEP_MODEL_PATH")
+    or str(BASE_DIR / "models" / "Qwen2.5-72B-Instruct-4bit")
+)
+_BRAINSTEM_PATH = Path(
+    os.getenv("AURA_LLM__MLX_BRAINSTEM_PATH")
+    or str(BASE_DIR / "models" / "Qwen2.5-7B-Instruct-4bit")
+)
+
 MODEL_PATHS = {
     "Qwen2.5-1.5B-Instruct-4bit": BASE_DIR / "models" / "Qwen2.5-1.5B-Instruct-4bit",
-    "Qwen2.5-7B-Instruct-4bit":   BASE_DIR / "models" / "Qwen2.5-7B-Instruct-4bit",
+    "Qwen2.5-7B-Instruct-4bit":   _BRAINSTEM_PATH,
     "Qwen2.5-14B-Instruct-4bit":  BASE_DIR / "models" / "Qwen2.5-14B-Instruct-4bit",
-    "Qwen2.5-32B-Instruct-8bit":  BASE_DIR / "models" / "Qwen2.5-32B-Instruct-8bit",
+    "Qwen2.5-32B-Instruct-8bit":  _CORTEX_PATH,
     "Qwen2.5-32B-Instruct-4bit":  BASE_DIR / "models" / "Qwen2.5-32B-Instruct-4bit",  # legacy
-    "Qwen2.5-72B-Instruct-4bit":  BASE_DIR / "models" / "Qwen2.5-72B-Instruct-4bit",
+    "Qwen2.5-72B-Instruct-4bit":  _SOLVER_PATH,
     "Qwen3-72B-Instruct":         BASE_DIR / "models" / "Qwen3-72B-Instruct",
     "Qwen2.5-72B-Instruct-Q4":    BASE_DIR / "models" / "Qwen2.5-72B-Instruct-Q4",
 }
