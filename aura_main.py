@@ -29,6 +29,34 @@ if sys.platform == "darwin":
     except RuntimeError:
         pass
 
+    # PyAV's bundled libavdevice and OpenCV's bundled libavdevice both register
+    # the Objective-C classes AVFFrameReceiver / AVFAudioReceiver.  The objc
+    # runtime unconditionally prints a "Class … is implemented in both …"
+    # warning to stderr when this happens, which floods our logs on every boot
+    # (this is the source of the recurring "homebrew" error the user reported).
+    # The conflict is benign in practice — objc keeps the first registration,
+    # and nothing in Aura uses the AVFoundation capture classes — so we
+    # eagerly load both libraries here with stderr muted, which absorbs the
+    # one-shot duplicate-class notice and leaves subsequent transitive imports
+    # silent.
+    try:
+        import contextlib as _contextlib
+        _devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        _saved_stderr = os.dup(2)
+        try:
+            os.dup2(_devnull_fd, 2)
+            import av as _av  # noqa: F401  (ordering matters — av first)
+            import cv2 as _cv2  # noqa: F401  (eager load to absorb dup warning)
+        finally:
+            os.dup2(_saved_stderr, 2)
+            os.close(_devnull_fd)
+            os.close(_saved_stderr)
+    except ImportError:
+        pass
+    except Exception:
+        # Never let the dylib suppression block boot.
+        pass
+
 # Early .env loading — ensures AURA_LOCAL_BACKEND and other env vars are
 # available BEFORE module-level code in model_registry.py reads os.getenv().
 # Without this, pydantic's env_file loading happens too late.

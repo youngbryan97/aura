@@ -12,6 +12,29 @@ Fast regression spot-check:
 ./scripts/run_audit_suite.sh quick
 ```
 
+## Live integration harnesses (v1 + v2)
+
+Two targeted live harnesses exercise the authority pipeline, the 31-module
+consciousness stack, the orchestrator mixins, the scheduler, and every skill
+module (all ~100 across `core/skills/` and `skills/`) without mocking the
+decision layer. They are the honest answer to "does this actually work end to
+end, under stress, repeatedly, without hiccups".
+
+```bash
+# v1 — breadth: imports, receipts, every domain, every skill module, 500×
+# concurrent decisions, audit-trail bounds, stress latency budget
+~/.aura/live-source/.venv/bin/python3.12 tests/live_harness_aura_v1.py
+
+# v2 — depth: live consciousness ticks, neurochemical drift, UnifiedField
+# coherence under driven input, oscillatory γ/θ readout, somatic veto shape,
+# REFUSE semantics, identity gate behaviour under INITIATIVE, 2,000 sustained
+# decisions, volition.tick() agency probe
+~/.aura/live-source/.venv/bin/python3.12 tests/live_harness_aura_v2_deep.py
+```
+
+Current status as of 2026-04-20: **v1 145/145 green, v2 14/14 green (159/159
+total)**. Both are fail-fast — exit code 0 only when every check passes.
+
 Historical snapshot: on April 16, 2026, this suite recorded `1013 passed,
 3 warnings` in about 122 seconds on a local machine. Treat the counts and
 measured values below as preserved historical evidence, not as a substitute for

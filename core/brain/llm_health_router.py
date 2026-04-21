@@ -1865,3 +1865,49 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             logger.error("❌ Failed to register Gemini fallbacks: %s", e)
 
     return router
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Module-level singleton accessor
+#
+# Why: several call sites (e.g. core/skills/skill_evolution.py) do
+# `from core.brain.llm_health_router import llm_router` at import time, expecting
+# a fully-constructed router.  The real router is built later during orchestrator
+# boot via build_router_from_config().  This lazy proxy bridges both styles so
+# import-time references resolve to whatever router the boot registered in the
+# ServiceContainer — and falls back to constructing one on first use if no
+# orchestrator has booted yet (supports test harnesses and standalone scripts).
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_llm_router() -> "HealthAwareLLMRouter":
+    """Return the process-wide router, constructing it on first use if needed."""
+    from core.container import ServiceContainer
+    existing = ServiceContainer.get("llm_router", default=None)
+    if existing is not None:
+        return existing
+    from core.config import config
+    router = build_router_from_config(config)
+    ServiceContainer.register_instance("llm_router", router)
+    return router
+
+
+class _LazyRouterProxy:
+    """Attribute-access proxy that resolves to the real router on first touch."""
+    __slots__ = ("_cached",)
+
+    def __init__(self) -> None:
+        self._cached = None
+
+    def _resolve(self):
+        if self._cached is None:
+            self._cached = get_llm_router()
+        return self._cached
+
+    def __getattr__(self, item):
+        return getattr(self._resolve(), item)
+
+    def __repr__(self) -> str:
+        return f"<LazyRouterProxy resolved={self._cached is not None}>"
+
+
+llm_router = _LazyRouterProxy()
