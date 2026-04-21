@@ -394,6 +394,7 @@ class MLXLocalClient:
         self._last_token_progress_at = 0.0
         self._last_ready_at = 0.0
         self._last_generation_completed_at = 0.0
+        self._last_user_facing_completed_at = 0.0
         self._current_gen_future: Optional[SharedFuture] = None
         self._init_future: Optional[SharedFuture] = None
         self._pending_generations: Dict[str, SharedFuture] = {}
@@ -1090,6 +1091,27 @@ class MLXLocalClient:
                     continue
                 if not other_client or other_client is self or not other_client.is_alive():
                     continue
+                # Cortex-protection: if another client was serving a
+                # user-facing generation in the last 180 s, DO NOT evict it
+                # to make room for a background warmup.  This is the yield
+                # loop that caused the "CORTEX UNAVAILABLE" flap between
+                # turns — Cortex answered turn 1 at T, the 7B wanted to spin
+                # up at T+2 for a background appraisal, Cortex got reboot-
+                # yielded, turn 2 then had to cold-start the 32B all over
+                # and tripped the first-token SLA.  Holding Cortex warm
+                # across a conversation costs RAM; losing it between turns
+                # costs the entire user experience.
+                last_user_facing = float(
+                    getattr(other_client, "_last_user_facing_completed_at", 0.0) or 0.0
+                )
+                if last_user_facing > 0.0 and (time.time() - last_user_facing) < 180.0:
+                    logger.info(
+                        "🛡️ [MLX] NOT yielding %s (served a user-facing turn %.1fs ago; "
+                        "keeping warm for conversational continuity).",
+                        os.path.basename(other_path),
+                        time.time() - last_user_facing,
+                    )
+                    continue
                 logger.warning(
                     "🧹 [MLX] Yielding %s before warming %s to reduce RAM pressure.",
                     os.path.basename(other_path),
@@ -1715,6 +1737,11 @@ class MLXLocalClient:
                     return None
                 self._set_lane_state("ready")
                 self._consecutive_empty = 0  # Reset on successful generation
+                # Record user-facing completions so the cross-client yield
+                # loop knows to keep this worker warm across conversation
+                # turns (see _ensure_worker_alive yield guard).
+                if foreground_request:
+                    self._last_user_facing_completed_at = time.time()
                 _notify_closed_loop_output(text)
                 return text
             reason = str(res.get("message") or res.get("status") or "generation_failed")
@@ -2025,7 +2052,12 @@ class MLXLocalClient:
             self._last_heartbeat = 0.0
             self._last_progress_at = 0.0
             self._last_token_progress_at = 0.0
+            # Reset the cold-start anchor so the next foreground request
+            # gets the generous 40 s SLA instead of the tight warm-path 22 s.
+            # A reboot means the worker process is gone → first-token budget
+            # includes Metal shader recompile, KV rebuild, and weight reload.
             self._last_generation_completed_at = 0.0
+            self._last_user_facing_completed_at = 0.0
             self._process_started_at = 0.0
             self._current_request_started_at = 0.0
             self._current_first_token_at = 0.0
