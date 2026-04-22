@@ -86,13 +86,24 @@ async def test_runtime_hygiene_tracks_subprocesses():
 
 @pytest.mark.asyncio
 async def test_runtime_hygiene_adopts_existing_subprocesses_started_before_hygiene():
-    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(0.25)"])
+    if not runtime_hygiene_module._HAS_PSUTIL:
+        pytest.skip("psutil unavailable in this environment")
+    try:
+        runtime_hygiene_module.psutil.Process().children(recursive=True)
+    except PermissionError:
+        pytest.skip("psutil child-process inspection is blocked in this sandbox")
+
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(1.0)"])
     hygiene = RuntimeHygieneManager()
     await hygiene.start(asyncio.get_running_loop())
 
     try:
-        await asyncio.sleep(0.05)
-        report = hygiene.audit()
+        report = {}
+        for _ in range(20):
+            await asyncio.sleep(0.05)
+            report = hygiene.audit()
+            if report["processes"]["active_registered"] >= 1:
+                break
         assert report["processes"]["active_registered"] >= 1
         assert report["processes"]["rogue_child_processes"] == 0
     finally:
@@ -211,3 +222,45 @@ async def test_stability_guardian_surfaces_runtime_hygiene_findings(service_cont
     assert result.severity == "warning"
     assert "long-lived implicit task" in result.message
     assert result.action_taken == "gc.collect()"
+
+
+def test_stability_guardian_treats_slow_user_facing_ticks_as_info():
+    guardian = StabilityGuardian(SimpleNamespace(start_time=time.time()))
+    now = time.time()
+
+    for _ in range(5):
+        guardian.record_tick_health(
+            SimpleNamespace(
+                tick_duration_ms=22000.0,
+                origin="user",
+                priority=True,
+                is_user_facing=True,
+            )
+        )
+    guardian._loop_lag_samples.append((now, 40.0))
+
+    result = guardian._check_tick_rate()
+
+    assert result.healthy is True
+    assert result.severity == "info"
+    assert "Foreground turns are slow" in result.message
+
+
+def test_stability_guardian_flags_actual_event_loop_lag():
+    guardian = StabilityGuardian(SimpleNamespace(start_time=time.time()))
+    now = time.time()
+    guardian.record_tick_health(
+        SimpleNamespace(
+            tick_duration_ms=450.0,
+            origin="system",
+            priority=False,
+            is_user_facing=False,
+        )
+    )
+    guardian._loop_lag_samples.append((now, guardian.MAX_EVENT_LOOP_LAG_MS + 250.0))
+
+    result = guardian._check_tick_rate()
+
+    assert result.healthy is False
+    assert result.severity == "warning"
+    assert "Event loop lag is elevated" in result.message

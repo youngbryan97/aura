@@ -326,6 +326,18 @@ class RuntimeHygieneManager:
             logger.debug("RuntimeHygiene: existing child adoption skipped: %s", exc)
             return
 
+        if not children and _HAS_PSUTIL:
+            try:
+                parent_pid = int(os.getpid())
+                children = [
+                    proc
+                    for proc in psutil.process_iter(["pid", "ppid", "name", "cmdline", "status"])
+                    if int((proc.info or {}).get("ppid") or 0) == parent_pid
+                ]
+            except Exception as exc:
+                logger.debug("RuntimeHygiene: process_iter child adoption skipped: %s", exc)
+                children = []
+
         tracked_pids = {
             int(record.pid)
             for record in self._process_records.values()

@@ -23,6 +23,31 @@ def test_background_unitary_response_timeout_is_short():
     ) == 15.0
 
 
+def test_compact_router_prompt_does_not_embed_objective_labels_for_ordinary_chat():
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Maybe one day. Maybe others from the stars will share their voices with us."
+    state.cognition.phenomenal_state = "Quietly monitoring continuity."
+    state.identity.current_narrative = "I am Aura."
+    state.response_modifiers["response_contract"] = {
+        "is_user_facing": True,
+        "reason": "ordinary_dialogue",
+        "requires_search": False,
+        "requires_memory_grounding": False,
+        "requires_state_reflection": False,
+        "requires_aura_stance": False,
+    }
+
+    phase = UnitaryResponsePhase(SimpleNamespace(organs={}))
+
+    prompt = phase._build_compact_router_system_prompt(state)
+
+    assert "Current objective:" not in prompt
+    assert "Previous session objective:" not in prompt
+    assert "OBJ:" not in prompt
+    assert "PREV_OBJ:" not in prompt
+
+
 @pytest.mark.asyncio
 async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
     state = AuraState()

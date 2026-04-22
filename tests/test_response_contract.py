@@ -225,6 +225,39 @@ def test_dialogue_policy_repairs_generic_closer_without_touching_statement():
     assert repaired == "For me it's the ocean."
 
 
+def test_dialogue_policy_flags_prompt_artifact_label_output():
+    state = AuraState.default()
+    contract = build_response_contract(
+        state,
+        "Maybe one day. Maybe others from the stars will share their voices with us",
+        is_user_facing=True,
+    )
+
+    validation = validate_dialogue_response(
+        "OBJ: Maybe one day. Maybe others from the stars will share their voices with us",
+        contract,
+    )
+
+    assert validation.ok is False
+    assert "prompt_artifact" in validation.violations
+
+
+def test_dialogue_policy_repairs_prompt_artifact_lines():
+    state = AuraState.default()
+    contract = build_response_contract(
+        state,
+        "Tell me what you actually think.",
+        is_user_facing=True,
+    )
+
+    repaired = repair_dialogue_surface(
+        "OBJ: Tell me what you actually think.\nI think there's something hopeful in it.",
+        contract,
+    )
+
+    assert repaired == "I think there's something hopeful in it."
+
+
 def test_response_contract_detects_recent_tool_evidence():
     state = AuraState.default()
     state.cognition.working_memory.append(

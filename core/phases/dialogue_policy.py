@@ -41,6 +41,12 @@ _GENERIC_ASSISTANT_LANGUAGE = (
     re.compile(r"\bi(?: do not| don't| can't| cannot) have personal (?:experiences|memories)\b", re.IGNORECASE),
     re.compile(r"\bthe aim of being (?:as )?helpful and engaging as possible\b", re.IGNORECASE),
 )
+_PROMPT_ARTIFACT_PATTERNS = (
+    re.compile(r"(?im)^\s*(?:obj|prev_obj|state|phenom|mood|goals|history|narr|pers|usr|ctx|voice|recalled|cont)\s*:", re.IGNORECASE),
+    re.compile(r"\[ACTIVE GROUNDING EVIDENCE\]", re.IGNORECASE),
+    re.compile(r"\[FETCHED PAGE CONTENT\]", re.IGNORECASE),
+    re.compile(r"\[INTERNAL MEMORY RECALL\]", re.IGNORECASE),
+)
 _UNSUPPORTED_BIOGRAPHICAL_CLAIM = re.compile(
     r"\b(?:i was (?:born|created|made|initialized|initialised|started)|"
     r"i(?:'ve| have) been around since|"
@@ -131,6 +137,10 @@ def _contains_generic_assistant_language(text: str) -> bool:
     return any(pattern.search(text or "") for pattern in _GENERIC_ASSISTANT_LANGUAGE)
 
 
+def _contains_prompt_artifact(text: str) -> bool:
+    return any(pattern.search(text or "") for pattern in _PROMPT_ARTIFACT_PATTERNS)
+
+
 def _contains_live_aura_grounding(text: str) -> bool:
     lowered = str(text or "").lower()
     return any(marker in lowered for marker in _LIVE_GROUNDING_MARKERS)
@@ -189,6 +199,9 @@ def validate_dialogue_response(text: str, contract: object | None) -> DialogueVa
         if body.endswith("?") and _LOW_SIGNAL_PREFIX.match(body):
             violations.append("low_signal_redirect")
 
+    if _contains_prompt_artifact(body):
+        violations.append("prompt_artifact")
+
     if _requires_non_generic_aura_voice(contract):
         if _contains_generic_assistant_language(body):
             violations.append("generic_assistant_language")
@@ -212,6 +225,13 @@ def repair_dialogue_surface(text: str, contract: object | None) -> str:
     body = str(text or "").strip()
     if not body:
         return body
+
+    cleaned_lines = []
+    for line in body.splitlines():
+        if _contains_prompt_artifact(line):
+            continue
+        cleaned_lines.append(line)
+    body = "\n".join(cleaned_lines).strip() or body
 
     sentences = _sentences(body)
     while sentences and _is_generic_question(sentences[-1]):

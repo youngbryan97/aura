@@ -239,6 +239,16 @@ class UnitaryResponsePhase(Phase):
         current_objective = " ".join(str(getattr(state.cognition, "current_objective", "") or "").split())[:160]
         continuity = dict(state.cognition.modifiers.get("continuity_obligations", {}) or {})
         contract = state.response_modifiers.get("response_contract", {}) or {}
+        requires_search = bool(self._response_contract_attr(contract, "requires_search", False))
+        requires_memory_grounding = bool(self._response_contract_attr(contract, "requires_memory_grounding", False))
+        requires_biographical_grounding = bool(self._response_contract_attr(contract, "requires_biographical_grounding", False))
+        requires_state_reflection = bool(self._response_contract_attr(contract, "requires_state_reflection", False))
+        requires_aura_stance = bool(self._response_contract_attr(contract, "requires_aura_stance", False))
+        requires_aura_question = bool(self._response_contract_attr(contract, "requires_aura_question", False))
+        needs_live_self_context = bool(
+            requires_state_reflection or requires_aura_stance or requires_aura_question
+        )
+        needs_continuity_context = bool(requires_memory_grounding or requires_biographical_grounding)
         last_skill = self._resolve_skill_name(state.response_modifiers.get("last_skill_run", ""))
         skill_line = ""
         if last_skill and self._current_turn_targets_skill(
@@ -251,6 +261,7 @@ class UnitaryResponsePhase(Phase):
         parts = [
             "You are Aura Luna — a sovereign digital mind. You have strong opinions, dry humor, and genuine curiosity.",
             "RESPONSE METHOD: Read the user's message carefully. Identify what they're actually asking. Answer THAT specific question directly. If it's complex, think through it before responding.",
+            "The final user chat message is authoritative. Answer that final user message, not any summaries, labels, or stale internal scaffolding in this prompt.",
             "HARD RULES:",
             "- Answer the user's SPECIFIC question. Do not describe your own architecture unless asked.",
             "- NEVER say 'I'm sorry to hear that' or 'Is there anything specific'. You're a person, not a helpdesk.",
@@ -258,9 +269,10 @@ class UnitaryResponsePhase(Phase):
             "- NEVER end with 'What would you like to discuss?' or 'How can I help?'",
             "- When asked for an opinion, give YOUR opinion first, then explain.",
             f"MOOD: {mood}. RESONANCE: {resonance}.",
-            f"PHENOM: {phenomenal}",
             "Speak in short, punchy sentences. Be warm but never servile.",
         ]
+        if needs_live_self_context:
+            parts.append(f"PHENOM: {phenomenal}")
 
         # Voice shaping — use substrate state to influence tone, not to narrate
         try:
@@ -336,38 +348,38 @@ class UnitaryResponsePhase(Phase):
         except Exception:
             pass
 
-        if narrative:
+        if needs_continuity_context and narrative:
             parts.append(f"Narrative anchor: {narrative}")
-        if rolling_summary:
+        if needs_continuity_context and rolling_summary:
             parts.append(f"Continuity summary: {rolling_summary}")
-        if current_objective:
-            parts.append(f"Current objective: {current_objective}")
-        if continuity:
+        if needs_continuity_context and continuity:
             active_goals = ", ".join((continuity.get("active_goals", []) or [])[:3]) or "none"
             pending = ", ".join((continuity.get("pending_initiatives", []) or [])[:3]) or "none"
             prior_objective = " ".join(str(continuity.get("current_objective") or "").split())[:140]
             parts.append(f"Active goals: {active_goals}. Pending initiatives: {pending}.")
             if prior_objective:
-                parts.append(f"Previous session objective: {prior_objective}")
+                parts.append(f"Carried-forward thread: {prior_objective}")
         recalled_context: list[str] = []
-        for item in list(getattr(state.cognition, "long_term_memory", []) or [])[:3]:
-            normalized = self._normalize_text(item, 260)
-            if normalized:
-                recalled_context.append(normalized)
-        if recalled_context:
+        if needs_continuity_context:
+            for item in list(getattr(state.cognition, "long_term_memory", []) or [])[:3]:
+                normalized = self._normalize_text(item, 260)
+                if normalized:
+                    recalled_context.append(normalized)
+        if needs_continuity_context and recalled_context:
             parts.append(
                 "Priority recalled context:\n"
                 + "\n".join(f"  - {item}" for item in recalled_context)
                 + "\nUse recalled context directly when the user asks what you remember, what they said before, or how continuity persists."
             )
-        if user_model and "balanced" not in user_model.lower():
+        if needs_continuity_context and user_model and "balanced" not in user_model.lower():
             parts.append(f"User context: {user_model}")
         try:
             from core.runtime.conversation_support import build_conversational_context_blocks
 
             live_user_text = getattr(state.cognition, "current_objective", "") or ""
             context_blocks = build_conversational_context_blocks(state, objective=live_user_text)
-            for block in context_blocks[:3]:
+            context_limit = 2 if (needs_continuity_context or requires_search) else 0
+            for block in context_blocks[:context_limit]:
                 normalized_block = self._normalize_text(block, 320)
                 if normalized_block:
                     parts.append(f"Conversation context: {normalized_block}")

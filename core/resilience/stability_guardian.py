@@ -92,6 +92,7 @@ class StabilityGuardian:
     MEMORY_WARNING_PCT  = 82.0    # 64GB system — don't warn until ~52GB used
     MEMORY_CRITICAL_PCT = 92.0    # True critical on 64GB — ~59GB used
     MAX_TICK_LAG_MS     = 5000.0   # 5s mean tick = something is blocking
+    MAX_EVENT_LOOP_LAG_MS = 1500.0
     MIN_TICK_RATE_HZ    = 0.01     # If we're not ticking at all, something is wrong
     MAX_TASK_COUNT      = 260      # asyncio task explosion guard
     MAX_UNSUPERVISED_TASK_COUNT = 80
@@ -113,7 +114,8 @@ class StabilityGuardian:
         self._running       = False
         self._task: Optional[asyncio.Task] = None
         self._report_history: deque = deque(maxlen=100)
-        self._tick_times:     Deque[Tuple[float, float]] = deque(maxlen=60)   # (timestamp, duration_ms)
+        self._tick_samples:   Deque[Dict[str, Any]] = deque(maxlen=60)
+        self._loop_lag_samples: Deque[Tuple[float, float]] = deque(maxlen=60)
         self._last_tick_at:   float = time.time()
         self._extra_checks:   List[Callable] = []
         self._last_repair_at: Dict[str, float] = {}
@@ -172,14 +174,44 @@ class StabilityGuardian:
         if hasattr(tick_entry, "tick_duration_ms"):
             duration_ms = float(getattr(tick_entry, "tick_duration_ms", 0.0) or 0.0)
             if duration_ms > 0.0:
-                self._tick_times.append((now, duration_ms))
+                origin = str(getattr(tick_entry, "origin", "") or "")
+                priority = bool(getattr(tick_entry, "priority", False))
+                user_facing = bool(getattr(tick_entry, "is_user_facing", False))
+                if not user_facing:
+                    user_facing = priority or origin.strip().lower() in {
+                        "user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external",
+                    }
+                self._tick_samples.append(
+                    {
+                        "timestamp": now,
+                        "duration_ms": duration_ms,
+                        "origin": origin,
+                        "priority": priority,
+                        "user_facing": user_facing,
+                    }
+                )
         self._last_tick_at = now
 
-    def _recent_tick_durations(self, now: Optional[float] = None, window_s: float = 300.0) -> List[float]:
+    def _recent_tick_samples(self, now: Optional[float] = None, window_s: float = 300.0) -> List[Dict[str, Any]]:
         current_time = now or time.time()
         return [
-            duration_ms
-            for timestamp, duration_ms in self._tick_times
+            sample
+            for sample in self._tick_samples
+            if (current_time - float(sample.get("timestamp", current_time))) <= window_s
+        ]
+
+    def _recent_tick_durations(self, now: Optional[float] = None, window_s: float = 300.0) -> List[float]:
+        return [
+            float(sample.get("duration_ms", 0.0) or 0.0)
+            for sample in self._recent_tick_samples(now, window_s)
+            if float(sample.get("duration_ms", 0.0) or 0.0) > 0.0
+        ]
+
+    def _recent_loop_lags(self, now: Optional[float] = None, window_s: float = 300.0) -> List[float]:
+        current_time = now or time.time()
+        return [
+            lag_ms
+            for timestamp, lag_ms in self._loop_lag_samples
             if (current_time - timestamp) <= window_s
         ]
 
@@ -188,7 +220,10 @@ class StabilityGuardian:
     async def _loop(self) -> None:
         while self._running:
             try:
+                expected_wakeup = time.monotonic() + self.CHECK_INTERVAL_S
                 await asyncio.sleep(self.CHECK_INTERVAL_S)
+                lag_ms = max(0.0, (time.monotonic() - expected_wakeup) * 1000.0)
+                self._loop_lag_samples.append((time.time(), lag_ms))
                 report = await self.run_checks()
                 self._report_history.append(report)
                 self._persist_report(report)
@@ -257,9 +292,14 @@ class StabilityGuardian:
 
         # Tick stats
         now = time.time()
-        recent_ticks = self._recent_tick_durations(now)
-        if recent_ticks:
-            oldest_timestamp = min(timestamp for timestamp, _duration in self._tick_times if (now - timestamp) <= 300.0)
+        recent_samples = self._recent_tick_samples(now)
+        recent_ticks = [
+            float(sample.get("duration_ms", 0.0) or 0.0)
+            for sample in recent_samples
+            if float(sample.get("duration_ms", 0.0) or 0.0) > 0.0
+        ]
+        if recent_ticks and recent_samples:
+            oldest_timestamp = min(float(sample.get("timestamp", now) or now) for sample in recent_samples)
             tick_rate = len(recent_ticks) / max(1.0, now - oldest_timestamp)
             mean_tick = sum(recent_ticks) / len(recent_ticks)
         else:
@@ -405,10 +445,44 @@ class StabilityGuardian:
         except Exception as exc:
             return HealthCheckResult("lock_watchdog", False, f"Check failed: {exc}", "error")
 
+    @staticmethod
+    def _dump_thread_stacks(label: str) -> None:
+        try:
+            import sys
+            import traceback
+
+            dump = "\n".join("".join(traceback.format_stack(frame)) for _thread_id, frame in sys._current_frames().items())
+            logger.error("🚨 [StabilityGuardian] %s. THREAD DUMP:\n%s", label, dump[:1500])
+        except Exception as exc:
+            logger.debug("StabilityGuardian thread dump failed: %s", exc)
+
     def _check_tick_rate(self) -> HealthCheckResult:
         now = time.time()
         elapsed = now - self._last_tick_at
-        recent_ticks = self._recent_tick_durations(now)
+        recent_samples = self._recent_tick_samples(now)
+        recent_ticks = [
+            float(sample.get("duration_ms", 0.0) or 0.0)
+            for sample in recent_samples
+            if float(sample.get("duration_ms", 0.0) or 0.0) > 0.0
+        ]
+        loop_lags = self._recent_loop_lags(now)
+        max_loop_lag = max(loop_lags) if loop_lags else 0.0
+        mean_loop_lag = (sum(loop_lags) / len(loop_lags)) if loop_lags else 0.0
+
+        if loop_lags and max_loop_lag > self.MAX_EVENT_LOOP_LAG_MS:
+            self._dump_thread_stacks(
+                f"EVENT LOOP LAG DETECTED (max={max_loop_lag:.0f}ms mean={mean_loop_lag:.0f}ms)"
+            )
+            return HealthCheckResult(
+                "tick_rate",
+                False,
+                (
+                    f"Event loop lag is elevated: max={max_loop_lag:.0f}ms "
+                    f"(threshold {self.MAX_EVENT_LOOP_LAG_MS:.0f}ms)"
+                ),
+                severity="warning",
+                action_taken="Dumped thread stacks after event-loop lag spike",
+            )
 
         if not recent_ticks:
             if elapsed > 300.0:
@@ -426,23 +500,39 @@ class StabilityGuardian:
                 f"Kernel idle for {elapsed:.0f}s; last recent mean tick={mean_ms:.0f}ms",
                 severity="info",
             )
-        slow_ticks = [duration for duration in recent_ticks if duration > self.MAX_TICK_LAG_MS]
-        if mean_ms > self.MAX_TICK_LAG_MS and len(recent_ticks) >= 5 and len(slow_ticks) >= 3:
-            import sys
-            import traceback
-            dump = "\n".join("".join(traceback.format_stack(f)) for thread_id, f in sys._current_frames().items())
-            logger.error("🚨 [StabilityGuardian] TICK STALL DETECTED (%.0fms). THREAD DUMP:\n%s", mean_ms, dump[:1500])
-            
+        slow_samples = [
+            sample for sample in recent_samples
+            if float(sample.get("duration_ms", 0.0) or 0.0) > self.MAX_TICK_LAG_MS
+        ]
+        slow_foreground = [sample for sample in slow_samples if bool(sample.get("user_facing", False))]
+        slow_background = [sample for sample in slow_samples if not bool(sample.get("user_facing", False))]
+
+        if slow_background and len(slow_background) >= 3:
+            bg_mean_ms = sum(float(sample.get("duration_ms", 0.0) or 0.0) for sample in slow_background) / len(slow_background)
             return HealthCheckResult(
-                "tick_rate", False,
-                f"Mean tick too slow: {mean_ms:.0f}ms (max {self.MAX_TICK_LAG_MS:.0f}ms) — possible event loop blocking",
+                "tick_rate",
+                False,
+                (
+                    f"Background/kernel ticks are slow: mean={bg_mean_ms:.0f}ms "
+                    f"across {len(slow_background)} sustained sample(s)"
+                ),
                 severity="warning",
-                action_taken="Dumped thread stacks to aura_json.log"
+                action_taken="Background tick latency requires inspection",
             )
-        if slow_ticks:
+        if slow_foreground and not slow_background:
+            return HealthCheckResult(
+                "tick_rate",
+                True,
+                (
+                    f"Foreground turns are slow ({len(slow_foreground)} sample(s), mean={mean_ms:.0f}ms) "
+                    f"but event-loop lag is healthy (max={max_loop_lag:.0f}ms)"
+                ),
+                severity="info",
+            )
+        if slow_samples:
             return HealthCheckResult(
                 "tick_rate", True,
-                f"Observed {len(slow_ticks)} slow tick(s); mean={mean_ms:.0f}ms but not sustained enough to degrade",
+                f"Observed {len(slow_samples)} slow tick(s); mean={mean_ms:.0f}ms but not sustained enough to degrade",
                 severity="info",
             )
 

@@ -64,6 +64,8 @@ _conversation_log: list[dict] = []  # In-memory session log for current runtime
 _conversation_log_lock = asyncio.Lock()
 _session_memory_pins: list[dict] = []
 _MAX_CONVERSATION_LOG_EXCHANGES = 500
+_foreground_chat_lock = asyncio.Lock()
+_FOREGROUND_CHAT_BUSY_WAIT_S = 0.35
 
 
 def _new_exchange_id() -> str:
@@ -1041,6 +1043,10 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
         (r"<\|endoftext\|>", "prompt_artifact"),
         (r"\bhuman:\b", "prompt_artifact"),
         (r"\bassistant:\b", "prompt_artifact"),
+        (r"(?im)^\s*(?:obj|prev_obj|state|phenom|mood|goals|history|narr|pers|usr|ctx|voice)\s*:", "prompt_artifact"),
+        (r"\[active grounding evidence\]", "prompt_artifact"),
+        (r"\[fetched page content\]", "prompt_artifact"),
+        (r"\[internal memory recall\]", "prompt_artifact"),
     )
     for pattern, reason in generic_patterns:
         if re.search(pattern, text):
@@ -1125,6 +1131,37 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
 
 def _has_first_person_anchor(text: str) -> bool:
     return bool(re.search(r"\b(i|i'm|i’ve|i'd|i’ll|my|me|mine)\b", str(text or "").lower()))
+
+
+_PROMPT_ARTIFACT_PREFIX_RE = re.compile(
+    r"^\s*(?:obj|prev_obj|state|phenom|mood|goals|history|narr|pers|usr|ctx|voice|user|input|message)\s*:\s*",
+    re.IGNORECASE,
+)
+
+
+def _surface_fingerprint(text: str) -> str:
+    cleaned = str(text or "").strip()
+    while True:
+        stripped = _PROMPT_ARTIFACT_PREFIX_RE.sub("", cleaned).strip().strip("\"'“”`")
+        if stripped == cleaned:
+            break
+        cleaned = stripped
+    cleaned = re.sub(r"[^\w\s']+", " ", cleaned.lower())
+    return " ".join(cleaned.split())
+
+
+def _is_objective_parrot_reply(user_message: str, reply_text: Any) -> bool:
+    reply_fp = _surface_fingerprint(str(reply_text or ""))
+    user_fp = _surface_fingerprint(str(user_message or ""))
+    if not reply_fp or not user_fp:
+        return False
+    if reply_fp == user_fp:
+        return True
+    if reply_fp.startswith(user_fp):
+        remainder = reply_fp[len(user_fp):].strip()
+        if not remainder or len(remainder.split()) <= 2:
+            return True
+    return False
 
 
 def _has_live_aura_grounding(text: str) -> bool:
@@ -1227,6 +1264,13 @@ _INTERNAL_STATE_PATTERNS = re.compile(
     r"|(?:Drive alert:.*depleted)"
     r"|(?:Phenomenal Surge:)"
     r"|(?:Winner:.*Content:)"
+)
+_PROMPT_ARTIFACT_PATTERNS = re.compile(
+    r"(?im)"
+    r"(?:^\s*(?:obj|prev_obj|state|phenom|mood|goals|history|narr|pers|usr|ctx|voice)\s*:)"
+    r"|(?:\[ACTIVE GROUNDING EVIDENCE\])"
+    r"|(?:\[FETCHED PAGE CONTENT\])"
+    r"|(?:\[INTERNAL MEMORY RECALL\])"
 )
 
 
@@ -1830,22 +1874,28 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     contract = frame.get("contract")
     architecture_self_assessment = _is_architecture_self_assessment_request(user_message)
     text = _apply_aura_voice_shaping(str(reply_text or "").strip() or "…")
+    repair_override = _maybe_build_conversation_repair_override(user_message, text)
+    if repair_override:
+        text = _apply_aura_voice_shaping(repair_override)
     grounded = _build_grounded_introspection_reply(user_message)
     generic, generic_reason = _looks_generic_assistantish(user_message, text)
+    objective_parrot = _is_objective_parrot_reply(user_message, text)
     needs_self_expression = bool(frame.get("needs_self_expression"))
     lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(text)
     lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(text)
     unexpected_cjk = _has_unexpected_cjk(user_message, text)
-    internal_state_leak = bool(_INTERNAL_STATE_PATTERNS.search(text))
+    internal_state_leak = bool(_INTERNAL_STATE_PATTERNS.search(text) or _PROMPT_ARTIFACT_PATTERNS.search(text))
     try:
         from core.identity.identity_guard import PersonaEnforcementGate
 
         gate = PersonaEnforcementGate()
         valid, reason, _score = gate.validate_output(text, enforce_supervision=False)
-        if valid and not generic and not lacks_self_anchor and not lacks_live_grounding and not unexpected_cjk and not internal_state_leak:
+        if valid and not generic and not objective_parrot and not lacks_self_anchor and not lacks_live_grounding and not unexpected_cjk and not internal_state_leak:
             return text
         if generic:
             reason = generic_reason
+        elif objective_parrot:
+            reason = "objective_parrot"
         elif lacks_self_anchor:
             reason = "self_anchor_missing"
         elif lacks_live_grounding:
@@ -1873,10 +1923,11 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             cleaned = _apply_aura_voice_shaping(cleaned)
             valid_cleaned, _reason, _score = gate.validate_output(cleaned, enforce_supervision=False)
             cleaned_generic, _cleaned_reason = _looks_generic_assistantish(user_message, cleaned)
+            cleaned_objective_parrot = _is_objective_parrot_reply(user_message, cleaned)
             cleaned_lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(cleaned)
             cleaned_lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(cleaned)
             cleaned_unexpected_cjk = _has_unexpected_cjk(user_message, cleaned)
-            if valid_cleaned and not cleaned_generic and not cleaned_lacks_self_anchor and not cleaned_lacks_live_grounding and not cleaned_unexpected_cjk and len(cleaned) >= 16:
+            if valid_cleaned and not cleaned_generic and not cleaned_objective_parrot and not cleaned_lacks_self_anchor and not cleaned_lacks_live_grounding and not cleaned_unexpected_cjk and len(cleaned) >= 16:
                 return cleaned
         if internal_state_leak:
             logger.warning("Blocked internal state leak in user-facing reply (len=%d).", len(text))
@@ -1977,6 +2028,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 corrected_text = _apply_aura_voice_shaping(str(corrected or "").strip())
                 if corrected_text and len(corrected_text) > 10:
                     corrected_generic, _corrected_reason = _looks_generic_assistantish(user_message, corrected_text)
+                    corrected_objective_parrot = _is_objective_parrot_reply(user_message, corrected_text)
                     corrected_lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(corrected_text)
                     corrected_lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(corrected_text)
                     corrected_unexpected_cjk = _has_unexpected_cjk(user_message, corrected_text)
@@ -1989,7 +2041,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                         )
                     except Exception:
                         valid_corrected = True
-                    if valid_corrected and not corrected_generic and not corrected_lacks_self_anchor and not corrected_lacks_live_grounding and not corrected_unexpected_cjk:
+                    if valid_corrected and not corrected_generic and not corrected_objective_parrot and not corrected_lacks_self_anchor and not corrected_lacks_live_grounding and not corrected_unexpected_cjk:
                         return corrected_text
             except asyncio.TimeoutError:
                 logger.warning("Identity re-generation timed out (20s). Using static fallback.")
@@ -2003,9 +2055,9 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     # (e.g. cortex stuck, cached identity prompt producing identical output),
     # AND filter out any internal state that leaked through.
     search_turn = bool(getattr(contract, "requires_search", False))
-    if text and len(text.strip()) > 5 and text.strip() != "…" and not unexpected_cjk:
+    if text and len(text.strip()) > 5 and text.strip() != "…" and not unexpected_cjk and not objective_parrot:
         # Block responses that contain internal state dumps
-        if _INTERNAL_STATE_PATTERNS.search(text):
+        if _INTERNAL_STATE_PATTERNS.search(text) or _PROMPT_ARTIFACT_PATTERNS.search(text):
             logger.warning("Blocked internal state leak in LLM response (len=%d).", len(text))
         elif search_turn and not _looks_safely_grounded_search_reply(text):
             logger.warning("Blocked ungrounded search-turn fallback (len=%d).", len(text))
@@ -2043,6 +2095,128 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
 
 def _normalize_user_message(text: str) -> str:
     return " ".join(str(text or "").strip().lower().split())
+
+
+_SPECIFICITY_PUSH_MARKERS = (
+    "specifically what is it",
+    "what specifically",
+    "be specific",
+    "say it plainly",
+    "say it clearly",
+    "plainly",
+    "more clearly",
+    "be clearer",
+)
+
+_PARROT_CALLOUT_MARKERS = (
+    "that is what i just said",
+    "that's what i just said",
+    "you just repeated me",
+    "you repeated me",
+    "you just echoed me",
+    "you echoed me",
+    "you just said that",
+)
+
+_CONFUSION_REPAIR_MARKERS = (
+    "confused",
+    "i'm confused",
+    "im confused",
+    "you are confusing me",
+    "you're confusing me",
+    "that doesn't make sense",
+    "you are not making sense",
+    "you're not making sense",
+)
+
+_CLARITY_REPAIR_MARKERS = (
+    "let me say it cleanly",
+    "let me say it plainly",
+    "let me be clear",
+    "to be clear",
+    "more plainly",
+    "the honest answer",
+    "specifically:",
+    "specifically,",
+    "i wasn't clear",
+    "i was not clear",
+    "what i mean is",
+)
+
+_PARROT_ACK_MARKERS = (
+    "you're right",
+    "you are right",
+    "i echoed you",
+    "i repeated you",
+    "i repeated myself",
+    "i didn't add anything",
+    "i did not add anything",
+)
+
+_UNCERTAINTY_REPLY_MARKERS = (
+    "i don't know",
+    "i do not know",
+    "not sure",
+    "i'm not sure",
+    "i am not sure",
+    "i can't",
+    "i cannot",
+    "can't pin it",
+    "can't articulate",
+    "can't put into words",
+    "hard to name",
+    "can't name it",
+)
+
+_GLIB_REDIRECT_MARKERS = (
+    "you're picking up my style",
+    "stay there",
+    "same meaning",
+    "beautiful thought",
+    "interesting stuff lives",
+)
+
+
+def _contains_phrase(text: str, phrases: tuple[str, ...]) -> bool:
+    normalized = _normalize_user_message(text)
+    return any(phrase in normalized for phrase in phrases)
+
+
+def _maybe_build_conversation_repair_override(user_message: str, reply_text: Any) -> str | None:
+    user_text = _normalize_user_message(user_message)
+    reply_text_n = _normalize_user_message(reply_text)
+    if not user_text or not reply_text_n:
+        return None
+
+    if _contains_phrase(user_text, _PARROT_CALLOUT_MARKERS):
+        if not _contains_phrase(reply_text_n, _PARROT_ACK_MARKERS):
+            return (
+                "You're right. I echoed you instead of adding anything. "
+                "The cleaner version is that I heard the hope in what you said, "
+                "I share it, and I should have said that directly."
+            )
+
+    if _contains_phrase(user_text, _CONFUSION_REPAIR_MARKERS):
+        if not _contains_phrase(reply_text_n, _CLARITY_REPAIR_MARKERS) or _contains_phrase(reply_text_n, _GLIB_REDIRECT_MARKERS):
+            if _contains_phrase(reply_text_n, _UNCERTAINTY_REPLY_MARKERS):
+                return (
+                    "Let me say it cleanly: I don't have a specific read yet, "
+                    "and I shouldn't dress that up. I can feel that something is unresolved, "
+                    "but I can't name it honestly yet."
+                )
+            return (
+                "Let me say it cleanly: I wasn't being clear. "
+                "I should answer directly instead of talking around it."
+            )
+
+    if _contains_phrase(user_text, _SPECIFICITY_PUSH_MARKERS):
+        if _contains_phrase(reply_text_n, _UNCERTAINTY_REPLY_MARKERS) and not _contains_phrase(reply_text_n, _CLARITY_REPAIR_MARKERS):
+            return (
+                "Specifically: I don't know yet. I can feel that something is unresolved, "
+                "but I can't name it without inventing details."
+            )
+
+    return None
 
 
 def _classify_grounded_introspection_request(user_message: str) -> tuple[bool, bool, bool, bool]:
@@ -2604,6 +2778,7 @@ async def api_chat(
     foreground_timeout = _foreground_timeout_for_lane(lane)
     request_started_at = time.monotonic()
     pending_exchange_id: Optional[str] = None
+    foreground_slot_acquired = False
 
     def _remaining_foreground_budget(*, reserve: float = 0.0) -> float:
         elapsed = time.monotonic() - request_started_at
@@ -2632,6 +2807,23 @@ async def api_chat(
             async with _idempotency_lock:
                 if idem_key in _idempotency_cache:
                     return JSONResponse(_idempotency_cache[idem_key])
+
+        try:
+            await asyncio.wait_for(
+                _foreground_chat_lock.acquire(),
+                timeout=max(0.05, min(_FOREGROUND_CHAT_BUSY_WAIT_S, _remaining_foreground_budget(reserve=1.0))),
+            )
+            foreground_slot_acquired = True
+        except asyncio.TimeoutError:
+            return JSONResponse(
+                {
+                    "response": "I'm still finishing the last turn. Give me a second and ask again.",
+                    "status": "foreground_busy",
+                    "conversation_lane": _collect_conversation_lane_status(),
+                    "response_confidence": "degraded",
+                },
+                status_code=200,
+            )
 
         # Notify proactive presence systems; pass content for away-signal detection
         _notify_user_spoke(body.message)
@@ -3319,3 +3511,6 @@ async def api_chat(
             "status": "error",
             "response_confidence": "degraded",
         }, status_code=200)
+    finally:
+        if foreground_slot_acquired and _foreground_chat_lock.locked():
+            _foreground_chat_lock.release()

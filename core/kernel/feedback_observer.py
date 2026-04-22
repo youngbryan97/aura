@@ -30,6 +30,8 @@ class TickEntry:
     dominant_before:     str
     phenomenal_before:   Optional[Any]
     top_emotions_before: Dict[str, float]   # top-3 by value
+    origin:              str                 = ""
+    priority:            bool                = False
 
     # ── Set after phases complete ────────────────────────────────────────────
     phi_after:           float               = 0.0
@@ -69,6 +71,14 @@ class TickEntry:
         """True if phi change was large enough to have gated mode."""
         return abs(self.phi_delta) > 0.05 and self.mode_changed
 
+    @property
+    def is_user_facing(self) -> bool:
+        if self.priority:
+            return True
+        return str(self.origin or "").strip().lower() in {
+            "user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external",
+        }
+
     def summary(self) -> str:
         """One-line causal chain summary - log this each tick."""
         mood_change = (
@@ -97,6 +107,9 @@ class TickEntry:
             "tick_id":          self.tick_id,
             "timestamp":        self.timestamp,
             "objective":        self.objective[:200],
+            "origin":           self.origin,
+            "priority":         self.priority,
+            "is_user_facing":   self.is_user_facing,
             "phi":              {"before": self.phi_before,
                                  "after":  self.phi_after,
                                  "delta":  self.phi_delta},
@@ -140,7 +153,14 @@ class FeedbackObserver:
 
     # ── Public API ──────────────────────────────────────────────────────────────
 
-    def begin_tick(self, state: "AuraState", objective: str) -> TickEntry:
+    def begin_tick(
+        self,
+        state: "AuraState",
+        objective: str,
+        *,
+        origin: str = "",
+        priority: bool = False,
+    ) -> TickEntry:
         """
         Snapshot state BEFORE the phase pipeline runs.
         Returns a TickEntry that must be passed to end_tick().
@@ -153,6 +173,8 @@ class FeedbackObserver:
             tick_id        = self._tick_id,
             timestamp      = time.time(),
             objective      = objective[:200],
+            origin         = str(origin or ""),
+            priority       = bool(priority),
             phi_before     = state.phi,
             mode_before    = state.cognition.current_mode.value,
             valence_before = state.affect.valence,

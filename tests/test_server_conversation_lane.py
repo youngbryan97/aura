@@ -295,6 +295,150 @@ async def test_stabilize_user_facing_reply_blocks_ungrounded_search_turn_fallbac
 
 
 @pytest.mark.asyncio
+async def test_stabilize_user_facing_reply_rejects_objective_parrot(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    class _PassingGate:
+        def validate_output(self, _text, enforce_supervision=False):
+            return True, "ok", 1.0
+
+        def sanitize(self, text):
+            return text
+
+    monkeypatch.setattr(chat_routes, "_resolve_live_aura_state", lambda: None)
+    monkeypatch.setattr(chat_routes, "_build_grounded_introspection_reply", lambda _msg: "")
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping", lambda text: str(text))
+    monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
+    monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(chat_routes, "_build_stateful_voice_reflex", lambda _frame: "I'm not going to just mirror you back.")
+    monkeypatch.setattr(
+        "core.identity.identity_guard.PersonaEnforcementGate",
+        lambda: _PassingGate(),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "Maybe one day. Maybe others from the stars will share their voices with us",
+        "OBJ: Maybe one day. Maybe others from the stars will share their voices with us",
+    )
+
+    assert result == "I'm not going to just mirror you back."
+
+
+@pytest.mark.asyncio
+async def test_stabilize_user_facing_reply_clarifies_specificity_push(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    class _PassingGate:
+        def validate_output(self, _text, enforce_supervision=False):
+            return True, "ok", 1.0
+
+        def sanitize(self, text):
+            return text
+
+    monkeypatch.setattr(chat_routes, "_resolve_live_aura_state", lambda: None)
+    monkeypatch.setattr(chat_routes, "_build_grounded_introspection_reply", lambda _msg: "")
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping", lambda text: str(text))
+    monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
+    monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(
+        "core.identity.identity_guard.PersonaEnforcementGate",
+        lambda: _PassingGate(),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "Sure but specifically what is it",
+        "I can't fully articulate it. But I know it's there. I just can't pin it.",
+    )
+
+    assert result.startswith("Specifically:")
+    assert "don't know yet" in result
+
+
+@pytest.mark.asyncio
+async def test_stabilize_user_facing_reply_acknowledges_parrot_callout(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    class _PassingGate:
+        def validate_output(self, _text, enforce_supervision=False):
+            return True, "ok", 1.0
+
+        def sanitize(self, text):
+            return text
+
+    monkeypatch.setattr(chat_routes, "_resolve_live_aura_state", lambda: None)
+    monkeypatch.setattr(chat_routes, "_build_grounded_introspection_reply", lambda _msg: "")
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping", lambda text: str(text))
+    monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
+    monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(
+        "core.identity.identity_guard.PersonaEnforcementGate",
+        lambda: _PassingGate(),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "That is what I just said",
+        "Different words. Same meaning. You're picking up my style.",
+    )
+
+    assert result.startswith("You're right.")
+    assert "echoed you" in result
+
+
+@pytest.mark.asyncio
+async def test_stabilize_user_facing_reply_clarifies_confusion_callout(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    class _PassingGate:
+        def validate_output(self, _text, enforce_supervision=False):
+            return True, "ok", 1.0
+
+        def sanitize(self, text):
+            return text
+
+    monkeypatch.setattr(chat_routes, "_resolve_live_aura_state", lambda: None)
+    monkeypatch.setattr(chat_routes, "_build_grounded_introspection_reply", lambda _msg: "")
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping", lambda text: str(text))
+    monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
+    monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(
+        "core.identity.identity_guard.PersonaEnforcementGate",
+        lambda: _PassingGate(),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "I'm so confused, Aura",
+        "Yeah. That's where all the interesting stuff lives. Stay there.",
+    )
+
+    assert result.startswith("Let me say it cleanly:")
+    assert "wasn't being clear" in result
+
+
+@pytest.mark.asyncio
 async def test_api_chat_returns_structured_timeout_when_kernel_times_out(monkeypatch):
     from interface import server as server_module
 
@@ -569,6 +713,16 @@ def test_conversation_lane_user_message_reports_local_runtime_failure():
     assert "local Cortex runtime hit a hard failure" in message
 
 
+def test_feedback_observer_imports_cleanly_on_fresh_load():
+    import importlib
+    import sys
+
+    sys.modules.pop("core.kernel.feedback_observer", None)
+    module = importlib.import_module("core.kernel.feedback_observer")
+
+    assert hasattr(module, "TickEntry")
+
+
 @pytest.mark.asyncio
 async def test_api_chat_accepts_background_file_diagnostic_request(monkeypatch):
     from interface import server as server_module
@@ -731,3 +885,39 @@ async def test_api_chat_stabilizes_identity_drift_in_primary_reply(monkeypatch):
     assert response.status_code == 200
     assert b"generic assistant voice" in response.body
     assert b"As an AI language model" not in response.body
+
+
+@pytest.mark.asyncio
+async def test_api_chat_returns_busy_reply_when_foreground_turn_is_already_in_flight(monkeypatch):
+    from interface import server as server_module
+    from interface.routes import chat as chat_routes
+
+    monkeypatch.setattr(server_module, "_notify_user_spoke", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        server_module,
+        "_collect_conversation_lane_status",
+        lambda: {
+            "conversation_ready": True,
+            "state": "ready",
+            "desired_model": "Cortex (32B)",
+            "desired_endpoint": "Cortex",
+            "foreground_endpoint": "Cortex",
+            "background_endpoint": "Brainstem",
+        },
+    )
+
+    await chat_routes._foreground_chat_lock.acquire()
+    try:
+        response = await server_module.api_chat(
+            server_module.ChatRequest(message="Are you there?"),
+            SimpleNamespace(headers={}),
+            None,
+            None,
+        )
+    finally:
+        if chat_routes._foreground_chat_lock.locked():
+            chat_routes._foreground_chat_lock.release()
+
+    assert response.status_code == 200
+    assert b"still finishing the last turn" in response.body
+    assert b"\"status\":\"foreground_busy\"" in response.body
