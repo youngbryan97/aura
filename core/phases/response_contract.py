@@ -18,6 +18,7 @@ _EXPLICIT_SEARCH_PATTERNS = (
     r"\blook(?: it)? up\b",
     r"\bgoogle\b",
     r"\bweb search\b",
+    r"\bresearch (?:about|on)\b",
     r"\bfind out (?:about|if|what|who|when|where|why|how)\b",
     r"\bcheck online\b",
     r"\buse .*search\b",

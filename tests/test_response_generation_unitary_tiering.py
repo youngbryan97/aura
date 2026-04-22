@@ -157,6 +157,44 @@ async def test_unitary_response_uses_direct_clock_skill_reply_without_llm(monkey
 
 
 @pytest.mark.asyncio
+async def test_unitary_response_uses_direct_grounded_reply_for_research_about_turns(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "user"
+    state.cognition.current_objective = "research about Python 3.12 release notes key improvements"
+    state.response_modifiers["matched_skills"] = ["web_search"]
+    state.response_modifiers["last_skill_run"] = "web_search"
+    state.response_modifiers["last_skill_ok"] = True
+    state.response_modifiers["last_skill_result_payload"] = {
+        "ok": True,
+        "answer": "Python 3.12 added the new type parameter syntax, faster comprehensions, and lower interpreter overhead.",
+        "summary": "Python 3.12 added the new type parameter syntax, faster comprehensions, and lower interpreter overhead.",
+        "source": "https://docs.python.org/3.12/whatsnew/3.12.html",
+        "results": [
+            {
+                "title": "What's New In Python 3.12",
+                "url": "https://docs.python.org/3.12/whatsnew/3.12.html",
+                "snippet": "Highlights include PEP 695 type parameters and performance improvements.",
+            }
+        ],
+    }
+
+    llm = SimpleNamespace(think=AsyncMock(return_value="I should not be called."))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    llm.think.assert_not_awaited()
+    assert "Python 3.12 added the new type parameter syntax" in new_state.cognition.last_response
+    assert "docs.python.org/3.12/whatsnew/3.12.html" in new_state.cognition.last_response
+
+
+@pytest.mark.asyncio
 async def test_unitary_response_uses_direct_computer_use_reply_without_llm(monkeypatch):
     state = AuraState()
     state.cognition.current_origin = "api"

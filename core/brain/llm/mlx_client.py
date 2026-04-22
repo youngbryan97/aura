@@ -431,6 +431,9 @@ class MLXLocalClient:
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
         self._current_request_id = ""
+        self._current_request_progress_baseline_at = 0.0
+        self._current_prompt_chars = 0
+        self._current_requested_max_tokens = 0
         
         # Resolve substrate SHM if available
         from core.container import ServiceContainer
@@ -444,11 +447,24 @@ class MLXLocalClient:
     def _mark_progress(self) -> None:
         self._last_progress_at = time.time()
 
-    def _mark_generation_started(self, req_id: str) -> None:
+    def _mark_generation_started(
+        self,
+        req_id: str,
+        *,
+        prompt_chars: int = 0,
+        requested_max_tokens: int = 0,
+    ) -> None:
         now = time.time()
         self._current_request_id = str(req_id or "")
+        self._current_request_progress_baseline_at = max(
+            self._last_heartbeat,
+            self._last_progress_at,
+            self._last_ready_at,
+        )
         self._current_request_started_at = now
         self._current_first_token_at = 0.0
+        self._current_prompt_chars = max(0, int(prompt_chars or 0))
+        self._current_requested_max_tokens = max(0, int(requested_max_tokens or 0))
         self._last_token_progress_at = 0.0
         self._mark_progress()
 
@@ -469,6 +485,9 @@ class MLXLocalClient:
         self._current_first_token_at = 0.0
         self._last_token_progress_at = 0.0
         self._current_request_id = ""
+        self._current_request_progress_baseline_at = 0.0
+        self._current_prompt_chars = 0
+        self._current_requested_max_tokens = 0
         self._mark_progress()
 
     def _set_lane_state(self, state: str, error: str = "") -> None:
@@ -547,7 +566,36 @@ class MLXLocalClient:
             # wedged generation. Cold-start gets 40 s once, then shrinks
             # automatically after the first completion sets the anchor.
             if foreground_request:
-                return 40.0 if is_cold_start else 22.0
+                if is_cold_start:
+                    return 40.0
+
+                allowance = 0.0
+                prompt_chars = int(getattr(self, "_current_prompt_chars", 0) or 0)
+                requested_tokens = int(getattr(self, "_current_requested_max_tokens", 0) or 0)
+
+                if prompt_chars >= 20000:
+                    allowance += 8.0
+                elif prompt_chars >= 12000:
+                    allowance += 5.0
+                elif prompt_chars >= 6000:
+                    allowance += 2.5
+
+                if requested_tokens >= 700:
+                    allowance += 4.0
+                elif requested_tokens >= 512:
+                    allowance += 2.0
+
+                try:
+                    vm = psutil.virtual_memory()
+                    pressure = float(getattr(vm, "percent", 0.0) or 0.0)
+                    if pressure >= 72.0:
+                        allowance += 4.0
+                    elif pressure >= 68.0:
+                        allowance += 2.0
+                except Exception:
+                    pass
+
+                return min(40.0, 22.0 + allowance)
             return 35.0
         return 8.0
 
@@ -1401,11 +1449,24 @@ class MLXLocalClient:
                     return None
 
                 request_started_at = self._current_request_started_at
+                current_runtime_progress = max(
+                    self._last_heartbeat,
+                    self._last_progress_at,
+                    self._last_ready_at,
+                )
+                progress_baseline = float(
+                    getattr(self, "_current_request_progress_baseline_at", 0.0) or 0.0
+                )
+                has_runtime_progress_after_request = current_runtime_progress > max(
+                    request_started_at + 0.5,
+                    progress_baseline + 0.5,
+                )
                 if (
                     req_id == self._current_request_id
                     and request_started_at > 0.0
                     and self._current_first_token_at <= 0.0
                     and (time.time() - request_started_at) > first_token_sla
+                    and not has_runtime_progress_after_request
                 ):
                     logger.error(
                         "🛑 [MLX] First-token SLA exceeded for %s (>%.1fs).",
@@ -1713,7 +1774,11 @@ class MLXLocalClient:
         self._pending_generations[req_id] = fut
         self._current_gen_future = fut
         self._active_generations += 1
-        self._mark_generation_started(req_id)
+        self._mark_generation_started(
+            req_id,
+            prompt_chars=len(prompt or ""),
+            requested_max_tokens=req.get("max_tokens", self.max_tokens),
+        )
         enqueue_timeout = max(0.5, min(2.0, deadline.remaining or 2.0))
         try:
             await run_io_bound(self._req_q.put, req, True, enqueue_timeout)

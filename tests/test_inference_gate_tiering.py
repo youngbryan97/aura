@@ -77,6 +77,30 @@ class _RecoverableFailedLaneClient(_LaneWarmupClient):
         return True
 
 
+class _ColdRecordingLaneClient(_RecordingClient):
+    def __init__(self, text: str):
+        super().__init__(text)
+        self.state = "cold"
+        self.last_error = ""
+        self.warmup = AsyncMock(side_effect=self._finish_warmup)
+
+    async def _finish_warmup(self):
+        self.state = "ready"
+        self.last_error = ""
+
+    def get_lane_status(self):
+        return {
+            "state": self.state,
+            "last_error": self.last_error,
+            "conversation_ready": self.state == "ready",
+            "warmup_attempted": self.state != "cold",
+            "warmup_in_flight": False,
+            "last_transition_at": 1.0,
+            "last_ready_at": 1.0 if self.state == "ready" else 0.0,
+            "last_progress_at": 1.0 if self.state == "ready" else 0.0,
+        }
+
+
 @pytest.mark.asyncio
 async def test_background_requests_stay_off_cortex():
     gate = InferenceGate()
@@ -231,6 +255,26 @@ async def test_user_facing_primary_uses_conversational_budget_and_chatml():
     assert cortex.prompts[0].startswith("<|im_start|>")
     assert "<|im_start|>assistant" in cortex.prompts[0]
     assert "<|SYSTEM|>" not in cortex.prompts[0]
+
+
+@pytest.mark.asyncio
+async def test_user_facing_primary_prewarms_cold_cortex_before_first_generation():
+    gate = InferenceGate()
+    cortex = _ColdRecordingLaneClient("hello")
+    gate._mlx_client = cortex
+
+    with patch("core.brain.llm.mlx_client.get_mlx_client", return_value=_FakeClient("fallback")):
+        with patch("core.brain.llm.model_registry.get_brainstem_path", return_value="/models/brainstem"):
+            with patch("core.brain.llm.model_registry.get_fallback_path", return_value="/models/fallback"):
+                result = await gate.generate(
+                    "With me?",
+                    context={"origin": "user", "prefer_tier": "primary", "history": []},
+                )
+
+    assert result == "hello"
+    cortex.warmup.assert_awaited_once()
+    assert len(cortex.deadlines) == 1
+    assert cortex.kwargs[0]["foreground_request"] is True
 
 
 @pytest.mark.asyncio

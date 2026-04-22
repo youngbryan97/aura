@@ -162,6 +162,33 @@ def test_runtime_hygiene_treats_active_model_growth_as_transient(monkeypatch):
     assert "local model activity" in summary["message"].lower()
 
 
+def test_runtime_hygiene_adopts_late_active_children_before_flagging_rogue_processes():
+    class _ChildProc:
+        pid = 43210
+
+        def cmdline(self):
+            return [sys.executable, "-m", "multiprocessing.resource_tracker"]
+
+        def name(self):
+            return "resource_tracker"
+
+        def is_running(self):
+            return True
+
+        def status(self):
+            return "sleeping"
+
+    hygiene = RuntimeHygieneManager()
+    hygiene._proc = SimpleNamespace(children=lambda recursive=True: [_ChildProc()])
+
+    hygiene._adopt_active_child_processes()
+    summary = hygiene._process_summary()
+
+    assert summary["active_registered"] == 1
+    assert summary["active_subprocesses"] == 1
+    assert summary["rogue_child_processes"] == 0
+
+
 @pytest.mark.asyncio
 async def test_stability_guardian_surfaces_runtime_hygiene_findings(service_container):
     service_container.register_instance(

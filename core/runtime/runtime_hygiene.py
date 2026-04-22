@@ -121,7 +121,7 @@ class RuntimeHygieneManager:
         self._patch_subprocess()
         self._patch_multiprocessing()
         self._start_tracemalloc()
-        self._adopt_existing_child_processes()
+        self._adopt_active_child_processes()
         self.capture_sample()
 
     async def stop(self) -> None:
@@ -181,6 +181,7 @@ class RuntimeHygieneManager:
 
     def audit(self) -> Dict[str, Any]:
         sample = self.capture_sample()
+        self._adopt_active_child_processes()
         self._refresh_thread_records()
         self._refresh_process_records()
 
@@ -316,7 +317,7 @@ class RuntimeHygieneManager:
         except Exception as exc:
             logger.debug("RuntimeHygiene: tracemalloc start failed: %s", exc)
 
-    def _adopt_existing_child_processes(self) -> None:
+    def _adopt_active_child_processes(self) -> None:
         if self._proc is None:
             return
         try:
@@ -325,15 +326,17 @@ class RuntimeHygieneManager:
             logger.debug("RuntimeHygiene: existing child adoption skipped: %s", exc)
             return
 
+        tracked_pids = {
+            int(record.pid)
+            for record in self._process_records.values()
+            if record.finished_at is None and getattr(record, "pid", None)
+        }
         for child in children:
             try:
                 pid = int(getattr(child, "pid", 0) or 0)
             except Exception:
                 pid = 0
-            if pid and any(
-                record.pid == pid and record.finished_at is None
-                for record in self._process_records.values()
-            ):
+            if pid and pid in tracked_pids:
                 continue
             try:
                 command_parts = list(child.cmdline() or [])
@@ -353,6 +356,8 @@ class RuntimeHygieneManager:
                 pid=pid or None,
             )
             self._process_refs[key] = child
+            if pid:
+                tracked_pids.add(pid)
 
     def _register_thread(self, thread: threading.Thread, source: str) -> None:
         key = id(thread)
@@ -506,15 +511,32 @@ class RuntimeHygieneManager:
         active_registered = 0
         active_subprocesses = 0
         active_multiprocessing = 0
+        active_registered_pids = set()
         for record in self._process_records.values():
             if record.finished_at is not None:
                 continue
             active_registered += 1
+            if getattr(record, "pid", None):
+                try:
+                    active_registered_pids.add(int(record.pid))
+                except Exception:
+                    pass
             if record.kind == "subprocess":
                 active_subprocesses += 1
             elif record.kind == "multiprocessing":
                 active_multiprocessing += 1
-        rogue_children = self._count_child_processes() - active_registered
+        rogue_children = 0
+        if self._proc is not None:
+            try:
+                active_children = list(self._proc.children(recursive=True))
+            except Exception as exc:
+                logger.debug("RuntimeHygiene: child process scan failed: %s", exc)
+                active_children = []
+            rogue_children = sum(
+                1
+                for child in active_children
+                if int(getattr(child, "pid", 0) or 0) not in active_registered_pids
+            )
         return {
             "active_registered": max(0, active_registered),
             "active_subprocesses": max(0, active_subprocesses),

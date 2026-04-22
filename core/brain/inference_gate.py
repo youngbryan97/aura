@@ -2611,28 +2611,57 @@ class InferenceGate:
                 if protected_deep_fallback:
                     fallback_client = get_mlx_client(model_path=str(get_deep_model_path()))
                     fallback_label = DEEP_ENDPOINT
+                skip_initial_primary_attempt = False
+                if _is_user_facing and local_label == PRIMARY_ENDPOINT:
+                    lane_status = self.get_conversation_status()
+                    if not lane_status.get("conversation_ready"):
+                        logger.info(
+                            "🧠 %s lane is not ready yet (state=%s). Completing foreground warmup before first generation attempt.",
+                            local_label,
+                            lane_status.get("state", "unknown"),
+                        )
+                        try:
+                            lane_status = await self.ensure_foreground_ready(
+                                timeout=min(90.0, max(35.0, primary_timeout))
+                            )
+                        except Exception as warmup_exc:
+                            logger.warning(
+                                "🧠 Foreground preflight warmup did not complete cleanly: %s",
+                                warmup_exc,
+                            )
+                            lane_status = self.get_conversation_status()
+                        if not lane_status.get("conversation_ready"):
+                            skip_initial_primary_attempt = True
+                            logger.warning(
+                                "🧠 %s is still not ready after foreground preflight warmup (state=%s). Skipping the cold first attempt and waiting for recovery before retry.",
+                                local_label,
+                                lane_status.get("state", "unknown"),
+                            )
                 logger.info("🧠 Routing to %s (timeout=%.0fs, user_facing=%s)...", local_label, float(timeout_val), _is_user_facing)
                 primary_deadline = get_deadline(primary_timeout)
-                async with self._resource_context(
-                    enabled=local_label != FALLBACK_ENDPOINT,
-                    priority=_is_user_facing,
-                    worker=local_label,
-                    timeout=primary_deadline.remaining or primary_timeout,
-                ):
-                    text = await self._generate_with_client(
-                        local_client,
-                        prompt,
-                        system_prompt,
-                        history,
-                        primary_deadline,
-                        local_label,
-                        messages=messages,
-                        max_tokens=max_tokens,
-                        temperature=somatic_temperature,
-                        origin=origin,
-                        is_background=is_background,
-                        foreground_request=_is_user_facing,
-                    )
+                if skip_initial_primary_attempt:
+                    text = None
+                else:
+                    async with self._resource_context(
+                        enabled=local_label != FALLBACK_ENDPOINT,
+                        priority=_is_user_facing,
+                        worker=local_label,
+                        timeout=primary_deadline.remaining or primary_timeout,
+                    ):
+                        text = await self._generate_with_client(
+                            local_client,
+                            prompt,
+                            system_prompt,
+                            history,
+                            primary_deadline,
+                            local_label,
+                            messages=messages,
+                            max_tokens=max_tokens,
+                            temperature=somatic_temperature,
+                            origin=origin,
+                            is_background=is_background,
+                            foreground_request=_is_user_facing,
+                        )
                 if text:
                     if restore_primary:
                         # [STABILITY v53] Add exception callback to prevent silent failures

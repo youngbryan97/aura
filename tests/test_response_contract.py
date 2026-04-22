@@ -60,6 +60,20 @@ def test_response_contract_searches_when_capability_question_has_target():
     assert contract.required_skill == "web_search"
 
 
+def test_response_contract_requires_search_for_research_about_queries():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "research about Python 3.12 release notes key improvements",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_search is True
+    assert contract.required_skill == "web_search"
+    assert "explicit_search_request" in contract.reason
+
+
 def test_response_contract_does_not_force_search_for_social_checkin_with_today():
     state = AuraState.default()
 

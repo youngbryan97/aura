@@ -4,6 +4,7 @@ import queue
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.brain.llm.mlx_client import MLXLocalClient
@@ -250,6 +251,55 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
         self.assertEqual(client._deferred_reboot_reason, "first_token_sla_exceeded")
+
+    async def test_generation_waiter_ignores_first_token_sla_when_heartbeat_progresses(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        proc = MagicMock()
+        proc.is_alive.return_value = True
+        client._process = proc
+        client._init_done = True
+        client._set_lane_state("ready")
+        req_id = "req-progress"
+        future = asyncio.get_running_loop().create_future()
+        client._pending_generations[req_id] = future
+        client._current_request_id = req_id
+        client._current_request_started_at = 100.0
+        client._current_request_progress_baseline_at = 100.0
+        client._last_heartbeat = 130.0
+        deadline = get_deadline(None)
+
+        with patch(
+            "core.brain.llm.mlx_client.asyncio.wait_for",
+            side_effect=[asyncio.TimeoutError(), {"status": "ok", "text": "done"}],
+        ):
+            with patch(
+                "core.brain.llm.mlx_client.time.time",
+                return_value=100.0 + client._first_token_sla(foreground_request=True) + 1.0,
+            ):
+                result = await client._wait_for_generation_result(
+                    req_id,
+                    future,
+                    deadline,
+                    foreground_request=True,
+                )
+
+        self.assertEqual(result, {"status": "ok", "text": "done"})
+        self.assertIsNone(client._deferred_reboot_reason)
+
+    def test_first_token_sla_scales_up_for_heavy_foreground_requests(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client._last_generation_completed_at = time.time() - 60.0
+        client._current_prompt_chars = 24000
+        client._current_requested_max_tokens = 768
+
+        with patch(
+            "core.brain.llm.mlx_client.psutil.virtual_memory",
+            return_value=SimpleNamespace(percent=76.0),
+        ):
+            sla = client._first_token_sla(foreground_request=True)
+
+        self.assertGreater(sla, 30.0)
+        self.assertLessEqual(sla, 40.0)
 
     async def test_generation_waiter_flags_token_progress_stall(self):
         client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
