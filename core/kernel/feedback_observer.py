@@ -42,6 +42,7 @@ class TickEntry:
     top_emotions_after:  Dict[str, float]    = field(default_factory=dict)
     response_preview:    str                 = ""   # first 120 chars
     tick_duration_ms:    float               = 0.0
+    priority_tick:       bool                = False
 
     # ── Derived deltas ───────────────────────────────────────────────────────
     @property
@@ -115,6 +116,7 @@ class TickEntry:
             "affect_drove_mode": self.affect_drove_mode,
             "response_preview": self.response_preview[:120],
             "tick_duration_ms": round(self.tick_duration_ms, 1),
+            "priority_tick":    self.priority_tick,
         }
 
 
@@ -140,7 +142,7 @@ class FeedbackObserver:
 
     # ── Public API ──────────────────────────────────────────────────────────────
 
-    def begin_tick(self, state: "AuraState", objective: str) -> TickEntry:
+    def begin_tick(self, state: "AuraState", objective: str, *, priority: bool = False) -> TickEntry:
         """
         Snapshot state BEFORE the phase pipeline runs.
         Returns a TickEntry that must be passed to end_tick().
@@ -161,6 +163,7 @@ class FeedbackObserver:
             dominant_before  = state.affect.dominant_emotion,
             phenomenal_before = state.cognition.phenomenal_state,
             top_emotions_before = top3,
+            priority_tick   = bool(priority),
         )
         return entry
 

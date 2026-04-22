@@ -912,6 +912,12 @@ async def api_health(request: Request):
         phi_core = ServiceContainer.get("phi_core", default=None)
         if phi_core is not None:
             result = phi_core._last_result
+            live_phi = 0.0
+            if hasattr(phi_core, "get_live_phi"):
+                live_phi = float(phi_core.get_live_phi(include_surrogate=True))
+            if live_phi > 0.0:
+                mhaf_data["phi"] = round(live_phi, 4)
+                mhaf_data["phi_source"] = "phi_s" if result is not None else "surrogate"
             if result is not None:
                 mhaf_data["phi"] = round(float(result.phi_s), 4)
                 mhaf_data["phi_complex"] = result.is_complex
@@ -919,6 +925,18 @@ async def api_health(request: Request):
                 mhaf_data["phi_samples"] = result.tpm_n_samples
     except Exception as e:
         logger.debug("PhiCore status collection failed: %s", e)
+    if mhaf_data.get("phi", 0.0) <= 0.0:
+        try:
+            closed_loop = ServiceContainer.get("closed_causal_loop", default=None)
+            if closed_loop is not None and hasattr(closed_loop, "get_status"):
+                closed_loop_phi = float(
+                    (((closed_loop.get_status() or {}).get("phi") or {}).get("estimate") or 0.0)
+                )
+                if closed_loop_phi > 0.0:
+                    mhaf_data["phi"] = round(closed_loop_phi, 4)
+                    mhaf_data["phi_source"] = "closed_loop"
+        except Exception as e:
+            logger.debug("Closed-loop phi fallback failed: %s", e)
     try:
         from core.consciousness.neologism_engine import get_neologism_engine
         neo = get_neologism_engine()

@@ -523,6 +523,27 @@ class NeuralMesh:
             return padded
         return buf[:expected_len].astype(np.float32)
 
+    @staticmethod
+    def _foreground_request_active() -> bool:
+        """Yield plasticity work to the live conversation lane."""
+        try:
+            from core.container import ServiceContainer
+
+            gate = ServiceContainer.get("inference_gate", default=None)
+            mlx = getattr(gate, "_mlx_client", None)
+            if mlx is None or not hasattr(mlx, "get_lane_status"):
+                return False
+
+            lane = mlx.get_lane_status()
+            if bool(lane.get("foreground_owned")):
+                return True
+
+            started_at = float(lane.get("current_request_started_at", 0.0) or 0.0)
+            completed_at = float(lane.get("last_generation_completed_at", 0.0) or 0.0)
+            return started_at > 0.0 and started_at > completed_at
+        except Exception:
+            return False
+
     # ── STDP ─────────────────────────────────────────────────────────
 
     def _apply_stdp(self, now: float):
@@ -531,6 +552,9 @@ class NeuralMesh:
         Pre-before-post → potentiate (causal)
         Post-before-pre → depress   (acausal)
         """
+        if self._foreground_request_active():
+            return
+
         lr = self.cfg.stdp_lr * self._modulatory_plasticity
         window = self.cfg.stdp_window
         A_plus = self.cfg.stdp_potentiation

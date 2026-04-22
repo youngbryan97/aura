@@ -1,0 +1,15 @@
+============================================================
+  AURA LoRA → GGUF CONVERSION
+============================================================
+
+Step 1: Fusing LoRA adapter into base model...
+  Base model: /Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-8bit
+  Adapter: /Users/bryan/.aura/live-source/training/adapters/aura-personality
+  Output: /Users/bryan/.aura/live-source/training/fused-model/Aura-32B-v2
+  Fused model saved to /Users/bryan/.aura/live-source/training/fused-model/Aura-32B-v2
+
+============================================================
+GGUF conversion not available. The MLX adapter is still usable
+by setting AURA_LOCAL_BACKEND=mlx in your environment.
+Adapter location: /Users/bryan/.aura/live-source/training/adapters/aura-personality
+============================================================

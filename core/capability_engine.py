@@ -86,10 +86,11 @@ def _generic_skill_invocation_patterns(name: str) -> List[str]:
     patterns: List[str] = []
     for variant in sorted(part for part in variants if part):
         escaped = re.escape(variant).replace(r"\ ", r"\s+")
+        standalone = rf"(?<![\w-]){escaped}(?![\w-])"
         patterns.extend(
             [
-                rf"\b{escaped}\b",
-                rf"(?:use|run|call|invoke)\s+{escaped}\b",
+                standalone,
+                rf"(?:use|run|call|invoke)\s+{escaped}(?![\w-])",
             ]
         )
     return patterns

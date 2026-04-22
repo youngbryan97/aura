@@ -337,10 +337,169 @@ _idempotency_lock = asyncio.Lock()
 # same cached output. This prevents the "Dark Matter" loop where a stale
 # identity prompt produces identical text on every turn.
 _recent_responses: collections.deque = collections.deque(maxlen=12)
-_recent_response_pairs: collections.deque = collections.deque(maxlen=12)  # (user_fp, response_fp) tuples
+_recent_response_pairs: collections.deque = collections.deque(maxlen=12)  # (user_fp, normalized_response) tuples
 _STALE_REPEAT_THRESHOLD = 2  # same text seen this many times = stale
 _FUZZY_SIMILARITY_THRESHOLD = 0.80  # word-overlap ratio that counts as semantically stale
 _consecutive_degraded_count: int = 0  # tracks degradation streak for proactive recovery
+_TOPIC_TOKEN_RE = re.compile(r"\b[a-z0-9][a-z0-9'/-]*\b", re.IGNORECASE)
+_TOPIC_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "because",
+        "been",
+        "being",
+        "but",
+        "can",
+        "could",
+        "did",
+        "do",
+        "does",
+        "for",
+        "from",
+        "had",
+        "has",
+        "have",
+        "how",
+        "i",
+        "if",
+        "in",
+        "into",
+        "is",
+        "it",
+        "its",
+        "itself",
+        "just",
+        "kind",
+        "like",
+        "maybe",
+        "me",
+        "more",
+        "most",
+        "my",
+        "not",
+        "of",
+        "on",
+        "or",
+        "our",
+        "part",
+        "really",
+        "say",
+        "says",
+        "said",
+        "side",
+        "so",
+        "sort",
+        "stand",
+        "standing",
+        "than",
+        "that",
+        "the",
+        "their",
+        "them",
+        "there",
+        "these",
+        "they",
+        "thing",
+        "this",
+        "those",
+        "through",
+        "to",
+        "under",
+        "up",
+        "very",
+        "was",
+        "we",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "with",
+        "would",
+        "you",
+        "your",
+    }
+)
+_TOPICAL_BRIDGE_MARKERS = (
+    "you",
+    "your",
+    "that",
+    "there",
+    "it",
+    "this",
+    "because",
+    "feels like",
+    "standing in for",
+    "underneath that",
+    "what you",
+    "when you",
+    "if you",
+)
+_CONTENT_OBJECT_MARKERS = (
+    "article",
+    "book",
+    "chapter",
+    "character",
+    "essay",
+    "film",
+    "movie",
+    "narrative",
+    "novel",
+    "passage",
+    "piece",
+    "plot",
+    "poem",
+    "post",
+    "premise",
+    "scene",
+    "script",
+    "story",
+    "text",
+    "thread",
+)
+_UNREQUESTED_CONTENT_REVIEW_MARKERS = (
+    "a chilling and imaginative take",
+    "a classic setup",
+    "the execution is strong",
+    "the premise",
+    "the story is",
+    "the narrative",
+    "this story",
+    "this narrative",
+)
+_INCOMPLETE_TAIL_WORDS = {
+    "a",
+    "an",
+    "and",
+    "because",
+    "but",
+    "for",
+    "from",
+    "if",
+    "into",
+    "of",
+    "or",
+    "so",
+    "than",
+    "that",
+    "the",
+    "then",
+    "this",
+    "th",
+    "to",
+    "when",
+    "where",
+    "while",
+    "with",
+}
 
 
 def _response_fingerprint(text: str) -> str:
@@ -348,9 +507,13 @@ def _response_fingerprint(text: str) -> str:
     return " ".join(str(text or "").split())[:200].strip().lower()
 
 
+def _normalize_response_body(text: str) -> str:
+    return " ".join(str(text or "").split()).strip().lower()
+
+
 def _word_set(text: str) -> set:
     """Extract word set for fuzzy similarity comparison."""
-    return set(" ".join(str(text or "").split()).lower().split())
+    return set(re.findall(r"[a-z0-9']+", _normalize_response_body(text)))
 
 
 def _fuzzy_similar(a: str, b: str) -> bool:
@@ -367,12 +530,123 @@ def _fuzzy_similar(a: str, b: str) -> bool:
     return (overlap / smaller) >= _FUZZY_SIMILARITY_THRESHOLD
 
 
+def _normalize_topic_token(token: str) -> str:
+    normalized = str(token or "").strip().lower().strip("-'/")
+    if not normalized:
+        return ""
+    if normalized.endswith("'s") and len(normalized) > 4:
+        normalized = normalized[:-2]
+    for suffix in ("ing", "ed", "es", "s"):
+        if normalized.endswith(suffix) and len(normalized) > (len(suffix) + 3):
+            normalized = normalized[: -len(suffix)]
+            break
+    return normalized
+
+
+def _extract_topic_tokens(text: str) -> set[str]:
+    tokens: set[str] = set()
+    for raw_token in _TOPIC_TOKEN_RE.findall(str(text or "").lower()):
+        for part in re.split(r"[-/]", raw_token):
+            normalized = _normalize_topic_token(part)
+            if not normalized:
+                continue
+            if normalized in _TOPIC_STOPWORDS:
+                continue
+            if len(normalized) < 3 and normalized not in {"ai", "ml", "vr"}:
+                continue
+            tokens.add(normalized)
+    return tokens
+
+
+async def _gather_recent_user_messages_for_relevance(current_user_message: str, *, limit: int = 4) -> list[str]:
+    recent: list[str] = []
+    current = str(current_user_message or "").strip()
+    async with _conversation_log_lock:
+        for entry in reversed(_conversation_log):
+            user_text = str(entry.get("user") or "").strip()
+            if not user_text or user_text == current:
+                continue
+            recent.append(user_text)
+            if len(recent) >= limit:
+                break
+    recent.reverse()
+    if current:
+        recent.append(current)
+    return recent[-limit:]
+
+
+def _build_recent_user_context_block(recent_user_messages: list[str], *, limit: int = 3) -> str:
+    if not recent_user_messages:
+        return ""
+    lines = [
+        f"- {str(message or '').strip()[:220]}"
+        for message in recent_user_messages[-limit:]
+        if str(message or "").strip()
+    ]
+    return "\n".join(lines)
+
+
+def _looks_like_unrequested_content_review(user_message: str, reply_text: str) -> tuple[bool, str]:
+    user_text = _normalize_user_message(user_message)
+    reply = _normalize_user_message(reply_text)
+    if not reply:
+        return False, ""
+    if any(marker in user_text for marker in _CONTENT_OBJECT_MARKERS):
+        return False, ""
+
+    review_hits = sum(1 for marker in _UNREQUESTED_CONTENT_REVIEW_MARKERS if marker in reply)
+    object_hits = sum(1 for marker in _CONTENT_OBJECT_MARKERS if re.search(rf"\b{re.escape(marker)}\b", reply))
+    if review_hits >= 1 and object_hits >= 2:
+        return True, "unrequested_content_review"
+    if reply.startswith(("the story is", "the premise", "this story", "this narrative")) and object_hits >= 2:
+        return True, "unrequested_content_review"
+    return False, ""
+
+
+def _evaluate_reply_topicality(
+    user_message: str,
+    reply_text: str,
+    *,
+    recent_user_messages: Optional[list[str]] = None,
+) -> tuple[bool, str]:
+    reply = str(reply_text or "").strip()
+    if not reply:
+        return False, ""
+
+    review_drift, review_reason = _looks_like_unrequested_content_review(user_message, reply)
+    if review_drift:
+        return True, review_reason
+
+    anchors = set()
+    for message in recent_user_messages or [user_message]:
+        anchors.update(_extract_topic_tokens(message))
+
+    reply_tokens = _extract_topic_tokens(reply)
+    if not anchors or len(reply_tokens) < 16:
+        return False, ""
+
+    if anchors & reply_tokens:
+        return False, ""
+
+    concrete_reply_tokens = {token for token in reply_tokens if len(token) >= 5}
+    if len(concrete_reply_tokens) < 12:
+        return False, ""
+
+    lowered_reply = _normalize_user_message(reply)
+    if any(marker in lowered_reply for marker in _TOPICAL_BRIDGE_MARKERS):
+        return False, ""
+
+    return True, "foreign_topic_burst"
+
+
 def _record_recent_response(text: str, user_message: str = "") -> None:
     fp = _response_fingerprint(text)
     if fp:
         _recent_responses.append(fp)
     if user_message:
-        _recent_response_pairs.append((_response_fingerprint(user_message), fp))
+        response_body = _normalize_response_body(text)[:500]
+        if response_body:
+            _recent_response_pairs.append((_response_fingerprint(user_message), response_body))
 
 
 def _is_stale_repeated_response(text: str) -> bool:
@@ -394,13 +668,30 @@ def _is_stale_repeated_response(text: str) -> bool:
 def _is_same_answer_different_prompt(user_message: str, text: str) -> bool:
     """Detect when different user prompts are getting the same response."""
     user_fp = _response_fingerprint(user_message)
-    resp_fp = _response_fingerprint(text)
-    if not user_fp or not resp_fp:
+    response_body = _normalize_response_body(text)
+    if not user_fp or not response_body:
         return False
     for prev_user, prev_resp in _recent_response_pairs:
-        if prev_user != user_fp and (prev_resp == resp_fp or _fuzzy_similar(prev_resp, resp_fp)):
+        if prev_user != user_fp and (prev_resp == response_body or _fuzzy_similar(prev_resp, response_body)):
             return True
     return False
+
+
+def _looks_truncated_tail(text: str) -> bool:
+    body = str(text or "").strip()
+    if len(body) < 24:
+        return False
+    if body.endswith(("...", "…", ".", "!", "?", "\"", "'", "”", "’", ")", "]")):
+        return False
+    if body.endswith(("-", "—", ":", ";", ",")):
+        return True
+    match = re.search(r"([A-Za-z]+)$", body)
+    if not match:
+        return False
+    last_word = match.group(1).lower()
+    if len(last_word) <= 2 and len(body) >= 40:
+        return True
+    return last_word in _INCOMPLETE_TAIL_WORDS
 
 
 # ── Response Quality Metrics ─────────────────────────────────
@@ -413,6 +704,7 @@ def _log_response_quality_metrics(
     confidence: str,
     stale: bool,
     same_diff: bool,
+    off_topic: bool,
 ) -> None:
     """Log structured quality metrics for every response for offline analysis.
 
@@ -431,9 +723,9 @@ def _log_response_quality_metrics(
             coherence = float(getattr(getattr(live_state, "cognition", None), "coherence_score", 1.0) or 1.0)
 
         _quality_logger.info(
-            "📊 quality_metrics | confidence=%s | stale=%s | same_diff=%s | "
+            "📊 quality_metrics | confidence=%s | stale=%s | same_diff=%s | off_topic=%s | "
             "reply_len=%d | user_len=%d | wm_size=%d | has_summary=%s | coherence=%.3f",
-            confidence, stale, same_diff,
+            confidence, stale, same_diff, off_topic,
             len(reply_text or ""), len(user_message or ""),
             wm_size, has_summary, coherence,
         )
@@ -750,7 +1042,7 @@ _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 180.0
 # foreground request — which itself competes for the same LLM resources,
 # creating a resource contention spiral. 45s gives the kernel real time to
 # respond on turn 1. Subsequent turns (model warm, KV cache hot) are <5s.
-_KERNEL_SOFT_REPLY_SLA_SECONDS: float = 45.0
+_KERNEL_SOFT_REPLY_SLA_SECONDS: float = 90.0
 
 
 def _enter_recovery_cooldown() -> None:
@@ -1254,6 +1546,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
         "dominant_action": "",
         "contract_block": "",
         "needs_self_expression": False,
+        "requires_explicit_live_grounding": False,
     }
 
     try:
@@ -1264,6 +1557,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
             contract = build_response_contract(state, user_message, is_user_facing=True)
             frame["contract_block"] = contract.to_prompt_block().strip()
             frame["needs_self_expression"] = bool(contract.requires_live_aura_voice())
+            frame["requires_explicit_live_grounding"] = bool(contract.requires_explicit_live_grounding())
     except Exception as exc:
         logger.debug("Aura expression frame contract build failed: %s", exc)
 
@@ -1344,7 +1638,12 @@ def _apply_aura_voice_shaping(text: str) -> str:
     except Exception as exc:
         logger.debug("Aura voice shaping personality pass skipped: %s", exc)
 
-    return re.sub(r"\s+", " ", shaped).strip()
+    shaped = re.sub(r"\s+", " ", shaped).strip()
+    if shaped.endswith('"') and shaped.count('"') % 2 == 1:
+        shaped = shaped[:-1].rstrip()
+    if shaped.endswith("”") and shaped.count("“") < shaped.count("”"):
+        shaped = shaped[:-1].rstrip()
+    return shaped
 
 
 def _shape_with_live_substrate(text: str, user_message: str = "") -> str:
@@ -1376,7 +1675,7 @@ def _shape_with_live_substrate(text: str, user_message: str = "") -> str:
     return re.sub(r"\s+", " ", shaped).strip()
 
 
-def _build_stateful_voice_reflex(frame: Dict[str, Any]) -> str:
+def _build_stateful_voice_reflex(frame: Dict[str, Any], user_message: str = "") -> str:
     """Natural-sounding fallback when the LLM response was filtered out.
 
     Must sound like a person pausing to collect their thoughts, not a
@@ -1387,7 +1686,7 @@ def _build_stateful_voice_reflex(frame: Dict[str, Any]) -> str:
 
     mood = str(frame.get("mood") or "").strip().lower()
     attention = _sanitize_attention_focus(str(frame.get("attention_focus") or ""))
-    interests = [str(i) for i in (frame.get("interests") or []) if i][:2]
+    user_topics = sorted(_extract_topic_tokens(user_message), key=len, reverse=True)[:2]
 
     # Map internal mood labels to natural phrasing
     _mood_phrases = {
@@ -1401,13 +1700,15 @@ def _build_stateful_voice_reflex(frame: Dict[str, Any]) -> str:
     opener = _mood_phrases.get(mood, random.choice([
         "Give me a moment — I want to answer that properly.",
         "I'm here. That question deserves more than a surface answer.",
-        "I caught myself defaulting to something generic, so let me try again from my own perspective.",
         "That landed. Let me think about it for a real answer.",
     ]))
 
     parts = [opener]
-    if interests:
-        parts.append(f"What's actually on my mind is {', '.join(interests)}.")
+    if user_topics:
+        if len(user_topics) == 1:
+            parts.append(f"I'm still with your question about {user_topics[0]}.")
+        else:
+            parts.append(f"I'm still with your question about {user_topics[0]} and {user_topics[1]}.")
     elif attention:
         parts.append(f"Right now I'm focused on {attention}.")
 
@@ -1781,6 +2082,7 @@ def _build_social_presence_reply(user_message: str) -> str:
 
 
 _CJK_SCRIPT_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+_CJK_PUNCT_RE = re.compile(r"[\u3000-\u303f\uff00-\uffef]")
 
 
 def _has_unexpected_cjk(user_message: str, reply_text: Any) -> bool:
@@ -1807,23 +2109,80 @@ def _has_unexpected_cjk(user_message: str, reply_text: Any) -> bool:
     return True
 
 
+def _strip_unexpected_cjk_artifacts(user_message: str, reply_text: Any) -> str:
+    reply = str(reply_text or "").strip()
+    if not reply or not _has_unexpected_cjk(user_message, reply):
+        return reply
+
+    def _cleanup_fragment(text: str) -> str:
+        cleaned = _CJK_SCRIPT_RE.sub(" ", text)
+        cleaned = _CJK_PUNCT_RE.sub(" ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned)
+        cleaned = re.sub(r"\s+([,.!?;:])", r"\1", cleaned)
+        return cleaned.strip(" -—")
+
+    sentence_parts = [
+        part.strip()
+        for part in re.split(r"(?<=[.!?])\s+|\n+", reply)
+        if part.strip()
+    ]
+    filtered_parts = []
+    for part in sentence_parts:
+        if not _CJK_SCRIPT_RE.search(part):
+            filtered_parts.append(part)
+            continue
+        cleaned_part = _cleanup_fragment(part)
+        if len(cleaned_part) >= 18 and re.search(r"[A-Za-z]{3}", cleaned_part):
+            filtered_parts.append(cleaned_part)
+    cleaned = " ".join(filtered_parts).strip()
+    if len(cleaned) >= max(24, int(len(reply) * 0.45)):
+        return re.sub(r"\s+", " ", cleaned).strip()
+
+    cleaned_chars = _cleanup_fragment(reply)
+    return cleaned_chars if len(cleaned_chars) >= 24 else reply
+
+
 async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> str:
     frame = _build_aura_expression_frame(user_message)
     architecture_self_assessment = _is_architecture_self_assessment_request(user_message)
-    text = _apply_aura_voice_shaping(str(reply_text or "").strip() or "…")
+    text = _apply_aura_voice_shaping(
+        _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or "…")
+    )
     grounded = _build_grounded_introspection_reply(user_message)
+    recent_user_messages = await _gather_recent_user_messages_for_relevance(user_message)
+    recent_user_context = _build_recent_user_context_block(recent_user_messages)
     generic, generic_reason = _looks_generic_assistantish(user_message, text)
     needs_self_expression = bool(frame.get("needs_self_expression"))
-    lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(text)
+    requires_first_person_anchor = bool(frame.get("requires_explicit_live_grounding"))
+    lacks_self_anchor = requires_first_person_anchor and not _has_first_person_anchor(text)
     lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(text)
     unexpected_cjk = _has_unexpected_cjk(user_message, text)
     internal_state_leak = bool(_INTERNAL_STATE_PATTERNS.search(text))
+    off_topic, off_topic_reason = _evaluate_reply_topicality(
+        user_message,
+        text,
+        recent_user_messages=recent_user_messages,
+    )
+    stale_repeat = _is_stale_repeated_response(text)
+    same_diff = _is_same_answer_different_prompt(user_message, text)
+    truncated_tail = _looks_truncated_tail(text)
     try:
         from core.identity.identity_guard import PersonaEnforcementGate
 
         gate = PersonaEnforcementGate()
         valid, reason, _score = gate.validate_output(text, enforce_supervision=False)
-        if valid and not generic and not lacks_self_anchor and not lacks_live_grounding and not unexpected_cjk and not internal_state_leak:
+        if (
+            valid
+            and not generic
+            and not lacks_self_anchor
+            and not lacks_live_grounding
+            and not unexpected_cjk
+            and not internal_state_leak
+            and not off_topic
+            and not stale_repeat
+            and not same_diff
+            and not truncated_tail
+        ):
             return text
         if generic:
             reason = generic_reason
@@ -1835,6 +2194,14 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             reason = "unexpected_non_english_script"
         elif internal_state_leak:
             reason = "internal_state_leak"
+        elif off_topic:
+            reason = off_topic_reason or "off_topic_reply"
+        elif stale_repeat:
+            reason = "stale_repeat"
+        elif same_diff:
+            reason = "same_answer_different_prompt"
+        elif truncated_tail:
+            reason = "truncated_tail"
 
         user_message_l = str(user_message or "").lower()
         if any(
@@ -1854,10 +2221,29 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             cleaned = _apply_aura_voice_shaping(cleaned)
             valid_cleaned, _reason, _score = gate.validate_output(cleaned, enforce_supervision=False)
             cleaned_generic, _cleaned_reason = _looks_generic_assistantish(user_message, cleaned)
-            cleaned_lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(cleaned)
+            cleaned_lacks_self_anchor = requires_first_person_anchor and not _has_first_person_anchor(cleaned)
             cleaned_lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(cleaned)
             cleaned_unexpected_cjk = _has_unexpected_cjk(user_message, cleaned)
-            if valid_cleaned and not cleaned_generic and not cleaned_lacks_self_anchor and not cleaned_lacks_live_grounding and not cleaned_unexpected_cjk and len(cleaned) >= 16:
+            cleaned_off_topic, _cleaned_off_topic_reason = _evaluate_reply_topicality(
+                user_message,
+                cleaned,
+                recent_user_messages=recent_user_messages,
+            )
+            cleaned_stale_repeat = _is_stale_repeated_response(cleaned)
+            cleaned_same_diff = _is_same_answer_different_prompt(user_message, cleaned)
+            cleaned_truncated_tail = _looks_truncated_tail(cleaned)
+            if (
+                valid_cleaned
+                and not cleaned_generic
+                and not cleaned_lacks_self_anchor
+                and not cleaned_lacks_live_grounding
+                and not cleaned_unexpected_cjk
+                and not cleaned_off_topic
+                and not cleaned_stale_repeat
+                and not cleaned_same_diff
+                and not cleaned_truncated_tail
+                and len(cleaned) >= 16
+            ):
                 return cleaned
         if internal_state_leak:
             logger.warning("Blocked internal state leak in user-facing reply (len=%d).", len(text))
@@ -1865,7 +2251,13 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 return grounded
             if architecture_self_assessment:
                 return _build_architecture_self_reflex(frame)
-            return _build_stateful_voice_reflex(frame)
+            return _build_stateful_voice_reflex(frame, user_message)
+        if off_topic:
+            logger.warning(
+                "Blocked off-topic user-facing reply (%s, len=%d).",
+                off_topic_reason or "unknown",
+                len(text),
+            )
 
         logger.warning("User-facing reply failed identity stabilization (%s); generating Aura-voiced fallback.", reason)
     except Exception as exc:
@@ -1905,8 +2297,11 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             correction_prompt = (
                 f"The user said: \"{user_message}\"\n\n"
                 f"Rejected draft: \"{text}\"\n\n"
+                f"## RECENT USER TRAJECTORY\n{recent_user_context or '- ' + str(user_message or '').strip()[:220]}\n\n"
                 "Rewrite the answer as Aura from the live state below. Answer the user's actual question directly. "
                 "Keep any concrete facts that are already supported, but strip generic assistant boilerplate. "
+                "Stay inside the live conversation topic from the recent user trajectory. "
+                "Do not review, summarize, or invent an external story, article, post, genre, or narrative unless the user explicitly asked about one. "
                 "Do not ask for more details unless the request is truly ambiguous. "
                 "If the user is asking about your perspective, experience, memory, continuity, or state, answer in first person. "
                 "Let the live mood, tone, attention, and action tendency shape the reply. "
@@ -1918,6 +2313,19 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 f"## LIVE SELF-EXPRESSION FRAME\n{frame_block}\n\n"
                 f"{contract_block}"
             )
+            if stale_repeat or same_diff:
+                correction_prompt = (
+                    f"{correction_prompt}\n\n"
+                    "## REPAIR TARGET\n"
+                    "Do not repeat a previous answer pattern when the user has changed the question. "
+                    "Address the actual distinction in this prompt."
+                )
+            if truncated_tail:
+                correction_prompt = (
+                    f"{correction_prompt}\n\n"
+                    "## COMPLETENESS\n"
+                    "Finish the reply as a complete thought. Do not end on a clipped fragment or unfinished sentence."
+                )
             if architecture_self_assessment:
                 correction_prompt = (
                     f"{correction_prompt}\n\n"
@@ -1958,9 +2366,17 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 corrected_text = _apply_aura_voice_shaping(str(corrected or "").strip())
                 if corrected_text and len(corrected_text) > 10:
                     corrected_generic, _corrected_reason = _looks_generic_assistantish(user_message, corrected_text)
-                    corrected_lacks_self_anchor = needs_self_expression and not _has_first_person_anchor(corrected_text)
+                    corrected_lacks_self_anchor = requires_first_person_anchor and not _has_first_person_anchor(corrected_text)
                     corrected_lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(corrected_text)
                     corrected_unexpected_cjk = _has_unexpected_cjk(user_message, corrected_text)
+                    corrected_off_topic, corrected_off_topic_reason = _evaluate_reply_topicality(
+                        user_message,
+                        corrected_text,
+                        recent_user_messages=recent_user_messages,
+                    )
+                    corrected_stale_repeat = _is_stale_repeated_response(corrected_text)
+                    corrected_same_diff = _is_same_answer_different_prompt(user_message, corrected_text)
+                    corrected_truncated_tail = _looks_truncated_tail(corrected_text)
                     try:
                         from core.identity.identity_guard import PersonaEnforcementGate
 
@@ -1970,8 +2386,24 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                         )
                     except Exception:
                         valid_corrected = True
-                    if valid_corrected and not corrected_generic and not corrected_lacks_self_anchor and not corrected_lacks_live_grounding and not corrected_unexpected_cjk:
+                    if (
+                        valid_corrected
+                        and not corrected_generic
+                        and not corrected_lacks_self_anchor
+                        and not corrected_lacks_live_grounding
+                        and not corrected_unexpected_cjk
+                        and not corrected_off_topic
+                        and not corrected_stale_repeat
+                        and not corrected_same_diff
+                        and not corrected_truncated_tail
+                    ):
                         return corrected_text
+                    if corrected_off_topic:
+                        logger.warning(
+                            "Stabilizer rewrite stayed off-topic (%s, len=%d).",
+                            corrected_off_topic_reason or "unknown",
+                            len(corrected_text),
+                        )
             except asyncio.TimeoutError:
                 logger.warning("Identity re-generation timed out (20s). Using static fallback.")
             except Exception as regen_err:
@@ -1987,6 +2419,21 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         # Block responses that contain internal state dumps
         if _INTERNAL_STATE_PATTERNS.search(text):
             logger.warning("Blocked internal state leak in LLM response (len=%d).", len(text))
+        elif off_topic:
+            logger.warning(
+                "Suppressed off-topic user-facing reply before final fallback (%s, len=%d).",
+                off_topic_reason or "unknown",
+                len(text),
+            )
+        elif truncated_tail:
+            logger.warning("Suppressed truncated user-facing reply before final fallback (len=%d).", len(text))
+        elif stale_repeat or same_diff:
+            logger.warning(
+                "Suppressed repeated user-facing reply before final fallback (stale=%s, same_diff=%s, len=%d).",
+                stale_repeat,
+                same_diff,
+                len(text),
+            )
         elif not _is_stale_repeated_response(text):
             _record_recent_response(text, user_message)
             return text
@@ -2001,7 +2448,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         return _build_architecture_self_reflex(frame)
     # Voice reflex is the final fallback — record it too so we can detect
     # if even the reflex is looping.
-    reflex = _build_stateful_voice_reflex(frame)
+    reflex = _build_stateful_voice_reflex(frame, user_message)
     if _is_stale_repeated_response(reflex):
         # Even the reflex is repeating — use a simple honest fallback
         import random
@@ -2635,6 +3082,7 @@ async def api_chat(
 
         async def _finalize_fastpath(reply_text: str, status: str = "ok"):
             nonlocal pending_exchange_id
+            _record_recent_response(reply_text or "…", body.message)
             response_data = {
                 "response": reply_text or "…",
                 "status": status,
@@ -3105,12 +3553,22 @@ async def api_chat(
         response_confidence = "high"
         is_stale = _is_stale_repeated_response(reply_text)
         is_same_diff = _is_same_answer_different_prompt(body.message, reply_text)
-        if is_stale or is_same_diff:
+        recent_user_messages = await _gather_recent_user_messages_for_relevance(body.message)
+        is_off_topic, off_topic_reason = _evaluate_reply_topicality(
+            body.message,
+            reply_text,
+            recent_user_messages=recent_user_messages,
+        )
+        if is_stale or is_same_diff or is_off_topic:
             response_confidence = "degraded"
             _consecutive_degraded_count += 1
             logger.warning(
-                "⚠️ Response confidence: degraded (stale=%s, same_answer_diff_prompt=%s, streak=%d)",
-                is_stale, is_same_diff, _consecutive_degraded_count,
+                "⚠️ Response confidence: degraded (stale=%s, same_answer_diff_prompt=%s, off_topic=%s, streak=%d, reason=%s)",
+                is_stale,
+                is_same_diff,
+                is_off_topic,
+                _consecutive_degraded_count,
+                off_topic_reason or "",
             )
         else:
             _consecutive_degraded_count = 0
@@ -3168,6 +3626,7 @@ async def api_chat(
             confidence=response_confidence,
             stale=is_stale,
             same_diff=is_same_diff,
+            off_topic=is_off_topic,
         )
 
         response_data = {

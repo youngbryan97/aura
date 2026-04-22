@@ -411,6 +411,7 @@ class MLXLocalClient:
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
         self._current_request_id = ""
+        self._current_request_prompt_chars = 0
         
         # Resolve substrate SHM if available
         from core.container import ServiceContainer
@@ -424,12 +425,13 @@ class MLXLocalClient:
     def _mark_progress(self) -> None:
         self._last_progress_at = time.time()
 
-    def _mark_generation_started(self, req_id: str) -> None:
+    def _mark_generation_started(self, req_id: str, *, prompt_chars: int = 0) -> None:
         now = time.time()
         self._current_request_id = str(req_id or "")
         self._current_request_started_at = now
         self._current_first_token_at = 0.0
         self._last_token_progress_at = 0.0
+        self._current_request_prompt_chars = max(0, int(prompt_chars or 0))
         self._mark_progress()
 
     def _mark_token_progress(self, req_id: Optional[str] = None) -> None:
@@ -449,6 +451,7 @@ class MLXLocalClient:
         self._current_first_token_at = 0.0
         self._last_token_progress_at = 0.0
         self._current_request_id = ""
+        self._current_request_prompt_chars = 0
         self._mark_progress()
 
     def _set_lane_state(self, state: str, error: str = "") -> None:
@@ -510,6 +513,24 @@ class MLXLocalClient:
 
     def _first_token_sla(self, *, foreground_request: bool = False) -> float:
         lowered = os.path.basename(self.model_path).lower()
+        prompt_chars = max(0, int(getattr(self, "_current_request_prompt_chars", 0) or 0))
+        # Prompt eval dominates first-token latency on the 32B/72B lanes.
+        # Recent live traces showed ~5.3k-token prompts taking 66-76s before
+        # the first token arrived, which is healthy-but-slow rather than wedged.
+        estimated_prompt_tokens = (prompt_chars / 4.6) if prompt_chars > 0 else 0.0
+
+        def _with_prompt_eval_headroom(
+            base_sla: float,
+            *,
+            threshold_tokens: float,
+            eval_seconds_per_token: float,
+            cap_s: float,
+        ) -> float:
+            if estimated_prompt_tokens <= threshold_tokens:
+                return base_sla
+            extra = (estimated_prompt_tokens - threshold_tokens) * eval_seconds_per_token
+            return min(cap_s, base_sla + extra)
+
         # Cold-start exemption: the FIRST real foreground generation after a
         # worker warmup or reboot legitimately needs 30–45 s on 32B because
         # Metal shaders are still JIT-compiling and the KV cache is empty.
@@ -520,14 +541,26 @@ class MLXLocalClient:
         is_cold_start = float(getattr(self, "_last_generation_completed_at", 0.0) or 0.0) <= 0.0
         if "72b" in lowered or "solver" in lowered:
             if foreground_request:
-                return 40.0 if is_cold_start else 20.0
+                base = 52.0 if is_cold_start else 32.0
+                return _with_prompt_eval_headroom(
+                    base,
+                    threshold_tokens=768.0,
+                    eval_seconds_per_token=0.018,
+                    cap_s=115.0,
+                )
             return 30.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
             # Warm foreground cap stays tight (22 s) so the UI never sees a
             # wedged generation. Cold-start gets 40 s once, then shrinks
             # automatically after the first completion sets the anchor.
             if foreground_request:
-                return 40.0 if is_cold_start else 22.0
+                base = 40.0 if is_cold_start else 22.0
+                return _with_prompt_eval_headroom(
+                    base,
+                    threshold_tokens=512.0,
+                    eval_seconds_per_token=0.0125,
+                    cap_s=90.0,
+                )
             return 35.0
         return 8.0
 
@@ -586,6 +619,7 @@ class MLXLocalClient:
             "process_started_at": self._process_started_at,
             "current_request_started_at": self._current_request_started_at,
             "current_first_token_at": self._current_first_token_at,
+            "current_request_prompt_chars": self._current_request_prompt_chars,
         }
 
     def get_supervision_status(self) -> Dict[str, Any]:
@@ -1654,7 +1688,7 @@ class MLXLocalClient:
         self._pending_generations[req_id] = fut
         self._current_gen_future = fut
         self._active_generations += 1
-        self._mark_generation_started(req_id)
+        self._mark_generation_started(req_id, prompt_chars=len(prompt or ""))
         enqueue_timeout = max(0.5, min(2.0, deadline.remaining or 2.0))
         try:
             await run_io_bound(self._req_q.put, req, True, enqueue_timeout)
