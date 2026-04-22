@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from core.orchestrator.handlers.shutdown import orchestrator_shutdown
 from core.orchestrator.mixins.boot.boot_cognitive import BootCognitiveMixin
 from core.orchestrator.mixins.boot.boot_resilience import BootResilienceMixin
 from core.orchestrator.mixins.output_formatter import OutputFormatterMixin
@@ -165,3 +166,89 @@ async def test_start_state_vault_actor_fallback_ping_uses_request_wire_format(mo
     assert pipe.sent[0]["type"] == "ping"
     assert pipe.sent[0]["is_request"] is True
     assert pipe.sent[0]["payload"]["source"] == "boot_resilience"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_shutdown_requests_graceful_state_vault_stop_before_bus_stop(monkeypatch):
+    class _Bus:
+        def __init__(self):
+            self.calls = []
+
+        def has_actor(self, name):
+            return name == "state_vault"
+
+        async def request(self, actor, msg_type, payload, timeout=0):
+            self.calls.append(("request", actor, msg_type, payload, timeout))
+            return None
+
+        async def stop(self):
+            self.calls.append(("stop",))
+
+    class _Supervisor:
+        def __init__(self):
+            self.stop_calls = 0
+            self._running = True
+
+        def is_actor_running(self, name):
+            if name != "state_vault":
+                return False
+            was_running = self._running
+            self._running = False
+            return was_running
+
+        async def stop(self):
+            self.stop_calls += 1
+
+    bus = _Bus()
+    supervisor = _Supervisor()
+    state_repo = SimpleNamespace(
+        get_current=AsyncMock(return_value=None),
+        close=AsyncMock(),
+        _transport_has_vault=lambda: True,
+        is_vault_owner=False,
+    )
+    service_shutdown = AsyncMock()
+    event_bus_shutdown = AsyncMock()
+
+    monkeypatch.setattr(
+        "core.resilience.snapshot_manager.SnapshotManager",
+        lambda _orch: SimpleNamespace(freeze=lambda: None),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.shutdown",
+        service_shutdown,
+    )
+    monkeypatch.setattr(
+        "core.event_bus.get_event_bus",
+        lambda: SimpleNamespace(shutdown=event_bus_shutdown),
+    )
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker",
+        lambda: SimpleNamespace(shutdown=lambda timeout=3.0: None),
+    )
+
+    orch = SimpleNamespace(
+        status=SimpleNamespace(running=True, is_processing=True),
+        state_repo=state_repo,
+        _actor_bus=bus,
+        _supervisor_tree=supervisor,
+        _publish_status=lambda _payload: None,
+        _save_state=lambda _cause: None,
+        _stop_event=None,
+        kernel_interface=None,
+    )
+
+    await orchestrator_shutdown(orch)
+
+    assert bus.calls[0] == (
+        "request",
+        "state_vault",
+        "stop",
+        {"source": "orchestrator_shutdown", "reason": "graceful_shutdown"},
+        2.0,
+    )
+    assert bus.calls[1] == ("stop",)
+    state_repo.close.assert_awaited_once()
+    service_shutdown.assert_awaited_once()
+    event_bus_shutdown.assert_awaited_once()
+    assert supervisor.stop_calls == 1

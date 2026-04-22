@@ -6,11 +6,16 @@ import mmap
 import os
 import tempfile
 import uuid
+from contextlib import contextmanager
 from multiprocessing import shared_memory
+from multiprocessing import resource_tracker
 from pathlib import Path
+from threading import Lock
 from typing import Any
+import weakref
 
 logger = logging.getLogger("Bus.SharedMem")
+_SHM_ATTACH_TRACKING_LOCK = Lock()
 
 
 def _fallback_root() -> Path:
@@ -67,6 +72,63 @@ class SharedMemoryTransport:
         self._is_owner = False
         self._bus_id = str(uuid.uuid4())
         self._backend = "posix_shm"
+        self._owner_finalizer: weakref.finalize | None = None
+
+    @staticmethod
+    def _deregister_from_reaper(name: str) -> None:
+        try:
+            from core.reaper import ReaperManifest
+
+            ReaperManifest().deregister_shm(name)
+        except Exception as exc:
+            logger.warning(
+                "🚌 SharedMem: Failed to deregister from Reaper during close: %s",
+                exc,
+            )
+
+    @staticmethod
+    def _finalize_owner_segment(name: str, shm: Any) -> None:
+        SharedMemoryTransport._deregister_from_reaper(name)
+        try:
+            shm.unlink()
+            logger.debug("Shared Memory Segment Unlinked by finalizer: %s", name)
+        except Exception as exc:
+            logger.debug("Finalizer unlink skipped for %s: %s", name, exc)
+        try:
+            shm.close()
+        except Exception as exc:
+            logger.debug("Finalizer close skipped for %s: %s", name, exc)
+
+    def _arm_owner_finalizer(self) -> None:
+        finalizer = self._owner_finalizer
+        if finalizer and finalizer.alive:
+            finalizer.detach()
+        self._owner_finalizer = None
+        if self._is_owner and self.shm is not None:
+            self._owner_finalizer = weakref.finalize(
+                self,
+                SharedMemoryTransport._finalize_owner_segment,
+                self.name,
+                self.shm,
+            )
+
+    @staticmethod
+    @contextmanager
+    def _suppress_shared_memory_registration():
+        """Attachers should not register SHM names they do not own."""
+        original_register = resource_tracker.register
+
+        def _register(name: str, rtype: str) -> None:
+            if rtype == "shared_memory":
+                return
+            original_register(name, rtype)
+
+        with _SHM_ATTACH_TRACKING_LOCK:
+            resource_tracker.register = _register
+            try:
+                yield
+            finally:
+                resource_tracker.register = original_register
 
     @property
     def payload_capacity(self) -> int:
@@ -104,6 +166,7 @@ class SharedMemoryTransport:
         self.shm = _FileBackedSharedMemory(self.name, path, fd, mm)
         self._is_owner = True
         self._backend = "file_mmap"
+        self._arm_owner_finalizer()
 
         buf = self.shm.buf
         try:
@@ -147,6 +210,7 @@ class SharedMemoryTransport:
             self.shm = shm
             self._is_owner = True
             self._backend = "posix_shm"
+            self._arm_owner_finalizer()
             
             # [REAPER] Register SHM segment for post-mortem cleanup
             try:
@@ -183,7 +247,8 @@ class SharedMemoryTransport:
         
         for attempt in range(max_retries):
             try:
-                self.shm = shared_memory.SharedMemory(name=self.name)
+                with self._suppress_shared_memory_registration():
+                    self.shm = shared_memory.SharedMemory(name=self.name)
                 self.size = getattr(self.shm, "size", self.size) or self.size
                 self._backend = "posix_shm"
                 logger.debug(f"✓ Attached to Shared Memory: {self.name}")
@@ -348,14 +413,14 @@ class SharedMemoryTransport:
         """Close the shared memory handle."""
         shm = self.shm
         if shm:
+            finalizer = self._owner_finalizer
+            if finalizer and finalizer.alive:
+                finalizer.detach()
+            self._owner_finalizer = None
             if self._is_owner:
                 try:
                     # [REAPER] Deregister before unlinking
-                    try:
-                        from core.reaper import ReaperManifest
-                        ReaperManifest().deregister_shm(self.name)
-                    except Exception as _e:
-                        logger.warning("🚌 SharedMem: Failed to deregister from Reaper during close: %s", _e)
+                    self._deregister_from_reaper(self.name)
                     shm.unlink()
                     logger.debug(f"Shared Memory Segment Unlinked: {self.name}")
                 except Exception as e:

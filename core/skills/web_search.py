@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from core.container import ServiceContainer
 from core.search import ResearchSearchPipeline
-from core.search.research_pipeline import query_requires_source_reading
+from core.search.research_pipeline import freshness_window_for_query, query_requires_source_reading
 from core.skills.base_skill import BaseSkill
 from core.skills.deep_research import run_deep_research
 
@@ -57,13 +57,52 @@ class EnhancedWebSearchSkill(BaseSkill):
         "synthesize an evidence-grounded answer, and retain what was learned when appropriate."
     )
     input_model = WebSearchInput
-    timeout_seconds = 35.0
+    timeout_seconds = 60.0
     metabolic_cost = 2
 
     def __init__(self):
         super().__init__()
         self.pipeline = ResearchSearchPipeline()
         self.browser = _StubBrowser()
+
+    def _normalize_deep_research_result(self, query: str, result: Dict[str, Any]) -> Dict[str, Any]:
+        sources = list(result.get("sources") or [])
+        citations = []
+        evidence = []
+        for item in sources[:8]:
+            url = str(item.get("url") or item.get("uri") or "").strip()
+            title = str(item.get("title") or item.get("name") or url or "").strip()
+            if not url:
+                continue
+            citations.append({"title": title, "url": url})
+            evidence.append(
+                {
+                    "title": title,
+                    "url": url,
+                    "text": str(item.get("text") or item.get("snippet") or "").strip(),
+                    "score": float(item.get("score", 0.0) or 0.0),
+                }
+            )
+
+        answer = str(result.get("answer") or "").strip()
+        summary = answer or str(result.get("summary") or "").strip()
+        normalized = {
+            "ok": True,
+            "query": query,
+            "answer": answer,
+            "summary": summary,
+            "facts": list(result.get("facts") or []),
+            "confidence": float(result.get("confidence", 0.82) or 0.82),
+            "citations": citations,
+            "source": citations[0]["url"] if citations else "",
+            "mode": "deep",
+            "count": len(citations),
+            "chunks": evidence,
+            "content": answer,
+        }
+        normalized["result"] = normalized["answer"] or normalized["content"] or ""
+        normalized["message"] = self.pipeline._format_message(query, normalized)
+        return normalized
 
     async def execute(self, params: Any, context: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(params, dict):
@@ -123,9 +162,22 @@ class EnhancedWebSearchSkill(BaseSkill):
                 res = await run_deep_research(query, brain, _search_fn)
                 answer = str(res.get("answer") or "").strip()
                 if answer:
-                    res["summary"] = answer
-                    res.setdefault("ok", True)
-                    return res
+                    normalized = self._normalize_deep_research_result(query, res)
+                    if self.pipeline._should_retain(
+                        query,
+                        deep=True,
+                        retain=retain,
+                        context=context or {},
+                        result=normalized,
+                    ):
+                        artifact = self.pipeline._result_to_artifact(
+                            normalized,
+                            freshness_seconds=freshness_window_for_query(query),
+                        )
+                        await self.pipeline._retain_artifact(artifact, context or {})
+                        normalized["retained"] = True
+                        normalized["artifact_id"] = artifact.artifact_id
+                    return normalized
                 logger.warning("Deep Research returned an empty answer for '%s'; falling back to retrieval pipeline.", query)
             except Exception as e:
                 logger.error("Deep Research failed, falling back to legacy: %s", e)

@@ -14,7 +14,14 @@ class CognitiveGovernor:
         self.error_count = 0
         self.max_errors = 3
         
-    async def execute_safely(self, task_name: str, coroutine: Callable, *args, **kwargs) -> Any:
+    async def execute_safely(
+        self,
+        task_name: str,
+        coroutine: Callable,
+        *args,
+        timeout_seconds: float = 30.0,
+        **kwargs,
+    ) -> Any:
         """Wraps critical cognitive tasks in a protective execution layer."""
         if self.circuit_state == "OPEN":
             logger.warning(f"Circuit OPEN. Rejecting task {task_name}. Falling back to internal state.")
@@ -23,7 +30,10 @@ class CognitiveGovernor:
         async with self.semaphore:
             try:
                 # Execute the actual cognitive task (e.g., LLM generation, tool use)
-                result = await asyncio.wait_for(coroutine(*args, **kwargs), timeout=30.0)
+                result = await asyncio.wait_for(
+                    coroutine(*args, **kwargs),
+                    timeout=float(timeout_seconds or 30.0),
+                )
                 self._record_success()
                 return result
                 

@@ -1,6 +1,11 @@
 import asyncio
 import errno
+import gc
 import json
+import os
+import subprocess
+import sys
+import textwrap
 import time
 import uuid
 from types import SimpleNamespace
@@ -421,6 +426,123 @@ async def test_shared_memory_transport_falls_back_to_file_backed_mmap(monkeypatc
             reader.close()
     finally:
         writer.close()
+
+
+@pytest.mark.asyncio
+async def test_shared_memory_transport_attach_suppresses_non_owner_resource_tracker_registration(monkeypatch):
+    closed = []
+    register_calls = []
+
+    class _AttachedSharedMemory:
+        def __init__(self, name):
+            assert name == "st_rt_attach"
+            from core.bus.shared_mem_bus import resource_tracker
+
+            resource_tracker.register("/st_rt_attach", "shared_memory")
+            self.size = 4096
+            self.buf = None
+
+        def close(self):
+            closed.append("closed")
+
+    monkeypatch.setattr(
+        "core.bus.shared_mem_bus.shared_memory.SharedMemory",
+        _AttachedSharedMemory,
+    )
+    monkeypatch.setattr(
+        "core.bus.shared_mem_bus.resource_tracker.register",
+        lambda name, kind: register_calls.append((name, kind)),
+    )
+
+    transport = SharedMemoryTransport("st_rt_attach", size=4096)
+    await transport.attach()
+    transport.close()
+
+    assert register_calls == []
+    assert closed == ["closed"]
+
+
+def test_shared_memory_transport_cross_process_attach_exits_without_leak_warning():
+    code = textwrap.dedent(
+        """
+        import asyncio
+        import multiprocessing as mp
+        import time
+
+        from core.bus.shared_mem_bus import SharedMemoryTransport
+
+        SEGMENT = "st_rt_cross_process"
+
+        def child():
+            async def main():
+                owner = SharedMemoryTransport(SEGMENT, size=4096)
+                await owner.create()
+                owner.write_serialized('{"state_id":"cross","version":1}')
+                time.sleep(0.5)
+                owner.close()
+
+            asyncio.run(main())
+
+        if __name__ == "__main__":
+            ctx = mp.get_context("fork")
+            proc = ctx.Process(target=child)
+            proc.start()
+            time.sleep(0.15)
+
+            async def parent():
+                reader = SharedMemoryTransport(SEGMENT, size=4096)
+                await reader.attach()
+                payload = await reader.read()
+                assert payload["version"] == 1
+                reader.close()
+
+            asyncio.run(parent())
+            proc.join(5)
+            if proc.exitcode != 0:
+                raise SystemExit(proc.exitcode or 1)
+        """
+    )
+
+    env = os.environ.copy()
+    pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{os.getcwd()}{os.pathsep}{pythonpath}" if pythonpath else os.getcwd()
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=os.getcwd(),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    assert "leaked shared_memory objects" not in proc.stderr
+
+
+def test_shared_memory_transport_owner_finalizer_unlinks_unclosed_segment():
+    events = []
+
+    class _OwnedSharedMemory:
+        def unlink(self):
+            events.append("unlink")
+
+        def close(self):
+            events.append("close")
+
+    transport = SharedMemoryTransport("st_rt_finalize", size=4096)
+    transport.shm = _OwnedSharedMemory()
+    transport._is_owner = True
+    transport._arm_owner_finalizer()
+    finalizer = transport._owner_finalizer
+
+    del transport
+    gc.collect()
+
+    assert finalizer is not None
+    assert finalizer.alive is False
+    assert events == ["unlink", "close"]
 
 
 @pytest.mark.asyncio

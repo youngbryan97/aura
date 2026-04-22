@@ -192,6 +192,11 @@ def _freshness_window(query: str) -> int:
     return 14 * 24 * 60 * 60
 
 
+def freshness_window_for_query(query: str) -> int:
+    """Public wrapper for choosing a retention window for a query."""
+    return _freshness_window(query)
+
+
 def _query_is_current(query: str) -> bool:
     lowered = str(query or "").lower()
     return any(term in lowered for term in _CURRENTNESS_TERMS)

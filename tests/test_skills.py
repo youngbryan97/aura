@@ -11,10 +11,11 @@ import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
-from core.capability_engine import CapabilityEngine
+from core.capability_engine import CapabilityEngine, SkillMetadata, SkillRequirements
 
 
 def test_capability_engine_registered_skill_classes_are_importable():
@@ -221,6 +222,47 @@ async def test_web_search_skill_initializes_and_accepts_input():
 
 
 @pytest.mark.asyncio
+async def test_capability_engine_uses_skill_timeout_budget_for_cognitive_governor(monkeypatch):
+    captured = {}
+
+    class _Skill:
+        timeout_seconds = 57.0
+
+    class _Governor:
+        async def execute_safely(self, task_name, coroutine, *args, timeout_seconds=30.0, **kwargs):
+            captured["task_name"] = task_name
+            captured["timeout_seconds"] = timeout_seconds
+            return await coroutine(*args, **kwargs)
+
+    engine = CapabilityEngine()
+    engine.skills = {
+        "slow_skill": SkillMetadata(
+            name="slow_skill",
+            description="timeout budget probe",
+            skill_class=_Skill,
+            requirements=SkillRequirements(),
+            timeout_seconds=12,
+        )
+    }
+    engine.instances = {}
+    engine._cognitive_governor = _Governor()
+    engine._execute_with_retry = AsyncMock(return_value={"ok": True})
+
+    monkeypatch.setattr(
+        "core.capability_engine.ServiceContainer.has",
+        staticmethod(lambda *_args, **_kwargs: False),
+    )
+    monkeypatch.setattr("core.capability_engine.resolve_metabolic_monitor", lambda default=None: None)
+    monkeypatch.setattr("core.capability_engine.resolve_state_repository", lambda default=None: None)
+    monkeypatch.setattr("core.capability_engine.resolve_edi", lambda default=None: None)
+
+    result = await engine.execute("slow_skill", {}, {})
+
+    assert result["ok"] is True
+    assert captured == {"task_name": "slow_skill", "timeout_seconds": 57.0}
+
+
+@pytest.mark.asyncio
 async def test_web_search_skill_uses_cognitive_engine_for_deep_research(monkeypatch):
     from core.skills.web_search import EnhancedWebSearchSkill
 
@@ -337,3 +379,58 @@ async def test_web_search_skill_retries_with_cached_artifact_when_force_refresh_
     assert result["artifact_id"] == "artifact-cached"
     assert calls[0]["force_refresh"] is True
     assert calls[1]["force_refresh"] is False
+
+
+@pytest.mark.asyncio
+async def test_web_search_skill_deep_research_success_retains_artifact(monkeypatch):
+    from core.skills.web_search import EnhancedWebSearchSkill
+
+    class _Engine:
+        async def generate(self, prompt, **kwargs):
+            return "deep research draft"
+
+    async def _fake_run_deep_research(question, brain, search_fn, max_loops=3, on_phase=None):
+        return {
+            "answer": "Deep retained answer",
+            "sources": [{"title": "Source", "url": "https://example.com/source"}],
+        }
+
+    retained = []
+
+    class _Artifact:
+        artifact_id = "artifact-deep"
+
+    class _Pipeline:
+        def _format_message(self, query, result):
+            return f"{query}: {result['answer']}"
+
+        def _should_retain(self, query, *, deep, retain, context, result):
+            assert query == "history of basalt"
+            assert deep is True
+            assert retain is True
+            return True
+
+        def _result_to_artifact(self, result, *, freshness_seconds):
+            retained.append(("artifact", freshness_seconds, result))
+            return _Artifact()
+
+        async def _retain_artifact(self, artifact, context):
+            retained.append(("retain", artifact.artifact_id, context))
+
+    monkeypatch.setattr(
+        "core.skills.web_search.ServiceContainer.get",
+        staticmethod(lambda name, default=None: _Engine() if name == "cognitive_engine" else default),
+    )
+    monkeypatch.setattr("core.skills.web_search.run_deep_research", _fake_run_deep_research)
+
+    skill = EnhancedWebSearchSkill()
+    skill.pipeline = _Pipeline()  # type: ignore[assignment]
+
+    result = await skill.execute({"query": "history of basalt", "deep": True, "retain": True}, {})
+
+    assert result["answer"] == "Deep retained answer"
+    assert result["retained"] is True
+    assert result["artifact_id"] == "artifact-deep"
+    assert result["citations"] == [{"title": "Source", "url": "https://example.com/source"}]
+    assert retained[0][0] == "artifact"
+    assert retained[1] == ("retain", "artifact-deep", {})

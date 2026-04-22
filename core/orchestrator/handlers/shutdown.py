@@ -16,6 +16,52 @@ if TYPE_CHECKING:
 logger = logging.getLogger("Aura.Core.Orchestrator.Shutdown")
 
 
+async def _gracefully_stop_actor_via_bus(
+    orch: "RobustOrchestrator",
+    actor_name: str,
+    *,
+    timeout: float = 2.0,
+) -> None:
+    """Request actor shutdown over the runtime bus before the supervisor kills it."""
+    bus = getattr(orch, "_actor_bus", None) or getattr(orch, "actor_bus", None)
+    if bus is None:
+        return
+
+    has_actor = getattr(bus, "has_actor", None)
+    if callable(has_actor) and not has_actor(actor_name):
+        return
+
+    try:
+        await asyncio.wait_for(
+            bus.request(
+                actor_name,
+                "stop",
+                {"source": "orchestrator_shutdown", "reason": "graceful_shutdown"},
+                timeout=timeout,
+            ),
+            timeout=timeout,
+        )
+    except Exception as exc:
+        logger.debug("Graceful stop request failed for %s: %s", actor_name, exc)
+        return
+
+    supervisor = getattr(orch, "_supervisor_tree", None) or getattr(orch, "supervisor", None)
+    is_actor_running = getattr(supervisor, "is_actor_running", None)
+    if not callable(is_actor_running):
+        return
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        try:
+            if not is_actor_running(actor_name):
+                return
+        except Exception as exc:
+            logger.debug("Supervisor liveness probe failed for %s: %s", actor_name, exc)
+            return
+        await asyncio.sleep(0.05)
+
+
 async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
     """Gracefully shut down all orchestrator subsystems in priority order."""
     if hasattr(orch, 'status') and not orch.status.running:
@@ -104,6 +150,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
             logger.error("KernelInterface shutdown failed: %s", exc)
 
     if hasattr(orch, '_actor_bus') and orch._actor_bus:
+        await _gracefully_stop_actor_via_bus(orch, "state_vault", timeout=2.0)
         try:
             await asyncio.wait_for(orch._actor_bus.stop(), timeout=5.0)
         except asyncio.TimeoutError as _exc:

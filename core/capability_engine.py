@@ -1577,6 +1577,7 @@ class CapabilityEngine(AuraBaseModule):
             # 3. Instance Management
             if skill_name not in self.instances:
                 self.instances[skill_name] = meta.skill_class()
+            skill_instance = self.instances[skill_name]
             
             # 4. Critical Execution loop
             self._emit_skill_status(skill_name, "RUNNING")
@@ -1597,11 +1598,15 @@ class CapabilityEngine(AuraBaseModule):
             if not hasattr(self, "_cognitive_governor"):
                 from core.resilience.cognitive_governor import CognitiveGovernor
                 self._cognitive_governor = CognitiveGovernor(max_concurrent_tasks=5, base_backoff=1.0)
+            timeout_budget = max(
+                float(getattr(meta, "timeout_seconds", 30) or 30),
+                float(getattr(skill_instance, "timeout_seconds", 30) or 30),
+            )
 
             try:
                 # Execute safely via the Governor to prevent cascading API failures
                 async def resilient_call():
-                    return await self._execute_with_retry(self.instances[skill_name], skill_name, exec_params, ctx)
+                    return await self._execute_with_retry(skill_instance, skill_name, exec_params, ctx)
 
                 if tool_handle is not None:
                     from core.governance_context import governed_scope
@@ -1609,12 +1614,14 @@ class CapabilityEngine(AuraBaseModule):
                     async with governed_scope(tool_handle.decision):
                         result = await self._cognitive_governor.execute_safely(
                             task_name=skill_name,
-                            coroutine=resilient_call
+                            coroutine=resilient_call,
+                            timeout_seconds=timeout_budget,
                         )
                 else:
                     result = await self._cognitive_governor.execute_safely(
                         task_name=skill_name,
-                        coroutine=resilient_call
+                        coroutine=resilient_call,
+                        timeout_seconds=timeout_budget,
                     )
                 
             except Exception as e:
