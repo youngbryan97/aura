@@ -122,3 +122,44 @@ async def test_executive_authority_allows_high_urgency_primary_release(service_c
     assert kwargs["metadata"]["spontaneous"] is True
     assert kwargs["metadata"]["force_user"] is True
     assert kwargs["metadata"]["voice"] is True
+
+
+@pytest.mark.asyncio
+async def test_executive_authority_allows_visible_presence_after_short_idle(service_container):
+    gate = SimpleNamespace(emit=AsyncMock())
+    orch = SimpleNamespace(
+        output_gate=gate,
+        _last_user_interaction_time=time.time() - 12.0,
+        status=SimpleNamespace(is_processing=False),
+        is_busy=False,
+    )
+
+    service_container.register_instance("orchestrator", orch)
+    service_container.register_instance(
+        "executive_closure",
+        SimpleNamespace(
+            get_status=lambda: {
+                "dominant_need": "curiosity",
+                "need_pressure": 0.33,
+                "closure_score": 0.34,
+                "vitality": 0.68,
+            }
+        ),
+    )
+
+    authority = ExecutiveAuthority(orch)
+    result = await authority.release_expression(
+        "I keep circling back to that idea, and I want to say it out loud.",
+        source="proactive_presence",
+        urgency=0.72,
+        metadata={"visible_presence": True, "overt_presence": True},
+    )
+
+    assert result["ok"] is True
+    assert result["target"] == "primary"
+    gate.emit.assert_awaited_once()
+    _, kwargs = gate.emit.await_args
+    assert kwargs["target"] == "primary"
+    assert kwargs["metadata"]["visible_presence"] is True
+    assert kwargs["metadata"]["spontaneous"] is True
+    assert kwargs["metadata"]["force_user"] is True

@@ -45,6 +45,7 @@ class ExecutiveAuthority:
     """
 
     _PRIMARY_SILENCE_WINDOW_S = 45.0
+    _VISIBLE_PRESENCE_IDLE_WINDOW_S = 6.0
     _DEDUP_WINDOW_S = 180.0
 
     def __init__(self, orchestrator: Any = None):
@@ -55,6 +56,15 @@ class ExecutiveAuthority:
     def bind(self, orchestrator: Any) -> None:
         if orchestrator is not None:
             self.orchestrator = orchestrator
+
+    @staticmethod
+    def _is_visible_presence(metadata: Optional[Dict[str, Any]]) -> bool:
+        meta = dict(metadata or {})
+        return bool(
+            meta.get("visible_presence")
+            or meta.get("overt_presence")
+            or meta.get("initiative_activity")
+        )
 
     def _autonomy_pause_reason(self) -> str:
         try:
@@ -812,29 +822,35 @@ class ExecutiveAuthority:
         need_pressure = float(closure.get("need_pressure", 0.0) or 0.0)
         closure_score = float(closure.get("closure_score", 0.0) or 0.0)
         vitality = float(closure.get("vitality", 1.0) or 1.0)
+        merged_meta = dict(metadata or {})
+        visible_presence = self._is_visible_presence(merged_meta)
 
         release_target = target
         reason = "approved"
         if release_target == "primary":
-            if dominant_need in {"stability", "integrity"} and need_pressure >= 0.72 and urgency < 0.9:
+            if (
+                dominant_need in {"stability", "integrity"}
+                and need_pressure >= (0.88 if visible_presence else 0.72)
+                and urgency < (0.78 if visible_presence else 0.9)
+            ):
                 release_target = "secondary"
                 reason = "runtime_guard"
-            elif closure_score and closure_score < 0.28 and urgency < 0.85:
+            elif closure_score and closure_score < (0.18 if visible_presence else 0.28) and urgency < (0.72 if visible_presence else 0.85):
                 release_target = "secondary"
                 reason = "closure_low"
-            elif vitality < 0.45 and urgency < 0.9:
+            elif vitality < (0.32 if visible_presence else 0.45) and urgency < (0.78 if visible_presence else 0.9):
                 release_target = "secondary"
                 reason = "vitality_low"
-            elif user_idle < self._PRIMARY_SILENCE_WINDOW_S and urgency < 0.85:
+            elif user_idle < (self._VISIBLE_PRESENCE_IDLE_WINDOW_S if visible_presence else self._PRIMARY_SILENCE_WINDOW_S) and urgency < (0.58 if visible_presence else 0.85):
                 release_target = "secondary"
                 reason = "user_recently_active"
-            elif (is_processing or is_busy) and urgency < 0.8:
+            elif (is_processing or is_busy) and urgency < (0.68 if visible_presence else 0.8):
                 release_target = "secondary"
                 reason = "processing_guard"
 
-        merged_meta = dict(metadata or {})
         merged_meta.setdefault("autonomous", True)
         merged_meta.setdefault("executive_authority", True)
+        merged_meta.setdefault("visible_presence", visible_presence)
         merged_meta.setdefault("authority_reason", reason)
         merged_meta.setdefault("authority_urgency", round(urgency, 4))
 

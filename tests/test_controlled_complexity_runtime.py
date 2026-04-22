@@ -269,3 +269,94 @@ async def test_emit_spontaneous_message_routes_autonomous_output_through_authori
 
     authority.release_expression.assert_awaited_once()
     orchestrator.output_gate.emit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_emit_spontaneous_message_defers_visible_presence_temporal_block_to_authority(service_container):
+    orchestrator = RobustOrchestrator.__new__(RobustOrchestrator)
+    orchestrator._last_self_initiated_contact = 0.0
+    orchestrator.output_gate = SimpleNamespace(emit=AsyncMock())
+    orchestrator._flow_controller = SimpleNamespace(
+        snapshot=lambda _orch: SimpleNamespace(
+            overloaded=False,
+            load=0.1,
+            queue_depth=0,
+            queue_capacity=10,
+        )
+    )
+
+    authority = SimpleNamespace(
+        release_expression=AsyncMock(
+            return_value={
+                "ok": True,
+                "action": "released",
+                "target": "primary",
+            }
+        )
+    )
+    constitution = SimpleNamespace(
+        approve_expression=AsyncMock(
+            return_value=(False, "temporal_obligation_active:Protect continuity", None)
+        )
+    )
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "core.agency_bus.AgencyBus.get",
+            lambda: SimpleNamespace(submit=lambda _payload: True),
+        )
+        mp.setattr(
+            "core.constitution.get_constitutional_core",
+            lambda _orchestrator=None: constitution,
+        )
+        mp.setattr(
+            "core.consciousness.executive_authority.get_executive_authority",
+            lambda _orchestrator=None: authority,
+        )
+        result = await RobustOrchestrator.emit_spontaneous_message(
+            orchestrator,
+            "I'm running a live self-improvement scan.",
+            origin="autonomous_initiative_loop",
+            metadata={"visible_presence": True, "initiative_activity": True},
+        )
+
+    assert result["target"] == "primary"
+    constitution.approve_expression.assert_awaited_once()
+    authority.release_expression.assert_awaited_once()
+    orchestrator.output_gate.emit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_boot_wrapper_forwards_visible_presence_kwargs(monkeypatch):
+    observed = {}
+
+    async def _fake_emit(self, message, modality="chat", origin="system", *, urgency=None, metadata=None):
+        observed["message"] = message
+        observed["modality"] = modality
+        observed["origin"] = origin
+        observed["urgency"] = urgency
+        observed["metadata"] = metadata
+        return {"ok": True, "action": "released", "target": "primary"}
+
+    monkeypatch.setattr(
+        "core.orchestrator.mixins.autonomy.AutonomyMixin.emit_spontaneous_message",
+        _fake_emit,
+    )
+
+    orchestrator = RobustOrchestrator.__new__(RobustOrchestrator)
+    result = await RobustOrchestrator.emit_spontaneous_message(
+        orchestrator,
+        "Still here.",
+        origin="proactive_presence",
+        urgency=0.72,
+        metadata={"visible_presence": True},
+    )
+
+    assert result["target"] == "primary"
+    assert observed == {
+        "message": "Still here.",
+        "modality": "chat",
+        "origin": "proactive_presence",
+        "urgency": 0.72,
+        "metadata": {"visible_presence": True},
+    }

@@ -14,6 +14,7 @@ Tuning constants that REPLACE the old suppression values:
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import logging
 import random
 import re
@@ -85,6 +86,7 @@ class ProactivePresence:
         # Away-mode: suppress all autonomous messaging when user has stepped out
         self._user_away: bool = False
         self._user_away_since: float = 0.0
+        self._queued_messages: deque[dict[str, Any]] = deque(maxlen=12)
 
     async def start(self):
         self._running = True
@@ -136,6 +138,32 @@ class ProactivePresence:
         """Call this from VAD to prevent interruption during active speech."""
         self._user_speaking = is_speaking
 
+    def queue_autonomous_message(
+        self,
+        content: str,
+        *,
+        source: str = "queued_autonomy",
+        initiative_activity: bool = True,
+        allow_during_away: bool = True,
+        not_before: float = 0.0,
+        retries: int = 0,
+    ) -> bool:
+        """Queue a concrete autonomous update for visible delivery."""
+        text = str(content or "").strip()
+        if len(text) < 5:
+            return False
+        self._queued_messages.append(
+            {
+                "content": text,
+                "source": source,
+                "initiative_activity": bool(initiative_activity),
+                "allow_during_away": bool(allow_during_away),
+                "not_before": float(not_before or 0.0),
+                "retries": max(0, int(retries or 0)),
+            }
+        )
+        return True
+
     # ── Main Loop ─────────────────────────────────────────────────────────
 
     async def _presence_loop(self):
@@ -148,6 +176,17 @@ class ProactivePresence:
                     self._outputs_this_hour = 0
                     self._hour_start = time.time()
 
+                queued = self._next_ready_queued_message()
+                if queued is not None:
+                    await self._emit(
+                        queued["content"],
+                        source=str(queued.get("source") or "queued_autonomy"),
+                        initiative_activity=bool(queued.get("initiative_activity", False)),
+                        allow_during_away=bool(queued.get("allow_during_away", False)),
+                        retries=int(queued.get("retries", 0) or 0),
+                    )
+                    continue
+
                 if not self._should_speak_now():
                     continue
 
@@ -158,7 +197,7 @@ class ProactivePresence:
             except Exception as e:
                 logger.debug("[ProactivePresence] Loop error: %s", e)
 
-    def _should_speak_now(self) -> bool:
+    def _should_speak_now(self, *, queued: bool = False, allow_during_away: bool = False) -> bool:
         """Gate: should Aura consider speaking right now?"""
         now = time.time()
 
@@ -169,7 +208,9 @@ class ProactivePresence:
         # User stepped away — stay silent until they return.
         # Auto-clear after 8 hours in case they forgot to say they're back.
         if self._user_away:
-            if now - self._user_away_since > 28800:
+            if queued and allow_during_away:
+                pass
+            elif now - self._user_away_since > 28800:
                 self._user_away = False
                 logger.info("[ProactivePresence] Away mode auto-cleared after 8 hours.")
             else:
@@ -180,7 +221,7 @@ class ProactivePresence:
             return False
 
         # Monologue guard: allow up to 5 spontaneous messages without user reply
-        if self._consecutive_unprompted >= 5:
+        if not queued and self._consecutive_unprompted >= 5:
             return False
 
         if self._foreground_lane_reserved(now):
@@ -217,11 +258,31 @@ class ProactivePresence:
             return False
 
         # Idle threshold
+        if queued:
+            return True
+
         last_thought = getattr(self.orchestrator, "_last_thought_time", 0)
         if now - last_thought < scaled_idle:
             return False
 
         return True
+
+    def _next_ready_queued_message(self) -> Optional[dict[str, Any]]:
+        if not self._queued_messages:
+            return None
+        now = time.time()
+        for _ in range(len(self._queued_messages)):
+            queued = self._queued_messages[0]
+            if float(queued.get("not_before", 0.0) or 0.0) > now:
+                self._queued_messages.rotate(-1)
+                continue
+            if not self._should_speak_now(
+                queued=True,
+                allow_during_away=bool(queued.get("allow_during_away", False)),
+            ):
+                return None
+            return self._queued_messages.popleft()
+        return None
 
     def _foreground_lane_reserved(self, now: Optional[float] = None) -> bool:
         """True when foreground conversation should not be interrupted."""
@@ -647,13 +708,46 @@ class ProactivePresence:
 
     # ── Emission ──────────────────────────────────────────────────────────
 
-    async def _emit(self, content: str):
-        """Route spontaneous thoughts to the neural feed (thought cards), not user chat.
+    def _record_output_attempt(self) -> None:
+        now = time.time()
+        self._last_output_time = now
+        if self.orchestrator:
+            self.orchestrator._last_thought_time = now
 
-        Internal reflections are for Aura's own processing — they belong in the
-        thought-card panel, not in the conversation window where they would be
-        mistaken for messages directed at the user.
-        """
+    def _record_output_delivery(self) -> None:
+        self._record_output_attempt()
+        self._outputs_this_hour += 1
+        self._consecutive_unprompted += 1
+
+    def _requeue_visible_retry(
+        self,
+        content: str,
+        *,
+        source: str,
+        initiative_activity: bool,
+        allow_during_away: bool,
+        retries: int,
+        delay_s: float,
+    ) -> None:
+        self.queue_autonomous_message(
+            content,
+            source=source,
+            initiative_activity=initiative_activity,
+            allow_during_away=allow_during_away,
+            not_before=time.time() + max(1.0, delay_s),
+            retries=retries + 1,
+        )
+
+    async def _emit(
+        self,
+        content: str,
+        *,
+        source: str = "proactive_presence",
+        initiative_activity: bool = False,
+        allow_during_away: bool = False,
+        retries: int = 0,
+    ):
+        """Deliver spontaneous presence to chat first, with neural-feed fallback."""
         if not content:
             return
 
@@ -670,6 +764,57 @@ class ProactivePresence:
         if not self._is_valid_spontaneous_output(content):
             return
 
+        if self.orchestrator and hasattr(self.orchestrator, "emit_spontaneous_message"):
+            try:
+                decision = await self.orchestrator.emit_spontaneous_message(
+                    content,
+                    origin=source,
+                    urgency=0.78 if initiative_activity else 0.72,
+                    metadata={
+                        "visible_presence": True,
+                        "overt_presence": True,
+                        "initiative_activity": initiative_activity,
+                        "trigger": "proactive_presence",
+                    },
+                )
+                if isinstance(decision, dict) and decision.get("action") == "released" and decision.get("target") == "primary":
+                    self._record_output_delivery()
+                    logger.info(
+                        "✨ [ProactivePresence] Visible spontaneous expression (#%d): %s",
+                        self._consecutive_unprompted,
+                        content[:80],
+                    )
+                    return
+                if (
+                    isinstance(decision, dict)
+                    and decision.get("action") == "released"
+                    and decision.get("target") == "secondary"
+                    and (initiative_activity or retries > 0 or allow_during_away)
+                    and retries < 6
+                ):
+                    self._requeue_visible_retry(
+                        content,
+                        source=source,
+                        initiative_activity=initiative_activity,
+                        allow_during_away=allow_during_away,
+                        retries=retries,
+                        delay_s=6.0 + min(retries, 3) * 2.0,
+                    )
+                    logger.debug(
+                        "[ProactivePresence] Re-queued visible update after temporary hold: %s",
+                        decision.get("reason", decision.get("target", "secondary")),
+                    )
+                    return
+                if isinstance(decision, dict) and decision.get("action") != "released":
+                    self._record_output_attempt()
+                    logger.debug(
+                        "[ProactivePresence] Visible route held: %s",
+                        decision.get("reason", "suppressed"),
+                    )
+                    return
+            except Exception as e:
+                logger.debug("[ProactivePresence] Visible emission failed: %s", e)
+
         try:
             from core.thought_stream import get_emitter
             get_emitter().emit(
@@ -678,13 +823,9 @@ class ProactivePresence:
                 level="info",
                 category="ProactivePresence",
             )
-            self._last_output_time = time.time()
-            self._outputs_this_hour += 1
-            self._consecutive_unprompted += 1
-            if self.orchestrator:
-                self.orchestrator._last_thought_time = time.time()
+            self._record_output_delivery()
             logger.info(
-                "🧠 [ProactivePresence] Internal thought → neural feed (#%d): %s",
+                "🧠 [ProactivePresence] Fallback thought → neural feed (#%d): %s",
                 self._consecutive_unprompted, content[:80],
             )
         except Exception as e:

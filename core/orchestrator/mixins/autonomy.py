@@ -735,8 +735,26 @@ class AutonomyMixin:
             return
         await self.process_user_input_priority(message, origin="impulse")
 
-    async def emit_spontaneous_message(self, message: str, modality: str = "chat", origin: str = "system"):
+    async def emit_spontaneous_message(
+        self,
+        message: str,
+        modality: str = "chat",
+        origin: str = "system",
+        *,
+        urgency: float | None = None,
+        metadata=None,
+    ):
         """Eject a message to the user outside of the standard prompt-response loop."""
+        release_urgency = max(
+            0.0,
+            min(1.0, float(urgency if urgency is not None else (0.9 if modality in ("voice", "both") else 0.82))),
+        )
+        extra_metadata = dict(metadata or {})
+        visible_presence = bool(
+            extra_metadata.get("visible_presence")
+            or extra_metadata.get("overt_presence")
+            or extra_metadata.get("initiative_activity")
+        )
         # ── UNIFIED WILL GATE — All spontaneous expressions pass through ──
         try:
             from core.will import ActionDomain, get_will
@@ -748,7 +766,13 @@ class AutonomyMixin:
             )
             if not _will_decision.is_approved():
                 logger.debug("Unified Will refused spontaneous emission: %s", _will_decision.reason)
-                return
+                return {
+                    "ok": False,
+                    "action": "suppressed",
+                    "reason": "will_refused",
+                    "target": "discarded",
+                    "source": origin,
+                }
         except Exception as _will_err:
             logger.debug("Unified Will spontaneous gate degraded: %s", _will_err)
         # ───────────────────────────────────────────────────────────────────
@@ -762,15 +786,28 @@ class AutonomyMixin:
                 approved, reason, _authority_decision = await get_constitutional_core(self).approve_expression(
                     message,
                     source=origin,
-                    urgency=0.9 if modality in ("voice", "both") else 0.82,
+                    urgency=release_urgency,
                 )
                 if not approved:
-                    logger.info(
-                        "Constitutional preflight suppressed spontaneous emission for %s (%s).",
-                        origin,
-                        reason,
-                    )
-                    return
+                    if visible_presence and str(reason or "").startswith("temporal_obligation_active:"):
+                        logger.debug(
+                            "Constitutional preflight deferred visible presence routing for %s (%s).",
+                            origin,
+                            reason,
+                        )
+                    else:
+                        logger.info(
+                            "Constitutional preflight suppressed spontaneous emission for %s (%s).",
+                            origin,
+                            reason,
+                        )
+                        return {
+                            "ok": False,
+                            "action": "suppressed",
+                            "reason": f"constitution_blocked:{reason}",
+                            "target": "discarded",
+                            "source": origin,
+                        }
             except Exception as exc:
                 logger.warning("emit_spontaneous_message: constitutional preflight failed for %s: %s", origin, exc)
                 try:
@@ -787,7 +824,13 @@ class AutonomyMixin:
                     )
                 except Exception as degraded_exc:
                     logger.debug("emit_spontaneous_message degraded-event logging failed: %s", degraded_exc)
-                return
+                return {
+                    "ok": False,
+                    "action": "suppressed",
+                    "reason": "constitution_failed",
+                    "target": "discarded",
+                    "source": origin,
+                }
         # ─────────────────────────────
         if autonomous_origin and hasattr(self, "_flow_controller"):
             snap = self._flow_controller.snapshot(self)
@@ -798,7 +841,13 @@ class AutonomyMixin:
                     snap.queue_depth,
                     snap.queue_capacity,
                 )
-                return
+                return {
+                    "ok": False,
+                    "action": "suppressed",
+                    "reason": "flow_overloaded",
+                    "target": "discarded",
+                    "source": origin,
+                }
 
         # 🗣️ Permanent Evolution 4: Spontaneous contact logging
         self._last_self_initiated_contact = time.time()
@@ -806,8 +855,15 @@ class AutonomyMixin:
 
         # AgencyBus gate — prevents triple-fire from multiple autonomous systems
         from core.agency_bus import AgencyBus
-        if not AgencyBus.get().submit({'origin': 'spontaneous', 'priority_class': 'drive', 'text': message[:80]}):
-            return
+        priority_class = "duty" if extra_metadata.get("initiative_activity") else "drive"
+        if not AgencyBus.get().submit({'origin': 'spontaneous', 'priority_class': priority_class, 'text': message[:80]}):
+            return {
+                "ok": False,
+                "action": "suppressed",
+                "reason": "agency_bus_cooldown",
+                "target": "discarded",
+                "source": origin,
+            }
 
         if autonomous_origin:
             try:
@@ -816,10 +872,11 @@ class AutonomyMixin:
                 decision = await get_executive_authority(self).release_expression(
                     message,
                     source=origin,
-                    urgency=0.9 if modality in ("voice", "both") else 0.82,
+                    urgency=release_urgency,
                     metadata={
                         "voice": modality in ("voice", "both"),
                         "trigger": "emit_spontaneous_message",
+                        **extra_metadata,
                     },
                 )
                 # [CONSTITUTIONAL] If the executive made ANY decision, honor it.
@@ -827,11 +884,11 @@ class AutonomyMixin:
                 action = decision.get("action", "")
                 if action in {"released", "suppressed", "deferred"}:
                     logger.debug("emit_spontaneous_message: executive decision=%s for origin=%s", action, origin)
-                    return
+                    return decision
                 # If action is unrecognized but decision was returned, still trust it
                 if decision:
                     logger.debug("emit_spontaneous_message: executive returned unrecognized action=%s, honoring as release", action)
-                    return
+                    return decision
             except Exception as exc:
                 logger.warning("emit_spontaneous_message: executive routing failed for %s: %s", origin, exc)
                 try:
@@ -848,12 +905,26 @@ class AutonomyMixin:
                     )
                 except Exception as degraded_exc:
                     logger.debug("emit_spontaneous_message degraded-event logging failed: %s", degraded_exc)
-                return
+                return {
+                    "ok": False,
+                    "action": "suppressed",
+                    "reason": "executive_route_failed",
+                    "target": "discarded",
+                    "source": origin,
+                }
 
         metadata = {
             "autonomous": autonomous_origin,
             "voice": modality in ("voice", "both"),
             "spontaneous": True,
             "force_user": True,
+            **extra_metadata,
         }
         await self.output_gate.emit(message, origin=origin, target="primary", metadata=metadata)
+        return {
+            "ok": True,
+            "action": "released",
+            "reason": "fallback_primary",
+            "target": "primary",
+            "source": origin,
+        }

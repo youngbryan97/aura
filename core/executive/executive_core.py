@@ -361,6 +361,9 @@ class ExecutiveCore:
         tool_name = str(intent.payload.get("tool_name", "") or "").strip()
         if tool_name in TEMPORAL_SAFE_AUTONOMOUS_TOOLS:
             return True
+        if tool_name == "auto_refactor":
+            args = intent.payload.get("args", {}) or {}
+            return not bool(args.get("run_tests"))
         if tool_name == "memory_ops":
             args = intent.payload.get("args", {}) or {}
             action = str(args.get("action") or args.get("mode") or "").strip().lower()

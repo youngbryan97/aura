@@ -111,7 +111,15 @@ class OrchestratorBootMixin(
     personhood: Any
     voice: Any
     
-    async def emit_spontaneous_message(self, message: str, modality: str = "chat", origin: str = "system"):
+    async def emit_spontaneous_message(
+        self,
+        message: str,
+        modality: str = "chat",
+        origin: str = "system",
+        *,
+        urgency: float | None = None,
+        metadata=None,
+    ):
         from .mixins.autonomy import AutonomyMixin
 
         return await AutonomyMixin.emit_spontaneous_message(
@@ -119,6 +127,8 @@ class OrchestratorBootMixin(
             message,
             modality=modality,
             origin=origin,
+            urgency=urgency,
+            metadata=metadata,
         )
     world_model: Optional[Any]
     skill_library: Optional[Any]

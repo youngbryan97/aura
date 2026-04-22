@@ -1,6 +1,7 @@
 """Auto-Refactor Skill
 Periodically scans the codebase for bad patterns, high complexity, or TODOs.
 """
+import asyncio
 import ast
 import logging
 import os
@@ -38,7 +39,7 @@ class AutoRefactorSkill(BaseSkill):
         target_path = params.path
         
         # 1. Scan for Weaknesses
-        report = self._scan_codebase(target_path)
+        report = await asyncio.to_thread(self._scan_codebase, target_path)
         
         # 2. Limit to top 3 issues for reporting
         top_issues = report[:3]
@@ -49,7 +50,6 @@ class AutoRefactorSkill(BaseSkill):
             try:
                 from core.skills.active_coding import get_sandbox
                 sandbox = get_sandbox()
-                import asyncio
                 # Run tests in the ephemeral sandbox rather than local shell
                 pytest_res = await sandbox.run_command(f"python3 -m pytest {target_path}")
                 test_results = {

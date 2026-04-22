@@ -15,7 +15,7 @@ logger = logging.getLogger("Aura.Initiative")
 def _background_initiative_allowed(orchestrator=None) -> bool:
     return background_activity_allowed(
         orchestrator,
-        min_idle_seconds=300.0,
+        min_idle_seconds=30.0,
         max_memory_percent=80.0,
         max_failure_pressure=0.12,
         require_conversation_ready=True,
@@ -25,7 +25,7 @@ def _background_initiative_allowed(orchestrator=None) -> bool:
 def _self_development_allowed(orchestrator=None) -> bool:
     return background_activity_allowed(
         orchestrator,
-        min_idle_seconds=240.0,
+        min_idle_seconds=45.0,
         max_memory_percent=82.0,
         max_failure_pressure=0.15,
         require_conversation_ready=False,
@@ -113,6 +113,28 @@ class AutonomousInitiativeLoop:
             )
         except Exception as exc:
             logger.debug("Feed emit failed for %s: %s", title, exc)
+
+    def _queue_visible_update(self, content: str) -> bool:
+        text = " ".join(str(content or "").strip().split())
+        if len(text) < 5:
+            return False
+        orch = self.orchestrator or resolve_orchestrator(default=None)
+        if orch is None:
+            return False
+        try:
+            pp = getattr(orch, "proactive_presence", None)
+            if pp and hasattr(pp, "queue_autonomous_message"):
+                return bool(
+                    pp.queue_autonomous_message(
+                        text,
+                        source="autonomous_initiative_loop",
+                        initiative_activity=True,
+                        allow_during_away=True,
+                    )
+                )
+        except Exception as exc:
+            logger.debug("Visible initiative queue failed: %s", exc)
+        return False
 
     async def _event_listener_loop(self, queue: asyncio.Queue):
         while self.running:
@@ -231,7 +253,7 @@ class AutonomousInitiativeLoop:
                     continue
 
                 now = time.time()
-                if now - self._last_self_dev < 420.0:
+                if now - self._last_self_dev < 180.0:
                     await asyncio.sleep(30)
                     continue
 
@@ -258,6 +280,9 @@ class AutonomousInitiativeLoop:
             "origin": "autonomous_initiative_loop",
             "objective": "Autonomous self-development scan",
         }
+        self._queue_visible_update(
+            "I'm running a live self-improvement scan to find one safe, concrete place to get better."
+        )
         self._emit_feed(
             "Self-Development",
             "Running a quiet codebase scan for complexity, TODOs, and repair opportunities.",
@@ -270,10 +295,14 @@ class AutonomousInitiativeLoop:
             context=scan_context,
         )
         if not scan_result.get("ok"):
+            error_text = str(scan_result.get("error") or "unknown error")
             self._emit_feed(
                 "Self-Development",
-                f"Scan stalled: {scan_result.get('error', 'unknown error')}",
+                f"Scan stalled: {error_text}",
                 category="SelfDev",
+            )
+            self._queue_visible_update(
+                f"I tried to start a self-improvement scan, but the executive gate held it: {error_text[:140]}"
             )
             return
 
@@ -284,6 +313,9 @@ class AutonomousInitiativeLoop:
                 "Self-Development",
                 f"Scan completed cleanly. No urgent refactor targets surfaced in this pass ({issues_found} total findings).",
                 category="SelfDev",
+            )
+            self._queue_visible_update(
+                "I completed a self-improvement scan and didn't find a safe high-value target worth interrupting you for."
             )
             return
 
@@ -298,6 +330,9 @@ class AutonomousInitiativeLoop:
             "Self-Development",
             f"Top opportunity: {issue_message} ({file_name}). Generating sandbox tests and an improvement artifact.",
             category="SelfDev",
+        )
+        self._queue_visible_update(
+            f"I found a concrete improvement target in {file_name} and I'm testing the shape of a fix."
         )
 
         test_result = await capability_engine.execute(
@@ -352,12 +387,18 @@ class AutonomousInitiativeLoop:
                 f"Improvement proposal drafted for {file_name}.{location}",
                 category="SelfDev",
             )
+            self._queue_visible_update(
+                f"I found a concrete improvement target in {file_name} and drafted a safe plan for it."
+            )
             return
 
         self._emit_feed(
             "Self-Development",
             f"Proposal pass was blocked or failed: {proposal_result.get('error', 'unknown error')}",
             category="SelfDev",
+        )
+        self._queue_visible_update(
+            f"I pushed on a self-improvement pass around {file_name}, but the planning step hit friction."
         )
 
     async def trigger_gap_search(self, topic: str):
