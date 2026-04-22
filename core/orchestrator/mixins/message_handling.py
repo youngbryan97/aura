@@ -761,3 +761,38 @@ class MessageHandlingMixin:
                     "error": error_message,
                     "response": {"error": error_message},
                 }
+
+    async def _run_cognitive_loop(self, message: str, origin: str = "user") -> Optional[str]:
+        """Legacy compatibility shim returning assistant text for one turn."""
+        if self._is_user_facing_origin(origin):
+            result = await self._process_message(message, metadata={"origin": origin})
+            if isinstance(result, str):
+                return result
+            if isinstance(result, dict):
+                response = result.get("response")
+                if isinstance(response, str):
+                    return response
+                if isinstance(response, dict):
+                    for key in ("content", "response", "message", "error"):
+                        value = response.get(key)
+                        if isinstance(value, str) and value:
+                            return value
+                error = result.get("error")
+                if isinstance(error, str) and error:
+                    return error
+            return None
+
+        history_len = (
+            len(self.conversation_history)
+            if isinstance(getattr(self, "conversation_history", None), list)
+            else 0
+        )
+        await self._handle_incoming_message(message, origin=origin)
+        if not isinstance(getattr(self, "conversation_history", None), list):
+            return None
+        for item in reversed(self.conversation_history[history_len:]):
+            if item.get("role") in ("assistant", "aura", "model"):
+                content = item.get("content")
+                if isinstance(content, str) and content:
+                    return content
+        return None

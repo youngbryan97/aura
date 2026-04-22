@@ -464,6 +464,20 @@ class ServiceContainer:
                 cls._resolving_var.reset(token)
 
     @classmethod
+    def peek(cls, name: str, default: Any = "_SENTINEL") -> Any:
+        """Return an initialized singleton instance without triggering factory creation."""
+        resolved_name = cls._resolve_name(name)
+        with cls._lock:
+            desc = cls._services.get(resolved_name)
+            if desc and desc.lifetime == ServiceLifetime.SINGLETON and desc.instance is not None and desc.initialized:
+                return desc.instance
+        if default != "_SENTINEL":
+            return default
+        raise ServiceNotFoundError(
+            f"Service '{resolved_name}' has no initialized singleton instance."
+        )
+
+    @classmethod
     def get_service(cls, name: str, default: Any = "_SENTINEL") -> Any:
         """Legacy alias for get()."""
         return cls.get(name, default=default)

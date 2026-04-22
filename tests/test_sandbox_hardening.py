@@ -242,6 +242,26 @@ class TestSnapshotThawGovernance:
         result = manager.thaw()
         assert result is False
 
+    def test_thaw_governance_calls_unified_will_with_canonical_signature(self):
+        """Snapshot thaw should use UnifiedWill's content/source/domain signature."""
+        from core.resilience.snapshot_manager import SnapshotManager
+
+        manager = SnapshotManager(orchestrator=MagicMock())
+        decision = MagicMock()
+        decision.is_approved.return_value = True
+        will = MagicMock()
+        will.decide.return_value = decision
+
+        with patch("core.will.get_will", return_value=will):
+            approved = manager._governance_approve_thaw()
+
+        assert approved is True
+        _, kwargs = will.decide.call_args
+        assert kwargs["content"] == "snapshot_thaw"
+        assert kwargs["source"] == "snapshot_manager"
+        assert kwargs["domain"].value == "state_mutation"
+        assert kwargs["context"]["operation"] == "snapshot_thaw"
+
 
 # ════════════════════════════════════════════════════════════════════════
 # 5. TOOL ORCHESTRATOR — Execution Boundaries

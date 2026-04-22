@@ -121,8 +121,12 @@ class EnhancedWebSearchSkill(BaseSkill):
                     return {"ok": True, "content": content, "sources": results}
                 
                 res = await run_deep_research(query, brain, _search_fn)
-                res["summary"] = res.get("answer", "")
-                return res
+                answer = str(res.get("answer") or "").strip()
+                if answer:
+                    res["summary"] = answer
+                    res.setdefault("ok", True)
+                    return res
+                logger.warning("Deep Research returned an empty answer for '%s'; falling back to retrieval pipeline.", query)
             except Exception as e:
                 logger.error("Deep Research failed, falling back to legacy: %s", e)
 
@@ -135,6 +139,19 @@ class EnhancedWebSearchSkill(BaseSkill):
             context=context or {},
             force_refresh=force_refresh,
         )
+        if not result.get("ok") and force_refresh:
+            logger.info(
+                "WebSearch forced refresh failed for '%s'; retrying with retained-artifact fallback.",
+                query[:80],
+            )
+            result = await self.pipeline.search(
+                query,
+                num_results=num_results,
+                deep=effective_deep,
+                retain=retain,
+                context=context or {},
+                force_refresh=False,
+            )
         result.setdefault("summary", result.get("answer") or result.get("message") or "")
         return result
 

@@ -810,13 +810,15 @@ class InferenceGate:
         # so crashes are visible instead of silently lost.
         recovery_coro = _background_recover()
         try:
-            loop = asyncio.get_running_loop()
+            task = asyncio.create_task(recovery_coro, name="cortex_recovery")
         except RuntimeError:
             recovery_coro.close()
             logger.debug("Cortex recovery skipped: no running event loop.")
             return
-
-        task = loop.create_task(recovery_coro, name="cortex_recovery")
+        if not isinstance(task, asyncio.Task):
+            recovery_coro.close()
+            logger.debug("Cortex recovery task scheduling returned non-Task %s; skipping callback wiring.", type(task).__name__)
+            return
         task.add_done_callback(self._log_task_exception)
 
     async def _respawn_cortex_if_needed(self) -> None:
@@ -2829,7 +2831,10 @@ class InferenceGate:
                         logger.debug("Cascade cleanup error (non-fatal): %s", cleanup_exc)
                 # Force cortex recovery in background
                 if not self._cortex_recovery_in_progress:
-                    asyncio.create_task(self._respawn_cortex_if_needed())
+                    recovery_coro = self._respawn_cortex_if_needed()
+                    task = asyncio.create_task(recovery_coro)
+                    if not isinstance(task, asyncio.Task):
+                        recovery_coro.close()
                 # Give cortex time to recover before next request hits a dead endpoint
                 self._extend_startup_quiet_window(15.0)
                 # Reset the UnitaryResponsePhase circuit breaker so next attempt works

@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 import random
 from pathlib import Path
@@ -335,6 +336,15 @@ class GodModeToolPhase(Phase):
         if not matched_skills:
             return ""
         lower = str(objective or "").lower()
+        if (
+            "manifest_to_device" in matched_skills
+            and "desktop" in lower
+            and "http" in lower
+            and any(marker in lower for marker in ("save", "manifest"))
+        ):
+            return "manifest_to_device"
+        if "sovereign_terminal" in matched_skills and re.match(r"^\s*(?:execute|run|terminal)\s*:", lower):
+            return "sovereign_terminal"
         visible_browser_markers = (
             "open a tab",
             "open the tab",
@@ -354,7 +364,7 @@ class GodModeToolPhase(Phase):
         if (
             "web_search" in matched_skills
             and not _looks_like_search_capability_question(objective)
-            and any(marker in lower for marker in ("search", "look up", "find out", "online", "internet", "current", "latest", "news"))
+            and any(marker in lower for marker in ("search", "look up", "find out", "online", "internet", "current", "latest", "news", "research about", "research on"))
         ):
             return "web_search"
         if "sovereign_browser" in matched_skills and any(marker in lower for marker in ("open the browser", "open a browser", "open tab", "navigate to", "visit ", "open website", "open webpage")):
@@ -385,6 +395,31 @@ class GodModeToolPhase(Phase):
     def _normalize_skill_params(skill_name: str, objective: str, params: Dict | None) -> Dict:
         normalized = dict(params or {}) if isinstance(params, dict) else {}
         lower = str(objective or "").lower()
+
+        if skill_name == "sovereign_terminal":
+            command_match = re.match(
+                r"^\s*(?:execute|run|terminal)(?:\s+the\s+command)?\s*:\s*(.+?)\s*$",
+                str(objective or ""),
+                re.IGNORECASE | re.DOTALL,
+            )
+            if command_match:
+                normalized["action"] = "execute"
+                normalized["command"] = command_match.group(1).strip()
+
+        if skill_name == "manifest_to_device":
+            url_match = re.search(r'https?://[^\s<>\"\')\]]+', objective)
+            if url_match:
+                normalized["url"] = url_match.group(0)
+
+        if skill_name == "file_operation":
+            exists_match = re.search(
+                r"(?:(?:check|see|verify|test)\s+(?:if\s+)?|does\s+)(.+?)\s+exist(?:s)?(?:\.|!|\?|$)",
+                str(objective or ""),
+                re.IGNORECASE | re.DOTALL,
+            )
+            if exists_match:
+                normalized["action"] = "exists"
+                normalized["path"] = exists_match.group(1).strip().strip("'\"")
 
         if skill_name == "memory_ops":
             is_recall = any(marker in lower for marker in (
@@ -423,7 +458,11 @@ class GodModeToolPhase(Phase):
                     normalized.setdefault("objective", objective)
                     normalized.setdefault("params", {"query": query})
                 else:
-                    normalized.setdefault("query", query)
+                    normalized["query"] = query
+                    if skill_name in {"web_search", "search_web", "free_search"} and any(
+                        marker in lower for marker in ("research about", "research on", "in depth", "deep dive")
+                    ):
+                        normalized.setdefault("deep", True)
 
         if skill_name == "computer_use":
             import re as _re
@@ -489,6 +528,10 @@ class GodModeToolPhase(Phase):
             meta = cap.skills.get(skill_name)
             if not meta:
                 return {"query": objective}
+
+            deterministic = self._normalize_skill_params(skill_name, objective, {})
+            if deterministic and deterministic != {"query": objective}:
+                return deterministic
 
             # Build param schema hint
             schema = meta.schema_def

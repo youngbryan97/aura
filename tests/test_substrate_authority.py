@@ -10,6 +10,7 @@ These tests prove that:
 """
 
 import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -43,11 +44,11 @@ class MockSomaticGate:
         self._budget = budget
 
     def evaluate(self, content, source, priority):
-        class V:
-            approach_score = self._approach
-            confidence = self._confidence
-            budget_available = self._budget
-        return V()
+        return SimpleNamespace(
+            approach_score=self._approach,
+            confidence=self._confidence,
+            budget_available=self._budget,
+        )
 
 
 class MockNeurochemicalSystem:

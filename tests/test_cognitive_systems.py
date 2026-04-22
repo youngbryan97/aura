@@ -472,6 +472,51 @@ class TestBrowserURLRouting:
         )
         assert "query" in params
 
+    def test_terminal_prefix_normalizes_into_execute_params(self):
+        from core.kernel.upgrades_10x import GodModeToolPhase
+
+        params = GodModeToolPhase._normalize_skill_params(
+            "sovereign_terminal",
+            "execute: printf 'hello' > /tmp/aura-proof.txt",
+            {"query": "wrong"},
+        )
+
+        assert params["action"] == "execute"
+        assert params["command"] == "printf 'hello' > /tmp/aura-proof.txt"
+
+    def test_manifest_request_normalizes_into_url_params(self):
+        from core.kernel.upgrades_10x import GodModeToolPhase
+
+        params = GodModeToolPhase._normalize_skill_params(
+            "manifest_to_device",
+            "save to my desktop: https://httpbin.org/image/png",
+            {"query": "wrong"},
+        )
+
+        assert params["url"] == "https://httpbin.org/image/png"
+
+    def test_file_exists_request_normalizes_into_exists_params(self):
+        from core.kernel.upgrades_10x import GodModeToolPhase
+
+        params = GodModeToolPhase._normalize_skill_params(
+            "file_operation",
+            "check if /Users/bryan/Desktop/agency_test/aura_live_snake.html exists",
+            {"query": "wrong"},
+        )
+
+        assert params["action"] == "exists"
+        assert params["path"] == "/Users/bryan/Desktop/agency_test/aura_live_snake.html"
+
+    def test_manifest_request_prefers_manifest_skill_over_file_operation(self):
+        from core.kernel.upgrades_10x import GodModeToolPhase
+
+        chosen = GodModeToolPhase._choose_best_skill(
+            "save to my desktop: https://httpbin.org/image/png",
+            ["file_operation", "manifest_to_device"],
+        )
+
+        assert chosen == "manifest_to_device"
+
     def test_visible_desktop_tab_request_routes_to_computer_use(self):
         """Visible browser-tab requests should use desktop control, not headless browsing."""
         from core.kernel.upgrades_10x import GodModeToolPhase

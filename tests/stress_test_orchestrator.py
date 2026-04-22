@@ -7,7 +7,7 @@ import time
 import asyncio
 import logging
 import unittest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -17,35 +17,37 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("StressTest")
 
 from core.orchestrator import RobustOrchestrator
-from core.brain.cognitive_engine import CognitiveEngine, Thought, ThinkingMode
+from core.brain.cognitive_engine import CognitiveEngine, Thought
 
 class StressTestOrchestrator(unittest.IsolatedAsyncioTestCase):
     
     async def test_high_throughput(self):
-        """Test sending 50 messages rapidly to ensure loop stability"""
+        """Test sending 50 messages rapidly through the current user pipeline."""
         logger.info("--- Starting High Throughput Test ---")
-        
-        # Mock dependencies
-        from core.container import ServiceContainer
-        mock_ce = AsyncMock()
-        mock_ce.think.return_value = Thought(
-            id="test", content="Fast response", mode=ThinkingMode.FAST, confidence=1.0
-        )
-        ServiceContainer.register_instance("cognitive_engine", mock_ce)
-        
+
         orchestrator = RobustOrchestrator()
-        await orchestrator.start()
-        
+        orchestrator._inference_gate = AsyncMock()
+        orchestrator._inference_gate.generate = AsyncMock(
+            side_effect=lambda message, context=None: f"Fast response: {message}"
+        )
+
+        class _Kernel:
+            def is_ready(self):
+                return False
+
         start_time = time.time()
-        for i in range(50):
-            response = await orchestrator._run_cognitive_loop(f"Message {i}")
-            self.assertIn("Fast response", response)
-            if i % 10 == 0:
-                logger.info(f"Processed {i}/50 messages...")
+        with patch(
+            "core.kernel.kernel_interface.KernelInterface.get_instance",
+            return_value=_Kernel(),
+        ):
+            for i in range(50):
+                response = await orchestrator.process_user_input(f"Message {i}")
+                self.assertIn("Fast response", response)
+                if i % 10 == 0:
+                    logger.info(f"Processed {i}/50 messages...")
                 
         duration = time.time() - start_time
         logger.info(f"✅ High Throughput Test Passed: 50 messages in {duration:.2f}s")
-        orchestrator.stop()
 
     async def test_cognitive_timeout(self):
         """Test that the Soft Timeout in CognitiveEngine kicks in"""

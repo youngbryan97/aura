@@ -442,7 +442,10 @@ class ResearchSearchPipeline:
         cached = self.artifact_store.find_best(cleaned_query, freshness_seconds=freshness_seconds, force_refresh=force_refresh)
         if cached is not None:
             emitter.emit("✅ Knowledge Retrieved", f"Found verified answers for '{cleaned_query}' in persistent memory.", level="success", category="Research")
-            return self._artifact_to_result(cached, cached=True)
+            result = self._artifact_to_result(cached, cached=True)
+            if retain:
+                result["retained"] = True
+            return result
 
         emitter.emit("🔍 Searching...", f"Gathering sources for: {cleaned_query}", category="Research")
         expanded_queries = await self._expand_queries(cleaned_query, ctx)

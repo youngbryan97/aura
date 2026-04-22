@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 from typing import Any, Optional
 
@@ -51,9 +52,11 @@ class BootCognitiveMixin:
 
             if ce and (hasattr(ce, "wire") or hasattr(ce, "setup")):
                 if hasattr(ce, "setup"):
-                    ce.setup(registry=engine, router=engine)
+                    setup_result = ce.setup(registry=engine, router=engine)
                 else:
-                    ce.wire(engine, engine)
+                    setup_result = ce.wire(engine, engine)
+                if inspect.isawaitable(setup_result):
+                    await setup_result
                 logger.info("🧠 Cognitive Engine wired successfully.")
             else:
                 logger.warning("⚠️  CognitiveEngine missing or incompatible.")

@@ -343,6 +343,7 @@ class CapabilityEngine(AuraBaseModule):
                 r"google", r"search query", r"find information",
                 r"what(?:'s| is) (?:the latest|happening|new)",
                 r"news about", r"current (?:events|price|status)",
+                r"research (?:about|on)",
             ],
             "free_search": [
                 r"free search", r"duckduckgo", r"bing search",
@@ -379,6 +380,9 @@ class CapabilityEngine(AuraBaseModule):
             "sovereign_terminal": [
                 r"run (?:this )?(?:command|script|shell|terminal)",
                 r"execute (?:this )?(?:command|script)",
+                r"^\s*execute:\s*.+$",
+                r"^\s*run:\s*.+$",
+                r"^\s*terminal:\s*.+$",
                 r"terminal command", r"bash ", r"shell ", r"zsh ",
                 r"run in (?:the )?terminal", r"command line",
                 r"(?:install|uninstall|update) (?:with )?(?:brew|pip|npm|apt|yarn)",
@@ -387,10 +391,17 @@ class CapabilityEngine(AuraBaseModule):
             # ── File Operations ───────────────────────────────────────
             "file_operation": [
                 r"read (?:this |the )?file", r"write (?:to )?(?:this |a )?file",
-                r"save (?:this )?(?:to|as|file)", r"open (?:this )?file",
+                r"save (?:this )?(?:file|document|text|content)(?:\s+to|\s+as|\s+in)",
+                r"open (?:this )?file",
                 r"edit (?:the )?(?:file|document)", r"load (?:this )?file",
                 r"contents of (?:the )?file", r"show (?:me )?(?:the )?file",
                 r"append (?:to )?(?:the )?file",
+                r"(?:(?:check|see|verify|test)\s+(?:if\s+)?|does\s+).+?\s+exist(?:s)?(?:\.|!|\?|$)",
+            ],
+            "manifest_to_device": [
+                r"(?:manifest|save)\s*(?:this\s+(?:image|file|asset))?\s*(?:to\s+(?:my\s+)?(?:desktop|downloads|device))?:\s*https?://",
+                r"save\s+to\s+(?:my\s+)?(?:desktop|downloads|device):\s*https?://",
+                r"manifest\s+to\s+(?:my\s+)?(?:desktop|downloads|device):\s*https?://",
             ],
             # ── Memory / Knowledge ───────────────────────────────────
             "memory_ops": [
@@ -553,7 +564,34 @@ class CapabilityEngine(AuraBaseModule):
             for pattern in meta.trigger_patterns:
                 if re.search(pattern, msg):
                     triggered.append(name)
-                    break 
+                    break
+
+        def _promote(skill_name: str) -> None:
+            if skill_name not in self.skills:
+                return
+            if skill_name in triggered:
+                triggered[:] = [skill_name] + [name for name in triggered if name != skill_name]
+            else:
+                triggered.insert(0, skill_name)
+
+        if re.match(r"^\s*(?:execute|run|terminal)\s*:\s*\S", msg):
+            _promote("sovereign_terminal")
+
+        if re.search(
+            r"(?:manifest|save)\s*(?:this\s+(?:image|file|asset))?\s*(?:to\s+(?:my\s+)?(?:desktop|downloads|device))?:\s*https?://",
+            msg,
+        ):
+            _promote("manifest_to_device")
+            triggered = [
+                name for name in triggered
+                if self.resolve_skill_name(name) != "file_operation" or name == "manifest_to_device"
+            ]
+
+        if re.search(r"(?:(?:check|see|verify|test)\s+(?:if\s+)?|does\s+).+?\s+exist(?:s)?(?:\.|!|\?|$)", msg):
+            _promote("file_operation")
+
+        if re.search(r"\bresearch\s+(?:about|on)\b", msg) and not skip_web_search:
+            _promote("web_search")
         return triggered
 
     def select_tool_definitions(

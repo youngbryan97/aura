@@ -172,6 +172,40 @@ class MemoryFacade:
                 return candidate or "user"
         return fallback
 
+    def _should_degrade_add_memory_block(
+        self,
+        reason: Any,
+        metadata: Optional[Dict[str, Any]] = None,
+        *,
+        source: str,
+    ) -> bool:
+        """Allow legacy local writes to degrade open when governance is unavailable.
+
+        The compatibility ``add_memory()`` API is still used by low-level tests and
+        non-user-facing plumbing. Those callers should not fail closed purely
+        because a partial runtime left strict governance services registered while
+        their prerequisites (for example the self-model) are still unavailable.
+        Explicit/user-facing memory writes still fail closed.
+        """
+        if self._orchestrator is not None:
+            return False
+
+        payload = dict(metadata or {})
+        if payload.get("explicit_memory_request"):
+            return False
+        if self._is_user_facing_source(source):
+            return False
+
+        normalized_reason = str(reason or "").strip().lower()
+        degraded_reasons = (
+            "self_model_required",
+            "executive_core_required",
+            "authority_gateway_required",
+            "authority_gateway_unavailable",
+            "constitutional_gate_unavailable",
+        )
+        return any(normalized_reason.startswith(prefix) for prefix in degraded_reasons)
+
     def _should_store_semantic_interaction(
         self,
         *,
@@ -647,6 +681,7 @@ class MemoryFacade:
     ) -> bool:
         """Compatibility API for legacy callers expecting async long-term memory writes."""
         payload = dict(metadata or {})
+        resolved_source = self._resolve_memory_write_source(payload)
         self._last_add_memory_status = {"ok": False, "reason": "pending"}
         governance_decision = None
 
@@ -658,16 +693,23 @@ class MemoryFacade:
                 await get_constitutional_core(self._orchestrator).approve_memory_write(
                     memory_type="facade_add_memory",
                     content=text,
-                    source=self._resolve_memory_write_source(payload),
+                    source=resolved_source,
                     importance=max(0.0, min(1.0, float(payload.get("importance", 0.5) or 0.5))),
                     metadata=payload,
                     return_decision=True,
                 )
             )
             if not approved:
-                self._last_add_memory_status = {"ok": False, "reason": str(reason or "write_rejected")}
-                logger.warning("🚫 MemoryFacade add_memory blocked: %s", reason)
-                return False
+                if self._should_degrade_add_memory_block(reason, payload, source=resolved_source):
+                    logger.info(
+                        "MemoryFacade add_memory: degrading governance block for legacy local write (%s).",
+                        reason,
+                    )
+                    governance_decision = None
+                else:
+                    self._last_add_memory_status = {"ok": False, "reason": str(reason or "write_rejected")}
+                    logger.warning("🚫 MemoryFacade add_memory blocked: %s", reason)
+                    return False
         except Exception as exc:
             logger.debug("MemoryFacade add_memory constitutional gate skipped: %s", exc)
             runtime_live = bool(
@@ -676,7 +718,11 @@ class MemoryFacade:
                 or ServiceContainer.has("aura_kernel")
                 or ServiceContainer.has("kernel_interface")
             )
-            if runtime_live:
+            if runtime_live and not self._should_degrade_add_memory_block(
+                "constitutional_gate_unavailable",
+                payload,
+                source=resolved_source,
+            ):
                 self._last_add_memory_status = {"ok": False, "reason": "constitutional_gate_unavailable"}
                 logger.warning("🚫 MemoryFacade add_memory blocked: constitutional gate unavailable")
                 return False

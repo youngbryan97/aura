@@ -124,17 +124,15 @@ class SnapshotManager:
                 )
                 return True
 
-            import asyncio
-            decision = asyncio.get_event_loop().run_until_complete(
-                will.decide(
-                    action="snapshot_thaw",
-                    domain=ActionDomain.STATE_MUTATION,
-                    context={
-                        "source": "snapshot_manager",
-                        "file": str(self.snapshot_file),
-                    },
-                    priority=0.9,  # High priority — system needs its state
-                )
+            decision = will.decide(
+                content="snapshot_thaw",
+                source="snapshot_manager",
+                domain=ActionDomain.STATE_MUTATION,
+                context={
+                    "file": str(self.snapshot_file),
+                    "operation": "snapshot_thaw",
+                },
+                priority=0.9,  # High priority — system needs its state
             )
             approved = decision.is_approved() if hasattr(decision, "is_approved") else True
             if not approved:

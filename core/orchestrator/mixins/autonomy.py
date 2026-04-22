@@ -19,6 +19,128 @@ logger = logging.getLogger(__name__)
 class AutonomyMixin:
     """Handles autonomous cognition, impulses, boredom, and agency core pulsing."""
 
+    def _autonomous_boredom_seconds(self) -> float:
+        """Return the current idle interval for autonomous reflection."""
+        now = time.time()
+        start_time = (
+            getattr(self, "_last_thought_time", 0.0)
+            or getattr(getattr(self, "status", None), "start_time", 0.0)
+            or now
+        )
+        return max(0.0, now - start_time)
+
+    async def _run_autonomous_brain_reflection(self, boredom_seconds: float) -> bool:
+        """Fallback reflective path using the direct autonomous brain."""
+        cognitive_engine = getattr(self, "cognitive_engine", None)
+        brain = getattr(cognitive_engine, "autonomous_brain", None)
+        if brain is None:
+            return False
+
+        personality_context = {}
+        time_context = {"formatted": "Unknown"}
+        try:
+            from core.personality_engine import get_personality_engine
+
+            personality = get_personality_engine()
+            personality_context = personality.get_emotional_context_for_response()
+            time_context = personality.get_time_context()
+        except Exception as exc:
+            logger.debug("Autonomous personality context unavailable: %s", exc)
+
+        recent_history = (
+            self.conversation_history[-5:]
+            if isinstance(getattr(self, "conversation_history", None), list)
+            else []
+        )
+        context = {
+            "system_status": getattr(getattr(self, "status", None), "__dict__", {}),
+            "boredom_level": max(int(boredom_seconds), getattr(self, "boredom", 0)),
+            "time": time_context,
+            "personality": personality_context,
+            "recent_history": recent_history,
+        }
+
+        try:
+            from core.brain.aura_persona import AUTONOMOUS_THOUGHT_PROMPT
+
+            recent_ctx = ""
+            for msg in recent_history[-4:]:
+                role = str(msg.get("role", ""))
+                content = str(msg.get("content", ""))[:150]
+                if role == "user":
+                    recent_ctx += f"They said: {content}\n"
+                elif role in ("assistant", "aura", "model"):
+                    recent_ctx += f"I said: {content}\n"
+            system_prompt = AUTONOMOUS_THOUGHT_PROMPT.format(
+                mood=personality_context.get("mood", "balanced"),
+                time=time_context.get("formatted", "unknown"),
+                context=recent_ctx or "No recent conversation.",
+                unanswered_count=0,
+            )
+        except Exception:
+            system_prompt = (
+                f"You are Aura, alone with your thoughts. Time: {time_context.get('formatted')}. "
+                f"Mood: {personality_context.get('mood', 'balanced')}. "
+                "Think about something that interests you. Be genuine. 1-3 sentences. "
+                "If you want to say something to the user, use the `speak` tool. "
+                "If you want to look something up, use your tools. You have agency."
+            )
+
+        self._emit_thought_stream("...letting my mind wander...")
+
+        try:
+            result = await brain.think(
+                objective="Reflect on current state.",
+                context=context,
+                system_prompt=system_prompt,
+            )
+        except Exception as exc:
+            logger.error("Autonomous brain reflection failed: %s", exc)
+            self._emit_thought_stream("[Cognitive Stall] My background thoughts are hazy...")
+            return True
+
+        if not isinstance(result, dict):
+            logger.debug("Autonomous brain returned non-dict payload: %s", type(result).__name__)
+            return True
+
+        content = str(result.get("content", "") or "").strip()
+        tool_calls = list(result.get("tool_calls") or [])
+
+        if content:
+            self._emit_thought_stream(content)
+            if len(content) > 30:
+                await self._store_autonomous_insight("Autonomous Reflection", content)
+
+        if content or tool_calls:
+            self.boredom = 0
+            self._last_thought_time = time.time()
+
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict):
+                continue
+
+            name = str(tool_call.get("name") or "").strip()
+            args = tool_call.get("args") or {}
+            if not name:
+                continue
+
+            if name == "speak":
+                message = args.get("message") or args.get("content")
+                if message and hasattr(self, "emit_spontaneous_message"):
+                    await self.emit_spontaneous_message(
+                        str(message),
+                        origin="autonomy_reflection",
+                    )
+                    self._emit_thought_stream(f"Speaking: {message}")
+                continue
+
+            try:
+                await self.execute_tool(name, args)
+            except Exception as exc:
+                logger.debug("Autonomous tool '%s' failed: %s", name, exc)
+
+        return True
+
     def _trigger_boredom_impulse(self):
         """Inject a curiosity-driven autonomous goal based on personality."""
         # ── UNIFIED WILL GATE ────────────────────────────────────────
@@ -361,10 +483,7 @@ class AutonomyMixin:
             from ...thought_stream import get_emitter
             emitter = get_emitter()
 
-            # Boredom calculation
-            # Boredom calculation (v10.1 Hardening)
-            now = time.time()
-            boredom = now - (self._last_thought_time or self.status.start_time or now)
+            boredom = self._autonomous_boredom_seconds()
             logger.debug("🧠 Autonomous thought triggered (boredom=%.1fs idle)", boredom)
             emitter.emit(
                 "Autonomous Drift",
@@ -500,6 +619,10 @@ class AutonomyMixin:
                     # For now, we rely on the process_autonomous calling process_turn internally.
                     # If it returns a string, it means it already ran the pipeline.
                 return
+
+            if await self._run_autonomous_brain_reflection(boredom):
+                return
+
             # Tool execution (Self-correction via Drives)
             if self.drives and not getattr(self.drives, "called", False) and hasattr(self.drives, "satisfy"):
                 try:

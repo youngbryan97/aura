@@ -243,6 +243,29 @@ async def test_memory_facade_add_memory_treats_none_returning_vector_backend_as_
 
 
 @pytest.mark.asyncio
+async def test_memory_facade_add_memory_degrades_open_for_legacy_non_user_writes(monkeypatch):
+    facade = MemoryFacade()
+    vector_calls = []
+    facade._vector = SimpleNamespace(add_memory=lambda text, metadata=None: vector_calls.append((text, metadata)) or True)
+
+    monkeypatch.setattr(
+        "core.constitution.get_constitutional_core",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            approve_memory_write=AsyncMock(return_value=(False, "self_model_required"))
+        ),
+    )
+
+    ok = await facade.add_memory(
+        "Journal line",
+        metadata={"type": "narrative_journal", "timestamp": 10.0},
+    )
+
+    assert ok is True
+    assert vector_calls
+    assert facade._last_add_memory_status["reason"] == "stored_via_vector"
+
+
+@pytest.mark.asyncio
 async def test_memory_ops_archival_insert_calls_facade_add_memory():
     skill = MemoryOpsSkill.__new__(MemoryOpsSkill)
     add_mock = AsyncMock(return_value=True)

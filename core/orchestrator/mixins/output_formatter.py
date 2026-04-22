@@ -70,7 +70,12 @@ class OutputFormatterMixin:
     def _emit_thought_stream(self, thought):
         """Helper to emit autonomous thoughts/monologues to UI"""
         if hasattr(self, "cognitive_engine") and self.cognitive_engine and hasattr(self.cognitive_engine, "_emit_thought"):
-            self.cognitive_engine._emit_thought(thought)
+            emitted = self.cognitive_engine._emit_thought(thought)
+            if inspect.isawaitable(emitted):
+                try:
+                    asyncio.get_running_loop().create_task(emitted)
+                except RuntimeError:
+                    _dispose_awaitable(emitted)
             return
         try:
             from core.thought_stream import get_emitter

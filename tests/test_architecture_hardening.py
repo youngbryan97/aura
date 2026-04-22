@@ -256,6 +256,31 @@ def test_capability_engine_prefers_clock_for_time_queries():
     assert "environment_info" not in matched
 
 
+def test_capability_engine_detects_terminal_exec_prefix():
+    engine = CapabilityEngine()
+
+    matched = engine.detect_intent("execute: printf 'hello' > /tmp/aura-proof.txt")
+
+    assert matched[0] == "sovereign_terminal"
+
+
+def test_capability_engine_prefers_manifest_to_device_for_save_to_desktop_url():
+    engine = CapabilityEngine()
+
+    matched = engine.detect_intent("save to my desktop: https://httpbin.org/image/png")
+
+    assert matched[0] == "manifest_to_device"
+    assert "file_operation" not in matched
+
+
+def test_capability_engine_detects_research_about_as_web_search():
+    engine = CapabilityEngine()
+
+    matched = engine.detect_intent("research about Python 3.12 release notes key improvements")
+
+    assert matched[0] == "web_search"
+
+
 def test_social_imagination_links_private_trouble_to_public_issue(tmp_path):
     engine = SocialImagination(tmp_path / "social_imagination.json")
     text = (

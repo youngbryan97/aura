@@ -43,6 +43,7 @@ from core.brain.llm.model_registry import (
     FALLBACK_ENDPOINT,
     PRIMARY_ENDPOINT,
 )
+from core.container import ServiceContainer
 
 
 # ---------------------------------------------------------------------------
@@ -338,6 +339,40 @@ class TestSuccessResetsCircuit:
         ep.record_success(tokens=200, latency_ms=100.0)
         assert ep.state == CircuitState.CLOSED
         assert ep.success_count == 2
+
+
+@pytest.mark.asyncio
+async def test_generate_with_metadata_does_not_boot_optional_heavy_services(monkeypatch):
+    calls = {"liquid_substrate": 0, "soma": 0}
+
+    def _trap_factory(name: str):
+        def _factory():
+            calls[name] += 1
+            raise AssertionError(f"{name} should not be initialized during router generation")
+        return _factory
+
+    monkeypatch.setattr(ServiceContainer, "_services", {})
+    monkeypatch.setattr(ServiceContainer, "_aliases", {})
+    monkeypatch.setattr(ServiceContainer, "_init_locks", {})
+    monkeypatch.setattr(ServiceContainer, "_registration_locked", False)
+
+    ServiceContainer.register("liquid_substrate", _trap_factory("liquid_substrate"), required=False)
+    ServiceContainer.register("soma", _trap_factory("soma"), required=False)
+
+    router, _clients = _make_router_with_5_tiers()
+
+    result = await router.generate_with_metadata(
+        "Hello",
+        prefer_tier="primary",
+        allow_cloud_fallback=True,
+        origin="user",
+        skip_runtime_payload=True,
+    )
+
+    assert result["ok"] is True
+    assert result["endpoint"] == "Cortex"
+    assert result["text"] == "Cortex response"
+    assert calls == {"liquid_substrate": 0, "soma": 0}
 
 
 class TestCircuitBreakerEdgeCases:

@@ -56,6 +56,44 @@ async def test_search_pipeline_reuses_fresh_retained_artifact(tmp_path: Path, mo
     assert "sky appear blue" in result["answer"]
 
 
+@pytest.mark.asyncio
+async def test_search_pipeline_cached_artifact_reports_retained_when_requested(tmp_path: Path):
+    store = SearchArtifactStore(tmp_path / "web_artifacts.jsonl")
+    pipeline = ResearchSearchPipeline(store)
+    now = time.time()
+    artifact = SearchArtifact(
+        artifact_id="artifact-retained",
+        query="python 3.12 release notes",
+        normalized_query="python 3.12 release notes",
+        answer="Python 3.12 adds type parameter syntax and performance improvements.",
+        summary="Python 3.12 adds type parameter syntax and performance improvements.",
+        facts=["Python 3.12 introduces PEP 695 style type parameter syntax."],
+        citations=[{"title": "Release Notes", "url": "https://docs.python.org/3/whatsnew/3.12.html"}],
+        evidence=[
+            {
+                "title": "Release Notes",
+                "url": "https://docs.python.org/3/whatsnew/3.12.html",
+                "text": "Python 3.12 introduces new syntax for type parameters and other improvements.",
+                "score": 0.95,
+            }
+        ],
+        created_at=now,
+        updated_at=now,
+        freshness_seconds=24 * 60 * 60,
+        confidence=0.91,
+        current=True,
+        source="https://docs.python.org/3/whatsnew/3.12.html",
+    )
+    store.append(artifact)
+
+    result = await pipeline.search("python 3.12 release notes", retain=True, context={})
+
+    assert result["ok"] is True
+    assert result["cached"] is True
+    assert result["retained"] is True
+    assert result["artifact_id"] == "artifact-retained"
+
+
 class _FakeSemanticMemory:
     def __init__(self):
         self.entries = []

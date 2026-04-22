@@ -249,3 +249,91 @@ async def test_web_search_skill_uses_cognitive_engine_for_deep_research(monkeypa
     assert result["summary"] == "researched: history of basalt"
     assert engine_calls
     assert engine_calls[0]["kwargs"]["purpose"] == "research"
+
+
+@pytest.mark.asyncio
+async def test_web_search_skill_deep_research_falls_back_when_synthesis_is_empty(monkeypatch):
+    from core.skills.web_search import EnhancedWebSearchSkill
+
+    class _Engine:
+        async def generate(self, prompt, **kwargs):
+            return "deep research draft"
+
+    async def _fake_run_deep_research(question, brain, search_fn, max_loops=3, on_phase=None):
+        generated = await brain.generate("expand query")
+        assert generated == {"response": "deep research draft"}
+        return {"answer": "", "sources": [{"title": "Source", "url": "https://example.com"}]}
+
+    async def _fake_search(query, **kwargs):
+        return {
+            "ok": True,
+            "query": query,
+            "answer": "fallback synthesized answer",
+            "summary": "fallback synthesized answer",
+            "citations": [{"title": "Source", "url": "https://example.com"}],
+            "retained": True,
+            "artifact_id": "artifact-1",
+        }
+
+    monkeypatch.setattr(
+        "core.skills.web_search.ServiceContainer.get",
+        staticmethod(lambda name, default=None: _Engine() if name == "cognitive_engine" else default),
+    )
+    monkeypatch.setattr("core.skills.web_search.run_deep_research", _fake_run_deep_research)
+
+    skill = EnhancedWebSearchSkill()
+    skill.pipeline.search = _fake_search  # type: ignore[method-assign]
+    result = await skill.execute({"query": "history of basalt", "deep": True, "retain": True}, {})
+
+    assert result["answer"] == "fallback synthesized answer"
+    assert result["retained"] is True
+    assert result["artifact_id"] == "artifact-1"
+
+
+@pytest.mark.asyncio
+async def test_web_search_skill_retries_with_cached_artifact_when_force_refresh_fails(monkeypatch):
+    from core.skills.web_search import EnhancedWebSearchSkill
+
+    class _Engine:
+        async def generate(self, prompt, **kwargs):
+            return "deep research draft"
+
+    async def _fake_run_deep_research(question, brain, search_fn, max_loops=3, on_phase=None):
+        return {"answer": "", "sources": [{"title": "Source", "url": "https://example.com"}]}
+
+    calls = []
+
+    async def _fake_search(query, **kwargs):
+        calls.append(dict(kwargs))
+        if kwargs.get("force_refresh"):
+            return {"ok": False, "error": "No results found for query."}
+        return {
+            "ok": True,
+            "query": query,
+            "answer": "cached retained answer",
+            "summary": "cached retained answer",
+            "cached": True,
+            "retained": True,
+            "artifact_id": "artifact-cached",
+        }
+
+    monkeypatch.setattr(
+        "core.skills.web_search.ServiceContainer.get",
+        staticmethod(lambda name, default=None: _Engine() if name == "cognitive_engine" else default),
+    )
+    monkeypatch.setattr("core.skills.web_search.run_deep_research", _fake_run_deep_research)
+
+    skill = EnhancedWebSearchSkill()
+    skill.pipeline.search = _fake_search  # type: ignore[method-assign]
+
+    result = await skill.execute(
+        {"query": "python 3.12 release notes", "deep": True, "retain": True, "force_refresh": True},
+        {},
+    )
+
+    assert result["ok"] is True
+    assert result["cached"] is True
+    assert result["retained"] is True
+    assert result["artifact_id"] == "artifact-cached"
+    assert calls[0]["force_refresh"] is True
+    assert calls[1]["force_refresh"] is False

@@ -780,11 +780,42 @@ class ContextAssembler:
         DELIBERATE_CAP = 12000
         cap = CASUAL_CAP if is_casual else DELIBERATE_CAP
         if len(base) > cap:
-            # Keep the tail: identity anchor + structural constraint always
-            # appended last, so preserving the end preserves the invariants.
-            head = base[: max(0, cap // 3)]
-            tail = base[-(cap - len(head)):]
-            base = head + "\n\n[... mid-prompt trimmed for latency ...]\n\n" + tail
+            trim_notice = "\n\n[... mid-prompt trimmed for latency ...]\n\n"
+
+            # Keep the tail: identity anchor + structural constraint are appended
+            # last, so the tail remains essential. But continuity obligations are
+            # also load-bearing and must survive prompt compression if present.
+            reserved_middle = ""
+            essential_middle_blocks: list[str] = []
+
+            head_budget = max(0, cap // 3)
+            tail_budget = max(0, cap - head_budget - len(trim_notice))
+            head = base[:head_budget]
+            tail = base[-tail_budget:] if tail_budget else ""
+
+            for candidate in (
+                str(cognitive_metrics or "").strip(),
+                str(continuity_block or "").strip(),
+                str(world_context or "").strip(),
+            ):
+                if candidate and candidate not in head and candidate not in tail:
+                    essential_middle_blocks.append(candidate)
+
+            if essential_middle_blocks:
+                reserved_middle = "\n\n".join(essential_middle_blocks)
+                reserved_bytes = len(trim_notice) + len(reserved_middle) + 2
+                head_budget = max(0, min(cap // 3, cap - reserved_bytes))
+                tail_budget = max(0, cap - head_budget - reserved_bytes)
+                head = base[:head_budget]
+                tail = base[-tail_budget:] if tail_budget else ""
+
+            pieces = [head]
+            if reserved_middle:
+                pieces.extend(["\n\n", reserved_middle])
+            pieces.extend([trim_notice, tail])
+            base = "".join(pieces)
+            if len(base) > cap:
+                base = base[:cap]
             logger.info(
                 "🧠 [BRAIN-PROMPT] System prompt exceeded %d-char budget — "
                 "trimmed to %d chars (casual=%s, depth=%d).",

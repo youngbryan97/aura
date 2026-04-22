@@ -249,12 +249,27 @@ def _background_error_is_quiet(error: str) -> bool:
 
 
 def _local_client_failure_reason(client: Any) -> str:
+    def _get_declared_attr(candidate: Any, attr: str) -> Any:
+        try:
+            inspect.getattr_static(candidate, attr)
+        except AttributeError:
+            return None
+        try:
+            value = getattr(candidate, attr)
+        except Exception:
+            return None
+        if value is candidate:
+            return None
+        return value
+
     def _extract_lane_failure(candidate: Any) -> str:
         lane = None
-        if hasattr(candidate, "get_lane_status"):
-            lane = candidate.get_lane_status()
-        elif hasattr(candidate, "get_conversation_status"):
-            lane = candidate.get_conversation_status()
+        get_lane_status = _get_declared_attr(candidate, "get_lane_status")
+        get_conversation_status = _get_declared_attr(candidate, "get_conversation_status")
+        if callable(get_lane_status):
+            lane = get_lane_status()
+        elif callable(get_conversation_status):
+            lane = get_conversation_status()
 
         if not isinstance(lane, dict):
             return ""
@@ -296,7 +311,7 @@ def _local_client_failure_reason(client: Any) -> str:
 
             next_candidate = None
             for attr in ("_client", "_mlx_client"):
-                nested = getattr(candidate, attr, None)
+                nested = _get_declared_attr(candidate, attr)
                 if nested is not None:
                     next_candidate = nested
                     break
@@ -1048,7 +1063,12 @@ class HealthAwareLLMRouter:
             return None
         unwrapped = client
         for attr in ("_client", "_mlx_client"):
-            nested = getattr(unwrapped, attr, None)
+            try:
+                inspect.getattr_static(unwrapped, attr)
+            except AttributeError:
+                nested = None
+            else:
+                nested = getattr(unwrapped, attr, None)
             if nested is not None:
                 unwrapped = nested
         return unwrapped
@@ -1154,15 +1174,17 @@ class HealthAwareLLMRouter:
         if not classification_mode and "AuraState" not in prompt and "[Affect:" not in prompt:
             from core.container import ServiceContainer
             ctx_summary = []
-            
+
+            # Only consult already-live services here. Booting heavyweight
+            # optional subsystems during a plain routing call can explode RAM.
             # Affective State
-            substrate = ServiceContainer.get("liquid_substrate", default=None)
+            substrate = ServiceContainer.peek("liquid_substrate", default=None)
             if substrate:
                 mood = substrate.get_summary()
                 if mood: ctx_summary.append(f"[Affect: {mood}]")
-            
+
             # Somatic Proprioception
-            soma = ServiceContainer.get("soma", default=None)
+            soma = ServiceContainer.peek("soma", default=None)
             if soma:
               hw = getattr(soma, "hardware", {})
               cpu = hw.get("cpu_usage", 0)
