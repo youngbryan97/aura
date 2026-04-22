@@ -258,31 +258,62 @@ class BootResilienceMixin:
             # supervisor.start_actor returns parent_conn
             parent_pipe = sup.start_actor("state_vault")
 
-            # 3. Wait for Readiness (Ping Loop)
+            if bus and not getattr(bus, "has_actor", lambda *_: False)("state_vault"):
+                bus.add_actor("state_vault", parent_pipe)
+                logger.info("🛡️  StateVaultActor transport registered with ActorBus")
+
+            # 3. Wait for readiness using the same request protocol as runtime IPC.
             logger.info("⏳ Waiting for StateVaultActor to be ready...")
             import uuid
 
             ready = False
-            for attempt in range(10):
+            for attempt in range(20):
                 try:
-                    req_id = str(uuid.uuid4())
-                    ping_msg = {"type": "ping", "request_id": req_id}
-                    parent_pipe.send(json.dumps(ping_msg))
-
-                    polled = await asyncio.to_thread(parent_pipe.poll, 1.0)
-                    if polled:
-                        resp_raw = await asyncio.to_thread(parent_pipe.recv)
-                        resp = json.loads(resp_raw)
-                        if (
-                            resp.get("response_to") == req_id
-                            and resp.get("type") == "pong"
-                        ):
+                    if bus and getattr(bus, "has_actor", lambda *_: False)("state_vault"):
+                        resp = await bus.request(
+                            "state_vault",
+                            "ping",
+                            {"source": "boot_resilience", "attempt": attempt + 1},
+                            timeout=2.0,
+                        )
+                        if isinstance(resp, dict) and resp.get("type") == "pong":
                             ready = True
+                            logger.info(
+                                "📡 StateVaultActor responded to handshake (Attempt %d)",
+                                attempt + 1,
+                            )
                             break
-                    logger.debug(f"Vault ping attempt {attempt+1} failed. Retrying...")
+                    else:
+                        req_id = str(uuid.uuid4())
+                        ping_msg = {
+                            "type": "ping",
+                            "payload": {"source": "boot_resilience", "attempt": attempt + 1},
+                            "request_id": req_id,
+                            "trace_id": str(uuid.uuid4()),
+                            "is_request": True,
+                        }
+                        parent_pipe.send(json.dumps(ping_msg))
+
+                        polled = await asyncio.to_thread(parent_pipe.poll, 2.0)
+                        if polled:
+                            resp_raw = await asyncio.to_thread(parent_pipe.recv)
+                            resp = json.loads(resp_raw)
+                            payload = resp.get("payload") if isinstance(resp, dict) else None
+                            if (
+                                resp.get("response_to") == req_id
+                                and isinstance(payload, dict)
+                                and payload.get("type") == "pong"
+                            ):
+                                ready = True
+                                logger.info(
+                                    "📡 StateVaultActor responded to fallback handshake (Attempt %d)",
+                                    attempt + 1,
+                                )
+                                break
+                    logger.debug("Vault ping attempt %d failed. Retrying...", attempt + 1)
                     await asyncio.sleep(0.5)
                 except Exception as e:
-                    logger.warning(f"Vault readiness check error: {e}")
+                    logger.warning("Vault readiness check error: %s", e)
                     await asyncio.sleep(0.5)
 
             if not ready:
@@ -291,13 +322,10 @@ class BootResilienceMixin:
                 )
 
             # 4. Register pipe with Actor Bus for Orchestrator communication
-            if bus:
-                bus.add_actor("state_vault", parent_pipe)
-                logger.info("🛡️  StateVaultActor transport registered with ActorBus")
-            else:
+            if not bus:
                 # Fallback: if bus wasn't found initially but we just started it, try to find it now
                 bus = getattr(self, "_actor_bus", None) or getattr(self, "actor_bus", None)
-                if bus:
+                if bus and not getattr(bus, "has_actor", lambda *_: False)("state_vault"):
                     bus.add_actor("state_vault", parent_pipe)
                     logger.info("🛡️  StateVaultActor transport registered with ActorBus (fallback)")
 
