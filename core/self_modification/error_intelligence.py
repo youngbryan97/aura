@@ -172,6 +172,8 @@ class StructuredErrorLogger:
                 with open(path, 'a', encoding='utf-8') as f:
                     f.write(line)
             await asyncio.to_thread(_write)
+        except asyncio.CancelledError:
+            logger.debug("Log append cancelled for %s", path)
         except Exception as e:
             logger.error("Failed to append to log %s: %s", path, e)
     

@@ -7,6 +7,24 @@ from core.container import ServiceContainer
 
 logger = logging.getLogger("Skills.Dream")
 
+
+def _schedule_background_task(coro: Any, *, name: str) -> None:
+    try:
+        from core.utils.task_tracker import get_task_tracker
+
+        get_task_tracker().create_task(coro, name=name)
+        return
+    except Exception:
+        pass
+    try:
+        asyncio.create_task(coro, name=name)
+    except Exception as exc:
+        try:
+            coro.close()
+        except Exception:
+            pass
+        logger.debug("Dream background task %s could not be scheduled: %s", name, exc)
+
 class DreamSkill(BaseSkill):
     """
     Triggers an immediate 'Dream Cycle' across the cognitive and semantic layers.
@@ -47,7 +65,10 @@ class DreamSkill(BaseSkill):
         try:
             orchestrator = ServiceContainer.get("orchestrator", default=None)
             if orchestrator and hasattr(orchestrator, "semantic_defrag") and getattr(orchestrator.semantic_defrag, "run_defrag_cycle", None):
-                asyncio.create_task(orchestrator.semantic_defrag.run_defrag_cycle())
+                _schedule_background_task(
+                    orchestrator.semantic_defrag.run_defrag_cycle(),
+                    name="dream_skill.semantic_defrag",
+                )
                 results["semantic_defrag"] = "queued"
             else:
                 results["semantic_defrag"] = "unavailable"
@@ -57,7 +78,10 @@ class DreamSkill(BaseSkill):
         # 3. Dream Cycle (DLQ Re-ingestion)
         try:
             if orchestrator and hasattr(orchestrator, "dream_cycle") and getattr(orchestrator.dream_cycle, "process_dreams", None):
-                asyncio.create_task(orchestrator.dream_cycle.process_dreams())
+                _schedule_background_task(
+                    orchestrator.dream_cycle.process_dreams(),
+                    name="dream_skill.process_dreams",
+                )
                 results["dlq_cycle"] = "queued"
             else:
                 results["dlq_cycle"] = "unavailable"

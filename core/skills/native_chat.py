@@ -15,6 +15,24 @@ except ImportError:
 
 logger = logging.getLogger("Skills.NativeChat")
 
+
+def _schedule_background_task(coro: Any, *, name: str) -> None:
+    try:
+        from core.utils.task_tracker import get_task_tracker
+
+        get_task_tracker().create_task(coro, name=name)
+        return
+    except Exception:
+        pass
+    try:
+        asyncio.create_task(coro, name=name)
+    except Exception as exc:
+        try:
+            coro.close()
+        except Exception:
+            pass
+        logger.debug("NativeChat background task %s could not be scheduled: %s", name, exc)
+
 class NativeChatSkill(BaseSkill):
     name = "native_chat"
     description = "Conversational engine with robust dependency resolution."
@@ -80,7 +98,10 @@ class NativeChatSkill(BaseSkill):
             from core.container import ServiceContainer
             cme = ServiceContainer.get("conversational_momentum_engine", default=None)
             if cme:
-                asyncio.create_task(cme.on_new_user_message(msg_str))
+                _schedule_background_task(
+                    cme.on_new_user_message(msg_str),
+                    name="native_chat.momentum",
+                )
         except Exception as _e:
             logger.debug('Ignored Exception in native_chat.py: %s', _e)
 
@@ -158,8 +179,17 @@ class NativeChatSkill(BaseSkill):
                 if mem_sys:
                     # Async remember calls for the interaction
                     logger.info("Storing chat interaction in Temporal Memory: %s...", msg_str[:min(len(msg_str), 30)])
-                    asyncio.create_task(mem_sys.remember(msg_str, metadata={"role": "user", "intent": intent_context.get("pragmatic")}))
-                    asyncio.create_task(mem_sys.remember(response, metadata={"role": "aura", "mode": "chat"}))
+                    _schedule_background_task(
+                        mem_sys.remember(
+                            msg_str,
+                            metadata={"role": "user", "intent": intent_context.get("pragmatic")},
+                        ),
+                        name="native_chat.remember_user",
+                    )
+                    _schedule_background_task(
+                        mem_sys.remember(response, metadata={"role": "aura", "mode": "chat"}),
+                        name="native_chat.remember_aura",
+                    )
             except Exception as e:
                 logger.warning("Memory storage failed: %s", e)
 

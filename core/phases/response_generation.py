@@ -343,7 +343,11 @@ class ResponseGenerationPhase(BasePhase):
                 logger.info("🗣️ ResponseGeneration: retried draft to satisfy dialogue contract.")
             
             # 6. Clean response
-            cleaned_response = self._clean_response(cleaned_response, state)
+            cleaned_response = self._clean_response(
+                cleaned_response,
+                state,
+                allow_mumbling=is_background,
+            )
 
             # 6b. SUBSTRATE VOICE: Shape the response — enforce the profile
             # The substrate compiled constraints. Now enforce them on the output.
@@ -441,8 +445,14 @@ class ResponseGenerationPhase(BasePhase):
             logger.error("❌ ResponseGeneration: LLM call failed: %s", e, exc_info=True)
             return state
 
-    def _clean_response(self, text: str, state: AuraState | None = None) -> str:
-        """Strip tags and assistant-isms. Potentially extract internal thoughts for spillage."""
+    def _clean_response(
+        self,
+        text: str,
+        state: AuraState | None = None,
+        *,
+        allow_mumbling: bool = False,
+    ) -> str:
+        """Strip tags and assistant-isms without leaking internal thought into chat."""
         import re
         
         mumbling = ""
@@ -456,7 +466,7 @@ class ResponseGenerationPhase(BasePhase):
                 exp_state = exp.get("current_expression", "neutral")
                 load = exp.get("cognitive_load", "normal")
             
-            if exp_state in ("contemplative", "anxious", "fatigued") or load == "high":
+            if allow_mumbling and (exp_state in ("contemplative", "anxious", "fatigued") or load == "high"):
                 # Extract the thought block before we strip it
                 thought_match = re.search(r'<thought>(.*?)</thought>', text, flags=re.DOTALL)
                 if thought_match:

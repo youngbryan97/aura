@@ -8,6 +8,7 @@ Validates that 2026 code-quality standards are met across /skills.
 """
 
 import ast
+import asyncio
 import inspect
 import re
 import textwrap
@@ -15,7 +16,11 @@ from pathlib import Path
 
 import pytest
 
-from core.skills.sovereign_network import NetworkInput, SovereignNetworkSkill
+from core.skills.sovereign_network import (
+    TCP_DISCOVERY_BATCH_SIZE,
+    NetworkInput,
+    SovereignNetworkSkill,
+)
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent / "core" / "skills"
 
@@ -134,6 +139,40 @@ async def test_sovereign_network_discovery_falls_back_without_nmap(monkeypatch):
     assert result["ok"] is True
     assert result["fallback"] == "tcp_connect"
     assert result["peers"] == [{"address": "192.168.1.2", "rpc_port": 8000, "source": "tcp_connect"}]
+
+
+@pytest.mark.asyncio
+async def test_sovereign_network_discovery_batches_tcp_fallback(monkeypatch):
+    """TCP fallback should cap concurrent probes instead of spawning a /24 at once."""
+    skill = SovereignNetworkSkill()
+    active = 0
+    peak = 0
+
+    async def missing_nmap(*_args, **_kwargs):
+        raise FileNotFoundError("nmap")
+
+    async def fake_open_connection(_host, _port):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        try:
+            await asyncio.sleep(0.01)
+            raise OSError("closed")
+        finally:
+            active -= 1
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", missing_nmap)
+    monkeypatch.setattr("asyncio.open_connection", fake_open_connection)
+
+    result = await skill.execute(
+        NetworkInput(mode="discovery", target="192.168.1.0/27", ports="8000"),
+        {},
+    )
+
+    assert result["ok"] is True
+    assert result["fallback"] == "tcp_connect"
+    assert result["count"] == 0
+    assert peak <= TCP_DISCOVERY_BATCH_SIZE
 
 
 ##

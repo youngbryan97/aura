@@ -4,6 +4,8 @@ import asyncio
 import gc
 import json
 import logging
+import sys
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -96,6 +98,9 @@ class StabilityGuardian:
     MIN_TICK_RATE_HZ    = 0.01     # If we're not ticking at all, something is wrong
     MAX_TASK_COUNT      = 260      # asyncio task explosion guard
     MAX_UNSUPERVISED_TASK_COUNT = 80
+    EVENT_LOOP_LAG_WINDOW_S = 45.0
+    EVENT_LOOP_LAG_FRESH_WINDOW_S = 20.0
+    EVENT_LOOP_LAG_DUMP_COOLDOWN_S = 60.0
 
     @staticmethod
     def _memory_thresholds() -> Tuple[float, float]:
@@ -492,16 +497,54 @@ class StabilityGuardian:
         except Exception as exc:
             return HealthCheckResult("lock_watchdog", False, f"Check failed: {exc}", "error")
 
-    @staticmethod
-    def _dump_thread_stacks(label: str) -> None:
+    def _dump_thread_stacks(self, label: str) -> bool:
         try:
-            import sys
             import traceback
 
-            dump = "\n".join("".join(traceback.format_stack(frame)) for _thread_id, frame in sys._current_frames().items())
-            logger.error("🚨 [StabilityGuardian] %s. THREAD DUMP:\n%s", label, dump[:1500])
+            if not self._repair_allowed("stability_guardian_thread_dump", self.EVENT_LOOP_LAG_DUMP_COOLDOWN_S):
+                return False
+
+            idle_markers = (
+                "threading.py\", line 355, in wait",
+                "waiter.acquire()",
+                "concurrent/futures/thread.py\", line 90, in _worker",
+                "work_queue.get(block=True)",
+                "multiprocessing/queues.py\", line 251, in _feed",
+                "queue.py\", line",
+                "selectors.py\", line",
+            )
+            thread_map = {thread.ident: thread for thread in threading.enumerate() if thread.ident is not None}
+            main_ident = threading.main_thread().ident
+            blocks: list[str] = []
+            for thread_id, frame in sys._current_frames().items():
+                stack = "".join(traceback.format_stack(frame))
+                if thread_id != main_ident and any(marker in stack for marker in idle_markers):
+                    continue
+                thread = thread_map.get(thread_id)
+                thread_name = thread.name if thread else f"thread-{thread_id}"
+                blocks.append(f"[{thread_name} #{thread_id}]\n{stack.strip()}")
+
+            if not blocks:
+                frame = sys._current_frames().get(main_ident)
+                if frame is not None:
+                    blocks.append(
+                        f"[main-thread #{main_ident}]\n{''.join(traceback.format_stack(frame)).strip()}"
+                    )
+
+            loop = asyncio.get_running_loop()
+            live_tasks = sorted(
+                t.get_name() for t in asyncio.all_tasks(loop) if not t.done()
+            )
+            task_block = ""
+            if live_tasks:
+                task_block = "\n[asyncio tasks]\n" + "\n".join(f"- {name}" for name in live_tasks[:25])
+
+            dump = "\n\n".join(blocks)
+            logger.error("🚨 [StabilityGuardian] %s. THREAD DUMP:%s\n%s", label, task_block, dump[:3000])
+            return True
         except Exception as exc:
             logger.debug("StabilityGuardian thread dump failed: %s", exc)
+            return False
 
     def _check_tick_rate(self) -> HealthCheckResult:
         now = time.time()
@@ -512,12 +555,25 @@ class StabilityGuardian:
             for sample in recent_samples
             if float(sample.get("duration_ms", 0.0) or 0.0) > 0.0
         ]
-        loop_lags = self._recent_loop_lags(now)
+        loop_lags = self._recent_loop_lags(now, self.EVENT_LOOP_LAG_WINDOW_S)
         max_loop_lag = max(loop_lags) if loop_lags else 0.0
         mean_loop_lag = (sum(loop_lags) / len(loop_lags)) if loop_lags else 0.0
 
-        if loop_lags and max_loop_lag > self.MAX_EVENT_LOOP_LAG_MS:
-            self._dump_thread_stacks(
+        severe_loop_lags = [
+            (timestamp, lag_ms)
+            for timestamp, lag_ms in self._loop_lag_samples
+            if (now - timestamp) <= self.EVENT_LOOP_LAG_WINDOW_S and lag_ms > self.MAX_EVENT_LOOP_LAG_MS
+        ]
+        latest_loop_lag_age = (
+            now - max(timestamp for timestamp, _lag in severe_loop_lags)
+            if severe_loop_lags else float("inf")
+        )
+
+        if severe_loop_lags and (
+            len(severe_loop_lags) >= 2
+            or latest_loop_lag_age <= self.EVENT_LOOP_LAG_FRESH_WINDOW_S
+        ):
+            dumped = self._dump_thread_stacks(
                 f"EVENT LOOP LAG DETECTED (max={max_loop_lag:.0f}ms mean={mean_loop_lag:.0f}ms)"
             )
             return HealthCheckResult(
@@ -528,7 +584,21 @@ class StabilityGuardian:
                     f"(threshold {self.MAX_EVENT_LOOP_LAG_MS:.0f}ms)"
                 ),
                 severity="warning",
-                action_taken="Dumped thread stacks after event-loop lag spike",
+                action_taken=(
+                    "Dumped focused thread stacks after recent event-loop lag spike"
+                    if dumped else
+                    "Recent lag spike detected; thread dump cooldown active"
+                ),
+            )
+        if severe_loop_lags:
+            return HealthCheckResult(
+                "tick_rate",
+                True,
+                (
+                    f"Observed a prior event-loop lag spike (max={max_loop_lag:.0f}ms) "
+                    "but it is not sustained now"
+                ),
+                severity="info",
             )
 
         if not recent_ticks:
@@ -556,7 +626,7 @@ class StabilityGuardian:
 
         if slow_background and len(slow_background) >= 3:
             bg_mean_ms = sum(float(sample.get("duration_ms", 0.0) or 0.0) for sample in slow_background) / len(slow_background)
-            self._dump_thread_stacks(
+            dumped = self._dump_thread_stacks(
                 f"TICK STALL DETECTED (background mean={bg_mean_ms:.0f}ms across {len(slow_background)} samples)"
             )
             return HealthCheckResult(
@@ -567,7 +637,11 @@ class StabilityGuardian:
                     f"across {len(slow_background)} sustained sample(s)"
                 ),
                 severity="warning",
-                action_taken="Background tick latency requires inspection",
+                action_taken=(
+                    "Background tick latency requires inspection; focused thread dump captured"
+                    if dumped else
+                    "Background tick latency requires inspection; dump cooldown active"
+                ),
             )
         if slow_foreground and not slow_background:
             return HealthCheckResult(

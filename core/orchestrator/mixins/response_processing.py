@@ -284,14 +284,38 @@ class ResponseProcessingMixin:
                         if isinstance(followup_text, list):
                             followup_text = followup_text[0]
 
-                        # Emit via output gate
-                        gate = getattr(self, "output_gate", None)
-                        if gate and hasattr(gate, "emit"):
-                            await gate.emit(followup_text, origin=origin, target="primary")
+                        # Route follow-ups through the same spontaneous-expression
+                        # governance path as every other autonomous utterance.
+                        followup_result = None
+                        if hasattr(self, "emit_spontaneous_message"):
+                            followup_result = await self.emit_spontaneous_message(
+                                followup_text,
+                                modality="chat",
+                                origin="natural_followup",
+                                urgency=0.6 if decision.followup_type == "curiosity" else 0.52,
+                                metadata={
+                                    "visible_presence": True,
+                                    "overt_presence": True,
+                                    "followup_type": decision.followup_type,
+                                    "followup_reason": fu_data.get("reason", ""),
+                                    "trigger": "natural_followup",
+                                },
+                            )
+                        else:
+                            gate = getattr(self, "output_gate", None)
+                            if gate and hasattr(gate, "emit"):
+                                await gate.emit(
+                                    followup_text,
+                                    origin="natural_followup",
+                                    target="secondary",
+                                    metadata={"autonomous": True, "trigger": "natural_followup"},
+                                )
+                                followup_result = {"action": "released", "target": "secondary"}
                         sve.mark_followup_sent()
                         logger.info(
-                            "💬 [Followup] Sent %s: %s",
+                            "💬 [Followup] Routed %s via %s: %s",
                             decision.followup_type,
+                            (followup_result or {}).get("target", "suppressed"),
                             followup_text[:60],
                         )
                 except Exception as e:

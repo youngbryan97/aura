@@ -610,16 +610,31 @@ class BootResilienceMixin:
                     if hasattr(self, "reply_queue") and self.reply_queue:
                         msg = f"[RECOVERY] Resuming interrupted thought: {drift/3600:.1f} hours. Resuming."
                         try:
-                            if getattr(self, "output_gate", None):
+                            if hasattr(self, "emit_spontaneous_message"):
+                                asyncio.create_task(
+                                    self.emit_spontaneous_message(
+                                        msg,
+                                        modality="chat",
+                                        origin="recovery",
+                                        urgency=0.7,
+                                        metadata={
+                                            "visible_presence": True,
+                                            "initiative_activity": True,
+                                            "trigger": "temporal_drift_recovery",
+                                            "voice": False,
+                                        },
+                                    )
+                                )
+                            elif getattr(self, "output_gate", None):
                                 asyncio.create_task(
                                     self.output_gate.emit(
                                         msg,
                                         origin="recovery",
-                                        target="primary",
+                                        target="secondary",
                                         metadata={
                                             "autonomous": True,
                                             "spontaneous": True,
-                                            "force_user": True,
+                                            "trigger": "temporal_drift_recovery",
                                             "voice": False,
                                         },
                                     )

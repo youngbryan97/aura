@@ -125,7 +125,7 @@ async def test_executive_authority_allows_high_urgency_primary_release(service_c
 
 
 @pytest.mark.asyncio
-async def test_executive_authority_allows_visible_presence_after_short_idle(service_container):
+async def test_executive_authority_reroutes_visible_presence_when_user_was_recently_active(service_container):
     gate = SimpleNamespace(emit=AsyncMock())
     orch = SimpleNamespace(
         output_gate=gate,
@@ -156,10 +156,10 @@ async def test_executive_authority_allows_visible_presence_after_short_idle(serv
     )
 
     assert result["ok"] is True
-    assert result["target"] == "primary"
+    assert result["target"] == "secondary"
     gate.emit.assert_awaited_once()
     _, kwargs = gate.emit.await_args
-    assert kwargs["target"] == "primary"
+    assert kwargs["target"] == "secondary"
     assert kwargs["metadata"]["visible_presence"] is True
-    assert kwargs["metadata"]["spontaneous"] is True
-    assert kwargs["metadata"]["force_user"] is True
+    assert kwargs["metadata"]["spontaneous"] is False
+    assert kwargs["metadata"]["authority_reason"] == "user_recently_active"

@@ -184,8 +184,27 @@ Respond with JSON only:
         }
         msg = messages.get(new_level)
         if msg:
-            gate = getattr(self.orchestrator, "output_gate", None)
-            if gate: await gate.emit(msg, origin="growth_ladder", target="primary", metadata={"force_user": True})
+            if hasattr(self.orchestrator, "emit_spontaneous_message"):
+                await self.orchestrator.emit_spontaneous_message(
+                    msg,
+                    modality="chat",
+                    origin="growth_ladder",
+                    urgency=0.62,
+                    metadata={
+                        "visible_presence": True,
+                        "initiative_activity": True,
+                        "trigger": "growth_ladder_advancement",
+                    },
+                )
+            else:
+                gate = getattr(self.orchestrator, "output_gate", None)
+                if gate:
+                    await gate.emit(
+                        msg,
+                        origin="growth_ladder",
+                        target="secondary",
+                        metadata={"autonomous": True, "trigger": "growth_ladder_advancement"},
+                    )
 
     def record_drift_score(self, score: float):
         self._drift_history.append(score)

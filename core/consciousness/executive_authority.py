@@ -44,8 +44,8 @@ class ExecutiveAuthority:
     user-facing speech into the organism.
     """
 
-    _PRIMARY_SILENCE_WINDOW_S = 45.0
-    _VISIBLE_PRESENCE_IDLE_WINDOW_S = 6.0
+    _PRIMARY_SILENCE_WINDOW_S = 300.0
+    _VISIBLE_PRESENCE_IDLE_WINDOW_S = 300.0
     _DEDUP_WINDOW_S = 180.0
 
     def __init__(self, orchestrator: Any = None):
@@ -841,7 +841,7 @@ class ExecutiveAuthority:
             elif vitality < (0.32 if visible_presence else 0.45) and urgency < (0.78 if visible_presence else 0.9):
                 release_target = "secondary"
                 reason = "vitality_low"
-            elif user_idle < (self._VISIBLE_PRESENCE_IDLE_WINDOW_S if visible_presence else self._PRIMARY_SILENCE_WINDOW_S) and urgency < (0.58 if visible_presence else 0.85):
+            elif user_idle < (self._VISIBLE_PRESENCE_IDLE_WINDOW_S if visible_presence else self._PRIMARY_SILENCE_WINDOW_S) and urgency < (0.82 if visible_presence else 0.85):
                 release_target = "secondary"
                 reason = "user_recently_active"
             elif (is_processing or is_busy) and urgency < (0.68 if visible_presence else 0.8):

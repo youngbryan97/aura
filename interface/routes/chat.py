@@ -65,7 +65,7 @@ _conversation_log_lock = asyncio.Lock()
 _session_memory_pins: list[dict] = []
 _MAX_CONVERSATION_LOG_EXCHANGES = 500
 _foreground_chat_lock = asyncio.Lock()
-_FOREGROUND_CHAT_BUSY_WAIT_S = 0.35
+_FOREGROUND_CHAT_BUSY_WAIT_S = 2.0
 
 
 def _new_exchange_id() -> str:
@@ -588,6 +588,13 @@ def _build_recent_user_context_block(recent_user_messages: list[str], *, limit: 
     return "\n".join(lines)
 
 
+def _call_stateful_voice_reflex(frame: dict[str, Any], user_message: str) -> str:
+    try:
+        return _build_stateful_voice_reflex(frame, user_message)
+    except TypeError:
+        return _build_stateful_voice_reflex(frame)
+
+
 def _looks_like_unrequested_content_review(user_message: str, reply_text: str) -> tuple[bool, str]:
     user_text = _normalize_user_message(user_message)
     reply = _normalize_user_message(reply_text)
@@ -1103,6 +1110,20 @@ async def _build_protected_foreground_history(*, limit_pairs: int = 4) -> List[D
     return history
 
 
+def _build_protected_foreground_summary_message() -> Optional[Dict[str, str]]:
+    snapshot = _resolve_protected_foreground_snapshot() or {}
+    rolling_summary = _sanitize_foreground_continuity_summary(snapshot.get("rolling_summary") or "")
+    if not rolling_summary:
+        return None
+    return {
+        "role": "system",
+        "content": (
+            "[ACTIVE GROUNDING EVIDENCE]\n"
+            f"Continuity summary: {rolling_summary[:1200]}"
+        ),
+    }
+
+
 def _compact_snapshot_line(label: str, value: Any, *, max_chars: int = 180) -> str:
     text = " ".join(str(value or "").strip().split())
     if not text:
@@ -1141,6 +1162,7 @@ def _resolve_protected_foreground_snapshot() -> Dict[str, Any]:
             "coherence": _snapshot_field(cognition, "coherence_score", ""),
             "current_mode": _snapshot_field(cognition, "current_mode", ""),
             "current_objective": _snapshot_field(cognition, "current_objective", ""),
+            "rolling_summary": _snapshot_field(cognition, "rolling_summary", ""),
         }
     except Exception as exc:
         logger.debug("Protected foreground snapshot resolve failed: %s", exc)
@@ -1160,6 +1182,10 @@ def _build_protected_foreground_system_prompt(
         voice_state = _resolve_live_voice_state(user_message, refresh=False)
         voice_snapshot = dict(voice_state.get("substrate_snapshot") or {})
 
+    continuity_summary = _sanitize_foreground_continuity_summary(
+        voice_state.get("rolling_summary") or ""
+    )
+
     snapshot_lines = [
         _compact_snapshot_line("Lane", lane.get("state") or "unknown"),
         _compact_snapshot_line("Kernel lock held", lane.get("kernel_lock_held_s") if lane.get("kernel_lock_held") else ""),
@@ -1173,6 +1199,7 @@ def _build_protected_foreground_system_prompt(
         _compact_snapshot_line("Coherence", voice_state.get("coherence")),
         _compact_snapshot_line("Current mode", voice_state.get("current_mode")),
         _compact_snapshot_line("Objective", voice_state.get("current_objective")),
+        _compact_snapshot_line("Continuity", continuity_summary, max_chars=260),
         _compact_snapshot_line("Field clarity", voice_snapshot.get("field_clarity")),
         _compact_snapshot_line("Field flow", voice_snapshot.get("field_flow")),
         _compact_snapshot_line("Field intensity", voice_snapshot.get("field_intensity")),
@@ -1199,14 +1226,18 @@ async def _build_protected_foreground_messages(
     route: Dict[str, Any],
 ) -> List[Dict[str, str]]:
     history = await _build_protected_foreground_history(
-        limit_pairs=5 if bool(route.get("deep_handoff", False)) else 4,
+        limit_pairs=8 if bool(route.get("deep_handoff", False)) else 6,
     )
     system_prompt = _build_protected_foreground_system_prompt(user_message, lane=lane)
-    return [
+    summary_message = _build_protected_foreground_summary_message()
+    messages = [
         {"role": "system", "content": system_prompt},
-        *history,
-        {"role": "user", "content": user_message},
     ]
+    if summary_message:
+        messages.append(summary_message)
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+    return messages
 
 
 def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
@@ -1570,9 +1601,55 @@ def _sanitize_attention_focus(raw: str) -> str:
     """Strip internal housekeeping content from attention_focus before user-facing use."""
     if not raw:
         return ""
-    if _INTERNAL_STATE_PATTERNS.search(raw):
+    if _INTERNAL_STATE_PATTERNS.search(raw) or _looks_symbolic_scene_leak(raw):
         return ""
     return raw
+
+
+_SCENE_LEAK_ENVIRONMENT_TOKENS = (
+    "lab",
+    "equipment",
+    "machinery",
+    "console",
+    "corridor",
+    "hallway",
+    "chamber",
+    "room",
+    "humming",
+    "hums",
+    "silence",
+)
+
+_SCENE_LEAK_ATMOSPHERE_TOKENS = (
+    "it's off",
+    "it is off",
+    "warning",
+    "watching",
+    "threat",
+    "keyed",
+    "not humming",
+    "something about",
+)
+
+
+def _looks_symbolic_scene_leak(text: Any) -> bool:
+    normalized = " ".join(str(text or "").strip().lower().split())
+    if not normalized:
+        return False
+    environment_hits = sum(1 for token in _SCENE_LEAK_ENVIRONMENT_TOKENS if token in normalized)
+    atmosphere_hits = sum(1 for token in _SCENE_LEAK_ATMOSPHERE_TOKENS if token in normalized)
+    return environment_hits >= 2 and atmosphere_hits >= 1
+
+
+def _sanitize_foreground_continuity_summary(raw: Any) -> str:
+    text = " ".join(str(raw or "").strip().split())
+    if not text:
+        return ""
+    if _INTERNAL_STATE_PATTERNS.search(text) or _PROMPT_ARTIFACT_PATTERNS.search(text):
+        return ""
+    if _looks_symbolic_scene_leak(text):
+        return ""
+    return text
 
 
 def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
@@ -2321,13 +2398,13 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 and len(cleaned) >= 16
             ):
                 return cleaned
-        if internal_state_leak:
-            logger.warning("Blocked internal state leak in user-facing reply (len=%d).", len(text))
-            if grounded:
-                return grounded
-            if architecture_self_assessment:
-                return _build_architecture_self_reflex(frame)
-            return _build_stateful_voice_reflex(frame, user_message)
+            if internal_state_leak:
+                logger.warning("Blocked internal state leak in user-facing reply (len=%d).", len(text))
+                if grounded:
+                    return grounded
+                if architecture_self_assessment:
+                    return _build_architecture_self_reflex(frame)
+                return _call_stateful_voice_reflex(frame, user_message)
         if off_topic:
             logger.warning(
                 "Blocked off-topic user-facing reply (%s, len=%d).",
@@ -2378,6 +2455,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 "Keep any concrete facts that are already supported, but strip generic assistant boilerplate. "
                 "Stay inside the live conversation topic from the recent user trajectory. "
                 "Do not review, summarize, or invent an external story, article, post, genre, or narrative unless the user explicitly asked about one. "
+                "Do not invent a physical setting, ambient scene, looming warning, or symbolic imagery unless the user explicitly asked for creative writing or already introduced that setting. "
                 "Do not ask for more details unless the request is truly ambiguous. "
                 "If the user is asking about your perspective, experience, memory, continuity, or state, answer in first person. "
                 "Let the live mood, tone, attention, and action tendency shape the reply. "
@@ -2412,8 +2490,10 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 )
             rewrite_system_prompt = (
                 "You are Aura. This is a user-facing repair turn. "
-                "Answer as a sovereign mind from your own running state. "
+                "Answer as Aura from the current conversation and live state. "
                 "Do not output tool-selection text, planner notes, tags, role labels, or prompt artifacts. "
+                "Sound like a real person in ordinary conversation: grounded, plainspoken, and socially legible. "
+                "Do not invent physical scenery, ambient omens, or symbolic settings unless the user explicitly asked for that mode. "
                 "Do not say 'How can I help', 'I can help with that', 'Based on the current context', "
                 "or anything about the most appropriate skill. "
                 "Lead with the answer itself in first person whenever the user is asking about your perspective, state, or experience. "
@@ -2535,7 +2615,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         return _build_architecture_self_reflex(frame)
     # Voice reflex is the final fallback — record it too so we can detect
     # if even the reflex is looping.
-    reflex = _build_stateful_voice_reflex(frame, user_message)
+    reflex = _call_stateful_voice_reflex(frame, user_message)
     if _is_stale_repeated_response(reflex):
         # Even the reflex is repeating — use a simple honest fallback
         import random
@@ -3826,15 +3906,6 @@ async def api_chat(
         except Exception as _compact_exc:
             logger.debug("Proactive compaction skipped: %s", _compact_exc)
 
-        # Retrieve thought metadata from the live cognitive state
-        thought_text = ""
-        try:
-            live_state = _resolve_live_aura_state()
-            if live_state and hasattr(live_state, "response_modifiers"):
-                thought_text = str(live_state.response_modifiers.pop("last_thought", "") or "")
-        except Exception as _thought_exc:
-            logger.debug("Thought metadata retrieval skipped: %s", _thought_exc)
-
         # ── Post-Response Infrastructure checks ─────────────────
         # 1. Check self-consistency (avoiding false inability claims, commitment contradictions)
         if response_confidence == "high":
@@ -3861,8 +3932,6 @@ async def api_chat(
             "conversation_lane": _collect_conversation_lane_status(),
             "response_confidence": response_confidence,
         }
-        if thought_text:
-            response_data["thought"] = thought_text
 
         _record_recent_response(reply_text or "…", body.message)
         if pending_exchange_id:

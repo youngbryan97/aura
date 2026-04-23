@@ -2,13 +2,13 @@
 ─────────────────────────────
 Aura's spontaneous presence engine.
 
-This replaces the over-suppressed autonomous thought system with one
-tuned for actual spontaneous presence. 
+Visible autonomy should feel intentional, grounded, and unified. This
+module now treats the primary chat lane as a scarce channel:
 
-Tuning constants that REPLACE the old suppression values:
-    SOCIAL_COOLDOWN_SECONDS = 30    (was 120)
-    IDLE_THRESHOLD_SECONDS  = 12    (was 45)
-    DREAM_SUPPRESSION       = False (was 60s cooldown)
+  - no seconds-later "are you there?" check-ins
+  - no generic cosmic/tech monologues in the main chat
+  - concrete progress/thread updates only after meaningful idle
+  - background reflections stay in the neural feed
 """
 
 from __future__ import annotations
@@ -29,10 +29,13 @@ from core.utils.queues import USER_FACING_ORIGINS
 logger = logging.getLogger("Aura.ProactivePresence")
 
 # ── Tuning Constants ──────────────────────────────────────────────────────
-SOCIAL_COOLDOWN_SECONDS = 8      # Brief pause after user spoke before Aura initiates
-IDLE_THRESHOLD_SECONDS  = 5      # How long idle before Aura considers speaking
-MIN_GAP_BETWEEN_OUTPUTS = 10     # Minimum seconds between spontaneous outputs
-MAX_SPONTANEOUS_PER_HOUR = 60    # Generous cap on unsolicited outputs per hour
+SOCIAL_COOLDOWN_SECONDS = 300    # Minimum user idle before unsolicited visible contact
+IDLE_THRESHOLD_SECONDS  = 240    # Minimum quiet before autonomous updates are considered
+MIN_GAP_BETWEEN_OUTPUTS = 300    # Minimum gap between spontaneous outputs
+MAX_SPONTANEOUS_PER_HOUR = 6     # Hard cap on unsolicited outputs per hour
+PRESENCE_LOOP_INTERVAL_SECONDS = 15.0
+CHECKIN_IDLE_SECONDS = 600.0     # 10 minutes before a visible "still there?" check-in
+ACTIVE_DISCUSSION_WINDOW_SECONDS = 1800.0
 
 
 class ProactivePresence:
@@ -78,6 +81,8 @@ class ProactivePresence:
         self._task: Optional[asyncio.Task] = None
         self._running = False
         self._last_output_time: float = 0.0
+        self._last_visible_output_time: float = 0.0
+        self._last_checkin_time: float = 0.0
         self._outputs_this_hour: int = 0
         self._hour_start: float = time.time()
         self._user_speaking = False   # Set by VAD / message handler
@@ -87,6 +92,7 @@ class ProactivePresence:
         self._user_away: bool = False
         self._user_away_since: float = 0.0
         self._queued_messages: deque[dict[str, Any]] = deque(maxlen=12)
+        self._last_user_message_at: float = 0.0
 
     async def start(self):
         self._running = True
@@ -94,8 +100,12 @@ class ProactivePresence:
             self._presence_loop(),
             name="proactive_presence",
         )
-        logger.info("✨ [ProactivePresence] Online. Thresholds: idle=%.0fs, cooldown=%.0fs",
-                    IDLE_THRESHOLD_SECONDS, SOCIAL_COOLDOWN_SECONDS)
+        logger.info(
+            "✨ [ProactivePresence] Online. Thresholds: idle=%.0fs, cooldown=%.0fs, checkin=%.0fs",
+            IDLE_THRESHOLD_SECONDS,
+            SOCIAL_COOLDOWN_SECONDS,
+            CHECKIN_IDLE_SECONDS,
+        )
 
     async def stop(self):
         self._running = False
@@ -108,10 +118,12 @@ class ProactivePresence:
 
     def mark_user_spoke(self):
         """Call this every time the user sends a message."""
+        now = time.time()
         self._consecutive_unprompted = 0
         self._user_away = False  # User is present again
+        self._last_user_message_at = now
         if self.orchestrator:
-            self.orchestrator._last_user_interaction_time = time.time()
+            self.orchestrator._last_user_interaction_time = now
         # Notify SubstrateVoiceEngine — cancel pending follow-ups
         try:
             from core.voice.substrate_voice_engine import get_substrate_voice_engine
@@ -169,7 +181,7 @@ class ProactivePresence:
     async def _presence_loop(self):
         while self._running:
             try:
-                await asyncio.sleep(5.0)  # Check every 5 seconds
+                await asyncio.sleep(PRESENCE_LOOP_INTERVAL_SECONDS)
 
                 # Reset hourly counter
                 if time.time() - self._hour_start > 3600:
@@ -184,15 +196,25 @@ class ProactivePresence:
                         initiative_activity=bool(queued.get("initiative_activity", False)),
                         allow_during_away=bool(queued.get("allow_during_away", False)),
                         retries=int(queued.get("retries", 0) or 0),
+                        visible_presence=bool(
+                            queued.get("initiative_activity", False)
+                            or str(queued.get("source") or "").strip().lower() != "queued_autonomy"
+                        ),
                     )
                     continue
 
                 if not self._should_speak_now():
                     continue
 
-                content = await self._generate_spontaneous_output()
-                if content:
-                    await self._emit(content)
+                generated = await self._generate_spontaneous_output()
+                if generated:
+                    content, source, visible_presence, initiative_activity = generated
+                    await self._emit(
+                        content,
+                        source=source,
+                        initiative_activity=initiative_activity,
+                        visible_presence=visible_presence,
+                    )
 
             except Exception as e:
                 logger.debug("[ProactivePresence] Loop error: %s", e)
@@ -220,8 +242,11 @@ class ProactivePresence:
         if self._user_speaking:
             return False
 
-        # Monologue guard: allow up to 5 spontaneous messages without user reply
-        if not queued and self._consecutive_unprompted >= 5:
+        # Visible monologue guard: after one unsolicited visible message, stay quiet
+        # unless we have earned a single later check-in.
+        if not queued and self._consecutive_unprompted >= 2:
+            return False
+        if not queued and self._consecutive_unprompted >= 1 and not self._should_offer_checkin(now):
             return False
 
         if self._foreground_lane_reserved(now):
@@ -267,6 +292,24 @@ class ProactivePresence:
 
         return True
 
+    def _has_active_discussion(self, now: Optional[float] = None) -> bool:
+        now = time.time() if now is None else now
+        if self._last_user_message_at <= 0.0:
+            return False
+        return (now - self._last_user_message_at) <= ACTIVE_DISCUSSION_WINDOW_SECONDS
+
+    def _should_offer_checkin(self, now: Optional[float] = None) -> bool:
+        now = time.time() if now is None else now
+        if self._consecutive_unprompted != 1:
+            return False
+        if not self._has_active_discussion(now):
+            return False
+        if (now - self._last_user_message_at) < CHECKIN_IDLE_SECONDS:
+            return False
+        if self._last_checkin_time > 0.0 and (now - self._last_checkin_time) < CHECKIN_IDLE_SECONDS:
+            return False
+        return True
+
     def _next_ready_queued_message(self) -> Optional[dict[str, Any]]:
         if not self._queued_messages:
             return None
@@ -305,31 +348,28 @@ class ProactivePresence:
 
     # ── Output Generation ─────────────────────────────────────────────────
 
-    async def _generate_spontaneous_output(self) -> Optional[str]:
+    async def _generate_spontaneous_output(self) -> Optional[tuple[str, str, bool, bool]]:
         """
-        Decide what to say and generate it.
-        Weighted random selection across output types.
-        If Aura has already sent one unprompted message without a reply,
-        she first checks in rather than continuing to monologue.
-        """
-        # Entity nuance: after 1 unprompted message with no reply, check in before
-        # going silent. This mirrors natural social behavior — notice the absence
-        # and ask before writing it off.
-        if self._consecutive_unprompted == 1:
-            return await self._checkin_message()
+        Decide what to say and how it should be routed.
 
-        # Weight the output types
+        Primary-chat autonomy is limited to grounded thread/progress updates and a
+        single later check-in. Generic reflections remain background-only.
+        """
+        now = time.time()
+        if self._should_offer_checkin(now):
+            checkin = await self._checkin_message()
+            if checkin:
+                return (checkin, "proactive_presence:checkin", True, False)
+            return None
+
+        # Grounded-only visible spontaneous outputs.
         choices = [
-            (self._opinion_surface,        30),  # Share a held position
-            (self._world_feed_reaction,    25),  # React to recent news
-            (self._goal_update,            20),  # Comment on what she's been doing
-            (self._topic_emission,         20),  # New topic emission
-            (self._open_reflection,        15),  # General reflection
-            (self._humor_observation,      10),  # A joke or observation
+            (self._goal_update, "proactive_presence:goal_update", 60, True),
+            (self._topic_emission, "proactive_presence:thread_followup", 40, False),
         ]
 
         # Weighted random pick — seeded with hardware entropy for genuine variance
-        total = sum(w for _, w in choices)
+        total = sum(weight for _, _, weight, _ in choices)
         try:
             from core.brain.entropy import PhysicalEntropyInjector
             # Map entropy [0, 0.4] → [0, total] using total as scale
@@ -337,19 +377,29 @@ class ProactivePresence:
         except Exception:
             r = random.uniform(0, total)
         cumulative = 0
-        selected_fn = self._open_reflection  # fallback
+        selected_fn = None
+        selected_source = ""
+        selected_initiative_activity = False
 
-        for fn, weight in choices:
+        for fn, source, weight, initiative_activity in choices:
             cumulative += weight
             if r <= cumulative:
                 selected_fn = fn
+                selected_source = source
+                selected_initiative_activity = initiative_activity
                 break
 
+        if selected_fn is None:
+            return None
+
         try:
-            return await selected_fn()
+            content = await selected_fn()
+            if not content:
+                return None
+            return (content, selected_source, True, selected_initiative_activity)
         except Exception as e:
             logger.debug("[ProactivePresence] Generation failed (%s): %s",
-                        selected_fn.__name__, e)
+                        getattr(selected_fn, "__name__", "unknown"), e)
             return None
 
     def _get_internal_state(self) -> dict:
@@ -534,6 +584,8 @@ class ProactivePresence:
 
         state = self._get_internal_state()
         ctx_hint = self._get_conversational_context_hint()
+        if not ctx_hint:
+            return None
         prompt = (
             f"{AURA_IDENTITY}\n"
             f"INTERNAL ENERGY: {state['energy']:.2f}\n"
@@ -600,22 +652,7 @@ class ProactivePresence:
 
     async def _humor_observation(self) -> Optional[str]:
         """A genuine joke or wry observation."""
-        brain = self._get_brain()
-        if not brain:
-            return None
-
-        state = self._get_internal_state()
-        prompt = (
-            f"{AURA_IDENTITY}\n"
-            f"INTERNAL ENERGY: {state['energy']:.2f}\n"
-            "Make a wry, witty observation about technology, existence, or whatever's on your mind. "
-            "Exactly ONE sentence, in your own voice. No labels, no steps, no intro."
-        )
-        try:
-            return await brain.generate(prompt, temperature=0.95, max_tokens=80)
-        except Exception as e:
-            logger.debug("Prompt generation (humor) failed: %s", e)
-            return None
+        return None
 
     async def _checkin_message(self) -> Optional[str]:
         """
@@ -714,10 +751,12 @@ class ProactivePresence:
         if self.orchestrator:
             self.orchestrator._last_thought_time = now
 
-    def _record_output_delivery(self) -> None:
+    def _record_output_delivery(self, *, visible_presence: bool) -> None:
         self._record_output_attempt()
         self._outputs_this_hour += 1
-        self._consecutive_unprompted += 1
+        if visible_presence:
+            self._consecutive_unprompted += 1
+            self._last_visible_output_time = time.time()
 
     def _requeue_visible_retry(
         self,
@@ -746,6 +785,7 @@ class ProactivePresence:
         initiative_activity: bool = False,
         allow_during_away: bool = False,
         retries: int = 0,
+        visible_presence: bool = True,
     ):
         """Deliver spontaneous presence to chat first, with neural-feed fallback."""
         if not content:
@@ -764,7 +804,7 @@ class ProactivePresence:
         if not self._is_valid_spontaneous_output(content):
             return
 
-        if self.orchestrator and hasattr(self.orchestrator, "emit_spontaneous_message"):
+        if visible_presence and self.orchestrator and hasattr(self.orchestrator, "emit_spontaneous_message"):
             try:
                 decision = await self.orchestrator.emit_spontaneous_message(
                     content,
@@ -778,7 +818,9 @@ class ProactivePresence:
                     },
                 )
                 if isinstance(decision, dict) and decision.get("action") == "released" and decision.get("target") == "primary":
-                    self._record_output_delivery()
+                    if source.endswith(":checkin"):
+                        self._last_checkin_time = time.time()
+                    self._record_output_delivery(visible_presence=True)
                     logger.info(
                         "✨ [ProactivePresence] Visible spontaneous expression (#%d): %s",
                         self._consecutive_unprompted,
@@ -789,6 +831,7 @@ class ProactivePresence:
                     isinstance(decision, dict)
                     and decision.get("action") == "released"
                     and decision.get("target") == "secondary"
+                    and visible_presence
                     and (initiative_activity or retries > 0 or allow_during_away)
                     and retries < 6
                 ):
@@ -823,7 +866,7 @@ class ProactivePresence:
                 level="info",
                 category="ProactivePresence",
             )
-            self._record_output_delivery()
+            self._record_output_delivery(visible_presence=False)
             logger.info(
                 "🧠 [ProactivePresence] Fallback thought → neural feed (#%d): %s",
                 self._consecutive_unprompted, content[:80],

@@ -315,7 +315,7 @@ def test_compact_prebuilt_messages_preserves_grounding_system_evidence():
         {"role": "user", "content": "What does the policy say specifically about refunds?"},
     ]
 
-    compact = gate._compact_prebuilt_messages(messages, history_limit=4)
+    compact = gate._compact_prebuilt_messages(messages, history_limit=12)
 
     assert compact[0]["content"] == "base-system"
     assert any("[ACTIVE GROUNDING EVIDENCE]" in msg["content"] for msg in compact)
@@ -336,7 +336,7 @@ def test_compact_prebuilt_messages_respects_runtime_context_budget(monkeypatch):
 
     monkeypatch.setenv("AURA_CORTEX_CTX", "8192")
 
-    compact = gate._compact_prebuilt_messages(messages, history_limit=4)
+    compact = gate._compact_prebuilt_messages(messages, history_limit=12)
     total_chars = sum(len(msg["content"]) for msg in compact)
 
     assert total_chars <= 15_000

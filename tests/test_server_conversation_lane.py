@@ -700,6 +700,36 @@ def test_protected_foreground_system_prompt_prefers_cached_state_snapshot(monkey
     assert "the user" in prompt
 
 
+@pytest.mark.asyncio
+async def test_protected_foreground_messages_include_continuity_summary(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    monkeypatch.setattr(
+        chat_routes,
+        "_resolve_protected_foreground_snapshot",
+        lambda: {
+            "rolling_summary": "Bryan and Aura were debugging autonomy spam and continuity drift.",
+            "attention_focus": "autonomy routing",
+        },
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_build_protected_foreground_history",
+        AsyncMock(return_value=[{"role": "assistant", "content": "I'm tracing the autonomy lane."}]),
+    )
+
+    messages = await chat_routes._build_protected_foreground_messages(
+        "Keep going.",
+        lane={"state": "recovering"},
+        route={"deep_handoff": False},
+    )
+
+    assert any(
+        msg["role"] == "system" and "Continuity summary" in msg["content"]
+        for msg in messages
+    )
+
+
 def test_conversation_lane_user_message_reports_local_runtime_failure():
     from interface import server as server_module
 

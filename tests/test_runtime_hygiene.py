@@ -264,3 +264,27 @@ def test_stability_guardian_flags_actual_event_loop_lag():
     assert result.healthy is False
     assert result.severity == "warning"
     assert "Event loop lag is elevated" in result.message
+
+
+def test_stability_guardian_treats_stale_event_loop_lag_as_info():
+    guardian = StabilityGuardian(SimpleNamespace(start_time=time.time()))
+    guardian.record_tick_health(
+        SimpleNamespace(
+            tick_duration_ms=450.0,
+            origin="system",
+            priority=False,
+            is_user_facing=False,
+        )
+    )
+    guardian._loop_lag_samples.append(
+        (
+            time.time() - (guardian.EVENT_LOOP_LAG_WINDOW_S + 5.0),
+            guardian.MAX_EVENT_LOOP_LAG_MS + 300.0,
+        )
+    )
+
+    result = guardian._check_tick_rate()
+
+    assert result.healthy is True
+    assert result.severity in {"info", "warning"}
+    assert "tick health ok" in result.message.lower()

@@ -13,6 +13,9 @@ from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.SovereignNetwork")
 
+TCP_DISCOVERY_BATCH_SIZE = 16
+TCP_DISCOVERY_TIMEOUT_S = 0.35
+
 class NetworkInput(BaseModel):
     mode: str = Field("status", description="Mode: 'status', 'recon', 'scan', 'audit', 'discovery'")
     target: Optional[str] = Field(None, description="Target IP, subnet, or host (e.g., '192.168.1.0/24' or '8.8.8.8').")
@@ -184,24 +187,53 @@ class SovereignNetworkSkill(BaseSkill):
                 "fallback": "tcp_connect",
             }
 
-        semaphore = asyncio.Semaphore(64)
+        semaphore = asyncio.Semaphore(TCP_DISCOVERY_BATCH_SIZE)
 
         async def probe(host: str) -> Optional[Dict[str, Any]]:
             async with semaphore:
                 try:
                     reader, writer = await asyncio.wait_for(
                         asyncio.open_connection(host, first_port),
-                        timeout=0.35,
+                        timeout=TCP_DISCOVERY_TIMEOUT_S,
                     )
                     writer.close()
-                    await writer.wait_closed()
+                    try:
+                        await writer.wait_closed()
+                    except Exception as close_exc:
+                        logger.debug("TCP peer writer close failed for %s:%s: %s", host, first_port, close_exc)
                     return {"address": host, "rpc_port": first_port, "source": "tcp_connect"}
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     logger.debug("TCP peer probe failed for %s:%s: %s", host, first_port, e)
                     return None
 
-        results = await asyncio.gather(*(probe(host) for host in hosts))
-        peers = [peer for peer in results if peer]
+        tracker = None
+        try:
+            from core.utils.task_tracker import get_task_tracker
+
+            tracker = get_task_tracker()
+        except Exception:
+            tracker = None
+
+        peers: List[Dict[str, Any]] = []
+        for start in range(0, len(hosts), TCP_DISCOVERY_BATCH_SIZE):
+            batch = hosts[start:start + TCP_DISCOVERY_BATCH_SIZE]
+            tasks: List[asyncio.Task] = []
+            for host in batch:
+                task_name = f"sovereign_network.tcp_probe.{host}"
+                if tracker is not None:
+                    tasks.append(tracker.create_task(probe(host), name=task_name))
+                else:
+                    tasks.append(asyncio.create_task(probe(host), name=task_name))
+            try:
+                batch_results = await asyncio.gather(*tasks)
+            except asyncio.CancelledError:
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                raise
+            peers.extend(peer for peer in batch_results if peer)
         return {
             "ok": True,
             "peers": peers,

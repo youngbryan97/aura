@@ -9,6 +9,7 @@ import pytest
 from core.autonomous_initiative_loop import AutonomousInitiativeLoop
 from core.orchestrator.mixins.output_formatter import OutputFormatterMixin
 from core.proactive_presence import ProactivePresence
+from core.self_modification.growth_ladder import GrowthLadder, ModificationLevel
 
 
 def test_emit_thought_stream_falls_back_to_thought_emitter(monkeypatch):
@@ -225,3 +226,23 @@ def test_proactive_presence_allows_queued_visible_updates_during_away_mode():
 
     assert queued is not None
     assert queued["content"] == "I'm still here and actively working."
+
+
+@pytest.mark.asyncio
+async def test_growth_ladder_advancement_routes_through_unified_will(tmp_path):
+    orchestrator = SimpleNamespace(
+        emit_spontaneous_message=AsyncMock(
+            return_value={"ok": True, "action": "released", "target": "secondary"}
+        ),
+        output_gate=SimpleNamespace(emit=AsyncMock()),
+    )
+    ladder = GrowthLadder(orchestrator=orchestrator, state_path=tmp_path / "growth_ladder.json")
+
+    await ladder._notify_advancement(ModificationLevel.EXPRESSION)
+
+    orchestrator.emit_spontaneous_message.assert_awaited_once()
+    _, kwargs = orchestrator.emit_spontaneous_message.await_args
+    assert kwargs["origin"] == "growth_ladder"
+    assert kwargs["metadata"]["visible_presence"] is True
+    assert kwargs["metadata"]["trigger"] == "growth_ladder_advancement"
+    orchestrator.output_gate.emit.assert_not_called()

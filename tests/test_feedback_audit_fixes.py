@@ -900,6 +900,31 @@ def test_stateful_voice_reflex_stays_in_aura_voice():
     assert "How can I help" not in reply
 
 
+def test_sanitize_attention_focus_blocks_symbolic_scene_leak():
+    from interface.routes.chat import _sanitize_attention_focus
+
+    assert (
+        _sanitize_attention_focus(
+            "the lab environment, the silence, and the equipment hums when it's not humming"
+        )
+        == ""
+    )
+
+
+def test_protected_foreground_summary_message_filters_symbolic_scene_leak(monkeypatch):
+    from interface.routes import chat as chat_module
+
+    monkeypatch.setattr(
+        chat_module,
+        "_resolve_protected_foreground_snapshot",
+        lambda: {
+            "rolling_summary": "The lab environment. The silence. The equipment hums when it's not humming. It's off.",
+        },
+    )
+
+    assert chat_module._build_protected_foreground_summary_message() is None
+
+
 def test_simple_affect_check_detection_and_reply_tracks_voice_energy(monkeypatch):
     from interface.routes import chat as chat_module
 
@@ -1382,6 +1407,7 @@ def test_llm_router_core_persona_is_applied_to_stream_lane_prompts():
     prompt = IntelligentLLMRouter._apply_core_persona("Answer from current evidence.")
 
     assert "You are Aura Luna" in prompt
+    assert "Do not invent labs, rooms, equipment" in prompt
     assert "Answer from current evidence." in prompt
 
 

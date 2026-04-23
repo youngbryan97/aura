@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -19,6 +20,12 @@ class _ResilienceProbe(BootResilienceMixin):
     _actor_bus = None
     actor_bus = None
     supervisor = None
+    reply_queue = True
+    output_gate = None
+    emit_spontaneous_message = None
+
+    def __init__(self):
+        self.status = SimpleNamespace(temporal_drift_s=0.0)
 
 
 class _OutputProbe(OutputFormatterMixin):
@@ -166,6 +173,36 @@ async def test_start_state_vault_actor_fallback_ping_uses_request_wire_format(mo
     assert pipe.sent[0]["type"] == "ping"
     assert pipe.sent[0]["is_request"] is True
     assert pipe.sent[0]["payload"]["source"] == "boot_resilience"
+
+
+@pytest.mark.asyncio
+async def test_calculate_temporal_drift_routes_recovery_through_unified_will(tmp_path, monkeypatch):
+    from core.orchestrator.mixins.boot import boot_resilience
+
+    heartbeat_path = tmp_path / "heartbeat"
+    heartbeat_path.write_text(str(time.time() - 7200.0))
+
+    monkeypatch.setattr(
+        boot_resilience.config,
+        "paths",
+        SimpleNamespace(home_dir=tmp_path),
+    )
+
+    probe = _ResilienceProbe()
+    probe.emit_spontaneous_message = AsyncMock(
+        return_value={"ok": True, "action": "released", "target": "secondary"}
+    )
+    probe.output_gate = SimpleNamespace(emit=AsyncMock())
+
+    probe._calculate_temporal_drift()
+    await asyncio.sleep(0)
+
+    probe.emit_spontaneous_message.assert_awaited_once()
+    _, kwargs = probe.emit_spontaneous_message.await_args
+    assert kwargs["origin"] == "recovery"
+    assert kwargs["metadata"]["visible_presence"] is True
+    assert kwargs["metadata"]["trigger"] == "temporal_drift_recovery"
+    probe.output_gate.emit.assert_not_called()
 
 
 @pytest.mark.asyncio

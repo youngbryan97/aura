@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
+from pathlib import Path
+import tempfile
 import time
 from types import SimpleNamespace
 
@@ -393,3 +395,39 @@ class TestMetabolicCoordinatorGuards(unittest.IsolatedAsyncioTestCase):
         path = Path(tempfile.mkdtemp(prefix="aura-metabolic-locks-"))
         self.addCleanup(shutil.rmtree, path, ignore_errors=True)
         return path
+
+
+class TestSelfModificationBackgroundSafety(unittest.IsolatedAsyncioTestCase):
+    async def test_schedule_background_coro_swallows_cancelled_error(self):
+        from core.self_modification.self_modification_engine import _schedule_background_coro
+
+        loop = asyncio.get_running_loop()
+        captured = []
+        previous_handler = loop.get_exception_handler()
+
+        def _handler(_loop, context):
+            captured.append(context)
+
+        loop.set_exception_handler(_handler)
+        try:
+            async def _cancelled():
+                raise asyncio.CancelledError()
+
+            _schedule_background_coro(_cancelled(), label="test_cancelled_background")
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+        finally:
+            loop.set_exception_handler(previous_handler)
+
+        self.assertEqual(captured, [])
+
+    async def test_error_logger_ignores_cancelled_append(self):
+        from core.self_modification.error_intelligence import StructuredErrorLogger
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logger_system = StructuredErrorLogger(log_dir=temp_dir)
+            with patch(
+                "core.self_modification.error_intelligence.asyncio.to_thread",
+                new=AsyncMock(side_effect=asyncio.CancelledError),
+            ):
+                await logger_system._append_to_log(Path(temp_dir) / "error_events.jsonl", {"ok": True})

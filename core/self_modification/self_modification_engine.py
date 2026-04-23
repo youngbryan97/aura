@@ -32,6 +32,8 @@ def _schedule_background_coro(coro: Any, *, label: str) -> None:
         def _runner() -> None:
             try:
                 asyncio.run(coro)
+            except asyncio.CancelledError:
+                logger.debug("%s background runner cancelled", label)
             except Exception as exc:
                 logger.debug("%s background runner failed: %s", label, exc)
 
@@ -43,6 +45,8 @@ def _schedule_background_coro(coro: Any, *, label: str) -> None:
     def _consume_result(done: asyncio.Task) -> None:
         try:
             done.result()
+        except asyncio.CancelledError:
+            logger.debug("%s background task cancelled", label)
         except Exception as exc:
             logger.debug("%s background task failed: %s", label, exc)
 
