@@ -3,8 +3,10 @@ Allows Aura to write and execute code in a sandbox to solve problems,
 analyze data, or test hypotheses.
 """
 import logging
+from pathlib import Path
 from typing import Any, Dict
 
+from core.config import config
 from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
@@ -14,6 +16,12 @@ from ..sovereign.local_sandbox import LocalSandbox
 # Singleton Sandbox for this session
 _sandbox = None
 
+
+def _sandbox_work_dir() -> str:
+    base_dir = Path(getattr(config.paths, "base_dir", "."))
+    return str(base_dir / ".aura_runtime" / "active_coding")
+
+
 def get_sandbox():
     global _sandbox
     if not _sandbox or not getattr(_sandbox, 'is_alive', lambda: True)():
@@ -22,7 +30,7 @@ def get_sandbox():
                 _sandbox.stop()
             except Exception:
                 pass
-        _sandbox = LocalSandbox("aura_main")
+        _sandbox = LocalSandbox(_sandbox_work_dir())
         _sandbox.start()
     return _sandbox
 

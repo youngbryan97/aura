@@ -71,6 +71,47 @@ def test_tool_catalog_activates_registered_enabled_skills_by_default():
     assert catalog[0]["availability_reason"] is None
 
 
+def test_tool_affordance_block_prioritizes_relevant_tools_for_turn():
+    engine = CapabilityEngine.__new__(CapabilityEngine)
+    engine.skills = {
+        "clock": SkillMetadata(
+            name="clock",
+            description="Check time and date.",
+            trigger_patterns=[r"what time", r"current time"],
+            metabolic_cost=1,
+        ),
+        "web_search": SkillMetadata(
+            name="web_search",
+            description="Search the web for current information.",
+            trigger_patterns=[r"search", r"look up"],
+            metabolic_cost=1,
+        ),
+        "memory_ops": SkillMetadata(
+            name="memory_ops",
+            description="Remember or recall persistent information.",
+            trigger_patterns=[r"remember", r"recall"],
+            metabolic_cost=1,
+        ),
+    }
+    engine.skill_states = {"clock": "READY", "web_search": "READY", "memory_ops": "READY"}
+    engine.skill_last_errors = {}
+    engine.active_skills = {"clock", "web_search", "memory_ops"}
+    engine._explicitly_deactivated_skills = set()
+
+    block = CapabilityEngine.build_tool_affordance_block(
+        engine,
+        objective="What time is it right now?",
+        compact=True,
+        max_available=2,
+        max_unavailable=1,
+    )
+
+    lines = [line for line in block.splitlines() if line.startswith("- ")]
+    assert block.startswith("## LIVE TOOL OPTIONS")
+    assert lines[0].startswith("- clock:")
+    assert "Do not narrate tool selection" in block
+
+
 @pytest.mark.asyncio
 async def test_ui_bootstrap_returns_state_and_tool_catalog(service_container, monkeypatch):
     from interface import server as server_module

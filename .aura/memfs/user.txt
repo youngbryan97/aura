@@ -39,3 +39,7 @@ PersonhoodUserA —[earned]→ high trust via repeated verification (confidence=
 PersonhoodUserB —[flagged]→ mixed prior interactions (confidence=0.75)
 Bryan —[prefers]→ Python (confidence=0.75)
 Bryan —[prefers]→ Python (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan likes robust harnesses.
+PersonhoodUserA —[earned]→ high trust via repeated verification (confidence=0.75)
+PersonhoodUserB —[flagged]→ mixed prior interactions (confidence=0.75)

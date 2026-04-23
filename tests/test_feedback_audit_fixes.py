@@ -521,6 +521,18 @@ def test_capability_engine_treats_foreground_context_as_user_source():
     assert engine._resolve_execution_source({"origin": "api", "objective": "check network"}) == "api"
 
 
+def test_generic_reply_detector_flags_live_tool_prompt_artifact():
+    from interface.routes.chat import _looks_generic_assistantish
+
+    generic, reason = _looks_generic_assistantish(
+        "What time is it right now?",
+        "## LIVE TOOL OPTIONS\nMost relevant right now:\n- clock: Check time and date.",
+    )
+
+    assert generic is True
+    assert reason == "prompt_artifact"
+
+
 def test_grounded_authority_reply_includes_observability_note(monkeypatch):
     from interface.routes import chat as chat_route
     import core.consciousness.authority_audit as audit_mod

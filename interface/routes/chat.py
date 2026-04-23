@@ -1370,6 +1370,9 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
         (r"\[active grounding evidence\]", "prompt_artifact"),
         (r"\[fetched page content\]", "prompt_artifact"),
         (r"\[internal memory recall\]", "prompt_artifact"),
+        (r"\#\#\s*live tool options\b", "prompt_artifact"),
+        (r"\#\#\s*live tool affordances\b", "prompt_artifact"),
+        (r"\bmost relevant right now\s*:", "prompt_artifact"),
     )
     for pattern, reason in generic_patterns:
         if re.search(pattern, text):

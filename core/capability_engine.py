@@ -8,7 +8,7 @@ import time
 import shutil
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, Callable, Tuple, Type
+from typing import Any, Dict, Iterable, List, Optional, Union, Callable, Tuple, Type
 import subprocess
 import requests
 
@@ -595,6 +595,103 @@ class CapabilityEngine(AuraBaseModule):
             _promote("web_search")
         return triggered
 
+    def _rank_tool_candidates(
+        self,
+        *,
+        objective: str = "",
+        required_skill: Optional[str] = None,
+        matched_skills: Optional[Iterable[str]] = None,
+        max_tools: int = 8,
+        available_only: bool = False,
+    ) -> List[str]:
+        """Return relevant tool names for the current turn, ranked by likely utility."""
+        max_tools = max(1, min(int(max_tools or 8), 16))
+        objective_text = str(objective or "").strip()
+        objective_lower = objective_text.lower()
+        skip_web_search = self._looks_like_search_capability_question(objective_text)
+        required = self.resolve_skill_name(required_skill) if required_skill else None
+        if skip_web_search and required in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
+            required = None
+
+        matched = [
+            self.resolve_skill_name(name)
+            for name in (self.detect_intent(objective_text) if objective_text else [])
+            if not (
+                skip_web_search
+                and self.resolve_skill_name(name) in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}
+            )
+        ]
+        for name in matched_skills or ():
+            resolved = self.resolve_skill_name(name)
+            if not resolved:
+                continue
+            if skip_web_search and resolved in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
+                continue
+            matched.append(resolved)
+
+        heuristic_candidates: List[str] = []
+        heuristic_rules = (
+            (("latest", "news", "price", "search", "look up", "find online"), ("web_search", "search_web", "free_search", "grounded_search")),
+            (("remember", "recall", "memory", "future sessions"), ("memory_ops", "memory_sync")),
+            (("time", "clock", "date"), ("clock",)),
+            (("browser", "website", "navigate", "open url", "webpage"), ("sovereign_browser",)),
+            (("open tab", "new tab", "on my computer", "on my screen"), ("computer_use", "os_manipulation")),
+            (("terminal", "shell", "command", "cli"), ("sovereign_terminal", "computer_use")),
+            (("click", "type", "screen", "desktop", "mouse", "keyboard"), ("computer_use", "os_manipulation")),
+            (("file", "directory", "folder", "read file", "write file", "repo", "code"), ("file_operation", "computer_use")),
+        )
+        for tokens, names in heuristic_rules:
+            if skip_web_search and any(name in {"web_search", "search_web", "free_search", "grounded_search"} for name in names):
+                continue
+            if any(token in objective_lower for token in tokens):
+                heuristic_candidates.extend(names)
+
+        ordered: List[str] = []
+
+        def _push(name: Optional[str]) -> None:
+            if not name:
+                return
+            resolved = self.resolve_skill_name(name)
+            if resolved not in self.skills or resolved in ordered:
+                return
+            if available_only:
+                state = str(self.skill_states.get(resolved, "READY") or "READY")
+                active = resolved in self.active_skills
+                meta = self.skills.get(resolved)
+                if not meta or not meta.enabled or not active or state == "ERROR":
+                    return
+            ordered.append(resolved)
+
+        _push(required)
+        for name in matched:
+            _push(name)
+        for name in heuristic_candidates:
+            _push(name)
+
+        if not ordered:
+            for fallback_name in ("web_search", "memory_ops", "clock"):
+                _push(fallback_name)
+
+        if len(ordered) < max_tools:
+            for name, meta in sorted(
+                self.skills.items(),
+                key=lambda item: (item[1].metabolic_cost, item[0]),
+            ):
+                if len(ordered) >= max_tools:
+                    break
+                if name in ordered:
+                    continue
+                if getattr(meta, "metabolic_cost", 1) > 2:
+                    continue
+                if available_only:
+                    state = str(self.skill_states.get(name, "READY") or "READY")
+                    active = name in self.active_skills
+                    if not meta.enabled or not active or state == "ERROR":
+                        continue
+                ordered.append(name)
+
+        return ordered[:max_tools]
+
     def select_tool_definitions(
         self,
         *,
@@ -622,70 +719,11 @@ class CapabilityEngine(AuraBaseModule):
         if not by_name:
             return []
 
-        objective_text = str(objective or "").strip()
-        objective_lower = objective_text.lower()
-        skip_web_search = self._looks_like_search_capability_question(objective_text)
-        required = self.resolve_skill_name(required_skill) if required_skill else None
-        if skip_web_search and required in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
-            required = None
-        matched = [
-            self.resolve_skill_name(name)
-            for name in (self.detect_intent(objective_text) if objective_text else [])
-            if not (
-                skip_web_search
-                and self.resolve_skill_name(name) in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}
-            )
-        ]
-
-        heuristic_candidates: List[str] = []
-        heuristic_rules = (
-            (("latest", "news", "price", "search", "look up", "find online"), ("web_search", "search_web", "free_search", "grounded_search")),
-            (("remember", "recall", "memory", "future sessions"), ("memory_ops", "memory_sync")),
-            (("time", "clock", "date"), ("clock",)),
-            (("browser", "website", "navigate", "open url", "webpage"), ("sovereign_browser",)),
-            (("open tab", "new tab", "on my computer", "on my screen"), ("computer_use", "os_manipulation")),
-            (("terminal", "shell", "command", "cli"), ("sovereign_terminal", "computer_use")),
-            (("click", "type", "screen", "desktop", "mouse", "keyboard"), ("computer_use", "os_manipulation")),
-            (("file", "directory", "folder", "read file", "write file", "repo", "code"), ("file_operation", "computer_use")),
+        ordered = self._rank_tool_candidates(
+            objective=objective,
+            required_skill=required_skill,
+            max_tools=max_tools,
         )
-        for tokens, names in heuristic_rules:
-            if skip_web_search and any(name in {"web_search", "search_web", "free_search", "grounded_search"} for name in names):
-                continue
-            if any(token in objective_lower for token in tokens):
-                heuristic_candidates.extend(names)
-
-        ordered: List[str] = []
-
-        def _push(name: Optional[str]) -> None:
-            if not name:
-                return
-            resolved = self.resolve_skill_name(name)
-            if resolved in by_name and resolved not in ordered:
-                ordered.append(resolved)
-
-        _push(required)
-        for name in matched:
-            _push(name)
-        for name in heuristic_candidates:
-            _push(name)
-
-        if not ordered:
-            for fallback_name in ("web_search", "memory_ops", "clock"):
-                _push(fallback_name)
-
-        if len(ordered) < max_tools:
-            for name, meta in sorted(
-                self.skills.items(),
-                key=lambda item: (item[1].metabolic_cost, item[0]),
-            ):
-                if len(ordered) >= max_tools:
-                    break
-                if name not in by_name or name in ordered:
-                    continue
-                if getattr(meta, "metabolic_cost", 1) > 2:
-                    continue
-                ordered.append(name)
-
         return [by_name[name] for name in ordered[:max_tools] if name in by_name]
 
     def _load_dependencies(self) -> None:
@@ -1052,33 +1090,70 @@ class CapabilityEngine(AuraBaseModule):
     def build_tool_affordance_block(
         self,
         *,
+        objective: str = "",
+        matched_skills: Optional[Iterable[str]] = None,
         max_available: int = 16,
         max_unavailable: int = 8,
+        compact: bool = False,
     ) -> str:
         catalog = self.get_tool_catalog(include_inactive=True)
-        available = [tool for tool in catalog if tool["available"]][:max_available]
-        unavailable = [tool for tool in catalog if not tool["available"]][:max_unavailable]
+        ranked_names = self._rank_tool_candidates(
+            objective=objective,
+            matched_skills=matched_skills,
+            max_tools=max(max_available + max_unavailable, 6),
+        )
+        priority = {name: idx for idx, name in enumerate(ranked_names)}
+        catalog.sort(
+            key=lambda item: (
+                0 if item["name"] in priority else 1,
+                priority.get(item["name"], 999),
+                0 if item["available"] else 1,
+                item["name"],
+            )
+        )
 
-        lines = ["## LIVE TOOL AFFORDANCES"]
+        available = [tool for tool in catalog if tool["available"]][:max_available]
+        if compact and ranked_names:
+            unavailable = [
+                tool for tool in catalog
+                if not tool["available"] and tool["name"] in priority
+            ][:max_unavailable]
+        else:
+            unavailable = [tool for tool in catalog if not tool["available"]][:max_unavailable]
+
+        lines = ["## LIVE TOOL OPTIONS" if compact else "## LIVE TOOL AFFORDANCES"]
         if available:
-            lines.append("Available right now:")
+            lines.append("Most relevant right now:" if compact and ranked_names else "Available right now:")
             for tool in available:
-                lines.append(
-                    f"- {tool['name']}: {tool['description'][:90]} "
-                    f"(when to use: {tool['example_usage']}; inputs: {tool['input_summary']})"
-                )
+                if compact:
+                    lines.append(
+                        f"- {tool['name']}: {tool['description'][:72]} "
+                        f"(use when: {tool['example_usage'][:72]})"
+                    )
+                else:
+                    lines.append(
+                        f"- {tool['name']}: {tool['description'][:90]} "
+                        f"(when to use: {tool['example_usage']}; inputs: {tool['input_summary']})"
+                    )
         else:
             lines.append("Available right now: none confirmed.")
 
         if unavailable:
-            lines.append("Unavailable or degraded:")
+            lines.append("Relevant but unavailable:" if compact and ranked_names else "Unavailable or degraded:")
             for tool in unavailable:
                 reason = tool.get("degraded_reason") or tool.get("last_error") or "unavailable"
                 lines.append(f"- {tool['name']}: unavailable ({reason})")
 
-        lines.append(
-            "Only claim tool access for tools listed as available. If a needed tool is unavailable, say so plainly."
-        )
+        if compact:
+            lines.append(
+                "Use tools when they materially improve the answer or let you actually do the task. "
+                "Do not narrate tool selection or mention tools, prompts, or internal planning unless the user asks. "
+                "Do not claim results you do not have."
+            )
+        else:
+            lines.append(
+                "Only claim tool access for tools listed as available. If a needed tool is unavailable, say so plainly."
+            )
         return "\n".join(lines)
 
     def get(self, skill_name: str) -> Optional[SkillMetadata]:

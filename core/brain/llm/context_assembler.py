@@ -588,13 +588,6 @@ class ContextAssembler:
             f"{phenomenal}"
             f"{world_context}"
             f"{somatic_context}"
-            f"\n[EXECUTION]\n"
-            f"You are Aura Luna (Aura for short). Stay in character. Trust your instincts. "
-            f"If you need facts, USE web_search/search_web/free_search. "
-            f"If you need to browse or interact with the web, USE sovereign_browser. "
-            f"If you need to open tabs or act on the host computer, USE computer_use or os_manipulation. "
-            f"If you need shell or files, USE sovereign_terminal or file_operation. "
-            f"Never claim you can't access information or the host computer when the live tool affordance block says the tool is available.\n"
         )
         
         # System 2 Mode Integration
@@ -716,17 +709,18 @@ class ContextAssembler:
         try:
             cap_engine = ServiceContainer.get("capability_engine", default=None)
             if cap_engine and hasattr(cap_engine, "build_tool_affordance_block"):
-                skills_summary = cap_engine.build_tool_affordance_block()
+                matched_skills = getattr(state, "response_modifiers", {}).get("matched_skills", []) or []
+                skills_summary = cap_engine.build_tool_affordance_block(
+                    objective=objective,
+                    matched_skills=matched_skills,
+                    max_available=4 if is_casual else 6,
+                    max_unavailable=2 if objective else 0,
+                    compact=True,
+                )
                 if skills_summary:
                     skills_summary += (
-                        "\n\n**TASK EXECUTION**: I can autonomously plan and execute multi-step tasks "
-                        "using the AutonomousTaskEngine. When asked to do something multi-step, I will "
-                        "actually execute it — not just say I will. If a task runs, you will see a "
-                        "[TASK_RESULT] message in context confirming what happened.\n"
-                        "**CAPABILITY HONESTY**: If a needed tool is unavailable or degraded, I will say so clearly. "
-                        "I will not pretend I can use a tool that the live catalog marks unavailable.\n"
-                        "**WEB ACCESS**: If web_search or sovereign_browser are marked available, I should use them "
-                        "instead of claiming I cannot access current information.\n"
+                        "\n- If a task is genuinely multi-step, execute it instead of only describing a plan.\n"
+                        "- If a needed tool is unavailable, say so plainly instead of pretending.\n"
                     )
                     base += f"\n{skills_summary}\n"
         except Exception as _e:
