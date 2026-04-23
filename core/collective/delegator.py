@@ -328,10 +328,12 @@ FINAL SYNTHESIS:"""
                     reason="Swarm sub-agent initialized"
                 )
 
-            # 2. Get local MLX Brainstem explicitly (Bypass expensive Gemini router)
-            local_brain = ServiceContainer.get("capability_engine", default=None)
+            # 2. Get the actual cognitive engine, not the capability registry.
+            local_brain = ServiceContainer.get("cognitive_engine", default=None)
+            if not local_brain and self.orchestrator:
+                local_brain = getattr(self.orchestrator, "cognitive_engine", None)
             if not local_brain:
-                local_brain = self.orchestrator.cognitive_engine
+                raise RuntimeError("No cognitive engine available for swarm delegation.")
 
             role_prompt = self.agent_roles.get(agent.specialty.lower(), f"You are an expert in {agent.specialty}.")
             swarm_context = f"[SWARM PROTOCOL: {role_prompt} Focus exclusively on your specialized perspective.]\n"

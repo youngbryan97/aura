@@ -133,6 +133,9 @@ _NOISY_RESULT_HOST_TERMS = (
     "googleadservices.com",
 )
 
+_SEARCH_HIT_CACHE_TTL_SECONDS = 10 * 60
+_SEARCH_HIT_CACHE: dict[str, tuple[float, list["SearchHit"]]] = {}
+
 
 def _ddgs_enabled() -> bool:
     """Gate the native DDGS/primp lane behind an explicit opt-in on macOS.
@@ -582,7 +585,10 @@ class ResearchSearchPipeline:
         use_ddgs = _ddgs_enabled()
 
         for query in queries:
-            if use_ddgs:
+            cached_hits = self._load_cached_search_hits(query, limit=num_results)
+            if cached_hits:
+                hits = cached_hits
+            elif use_ddgs:
                 ddgs_hits = await asyncio.to_thread(self._ddgs_search, query, num_results)
                 hits = ddgs_hits or await asyncio.to_thread(self._legacy_html_search, query, num_results)
             else:
@@ -645,25 +651,72 @@ class ResearchSearchPipeline:
                             )
         except Exception as exc:
             logger.debug("DDGS search failed for %s: %s", query, exc)
-            return []
+            return self._load_cached_search_hits(query, limit=num_results)
 
-        return self._dedupe_hits(hits)
+        deduped = self._dedupe_hits(hits)
+        if deduped:
+            self._store_cached_search_hits(query, deduped)
+        return deduped
 
     def _legacy_html_search(self, query: str, num_results: int) -> list[SearchHit]:
         import urllib.parse
         import urllib.request
+        from bs4 import BeautifulSoup
 
         encoded = urllib.parse.quote_plus(query)
-        url = f"https://html.duckduckgo.com/html/?q={encoded}"
-        request = urllib.request.Request(url, headers=_HEADERS)
+        endpoints = (
+            ("https://html.duckduckgo.com/html/?q=", "ddg_html", self._parse_ddg_html_results),
+            ("https://lite.duckduckgo.com/lite/?q=", "ddg_lite", self._parse_ddg_lite_results),
+            ("https://www.bing.com/search?format=rss&q=", "bing_rss", self._parse_bing_rss_results),
+            ("https://www.bing.com/search?q=", "bing_html", self._parse_bing_html_results),
+        )
 
-        try:
-            with urllib.request.urlopen(request, timeout=10) as response:
-                raw_html = response.read().decode("utf-8", errors="replace")
-        except Exception as exc:
-            logger.debug("Legacy HTML search failed for %s: %s", query, exc)
-            return []
+        aggregated: list[SearchHit] = []
+        seen_urls: set[str] = set()
 
+        for base_url, source_engine, parser in endpoints:
+            url = f"{base_url}{encoded}"
+            request = urllib.request.Request(url, headers=_HEADERS)
+
+            try:
+                with urllib.request.urlopen(request, timeout=10) as response:
+                    raw_html = response.read().decode("utf-8", errors="replace")
+            except Exception as exc:
+                logger.debug("Legacy HTML search failed for %s via %s: %s", query, source_engine, exc)
+                continue
+
+            soup = None if source_engine == "bing_rss" else BeautifulSoup(raw_html, "html.parser")
+            results = parser(raw_html, soup, source_engine=source_engine, limit=num_results)
+            for hit in results:
+                normalized_url = hit.url.rstrip("/")
+                if not normalized_url or normalized_url in seen_urls:
+                    continue
+                seen_urls.add(normalized_url)
+                aggregated.append(
+                    SearchHit(
+                        title=hit.title,
+                        url=hit.url,
+                        snippet=hit.snippet,
+                        source_engine=hit.source_engine,
+                        position=len(aggregated) + 1,
+                    )
+                )
+                if len(aggregated) >= num_results:
+                    self._store_cached_search_hits(query, aggregated)
+                    return aggregated
+
+        if aggregated:
+            self._store_cached_search_hits(query, aggregated)
+        return aggregated
+
+    def _parse_ddg_html_results(
+        self,
+        raw_html: str,
+        soup: Any,
+        *,
+        source_engine: str,
+        limit: int,
+    ) -> list[SearchHit]:
         title_re = re.compile(
             r'class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
             re.DOTALL | re.IGNORECASE,
@@ -672,21 +725,150 @@ class ResearchSearchPipeline:
             r'class="result__snippet"[^>]*>(.*?)</a>',
             re.DOTALL | re.IGNORECASE,
         )
-        snippets = [match.group(1) for match in snippet_re.finditer(raw_html)]
-        results: list[SearchHit] = []
 
-        for index, (href, title) in enumerate(title_re.findall(raw_html)[:num_results], start=1):
+        results: list[SearchHit] = []
+        snippets = [match.group(1) for match in snippet_re.finditer(raw_html)]
+        for index, (href, title) in enumerate(title_re.findall(raw_html)[:limit], start=1):
             real_url = self._extract_ddg_url(href)
             clean_title = _normalize_text(re.sub(r"<[^>]+>", "", title))
-            clean_snippet = _normalize_text(re.sub(r"<[^>]+>", "", snippets[index - 1])) if index - 1 < len(snippets) else ""
+            clean_snippet = ""
+            if index - 1 < len(snippets):
+                clean_snippet = _normalize_text(re.sub(r"<[^>]+>", "", snippets[index - 1]))
             if real_url and clean_title:
                 results.append(
                     SearchHit(
                         title=clean_title,
                         url=real_url,
                         snippet=clean_snippet,
-                        source_engine="ddg_html",
+                        source_engine=source_engine,
                         position=index,
+                    )
+                )
+
+        if results:
+            return results
+
+        anchors = soup.select("a.result__a") or soup.select("a[href*='uddg=']")
+        snippet_nodes = soup.select(".result__snippet") or soup.select(".result-snippet")
+        for index, anchor in enumerate(anchors[:limit], start=1):
+            href = anchor.get("href") or ""
+            real_url = self._extract_ddg_url(href)
+            clean_title = _normalize_text(anchor.get_text(" ", strip=True))
+            clean_snippet = ""
+            if index - 1 < len(snippet_nodes):
+                clean_snippet = _normalize_text(snippet_nodes[index - 1].get_text(" ", strip=True))
+            if real_url and clean_title:
+                results.append(
+                    SearchHit(
+                        title=clean_title,
+                        url=real_url,
+                        snippet=clean_snippet,
+                        source_engine=source_engine,
+                        position=index,
+                    )
+                )
+        return results
+
+    def _parse_ddg_lite_results(
+        self,
+        raw_html: str,
+        soup: Any,
+        *,
+        source_engine: str,
+        limit: int,
+    ) -> list[SearchHit]:
+        del raw_html
+        results: list[SearchHit] = []
+        anchors = soup.select("a[href*='uddg=']") or soup.select("a.result-link")
+        for anchor in anchors:
+            if len(results) >= limit:
+                break
+            href = anchor.get("href") or ""
+            real_url = self._extract_ddg_url(href)
+            clean_title = _normalize_text(anchor.get_text(" ", strip=True))
+            if not real_url or not clean_title:
+                continue
+            if "duckduckgo.com" in _domain(real_url):
+                continue
+            snippet = ""
+            row = anchor.find_parent("tr")
+            if row is not None:
+                sibling = row.find_next_sibling("tr")
+                if sibling is not None:
+                    snippet = _normalize_text(sibling.get_text(" ", strip=True), limit=360)
+            results.append(
+                SearchHit(
+                    title=clean_title,
+                    url=real_url,
+                    snippet=snippet,
+                    source_engine=source_engine,
+                    position=len(results) + 1,
+                )
+            )
+        return results
+
+    def _parse_bing_html_results(
+        self,
+        raw_html: str,
+        soup: Any,
+        *,
+        source_engine: str,
+        limit: int,
+    ) -> list[SearchHit]:
+        del raw_html
+        results: list[SearchHit] = []
+        for item in soup.select("li.b_algo")[:limit]:
+            anchor = item.select_one("h2 a")
+            if anchor is None:
+                continue
+            real_url = _normalize_text(anchor.get("href") or "", limit=500)
+            clean_title = _normalize_text(anchor.get_text(" ", strip=True))
+            snippet_node = item.select_one(".b_caption p") or item.select_one(".b_snippet")
+            snippet = _normalize_text(
+                snippet_node.get_text(" ", strip=True) if snippet_node is not None else "",
+                limit=360,
+            )
+            if real_url and clean_title:
+                results.append(
+                    SearchHit(
+                        title=clean_title,
+                        url=real_url,
+                        snippet=snippet,
+                        source_engine=source_engine,
+                        position=len(results) + 1,
+                    )
+                )
+        return results
+
+    def _parse_bing_rss_results(
+        self,
+        raw_html: str,
+        soup: Any,
+        *,
+        source_engine: str,
+        limit: int,
+    ) -> list[SearchHit]:
+        del soup
+        import xml.etree.ElementTree as ET
+
+        try:
+            root = ET.fromstring(raw_html)
+        except ET.ParseError:
+            return []
+
+        results: list[SearchHit] = []
+        for item in root.findall("./channel/item")[:limit]:
+            title = _normalize_text(item.findtext("title") or "")
+            url = _normalize_text(item.findtext("link") or "", limit=500)
+            snippet = _normalize_text(item.findtext("description") or "", limit=360)
+            if title and url:
+                results.append(
+                    SearchHit(
+                        title=title,
+                        url=url,
+                        snippet=snippet,
+                        source_engine=source_engine,
+                        position=len(results) + 1,
                     )
                 )
         return results
@@ -1446,6 +1628,49 @@ class ResearchSearchPipeline:
             seen.add(normalized)
             deduped.append(hit)
         return deduped
+
+    def _load_cached_search_hits(self, query: str, *, limit: int) -> list[SearchHit]:
+        normalized_query = _normalize_query(query)
+        if not normalized_query:
+            return []
+        cached = _SEARCH_HIT_CACHE.get(normalized_query)
+        if not cached:
+            return []
+        cached_at, hits = cached
+        if (_now() - cached_at) > _SEARCH_HIT_CACHE_TTL_SECONDS:
+            _SEARCH_HIT_CACHE.pop(normalized_query, None)
+            return []
+        return [
+            SearchHit(
+                title=hit.title,
+                url=hit.url,
+                snippet=hit.snippet,
+                source_engine=hit.source_engine,
+                position=index,
+            )
+            for index, hit in enumerate(hits[:limit], start=1)
+        ]
+
+    def _store_cached_search_hits(self, query: str, hits: Iterable[SearchHit]) -> None:
+        normalized_query = _normalize_query(query)
+        if not normalized_query:
+            return
+        deduped = self._dedupe_hits(hits)
+        if not deduped:
+            return
+        _SEARCH_HIT_CACHE[normalized_query] = (
+            _now(),
+            [
+                SearchHit(
+                    title=hit.title,
+                    url=hit.url,
+                    snippet=hit.snippet,
+                    source_engine=hit.source_engine,
+                    position=index,
+                )
+                for index, hit in enumerate(deduped, start=1)
+            ],
+        )
 
     @staticmethod
     def _extract_ddg_url(href: str) -> str:

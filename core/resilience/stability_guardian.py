@@ -115,6 +115,7 @@ class StabilityGuardian:
         self._task: Optional[asyncio.Task] = None
         self._report_history: deque = deque(maxlen=100)
         self._tick_samples:   Deque[Dict[str, Any]] = deque(maxlen=60)
+        self._tick_times:     Deque[Tuple[float, float]] = deque(maxlen=60)
         self._loop_lag_samples: Deque[Tuple[float, float]] = deque(maxlen=60)
         self._last_tick_at:   float = time.time()
         self._extra_checks:   List[Callable] = []
@@ -190,15 +191,25 @@ class StabilityGuardian:
                         "user_facing": user_facing,
                     }
                 )
+                self._tick_times.append((now, duration_ms))
         self._last_tick_at = now
 
     def _recent_tick_samples(self, now: Optional[float] = None, window_s: float = 300.0) -> List[Dict[str, Any]]:
         current_time = now or time.time()
-        return [
+        samples = [
             sample
             for sample in self._tick_samples
             if (current_time - float(sample.get("timestamp", current_time))) <= window_s
         ]
+        if samples:
+            return samples
+
+        legacy_samples = [
+            {"timestamp": timestamp, "duration_ms": duration_ms}
+            for timestamp, duration_ms in self._tick_times
+            if (current_time - float(timestamp)) <= window_s
+        ]
+        return legacy_samples
 
     def _recent_tick_durations(self, now: Optional[float] = None, window_s: float = 300.0) -> List[float]:
         return [

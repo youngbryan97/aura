@@ -35,10 +35,12 @@ class LurkerSkill(BaseSkill):
 
         url = params.url or "https://news.ycombinator.com"
         limit = params.limit or 10
+        browser_cfg = getattr(config, "browser", None)
+        headless = bool(getattr(browser_cfg, "headless", True))
         
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=config.browser.headless)
+                browser = await p.chromium.launch(headless=headless)
                 try:
                     page = await browser.new_page()
                     await page.goto(url, timeout=15000)

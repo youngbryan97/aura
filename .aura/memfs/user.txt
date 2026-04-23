@@ -9,3 +9,31 @@ I like light mode.
 Tester —[loves]→ robustness (confidence=0.75)
 I like light mode.
 Tester —[loves]→ robustness (confidence=0.75)
+sample —[sample]→ sample (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan likes robust harnesses.
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan likes robust harnesses.
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan likes robust harnesses.
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan likes robust harnesses.
+Bryan —[prefers]→ Python (confidence=0.75)
+PersonhoodUserA —[earned]→ high trust via repeated verification (confidence=0.75)
+PersonhoodUserB —[flagged]→ mixed prior interactions (confidence=0.75)
+PersonhoodUserA —[earned]→ high trust via repeated verification (confidence=0.75)
+PersonhoodUserB —[flagged]→ mixed prior interactions (confidence=0.75)
+PersonhoodUserA —[earned]→ high trust via repeated verification (confidence=0.75)
+PersonhoodUserB —[flagged]→ mixed prior interactions (confidence=0.75)
+Bryan —[prefers]→ Python (confidence=0.75)
+Bryan likes robust harnesses.
+PersonhoodUserA —[earned]→ high trust via repeated verification (confidence=0.75)
+PersonhoodUserB —[flagged]→ mixed prior interactions (confidence=0.75)

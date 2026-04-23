@@ -356,12 +356,13 @@ class ActionExecutor:
                 from core.search.research_pipeline import ResearchSearchPipeline
                 
                 try:
-                    # DDGS/primp has hard-aborted the interpreter on macOS, so
-                    # keep the resilient fallback on the legacy HTML lane.
                     pipeline = ResearchSearchPipeline()
                     results = [
                         {"href": hit.url, "title": hit.title, "body": hit.snippet}
-                        for hit in pipeline._legacy_html_search(query, 2)
+                        for hit in (
+                            pipeline._ddgs_search(query, 2)
+                            or pipeline._legacy_html_search(query, 2)
+                        )
                     ]
                 except Exception as sc_err:
                     return Observation(content=f"Search index completely blocked: {sc_err}", success=False)

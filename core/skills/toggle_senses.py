@@ -3,6 +3,8 @@ Enables or Disables sensory perception services (Vision/Hearing).
 """
 import logging
 import os
+import signal
+import sys
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional
 
@@ -10,7 +12,6 @@ from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 from core.thought_stream import get_emitter
-from core.container import ServiceContainer
 import subprocess
 
 from core.config import config
@@ -98,12 +99,6 @@ class ToggleSensesSkill(BaseSkill):
         sense = params.sense
         action = params.action
         
-        # Issue 84: Resolve sandbox correctly
-        sandbox = ServiceContainer.get("local_sandbox", default=None)
-        if not sandbox:
-            from core.sovereign.local_sandbox import LocalSandbox
-            sandbox = LocalSandbox(sandbox_id="senses_controller")
-        
         if sense == "vision":
             script = "senses/vision_service.py"
         elif sense == "hearing":
@@ -114,7 +109,18 @@ class ToggleSensesSkill(BaseSkill):
             
         if action == "on":
             try:
-                pid = sandbox.start_process(script)
+                script_path = (config.paths.project_root / script).resolve()
+                if not script_path.exists():
+                    return {"ok": False, "error": f"Sense service script not found: {script_path}"}
+
+                process = subprocess.Popen(
+                    [sys.executable, str(script_path)],
+                    cwd=str(config.paths.project_root),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                pid = int(process.pid)
                 self._script_pids[sense] = pid
                 _save_pid(sense, pid) 
                 get_emitter().emit("Senses", f"👁️ {sense.title()} Activated (PID: {pid})", level="success")
@@ -127,7 +133,7 @@ class ToggleSensesSkill(BaseSkill):
             target_pid = params.pid or self._script_pids.get(sense)
             if target_pid is not None:
                 try:
-                    sandbox.stop_process(int(target_pid))
+                    os.kill(int(target_pid), signal.SIGTERM)
                     self._script_pids.pop(sense, None)
                     _clear_pid(sense)
                     get_emitter().emit("Senses", f"👁️ {sense.title()} Deactivated.", level="warning")

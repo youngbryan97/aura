@@ -1,2 +1,1 @@
-x = 55
-print(x)
+print(2 + 2)

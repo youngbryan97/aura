@@ -2,7 +2,9 @@
 Allows Aura to install Python packages into the Sovereign Sandbox.
 Essential for upgrading the "Body" (Perception libraries).
 """
+import inspect
 import logging
+import sys
 from typing import Any, Dict
 
 from pydantic import BaseModel, Field
@@ -53,8 +55,13 @@ class InstallPackageSkill(BaseSkill):
             import shlex
             safe_package = shlex.quote(package_name)
             # Run pip install
-            result = sandbox.run_command(f"pip install {safe_package}", timeout=300)
-            
+            result = sandbox.run_command(
+                f"{shlex.quote(sys.executable)} -m pip install {safe_package}",
+                timeout=300,
+            )
+            if inspect.isawaitable(result):
+                result = await result
+
             return {
                 "ok": result.exit_code == 0,
                 "stdout": result.stdout,

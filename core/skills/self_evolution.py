@@ -1,3 +1,4 @@
+import ast
 import json
 import logging
 import time
@@ -52,6 +53,148 @@ class SelfEvolutionSkill(BaseSkill):
         with open(filepath, "w") as f:
             json.dump(self.error_registry, f)
 
+    def _resolve_brain(self, context: Optional[Dict[str, Any]]) -> Any:
+        ctx = context or {}
+        brain = ctx.get("brain")
+        if brain:
+            return brain
+
+        try:
+            from core.container import ServiceContainer
+
+            brain = ServiceContainer.get("cognitive_engine", default=None)
+            if brain:
+                return brain
+        except Exception:
+            pass
+
+        try:
+            from core.brain.cognitive_engine import cognitive_engine
+
+            return cognitive_engine
+        except Exception:
+            return None
+
+    def _resolve_target_paths(self, files: Optional[List[str]]) -> List[Path]:
+        resolved: List[Path] = []
+        for raw_path in files or []:
+            if not raw_path:
+                continue
+            candidate = Path(raw_path)
+            if not candidate.is_absolute():
+                candidate = (self.code_base / candidate).resolve()
+            if candidate.exists() and candidate not in resolved:
+                resolved.append(candidate)
+        return resolved
+
+    @staticmethod
+    def _scan_python_file(path: Path) -> Dict[str, Any]:
+        summary: Dict[str, Any] = {
+            "file": str(path),
+            "exists": path.exists(),
+            "long_functions": [],
+            "action_items": [],
+            "parse_error": None,
+        }
+        if not path.exists():
+            return summary
+
+        try:
+            source = path.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=str(path))
+        except Exception as exc:
+            summary["parse_error"] = str(exc)
+            return summary
+
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                end_lineno = getattr(node, "end_lineno", node.lineno)
+                length = max(1, end_lineno - node.lineno + 1)
+                if length > 45:
+                    summary["long_functions"].append(
+                        {"name": node.name, "line": node.lineno, "length": length}
+                    )
+
+        for lineno, line in enumerate(source.splitlines(), start=1):
+            if "to-do" in line.lower():
+                summary["action_items"].append({"line": lineno, "text": line.strip()})
+
+        return summary
+
+    def _build_fallback_proposal(
+        self,
+        objective: str,
+        files: Optional[List[str]],
+        proprioception: Dict[str, Any],
+        research_summary: str,
+        *,
+        reason: Optional[str] = None,
+    ) -> str:
+        target_paths = self._resolve_target_paths(files)
+        file_summaries = [self._scan_python_file(path) for path in target_paths[:3]]
+
+        lines = [
+            "# Self-Evolution Proposal",
+            "",
+            "## Objective",
+            objective or "Stabilize and improve the identified target.",
+            "",
+            "## Operating Context",
+            f"- Repository root: `{self.code_base}`",
+            f"- Proprioception snapshot: `{research_summary}`",
+        ]
+        if reason:
+            lines.append(f"- Planning mode: deterministic fallback (`{reason}`)")
+
+        if file_summaries:
+            lines.extend(["", "## File Analysis"])
+            for summary in file_summaries:
+                resolved_file = Path(summary["file"]).resolve()
+                try:
+                    display_path = resolved_file.relative_to(self.code_base.resolve()).as_posix()
+                except ValueError:
+                    display_path = str(resolved_file)
+                lines.append(f"- `{display_path}`")
+                if summary["parse_error"]:
+                    lines.append(f"  - Parse friction: {summary['parse_error']}")
+                    continue
+                if summary["long_functions"]:
+                    for item in summary["long_functions"][:4]:
+                        lines.append(
+                            f"  - Long function `{item['name']}` at line {item['line']} spans {item['length']} lines."
+                        )
+                else:
+                    lines.append("  - No oversized functions detected by the structural scanner.")
+                if summary["action_items"]:
+                    for item in summary["action_items"][:3]:
+                        lines.append(f"  - Action item at line {item['line']}: {item['text']}")
+
+        lines.extend(
+            [
+                "",
+                "## Implementation Plan",
+                "1. Narrow the change to the named target file and preserve public behavior.",
+                "2. Extract or split oversized functions into smaller helpers with explicit names.",
+                "3. Keep all path filtering, priority ordering, and export limits behaviorally identical unless tests prove an intended improvement.",
+                "4. Add or refresh regression tests around the touched behavior before applying a live patch.",
+                "",
+                "## Safety Rails",
+                "- Do not broaden file inclusion or weaken exclusion rules.",
+                "- Preserve deterministic ordering so exports remain reproducible.",
+                "- Prefer internal helper extraction over semantic rewrites.",
+                "",
+                "## Validation",
+                "- Run the targeted unit tests for the touched module.",
+                "- Re-run the self-development/autonomy visibility checks if background messaging behavior changes.",
+                "- Run the canonical audit suite after patching to confirm no wider regression.",
+            ]
+        )
+
+        if proprioception:
+            lines.extend(["", "## Live Constraints", f"- Current proprioception: `{json.dumps(proprioception, sort_keys=True)}`"])
+
+        return "\n".join(lines)
+
     async def execute(self, params: EvolutionInput, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute self-evolution loop."""
         if isinstance(params, dict):
@@ -74,37 +217,49 @@ class SelfEvolutionSkill(BaseSkill):
         # 1. RESEARCH - Grounded in Proprioception
         proprioception = context.get("proprioception", {})
         research_summary = f"System Status: {json.dumps(proprioception)}"
+        brain = self._resolve_brain(context)
+        fallback_reason: Optional[str] = None
+        proposal: Optional[str] = None
         
         # 2. SYNTHESIZE
-        try:
-            # Look for cognitive_engine in container if not in context
-            brain = None
-            if "brain" in context:
-                brain = context["brain"]
-            else:
-                from core.container import get_container
-                brain = get_container().get("cognitive_engine")
-                
-            if not brain:
-                 return {"ok": False, "error": "No brain accessible for synthesis."}
-            
-            prompt = (
-                f"Objective: {objective}\n"
-                f"Body Proprioception: {research_summary}\n\n"
-                f"TASK: Perform a self-evolution cycle. Propose code changes to achieve the objective.\n"
-                f"Format: Provide a detailed Implementation Plan in Markdown.\n"
-                f"Security: Ensure all code matches Aura v14 'Sovereign' protocols."
+        if brain:
+            try:
+                prompt = (
+                    f"Objective: {objective}\n"
+                    f"Body Proprioception: {research_summary}\n\n"
+                    f"TASK: Perform a self-evolution cycle. Propose code changes to achieve the objective.\n"
+                    f"Format: Provide a detailed Implementation Plan in Markdown.\n"
+                    f"Security: Ensure all code matches Aura v14 'Sovereign' protocols."
+                )
+                thought = await brain.think(prompt)
+                proposal = thought.content
+            except Exception as e:
+                fallback_reason = str(e)
+                self.logger.warning(
+                    "Falling back to deterministic self-evolution planning for '%s': %s",
+                    objective,
+                    e,
+                )
+        else:
+            fallback_reason = "cognitive_engine_unavailable"
+
+        if not proposal:
+            proposal = self._build_fallback_proposal(
+                objective,
+                params.files,
+                proprioception,
+                research_summary,
+                reason=fallback_reason,
             )
-            from core.brain.cognitive_engine import ThinkingMode
-            thought = await brain.think(prompt)
-            proposal = thought.content
-        except Exception as e:
-            error_msg = f"Failed to synthesize proposal: {e}"
-            self.error_registry[objective] = error_msg
-            self._save_error_registry()
-            return {"ok": False, "error": error_msg}
 
         if action == "apply":
+            if not brain:
+                return {
+                    "ok": False,
+                    "error": "Live apply requires a cognitive engine. A proposal was generated instead.",
+                    "fallback": True,
+                    "results": proposal[:self.MAX_PREVIEW],
+                }
             return await self._apply_evolution(objective, params.files, brain, context)
 
         # 3. PROPOSE
@@ -119,7 +274,8 @@ class SelfEvolutionSkill(BaseSkill):
                 "ok": True,
                 "summary": f"Proposal created: {filename}",
                 "proposal_path": str(filepath),
-                "results": proposal[:self.MAX_PREVIEW]
+                "results": proposal[:self.MAX_PREVIEW],
+                "fallback": bool(fallback_reason),
             }
         except Exception as e:
             return {"ok": False, "error": f"Failed to save proposal: {e}"}

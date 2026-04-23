@@ -1,16 +1,17 @@
 import json
 import logging
-import sys
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
+
+from core.container import ServiceContainer
 from core.skills.base_skill import BaseSkill
 
 # Issue 73: Cognitive Engine will be lazily loaded
 
-logger = logging.getLogger("Skills.Dream")
+logger = logging.getLogger("Skills.SelfImprovement")
 
 class ImprovementInput(BaseModel):
     objective: Optional[str] = Field(None, description="The specific goal for self-reflection or learning.")
@@ -46,18 +47,62 @@ class SelfImprovementSkill(BaseSkill):
         objective = goal.get("objective", "").lower()
         keywords = ["improve", "better", "evolve", "learning", "upgrade", "self-reflection"]
         return any(k in objective for k in keywords) or "how are you" in objective
+
+    @staticmethod
+    def _resolve_brain() -> Any:
+        try:
+            brain = ServiceContainer.get("cognitive_engine", default=None)
+            if brain:
+                return brain
+        except Exception:
+            pass
+
+        try:
+            from core.brain.cognitive_engine import cognitive_engine
+
+            return cognitive_engine
+        except Exception:
+            return None
+
+    @staticmethod
+    def _fallback_learning_node(knowledge_text: str, objective: str) -> str:
+        cleaned = " ".join(str(knowledge_text or "").split())
+        preview = cleaned[:240] + ("..." if len(cleaned) > 240 else "")
+        return (
+            f"Learning Node: objective={objective or 'general_learning'}; "
+            f"captured insight={preview}"
+        )
+
+    def _fallback_improvement_plan(
+        self,
+        stats: Dict[str, Any],
+        history: List[str],
+        objective: str,
+    ) -> List[str]:
+        cycle_count = stats.get("cycle_count", 0)
+        recent = history[-3:] if history else []
+        plan = [
+            f"Stabilize current cognition cycle (cycle_count={cycle_count}) before expanding scope.",
+            "Prefer safe, test-backed refinements to memory integrity and response robustness.",
+            "Use recent learnings to pick one concrete upgrade, verify it, then record the outcome.",
+        ]
+        if objective:
+            plan.insert(0, f"Anchor the next upgrade to the active objective: {objective}")
+        if recent:
+            plan.append(f"Keep continuity with recent learnings: {recent}")
+        else:
+            plan.append("No recent learnings recorded; prioritize collecting fresh observations before tuning.")
+        return plan
     
     async def execute(self, goal: Dict[str, Any] = None, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        logger.info("🌙 Aura is entering REM sleep (Neural Consolidation)...")
-        from core.container import ServiceContainer
-        from core.identity import identity_manager
-        brain = ServiceContainer.get("cognitive_engine", default=None)
-        if not brain:
-             return {"ok": False, "error": "Cognitive engine unavailable for dreaming."}
+        logger.info("Executing self-improvement reflection.")
+        context = context or {}
         
         # The original code had 'params' as ImprovementInput.
         # Now 'goal' is Dict[str, Any]. We need to convert 'goal' to ImprovementInput.
-        if isinstance(goal, dict):
+        if isinstance(goal, ImprovementInput):
+            params = goal
+        elif isinstance(goal, dict):
             try:
                 params = ImprovementInput(**goal)
             except Exception as e:
@@ -83,23 +128,22 @@ class SelfImprovementSkill(BaseSkill):
         prompt = "Summarize this information into a concise 'Learning Node' for my long-term memory. Focus on actionable insights."
         
         # Call the Cognitive Engine (LLM)
-        try:
-            # PHANTOM LIMB FIX: Access global cognitive engine if not in self
-            # PHANTOM LIMB FIX: Access global cognitive engine if not in self
-            if not hasattr(self, 'cognitive'):
-                # Try to get from context or ServiceContainer
-                self.cognitive = ServiceContainer.get("cognitive_engine", default=None)
-                if not self.cognitive:
-                    from core.brain.cognitive_engine import cognitive_engine
-                    self.cognitive = cognitive_engine
+        brain = getattr(self, "cognitive", None) or self._resolve_brain()
+        if brain is not None:
+            try:
+                self.cognitive = brain
+                from core.brain.cognitive_engine import ThinkingMode
 
-            # Issue 73: Use think() instead of analyze() to match CognitiveEngine API
-            from core.brain.cognitive_engine import ThinkingMode
-            reflection = await self.cognitive.think(f"[{prompt}]\n\n{knowledge_text}", mode=ThinkingMode.REFLECTIVE)
-            insight = reflection.content
-        except Exception as e:
-            logger.warning("Cognitive analysis unavailable: %s. Using raw text.", e)
-            insight = f"Raw knowledge: {knowledge_text[:200]}..."
+                reflection = await brain.think(
+                    f"[{prompt}]\n\n{knowledge_text}",
+                    mode=ThinkingMode.REFLECTIVE,
+                )
+                insight = reflection.content
+            except Exception as e:
+                logger.warning("Cognitive analysis unavailable: %s. Using deterministic fallback.", e)
+                insight = self._fallback_learning_node(knowledge_text, goal.get("objective", ""))
+        else:
+            insight = self._fallback_learning_node(knowledge_text, goal.get("objective", ""))
         
         entry = {
             "timestamp": datetime.now().isoformat(),
@@ -129,23 +173,24 @@ class SelfImprovementSkill(BaseSkill):
         history = self._get_learning_history()
         
         # 3. Dynamic Planning (The Real Brain)
-        try:
-            prompt = (
-                f"SYSTEM STATUS: {json.dumps(stats)}\n"
-                f"RECENT LEARNINGS: {history[-5:] if history else 'Stable'}\n\n"
-                "TASK: Reflect on your current state and propose 3 specific technical upgrades for your v3.5.5 architecture.\n"
-                "Focus on autonomy, resilience, and speed. Be technical and dry."
-            )
-            # Use cognitive_engine via ServiceContainer
-            brain = ServiceContainer.get("cognitive_engine", default=None)
-            if not brain:
-                from core.brain.cognitive_engine import cognitive_engine as brain
-            from core.brain.cognitive_engine import ThinkingMode
-            reflection = await brain.think(prompt, mode=ThinkingMode.REFLECTIVE)
-            improvement_plan = reflection.content.split("\n")
-        except Exception as e:
-            logger.error("Dynamic planning failed: %s", e)
-            improvement_plan = [f"Dynamic planning unavailable: {e}"]
+        brain = self._resolve_brain()
+        if brain is not None:
+            try:
+                prompt = (
+                    f"SYSTEM STATUS: {json.dumps(stats)}\n"
+                    f"RECENT LEARNINGS: {history[-5:] if history else 'Stable'}\n\n"
+                    "TASK: Reflect on your current state and propose 3 specific technical upgrades for your v3.5.5 architecture.\n"
+                    "Focus on autonomy, resilience, and speed. Be technical and dry."
+                )
+                from core.brain.cognitive_engine import ThinkingMode
+
+                reflection = await brain.think(prompt, mode=ThinkingMode.REFLECTIVE)
+                improvement_plan = [line for line in reflection.content.split("\n") if line.strip()]
+            except Exception as e:
+                logger.error("Dynamic planning failed: %s", e)
+                improvement_plan = self._fallback_improvement_plan(stats, history, objective)
+        else:
+            improvement_plan = self._fallback_improvement_plan(stats, history, objective)
         
         # 4. Formulate response
         response = {

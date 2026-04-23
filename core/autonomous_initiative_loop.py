@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import time
 import psutil
 from typing import Any, Dict, List, Optional, Set
@@ -30,6 +31,17 @@ def _self_development_allowed(orchestrator=None) -> bool:
         max_failure_pressure=0.15,
         require_conversation_ready=False,
     )
+
+
+def _self_development_visible_updates_enabled(orchestrator=None) -> bool:
+    """Visible self-dev narration is opt-in; neural stream remains the default."""
+    if orchestrator is not None:
+        explicit = getattr(orchestrator, "_surface_self_development_updates", None)
+        if explicit is not None:
+            return bool(explicit)
+
+    raw = os.getenv("AURA_SURFACE_SELF_DEVELOPMENT_UPDATES", "")
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 class AutonomousInitiativeLoop:
@@ -115,6 +127,8 @@ class AutonomousInitiativeLoop:
             logger.debug("Feed emit failed for %s: %s", title, exc)
 
     def _queue_visible_update(self, content: str) -> bool:
+        if not _self_development_visible_updates_enabled(self.orchestrator):
+            return False
         text = " ".join(str(content or "").strip().split())
         if len(text) < 5:
             return False

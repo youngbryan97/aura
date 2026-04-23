@@ -71,7 +71,7 @@ class MemorySyncSkill(BaseSkill):
             
             return {
                 "ok": pull_res["ok"] and push_res["ok"],
-                "p2p_nodes_synced": p2p_synced,
+                "p2p_nodes_synced": 0,
                 "pull": pull_res,
                 "push": push_res
             }

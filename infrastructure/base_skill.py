@@ -1,7 +1,10 @@
 """infrastructure/base_skill.py
 Base skill contract for the Aura Cortex system.
 """
+import asyncio
 from abc import ABC, abstractmethod
+import inspect
+import time
 from typing import Any
 
 
@@ -15,6 +18,7 @@ class BaseSkill(ABC):
     inputs: dict[str, str] = {}
     output: str = "Result string or dict"
     aliases: list[str] = []
+    timeout_seconds: float = 30.0
 
     def match(self, goal: dict[str, Any]) -> bool:
         """Default matching logic.
@@ -103,3 +107,33 @@ class BaseSkill(ABC):
                 }
             }
         }
+
+    async def safe_execute(
+        self,
+        goal: dict[str, Any] | None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Compatibility wrapper so legacy infrastructure skills behave like core skills."""
+        goal = goal or {}
+        context = context or {}
+        start = time.monotonic()
+        try:
+            maybe_result = self.execute(goal, context)
+            if inspect.isawaitable(maybe_result):
+                async with asyncio.timeout(self.timeout_seconds):
+                    result = await maybe_result
+            else:
+                result = maybe_result
+        except Exception as exc:
+            result = {
+                "ok": False,
+                "error": f"Skill error: {type(exc).__name__}: {exc}",
+            }
+
+        if not isinstance(result, dict):
+            result = {"ok": True, "result": result}
+
+        result.setdefault("ok", True)
+        result.setdefault("skill", self.name)
+        result.setdefault("duration_ms", round((time.monotonic() - start) * 1000, 2))
+        return result

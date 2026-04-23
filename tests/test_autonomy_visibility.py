@@ -70,6 +70,75 @@ async def test_self_development_cycle_runs_scan_tests_and_proposal(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_self_development_cycle_keeps_progress_off_visible_chat_by_default(monkeypatch):
+    capability_engine = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                {
+                    "ok": True,
+                    "issues_found": 1,
+                    "top_issues": [{"file": "export_source.py", "message": "Function is too long."}],
+                },
+                {"ok": False, "error": "sandbox friction"},
+                {"ok": True, "proposal_path": "/tmp/evolution/proposal.md"},
+            ]
+        )
+    )
+    monkeypatch.setattr(
+        "core.autonomous_initiative_loop.optional_service",
+        lambda name, default=None: capability_engine if name == "capability_engine" else default,
+    )
+
+    queue = MagicMock(return_value=True)
+    loop = AutonomousInitiativeLoop(
+        orchestrator=SimpleNamespace(
+            cognitive_engine=object(),
+            proactive_presence=SimpleNamespace(queue_autonomous_message=queue),
+        )
+    )
+    loop._emit_feed = lambda *_args, **_kwargs: None
+
+    await loop._run_self_development_cycle()
+
+    queue.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_self_development_cycle_can_opt_in_visible_updates(monkeypatch):
+    capability_engine = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                {
+                    "ok": True,
+                    "issues_found": 1,
+                    "top_issues": [{"file": "export_source.py", "message": "Function is too long."}],
+                },
+                {"ok": True, "message": "sandbox ok"},
+                {"ok": True, "proposal_path": "/tmp/evolution/proposal.md"},
+            ]
+        )
+    )
+    monkeypatch.setattr(
+        "core.autonomous_initiative_loop.optional_service",
+        lambda name, default=None: capability_engine if name == "capability_engine" else default,
+    )
+
+    queue = MagicMock(return_value=True)
+    loop = AutonomousInitiativeLoop(
+        orchestrator=SimpleNamespace(
+            cognitive_engine=object(),
+            proactive_presence=SimpleNamespace(queue_autonomous_message=queue),
+            _surface_self_development_updates=True,
+        )
+    )
+    loop._emit_feed = lambda *_args, **_kwargs: None
+
+    await loop._run_self_development_cycle()
+
+    assert queue.call_count >= 2
+
+
+@pytest.mark.asyncio
 async def test_proactive_presence_prefers_visible_primary(monkeypatch):
     orchestrator = SimpleNamespace(
         emit_spontaneous_message=AsyncMock(
