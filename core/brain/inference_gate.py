@@ -2030,24 +2030,43 @@ class InferenceGate:
         return any(marker in content for marker in markers)
 
     @staticmethod
+    def _foreground_prompt_context_window() -> int:
+        """Effective foreground context budget for the live local Cortex lane.
+
+        The prompt compactor must respect the serving runtime's actual context
+        ceiling, not just the model family's theoretical maximum. On desktop,
+        the local Cortex lane commonly runs at 8k context even if the model can
+        support more, and over-budget prompts directly translate into prompt-eval
+        latency spikes.
+        """
+        try:
+            runtime_window = max(4096, int(os.getenv("AURA_CORTEX_CTX", "8192") or 8192))
+        except Exception:
+            runtime_window = 8192
+
+        try:
+            from core.brain.llm.model_registry import PRIMARY_ENDPOINT, get_lane_context_window
+
+            registry_window = int(get_lane_context_window(PRIMARY_ENDPOINT) or runtime_window)
+            return max(4096, min(runtime_window, registry_window))
+        except Exception:
+            return runtime_window
+
+    @staticmethod
     def _compact_prebuilt_message_content(role: str, content: Any) -> str:
         clean = str(content or "").strip()
         if not clean:
             return ""
-        try:
-            from core.brain.llm.model_registry import PRIMARY_ENDPOINT, get_lane_context_window
+        context_window = InferenceGate._foreground_prompt_context_window()
 
-            context_window = max(8192, int(get_lane_context_window(PRIMARY_ENDPOINT) or 32768))
-        except Exception:
-            context_window = 32768
-
-        # Stay generous on high-memory hardware, but bound by the model's real
-        # context window rather than assuming 128k+ prompt headroom.
-        prompt_budget_chars = max(24000, int(max(4096, context_window - 2048) * 3.2))
+        # Keep the live foreground lane fast: target the *runtime* context
+        # window instead of the model family's theoretical max so prompt eval
+        # does not balloon into 5k+ tokens on desktop.
+        prompt_budget_chars = max(14000, int(max(4096, context_window - 1536) * 2.25))
         limits = {
-            "system": min(24000, max(8000, int(prompt_budget_chars * 0.30))),
-            "user": min(48000, max(12000, int(prompt_budget_chars * 0.55))),
-            "assistant": min(20000, max(6000, int(prompt_budget_chars * 0.22))),
+            "system": min(9000, max(6000, int(prompt_budget_chars * 0.40))),
+            "user": min(12000, max(5000, int(prompt_budget_chars * 0.46))),
+            "assistant": min(7000, max(3500, int(prompt_budget_chars * 0.20))),
         }
         limit = limits.get(role, 8000)
         if len(clean) <= limit:
@@ -2086,17 +2105,11 @@ class InferenceGate:
         compact: List[Dict[str, str]] = []
         if system_message is not None:
             compact.append(system_message)
-        compact.extend(preserved_system_messages[-2:])
+        compact.extend(preserved_system_messages[-1:])
         compact.extend(convo[-max(1, int(history_limit)):])
 
-        try:
-            from core.brain.llm.model_registry import PRIMARY_ENDPOINT, get_lane_context_window
-
-            context_window = max(8192, int(get_lane_context_window(PRIMARY_ENDPOINT) or 32768))
-        except Exception:
-            context_window = 32768
-            
-        total_budget_chars = max(24000, int(max(4096, context_window - 2048) * 3.2))
+        context_window = self._foreground_prompt_context_window()
+        total_budget_chars = max(14000, int(max(4096, context_window - 1536) * 2.25))
 
         while compact and sum(len(str(msg.get("content", "") or "")) for msg in compact) > total_budget_chars:
             removable_index = None

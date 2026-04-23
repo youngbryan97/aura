@@ -323,6 +323,16 @@ class ResponseContract:
             )
         )
 
+    def requires_explicit_live_grounding(self) -> bool:
+        return any(
+            (
+                self.requires_memory_grounding,
+                self.requires_state_reflection,
+                self.requires_identity_defense,
+                self.requires_self_preservation,
+            )
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -394,7 +404,8 @@ class ResponseContract:
         if self.requires_aura_stance:
             directives.append(
                 "- The user is asking about your own view, preference, experience, or perspective. "
-                "Lead with a first-person answer from you before redirecting attention anywhere else."
+                "Answer from your own stance directly. First person is welcome when it helps mark ownership, "
+                "but do not flatten into neutral assistant abstraction."
             )
 
         if self.requires_identity_defense:

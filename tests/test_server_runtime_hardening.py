@@ -28,7 +28,7 @@ from core.orchestrator.main import RobustOrchestrator
 from core.proactive_communication import ProactiveCommunicationManager
 from core.process_manager import ManagedProcess, ProcessConfig, ProcessManager
 from core.resilience.integrity_monitor import IntegrityReport, SystemIntegrityMonitor
-from core.resilience.stability_guardian import StabilityGuardian
+from core.resilience.stability_guardian import HealthCheckResult, StabilityGuardian
 from core.state.aura_state import AuraState
 from core.state.state_repository import StateRepository, get_state_shm_size_bytes
 from core.utils.concurrency import RobustLock
@@ -1539,6 +1539,62 @@ def test_stability_guardian_treats_single_slow_tick_as_non_degraded_signal():
 
     assert result.healthy is True
     assert "not sustained" in result.message.lower()
+
+
+def test_stability_guardian_does_not_degrade_on_long_foreground_ticks():
+    guardian = StabilityGuardian(SimpleNamespace(start_time=time.time()))
+    now = time.time()
+    guardian._tick_times.extend(
+        [
+            (now - 9.0, 38200.0, True),
+            (now - 7.0, 40100.0, True),
+            (now - 5.0, 36500.0, True),
+            (now - 3.0, 2100.0, False),
+            (now - 1.0, 1800.0, False),
+        ]
+    )
+    guardian._last_tick_at = now - 1.0
+
+    result = guardian._check_tick_rate()
+
+    assert result.healthy is True
+    assert "foreground" in result.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_stability_guardian_run_checks_handles_priority_tick_metadata(monkeypatch):
+    guardian = StabilityGuardian(SimpleNamespace(start_time=time.time()))
+    now = time.time()
+    guardian._tick_times.extend(
+        [
+            (now - 2.0, 38000.0, True),
+            (now - 1.0, 2100.0, False),
+        ]
+    )
+    guardian._last_tick_at = now - 1.0
+
+    def _healthy(name):
+        return HealthCheckResult(name, True, "ok")
+
+    for attr in (
+        "_check_memory",
+        "_check_asyncio_tasks",
+        "_check_lock_watchdog",
+        "_check_tick_rate",
+        "_check_state_integrity",
+        "_check_state_repository_pressure",
+        "_check_llm_circuit",
+        "_check_db_connections",
+        "_check_backup_maintenance",
+        "_check_runtime_hygiene",
+        "_check_background_tasks",
+    ):
+        monkeypatch.setattr(guardian, attr, lambda attr=attr: _healthy(attr))
+
+    report = await guardian.run_checks()
+
+    assert report.tick_rate_hz > 0.0
+    assert report.mean_tick_ms > 0.0
 
 
 def test_collect_liquid_state_payload_prefers_runtime_signal_over_zero_stub():

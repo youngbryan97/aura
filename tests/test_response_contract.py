@@ -191,7 +191,7 @@ def test_response_contract_detects_aura_perspective_requests():
     assert contract.requires_aura_stance is True
 
 
-def test_dialogue_policy_flags_prompt_fishing_and_missing_stance():
+def test_dialogue_policy_flags_prompt_fishing_without_forcing_literal_first_person():
     state = AuraState.default()
     contract = build_response_contract(
         state,
@@ -206,7 +206,7 @@ def test_dialogue_policy_flags_prompt_fishing_and_missing_stance():
 
     assert validation.ok is False
     assert "prompt_fishing_closer" in validation.violations
-    assert "missing_first_person_stance" in validation.violations
+    assert "missing_first_person_stance" not in validation.violations
 
 
 def test_dialogue_policy_repairs_generic_closer_without_touching_statement():

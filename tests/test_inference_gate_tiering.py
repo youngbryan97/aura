@@ -322,6 +322,28 @@ def test_compact_prebuilt_messages_preserves_grounding_system_evidence():
     assert compact[-1]["content"] == "What does the policy say specifically about refunds?"
 
 
+def test_compact_prebuilt_messages_respects_runtime_context_budget(monkeypatch):
+    gate = InferenceGate.__new__(InferenceGate)
+    long_system = "S" * 20_000
+    long_user = "U" * 12_000
+    long_assistant = "A" * 8_000
+    messages = [
+        {"role": "system", "content": long_system},
+        {"role": "user", "content": long_user},
+        {"role": "assistant", "content": long_assistant},
+        {"role": "user", "content": "Keep this thoughtful, but stay relevant to what I just said."},
+    ]
+
+    monkeypatch.setenv("AURA_CORTEX_CTX", "8192")
+
+    compact = gate._compact_prebuilt_messages(messages, history_limit=4)
+    total_chars = sum(len(msg["content"]) for msg in compact)
+
+    assert total_chars <= 15_000
+    assert len(compact[0]["content"]) <= 9_000
+    assert compact[-1]["content"].endswith("what I just said.")
+
+
 @pytest.mark.asyncio
 async def test_user_facing_primary_preserves_prebuilt_messages_for_local_mlx():
     gate = InferenceGate()

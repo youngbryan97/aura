@@ -145,7 +145,9 @@ async def get_inner_state() -> JSONResponse:
             result["coherence"] = {"status": "not_booted"}
 
         phi = ServiceContainer.get("phi_core", default=None)
-        if phi and hasattr(phi, "current_phi"):
+        if phi and hasattr(phi, "get_live_phi"):
+            result["coherence"]["phi"] = round(float(phi.get_live_phi(include_surrogate=True)), 6)
+        elif phi and hasattr(phi, "current_phi"):
             result["coherence"]["phi"] = round(phi.current_phi, 6)
     except Exception as e:
         result["coherence"] = {"error": str(e)}

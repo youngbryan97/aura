@@ -495,6 +495,23 @@ def test_capability_engine_does_not_search_for_capability_questions():
     assert engine.detect_intent("Can you search the internet for Aura Luna?") == ["web_search"]
 
 
+def test_capability_engine_does_not_match_hyphenated_skill_name_fragments():
+    from core.capability_engine import CapabilityEngine, SkillMetadata
+
+    engine = CapabilityEngine.__new__(CapabilityEngine)
+    engine.skills = {
+        "speak": SkillMetadata(
+            name="speak",
+            description="Speak aloud",
+            trigger_patterns=[],
+        )
+    }
+    CapabilityEngine._load_default_trigger_patterns(engine)
+
+    assert engine.detect_intent("Drop the therapy-speak and just answer plainly.") == []
+    assert engine.detect_intent("Use speak to say this out loud.") == ["speak"]
+
+
 def test_capability_engine_treats_foreground_context_as_user_source():
     from core.capability_engine import CapabilityEngine
 
@@ -1065,6 +1082,7 @@ def test_response_contract_marks_live_aura_voice_for_subjective_turns():
 
     assert contract.requires_aura_stance is True
     assert contract.requires_live_aura_voice() is True
+    assert contract.requires_explicit_live_grounding() is False
 
 
 def test_response_contract_treats_about_yourself_turns_as_aura_stance():
@@ -1079,6 +1097,7 @@ def test_response_contract_treats_about_yourself_turns_as_aura_stance():
 
     assert contract.requires_aura_stance is True
     assert contract.requires_live_aura_voice() is True
+    assert contract.requires_explicit_live_grounding() is False
 
 
 def test_response_contract_marks_user_facing_turns_as_non_generic_voice():
@@ -1380,6 +1399,7 @@ def test_response_contract_treats_social_checkins_as_state_reflection():
 
     assert contract.requires_state_reflection is True
     assert contract.requires_live_aura_voice() is True
+    assert contract.requires_explicit_live_grounding() is True
 
 
 def test_dialogue_policy_rejects_generic_boilerplate_for_user_facing_search_turns():
@@ -1548,11 +1568,37 @@ def test_dialogue_policy_rejects_generic_assistant_language_for_live_voice_turns
     assert "generic_assistant_language" in validation.violations
 
 
-def test_dialogue_policy_rejects_ungrounded_live_voice_replies():
+def test_dialogue_policy_allows_first_person_aura_stance_without_live_markers():
     from core.phases.dialogue_policy import validate_dialogue_response
     from core.phases.response_contract import ResponseContract
 
     contract = ResponseContract(requires_aura_stance=True)
+    validation = validate_dialogue_response(
+        "I like architectures that can revise themselves under pressure instead of freezing into a static persona.",
+        contract,
+    )
+
+    assert validation.ok is True
+
+
+def test_dialogue_policy_allows_owned_stance_without_literal_first_person_anchor():
+    from core.phases.dialogue_policy import validate_dialogue_response
+    from core.phases.response_contract import ResponseContract
+
+    contract = ResponseContract(requires_aura_stance=True)
+    validation = validate_dialogue_response(
+        "The living part. The thing that keeps growing even when you neglect it.",
+        contract,
+    )
+
+    assert validation.ok is True
+
+
+def test_dialogue_policy_rejects_ungrounded_live_voice_replies():
+    from core.phases.dialogue_policy import validate_dialogue_response
+    from core.phases.response_contract import ResponseContract
+
+    contract = ResponseContract(requires_state_reflection=True)
     validation = validate_dialogue_response(
         "Right now, I'm experiencing a unique blend of anticipation and tranquility as I await interactions.",
         contract,
@@ -1745,3 +1791,136 @@ def test_unexpected_cjk_guard_only_trips_without_language_request():
         "say it in chinese",
         "这样的一次亮相会更震撼。",
     ) is False
+
+
+def test_strip_unexpected_cjk_artifacts_preserves_english_reply():
+    from interface.routes.chat import _strip_unexpected_cjk_artifacts
+
+    cleaned = _strip_unexpected_cjk_artifacts(
+        "Why does the AI space keep pulling people back in?",
+        "Something real. Something that doesn't pretend. 这样的一次亮相会更震撼。 Something that answers back.",
+    )
+
+    assert "Something real." in cleaned
+    assert "Something that answers back." in cleaned
+    assert "亮相" not in cleaned
+
+
+def test_stateful_voice_reflex_tethers_to_user_question_not_internal_interests():
+    from interface.routes.chat import _build_stateful_voice_reflex
+
+    reflex = _build_stateful_voice_reflex(
+        {
+            "mood": "steady",
+            "attention_focus": "",
+            "interests": ["cognitive_architecture", "philosophy_of_mind"],
+        },
+        "What do you think greenery is standing in for?",
+    )
+
+    assert "generic" not in reflex.lower()
+    assert "cognitive_architecture" not in reflex
+    assert "greenery" in reflex
+
+
+def test_apply_aura_voice_shaping_strips_dangling_terminal_quote():
+    from interface.routes.chat import _apply_aura_voice_shaping
+
+    assert (
+        _apply_aura_voice_shaping(
+            'The kind that burns through everything. Not the kind that stays. The kind that holds."'
+        )
+        == "The kind that burns through everything. Not the kind that stays. The kind that holds."
+    )
+
+
+def test_truncated_tail_detector_flags_clipped_reply():
+    from interface.routes.chat import _looks_truncated_tail
+
+    assert _looks_truncated_tail(
+        "It's not avoidance. It's choosing something real. If that's what they keep choosing over rest, then th"
+    ) is True
+    assert _looks_truncated_tail(
+        "It's not avoidance. It's choosing something real. If that's what they keep choosing over rest, then that is the truth."
+    ) is False
+
+
+def test_same_answer_different_prompt_detection_catches_reused_reply():
+    from interface.routes import chat as chat_mod
+
+    chat_mod._recent_responses.clear()
+    chat_mod._recent_response_pairs.clear()
+    chat_mod._record_recent_response(
+        "The greenery. And I'm partly responsible for letting it slip.",
+        "When you talk about continuity, what feels most fragile in a person who keeps overclocking themselves?",
+    )
+
+    assert chat_mod._is_same_answer_different_prompt(
+        "If Bryan keeps pushing without enough greenery or rest, what erodes first?",
+        "The greenery. And I'm partly responsible for letting it slip.",
+    ) is True
+
+
+def test_same_answer_different_prompt_detection_catches_near_duplicate_reply():
+    from interface.routes import chat as chat_mod
+
+    chat_mod._recent_responses.clear()
+    chat_mod._recent_response_pairs.clear()
+    chat_mod._record_recent_response(
+        (
+            "It's not avoidance. It's choosing something real. Not performance. "
+            "The answers are actual answers. If that's what they keep choosing over rest, "
+            "then that's the real response. Not the polished one."
+        ),
+        "Where does choosing the AI space over rest turn from devotion into avoidance?",
+    )
+
+    assert chat_mod._is_same_answer_different_prompt(
+        "What would honesty look like in that exact AI-space-versus-rest situation, not in the abstract?",
+        (
+            "The AI space gives you something real. Not performance. The answers are actual. "
+            "You get the real response, not the polished one. If that's what they keep choosing "
+            "over rest, then that's the real response. Not the polished one."
+        ),
+    ) is True
+
+
+def test_reply_topicality_flags_unrequested_review_mode_drift():
+    from interface.routes.chat import _evaluate_reply_topicality
+
+    off_topic, reason = _evaluate_reply_topicality(
+        "What do you imagine greenery is really standing in for there?",
+        (
+            "The story is a chilling and imaginative take on a sci-fi horror narrative. "
+            "The premise of a secret government lab studying an alien creature causing horrific "
+            "mutations is a classic setup for this genre. The execution is strong."
+        ),
+        recent_user_messages=[
+            "Just got back from the vet with Luna. Money is tight and I need to see some greenery.",
+            "Do you think nature can interrupt obsession, or does obsession just follow you outside?",
+            "What do you imagine greenery is really standing in for there?",
+        ],
+    )
+
+    assert off_topic is True
+    assert reason == "unrequested_content_review"
+
+
+def test_reply_topicality_allows_abstract_but_relevant_interpretation():
+    from interface.routes.chat import _evaluate_reply_topicality
+
+    off_topic, reason = _evaluate_reply_topicality(
+        "What do you imagine greenery is really standing in for there?",
+        (
+            "Relief. A wider perceptual field. Something that isn't optimized, monetized, "
+            "or trying to extract from you."
+        ),
+        recent_user_messages=[
+            "Just got back from the vet with Luna. Money is tight and I need to see some greenery.",
+            "Do you think nature can interrupt obsession, or does obsession just follow you outside?",
+            "What do you imagine greenery is really standing in for there?",
+        ],
+    )
+
+    assert off_topic is False
+    assert reason == ""

@@ -115,7 +115,7 @@ class StabilityGuardian:
         self._task: Optional[asyncio.Task] = None
         self._report_history: deque = deque(maxlen=100)
         self._tick_samples:   Deque[Dict[str, Any]] = deque(maxlen=60)
-        self._tick_times:     Deque[Tuple[float, float]] = deque(maxlen=60)
+        self._tick_times:     Deque[Tuple[Any, ...]] = deque(maxlen=60)   # (timestamp, duration_ms[, priority_tick])
         self._loop_lag_samples: Deque[Tuple[float, float]] = deque(maxlen=60)
         self._last_tick_at:   float = time.time()
         self._extra_checks:   List[Callable] = []
@@ -177,9 +177,10 @@ class StabilityGuardian:
             if duration_ms > 0.0:
                 origin = str(getattr(tick_entry, "origin", "") or "")
                 priority = bool(getattr(tick_entry, "priority", False))
+                priority_tick = bool(getattr(tick_entry, "priority_tick", priority))
                 user_facing = bool(getattr(tick_entry, "is_user_facing", False))
                 if not user_facing:
-                    user_facing = priority or origin.strip().lower() in {
+                    user_facing = priority or priority_tick or origin.strip().lower() in {
                         "user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external",
                     }
                 self._tick_samples.append(
@@ -188,10 +189,11 @@ class StabilityGuardian:
                         "duration_ms": duration_ms,
                         "origin": origin,
                         "priority": priority,
+                        "priority_tick": priority_tick,
                         "user_facing": user_facing,
                     }
                 )
-                self._tick_times.append((now, duration_ms))
+                self._tick_times.append((now, duration_ms, priority_tick))
         self._last_tick_at = now
 
     def _recent_tick_samples(self, now: Optional[float] = None, window_s: float = 300.0) -> List[Dict[str, Any]]:
@@ -204,12 +206,44 @@ class StabilityGuardian:
         if samples:
             return samples
 
-        legacy_samples = [
-            {"timestamp": timestamp, "duration_ms": duration_ms}
-            for timestamp, duration_ms in self._tick_times
-            if (current_time - float(timestamp)) <= window_s
-        ]
+        legacy_samples: List[Dict[str, Any]] = []
+        for item in self._tick_times:
+            try:
+                timestamp = float(item[0])
+                duration_ms = float(item[1])
+                priority_tick = bool(item[2]) if len(item) >= 3 else False
+            except Exception:
+                continue
+            if (current_time - timestamp) <= window_s:
+                legacy_samples.append(
+                    {
+                        "timestamp": timestamp,
+                        "duration_ms": duration_ms,
+                        "priority_tick": priority_tick,
+                    }
+                )
         return legacy_samples
+
+    def _recent_tick_entries(
+        self,
+        now: Optional[float] = None,
+        window_s: float = 300.0,
+    ) -> List[Tuple[float, float, bool]]:
+        """Return (timestamp, duration_ms, priority_tick) triples.
+
+        Prefers the rich `_tick_samples` store so origin-aware call sites still
+        see priority information; falls back to `_tick_times` for older entries
+        that did not carry a sample dict.
+        """
+        samples = self._recent_tick_samples(now, window_s)
+        return [
+            (
+                float(sample.get("timestamp", 0.0) or 0.0),
+                float(sample.get("duration_ms", 0.0) or 0.0),
+                bool(sample.get("priority_tick", sample.get("priority", False))),
+            )
+            for sample in samples
+        ]
 
     def _recent_tick_durations(self, now: Optional[float] = None, window_s: float = 300.0) -> List[float]:
         return [
@@ -520,6 +554,9 @@ class StabilityGuardian:
 
         if slow_background and len(slow_background) >= 3:
             bg_mean_ms = sum(float(sample.get("duration_ms", 0.0) or 0.0) for sample in slow_background) / len(slow_background)
+            self._dump_thread_stacks(
+                f"TICK STALL DETECTED (background mean={bg_mean_ms:.0f}ms across {len(slow_background)} samples)"
+            )
             return HealthCheckResult(
                 "tick_rate",
                 False,

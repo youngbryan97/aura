@@ -399,7 +399,7 @@ class PhiConsciousnessPhase(Phase):
             try:
                 result = await asyncio.to_thread(phi_core.compute_phi)
                 if result is not None:
-                    phi_val = float(getattr(result, "phi", 0.0))
+                    phi_val = float(getattr(result, "phi_s", 0.0))
                     if phi_val > 0.001:
                         return float(f"{phi_val:.4f}")
             except Exception as e:

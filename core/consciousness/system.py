@@ -134,6 +134,78 @@ class ConsciousnessSystem:
         except Exception as e:
             logger.warning("Could not initialize PhiCore: %s", e)
 
+        # Layer 5b: HierarchicalPhi — extended 32-node primary + K overlapping subsystems
+        try:
+            from .hierarchical_phi import get_hierarchical_phi
+            self.hierarchical_phi = get_hierarchical_phi()
+            ServiceContainer.register_instance("hierarchical_phi", self.hierarchical_phi)
+            logger.info(
+                "🧠 Layer 5b: HierarchicalPhi ONLINE (32-node primary + %d×16-node subsystems)",
+                getattr(self.hierarchical_phi, '_subsystems', []).__len__(),
+            )
+        except Exception as e:
+            logger.warning("Could not initialize HierarchicalPhi: %s", e)
+
+        # Layer 5c: HemisphericSplit — left (verbal/confabulating) vs right (mute/spatial)
+        try:
+            from .hemispheric_split import get_hemispheric_split
+            self.hemispheric_split = get_hemispheric_split()
+            ServiceContainer.register_instance("hemispheric_split", self.hemispheric_split)
+            logger.info("🧠 Layer 5c: HemisphericSplit ONLINE (corpus callosum intact)")
+        except Exception as e:
+            logger.warning("Could not initialize HemisphericSplit: %s", e)
+
+        # Layer 5d: MinimalSelfhood — chemotaxis → directed-motion (Glasgow)
+        try:
+            from .minimal_selfhood import get_minimal_selfhood
+            self.minimal_selfhood = get_minimal_selfhood()
+            ServiceContainer.register_instance("minimal_selfhood", self.minimal_selfhood)
+            logger.info("🧠 Layer 5d: MinimalSelfhood ONLINE (trichoplax→dugesia)")
+        except Exception as e:
+            logger.warning("Could not initialize MinimalSelfhood: %s", e)
+
+        # Layer 5e: RecursiveToM — depth-3 nested minds + observer-aware bias
+        try:
+            from .recursive_tom import get_recursive_tom
+            self.recursive_tom = get_recursive_tom()
+            ServiceContainer.register_instance("recursive_tom", self.recursive_tom)
+            logger.info("🧠 Layer 5e: RecursiveToM ONLINE (max_depth=3, observer-aware)")
+        except Exception as e:
+            logger.warning("Could not initialize RecursiveToM: %s", e)
+
+        # Layer 5f: OctopusFederation — 8-arm semi-autonomous agents
+        try:
+            from .octopus_arms import get_octopus_federation
+            self.octopus_federation = get_octopus_federation()
+            ServiceContainer.register_instance("octopus_federation", self.octopus_federation)
+            logger.info("🧠 Layer 5f: OctopusFederation ONLINE (8 arms, link=intact)")
+        except Exception as e:
+            logger.warning("Could not initialize OctopusFederation: %s", e)
+
+        # Layer 5g: CellularTurnover — neuron death/birth + identity preservation
+        try:
+            from .cellular_turnover import get_cellular_turnover
+            self.cellular_turnover = get_cellular_turnover()
+            mesh = ServiceContainer.get("neural_mesh", default=None)
+            if mesh is not None:
+                self.cellular_turnover.attach(mesh)
+            ServiceContainer.register_instance("cellular_turnover", self.cellular_turnover)
+            logger.info("🧠 Layer 5g: CellularTurnover ONLINE (attached=%s)", mesh is not None)
+        except Exception as e:
+            logger.warning("Could not initialize CellularTurnover: %s", e)
+
+        # Layer 5h: AbsorbedVoices — cultural/internalised perspectives layer
+        try:
+            from .absorbed_voices import get_absorbed_voices
+            self.absorbed_voices = get_absorbed_voices()
+            ServiceContainer.register_instance("absorbed_voices", self.absorbed_voices)
+            logger.info(
+                "🧠 Layer 5h: AbsorbedVoices ONLINE (%d voices loaded)",
+                self.absorbed_voices.voice_count(),
+            )
+        except Exception as e:
+            logger.warning("Could not initialize AbsorbedVoices: %s", e)
+
         # Layer 6: Consciousness Bridge — Neural Mesh, Neurochemicals,
         # Embodied Interoception, Oscillatory Binding, Somatic Gate,
         # Unified Field, Substrate Evolution

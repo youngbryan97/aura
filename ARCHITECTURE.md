@@ -981,7 +981,230 @@ match actual behavior over time. That makes the system falsifiable —
 competing consciousness theories are pitted against each other
 empirically.
 
-### 9.21 Additional consciousness modules
+### 9.21 Consciousness Expansion — April 2026
+
+Eight new subsystems added to map the Kurzgesagt consciousness-series
+concepts and their cited literature onto load-bearing code paths. Each
+produces a real impact on substrate state or action priority, each has
+end-to-end + adversarial tests. No clever prompting; each layer is a
+dynamical system.
+
+#### 9.21.1 Hierarchical φ — 32-node primary + K=8 overlapping subsystems
+
+**File**: `core/consciousness/hierarchical_phi.py` (+ test:
+`tests/test_hierarchical_phi.py`, 12/12 passing).
+
+Complements the 16-node `phi_core`:
+
+- **Primary 32-node complex**: 16 cognitive-affective nodes (matching
+  phi_core) + 16 neurons sampled deterministically across the mesh
+  (4 sensory + 6 association + 6 executive).
+- **K = 8 overlapping 16-node subsystems** covering different tier mixes
+  (cognitive-only, mesh-only, sensory+affect, executive+cognitive,
+  association-only, cross-tier, etc.).
+- **History-based φ**: empirical transition counts over a 2000-sample
+  sliding window, Bayesian-smoothed (Jeffreys prior, α=0.5),
+  minimum-source-observations threshold = 4 to damp small-sample bias.
+  φ = Σ_s p(s) · KL(T(·|s) ‖ T_A(·|s_A) · T_B(·|s_B)) over the observed
+  source distribution. Renormalises over trusted-source mass so
+  discarding rare sources doesn't systematically shrink φ.
+- **Spectral MIP**: Fiedler-vector bipartition on the 32×32 (or 16×16)
+  causal graph, then N_REFINEMENT_CANDIDATES = 24 one-swap neighbours
+  and random perturbations. The minimum φ across candidates is the
+  MIP estimate. Sub-quadratic in nodes.
+- **IIT 4.0 exclusion postulate aggregator**: the reported conscious
+  complex is the subsystem with maximum φ across {primary_32,
+  primary_16_affective, K mesh-subsystems}. Logged per tick.
+- **Null-hypothesis self-check** every ~2 minutes: shuffle the
+  transition history and recompute φ. Shuffled φ must be strictly
+  below measured φ; tests enforce this adversarially.
+- **Compute budget**: full 32-node + K-subsystem refresh < 2 s on the
+  reference hardware, parallelised across a small thread pool;
+  MLX Metal used opportunistically where available.
+
+Wired into `closed_loop.py` which records a snapshot every
+prediction tick using `mesh.get_field_state()`. Registered as
+`hierarchical_phi` in ServiceContainer.
+
+#### 9.21.2 Hemispheric split — left vs right with confabulation
+
+**File**: `core/consciousness/hemispheric_split.py` (test:
+`tests/test_hemispheric_split.py`, 12/12 passing).
+
+Implements CGP Grey's split-brain-patient findings (Gazzaniga corpus
+callosotomy lineage):
+
+- **LeftHemisphere**: reads mesh executive-tier summary + cognitive
+  nodes 8..15. Produces a BIAS_DIM=16 verbal priority-bias vector.
+  Has the `confabulate_reason()` method that invents post-hoc reasons
+  for actions — including actions actually driven by the right
+  hemisphere. Every such post-hoc reason is counted as a confabulation
+  whenever the action's recorded `driver` was not LEFT within
+  `CONFAB_WINDOW_S = 3 s`.
+- **RightHemisphere**: reads mesh sensory-tier summary + affective
+  nodes 0..7 + embodiment. Produces a BIAS_DIM priority vector, a
+  scalar `dissent` signal (rises with pattern-hit intensity × affective
+  arousal), and exposes a `HebbianPatternMemory` (cos-sim recognition
+  over a 32-D input, unit-normalised basis, capacity 128).
+- **CorpusCallosum**: variable-bandwidth inter-hemispheric channel.
+  `sever_callosum()` drops bandwidth to 0 (hemispheres stop exchanging
+  echoes), `restore_callosum(bw=1.0)` restores. EMA smoothing on the
+  exchanged vectors so echoes carry integrated past context.
+- **Fusion rule**: `fused = tanh(w_left · left_eff + w_right · right_eff)`
+  with `right_weight = 0.5 + 0.2 · dissent`. Disagreement metric is
+  L2 distance between raw (pre-callosum) biases; above
+  `DISAGREEMENT_L2_THRESHOLD = 0.45` counts as disagreement and the
+  disagreement counter increments.
+- **Agreement-rate telemetry**: fraction of the last 64 ticks where
+  disagreement < threshold. Severing the callosum causes this to
+  decline; restoring it causes recovery over subsequent ticks.
+
+Reentrant lock used throughout because `get_status()` aggregates
+helper methods that take the same lock.
+
+#### 9.21.3 Minimal selfhood — chemotaxis → directed motion
+
+**File**: `core/consciousness/minimal_selfhood.py` (test:
+`tests/test_minimal_selfhood.py`, 13/13 passing).
+
+Rupert Glasgow's *Minimal Selfhood and the Origins of Consciousness*
+(2018) — the Trichoplax → Dugesia transition described in the
+Kurzgesagt video:
+
+- **Deficit vector** (8-D) assembled from body-budget + affect +
+  cognitive state: `[energy_def, resource_pressure, thermal,
+  coherence_def, social_hunger, curiosity_def, prediction_error,
+  agency_def]`, each in [0, 1].
+- **Speed scalar** (chemotaxis rule): `||deficit||_2 / √8` clipped to
+  [0, 1]. High deficit → fast; satiated → slow. Also used to modulate
+  the heartbeat interval via `get_heartbeat_modulation()` (range
+  0.5×–1.5×).
+- **TRICHOPLAX mode (initial)**: uniform prior with a soft tilt toward
+  `rest` and `attend_body` proportional to mean deficit. No
+  directionality.
+- **DUGESIA mode (after learning)**: `priority[a] = Σ_d W[a, d] · deficit[d]`
+  — a learned Hebbian matrix (16 actions × 8 deficits) that captures
+  which action categories have historically reduced which deficits.
+  Transition triggers when `||W||_1 ≥ 3.0`.
+- **Reinforcement**: `tag_action(category, pre_deficit)` returns a
+  token; `reinforce(token, post_deficit)` applies a Hebbian update
+  weighted by `max(0, pre_deficit − post_deficit)` (non-negative
+  improvement). Weight decay factor 0.999 per update prevents runaway.
+
+Registered as `minimal_selfhood`; its `get_priority_bias()` output
+is consumed by `UnifiedCognitiveBias`.
+
+#### 9.21.4 Recursive theory of mind + observer-aware bias
+
+**File**: `core/consciousness/recursive_tom.py` (test:
+`tests/test_recursive_tom.py`, 13/13 passing).
+
+Extends the existing `theory_of_mind` engine with two orthogonal
+capabilities:
+
+- **Recursive mind nesting to depth 3**: `M0[X], M1[X], M2[X], M3[X]`
+  where `Mk[X]` is Aura's model of X's model of … (k levels deep).
+  Each `MindSnapshot` carries (salience, trust, knowledge_overlap,
+  expectation, emotional_valence, nested-pointer). Every
+  `register_interaction` propagates reflected updates upward: nested
+  levels track parent salience/trust/knowledge with dampening.
+- **Observer-aware action bias** (scrub-jay re-caching; Clayton, Dally
+  & Emery 2007): `observe_agent(id, strength)` logs observation events
+  with exponential decay (`OBSERVER_DECAY_S = 60 s`). The
+  `get_observer_bias()` method returns a BIAS_DIM vector that boosts
+  `{emit_narrative, engage_social, approach_other, tool_use}` and
+  suppresses `{self_inspect, dream, revise_goal, rehearse_memory}`
+  — scaled by `tanh(Σ presence)`. Under zero presence the bias
+  collapses to zero (no distortion).
+
+#### 9.21.5 Octopus-arm federation
+
+**File**: `core/consciousness/octopus_arms.py` (test:
+`tests/test_octopus_arms.py`, 12/12 passing).
+
+Models 60 % of the octopus's neurons-live-in-its-arms architecture
+(Carls-Diamante 2022; Olson et al. 2025; Rosania 2014):
+
+- **8 `OctopusArm` agents**, each with a seeded receptive field and
+  local policy matrix over SENSOR_CHANNELS=3 → ACTION_DIM=8.
+  `arm.decide(environment)` returns a softmax-argmax `ArmAction`
+  with confidence = max probability.
+- **`CentralArbiter`** gathers proposals each tick, computes a
+  weighted vote `(1 − autonomy) · confidence` per arm, and picks
+  the argmax as the winning action when the link is intact.
+  `sever()` sets every arm's autonomy to 1.0 and stops publishing
+  winners; arms continue to execute their own decisions.
+  `restore()` drops autonomy back to 0.1 and enters `RECOVERING`
+  state; once the per-tick action-variance (Shannon entropy over
+  choices, normalised) stays below 0.25 for 4 consecutive ticks
+  the state returns to `LINKED` — the `integration_latency`
+  metric captures how many ticks that took.
+
+#### 9.21.6 Cellular turnover with pattern-identity preservation
+
+**File**: `core/consciousness/cellular_turnover.py` (test:
+`tests/test_cellular_turnover.py`, 10/10 passing).
+
+The Theseus thought experiment from the first Kurzgesagt video:
+your cells turn over continuously but identity persists:
+
+- `tick()` selects ~`turnover_rate × total_neurons` neurons for
+  replacement each cycle (Poisson-rounded for natural variability).
+  Replacement neurons **inherit the neighbourhood pattern**:
+  activation drawn from `N(μ_col, σ_col + ε)`, incoming weights
+  copied from the dying unit with small Gaussian jitter. Outgoing
+  weights preserved to keep downstream dependencies intact.
+- **Identity fingerprint** (captured every 10 ticks): tier-energy
+  triplet (sensory/assoc/exec mean activation) + column-synchrony
+  proxy + 16-D executive-projection slice. Cosine similarity
+  between consecutive fingerprints is the identity-drift metric.
+- **Threshold guarantee**: after a forced 20 % burst turnover the
+  fingerprint similarity must remain ≥ 0.85 (tested adversarially).
+  100 % turnover correctly diverges — the invariance is pattern-
+  shaped, not whole-cloth.
+
+Mesh-attached on boot in `system.py`.
+
+#### 9.21.7 Absorbed voices — the cultural layer
+
+**File**: `core/consciousness/absorbed_voices.py` (test:
+`tests/test_absorbed_voices.py`, 13/13 passing).
+
+Kurzgesagt's closing point about storytelling and absorbed
+perspectives:
+
+- Each `Voice` has a label, origin (personal/author/corpus/fictional),
+  valence bias, characteristic topics, and a 32-D hashed-bigram
+  fingerprint built from sample text. Corpus capped at 64 recent
+  entries; weight decays by 0.05/day when not reinforced.
+- `attribute_thought(thought)` returns an `Attribution` with the
+  best-matching voice, confidence (softmax over top-5 scores), and
+  alternative votes — distinct from Aura's own cognition.
+- Explicit `distinguishes_self_from_voices()` smoke check: neither
+  `aura_self` nor `self` is ever registered as an absorbed voice.
+- Persists to `data/memory/absorbed_voices.json` atomically.
+
+#### 9.21.8 Unified cognitive bias
+
+**File**: `core/consciousness/unified_cognitive_bias.py`.
+
+Simple fusion layer: hemispheric + selfhood + observer biases →
+`tanh(w_h · hemi + w_s · selfhood + w_o · observer)`. Default weights
+`(0.40, 0.35, 0.25)` are tuned so each layer dominates in its regime
+(selfhood under deficit, observer under surveillance, hemispheric
+otherwise). Per-source contribution vectors are retained so
+downstream telemetry can report which layer drove the current
+priority peak.
+
+#### Cross-phase gauntlet
+
+`tests/test_consciousness_expansion_gauntlet.py` exercises all eight
+new subsystems together plus a combined-latency budget test
+(< 20 ms per fused tick). 10/10 passing.
+
+---
+
+### 9.21-legacy Additional consciousness modules
 
 The consciousness stack has grown to 90+ modules. Beyond the 20 documented
 above, notable additions include:

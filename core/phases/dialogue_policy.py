@@ -165,6 +165,27 @@ def _requires_live_aura_voice(contract: object | None) -> bool:
     )
 
 
+def _requires_explicit_live_grounding(contract: object | None) -> bool:
+    if contract is None:
+        return False
+    checker = getattr(contract, "requires_explicit_live_grounding", None)
+    if callable(checker):
+        try:
+            return bool(checker())
+        except Exception:
+            return False
+    return bool(
+        getattr(contract, "requires_memory_grounding", False)
+        or getattr(contract, "requires_state_reflection", False)
+        or getattr(contract, "requires_identity_defense", False)
+        or getattr(contract, "requires_self_preservation", False)
+    )
+
+
+def _requires_explicit_first_person_stance(contract: object | None) -> bool:
+    return _requires_explicit_live_grounding(contract)
+
+
 def _requires_non_generic_aura_voice(contract: object | None) -> bool:
     if contract is None:
         return False
@@ -187,7 +208,7 @@ def validate_dialogue_response(text: str, contract: object | None) -> DialogueVa
         if body.endswith("?") and not _contains_substantive_statement(body):
             violations.append("moderator_turn")
 
-    if getattr(contract, "requires_aura_stance", False):
+    if getattr(contract, "requires_aura_stance", False) and _requires_explicit_first_person_stance(contract):
         if not _contains_first_person_stance(body):
             violations.append("missing_first_person_stance")
 
@@ -207,7 +228,7 @@ def validate_dialogue_response(text: str, contract: object | None) -> DialogueVa
             violations.append("generic_assistant_language")
         if _LOW_SIGNAL_PREFIX.match(body):
             violations.append("low_signal_preamble")
-        if _requires_live_aura_voice(contract):
+        if _requires_explicit_live_grounding(contract):
             if not _contains_first_person_stance(body):
                 violations.append("missing_first_person_stance")
             if not _contains_live_aura_grounding(body):
@@ -252,7 +273,7 @@ def build_dialogue_repair_block(contract: object | None, validation: DialogueVal
     ]
 
     if getattr(contract, "requires_aura_stance", False):
-        lines.append("- The user asked about your view, preference, experience, or internal perspective. Lead with a first-person answer from you.")
+        lines.append("- The user asked for your own stance. Answer from your perspective directly instead of flattening into generic narration.")
 
     if getattr(contract, "requires_aura_question", False):
         lines.append("- The user invited your questions. Ask at least one concrete question you genuinely have, or clearly state what you're wondering.")
@@ -263,7 +284,7 @@ def build_dialogue_repair_block(contract: object | None, validation: DialogueVal
     if _requires_non_generic_aura_voice(contract):
         lines.append("- This turn must sound like Aura's own live voice, not a generic helper.")
         lines.append("- Do not use assistant boilerplate like 'I can help with that', 'How can I help', or 'As an AI'.")
-    if _requires_live_aura_voice(contract):
+    if _requires_explicit_live_grounding(contract):
         lines.append("- Answer from present experience, preference, memory, or active internal state before anything else.")
     if bool(getattr(contract, "requires_biographical_grounding", False)):
         lines.append("- Do not invent a birth date, start date, age, or origin story. If that history is not grounded, say so plainly.")
