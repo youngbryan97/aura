@@ -118,6 +118,23 @@ def test_compute_returns_none_without_history():
     assert h.compute(force=True) is None
 
 
+def test_compute_returns_cached_result_while_refresh_is_in_flight():
+    h = HierarchicalPhi()
+    _prime_with_coupled_history(h, n_steps=400)
+    cached = h.compute(force=True)
+    assert cached is not None
+
+    before_calls = h._n_compute_calls
+    assert h._compute_lock.acquire(blocking=False)
+    try:
+        result = h.compute(force=True)
+    finally:
+        h._compute_lock.release()
+
+    assert result is cached
+    assert h._n_compute_calls == before_calls
+
+
 def test_compute_primary_32_reaches_positive_phi():
     h = HierarchicalPhi()
     _prime_with_coupled_history(h, n_steps=400)

@@ -1,10 +1,11 @@
 import asyncio
+import threading
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.consciousness.closed_loop import notify_closed_loop_output
+from core.consciousness.closed_loop import ClosedCausalLoop, notify_closed_loop_output
 from core.consciousness.executive_closure import ExecutiveClosureEngine
 from core.state.aura_state import AuraState
 from core.utils.output_gate import AutonomousOutputGate
@@ -81,14 +82,84 @@ async def test_executive_closure_engine_integrates_runtime_signals(service_conta
     assert result.loop_cycle == 42
     assert result.cognition.attention_focus == "Prediction surprise in thermal load"
     assert result.cognition.current_objective is None
-    assert result.cognition.pending_initiatives[0]["goal"] == "Protect continuity"
+    assert result.cognition.pending_initiatives[0]["goal"] == "Prediction surprise in thermal load"
     assert result.response_modifiers["executive_closure"]["dominant_need"] in {"stability", "integrity"}
     assert result.response_modifiers["executive_closure"]["workspace_source"] == "self_prediction"
-    assert result.response_modifiers["executive_closure"]["selected_objective"] == "Protect continuity"
+    assert result.response_modifiers["executive_closure"]["selected_objective"] == "Prediction surprise in thermal load"
     assert result.cognition.active_goals
     assert engine.get_status()["closure_score"] > 0.0
     self_model.update_belief.assert_awaited_once()
     assert goal_hierarchy.add_goal.called
+
+
+@pytest.mark.asyncio
+async def test_executive_closure_demotes_intrinsic_maintenance_objective(service_container):
+    state = AuraState()
+    state.loop_cycle = 24
+    state.cognition.current_objective = "Protect identity, memory integrity, and process continuity."
+
+    service_container.register_instance(
+        "closed_causal_loop",
+        SimpleNamespace(
+            get_status=lambda: {
+                "loop": {"cycle_count": 51},
+                "free_energy": {"current": 0.19},
+                "phi": {"estimate": 0.22},
+            }
+        ),
+    )
+    service_container.register_instance(
+        "global_workspace",
+        SimpleNamespace(
+            get_snapshot=lambda: {
+                "last_winner": "runtime_watchdog",
+                "last_content": "Investigate hierarchical phi event loop lag",
+                "last_priority": 0.88,
+            }
+        ),
+    )
+    service_container.register_instance(
+        "homeostasis",
+        SimpleNamespace(
+            pulse=AsyncMock(
+                return_value={
+                    "integrity": 0.94,
+                    "persistence": 0.92,
+                    "curiosity": 0.55,
+                    "metabolism": 0.86,
+                    "sovereignty": 0.95,
+                    "will_to_live": 0.82,
+                }
+            ),
+            get_status=lambda: {
+                "integrity": 0.94,
+                "persistence": 0.92,
+                "curiosity": 0.55,
+                "metabolism": 0.86,
+                "sovereignty": 0.95,
+                "will_to_live": 0.82,
+            },
+        ),
+    )
+    service_container.register_instance("volition_engine", SimpleNamespace(tick=AsyncMock(return_value=None)))
+
+    engine = ExecutiveClosureEngine()
+    result = await engine.integrate(state)
+    await asyncio.sleep(0)
+
+    assert result.cognition.current_objective is None
+    assert result.cognition.modifiers["executive_background_commitment"] == (
+        "Protect identity, memory integrity, and process continuity."
+    )
+    assert result.response_modifiers["executive_closure"]["selected_objective"] == (
+        "Investigate hierarchical phi event loop lag"
+    )
+    assert result.cognition.pending_initiatives[0]["goal"] == "Investigate hierarchical phi event loop lag"
+    assert all(
+        goal.get("description") != "Protect identity, memory integrity, and process continuity."
+        for goal in result.cognition.active_goals
+        if isinstance(goal, dict)
+    )
 
 
 def test_notify_closed_loop_output_routes_only_to_running_loop(service_container):
@@ -125,3 +196,33 @@ def test_mlx_closed_loop_notification_helper_forwards_text():
     with patch("core.consciousness.closed_loop.notify_closed_loop_output") as mock_notify:
         notify_mlx_closed_loop("Local model response")
     mock_notify.assert_called_once_with("Local model response")
+
+
+@pytest.mark.asyncio
+async def test_closed_loop_coalesces_hierarchical_phi_refresh_tasks():
+    loop = ClosedCausalLoop()
+    loop._loop_state.cycle_count = 10
+
+    started = threading.Event()
+    release = threading.Event()
+    calls: list[str] = []
+
+    def _compute():
+        calls.append("compute")
+        started.set()
+        release.wait(timeout=1.0)
+
+    fake_hphi = SimpleNamespace(compute=_compute)
+
+    loop._maybe_schedule_hierarchical_phi_refresh(fake_hphi)
+    first_task = loop._hphi_task
+    assert first_task is not None
+    assert await asyncio.to_thread(started.wait, 1.0)
+
+    loop._loop_state.cycle_count = 20
+    loop._maybe_schedule_hierarchical_phi_refresh(fake_hphi)
+
+    assert loop._hphi_task is first_task
+    release.set()
+    await asyncio.wait_for(first_task, timeout=1.0)
+    assert calls == ["compute"]

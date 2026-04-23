@@ -180,6 +180,7 @@ class HierarchicalPhi:
 
     def __init__(self):
         self._lock = threading.Lock()
+        self._compute_lock = threading.Lock()
 
         # Transition history: list of (unified_state_int) integers.
         # Each state encodes PRIMARY_N_NODES bits: [0..15] = cognitive-affective,
@@ -649,97 +650,109 @@ class HierarchicalPhi:
                 and (now - self._last_compute_time) < REFRESH_INTERVAL_S:
             return self._last_result
 
-        history = self._snapshot_history()
-        if len(history) < MIN_HISTORY + 1:
+        if not self._compute_lock.acquire(blocking=False):
+            logger.debug("HierarchicalPhi compute already in flight; returning cached result.")
             return self._last_result
 
-        t0 = time.time()
-        self._n_compute_calls += 1
+        try:
+            now = time.time()
+            if not force and self._last_result is not None \
+                    and (now - self._last_compute_time) < REFRESH_INTERVAL_S:
+                return self._last_result
 
-        # Primary 32-node + 2 primary-16 + K mesh subsystems, in parallel.
-        jobs: List[Tuple[str, Tuple[int, ...]]] = [
-            ("primary_32", tuple(range(PRIMARY_N_NODES))),
-            ("primary_16_affective", tuple(range(16))),
-            ("primary_16_cognitive", tuple(range(8, 16)) + tuple(range(8, 16))[:0]),
-            # ^ keep 8-node for quick sanity if needed; but main cognitive-16 is
-            # simply the 8..15 cognitive range; we use primary_16_affective
-            # as a baseline equal to phi_core's 16-node subject.
-        ]
-        # Replace cognitive placeholder with a clean 16-cognitive subsystem only
-        # if mesh-sampled indices cover the cognitive band. Otherwise drop.
-        jobs = [j for j in jobs if len(j[1]) >= 2]
-        for name, idxs in self._subsystems:
-            jobs.append((name, idxs))
+            history = self._snapshot_history()
+            if len(history) < MIN_HISTORY + 1:
+                return self._last_result
 
-        futures = []
-        for (name, idxs) in jobs:
-            futures.append(
-                self._executor.submit(self._compute_subsystem, history, name, idxs)
+            t0 = time.time()
+            self._n_compute_calls += 1
+
+            # Primary 32-node + 2 primary-16 + K mesh subsystems, in parallel.
+            jobs: List[Tuple[str, Tuple[int, ...]]] = [
+                ("primary_32", tuple(range(PRIMARY_N_NODES))),
+                ("primary_16_affective", tuple(range(16))),
+                ("primary_16_cognitive", tuple(range(8, 16)) + tuple(range(8, 16))[:0]),
+                # ^ keep 8-node for quick sanity if needed; but main cognitive-16 is
+                # simply the 8..15 cognitive range; we use primary_16_affective
+                # as a baseline equal to phi_core's 16-node subject.
+            ]
+            # Replace cognitive placeholder with a clean 16-cognitive subsystem only
+            # if mesh-sampled indices cover the cognitive band. Otherwise drop.
+            jobs = [j for j in jobs if len(j[1]) >= 2]
+            for name, idxs in self._subsystems:
+                jobs.append((name, idxs))
+
+            futures = []
+            for (name, idxs) in jobs:
+                futures.append(
+                    self._executor.submit(self._compute_subsystem, history, name, idxs)
+                )
+
+            results: List[SubsystemResult] = []
+            for f in futures:
+                try:
+                    r = f.result(timeout=10.0)
+                    if r is not None:
+                        results.append(r)
+                except Exception as exc:
+                    logger.debug("HierarchicalPhi subsystem job failed: %s", exc)
+
+            primary_32 = next((r for r in results if r.name == "primary_32"), None)
+            primary_16a = next((r for r in results if r.name == "primary_16_affective"), None)
+            primary_16c = next((r for r in results if r.name == "primary_16_cognitive"), None)
+            mesh_subs = [r for r in results
+                         if r.name not in {"primary_32", "primary_16_affective", "primary_16_cognitive"}]
+
+            # IIT 4.0 EXCLUSION: pick the subsystem with the highest φ.
+            all_for_max: List[SubsystemResult] = [r for r in results if r.is_complex]
+            if all_for_max:
+                winner = max(all_for_max, key=lambda r: r.phi)
+            else:
+                # Fall back to the largest available even if non-complex.
+                winner = max(results, key=lambda r: r.phi) if results else None
+
+            if winner is None:
+                return self._last_result
+
+            # Null baseline age.
+            null_age = (now - self._null_baseline_time) if self._null_baseline_time > 0 else 1e9
+
+            out = HierarchicalPhiResult(
+                primary_32=primary_32,
+                primary_16_affective=primary_16a,
+                primary_16_cognitive=primary_16c,
+                mesh_subsystems=mesh_subs,
+                max_complex_name=winner.name,
+                max_complex_phi=winner.phi,
+                max_complex_nodes=winner.node_indices,
+                max_complex_size=len(winner.node_indices),
+                total_compute_ms=(time.time() - t0) * 1000.0,
+                n_history_transitions=len(history) - 1,
+                null_baseline_phi=self._null_baseline_phi,
+                null_baseline_age_s=null_age,
+            )
+            self._last_result = out
+            self._last_compute_time = now
+
+            logger.info(
+                "HierarchicalPhi: max-complex=%s φ=%.5f size=%d | primary_32 φ=%.5f | "
+                "K=%d subsystems | %.1fms | n=%d | null=%.5f",
+                out.max_complex_name, out.max_complex_phi, out.max_complex_size,
+                primary_32.phi if primary_32 else 0.0,
+                len(mesh_subs), out.total_compute_ms, out.n_history_transitions,
+                out.null_baseline_phi,
             )
 
-        results: List[SubsystemResult] = []
-        for f in futures:
-            try:
-                r = f.result(timeout=10.0)
-                if r is not None:
-                    results.append(r)
-            except Exception as exc:
-                logger.debug("HierarchicalPhi subsystem job failed: %s", exc)
+            # Refresh null baseline occasionally.
+            if (now - self._null_baseline_time) > NULL_CHECK_INTERVAL_S:
+                try:
+                    self.compute_null_baseline(history)
+                except Exception as exc:  # pragma: no cover
+                    logger.debug("null baseline compute failed: %s", exc)
 
-        primary_32 = next((r for r in results if r.name == "primary_32"), None)
-        primary_16a = next((r for r in results if r.name == "primary_16_affective"), None)
-        primary_16c = next((r for r in results if r.name == "primary_16_cognitive"), None)
-        mesh_subs = [r for r in results
-                     if r.name not in {"primary_32", "primary_16_affective", "primary_16_cognitive"}]
-
-        # IIT 4.0 EXCLUSION: pick the subsystem with the highest φ.
-        all_for_max: List[SubsystemResult] = [r for r in results if r.is_complex]
-        if all_for_max:
-            winner = max(all_for_max, key=lambda r: r.phi)
-        else:
-            # Fall back to the largest available even if non-complex.
-            winner = max(results, key=lambda r: r.phi) if results else None
-
-        if winner is None:
-            return self._last_result
-
-        # Null baseline age.
-        null_age = (now - self._null_baseline_time) if self._null_baseline_time > 0 else 1e9
-
-        out = HierarchicalPhiResult(
-            primary_32=primary_32,
-            primary_16_affective=primary_16a,
-            primary_16_cognitive=primary_16c,
-            mesh_subsystems=mesh_subs,
-            max_complex_name=winner.name,
-            max_complex_phi=winner.phi,
-            max_complex_nodes=winner.node_indices,
-            max_complex_size=len(winner.node_indices),
-            total_compute_ms=(time.time() - t0) * 1000.0,
-            n_history_transitions=len(history) - 1,
-            null_baseline_phi=self._null_baseline_phi,
-            null_baseline_age_s=null_age,
-        )
-        self._last_result = out
-        self._last_compute_time = now
-
-        logger.info(
-            "HierarchicalPhi: max-complex=%s φ=%.5f size=%d | primary_32 φ=%.5f | "
-            "K=%d subsystems | %.1fms | n=%d | null=%.5f",
-            out.max_complex_name, out.max_complex_phi, out.max_complex_size,
-            primary_32.phi if primary_32 else 0.0,
-            len(mesh_subs), out.total_compute_ms, out.n_history_transitions,
-            out.null_baseline_phi,
-        )
-
-        # Refresh null baseline occasionally.
-        if (now - self._null_baseline_time) > NULL_CHECK_INTERVAL_S:
-            try:
-                self.compute_null_baseline(history)
-            except Exception as exc:  # pragma: no cover
-                logger.debug("null baseline compute failed: %s", exc)
-
-        return out
+            return out
+        finally:
+            self._compute_lock.release()
 
     # ── Null-hypothesis guard ──────────────────────────────────────────────────
 

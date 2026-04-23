@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from core.container import ServiceContainer
+from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
+from core.state.aura_state import _origin_is_user_anchored
 
 logger = logging.getLogger("Aura.GoalEngine")
 
@@ -971,16 +973,36 @@ class GoalEngine:
         self._sync_state_view()
         return record.to_dict()
 
-    def get_active_goals(self, limit: int = 12, *, include_external: bool = True) -> List[Dict[str, Any]]:
+    def get_active_goals(
+        self,
+        limit: int = 12,
+        *,
+        include_external: bool = True,
+        actionable_only: bool = False,
+    ) -> List[Dict[str, Any]]:
         snapshot = self.build_snapshot(limit=limit, include_external=include_external)
-        return [
+        active = [
             item
             for item in snapshot["items"]
             if str(item.get("status", "")) in ACTIVE_GOAL_STATUSES
-        ][: max(1, int(limit or 12))]
+        ]
+        if actionable_only:
+            active = [item for item in active if self._is_actionable_item(item)]
+        return active[: max(1, int(limit or 12))]
 
-    async def get_active_goals_async(self, limit: int = 12, *, include_external: bool = True) -> List[Dict[str, Any]]:
-        return await asyncio.to_thread(self.get_active_goals, limit, include_external=include_external)
+    async def get_active_goals_async(
+        self,
+        limit: int = 12,
+        *,
+        include_external: bool = True,
+        actionable_only: bool = False,
+    ) -> List[Dict[str, Any]]:
+        return await asyncio.to_thread(
+            self.get_active_goals,
+            limit,
+            include_external=include_external,
+            actionable_only=actionable_only,
+        )
 
     def get_completed_goals(self, limit: int = 20, *, include_external: bool = True) -> List[Dict[str, Any]]:
         snapshot = self.build_snapshot(limit=limit * 3, include_external=include_external)
@@ -1141,6 +1163,17 @@ class GoalEngine:
 
         return sorted(list(items), key=_key)
 
+    @staticmethod
+    def _is_actionable_item(item: Dict[str, Any]) -> bool:
+        text = (
+            item.get("objective")
+            or item.get("goal")
+            or item.get("description")
+            or item.get("name")
+            or ""
+        )
+        return is_actionable_goal_text(text)
+
     def _sync_state_view(self, limit: int = 6) -> None:
         try:
             state = getattr(self.state_repo, "_current", None)
@@ -1149,7 +1182,9 @@ class GoalEngine:
             cognition = getattr(state, "cognition", None)
             if cognition is None:
                 return
-            active = self.get_active_goals(limit=limit, include_external=True)
+            active = self.get_active_goals(limit=limit, include_external=False, actionable_only=True)
+            if not active:
+                active = self.get_active_goals(limit=limit, include_external=True, actionable_only=True)
             cognition.active_goals = [
                 {
                     "id": item.get("id"),
@@ -1166,8 +1201,23 @@ class GoalEngine:
                 }
                 for item in active[:limit]
             ]
-            if active and not getattr(cognition, "current_objective", None):
+            current_objective = str(getattr(cognition, "current_objective", "") or "")
+            current_origin = str(getattr(cognition, "current_origin", "") or "")
+            actionable_labels = {
+                str(item.get("objective") or item.get("name") or "")
+                for item in active
+            }
+            if active and (
+                not current_objective
+                or is_intrinsic_goal_text(current_objective)
+                or (
+                    not _origin_is_user_anchored(current_origin)
+                    and current_objective not in actionable_labels
+                )
+            ):
                 cognition.current_objective = str(active[0].get("objective") or active[0].get("name") or "")
+            elif not active and is_intrinsic_goal_text(current_objective):
+                cognition.current_objective = None
         except Exception as exc:
             logger.debug("GoalEngine state sync skipped: %s", exc)
 

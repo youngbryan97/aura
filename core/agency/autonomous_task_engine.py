@@ -1230,7 +1230,17 @@ Respond ONLY with a JSON array, no other text:
 
             if goal_engine and hasattr(goal_engine, "get_active_goals"):
                 try:
-                    cognition.active_goals = goal_engine.get_active_goals(limit=6, include_external=True)
+                    cognition.active_goals = goal_engine.get_active_goals(
+                        limit=6,
+                        include_external=False,
+                        actionable_only=True,
+                    )
+                    if not cognition.active_goals:
+                        cognition.active_goals = goal_engine.get_active_goals(
+                            limit=6,
+                            include_external=True,
+                            actionable_only=True,
+                        )
                     if cognition.active_goals and not getattr(cognition, "current_objective", None):
                         cognition.current_objective = str(
                             cognition.active_goals[0].get("objective")

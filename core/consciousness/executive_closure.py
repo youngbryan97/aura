@@ -9,8 +9,10 @@ from typing import Any, Dict, Optional
 import numpy as np
 
 from core.container import ServiceContainer
+from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
 from core.predictive.predictive_self_model import PredictiveSelfModel
 from core.runtime.proposal_governance import propose_governed_initiative_to_state
+from core.state.aura_state import _origin_is_user_anchored
 
 logger = logging.getLogger("Aura.ExecutiveClosure")
 
@@ -73,6 +75,17 @@ class ExecutiveClosureEngine:
     async def integrate(self, state: Any) -> Any:
         now = time.time()
         warmup_mode = int(getattr(state, "loop_cycle", 0) or 0) < self._BOOT_WARMUP_CYCLES
+        background_commitment = ""
+
+        current_objective = str(getattr(state.cognition, "current_objective", "") or "").strip()
+        current_origin = str(getattr(state.cognition, "current_origin", "") or "")
+        if (
+            current_objective
+            and is_intrinsic_goal_text(current_objective)
+            and not _origin_is_user_anchored(current_origin)
+        ):
+            background_commitment = current_objective
+            state.cognition.current_objective = None
 
         homeostasis_status = await self._get_homeostasis_status(warmup=warmup_mode)
         closed_loop_status = self._get_closed_loop_status()
@@ -102,7 +115,7 @@ class ExecutiveClosureEngine:
         )
         active_goal_count = self._sync_active_goals(state, selected_objective)
 
-        if selected_objective and not getattr(state.cognition, "current_objective", None):
+        if is_actionable_goal_text(selected_objective) and not getattr(state.cognition, "current_objective", None):
             state, decision = await propose_governed_initiative_to_state(
                 state,
                 selected_objective,
@@ -128,8 +141,14 @@ class ExecutiveClosureEngine:
         if _ws_content and _ws_source not in _internal_sources and "baseline tick" not in _ws_content.lower():
             state.cognition.attention_focus = _ws_content
 
-        if selected_objective:
+        if is_actionable_goal_text(selected_objective):
             state.cognition.modifiers["executive_objective"] = selected_objective
+        else:
+            state.cognition.modifiers.pop("executive_objective", None)
+        if background_commitment:
+            state.cognition.modifiers["executive_background_commitment"] = background_commitment
+        else:
+            state.cognition.modifiers.pop("executive_background_commitment", None)
         state.cognition.modifiers["executive_dominant_need"] = dominant_need
         state.cognition.modifiers["executive_need_pressure"] = round(need_pressure, 4)
         state.cognition.modifiers["prediction_error"] = round(prediction_error, 4)
@@ -147,6 +166,7 @@ class ExecutiveClosureEngine:
             "attention_focus": state.cognition.attention_focus,
             "workspace_source": workspace_snapshot.get("last_winner"),
             "selected_objective": selected_objective,
+            "background_commitment": background_commitment,
             "prediction_error": round(prediction_error, 4),
             "free_energy": round(state.free_energy, 4),
             "phi_estimate": round(phi_estimate, 4),
@@ -188,7 +208,12 @@ class ExecutiveClosureEngine:
         )
 
         self._maybe_sync_self_model(self._last_snapshot, warmup=warmup_mode)
-        self._maybe_sync_goal_hierarchy(dominant_need, need_pressure, warmup=warmup_mode)
+        self._maybe_sync_goal_hierarchy(
+            selected_objective,
+            dominant_need,
+            need_pressure,
+            warmup=warmup_mode,
+        )
 
         return state
 
@@ -366,14 +391,18 @@ class ExecutiveClosureEngine:
         workspace_snapshot: Dict[str, Any],
     ) -> str:
         current_objective = str(getattr(state.cognition, "current_objective", "") or "")
-        if current_objective:
+        if current_objective and not is_intrinsic_goal_text(current_objective):
             return current_objective
 
         goal_hierarchy = ServiceContainer.get("goal_hierarchy", default=None)
         if goal_hierarchy:
             try:
                 next_goal = goal_hierarchy.get_next_goal()
-                if next_goal and getattr(next_goal, "description", None):
+                if (
+                    next_goal
+                    and getattr(next_goal, "description", None)
+                    and is_actionable_goal_text(next_goal.description)
+                ):
                     return str(next_goal.description)
             except Exception as exc:
                 logger.debug("ExecutiveClosure: goal hierarchy lookup failed: %s", exc)
@@ -382,7 +411,7 @@ class ExecutiveClosureEngine:
         if volition:
             try:
                 result = getattr(volition, "_last_goal", None)
-                if result and result.get("objective"):
+                if result and result.get("objective") and is_actionable_goal_text(result["objective"]):
                     return str(result["objective"])
             except Exception as _exc:
                 logger.debug("Suppressed Exception: %s", _exc)
@@ -401,11 +430,12 @@ class ExecutiveClosureEngine:
                     logger.debug("ExecutiveClosure: volition seed failed: %s", exc)
 
         workspace_focus = str(workspace_snapshot.get("last_content") or "").strip()
-        if workspace_focus and float(workspace_snapshot.get("last_priority") or 0.0) >= 0.55:
+        if (
+            workspace_focus
+            and float(workspace_snapshot.get("last_priority") or 0.0) >= 0.55
+            and is_actionable_goal_text(workspace_focus)
+        ):
             return workspace_focus
-
-        if need_pressure >= 0.35:
-            return self._OBJECTIVE_TEMPLATES.get(dominant_need, self._OBJECTIVE_TEMPLATES["stability"])
 
         return ""
 
@@ -419,8 +449,12 @@ class ExecutiveClosureEngine:
             logger.debug("ExecutiveClosure: volition tick failed: %s", exc)
 
     def _sync_active_goals(self, state: Any, selected_objective: str) -> int:
-        active = list(getattr(state.cognition, "active_goals", []) or [])
-        if selected_objective:
+        active = [
+            goal
+            for goal in list(getattr(state.cognition, "active_goals", []) or [])
+            if not is_intrinsic_goal_text(goal)
+        ]
+        if is_actionable_goal_text(selected_objective):
             record = {
                 "description": selected_objective,
                 "priority": 1.0,
@@ -429,7 +463,7 @@ class ExecutiveClosureEngine:
             }
             if not any(goal.get("description") == selected_objective for goal in active if isinstance(goal, dict)):
                 active.insert(0, record)
-            state.cognition.active_goals = active[:5]
+        state.cognition.active_goals = active[:5]
         return len(getattr(state.cognition, "active_goals", []) or [])
 
     async def _get_homeostasis_status(self, *, warmup: bool = False) -> Dict[str, float]:
@@ -583,11 +617,22 @@ class ExecutiveClosureEngine:
         except Exception as exc:
             logger.debug("ExecutiveClosure: self-model sync task failed: %s", exc)
 
-    def _maybe_sync_goal_hierarchy(self, dominant_need: str, need_pressure: float, *, warmup: bool = False) -> None:
+    def _maybe_sync_goal_hierarchy(
+        self,
+        selected_objective: str,
+        _dominant_need: str,
+        need_pressure: float,
+        *,
+        warmup: bool = False,
+    ) -> None:
         if warmup:
             return
         now = time.time()
-        if need_pressure < 0.55 or (now - self._last_goal_sync) < self._GOAL_SYNC_INTERVAL_S:
+        if (
+            not is_actionable_goal_text(selected_objective)
+            or need_pressure < 0.55
+            or (now - self._last_goal_sync) < self._GOAL_SYNC_INTERVAL_S
+        ):
             return
 
         goal_hierarchy = ServiceContainer.get("goal_hierarchy", default=None)
@@ -596,7 +641,7 @@ class ExecutiveClosureEngine:
 
         try:
             goal_hierarchy.add_goal(
-                self._OBJECTIVE_TEMPLATES.get(dominant_need, self._OBJECTIVE_TEMPLATES["stability"]),
+                selected_objective,
                 priority=max(0.6, min(1.0, need_pressure)),
             )
             self._last_goal_sync = now

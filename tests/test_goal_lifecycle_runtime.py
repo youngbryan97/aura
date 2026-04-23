@@ -2,7 +2,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from core.container import ServiceContainer
 from core.goals.goal_engine import GoalEngine
+from core.state.aura_state import AuraState
 
 
 @pytest.mark.asyncio
@@ -197,3 +199,49 @@ async def test_goal_engine_reconciles_stale_task_engine_plan_records(tmp_path, m
     assert matching
     assert matching[0]["status"] == "blocked"
     assert "interrupted" in str(matching[0]["summary"]).lower()
+
+
+@pytest.mark.asyncio
+async def test_goal_engine_state_sync_prefers_actionable_goals(service_container, tmp_path):
+    state = AuraState()
+    ServiceContainer.register_instance("state_repo", SimpleNamespace(_current=state), required=False)
+
+    engine = GoalEngine(db_path=str(tmp_path / "goal_lifecycle.db"))
+
+    await engine.add_goal(
+        "Protect identity, memory integrity, and process continuity.",
+        objective="Protect identity, memory integrity, and process continuity.",
+        horizon="long_term",
+        priority=0.98,
+        source="executive_authority",
+        status="in_progress",
+    )
+
+    running_step = SimpleNamespace(tool="read_file")
+    plan = SimpleNamespace(
+        plan_id="plan-actionable",
+        goal="Investigate hierarchical phi event loop lag",
+        steps=[running_step],
+        succeeded_steps=[],
+        trace_id="trace-actionable",
+        status="running",
+        final_result="",
+        requires_approval=False,
+        context={
+            "task_id": "task-actionable",
+            "source": "task_engine",
+            "priority": 0.91,
+            "horizon": "short_term",
+            "quick_win": True,
+        },
+    )
+
+    engine.sync_task_plan(plan)
+
+    assert state.cognition.current_objective == "Investigate hierarchical phi event loop lag"
+    assert state.cognition.active_goals
+    assert all(
+        goal.get("description") != "Protect identity, memory integrity, and process continuity."
+        for goal in state.cognition.active_goals
+        if isinstance(goal, dict)
+    )

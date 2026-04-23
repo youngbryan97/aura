@@ -218,7 +218,11 @@ class InitiativeSynthesizer:
         try:
             goal_engine = ServiceContainer.get("goal_engine", default=None)
             if goal_engine:
-                active = goal_engine.get_active_goals(limit=5, include_external=False)
+                active = goal_engine.get_active_goals(
+                    limit=5,
+                    include_external=False,
+                    actionable_only=True,
+                )
                 for goal in active:
                     objective = str(goal.get("objective") or goal.get("name") or "")
                     if not objective:

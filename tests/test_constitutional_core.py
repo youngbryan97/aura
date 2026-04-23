@@ -395,6 +395,24 @@ async def test_executive_allows_safe_autonomous_tools_under_temporal_obligation(
 
 
 @pytest.mark.asyncio
+async def test_executive_temporal_anchor_prefers_actionable_pending_work(service_container):
+    reset_constitutional_singletons()
+    clear_degraded_events()
+    ServiceContainer.register_instance("self_model", object(), required=False)
+    state = AuraState()
+    state.cognition.current_objective = "Protect identity, memory integrity, and process continuity."
+    state.cognition.pending_initiatives = [{"goal": "Investigate hierarchical phi event loop lag"}]
+    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.lock_registration()
+
+    executive = executive_core_module.get_executive_core()
+    approved, reason = await executive.approve_background_task("novelty_probe", source="background")
+
+    assert approved is False
+    assert reason == "temporal_obligation_active:Investigate hierarchical phi event loop lag"
+
+
+@pytest.mark.asyncio
 async def test_executive_allows_read_only_auto_refactor_under_temporal_obligation(service_container):
     reset_constitutional_singletons()
     clear_degraded_events()

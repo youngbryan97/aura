@@ -29,6 +29,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.container import ServiceContainer
 from core.executive.executive_ledger import ExecutiveLedger
+from core.goals.goal_text import first_actionable_goal_text, is_actionable_goal_text, is_intrinsic_goal_text
 from core.runtime.service_access import resolve_canonical_self, resolve_canonical_self_engine, resolve_state_repository
 from core.state.aura_state import _is_speculative_autonomy_label, _normalize_goal_text
 
@@ -819,14 +820,20 @@ class ExecutiveCore:
         contradiction_count = 0
         commitments: List[str] = []
         anchor = "none"
+        pending_anchor = ""
+        active_goal_anchor = ""
         try:
             repo = resolve_state_repository(default=None)
             state = getattr(repo, "_current", None) if repo is not None else None
             cognition = getattr(state, "cognition", None) if state is not None else None
             current_objective = str(getattr(cognition, "current_objective", "") or "")
-            pending_count = len(list(getattr(cognition, "pending_initiatives", []) or []))
-            active_goal_count = len(list(getattr(cognition, "active_goals", []) or []))
+            pending_items = list(getattr(cognition, "pending_initiatives", []) or [])
+            active_goal_items = list(getattr(cognition, "active_goals", []) or [])
+            pending_count = len(pending_items)
+            active_goal_count = len(active_goal_items)
             contradiction_count = int(getattr(cognition, "contradiction_count", 0) or 0)
+            pending_anchor = first_actionable_goal_text(pending_items)
+            active_goal_anchor = first_actionable_goal_text(active_goal_items)
         except Exception as _exc:
             logger.debug("Suppressed Exception: %s", _exc)
 
@@ -841,9 +848,13 @@ class ExecutiveCore:
                 current_objective = str(obligations.get("current_objective", "") or "")
             commitments = list(obligations.get("active_commitments", []) or [])
             if pending_count == 0:
-                pending_count = len(list(obligations.get("pending_initiatives", []) or []))
+                pending_items = list(obligations.get("pending_initiatives", []) or [])
+                pending_count = len(pending_items)
+                pending_anchor = first_actionable_goal_text(pending_items)
             if active_goal_count == 0:
-                active_goal_count = len(list(obligations.get("active_goals", []) or []))
+                continuity_goals = list(obligations.get("active_goals", []) or [])
+                active_goal_count = len(continuity_goals)
+                active_goal_anchor = first_actionable_goal_text(continuity_goals)
             contradiction_count = max(
                 contradiction_count,
                 int(obligations.get("contradiction_count", 0) or 0),
@@ -854,33 +865,37 @@ class ExecutiveCore:
         try:
             goal_engine = ServiceContainer.get("goal_engine", default=None)
             if goal_engine and hasattr(goal_engine, "get_active_goals"):
-                active_goal_items = list(goal_engine.get_active_goals(limit=6, include_external=True) or [])
+                active_goal_items = list(
+                    goal_engine.get_active_goals(limit=6, include_external=True, actionable_only=True) or []
+                )
                 if active_goal_items:
                     active_goal_count = max(active_goal_count, len(active_goal_items))
                     if not current_objective:
-                        top_goal = active_goal_items[0]
-                        current_objective = str(
-                            top_goal.get("objective")
-                            or top_goal.get("goal")
-                            or top_goal.get("name")
-                            or ""
-                        )
+                        current_objective = first_actionable_goal_text(active_goal_items)
+                    if not active_goal_anchor:
+                        active_goal_anchor = first_actionable_goal_text(active_goal_items)
         except Exception as _exc:
             logger.debug("Suppressed Exception: %s", _exc)
 
         current_objective = _normalize_goal_text(current_objective)
-        if _is_speculative_autonomy_label(current_objective):
+        if _is_speculative_autonomy_label(current_objective) or is_intrinsic_goal_text(current_objective):
             current_objective = ""
         commitments = [
             text
             for text in (_normalize_goal_text(entry) for entry in commitments)
             if text and not _is_speculative_autonomy_label(text)
         ]
-
-        anchor = current_objective or (commitments[0] if commitments else "none")
         obligation_pressure = min(
             1.0,
             (float(pending_count) * 0.25) + (float(active_goal_count) * 0.2) + (float(len(commitments)) * 0.2),
+        )
+        actionable_commitments = [text for text in commitments if is_actionable_goal_text(text)]
+        anchor = (
+            current_objective
+            or pending_anchor
+            or active_goal_anchor
+            or (actionable_commitments[0] if actionable_commitments else "")
+            or ("unresolved_runtime_obligations" if obligation_pressure > 0.0 else "none")
         )
         return {
             "current_objective": current_objective,

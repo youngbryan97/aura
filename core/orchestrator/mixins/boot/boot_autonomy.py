@@ -165,7 +165,11 @@ class BootAutonomyMixin:
         try:
             goal_engine = ServiceContainer.get("goal_engine", default=None)
             if goal_engine:
-                active_goals = goal_engine.get_active_goals(limit=5, include_external=False)
+                active_goals = goal_engine.get_active_goals(
+                    limit=5,
+                    include_external=False,
+                    actionable_only=True,
+                )
                 resumed_count = 0
                 state_repo = ServiceContainer.get("state_repo", default=None)
                 state = None

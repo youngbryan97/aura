@@ -45,6 +45,8 @@ PREDICTION_LEARNING_RATE = 0.06
 # Sliding window for free energy computation (number of prediction cycles)
 FREE_ENERGY_WINDOW = 40
 
+HIERARCHICAL_PHI_REFRESH_INTERVAL_S = 12.0
+
 # Affective anchor vocabulary for output affect extraction
 AFFECTIVE_OUTPUT_ANCHORS = [
     ({"joy", "delight", "wonderful", "beautiful", "love", "grateful", "happy", "glad", "excited"},
@@ -466,7 +468,9 @@ class ClosedCausalLoop:
 
         self._task: Optional[asyncio.Task] = None
         self._phi_core_task: Optional[asyncio.Task] = None
+        self._hphi_task: Optional[asyncio.Task] = None
         self._last_phi_core_schedule_at: float = 0.0
+        self._last_hphi_schedule_at: float = 0.0
         self._save_dir: Optional[Path] = None
 
         self._setup_save_dir()
@@ -516,7 +520,45 @@ class ClosedCausalLoop:
                 await self._phi_core_task
             except asyncio.CancelledError as _e:
                 logger.debug('Ignored asyncio.CancelledError in closed_loop.py: %s', _e)
+        if self._hphi_task:
+            self._hphi_task.cancel()
+            try:
+                await self._hphi_task
+            except asyncio.CancelledError as _e:
+                logger.debug('Ignored asyncio.CancelledError in closed_loop.py: %s', _e)
         logger.info("🔄 ClosedCausalLoop OFFLINE")
+
+    def _maybe_schedule_phi_core_refresh(self, phi_core: Any) -> None:
+        should_refresh_phi = (
+            self._loop_state.cycle_count > 0
+            and self._loop_state.cycle_count % 6 == 0
+            and not self._foreground_request_active()
+            and (time.time() - self._last_phi_core_schedule_at) >= 45.0
+        )
+        if should_refresh_phi and (
+            self._phi_core_task is None or self._phi_core_task.done()
+        ):
+            self._last_phi_core_schedule_at = time.time()
+            self._phi_core_task = asyncio.create_task(
+                asyncio.to_thread(phi_core.compute_phi),
+                name="ClosedCausalLoop.phi_core_refresh",
+            )
+
+    def _maybe_schedule_hierarchical_phi_refresh(self, hphi: Any) -> None:
+        should_refresh_hphi = (
+            self._loop_state.cycle_count > 0
+            and self._loop_state.cycle_count % 10 == 0
+            and not self._foreground_request_active()
+            and (time.time() - self._last_hphi_schedule_at) >= HIERARCHICAL_PHI_REFRESH_INTERVAL_S
+        )
+        if should_refresh_hphi and (
+            self._hphi_task is None or self._hphi_task.done()
+        ):
+            self._last_hphi_schedule_at = time.time()
+            self._hphi_task = asyncio.create_task(
+                asyncio.to_thread(hphi.compute),
+                name="ClosedCausalLoop.hphi_refresh",
+            )
 
     @staticmethod
     def _build_phi_core_cognitive_values(current_x: np.ndarray) -> Dict[str, float]:
@@ -616,20 +658,7 @@ class ClosedCausalLoop:
                             current_x,
                             cognitive_values=cognitive_vals,
                         )
-                        should_refresh_phi = (
-                            self._loop_state.cycle_count > 0
-                            and self._loop_state.cycle_count % 6 == 0
-                            and not self._foreground_request_active()
-                            and (time.time() - self._last_phi_core_schedule_at) >= 45.0
-                        )
-                        if should_refresh_phi and (
-                            self._phi_core_task is None or self._phi_core_task.done()
-                        ):
-                            self._last_phi_core_schedule_at = time.time()
-                            self._phi_core_task = asyncio.create_task(
-                                asyncio.to_thread(phi_core.compute_phi),
-                                name="ClosedCausalLoop.phi_core_refresh",
-                            )
+                        self._maybe_schedule_phi_core_refresh(phi_core)
 
                     # Hierarchical 32-node + K-subsystem φ (runs alongside phi_core)
                     hphi = ServiceContainer.get("hierarchical_phi", default=None)
@@ -645,13 +674,7 @@ class ClosedCausalLoop:
                             cog_aff = np.zeros(16, dtype=np.float64)
                             cog_aff[:min(len(current_x), 16)] = current_x[:16]
                             hphi.record_snapshot(cog_aff, mesh_field)
-                            if (self._loop_state.cycle_count > 0
-                                and self._loop_state.cycle_count % 10 == 0
-                                and not self._foreground_request_active()):
-                                asyncio.create_task(
-                                    asyncio.to_thread(hphi.compute),
-                                    name="ClosedCausalLoop.hphi_refresh",
-                                )
+                            self._maybe_schedule_hierarchical_phi_refresh(hphi)
                 except Exception as _e:
                     logger.debug('Ignored Exception in closed_loop.py: %s', _e)
 
