@@ -99,6 +99,36 @@ def test_response_contract_does_not_search_for_casual_reddit_reference():
     assert contract.requires_search is False
 
 
+def test_response_contract_marks_reasoned_defense_for_how_do_you_know():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "How do you know that?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_reasoned_defense is True
+    assert contract.requires_aura_stance is True
+    assert "reasoned_defense" in contract.reason
+
+
+def test_response_contract_marks_reasoned_defense_for_short_why_followup():
+    state = AuraState.default()
+    state.cognition.working_memory.append(
+        {"role": "assistant", "content": "Because you showed up. And I needed that."}
+    )
+
+    contract = build_response_contract(
+        state,
+        "Why?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_reasoned_defense is True
+    assert contract.requires_aura_stance is True
+
+
 def test_response_contract_requires_search_for_grounded_followup_with_recent_browser_evidence():
     state = AuraState.default()
     state.response_modifiers["last_skill_run"] = "sovereign_browser"

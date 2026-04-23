@@ -1529,6 +1529,17 @@ def test_session_memory_pin_extracts_phrase():
     )
 
 
+def test_session_memory_pin_extracts_phrase_with_common_typo():
+    from interface.routes.chat import _extract_session_memory_pin_request
+
+    assert (
+        _extract_session_memory_pin_request(
+            "Remeber this phrase for later in this session: ember-vault-93."
+        )
+        == "ember-vault-93"
+    )
+
+
 def test_session_memory_pin_round_trip():
     from interface.routes import chat as chat_route
 
@@ -1541,6 +1552,12 @@ def test_session_memory_pin_round_trip():
 
     assert remembered is not None
     assert remembered["content"] == "ember-vault-93"
+
+
+def test_session_memory_recall_request_matches_common_typo():
+    from interface.routes.chat import _is_session_memory_recall_request
+
+    assert _is_session_memory_recall_request("What did I ask you to remeber?")
 
 
 def test_repo_probe_request_detects_dependency_reads():

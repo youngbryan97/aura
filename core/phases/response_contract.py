@@ -6,6 +6,7 @@ import re
 from typing import Any, Dict
 
 from core.state.aura_state import AuraState
+from core.utils.intent_normalization import normalize_memory_intent_text
 
 _SEARCH_NEGATION_RE = re.compile(
     r"(?:didn'?t|don'?t|not|never|stop|no)\s+(?:\w+\s+){0,3}search",
@@ -259,6 +260,22 @@ _AURA_PERSPECTIVE_PATTERNS = (
     r"\bhow do you see\b",
 )
 
+_REASONED_DEFENSE_PATTERNS = (
+    r"\bwhy do you think\b",
+    r"\bwhy do you feel\b",
+    r"\bhow do you know\b",
+    r"\bwhat makes you say\b",
+    r"\bbased on what\b",
+    r"\bdefend (?:that|it|this)\b",
+    r"\bjustify (?:that|it|this)\b",
+    r"\bhow can you defend\b",
+)
+
+_SHORT_REASONED_DEFENSE_RE = re.compile(
+    r"^\s*(?:why|why though|why's that|how so|based on what|what makes you say that)\s*[?.!]*\s*$",
+    re.IGNORECASE,
+)
+
 _AURA_QUESTION_INVITATION_PATTERNS = (
     r"\bwhat questions do you have\b",
     r"\bdo you have questions\b",
@@ -300,6 +317,7 @@ class ResponseContract:
     prefers_dialogue_participation: bool = True
     requires_aura_stance: bool = False
     requires_aura_question: bool = False
+    requires_reasoned_defense: bool = False
     requires_identity_defense: bool = False
     requires_self_preservation: bool = False
     tool_evidence_available: bool = False
@@ -318,6 +336,7 @@ class ResponseContract:
                 self.requires_state_reflection,
                 self.requires_aura_stance,
                 self.requires_aura_question,
+                self.requires_reasoned_defense,
                 self.requires_identity_defense,
                 self.requires_self_preservation,
             )
@@ -328,6 +347,7 @@ class ResponseContract:
             (
                 self.requires_memory_grounding,
                 self.requires_state_reflection,
+                self.requires_reasoned_defense,
                 self.requires_identity_defense,
                 self.requires_self_preservation,
             )
@@ -406,6 +426,15 @@ class ResponseContract:
                 "- The user is asking about your own view, preference, experience, or perspective. "
                 "Answer from your own stance directly. First person is welcome when it helps mark ownership, "
                 "but do not flatten into neutral assistant abstraction."
+            )
+
+        if self.requires_reasoned_defense:
+            directives.append(
+                "- The user wants the basis of your thought, not just the conclusion. Make the grounding explicit: "
+                "recalled continuity, observed evidence, live internal state, relationship context, prior knowledge, or held values."
+            )
+            directives.append(
+                "- Do not hide behind vague certainty. Defend the claim in plain language and say what it rests on."
             )
 
         if self.requires_identity_defense:
@@ -547,6 +576,22 @@ def has_continuity_evidence(state: AuraState) -> bool:
     return False
 
 
+def _looks_like_reasoned_defense_followup(state: AuraState, text: str) -> bool:
+    lowered = normalize_memory_intent_text(text)
+    if not lowered or not _SHORT_REASONED_DEFENSE_RE.match(lowered):
+        return False
+
+    working_memory = getattr(state.cognition, "working_memory", []) or []
+    for msg in reversed(working_memory[-6:]):
+        if not isinstance(msg, dict):
+            continue
+        if str(msg.get("role", "") or "").strip().lower() != "assistant":
+            continue
+        if str(msg.get("content", "") or "").strip():
+            return True
+    return False
+
+
 def _recent_grounding_anchor_terms(state: AuraState) -> set[str]:
     texts: list[str] = []
     modifiers = getattr(state, "response_modifiers", {}) or {}
@@ -658,7 +703,7 @@ def build_response_contract(
     from core.runtime.turn_analysis import analyze_turn
 
     text = str(objective or "").strip()
-    lower = text.lower()
+    lower = normalize_memory_intent_text(text)
 
     explicit_search = _matches_any(lower, _EXPLICIT_SEARCH_PATTERNS)
     factual_lookup = _matches_any(lower, _FACTUAL_LOOKUP_PATTERNS)
@@ -673,6 +718,13 @@ def build_response_contract(
 
     requires_memory = bool(is_user_facing and _matches_any(lower, _MEMORY_PATTERNS))
     requires_state = bool(is_user_facing and _matches_any(lower, _STATE_REFLECTION_PATTERNS))
+    requires_reasoned_defense = bool(
+        is_user_facing
+        and (
+            _matches_any(lower, _REASONED_DEFENSE_PATTERNS)
+            or _looks_like_reasoned_defense_followup(state, text)
+        )
+    )
     requires_self_preservation = bool(is_user_facing and _matches_any(lower, _SELF_PRESERVATION_PATTERNS))
     requires_identity_defense = bool(is_user_facing and _matches_any(lower, _IDENTITY_DEFENSE_PATTERNS))
     requires_memory = requires_memory or requires_identity_defense or biographical_grounding
@@ -723,6 +775,7 @@ def build_response_contract(
     requires_aura_stance = bool(
         is_user_facing and (
             requires_state
+            or requires_reasoned_defense
             or requires_self_preservation
             or requires_identity_defense
             or biographical_grounding
@@ -766,6 +819,8 @@ def build_response_contract(
         reasons.append("biographical_grounding")
     if requires_state:
         reasons.append("state_reflection")
+    if requires_reasoned_defense:
+        reasons.append("reasoned_defense")
     if requires_self_preservation:
         reasons.append("self_preservation")
     if requires_identity_defense:
@@ -787,6 +842,7 @@ def build_response_contract(
         prefers_dialogue_participation=is_user_facing,
         requires_aura_stance=requires_aura_stance,
         requires_aura_question=requires_aura_question,
+        requires_reasoned_defense=requires_reasoned_defense,
         requires_identity_defense=requires_identity_defense,
         requires_self_preservation=requires_self_preservation,
         tool_evidence_available=tool_evidence,

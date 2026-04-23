@@ -419,6 +419,77 @@ async def test_executive_allows_read_only_auto_refactor_under_temporal_obligatio
 
 
 @pytest.mark.asyncio
+async def test_executive_allows_test_generator_under_temporal_obligation(service_container):
+    reset_constitutional_singletons()
+    clear_degraded_events()
+    ServiceContainer.register_instance("self_model", object(), required=False)
+    state = AuraState()
+    state.cognition.current_objective = "Protect continuity"
+    state.cognition.pending_initiatives = [{"goal": "Investigate anomaly"}]
+    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.lock_registration()
+
+    executive = executive_core_module.get_executive_core()
+    intent, record = await executive.prepare_tool_intent(
+        "test_generator",
+        {"target_file": "core/autonomous_initiative_loop.py"},
+        source="autonomous",
+    )
+
+    assert intent.source == executive_core_module.IntentSource.AUTONOMOUS
+    assert record.outcome == executive_core_module.DecisionOutcome.DEGRADED
+    assert record.reason == "temporal_safe_autonomous_tool"
+    assert record.constraints["read_only"] is True
+
+
+@pytest.mark.asyncio
+async def test_executive_allows_proposal_only_self_evolution_under_temporal_obligation(service_container):
+    reset_constitutional_singletons()
+    clear_degraded_events()
+    ServiceContainer.register_instance("self_model", object(), required=False)
+    state = AuraState()
+    state.cognition.current_objective = "Protect continuity"
+    state.cognition.pending_initiatives = [{"goal": "Investigate anomaly"}]
+    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.lock_registration()
+
+    executive = executive_core_module.get_executive_core()
+    intent, record = await executive.prepare_tool_intent(
+        "self_evolution",
+        {"action": "propose", "objective": "Draft a safe refactor plan."},
+        source="autonomous",
+    )
+
+    assert intent.source == executive_core_module.IntentSource.AUTONOMOUS
+    assert record.outcome == executive_core_module.DecisionOutcome.DEGRADED
+    assert record.reason == "temporal_safe_autonomous_tool"
+    assert record.constraints["read_only"] is True
+
+
+@pytest.mark.asyncio
+async def test_executive_still_defers_live_apply_self_evolution_under_temporal_obligation(service_container):
+    reset_constitutional_singletons()
+    clear_degraded_events()
+    ServiceContainer.register_instance("self_model", object(), required=False)
+    state = AuraState()
+    state.cognition.current_objective = "Protect continuity"
+    state.cognition.pending_initiatives = [{"goal": "Investigate anomaly"}]
+    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.lock_registration()
+
+    executive = executive_core_module.get_executive_core()
+    intent, record = await executive.prepare_tool_intent(
+        "self_evolution",
+        {"action": "apply", "objective": "Rewrite the orchestrator."},
+        source="autonomous",
+    )
+
+    assert intent.source == executive_core_module.IntentSource.AUTONOMOUS
+    assert record.outcome == executive_core_module.DecisionOutcome.DEFERRED
+    assert record.reason.startswith("temporal_obligation_active:")
+
+
+@pytest.mark.asyncio
 async def test_executive_unifies_failure_pressure_into_global_block(service_container):
     reset_constitutional_singletons()
     clear_degraded_events()

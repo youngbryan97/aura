@@ -10,6 +10,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from core.utils.intent_normalization import normalize_memory_intent_text
+
 logger = logging.getLogger("Aura.CapabilityMap")
 
 
@@ -227,8 +229,8 @@ class CapabilityMap:
 
         """
         triggered: list[str] = []
-        message_lower = message.lower()
-        
+        message_lower = normalize_memory_intent_text(message)
+
         for name, cap in self.capabilities.items():
             if not cap.is_online:
                 continue

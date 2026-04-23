@@ -44,12 +44,13 @@ class ScratchpadEngine(AuraBaseModule):
             )
             
             from core.brain.cognitive_engine import ThinkingMode
+            plan_mode = ThinkingMode.DEEP if depth > 1 else ThinkingMode.SLOW
             
             # Step 1: Draft
             draft = await self.cognitive_engine.think(
                 objective=plan_prompt,
                 context=context,
-                mode=ThinkingMode.FAST
+                mode=plan_mode
             )
             inner_monologue = f"[Plan] {draft.content}"
             
@@ -63,7 +64,7 @@ class ScratchpadEngine(AuraBaseModule):
                 refinement = await self.cognitive_engine.think(
                     objective=critique_prompt,
                     context=context,
-                    mode=ThinkingMode.FAST
+                    mode=ThinkingMode.REFLECTIVE
                 )
                 inner_monologue = refinement.content
                 self.logger.debug("Scratchpad Refinement %d complete.", i+1)

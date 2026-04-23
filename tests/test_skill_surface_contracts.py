@@ -338,6 +338,46 @@ async def test_test_generator_falls_back_to_deterministic_smoke_without_brain(mo
 
 
 @pytest.mark.asyncio
+async def test_test_generator_read_only_avoids_writing_into_repo(monkeypatch, tmp_path: Path):
+    _disable_governance(monkeypatch)
+    target = tmp_path / "sample_module.py"
+    target.write_text(
+        "def square(value: int) -> int:\n"
+        "    return value * value\n",
+        encoding="utf-8",
+    )
+
+    skill = TestGeneratorSkill(brain=None)
+    result = await skill.safe_execute({"target_file": str(target)}, {"read_only": True})
+
+    assert result["ok"] is True
+    assert Path(result["test_file"]).exists()
+    assert not (target.parent / f"test_{target.name}").exists()
+
+
+@pytest.mark.asyncio
+async def test_self_evolution_propose_read_only_skips_proposal_file(monkeypatch, tmp_path: Path):
+    _disable_governance(monkeypatch)
+    evolution_dir = tmp_path / "evolution"
+    monkeypatch.setattr(
+        SelfEvolutionSkill,
+        "_evolution_dir",
+        staticmethod(lambda: evolution_dir),
+    )
+
+    skill = SelfEvolutionSkill()
+    result = await skill.safe_execute(
+        {"action": "propose", "objective": "Draft a safe refactor plan."},
+        {"read_only": True},
+    )
+
+    assert result["ok"] is True
+    assert result["read_only"] is True
+    assert result.get("proposal_path") in (None, "")
+    assert not list(evolution_dir.glob("evolution_proposal_*.md"))
+
+
+@pytest.mark.asyncio
 async def test_toggle_senses_uses_subprocess_runner_without_local_sandbox(monkeypatch, tmp_path: Path):
     _disable_governance(monkeypatch)
 

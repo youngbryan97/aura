@@ -164,6 +164,7 @@ TEMPORAL_SAFE_AUTONOMOUS_TOOLS = {
     "environment_info",
     "query_beliefs",
     "system_proprioception",
+    "test_generator",
     "web_search",
     "sovereign_browser",
     "sovereign_network",
@@ -364,6 +365,10 @@ class ExecutiveCore:
         if tool_name == "auto_refactor":
             args = intent.payload.get("args", {}) or {}
             return not bool(args.get("run_tests"))
+        if tool_name == "self_evolution":
+            args = intent.payload.get("args", {}) or {}
+            action = str(args.get("action") or "propose").strip().lower()
+            return action in {"", "propose"}
         if tool_name == "memory_ops":
             args = intent.payload.get("args", {}) or {}
             action = str(args.get("action") or args.get("mode") or "").strip().lower()

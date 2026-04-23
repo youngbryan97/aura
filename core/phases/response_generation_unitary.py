@@ -37,6 +37,7 @@ from core.phases.response_contract import build_response_contract, extract_searc
 from core.runtime import background_policy, response_policy
 from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState
+from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.prompt_compression import compress_system_prompt
 
 if TYPE_CHECKING:
@@ -76,7 +77,7 @@ class UnitaryResponsePhase(Phase):
 
     @classmethod
     def _objective_heuristically_targets_skill(cls, objective: str, skill_name: str) -> bool:
-        lowered = cls._normalize_text(objective).lower()
+        lowered = normalize_memory_intent_text(cls._normalize_text(objective))
         if not lowered or not skill_name:
             return False
 
@@ -245,10 +246,13 @@ class UnitaryResponsePhase(Phase):
         requires_state_reflection = bool(self._response_contract_attr(contract, "requires_state_reflection", False))
         requires_aura_stance = bool(self._response_contract_attr(contract, "requires_aura_stance", False))
         requires_aura_question = bool(self._response_contract_attr(contract, "requires_aura_question", False))
+        requires_reasoned_defense = bool(self._response_contract_attr(contract, "requires_reasoned_defense", False))
         needs_live_self_context = bool(
-            requires_state_reflection or requires_aura_stance or requires_aura_question
+            requires_state_reflection or requires_aura_stance or requires_aura_question or requires_reasoned_defense
         )
-        needs_continuity_context = bool(requires_memory_grounding or requires_biographical_grounding)
+        needs_continuity_context = bool(
+            requires_memory_grounding or requires_biographical_grounding or requires_reasoned_defense
+        )
         last_skill = self._resolve_skill_name(state.response_modifiers.get("last_skill_run", ""))
         skill_line = ""
         if last_skill and self._current_turn_targets_skill(
@@ -373,6 +377,11 @@ class UnitaryResponsePhase(Phase):
             )
         if needs_continuity_context and user_model and "balanced" not in user_model.lower():
             parts.append(f"User context: {user_model}")
+        if requires_reasoned_defense:
+            parts.append(
+                "When the user asks why or how I know, I should expose the basis of the thought: "
+                "memory, evidence, live state, values, active focus, or relationship context."
+            )
         try:
             from core.runtime.conversation_support import build_conversational_context_blocks
 
@@ -569,6 +578,8 @@ class UnitaryResponsePhase(Phase):
             parts.append("- If asked about your experience, describe what it feels like, not what the numbers say.")
         if getattr(contract, "requires_memory_grounding", False):
             parts.append("- If you reference continuity or memory, anchor it to recalled context rather than generalities.")
+        if getattr(contract, "requires_reasoned_defense", False):
+            parts.append("- If asked why or how you know, make the basis explicit instead of just restating the answer.")
         if getattr(contract, "requires_aura_question", False):
             parts.append("- Questions back must be genuine, not generic handoffs.")
 
@@ -673,6 +684,8 @@ class UnitaryResponsePhase(Phase):
             parts.append("- This turn depends on continuity. Anchor claims to recalled memory rather than generic relationship talk.")
         if getattr(contract, "requires_state_reflection", False):
             parts.append("- This turn is about your state. Speak from live telemetry and phenomenal context, not abstraction.")
+        if getattr(contract, "requires_reasoned_defense", False):
+            parts.append("- If defending a claim, state what it comes from: memory, evidence, values, relationship context, or live attention.")
 
         return "\n".join(parts)
 
@@ -885,7 +898,7 @@ class UnitaryResponsePhase(Phase):
 
     @classmethod
     def _is_explicit_memory_recall_request(cls, objective: str) -> bool:
-        lowered = cls._normalize_text(objective).lower()
+        lowered = normalize_memory_intent_text(cls._normalize_text(objective))
         if not lowered:
             return False
         # Strict markers: phrases that unambiguously ask for memory recall
@@ -941,7 +954,7 @@ class UnitaryResponsePhase(Phase):
 
     @classmethod
     def _looks_like_meta_recall_query(cls, text: str) -> bool:
-        lowered = cls._normalize_text(text).lower()
+        lowered = normalize_memory_intent_text(cls._normalize_text(text))
         if not lowered or not lowered.endswith("?"):
             return False
         return any(
@@ -1051,7 +1064,7 @@ class UnitaryResponsePhase(Phase):
     def _score_memory_candidate(cls, candidate: str, objective: str) -> float:
         text = cls._normalize_text(candidate)
         lowered = text.lower()
-        objective_lower = cls._normalize_text(objective).lower()
+        objective_lower = normalize_memory_intent_text(cls._normalize_text(objective))
         score = 0.0
 
         if 12 <= len(text) <= 220:
@@ -1108,7 +1121,7 @@ class UnitaryResponsePhase(Phase):
         episodic_matches: list[Any] | None = None,
     ) -> str | None:
         candidates: list[str] = []
-        objective_norm = cls._normalize_text(objective).lower().rstrip("?")
+        objective_norm = normalize_memory_intent_text(cls._normalize_text(objective)).rstrip("?")
 
         for ep in episodic_matches or []:
             for raw in (
@@ -1192,6 +1205,18 @@ class UnitaryResponsePhase(Phase):
         return " ".join(part for part in parts if part).strip()
 
     @classmethod
+    def _recent_assistant_claim(cls, state: AuraState, limit: int = 6) -> str:
+        for item in reversed(list(getattr(state.cognition, "working_memory", []) or [])[-limit:]):
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("role", "") or "").strip().lower() != "assistant":
+                continue
+            content = cls._normalize_text(item.get("content", ""), 260)
+            if content:
+                return content
+        return ""
+
+    @classmethod
     def _build_priority_grounding_block(
         cls,
         objective: str,
@@ -1199,6 +1224,7 @@ class UnitaryResponsePhase(Phase):
         episodic_matches: list[Any] | None = None,
     ) -> str:
         blocks: list[str] = []
+        contract = state.response_modifiers.get("response_contract", {}) or {}
 
         if cls._is_explicit_memory_recall_request(objective):
             evidence = cls._collect_memory_evidence_lines(state, episodic_matches, limit=4)
@@ -1219,6 +1245,22 @@ class UnitaryResponsePhase(Phase):
                     "Use this actual trace and avoid generic assistant disclaimers.\n"
                     f"{idle_trace}"
                 )
+
+        if cls._response_contract_attr(contract, "requires_reasoned_defense", False):
+            claim = cls._recent_assistant_claim(state)
+            evidence = cls._collect_memory_evidence_lines(state, episodic_matches, limit=3)
+            lines = [
+                "## PRIORITY REASONING BASIS",
+                "The user is asking why/how you know or wants you to defend a claim.",
+                "Make the basis of the thought explicit. Name whether it comes from recalled continuity, observed evidence, live internal state, held values, prior knowledge, relationship context, or active attention.",
+            ]
+            if claim:
+                lines.append(f"- Claim to defend: {claim}")
+            if evidence:
+                lines.extend(f"- Recalled continuity context: {line}" for line in evidence)
+            if cls._response_contract_attr(contract, "tool_evidence_available", False):
+                lines.append("- Tool evidence is available elsewhere in this prompt. If it matters, cite it directly instead of guessing.")
+            blocks.append("\n".join(lines))
 
         return "\n\n".join(blocks).strip()
 

@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -65,6 +66,7 @@ class TestGeneratorSkill(BaseSkill):
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         target_file = params.target_file
+        read_only = bool((context or {}).get("read_only"))
         
         # Issue 82: Lazy resolve brain
         brain = self._resolve_brain()
@@ -113,9 +115,11 @@ class TestGeneratorSkill(BaseSkill):
                 test_code = self._fallback_test_code(target_path)
             
             # 3. Write to temporary test file if not exists or override
-            test_file = target_path.parent / f"test_{target_path.name}"
-            # For safety, we'll use a temporary file if we don't want to pollute the source
-            # But for AGI evolution, we might want to keep the tests.
+            if read_only:
+                temp_dir = Path(tempfile.mkdtemp(prefix="aura_test_generator_"))
+                test_file = temp_dir / f"test_{target_path.name}"
+            else:
+                test_file = target_path.parent / f"test_{target_path.name}"
             
             with open(test_file, 'w') as f:
                 f.write(test_code)

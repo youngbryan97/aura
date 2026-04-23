@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
+from core.utils.intent_normalization import normalize_memory_intent_text
+
 
 _CLASSIFIER_INPUT = re.compile(
     r"\binput:\s*(.+?)(?:\n\s*(?:classification|respond only|output only)\b|\Z)",
@@ -167,7 +169,7 @@ def canonical_turn_text(text: str) -> str:
     match = _CLASSIFIER_INPUT.search(raw)
     if match:
         raw = match.group(1).strip()
-    return " ".join(raw.split())
+    return normalize_memory_intent_text(raw)
 
 
 @dataclass(frozen=True)

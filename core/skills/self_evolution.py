@@ -197,6 +197,7 @@ class SelfEvolutionSkill(BaseSkill):
 
     async def execute(self, params: EvolutionInput, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute self-evolution loop."""
+        context = context or {}
         if isinstance(params, dict):
             try:
                 params = EvolutionInput(**params)
@@ -205,6 +206,7 @@ class SelfEvolutionSkill(BaseSkill):
 
         action = params.action
         objective = params.objective
+        read_only = bool(context.get("read_only"))
 
         if action == "scramble":
             return self._perform_scrambling()
@@ -253,6 +255,12 @@ class SelfEvolutionSkill(BaseSkill):
             )
 
         if action == "apply":
+            if read_only:
+                return {
+                    "ok": False,
+                    "error": "Read-only execution cannot apply live self-evolution changes.",
+                    "read_only": True,
+                }
             if not brain:
                 return {
                     "ok": False,
@@ -263,6 +271,15 @@ class SelfEvolutionSkill(BaseSkill):
             return await self._apply_evolution(objective, params.files, brain, context)
 
         # 3. PROPOSE
+        if read_only:
+            return {
+                "ok": True,
+                "summary": "Proposal drafted in read-only mode.",
+                "results": proposal[:self.MAX_PREVIEW],
+                "fallback": bool(fallback_reason),
+                "read_only": True,
+            }
+
         timestamp = int(time.time())
         filename = f"evolution_proposal_{timestamp}.md"
         filepath = self._evolution_dir() / filename

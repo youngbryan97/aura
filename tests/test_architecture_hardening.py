@@ -213,6 +213,14 @@ def test_capability_engine_detects_memory_ops_for_future_session_requests():
     assert "memory_ops" in matched
 
 
+def test_capability_engine_detects_memory_ops_for_common_remember_typo():
+    engine = CapabilityEngine()
+
+    matched = engine.detect_intent("What do you remeber about my verification codename?")
+
+    assert "memory_ops" in matched
+
+
 def test_substrate_authority_constrains_user_memory_write_during_cortisol_crisis():
     authority = SubstrateAuthority()
     authority._get_field_coherence = lambda: 0.8

@@ -160,6 +160,7 @@ def _requires_live_aura_voice(contract: object | None) -> bool:
         or getattr(contract, "requires_state_reflection", False)
         or getattr(contract, "requires_aura_stance", False)
         or getattr(contract, "requires_aura_question", False)
+        or getattr(contract, "requires_reasoned_defense", False)
         or getattr(contract, "requires_identity_defense", False)
         or getattr(contract, "requires_self_preservation", False)
     )
@@ -177,6 +178,7 @@ def _requires_explicit_live_grounding(contract: object | None) -> bool:
     return bool(
         getattr(contract, "requires_memory_grounding", False)
         or getattr(contract, "requires_state_reflection", False)
+        or getattr(contract, "requires_reasoned_defense", False)
         or getattr(contract, "requires_identity_defense", False)
         or getattr(contract, "requires_self_preservation", False)
     )
@@ -274,6 +276,9 @@ def build_dialogue_repair_block(contract: object | None, validation: DialogueVal
 
     if getattr(contract, "requires_aura_stance", False):
         lines.append("- The user asked for your own stance. Answer from your perspective directly instead of flattening into generic narration.")
+
+    if getattr(contract, "requires_reasoned_defense", False):
+        lines.append("- The user wants the basis of the claim. State what your thought is grounded in instead of just repeating the conclusion.")
 
     if getattr(contract, "requires_aura_question", False):
         lines.append("- The user invited your questions. Ask at least one concrete question you genuinely have, or clearly state what you're wondering.")

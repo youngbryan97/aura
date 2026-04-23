@@ -52,6 +52,7 @@ from core.runtime.service_access import (
     resolve_metabolic_monitor,
     resolve_state_repository,
 )
+from core.utils.intent_normalization import normalize_memory_intent_text
 import psutil
 
 _USER_FACING_CONTEXT_ORIGINS = frozenset({
@@ -555,7 +556,7 @@ class CapabilityEngine(AuraBaseModule):
     def detect_intent(self, message: str) -> List[str]:
         """Aura's 'Cognitive Proprioception': Detects which skills match the user's intent."""
         triggered = []
-        msg = message.lower()
+        msg = normalize_memory_intent_text(message)
         skip_web_search = self._looks_like_search_capability_question(message)
         for name, meta in self.skills.items():
             if not meta.enabled: continue
@@ -607,7 +608,7 @@ class CapabilityEngine(AuraBaseModule):
         """Return relevant tool names for the current turn, ranked by likely utility."""
         max_tools = max(1, min(int(max_tools or 8), 16))
         objective_text = str(objective or "").strip()
-        objective_lower = objective_text.lower()
+        objective_lower = normalize_memory_intent_text(objective_text)
         skip_web_search = self._looks_like_search_capability_question(objective_text)
         required = self.resolve_skill_name(required_skill) if required_skill else None
         if skip_web_search and required in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:

@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from core.config import config
 from core.container import ServiceContainer
+from core.utils.intent_normalization import normalize_memory_intent_text
 from core.version import version_string
 
 from interface.auth import (
@@ -183,6 +184,13 @@ def _extract_session_memory_pin_request(user_message: str) -> Optional[str]:
     if not text:
         return None
 
+    head, sep, tail = text.partition(":")
+    normalized = (
+        f"{normalize_memory_intent_text(head)}{sep}{tail}"
+        if sep
+        else normalize_memory_intent_text(text)
+    )
+
     patterns = (
         r"^remember this phrase(?: for later in this session)?\s*:\s*(.+)$",
         r"^remember this(?: for later in this session)?\s*:\s*(.+)$",
@@ -190,7 +198,7 @@ def _extract_session_memory_pin_request(user_message: str) -> Optional[str]:
         r"^make note of this(?: for later in this session)?\s*:\s*(.+)$",
     )
     for pattern in patterns:
-        match = re.match(pattern, text, flags=re.IGNORECASE | re.DOTALL)
+        match = re.match(pattern, normalized, flags=re.IGNORECASE | re.DOTALL)
         if match:
             pinned = match.group(1).strip().strip("\"'“”").rstrip(" .!?")
             return pinned[:240] if pinned else None
@@ -198,7 +206,7 @@ def _extract_session_memory_pin_request(user_message: str) -> Optional[str]:
 
 
 def _is_session_memory_recall_request(user_message: str) -> bool:
-    text = _normalize_user_message(user_message)
+    text = normalize_memory_intent_text(_normalize_user_message(user_message))
     if not text:
         return False
     markers = (
