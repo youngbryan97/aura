@@ -219,7 +219,9 @@ class StabilityGuardian:
                     {
                         "timestamp": timestamp,
                         "duration_ms": duration_ms,
+                        "priority": priority_tick,
                         "priority_tick": priority_tick,
+                        "user_facing": priority_tick,
                     }
                 )
         return legacy_samples
