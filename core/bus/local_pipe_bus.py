@@ -38,14 +38,14 @@ class LocalPipeBus:
                  connection: Any = None):
         self.is_child = is_child
         self.start_reader = start_reader
-        self._shared_connection = False
         
         if self._is_connection_pair(connection):
             self.read_conn, self.write_conn = connection
         elif connection is not None:
-            self.read_conn = connection
-            self.write_conn = connection
-            self._shared_connection = True
+            raise ValueError(
+                "LocalPipeBus requires an explicit (read_conn, write_conn) transport pair; "
+                "shared single-connection compatibility is no longer supported."
+            )
         elif read_conn is not None and write_conn is not None:
             self.read_conn = read_conn
             self.write_conn = write_conn
@@ -149,7 +149,7 @@ class LocalPipeBus:
             except Exception as e:
                 logger.error("📡 LocalPipeBus: Dispatcher stop error: %s", e)
         self._cleanup_expired_shm_segments(force=True)
-        if self._shared_connection:
+        if self.read_conn is self.write_conn:
             self._safe_close_connection(self.read_conn)
         else:
             self._safe_close_connection(self.read_conn)

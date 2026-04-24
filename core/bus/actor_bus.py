@@ -41,6 +41,13 @@ class ActorBus:
         if connection is None:
             logger.warning("📡 Refusing to register actor '%s' without a live transport.", name)
             return False
+        if not LocalPipeBus._is_connection_pair(connection):
+            logger.warning(
+                "📡 Refusing to register actor '%s' with legacy shared transport; "
+                "expected an explicit (read_conn, write_conn) pair.",
+                name,
+            )
+            return False
         transport = LocalPipeBus(is_child=is_child, connection=connection)
         try:
             from core.container import ServiceContainer

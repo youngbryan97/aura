@@ -6,8 +6,7 @@ Phase B: Critical runtime breakers
 
 ## Current Milestone
 
-Milestone B1: patch the first critical runtime-breaker cluster and leave the
-repo in a coherent, tested state.
+Milestone B2: watchdog / launch-surface / supervisor hardening.
 
 ## Files Changed
 
@@ -15,129 +14,126 @@ repo in a coherent, tested state.
 - `docs/AURA_EXECUTION_TRACKER.md`
 - `docs/AURA_RISK_REGISTER.md`
 - `docs/AURA_TEST_COMMANDS.md`
-- `infrastructure/base_skill.py`
-- `core/skills/base_skill.py`
-- `core/capability_engine.py`
-- `core/orchestrator/mixins/incoming_logic.py`
-- `core/graceful_shutdown.py`
-- `core/skills/file_operation.py`
-- `core/orchestrator/mixins/boot/boot_resilience.py`
-- `core/bus/local_pipe_bus.py`
+- `aura_main.py`
 - `core/bus/actor_bus.py`
+- `core/bus/local_pipe_bus.py`
+- `core/reaper.py`
+- `core/resilience/sovereign_watchdog.py`
 - `core/supervisor/tree.py`
-- `core/actors/sensory_gate.py`
-- `core/state/vault.py`
-- `core/orchestrator/main.py`
-- `tests/test_forensic_audit_regressions.py`
-- `tests/test_orchestrator_compatibility.py`
+- `scripts/one_off/launch_aura_3d.py`
+- `tests/test_launcher_polish_contract.py`
 - `tests/test_server_runtime_hardening.py`
+- `tests/test_time_resilience.py`
 
 ## Tests Added
 
-- `test_core_base_skill_preserves_error_dict_without_forcing_ok_true`
-- `test_legacy_base_skill_uses_to_thread_for_sync_execute_and_preserves_errors`
-- `test_filesystem_reality_shortcut_is_disabled_for_user_facing_requests`
-- `test_graceful_shutdown_signal_path_does_not_raise_system_exit`
-- `test_file_operation_no_longer_allows_desktop_agency_test_escape`
-- `test_sensory_gate_run_always_closes_browser_and_bus`
-- `test_local_pipe_bus_start_requires_running_event_loop`
-- `test_local_pipe_bus_stop_closes_shared_connection_once`
-- `test_local_pipe_bus_stop_closes_connection_pairs_independently`
-- `test_actor_bus_rejects_none_transport_without_registering_actor`
-- `test_start_state_vault_actor_strict_runtime_fails_when_handshake_never_succeeds`
-- `test_start_state_vault_actor_fallback_ping_supports_split_pipe_pairs`
+- `test_reaper_manifest_uses_shared_env_override`
+- `test_actor_health_gate_counts_only_distinct_miss_windows`
+- `test_watchdog_start_uses_task_tracker_ownership`
+- `test_watchdog_mode_remains_supervision_only`
+- `test_aura_main_routes_bootstrap_background_tasks_through_task_tracker`
+- `test_3d_launcher_uses_runtime_lock_instead_of_stale_state_timestamp`
+- `test_local_pipe_bus_rejects_legacy_shared_single_connection`
+- `test_actor_bus_rejects_legacy_single_connection_transport`
 
 ## Commands Run
 
-1. `pwd && rg --files -g 'AGENTS.md' -g 'AURA_MASTER_SPEC.md' -g 'ARCHITECTURE.md' -g 'HOW_IT_WORKS.md' -g 'TESTING.md' -g 'docs/**'`
-2. `git status --short`
-3. `ls -la`
-4. `rg --files | rg '(^|/)(AGENTS\\.md|AURA_MASTER_SPEC\\.md|RUNTIME_INVARIANTS\\.md|PRODUCTION_HARDENING_PLAN\\.md|SKILL_CERTIFICATION_MATRIX\\.md|DEPTH_AUDIT\\.md|ABUSE_GAUNTLET\\.md|FORMAL_VERIFICATION_PLAN\\.md|AURA_EXECUTION_PLAN\\.md|AURA_EXECUTION_TRACKER\\.md|AURA_RISK_REGISTER\\.md|AURA_TEST_COMMANDS\\.md)$'`
-5. `find .. -maxdepth 3 \\( -name 'AGENTS.md' -o -name 'AURA_MASTER_SPEC.md' -o -name 'RUNTIME_INVARIANTS.md' -o -name 'PRODUCTION_HARDENING_PLAN.md' -o -name 'SKILL_CERTIFICATION_MATRIX.md' -o -name 'DEPTH_AUDIT.md' -o -name 'ABUSE_GAUNTLET.md' -o -name 'FORMAL_VERIFICATION_PLAN.md' \\)`
-6. `find specs -maxdepth 2 -type f | sort`
-7. `find audit -maxdepth 3 -type f | sort`
-8. `sed -n '1,220p' ARCHITECTURE.md`
-9. `sed -n '1,240p' HOW_IT_WORKS.md`
-10. `sed -n '1,260p' TESTING.md`
-11. `sed -n '1,240p' specs/QUALITY_GATES.md`
-12. Targeted source/test inspection commands for:
-`infrastructure/base_skill.py`, `core/skills/base_skill.py`,
-`core/capability_engine.py`, `core/bus/local_pipe_bus.py`,
-`core/state/vault.py`, `core/actors/sensory_gate.py`,
-`core/graceful_shutdown.py`, `core/orchestrator/mixins/incoming_logic.py`,
-`core/skills/file_operation.py`, `core/orchestrator/mixins/boot/boot_resilience.py`,
-and related tests.
-13. `python -m pytest tests/test_orchestrator_compatibility.py -q`
-14. `python -m pytest tests/test_forensic_audit_regressions.py -q`
-15. `python -m pytest tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus"`
-16. `python -m pytest tests/test_runtime_stability_edges.py -q`
-17. `python -m pytest tests/test_controlled_complexity_runtime.py -q`
-18. `python -m pytest tests/test_effect_closure.py -q`
-19. `python -m pytest tests/test_skill_surface_contracts.py -q -k "safe_execute"`
-20. `python -m py_compile infrastructure/base_skill.py core/skills/base_skill.py core/capability_engine.py core/orchestrator/mixins/incoming_logic.py core/graceful_shutdown.py core/skills/file_operation.py core/orchestrator/mixins/boot/boot_resilience.py core/bus/local_pipe_bus.py core/bus/actor_bus.py core/actors/sensory_gate.py core/state/vault.py core/supervisor/tree.py core/orchestrator/main.py`
-21. `git status --short`
-22. `git diff --stat`
+1. `sed -n '1,220p' docs/AURA_EXECUTION_TRACKER.md`
+2. `sed -n '1,220p' docs/AURA_EXECUTION_PLAN.md`
+3. `sed -n '1,220p' docs/AURA_RISK_REGISTER.md`
+4. `sed -n '1,220p' docs/AURA_TEST_COMMANDS.md`
+5. `test -f AGENTS.md && sed -n '1,220p' AGENTS.md || echo 'AGENTS.md missing'`
+6. Targeted source inspection commands for:
+   `aura_main.py`, `core/supervisor/tree.py`, `core/utils/task_tracker.py`,
+   `core/reaper.py`, `scripts/one_off/launch_aura_3d.py`,
+   `core/resilience/sovereign_watchdog.py`,
+   `core/bus/local_pipe_bus.py`, and `core/bus/actor_bus.py`
+7. `git status --short && git diff --stat`
+8. `python -m pytest tests/test_orchestrator_compatibility.py -q tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus or state_repository or supervisor"`
+9. `python -m pytest tests/test_launcher_polish_contract.py -q tests/test_time_resilience.py -q`
+10. `python -m pytest tests/test_launcher_polish_contract.py tests/test_time_resilience.py`
+11. `python -m pytest tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus or state_repository or supervisor or actor_health_gate or reaper_manifest"`
+12. `python -m pytest tests/test_orchestrator_compatibility.py -q`
+13. `python -m pytest tests/test_runtime_stability_edges.py -q`
+14. `python -m py_compile aura_main.py core/reaper.py core/supervisor/tree.py core/resilience/sovereign_watchdog.py scripts/one_off/launch_aura_3d.py tests/test_server_runtime_hardening.py tests/test_launcher_polish_contract.py tests/test_time_resilience.py`
+15. `python -m py_compile core/bus/local_pipe_bus.py core/bus/actor_bus.py tests/test_server_runtime_hardening.py`
+16. `git status --short`
+17. `git diff --stat`
 
 ## Pass / Fail Results
 
-- `pwd` and repo discovery: pass
-- Requested master/docs spec lookup: fail, files are missing from repo
-- Source/read mapping for current milestone: pass
-- Baseline runtime fault surfaces identified in live code: pass
-- `tests/test_orchestrator_compatibility.py -q`: pass (`8 passed`)
-- `tests/test_forensic_audit_regressions.py -q`: pass (`38 passed`)
-- `tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus"`:
-  pass (`6 passed, 60 deselected`)
-- `tests/test_runtime_stability_edges.py -q`: pass (`19 passed, 1 subtests passed`)
-- `tests/test_controlled_complexity_runtime.py -q`: pass (`11 passed`)
-- `tests/test_effect_closure.py -q`: pass (`9 passed`)
-- `tests/test_skill_surface_contracts.py -q -k "safe_execute"`:
-  pass (`56 passed, 9 deselected`)
-- `python -m py_compile ...`: pass
+- `AGENTS.md` lookup: fail (`AGENTS.md` is missing from repo)
+- current git diff verification: pass (only pre-existing non-mission dirty file before edits was `.aura/memfs/user.txt`)
+- current failing-test check for the B2 slice: pass (no failures observed in the focused runtime/launcher slices)
+- `python -m pytest tests/test_launcher_polish_contract.py tests/test_time_resilience.py`:
+  pass (`13 passed`)
+- `python -m pytest tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus or state_repository or supervisor or actor_health_gate or reaper_manifest"`:
+  pass (`22 passed, 47 deselected`)
+- `python -m pytest tests/test_orchestrator_compatibility.py -q`:
+  pass (`8 passed`)
+- `python -m pytest tests/test_runtime_stability_edges.py -q`:
+  pass (`19 passed, 1 subtests passed`)
+- `python -m py_compile ...` for touched launcher/supervisor/reaper/bus files:
+  pass
 
 ## Unresolved Failures
 
-1. Required mission docs are missing from the repository.
-2. Remaining runtime/lifecycle audit items still open outside this milestone:
-   watchdog duplicate-runtime ownership, 3D launcher stale lock heuristic,
-   broader supervisor invariants, remaining unowned background tasks, and
-   full runtime singularity across launch surfaces.
-3. Legacy single-connection `LocalPipeBus(connection=conn)` compatibility still
-   exists for non-upgraded callers; supervised actor paths were moved to split
-   pipe pairs, but the legacy fallback surface still needs elimination.
+1. Required mission docs are still missing from the repository:
+   `AGENTS.md`, `AURA_MASTER_SPEC.md`, `docs/AURA_MASTER_SPEC.md`,
+   `docs/RUNTIME_INVARIANTS.md`, `docs/PRODUCTION_HARDENING_PLAN.md`,
+   `docs/SKILL_CERTIFICATION_MATRIX.md`, `docs/DEPTH_AUDIT.md`,
+   `docs/ABUSE_GAUNTLET.md`, `docs/FORMAL_VERIFICATION_PLAN.md`.
+2. Runtime singularity is improved but not yet fully canonicalized across every
+   boot surface; CLI/server/desktop ownership still needs a stricter shared
+   boot/service-manifest contract.
+3. Codebase-wide background-task ownership is still incomplete outside the
+   launcher/watchdog slice.
+4. The newly requested Chrome-polish / perception / social / formal-verification
+   modules are recorded in the plan, but correctly deferred until earlier
+   runtime-invariant phases are complete.
 
 ## Next Exact Task
 
-Start Milestone B2: continue the actor/boot/runtime-singularity cluster by
-auditing watchdog ownership, launcher duplication, supervisor health semantics,
-and the remaining unowned background task surfaces.
+Start Milestone B3: remove remaining high-risk runtime breaker surfaces before
+Phase C by auditing the broader `asyncio.create_task` spread, tightening
+canonical boot/service-manifest ownership across CLI/server/desktop paths, and
+extending strict fail-closed readiness checks beyond `StateVault`.
 
 ## Next Exact Continuation Prompt
 
 Continue Aura production hardening from `docs/AURA_EXECUTION_TRACKER.md`.
-Milestone B1 is complete. Begin Milestone B2 and focus on the remaining
-actor/runtime lifecycle audit items: watchdog duplicate runtime ownership,
-launcher/runtime singularity, supervisor health semantics, remaining
-`asyncio.create_task` ownership gaps, and removing the last legacy shared-conn
-`LocalPipeBus` compatibility paths. Keep the tracker updated before any stop.
+Milestone B2 is complete. Begin Milestone B3 and focus on the remaining
+critical runtime-breaker surfaces: the broader `asyncio.create_task` ownership
+sweep outside launcher/watchdog, canonical boot/service-manifest ownership
+across CLI/server/desktop surfaces, and additional strict fail-closed readiness
+checks for critical services beyond `StateVault`. Keep the tracker updated
+before any stop.
 
 ## Exact Stopping Point
 
-Stopped after completing Milestone B1 and rerunning the focused runtime slices.
-The repo is coherent, the new regressions are green, and the next work item is
-the B2 actor/runtime lifecycle cluster.
+Stopped after completing the watchdog / launcher / supervisor hardening slice
+and an immediate B3 follow-up that removes the last legacy shared single-
+connection `LocalPipeBus` compatibility path. The repo is coherent and the
+focused launcher/supervisor/runtime regression slices are green.
 
 ## Current Known Failures
 
-- Missing requested spec docs listed in mission prompt.
-- Remaining launch/runtime singularity issues are not yet addressed.
-- Remaining watchdog and actor-supervision proof harnesses are not yet added.
-- Remaining codebase-wide `create_task` ownership sweep is not yet complete.
+- Missing requested mission docs listed in the prompt.
+- Broader launch-surface canonicalization is not yet complete.
+- Broader codebase `create_task` ownership sweep is not yet complete.
+- Additional strict-mode readiness probes for critical services beyond
+  `StateVault` are not yet implemented.
 
 ## Current Git Diff Summary
 
 - Pre-existing dirty file not owned by this mission:
   `.aura/memfs/user.txt`
-- Mission diff now includes docs plus the B1 runtime-breaker patch set across
-  skill execution, governance bypass removal, shutdown semantics, file tool
-  policy, actor IPC/runtime ownership, and focused regressions.
+- Mission diff now includes:
+  - watchdog supervision-only mode
+  - launcher-only reaper/port ownership
+  - canonical reaper manifest path resolution
+  - task-tracker ownership for launcher/watchdog hot-path tasks
+  - supervisor missed-heartbeat window semantics and locking
+  - lock-based 3D launcher runtime detection
+  - removal of legacy shared single-connection `LocalPipeBus` compatibility
+  - focused launcher/supervisor/runtime regressions plus updated execution docs

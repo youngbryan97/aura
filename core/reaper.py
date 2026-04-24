@@ -14,18 +14,28 @@ import multiprocessing.shared_memory as shm_lib
 from pathlib import Path
 from typing import List, Dict, Any
 
-import tempfile
-# Standardized path for the reaper manifest
-REAPER_MANIFEST = Path(tempfile.gettempdir()) / "aura_reaper_manifest.json"
+REAPER_MANIFEST_ENV = "AURA_REAPER_MANIFEST"
+DEFAULT_REAPER_MANIFEST = Path("/tmp/aura_reaper_manifest.json")
 POLL_INTERVAL = 1.0  # seconds
 
 logger = logging.getLogger("Aura.Reaper")
 
+def resolve_reaper_manifest_path() -> Path:
+    """Resolve a single canonical manifest path for every runtime surface."""
+    raw_path = os.environ.get(REAPER_MANIFEST_ENV, "").strip()
+    if raw_path:
+        return Path(raw_path).expanduser()
+    return DEFAULT_REAPER_MANIFEST
+
+
+REAPER_MANIFEST = resolve_reaper_manifest_path()
+
+
 class ReaperManifest:
     """Tracks all resources the Reaper must clean up."""
 
-    def __init__(self, path: Path = REAPER_MANIFEST):
-        self.path = path
+    def __init__(self, path: Path | None = None):
+        self.path = Path(path) if path is not None else resolve_reaper_manifest_path()
         self._data: Dict[str, Any] = {"shm_names": [], "child_pids": [], "pipe_fds": []}
         self._load()
 

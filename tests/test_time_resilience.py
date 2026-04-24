@@ -48,5 +48,25 @@ class TestTimeResilience(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(elapsed, 10.0, "Elapsed should be 10.0s regardless of wall-clock jump")
                 self.assertLess(elapsed, 30.0, "Watchdog should NOT trigger recovery")
 
+    async def test_watchdog_start_uses_task_tracker_ownership(self):
+        """Verify watchdog background loop is lifecycle-owned by the task tracker."""
+        tracker_calls = {}
+
+        class _Tracker:
+            def create_task(self, coro, name=None):
+                task = asyncio.create_task(coro, name=name)
+                tracker_calls["name"] = name
+                tracker_calls["task"] = task
+                return task
+
+        mock_orch = MagicMock()
+        watchdog = SovereignWatchdog(mock_orch, interval=3600.0, timeout=30.0)
+
+        with patch("core.resilience.sovereign_watchdog.get_task_tracker", return_value=_Tracker()):
+            await watchdog.start()
+            self.assertEqual(tracker_calls["name"], "sovereign_watchdog")
+            self.assertIs(watchdog._task, tracker_calls["task"])
+            await watchdog.stop()
+
 if __name__ == '__main__':
     unittest.main()

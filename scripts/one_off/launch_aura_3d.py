@@ -15,10 +15,33 @@ import os
 import sys
 import subprocess
 import logging
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Aura.3DLauncher")
+
+
+def _orchestrator_lock_path() -> Path:
+    return Path.home() / ".aura" / "locks" / "orchestrator.lock"
+
+
+def _primary_runtime_is_active() -> bool:
+    """Use the canonical runtime lock instead of stale state timestamps."""
+    lock_path = _orchestrator_lock_path()
+    if not lock_path.exists():
+        return False
+    try:
+        pid = int(lock_path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
 
 def check_mjpython():
     """Try to find mjpython in PATH or local .venv."""
@@ -58,17 +81,8 @@ def main():
     
     try:
         import asyncio
-        import time
-        from core.container import ServiceContainer
         from core.state.state_repository import StateRepository
         from core.soma.virtual_body import VirtualBody
-        
-        async def is_aura_running(repo):
-            """Check if another Aura instance is active via state timestamp."""
-            latest = await repo._load_latest()
-            if latest and (time.time() - latest.updated_at) < 10:
-                return True
-            return False
 
         async def sync_mode(repo, body):
             """Viewer-only mode: follow the primary Aura process."""
@@ -93,7 +107,7 @@ def main():
             # 2. Setup VirtualBody (Viewer only if syncing)
             body = VirtualBody(show_viewer=False) 
             
-            if await is_aura_running(repo):
+            if _primary_runtime_is_active():
                 # 3a. Sync Mode (Viewer only)
                 await sync_mode(repo, body)
             else:

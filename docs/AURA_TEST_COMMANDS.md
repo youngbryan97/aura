@@ -28,6 +28,25 @@ python -m pytest tests/test_effect_closure.py -q
 python -m pytest tests/test_skill_surface_contracts.py -q -k "safe_execute"
 ```
 
+## Launcher / Supervisor Slice
+
+For the watchdog / runtime-singularity / supervisor checkpoint:
+
+```bash
+python -m pytest tests/test_launcher_polish_contract.py tests/test_time_resilience.py
+python -m pytest tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus or state_repository or supervisor or actor_health_gate or reaper_manifest"
+python -m pytest tests/test_orchestrator_compatibility.py -q
+python -m pytest tests/test_runtime_stability_edges.py -q
+python -m py_compile \
+  aura_main.py \
+  core/bus/actor_bus.py \
+  core/bus/local_pipe_bus.py \
+  core/reaper.py \
+  core/resilience/sovereign_watchdog.py \
+  core/supervisor/tree.py \
+  scripts/one_off/launch_aura_3d.py
+```
+
 ## Import / Syntax Spot Checks
 
 ```bash

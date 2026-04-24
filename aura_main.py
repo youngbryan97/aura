@@ -307,6 +307,21 @@ def _launcher_python_executable() -> str:
     return sys.executable
 
 
+REAPER_MANIFEST_ENV = "AURA_REAPER_MANIFEST"
+DEFAULT_REAPER_MANIFEST = Path("/tmp/aura_reaper_manifest.json")
+
+
+def _ensure_reaper_manifest_env() -> Path:
+    """Force every launcher/process surface to share one manifest path."""
+    raw_path = os.environ.get(REAPER_MANIFEST_ENV, "").strip()
+    if raw_path:
+        manifest_path = Path(raw_path).expanduser()
+    else:
+        manifest_path = DEFAULT_REAPER_MANIFEST
+        os.environ[REAPER_MANIFEST_ENV] = str(manifest_path)
+    return manifest_path
+
+
 def _maybe_relaunch_with_preferred_python():
     if os.environ.get("AURA_SKIP_PREFERRED_PYTHON_RELAUNCH") == "1":
         return
@@ -340,6 +355,7 @@ async def bootstrap_aura(orchestrator: Any):
     from core.ops.resilient_boot import ResilientBoot
     from core.container import ServiceContainer
     from core.bus.actor_bus import create_actor_bus
+    from core.utils.task_tracker import get_task_tracker
     
     # Register core services early to satisfy boot dependencies
     supervisor = get_supervisor_tree()
@@ -352,6 +368,8 @@ async def bootstrap_aura(orchestrator: Any):
     # Explicitly link internal refs to ensure property lookups match initialized instances
     orchestrator._actor_bus = actor_bus
     orchestrator._supervisor_tree = supervisor
+    tracker = get_task_tracker()
+    tracker.install_loop_hygiene(asyncio.get_running_loop())
     
     boot = ResilientBoot(orchestrator)
     # [STABILITY] Wait for ignition to complete before proceeding
@@ -376,23 +394,25 @@ async def bootstrap_aura(orchestrator: Any):
         ServiceContainer.register_instance("memory_monitor", mem_monitor, required=False)
     except Exception as exc:
         logger.debug("Memory monitor registration skipped: %s", exc)
-    from core.utils.task_tracker import get_task_tracker
-    get_task_tracker().track_task(asyncio.create_task(mem_monitor.start()))
+    tracker.create_task(mem_monitor.start(), name="memory_monitor.start")
     
     logger.info("🛡️  Task Supervisor active (Memory monitoring enabled).")
 
     # Hot-Swap Bridge
+    runtime_loop = asyncio.get_running_loop()
+
     def _on_actor_restart(name: str, new_pipe: Any):
         logger.info("🔄 [HOTSWAP] Detected restart of %s. Re-binding IPC...", name)
-        actor_bus = ServiceContainer.get("actor_bus", default=None)
-        if actor_bus:
-            # We use the running loop to trigger the async update
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(actor_bus.update_actor(name, new_pipe))
-            except RuntimeError:
-                # Fallback if no loop in current thread
-                pass
+
+        def _schedule_rebind():
+            actor_bus = ServiceContainer.get("actor_bus", default=None)
+            if actor_bus:
+                tracker.create_task(
+                    actor_bus.update_actor(name, new_pipe),
+                    name=f"actor_bus.update_actor.{name}",
+                )
+
+        runtime_loop.call_soon_threadsafe(_schedule_rebind)
                 
     supervisor.set_restart_callback(_on_actor_restart)
 
@@ -490,8 +510,10 @@ async def run_desktop(port: int):
     from core.container import ServiceContainer
     from core.supervisor.tree import ActorSpec
     from interface.gui_actor import gui_actor_entry
+    from core.utils.task_tracker import get_task_tracker
     
     supervisor = get_supervisor_tree()
+    tracker = get_task_tracker()
     
     # 1. Start API Server (v21: Server now runs in Kernel)
     # [STABILITY] Start API immediately so port 8000 binds while brain thaws.
@@ -534,12 +556,12 @@ async def run_desktop(port: int):
         await orchestrator.start()
         if hasattr(orchestrator, "_ensure_inference_gate_ready"):
             await orchestrator._ensure_inference_gate_ready(context="server_boot")
-        asyncio.create_task(orchestrator.run(), name="OrchestratorMainLoop")
+        tracker.create_task(orchestrator.run(), name="OrchestratorMainLoop")
 
         # 2. Start API Server (v21: Server now runs in Kernel)
         # [STABILITY] Start API after brain is ready to ensure correct ServiceContainer lookups.
         logger.info("🎬 [DEBUG] Pre-starting API server mission...")
-        api_task = asyncio.create_task(_run_api_server(), name="api_server")
+        api_task = tracker.create_task(_run_api_server(), name="api_server")
         logger.info("🎬 [DEBUG] API server task created successfully.")
         
         # Wait for API server to be TRULY ready (HTTP 200)
@@ -587,8 +609,14 @@ async def run_desktop(port: int):
                                 content.append(decoded)
                         return "\n".join(content)
 
-                    out_task = asyncio.create_task(_stream_logger(proc.stdout, "DEBUG"))
-                    err_task = asyncio.create_task(_stream_logger(proc.stderr, "ERROR"))
+                    out_task = tracker.create_task(
+                        _stream_logger(proc.stdout, "DEBUG"),
+                        name="gui.stdout_stream",
+                    )
+                    err_task = tracker.create_task(
+                        _stream_logger(proc.stderr, "ERROR"),
+                        name="gui.stderr_stream",
+                    )
                     
                     # Watch for exit
                     while proc.returncode is None:
@@ -635,7 +663,7 @@ async def run_desktop(port: int):
                     logger.warning(f"🎨 Restarting GUI in 5s... (Attempt {restart_count}/{max_restarts})")
                     await asyncio.sleep(5.0)
 
-            asyncio.create_task(_gui_reaper_loop(), name="gui_reaper")
+            tracker.create_task(_gui_reaper_loop(), name="gui_reaper")
             pipe = None # Subprocess doesn't use the actor pipe
         else:
             # Linux/Others can still use the supervised actor
@@ -668,52 +696,49 @@ async def run_desktop(port: int):
 
 async def run_watchdog():
     """Stability Watchdog Loop (Async)."""
-    from core.orchestrator import create_orchestrator
-    orchestrator = create_orchestrator()
-    await bootstrap_aura(orchestrator)
-    await orchestrator.start()
-    
-    # Post-boot stabilization: Lock the final assembly
-    from core.container import ServiceContainer
-    ServiceContainer.lock_registration()
-    logger.info("🛡️ Registry Locked. Aura Ready (Watchdog).")
+    logger.info("🛡️ Watchdog supervisor active (supervision-only mode).")
 
     # Write watchdog PID so it can be stopped
+    lock_file = Path.home() / ".aura" / "locks" / "watchdog.lock"
     try:
-        lock_file = Path.home() / ".aura" / "locks" / "watchdog.lock"
         lock_file.parent.mkdir(parents=True, exist_ok=True)
         with open(lock_file, "w") as f:
             f.write(str(os.getpid()))
     except Exception:
         pass
-        
-    restart_count = 0
-    while restart_count < 10:
-        logger.info("🛡️  Watchdog: Launching Aura (Attempt %s)", restart_count+1)
-        start_time = time.time()
-        
-        # Use asyncio.create_subprocess_exec for non-blocking wait
-        proc = await asyncio.create_subprocess_exec(_launcher_python_executable(), __file__, "--cli")
-        await proc.wait()
-        
-        # Perplexity Audit Fix: Detect deterministic config errors (Exit 1)
-        if proc.returncode == 1:
-            logger.error("🛡️  Watchdog: Fatal configuration or security error (Code 1). Aborting restart loop.")
-            break
-
-        if proc.returncode == 0:
-            logger.info("Clean shutdown detected. Watchdog exiting.")
-            break
-
-        # If ran for > 10 mins, reset counter
-        if time.time() - start_time > 600:
-            restart_count = 0
+    try:
+        restart_count = 0
+        while restart_count < 10:
+            logger.info("🛡️  Watchdog: Launching Aura (Attempt %s)", restart_count+1)
+            start_time = time.time()
             
-        restart_count += 1
-        # Exponential backoff: 5, 10, 20, 40, 60...
-        delay = min(60, 5 * (2 ** max(0, restart_count - 1)))
-        logger.warning("Crash detected (Code: %s). Restarting in %ss...", proc.returncode, delay)
-        await asyncio.sleep(delay)
+            # Use asyncio.create_subprocess_exec for non-blocking wait
+            proc = await asyncio.create_subprocess_exec(_launcher_python_executable(), __file__, "--cli")
+            await proc.wait()
+            
+            # Perplexity Audit Fix: Detect deterministic config errors (Exit 1)
+            if proc.returncode == 1:
+                logger.error("🛡️  Watchdog: Fatal configuration or security error (Code 1). Aborting restart loop.")
+                break
+
+            if proc.returncode == 0:
+                logger.info("Clean shutdown detected. Watchdog exiting.")
+                break
+
+            # If ran for > 10 mins, reset counter
+            if time.time() - start_time > 600:
+                restart_count = 0
+                
+            restart_count += 1
+            # Exponential backoff: 5, 10, 20, 40, 60...
+            delay = min(60, 5 * (2 ** max(0, restart_count - 1)))
+            logger.warning("Crash detected (Code: %s). Restarting in %ss...", proc.returncode, delay)
+            await asyncio.sleep(delay)
+    finally:
+        try:
+            lock_file.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 # ---------------------------------------------------------------------------
 from core.utils.singleton import acquire_instance_lock, release_instance_lock
@@ -882,6 +907,7 @@ def stop_aura():
 
 def main():
     _maybe_relaunch_with_preferred_python()
+    reaper_manifest_path = _ensure_reaper_manifest_env()
 
     parser = argparse.ArgumentParser(description="Aura Unified Entry Point")
     parser.add_argument("--cli", action="store_true", help="Interactive Console Mode")
@@ -961,18 +987,18 @@ def main():
     # Only the lock owner is allowed to reclaim ports or spawn the reaper.
     # This prevents a second boot attempt from disrupting a healthy live Aura
     # instance before the singleton fence has a chance to reject it.
-    if not args.cli and not args.gui_window:
+    if not args.cli and not args.gui_window and not args.watchdog:
         logger.info("🧹 Pre-clearing known ports...")
         kill_port(args.port)
         kill_port(10003, pattern="aura")
 
     # SIGKILL Reaper Initialization
-    if not args.gui_window:
+    if not args.gui_window and not args.watchdog:
         try:
             from core.reaper import reaper_loop
             reaper_proc = multiprocessing.Process(
                 target=reaper_loop, 
-                args=(os.getpid(), Path("/tmp/aura_reaper_manifest.json")),
+                args=(os.getpid(), reaper_manifest_path),
                 daemon=True,
                 name="AuraReaper"
             )
@@ -999,7 +1025,9 @@ def main():
                 await orchestrator.start()
                 if hasattr(orchestrator, "_ensure_inference_gate_ready"):
                     await orchestrator._ensure_inference_gate_ready(context="server_boot")
-                asyncio.create_task(orchestrator.run(), name="OrchestratorMainLoop")
+                from core.utils.task_tracker import get_task_tracker
+
+                get_task_tracker().create_task(orchestrator.run(), name="OrchestratorMainLoop")
                 await run_server_async(host, args.port)
             asyncio.run(_run_server_with_bootstrap())
         elif args.desktop:

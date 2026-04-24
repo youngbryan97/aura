@@ -1,6 +1,7 @@
 import asyncio
 import errno
 import gc
+import importlib
 import json
 import os
 import subprocess
@@ -8,6 +9,7 @@ import sys
 import textwrap
 import time
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -65,6 +67,51 @@ async def test_memory_facade_add_and_query_memory_compat():
     assert len(result) == 1
     assert result[0]["text"] == "Journal line"
     assert result[0]["metadata"]["type"] == "narrative_journal"
+
+
+def test_reaper_manifest_uses_shared_env_override(monkeypatch):
+    monkeypatch.setenv("AURA_REAPER_MANIFEST", "/tmp/aura-test-reaper-manifest.json")
+
+    import core.reaper as reaper_module
+
+    reaper_module = importlib.reload(reaper_module)
+
+    assert reaper_module.resolve_reaper_manifest_path() == Path("/tmp/aura-test-reaper-manifest.json")
+    assert reaper_module.ReaperManifest().path == Path("/tmp/aura-test-reaper-manifest.json")
+
+
+def test_actor_health_gate_counts_only_distinct_miss_windows(monkeypatch):
+    from core.supervisor.tree import ActorHealthGate
+
+    current = {"t": 0.0}
+    monkeypatch.setattr("core.supervisor.tree.time.monotonic", lambda: current["t"])
+
+    gate = ActorHealthGate(grace_period=0.0, timeout=10.0)
+    gate.max_misses = 3
+    gate.record_heartbeat()
+
+    current["t"] = 10.1
+    assert gate.is_healthy() is True
+    assert gate.miss_count == 1
+
+    current["t"] = 15.0
+    assert gate.is_healthy() is True
+    assert gate.miss_count == 1
+
+    current["t"] = 20.1
+    assert gate.is_healthy() is True
+    assert gate.miss_count == 2
+
+    current["t"] = 30.1
+    assert gate.is_healthy() is True
+    assert gate.miss_count == 3
+
+    current["t"] = 40.1
+    assert gate.is_healthy() is False
+    assert gate.miss_count == 4
+
+    gate.record_heartbeat()
+    assert gate.miss_count == 0
 
 
 def test_affect_bridge_receive_qualia_echo_updates_kernel_state():
@@ -617,7 +664,7 @@ def test_local_pipe_bus_start_requires_running_event_loop():
 
 
 @pytest.mark.asyncio
-async def test_local_pipe_bus_stop_closes_shared_connection_once():
+async def test_local_pipe_bus_rejects_legacy_shared_single_connection():
     class _FakeConn:
         def __init__(self):
             self.closed = False
@@ -628,11 +675,8 @@ async def test_local_pipe_bus_stop_closes_shared_connection_once():
             self.closed = True
 
     conn = _FakeConn()
-    bus = LocalPipeBus(start_reader=False, connection=conn)
-
-    await bus.stop()
-
-    assert conn.close_calls == 1
+    with pytest.raises(ValueError, match="transport pair"):
+        LocalPipeBus(start_reader=False, connection=conn)
 
 
 @pytest.mark.asyncio
@@ -662,6 +706,18 @@ def test_actor_bus_rejects_none_transport_without_registering_actor():
 
     assert bus.add_actor("gui_window", None) is False
     assert bus.has_actor("gui_window") is False
+
+
+def test_actor_bus_rejects_legacy_single_connection_transport():
+    asyncio.run(ActorBus.reset_singleton())
+    bus = ActorBus()
+
+    class _FakeConn:
+        def close(self):
+            return None
+
+    assert bus.add_actor("legacy_actor", _FakeConn()) is False
+    assert bus.has_actor("legacy_actor") is False
 
 
 @pytest.mark.asyncio

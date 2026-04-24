@@ -5,6 +5,7 @@ import logging
 import signal
 import os
 import sys
+import threading
 from typing import Dict, Any, Callable, Optional, List
 from dataclasses import dataclass, field
 
@@ -36,27 +37,36 @@ class ActorHealthGate:
     Provides grace periods and miss thresholds for heartbeats.
     """
     def __init__(self, grace_period: float = 15.0, timeout: float = 10.0):
-        self.start_time = time.time()
-        self.last_heartbeat = time.time()
+        self.start_time = time.monotonic()
+        self.last_heartbeat = time.monotonic()
         self.grace_period = grace_period
         self.timeout = timeout
         self.miss_count = 0
         self.max_misses = 3
+        self._last_miss_window = -1
 
     def record_heartbeat(self):
-        self.last_heartbeat = time.time()
+        self.last_heartbeat = time.monotonic()
         self.miss_count = 0
+        self._last_miss_window = -1
 
     def is_healthy(self) -> bool:
-        now = time.time()
+        now = time.monotonic()
         # Grace period for boot
         if now - self.start_time < self.grace_period:
             return True
-        # Check timeout
-        if now - self.last_heartbeat > self.timeout:
+
+        overdue = now - self.last_heartbeat - self.timeout
+        if overdue <= 0:
+            self.miss_count = 0
+            self._last_miss_window = -1
+            return True
+
+        miss_window = int(overdue // self.timeout)
+        if miss_window != self._last_miss_window:
             self.miss_count += 1
-            return self.miss_count <= self.max_misses
-        return True
+            self._last_miss_window = miss_window
+        return self.miss_count <= self.max_misses
     
 @dataclass
 class ManagedActor:
@@ -80,22 +90,27 @@ class SupervisionTree:
         self._actors: Dict[str, ManagedActor] = {}
         self._is_running = False
         self._restart_callback: Optional[Callable[[str, Any], None]] = None
+        self._lock = threading.RLock()
 
     def set_restart_callback(self, callback: Callable[[str, Any], None]):
         """Set a callback for when an actor is restarted with a new pipe."""
-        self._restart_callback = callback
+        with self._lock:
+            self._restart_callback = callback
 
     def add_actor(self, spec: ActorSpec):
         """Register a new actor spec."""
-        self._actors[spec.name] = ManagedActor(spec=spec)
+        with self._lock:
+            self._actors[spec.name] = ManagedActor(spec=spec)
         logger.info(f"🛡️ Actor Registered for Supervision: {spec.name}")
 
     def is_actor_running(self, name: str) -> bool:
-        actor = self._actors.get(name)
+        with self._lock:
+            actor = self._actors.get(name)
         return bool(actor and actor.process and actor.process.is_alive())
 
     def get_actor_pipe(self, name: str):
-        actor = self._actors.get(name)
+        with self._lock:
+            actor = self._actors.get(name)
         return actor.pipe if actor else None
 
     def _close_pipe(self, pipe: Any) -> None:
@@ -115,27 +130,29 @@ class SupervisionTree:
 
     def record_activity(self, name: str):
         """Mark an actor as alive without directly reading from its IPC pipe."""
-        actor = self._actors.get(name)
-        if not actor:
-            return
-        if actor.health_gate is None:
-            actor.health_gate = ActorHealthGate(
-                grace_period=actor.spec.grace_period,
-                timeout=actor.spec.health_timeout,
-            )
-        actor.monitor_health = True
-        actor.health_gate.record_heartbeat()
+        with self._lock:
+            actor = self._actors.get(name)
+            if not actor:
+                return
+            if actor.health_gate is None:
+                actor.health_gate = ActorHealthGate(
+                    grace_period=actor.spec.grace_period,
+                    timeout=actor.spec.health_timeout,
+                )
+            actor.monitor_health = True
+            actor.health_gate.record_heartbeat()
 
     def start_actor(self, name: str):
         """Spin up a specific actor. Idempotent: returns existing pipe if already running."""
-        actor = self._actors.get(name)
-        if not actor:
-            raise ValueError(f"Unknown actor: {name}")
-            
-        # If already running, just return existing pipe
-        if actor.process and actor.process.is_alive():
-            logger.debug(f"🛡️ start_actor: {name} is already alive (PID: {actor.process.pid}). Returning existing pipe.")
-            return actor.pipe
+        with self._lock:
+            actor = self._actors.get(name)
+            if not actor:
+                raise ValueError(f"Unknown actor: {name}")
+
+            # If already running, just return existing pipe
+            if actor.process and actor.process.is_alive():
+                logger.debug(f"🛡️ start_actor: {name} is already alive (PID: {actor.process.pid}). Returning existing pipe.")
+                return actor.pipe
 
         import multiprocessing
         ctx = multiprocessing.get_context("spawn")
@@ -154,16 +171,17 @@ class SupervisionTree:
         proc.start()
         # PIPELINE HARDENING: Removed time.sleep(1.5) that was blocking the
         # event loop on every actor spawn. The OS handles memory without this.
-        actor.process = proc
-        actor.pipe = parent_pipe
-        actor.last_restart = time.time()
-        actor.is_circuit_broken = False
-        actor.health_gate = ActorHealthGate(
-            grace_period=actor.spec.grace_period,
-            timeout=actor.spec.health_timeout,
-        )
-        actor.health_gate.record_heartbeat()
-        
+        with self._lock:
+            actor.process = proc
+            actor.pipe = parent_pipe
+            actor.last_restart = time.time()
+            actor.is_circuit_broken = False
+            actor.health_gate = ActorHealthGate(
+                grace_period=actor.spec.grace_period,
+                timeout=actor.spec.health_timeout,
+            )
+            actor.health_gate.record_heartbeat()
+
         logger.info(f"🚀 Actor Started: {name} (PID: {proc.pid})")
         return parent_pipe
 
@@ -174,7 +192,8 @@ class SupervisionTree:
         up to 2s. We kill and let the OS reap. The process is daemon=True
         so it will be cleaned up on main process exit regardless.
         """
-        actor = self._actors.get(name)
+        with self._lock:
+            actor = self._actors.get(name)
         if actor and actor.process:
             logger.info(f"🛑 Stopping Actor: {name}")
             try:
@@ -183,8 +202,9 @@ class SupervisionTree:
                 logger.debug(f"Error stopping actor {name}: {e}")
             finally:
                 self._close_pipe(actor.pipe)
-                actor.process = None
-                actor.pipe = None
+                with self._lock:
+                    actor.process = None
+                    actor.pipe = None
 
     async def start(self):
         """Async entry point for Orchestrator bootstrap."""
@@ -223,7 +243,10 @@ class SupervisionTree:
     def _poll_health(self):
         """Check all actors and restart if needed."""
         now = time.time()
-        for name, actor in self._actors.items():
+        with self._lock:
+            actors = list(self._actors.items())
+
+        for name, actor in actors:
             if actor.is_circuit_broken:
                 continue
 
@@ -245,45 +268,52 @@ class SupervisionTree:
 
     def _handle_failure(self, name: str):
         """Apply restart policy with circuit breaker and backoff."""
-        actor = self._actors[name]
-        
-        # Mark process as gone
-        self._close_pipe(actor.pipe)
-        actor.process = None
-        actor.pipe = None
+        with self._lock:
+            actor = self._actors[name]
 
-        # 1. Update Failure Tracking
-        now = time.time()
-        if now - actor.last_restart < actor.spec.window_seconds:
-             actor.consecutive_failures += 1
-        else:
-             actor.consecutive_failures = 1 # Reset window
+            # Mark process as gone
+            self._close_pipe(actor.pipe)
+            actor.process = None
+            actor.pipe = None
+
+            # 1. Update Failure Tracking
+            now = time.time()
+            if now - actor.last_restart < actor.spec.window_seconds:
+                 actor.consecutive_failures += 1
+            else:
+                 actor.consecutive_failures = 1 # Reset window
              
-        if actor.consecutive_failures > actor.spec.max_restarts:
-            logger.error(f"🛑 CIRCUIT BROKEN: Actor {name} failed too many times in window.")
-            actor.is_circuit_broken = True
-            return
+            if actor.consecutive_failures > actor.spec.max_restarts:
+                logger.error(f"🛑 CIRCUIT BROKEN: Actor {name} failed too many times in window.")
+                actor.is_circuit_broken = True
+                return
 
-        # 2. Calculate Exponential Backoff
-        delay = actor.spec.restart_delay * (actor.spec.backoff_factor ** (actor.consecutive_failures - 1))
-        delay = min(delay, 60.0) # Cap at 1 minute
+            # 2. Calculate Exponential Backoff
+            delay = actor.spec.restart_delay * (actor.spec.backoff_factor ** (actor.consecutive_failures - 1))
+            delay = min(delay, 60.0) # Cap at 1 minute
 
-        actor.next_restart_time = now + delay
-        logger.info(f"⏳ Scheduling Restart for {name} (Attempt {actor.consecutive_failures}/{actor.spec.max_restarts}) in {delay:.1f}s...")
+            actor.next_restart_time = now + delay
+            attempt = actor.consecutive_failures
+            max_restarts = actor.spec.max_restarts
+        logger.info(f"⏳ Scheduling Restart for {name} (Attempt {attempt}/{max_restarts}) in {delay:.1f}s...")
 
     def _restart_actor(self, name: str):
         """Internal helper to start actor and trigger callback."""
         new_pipe = self.start_actor(name)
-        if self._restart_callback and new_pipe:
+        with self._lock:
+            callback = self._restart_callback
+        if callback and new_pipe:
             try:
-                self._restart_callback(name, new_pipe)
+                callback(name, new_pipe)
             except Exception as e:
                 logger.error(f"❌ Restart callback failed for {name}: {e}")
 
     def stop_all(self):
         """Kill everything."""
         self._is_running = False
-        for name in list(self._actors.keys()):
+        with self._lock:
+            actor_names = list(self._actors.keys())
+        for name in actor_names:
             self.stop_actor(name)
         # Ensure all multiprocess children are reaped (ORPHAN-04)
         import multiprocessing

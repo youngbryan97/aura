@@ -120,18 +120,53 @@ Status:
 
 ### Milestone B2
 
-Actor/runtime lifecycle follow-through.
+Watchdog / launch-surface / supervisor hardening.
 
-Initial target surface:
+Target surface:
 
-- remaining actor/supervisor lifecycle hazards in `core/supervisor/tree.py`
-- watchdog / duplicate-runtime ownership checks
-- stricter runtime singularity and canonical boot ownership
-- remaining unowned background task hotspots outside the B1 slice
-- direct shared-connection legacy IPC callers that still bypass split pipe pairs
+- watchdog duplicate-runtime ownership in `aura_main.py`
+- launch-surface runtime singularity around reaper/port ownership
+- supervisor heartbeat semantics in `core/supervisor/tree.py`
+- stable reaper manifest ownership across launcher/process contexts
+- 3D launcher stale timestamp runtime detection
+- launcher/watchdog background task ownership in hot bootstrap paths
 
 Exit criteria:
 
-- supervised actor IPC paths use explicit owned transports end-to-end
-- strict runtime ownership failures fail closed
-- targeted actor/supervisor regressions are green
+- watchdog does not boot a full Aura runtime itself
+- launcher-only owners are the only processes allowed to reap ports / spawn reaper
+- targeted actor/supervisor/launcher regressions are green
+
+Status:
+
+- Complete in this checkpoint.
+
+### Milestone B3
+
+Remaining critical runtime-breaker cleanup before Phase C.
+
+Target surface:
+
+- last legacy shared-connection `LocalPipeBus(connection=conn)` compatibility paths
+- broader codebase `create_task` ownership sweep outside launcher/watchdog slices
+- stricter canonical boot/service-manifest ownership across CLI/server/desktop surfaces
+- additional strict-mode fail-closed probes for critical services beyond `StateVault`
+
+Exit criteria:
+
+- legacy shared-connection IPC fallback is removed or isolated behind explicit compatibility tests
+- remaining high-risk background task surfaces are lifecycle-owned
+- next runtime-singularity work can move into Phase C without reopening B-class regressions
+
+## Deferred Backlog Additions
+
+Requested by user and recorded for later priority phases, not ahead of runtime
+invariants:
+
+- Chrome Polish Phase:
+  `core/runtime/chaos_engine.py`, fuzzing harness, telemetry/SLI dashboard,
+  policy framework, memory safety guardrails
+- PerceptionRuntime / governed capability layer
+- social intelligence / movie mode / turn-taking layer
+- computer-use realism, OCR/window detection, and governed desktop actions
+- formal verification skeletons, property-based proofs, and TLA+/PlusCal models

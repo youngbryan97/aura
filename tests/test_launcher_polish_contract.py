@@ -84,6 +84,36 @@ def test_aura_main_acquires_singleton_lock_before_port_cleanup_and_reaper_boot()
     assert main_py.index("bootstrap_lock(skip_lock=args.watchdog)") < main_py.index("kill_port(args.port)")
     assert main_py.index("bootstrap_lock(skip_lock=args.watchdog)") < main_py.index("reaper_proc = multiprocessing.Process(")
     assert "stop_aura()" in main_py
+    assert "if not args.cli and not args.gui_window and not args.watchdog:" in main_py
+    assert "if not args.gui_window and not args.watchdog:" in main_py
+    assert "AURA_REAPER_MANIFEST" in main_py
+
+
+def test_watchdog_mode_remains_supervision_only():
+    main_py = (PROJECT_ROOT / "aura_main.py").read_text(encoding="utf-8")
+    watchdog_slice = main_py.split("async def run_watchdog():", 1)[1].split("# ---------------------------------------------------------------------------", 1)[0]
+
+    assert "create_orchestrator" not in watchdog_slice
+    assert "bootstrap_aura(orchestrator)" not in watchdog_slice
+    assert "await orchestrator.start()" not in watchdog_slice
+    assert 'logger.info("🛡️ Watchdog supervisor active (supervision-only mode).")' in watchdog_slice
+
+
+def test_aura_main_routes_bootstrap_background_tasks_through_task_tracker():
+    main_py = (PROJECT_ROOT / "aura_main.py").read_text(encoding="utf-8")
+
+    assert 'tracker.create_task(mem_monitor.start(), name="memory_monitor.start")' in main_py
+    assert 'tracker.create_task(orchestrator.run(), name="OrchestratorMainLoop")' in main_py
+    assert 'tracker.create_task(_gui_reaper_loop(), name="gui_reaper")' in main_py
+    assert 'get_task_tracker().create_task(orchestrator.run(), name="OrchestratorMainLoop")' in main_py
+
+
+def test_3d_launcher_uses_runtime_lock_instead_of_stale_state_timestamp():
+    launcher = (PROJECT_ROOT / "scripts" / "one_off" / "launch_aura_3d.py").read_text(encoding="utf-8")
+
+    assert 'Path.home() / ".aura" / "locks" / "orchestrator.lock"' in launcher
+    assert "_primary_runtime_is_active()" in launcher
+    assert "latest.updated_at" not in launcher
 
 
 def test_bundle_script_builds_regular_dock_app_and_embeds_version_metadata():
