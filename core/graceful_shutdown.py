@@ -2,6 +2,7 @@ import asyncio
 import logging
 import signal
 from typing import Any, Callable, List, Union, Awaitable, ClassVar, Optional
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Shutdown")
 
@@ -31,7 +32,10 @@ class GracefulShutdown:
         
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
-                loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(cls.trigger_shutdown(s)))
+                loop.add_signal_handler(sig, lambda s=sig: get_task_tracker().create_task(
+                    cls.trigger_shutdown(s),
+                    name=f"graceful_shutdown.{getattr(s, 'name', s)}",
+                ))
             except NotImplementedError as _e:
                 # Fallback for Windows or certain environments
                 logger.debug('Ignored NotImplementedError in graceful_shutdown.py: %s', _e)

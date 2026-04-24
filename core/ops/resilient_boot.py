@@ -11,6 +11,18 @@ from typing import List, Callable, Awaitable, Dict, Any, Optional
 
 logger = logging.getLogger("Aura.Boot")
 
+_STRICT_TRUE_VALUES = {"1", "true", "yes", "on"}
+_STRICT_CRITICAL_STAGES = {
+    "State Repository",
+    "LLM Infrastructure",
+    "Cognitive Core",
+    "Kernel Interface",
+}
+
+
+def _strict_runtime_requested() -> bool:
+    return str(os.environ.get("AURA_STRICT_RUNTIME", "0")).strip().lower() in _STRICT_TRUE_VALUES
+
 class BootStatus(Enum):
     HEALTHY = "HEALTHY"
     DEGRADED = "DEGRADED"
@@ -99,12 +111,20 @@ class ResilientBoot:
                     # Attempt to audit the timeout with immunity
                     immunity.registry.match_and_repair(f"Stage {name} timed out")
                     self.results[name] = BootStageResult(name, False, "Timeout")
+                    if _strict_runtime_requested() and name in _STRICT_CRITICAL_STAGES:
+                        raise RuntimeError(
+                            f"Strict runtime critical boot stage failed: {name} (Timeout)"
+                        ) from None
                     await self._apply_fallback(name)
                 except Exception as e:
                     logger.error("💥 [BOOT] Stage '%s' FAILED: %s. Applying fallback.", name, e)
                     # Immediate immunity audit
                     immunity.audit_error(e, {"stage": name})
                     self.results[name] = BootStageResult(name, False, str(e))
+                    if _strict_runtime_requested() and name in _STRICT_CRITICAL_STAGES:
+                        raise RuntimeError(
+                            f"Strict runtime critical boot stage failed: {name} ({e})"
+                        ) from e
                     await self._apply_fallback(name)
 
             final_status = BootStatus.HEALTHY if all(r.success for r in self.results.values()) else BootStatus.DEGRADED

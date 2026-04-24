@@ -158,6 +158,14 @@ Exit criteria:
 - remaining high-risk background task surfaces are lifecycle-owned
 - next runtime-singularity work can move into Phase C without reopening B-class regressions
 
+Status:
+
+- In progress in this checkpoint.
+- Landed so far:
+  - strict fail-closed boot behavior for critical `ResilientBoot` stages
+  - websocket disconnect task ownership via the server task spawner
+  - graceful shutdown signal bridge task ownership via the task tracker
+
 ## Deferred Backlog Additions
 
 Requested by user and recorded for later priority phases, not ahead of runtime

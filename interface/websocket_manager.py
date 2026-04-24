@@ -319,7 +319,7 @@ class WebSocketManager:
                     except Exception:
                         disconnect_later.append(websocket)
         for websocket in disconnect_later:
-            asyncio.create_task(self.disconnect(websocket))
+            self._task_spawner(self.disconnect(websocket), name="ws_disconnect")
 
     def count(self) -> int:
         return len(self.active_connections)

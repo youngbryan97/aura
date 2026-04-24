@@ -381,6 +381,43 @@ async def test_graceful_shutdown_signal_path_does_not_raise_system_exit(monkeypa
     assert GracefulShutdown._shutdown_event.is_set()
 
 
+@pytest.mark.asyncio
+async def test_graceful_shutdown_signal_handlers_are_task_tracked(monkeypatch):
+    from core.graceful_shutdown import GracefulShutdown
+
+    handlers = []
+    scheduled = {}
+    container = SimpleNamespace(shutdown=AsyncMock())
+
+    class _Loop:
+        def add_signal_handler(self, sig, callback):
+            handlers.append((sig, callback))
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            scheduled["name"] = name
+            scheduled["task"] = task
+            return task
+
+    GracefulShutdown._hooks = []
+    GracefulShutdown._is_shutting_down = False
+    GracefulShutdown._shutdown_event = None
+
+    monkeypatch.setattr("asyncio.get_running_loop", lambda: _Loop())
+    monkeypatch.setattr("core.graceful_shutdown.get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr("core.container.get_container", lambda: container)
+
+    GracefulShutdown.setup_signals()
+
+    assert handlers
+    handlers[0][1]()
+    await scheduled["task"]
+
+    assert scheduled["name"].startswith("graceful_shutdown.")
+    container.shutdown.assert_awaited_once()
+
+
 def test_file_operation_no_longer_allows_desktop_agency_test_escape(tmp_path):
     from core.skills.file_operation import FileOperationSkill
 

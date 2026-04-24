@@ -1,6 +1,7 @@
 import asyncio
 import time
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -97,6 +98,33 @@ async def test_websocket_manager_skips_serialization_without_clients(monkeypatch
     await manager.broadcast({"type": "telemetry", "message": "idle"})
 
     assert serialized is False
+
+
+@pytest.mark.asyncio
+async def test_websocket_manager_uses_task_spawner_for_disconnect_on_overflow(monkeypatch):
+    scheduled = {}
+
+    def _spawn(coro, name=None):
+        task = asyncio.create_task(coro, name=name)
+        scheduled["name"] = name
+        scheduled["task"] = task
+        return task
+
+    manager = WebSocketManager(task_spawner=_spawn)
+    queue = asyncio.PriorityQueue(maxsize=1)
+    queue.put_nowait((10, time.monotonic(), "existing"))
+    websocket = object()
+    manager.active_connections = {websocket: queue}
+
+    monkeypatch.setattr(manager, "_replace_lowest_priority_item", AsyncMock(side_effect=RuntimeError("overflow")))
+    disconnect = AsyncMock()
+    monkeypatch.setattr(manager, "disconnect", disconnect)
+
+    await manager.broadcast({"type": "telemetry", "message": "drop-me"})
+
+    assert scheduled["name"] == "ws_disconnect"
+    await scheduled["task"]
+    disconnect.assert_awaited_once_with(websocket)
 
 
 def test_bryan_model_save_is_debounced(monkeypatch, tmp_path):

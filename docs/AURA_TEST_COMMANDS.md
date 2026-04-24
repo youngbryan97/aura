@@ -47,6 +47,22 @@ python -m py_compile \
   scripts/one_off/launch_aura_3d.py
 ```
 
+## Strict Boot / Server Ownership Slice
+
+For the early B3 strict-runtime and websocket ownership work:
+
+```bash
+python -m pytest tests/test_resilient_boot_llm_stage.py tests/test_runtime_polish.py -k "resilient_boot or websocket_manager"
+python -m pytest tests/test_forensic_audit_regressions.py -q -k "graceful_shutdown_signal"
+python -m py_compile \
+  core/graceful_shutdown.py \
+  core/ops/resilient_boot.py \
+  interface/websocket_manager.py \
+  tests/test_forensic_audit_regressions.py \
+  tests/test_resilient_boot_llm_stage.py \
+  tests/test_runtime_polish.py
+```
+
 ## Import / Syntax Spot Checks
 
 ```bash
