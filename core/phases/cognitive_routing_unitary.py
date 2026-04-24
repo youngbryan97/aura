@@ -3,6 +3,7 @@ import logging
 import re
 import time
 from typing import Optional, TYPE_CHECKING
+from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request
 from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState, CognitiveMode
 from core.kernel.bridge import Phase
@@ -425,17 +426,29 @@ class CognitiveRoutingPhase(Phase):
             if cap and hasattr(cap, "detect_intent"):
                 matched = cap.detect_intent(objective)
                 if matched:
-                    logger.info("🧭 Routing: SKILL detected via patterns → %s", matched[:3])
-                    new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                    self._stamp_llm_route(
-                        new_state,
-                        objective=objective,
-                        intent_type="SKILL",
-                        is_user_facing=is_user_facing,
-                        analysis=analysis,
-                        route_meta=route_meta,
-                    )
                     new_state.response_modifiers["matched_skills"] = matched
+                    if looks_like_multi_step_skill_request(objective, matched):
+                        logger.info("🧭 Routing: multi-step skill-backed task detected → TASK via %s", matched[:3])
+                        new_state.cognition.current_mode = CognitiveMode.DELIBERATE
+                        self._stamp_llm_route(
+                            new_state,
+                            objective=objective,
+                            intent_type="TASK",
+                            is_user_facing=is_user_facing,
+                            analysis=analysis,
+                            route_meta=route_meta,
+                        )
+                    else:
+                        logger.info("🧭 Routing: SKILL detected via patterns → %s", matched[:3])
+                        new_state.cognition.current_mode = CognitiveMode.REACTIVE
+                        self._stamp_llm_route(
+                            new_state,
+                            objective=objective,
+                            intent_type="SKILL",
+                            is_user_facing=is_user_facing,
+                            analysis=analysis,
+                            route_meta=route_meta,
+                        )
                     new_state.world.recent_percepts.append({
                         "type": "goal_achieved",
                         "content": f"Skill pattern match: {matched[0]}",

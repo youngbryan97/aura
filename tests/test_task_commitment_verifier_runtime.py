@@ -1,5 +1,6 @@
 import asyncio
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -90,6 +91,67 @@ async def test_inline_timeout_keeps_task_running_in_background(monkeypatch, tmp_
     assert task_engine.cancelled is False
     assert tracker.dispatches
     assert any(update["status"] == "completed" for update in tracker.updates)
+
+
+def test_task_commitment_verifier_rejects_attempt_only_result_as_completed():
+    result = SimpleNamespace(
+        succeeded=True,
+        summary="I attempted to open Terminal and type the command, but I could not verify it completed.",
+        steps_completed=1,
+        steps_total=1,
+    )
+
+    assert TaskCommitmentVerifier._result_counts_as_success(result) is False
+
+
+def test_task_commitment_verifier_estimates_multistep_skill_request_as_long():
+    verifier = TaskCommitmentVerifier(kernel=None, persist_path=Path("/tmp/task_commitment_state_estimate.json"))
+    assessment = CapabilityAssessment(can_fulfil=True, matched_skills=["computer_use"], confidence=1.0)
+
+    steps = verifier._estimate_steps(
+        "Open Notes, click into a new note, type hello, then come back and report what happened.",
+        assessment,
+    )
+
+    assert steps > verifier.INLINE_STEP_THRESHOLD
+
+
+@pytest.mark.asyncio
+async def test_task_commitment_verifier_passes_user_origin_into_task_context(monkeypatch, tmp_path):
+    tracker = _GoalTracker()
+    task_engine = _FastTaskEngine()
+
+    def _fake_get(name, default=None):
+        if name == "task_engine":
+            return task_engine
+        if name == "goal_engine":
+            return tracker
+        return default
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(_fake_get),
+    )
+    monkeypatch.setattr(
+        TaskCommitmentVerifier,
+        "_assess_capability",
+        lambda self, objective: CapabilityAssessment(can_fulfil=True, matched_tools=["think"], confidence=1.0),
+    )
+    monkeypatch.setattr(TaskCommitmentVerifier, "_register_commitment", lambda self, objective: None)
+
+    verifier = TaskCommitmentVerifier(kernel=None, persist_path=tmp_path / "task_commitment_state.json")
+    state = SimpleNamespace(
+        cognition=SimpleNamespace(current_origin="api"),
+        response_modifiers={},
+        transition_origin="system",
+    )
+
+    acceptance = await verifier.verify_and_dispatch("Check the current runtime status", state=state)
+
+    assert acceptance.outcome == DispatchOutcome.COMPLETED
+    assert task_engine.goals[0][1]["origin"] == "api"
+    assert task_engine.goals[0][1]["intent_source"] == "api"
+    assert task_engine.goals[0][1]["request_origin"] == "api"
 
 
 @pytest.mark.asyncio

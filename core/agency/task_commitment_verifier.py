@@ -48,6 +48,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from core.config import config
+from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request
 from core.utils.file_utils import atomic_write_json
 
 logger = logging.getLogger("Aura.TaskCommitmentVerifier")
@@ -109,6 +110,19 @@ _STATUS_QUERY_MARKERS = (
 _TERMINAL_TASK_STATUSES = {"completed", "failed", "cancelled", "capability_gap", "denied"}
 _RUNNING_TASK_STATUSES = {"running", "running_async"}
 _ACTIVE_TASK_STATUSES = _RUNNING_TASK_STATUSES | {"interrupted"}
+_USER_FACING_ORIGINS = {
+    "user",
+    "voice",
+    "admin",
+    "api",
+    "gui",
+    "ws",
+    "websocket",
+    "direct",
+    "external",
+    "frontend",
+    "ui",
+}
 
 
 class DispatchOutcome(str, Enum):
@@ -190,6 +204,38 @@ class TaskCommitmentVerifier:
         self._background_tasks: Dict[str, asyncio.Task] = {}
         self._updated_at: float = 0.0
         self._load()
+
+    @staticmethod
+    def _normalize_origin(origin: Any) -> str:
+        return str(origin or "").strip().lower().replace("-", "_")
+
+    @classmethod
+    def _coerce_execution_origin(cls, origin: Any) -> str:
+        normalized = cls._normalize_origin(origin)
+        if not normalized:
+            return ""
+        if normalized in _USER_FACING_ORIGINS:
+            return normalized
+        tokens = {token for token in normalized.split("_") if token}
+        for candidate in ("user", "api", "voice", "admin", "gui", "websocket", "ws", "direct", "external"):
+            if candidate in tokens:
+                return candidate
+        return normalized
+
+    def _resolve_execution_origin(self, state: Any) -> str:
+        response_modifiers = getattr(state, "response_modifiers", {}) if state is not None else {}
+        cognition = getattr(state, "cognition", None) if state is not None else None
+        candidates = [
+            getattr(cognition, "current_origin", ""),
+            response_modifiers.get("origin") if isinstance(response_modifiers, dict) else "",
+            response_modifiers.get("task_origin") if isinstance(response_modifiers, dict) else "",
+            getattr(state, "transition_origin", "") if state is not None else "",
+        ]
+        for candidate in candidates:
+            resolved = self._coerce_execution_origin(candidate)
+            if resolved:
+                return resolved
+        return "commitment_verifier"
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -284,6 +330,8 @@ class TaskCommitmentVerifier:
                 state,
                 task_engine,
                 t0,
+                matched_skills=assessment.matched_skills,
+                matched_tools=assessment.matched_tools,
                 requested_objective=requested_objective,
                 continued_from_task_id=str((followup_entry or {}).get("task_id", "") or ""),
                 resume_plan_id=resume_plan_id,
@@ -295,6 +343,8 @@ class TaskCommitmentVerifier:
                 state,
                 task_engine,
                 t0,
+                matched_skills=assessment.matched_skills,
+                matched_tools=assessment.matched_tools,
                 requested_objective=requested_objective,
                 continued_from_task_id=str((followup_entry or {}).get("task_id", "") or ""),
                 resume_plan_id=resume_plan_id,
@@ -457,6 +507,8 @@ class TaskCommitmentVerifier:
 
     def _estimate_steps(self, objective: str, assessment: CapabilityAssessment) -> int:
         """Heuristic step-count estimate — avoids an LLM call just for routing."""
+        if looks_like_multi_step_skill_request(objective, assessment.matched_skills or assessment.matched_tools):
+            return max(5, len(assessment.matched_skills) + 2)
         # If a single specific skill matched, it's one step
         if len(assessment.matched_skills) == 1:
             return 1
@@ -476,11 +528,14 @@ class TaskCommitmentVerifier:
         task_engine: Any,
         t0: float,
         *,
+        matched_skills: Optional[List[str]] = None,
+        matched_tools: Optional[List[str]] = None,
         requested_objective: str = "",
         continued_from_task_id: str = "",
         resume_plan_id: str = "",
     ) -> TaskAcceptance:
         """Run task synchronously and wait for result (short tasks only)."""
+        execution_origin = self._resolve_execution_origin(state)
         self._store_task_entry(
             task_id,
             {
@@ -504,11 +559,16 @@ class TaskCommitmentVerifier:
                 context={
                     "task_id": task_id,
                     "source": "commitment_verifier",
+                    "origin": execution_origin,
+                    "intent_source": execution_origin,
+                    "request_origin": execution_origin,
                     "quick_win": True,
                     "attention_policy": "interruptible",
                     "priority": 0.9,
                     "horizon": "short_term",
                     "resume_plan_id": resume_plan_id,
+                    "matched_skills": list(matched_skills or []),
+                    "matched_tools": list(matched_tools or []),
                 },
             )
         )
@@ -517,7 +577,7 @@ class TaskCommitmentVerifier:
                 asyncio.shield(execution_task),
                 timeout=self.INLINE_TIMEOUT_S,
             )
-            succeeded = getattr(result, "succeeded", bool(result))
+            succeeded = self._result_counts_as_success(result)
             summary = getattr(result, "summary", str(result))
             outcome = DispatchOutcome.COMPLETED if succeeded else DispatchOutcome.FAILED
             tracking_updates, evidence = self._extract_result_tracking_fields(result)
@@ -615,11 +675,14 @@ class TaskCommitmentVerifier:
         task_engine: Any,
         t0: float,
         *,
+        matched_skills: Optional[List[str]] = None,
+        matched_tools: Optional[List[str]] = None,
         requested_objective: str = "",
         continued_from_task_id: str = "",
         resume_plan_id: str = "",
     ) -> TaskAcceptance:
         """Launch task in the background and register a CommitmentEngine entry."""
+        execution_origin = self._resolve_execution_origin(state)
         # Register with CommitmentEngine for cross-session tracking
         commitment_id = self._register_commitment(objective)
 
@@ -648,12 +711,17 @@ class TaskCommitmentVerifier:
                 context={
                     "task_id": task_id,
                     "source": "commitment_verifier_async",
+                    "origin": execution_origin,
+                    "intent_source": execution_origin,
+                    "request_origin": execution_origin,
                     "commitment_id": commitment_id,
                     "quick_win": False,
                     "attention_policy": "sustained",
                     "priority": 0.8,
                     "horizon": "short_term",
                     "resume_plan_id": resume_plan_id,
+                    "matched_skills": list(matched_skills or []),
+                    "matched_tools": list(matched_tools or []),
                 },
             )
         )
@@ -737,6 +805,34 @@ class TaskCommitmentVerifier:
             updates["evidence"] = evidence
         return updates, evidence
 
+    @staticmethod
+    def _result_counts_as_success(result: Any) -> bool:
+        if not getattr(result, "succeeded", bool(result)):
+            return False
+
+        summary = str(getattr(result, "summary", "") or "").lower()
+        if any(
+            marker in summary
+            for marker in (
+                "attempted",
+                "tried",
+                "meant to",
+                "intended to",
+                "couldn't",
+                "could not",
+                "did not complete",
+                "still running",
+            )
+        ):
+            return False
+
+        steps_total = int(getattr(result, "steps_total", 0) or 0)
+        steps_completed = int(getattr(result, "steps_completed", 0) or 0)
+        if steps_total > 0 and steps_completed < steps_total:
+            return False
+
+        return True
+
     async def _track_goal_dispatch(
         self,
         objective: str,
@@ -794,7 +890,7 @@ class TaskCommitmentVerifier:
             if future.cancelled():
                 raise asyncio.CancelledError(f"Background task {task_id} was cancelled")
             result = future.result()
-            succeeded = getattr(result, "succeeded", bool(result))
+            succeeded = self._result_counts_as_success(result)
             summary = getattr(result, "summary", str(result))
             tracking_updates, evidence = self._extract_result_tracking_fields(result)
             self._update_task_entry(

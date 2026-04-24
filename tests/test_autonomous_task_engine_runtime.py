@@ -25,6 +25,60 @@ async def test_task_engine_fallback_plan_survives_malformed_decomposition():
 
 
 @pytest.mark.asyncio
+async def test_task_engine_grounded_goal_fallback_avoids_think_only_plan():
+    llm = SimpleNamespace(think=AsyncMock(return_value='[{"description": "broken"'))
+    kernel = SimpleNamespace(
+        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
+    )
+
+    engine = AutonomousTaskEngine(kernel)
+
+    plan = await engine._decompose_goal(
+        "Open the Terminal app on my computer, type exactly: echo AURA_SKILL_LIVE_TEST, press Return, then come back and report what happened.",
+        "plan_grounded",
+        context={"matched_skills": ["computer_use"]},
+    )
+
+    assert len(plan.steps) >= 3
+    assert all(step.tool != "think" for step in plan.steps)
+    assert plan.steps[0].tool == "computer_use"
+    assert plan.steps[0].args["action"] == "open_app"
+    assert any(step.args.get("action") == "type" for step in plan.steps)
+    assert any(step.args.get("action") == "hotkey" and step.args.get("target") == "enter" for step in plan.steps)
+
+
+@pytest.mark.asyncio
+async def test_task_engine_invoke_tool_preserves_user_origin_for_orchestrator(monkeypatch):
+    calls = []
+
+    class _FakeOrchestrator:
+        async def execute_tool(self, tool_name, args, **kwargs):
+            calls.append((tool_name, args, kwargs))
+            return {"ok": True, "verified": True}
+
+    def _fake_get(name, default=None):
+        if name == "orchestrator":
+            return _FakeOrchestrator()
+        return default
+
+    monkeypatch.setattr("core.container.ServiceContainer.get", staticmethod(_fake_get))
+
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: None)}, state=None)
+    engine = AutonomousTaskEngine(kernel)
+    engine._capability_manager = SimpleNamespace(verify_access=lambda *_args, **_kwargs: True)
+
+    result = await engine._invoke_tool(
+        "computer_use",
+        {"action": "open_app", "target": "Terminal"},
+        origin="api",
+    )
+
+    assert result["ok"] is True
+    assert calls[0][0] == "computer_use"
+    assert calls[0][2]["origin"] == "api"
+
+
+@pytest.mark.asyncio
 async def test_task_engine_execute_alias_delegates_to_execute_goal():
     engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
     engine.execute_goal = AsyncMock(return_value="ok")

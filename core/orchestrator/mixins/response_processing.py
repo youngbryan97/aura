@@ -549,7 +549,7 @@ class ResponseProcessingMixin:
         logger.info("🍄 [MYCELIUM] ⚡ Routing to direct skill: %s (params: %s)", pw.skill_name, params)
         try:
             self._emit_telemetry(f"Skill: {pw.skill_name} 🍄", pw.activity_label or f"Executing {pw.skill_name}...")
-            result = await self.execute_tool(pw.skill_name, params)
+            result = await self.execute_tool(pw.skill_name, params, origin=origin)
             # Record success for Physarum reinforcement
             mycelium.reinforce(pw.pathway_id, success=True)
             return result

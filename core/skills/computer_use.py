@@ -165,6 +165,13 @@ class ComputerUseSkill(BaseSkill):
                 if blocked:
                     return blocked
                 result = await asyncio.to_thread(self._read_screen_text_macos)
+                if self._screen_text_unavailable(result):
+                    return {
+                        "ok": False,
+                        "status": "unavailable",
+                        "error": result,
+                        "text": result,
+                    }
                 return {"ok": True, "text": result}
 
             elif action == "read_menu_clock":
@@ -319,6 +326,16 @@ end tell
         if len(raw) > 3000:
             return raw[:1500] + "\n... [TRUNCATED] ...\n" + raw[-1500:]
         return raw
+
+    @staticmethod
+    def _screen_text_unavailable(text: str) -> bool:
+        normalized = str(text or "").strip().lower()
+        if not normalized:
+            return True
+        return normalized in {
+            "[accessibility error or ui unresponsive]",
+            "[read_screen_text failed]",
+        }
 
     def _read_menu_clock_macos(self) -> str:
         """Read the live menu bar clock through System Events."""

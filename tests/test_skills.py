@@ -197,6 +197,30 @@ async def test_computer_use_open_url_uses_default_browser_without_accessibility(
 
 
 @pytest.mark.asyncio
+async def test_computer_use_read_screen_text_reports_accessibility_placeholder_as_failure(monkeypatch):
+    import core.skills.computer_use as computer_use
+
+    async def _allow_permissions(self, capability, *permission_names):
+        return None
+
+    monkeypatch.setattr(computer_use.ComputerUseSkill, "_require_permissions", _allow_permissions)
+    monkeypatch.setattr(
+        computer_use.ComputerUseSkill,
+        "_read_screen_text_macos",
+        lambda self: "[Accessibility error or UI unresponsive]",
+    )
+
+    result = await computer_use.ComputerUseSkill().execute(
+        {"action": "read_screen_text", "target": ""},
+        {},
+    )
+
+    assert result["ok"] is False
+    assert result["status"] == "unavailable"
+    assert "accessibility error" in result["error"].lower()
+
+
+@pytest.mark.asyncio
 async def test_web_search_skill_initializes_and_accepts_input():
     """Verify the web search skill initializes correctly and handles empty queries."""
     from core.skills.web_search import EnhancedWebSearchSkill

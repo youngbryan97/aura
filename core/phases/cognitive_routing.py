@@ -7,6 +7,7 @@ from . import BasePhase
 from ..state.aura_state import AuraState, CognitiveMode
 from ..cognitive.parallel_thought import ParallelThoughtStream
 from ..consciousness.executive_authority import get_executive_authority
+from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request
 from core.runtime.turn_analysis import analyze_turn
 from core.utils.queues import decode_stringified_priority_message, role_for_origin
 
@@ -152,21 +153,27 @@ class CognitiveRoutingPhase(BasePhase):
             if cap and hasattr(cap, "detect_intent") and routing_origin in user_origins:
                 matched_skills = list(cap.detect_intent(input_text) or [])
                 if matched_skills:
-                    logger.info("🧭 Routing: SKILL detected via patterns → %s", matched_skills[:3])
-                    new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                    new_state.cognition.current_objective = input_text
-                    new_state.cognition.current_origin = routing_origin
-                    new_state.response_modifiers["intent_type"] = "SKILL"
                     new_state.response_modifiers["matched_skills"] = matched_skills
-                    new_state.response_modifiers["model_tier"] = "primary"
-                    new_state.response_modifiers["deep_handoff"] = False
-                    get_executive_authority().record_user_objective(
-                        new_state,
-                        input_text,
-                        source=f"cognitive_routing:{routing_origin}",
-                        mode=str(CognitiveMode.REACTIVE.value),
-                    )
-                    return new_state
+                    if looks_like_multi_step_skill_request(input_text, matched_skills):
+                        logger.info(
+                            "🧭 Routing: multi-step skill-backed task detected → TASK via %s",
+                            matched_skills[:3],
+                        )
+                    else:
+                        logger.info("🧭 Routing: SKILL detected via patterns → %s", matched_skills[:3])
+                        new_state.cognition.current_mode = CognitiveMode.REACTIVE
+                        new_state.cognition.current_objective = input_text
+                        new_state.cognition.current_origin = routing_origin
+                        new_state.response_modifiers["intent_type"] = "SKILL"
+                        new_state.response_modifiers["model_tier"] = "primary"
+                        new_state.response_modifiers["deep_handoff"] = False
+                        get_executive_authority().record_user_objective(
+                            new_state,
+                            input_text,
+                            source=f"cognitive_routing:{routing_origin}",
+                            mode=str(CognitiveMode.REACTIVE.value),
+                        )
+                        return new_state
         except Exception as exc:
             logger.debug("🧭 Routing: detect_intent fast path failed: %s", exc)
 
@@ -194,7 +201,7 @@ class CognitiveRoutingPhase(BasePhase):
                 )
                 return new_state
 
-        analysis = analyze_turn(input_text, matched_skills=bool(matched_skills))
+        analysis = analyze_turn(input_text, matched_skills=matched_skills)
         cognitive_mode = CognitiveMode.REACTIVE
         new_state.response_modifiers["intent_type"] = analysis.intent_type
         new_state.response_modifiers["semantic_intent"] = analysis.semantic_mode

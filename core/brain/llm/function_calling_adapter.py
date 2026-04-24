@@ -68,10 +68,13 @@ class FunctionCallingAdapter:
                 return {"valid": False, "error": f"Tool '{tool_name}' not found in registry."}
             
             # If the skill uses the v2 Pydantic inputs format:
-            input_model = getattr(skill, "inputs_model", None)
+            input_model = getattr(skill, "input_model", None)
             if input_model:
                 try:
-                    valid_data = input_model(**args)
+                    if hasattr(input_model, "model_validate"):
+                        valid_data = input_model.model_validate(args)
+                    else:
+                        valid_data = input_model(**args)
                     return {"valid": True, "args": valid_data.model_dump()}
                 except Exception as e:
                     return {"valid": False, "error": f"Pydantic Validation Error: {e}"}

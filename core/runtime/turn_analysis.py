@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
+from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request, normalize_matched_skills
 from core.utils.intent_normalization import normalize_memory_intent_text
 
 
@@ -181,10 +182,12 @@ class TurnAnalysis:
     suggests_deliberate_mode: bool
 
 
-def analyze_turn(text: str, *, matched_skills: bool = False) -> TurnAnalysis:
+def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> TurnAnalysis:
     normalized = canonical_turn_text(text)
     lower = normalized.lower()
     word_count = len(lower.split())
+    matched_skill_list = normalize_matched_skills(matched_skills)
+    has_matched_skills = bool(matched_skill_list)
 
     requires_live_voice = (
         _matches_any(lower, _STATE_PATTERNS)
@@ -194,7 +197,9 @@ def analyze_turn(text: str, *, matched_skills: bool = False) -> TurnAnalysis:
 
     if _matches_any(lower, _SYSTEM_PATTERNS):
         intent_type = "SYSTEM"
-    elif matched_skills or _matches_any(lower, _SKILL_PATTERNS):
+    elif looks_like_multi_step_skill_request(normalized, matched_skill_list):
+        intent_type = "TASK"
+    elif has_matched_skills or _matches_any(lower, _SKILL_PATTERNS):
         intent_type = "SKILL"
     elif _matches_any(lower, _TASK_PATTERNS) or (
         word_count > 14

@@ -210,7 +210,7 @@ async def test_check_direct_skill_shortcut(orchestrator, mock_container, monkeyp
     mock_mycelium.match_hardwired.return_value = (mock_pw, {"query": "quantum physics"})
     res = await orchestrator._check_direct_skill_shortcut("look up quantum physics", origin="user")
     assert res == {"summary": "Search results"}
-    orchestrator.execute_tool.assert_called_with("web_search", {"query": "quantum physics"})
+    orchestrator.execute_tool.assert_called_with("web_search", {"query": "quantum physics"}, origin="user")
     
     # 2. Non-user origin should abort
     res_system = await orchestrator._check_direct_skill_shortcut("look up quantum physics", origin="system")
@@ -2267,6 +2267,7 @@ async def test_check_direct_skill_shortcut_search(orchestrator, monkeypatch):
         res = await orchestrator._check_direct_skill_shortcut("search the web for something", origin="user")
         assert res is not None
         assert res["search"] is True
+        mock_exec.assert_awaited_once_with("web_search", {"query": "something"}, origin="user")
 
 def test_filter_output_exception(orchestrator):
     with patch("core.brain.personality_engine.get_personality_engine", side_effect=Exception("Failed filter")):

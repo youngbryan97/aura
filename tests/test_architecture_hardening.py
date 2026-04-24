@@ -974,6 +974,47 @@ async def test_orchestrator_execute_tool_blocks_when_capability_token_missing(or
     assert constitution.finish_tool_execution.await_count == 1
 
 
+@pytest.mark.asyncio
+async def test_orchestrator_execute_tool_infers_user_origin_from_current_state(orchestrator, monkeypatch):
+    ServiceContainer.register_instance("executive_core", object(), required=False)
+    ServiceContainer.lock_registration()
+
+    constitution = SimpleNamespace(
+        begin_tool_execution=AsyncMock(
+            return_value=SimpleNamespace(
+                approved=True,
+                capability_token_id="token-1",
+                constraints={},
+                decision=SimpleNamespace(reason="approved"),
+                executive_intent_id="intent-1",
+            )
+        ),
+        finish_tool_execution=AsyncMock(),
+    )
+
+    orchestrator.router = SimpleNamespace(
+        skills={"notify_user": object()},
+        execute=AsyncMock(return_value={"ok": True}),
+    )
+    orchestrator._current_origin = "user"
+
+    monkeypatch.setattr(
+        "core.constitution.get_constitutional_core",
+        lambda *_args, **_kwargs: constitution,
+    )
+    monkeypatch.setattr(
+        "core.executive.authority_gateway.get_authority_gateway",
+        lambda: SimpleNamespace(verify_tool_access=lambda _skill, _token: True),
+    )
+
+    result = await orchestrator.execute_tool("notify_user", {"message": "hi"})
+
+    assert result["ok"] is True
+    _, kwargs = constitution.begin_tool_execution.await_args
+    assert kwargs["source"] == "user"
+    assert orchestrator.router.execute.await_count == 1
+
+
 def test_knowledge_graph_blocks_memory_write_when_constitutional_gate_rejects(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "core.constitution.get_constitutional_core",
@@ -1129,3 +1170,35 @@ async def test_kernel_load_initial_state_accepts_lightweight_vault():
     await kernel._load_initial_state()
 
     assert kernel.state is state
+
+
+@pytest.mark.asyncio
+async def test_kernel_clears_completed_foreground_turn_state():
+    state = AuraState.default()
+    state.cognition.current_origin = "api"
+    kernel = AuraKernel(config=KernelConfig(), vault=SimpleNamespace(state=state))
+    kernel.state = state
+    kernel.feedback_observer = SimpleNamespace(
+        begin_tick=lambda *_args, **_kwargs: SimpleNamespace(summary=lambda: "ok", tick_id="tick-1"),
+        end_tick=lambda *_args, **_kwargs: None,
+    )
+    kernel._process_storage_intents = AsyncMock()
+    kernel._commit_vault = AsyncMock()
+    kernel._pulse_mirror = AsyncMock()
+    kernel.state.derive_async = AsyncMock(return_value=kernel.state)
+
+    async def _execute_phase(self, current_state, objective=None, **_kwargs):
+        current_state.cognition.current_objective = objective
+        current_state.cognition.current_origin = "api"
+        current_state.cognition.last_response = "Done."
+        return current_state
+
+    ResponsePhase = type("UnitaryResponsePhase", (), {"execute": _execute_phase})
+    kernel._phases = [ResponsePhase()]
+
+    entry = await kernel.tick("Open Terminal and type a command.", priority=True)
+
+    assert entry is not None
+    assert kernel.state.cognition.last_action_source == "api"
+    assert kernel.state.cognition.current_origin is None
+    assert kernel.state.cognition.current_objective is None

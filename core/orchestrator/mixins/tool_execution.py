@@ -3,15 +3,63 @@ Extracts browser task and tool execution logic.
 """
 import logging
 import time
-from typing import Any
+from typing import Any, Optional
 
 from core.container import ServiceContainer
 
 logger = logging.getLogger(__name__)
+_USER_FACING_TOOL_ORIGINS = {
+    "user",
+    "api",
+    "admin",
+    "voice",
+    "gui",
+    "ws",
+    "websocket",
+    "direct",
+    "external",
+    "frontend",
+    "ui",
+}
 
 
 class ToolExecutionMixin:
     """Handles tool execution with constitutional gating, episodic recording, and tool learning."""
+
+    @staticmethod
+    def _normalize_tool_origin(origin: Any) -> str:
+        return str(origin or "").strip().lower().replace("-", "_")
+
+    @classmethod
+    def _coerce_tool_origin(cls, origin: Any) -> str:
+        normalized = cls._normalize_tool_origin(origin)
+        if not normalized:
+            return ""
+        if normalized in _USER_FACING_TOOL_ORIGINS:
+            return normalized
+        tokens = {token for token in normalized.split("_") if token}
+        for candidate in ("user", "api", "voice", "admin", "gui", "websocket", "ws", "direct", "external"):
+            if candidate in tokens:
+                return candidate
+        return normalized
+
+    def _resolve_tool_origin(
+        self,
+        *,
+        explicit_origin: Any = None,
+        payload_context: Optional[dict[str, Any]] = None,
+    ) -> str:
+        candidates = [
+            explicit_origin,
+            (payload_context or {}).get("origin") if isinstance(payload_context, dict) else None,
+            getattr(self, "_current_origin", ""),
+            getattr(getattr(getattr(self, "state", None), "cognition", None), "current_origin", ""),
+        ]
+        for candidate in candidates:
+            resolved = self._coerce_tool_origin(candidate)
+            if resolved:
+                return resolved
+        return "unknown"
 
     async def run_browser_task(self, url: str, task: str) -> Any:
         """Formalized browser task execution via skill router.
@@ -27,7 +75,12 @@ class ToolExecutionMixin:
         _constitution = None
         _tool_handle = None
         _constitutional_runtime_live = False
-        _origin = kwargs.get("origin", "unknown")
+        kwargs = dict(kwargs or {})
+        _origin = self._resolve_tool_origin(
+            explicit_origin=kwargs.get("origin"),
+            payload_context=kwargs.get("payload_context"),
+        )
+        kwargs.setdefault("origin", _origin)
 
         def _record_coding_tool_event(result: Any, *, success: bool, error: str = "") -> None:
             try:
@@ -86,14 +139,14 @@ class ToolExecutionMixin:
                 logger.warning("🚫 ExecutiveCore blocked tool '%s': %s", tool_name, reason)
                 try:
                     from core.unified_action_log import get_action_log
-                    get_action_log().record(tool_name, kwargs.get("origin","unknown"), "tool", "blocked", str(reason))
+                    get_action_log().record(tool_name, _origin, "tool", "blocked", str(reason))
                 except Exception: pass
                 result = {"ok": False, "error": f"Executive blocked: {reason}"}
                 _record_coding_tool_event(result, success=False, error=str(reason))
                 return result
             try:
                 from core.unified_action_log import get_action_log
-                get_action_log().record(tool_name, kwargs.get("origin","unknown"), "tool", "approved")
+                get_action_log().record(tool_name, _origin, "tool", "approved")
             except Exception: pass
             if _tool_handle.constraints:
                 kwargs.update(_tool_handle.constraints)  # Apply any degraded-mode constraints
@@ -107,7 +160,7 @@ class ToolExecutionMixin:
                         "tool_gate_unavailable",
                         detail=tool_name,
                         severity="warning",
-                        classification="foreground_blocking" if kwargs.get("origin") in ("user", "voice", "admin", "api") else "background_degraded",
+                        classification="foreground_blocking" if _origin in ("user", "voice", "admin", "api") else "background_degraded",
                         context={"error": type(_exec_err).__name__},
                         exc=_exec_err,
                     )
@@ -226,7 +279,7 @@ class ToolExecutionMixin:
                                 duration_ms=(time.time() - _start) * 1000,
                             )
                         # Retry execution once
-                        return await self.execute_tool(tool_name, args)
+                        return await self.execute_tool(tool_name, args, **kwargs)
                     else:
                         logger.warning("Autogenesis failed for %s: %s", tool_name, forge_result.get("error"))
 

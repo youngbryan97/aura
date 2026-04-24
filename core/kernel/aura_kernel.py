@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -160,6 +161,46 @@ class AuraKernel:
         import threading as _threading
         self._user_priority_pending: _threading.Event = _threading.Event()
         self._last_tick_completed_at: float = 0.0  # telemetry: set after each tick()
+
+    @staticmethod
+    def _normalize_origin(origin: Any) -> str:
+        return str(origin or "").strip().lower().replace("-", "_")
+
+    @classmethod
+    def _is_user_facing_origin(cls, origin: Any) -> bool:
+        normalized = cls._normalize_origin(origin)
+        if not normalized:
+            return False
+        if normalized in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"}:
+            return True
+        tokens = {token for token in normalized.split("_") if token}
+        return bool(tokens & {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"})
+
+    def _finalize_foreground_turn_state(self, *, objective: str, turn_origin: str) -> None:
+        if self.state is None:
+            return
+        if not self._is_user_facing_origin(turn_origin):
+            return
+
+        final_origin = self._normalize_origin(getattr(self.state.cognition, "current_origin", ""))
+        final_objective = str(getattr(self.state.cognition, "current_objective", "") or "")
+
+        # Preserve a newly seeded background objective that replaced the
+        # foreground turn during the same tick.
+        if (
+            final_objective
+            and final_objective != objective
+            and not self._is_user_facing_origin(final_origin)
+        ):
+            logger.debug(
+                "Kernel: preserving post-turn background objective '%s' from origin=%s.",
+                final_objective[:80],
+                final_origin or "unknown",
+            )
+            return
+
+        self.state.cognition.current_objective = None
+        self.state.cognition.current_origin = None
 
     def _phase_timeout_seconds(self, phase_name: str, *, priority: bool) -> float:
         """Give foreground response generation enough headroom without letting background stalls monopolize the lock.
@@ -633,6 +674,7 @@ class AuraKernel:
         state = self.state
         if state is None:
             raise RuntimeError("Kernel ticked before state initialization")
+        turn_origin = self._normalize_origin(getattr(getattr(state, "cognition", None), "current_origin", ""))
 
         # [PRIORITY PREEMPTION] Signal that a user-facing tick is waiting.
         # Background ticks check this flag between phases and yield early.
@@ -886,14 +928,50 @@ class AuraKernel:
             
             # Issue #42: Structured Thought Trace
             try:
+                trace_response = response
+                trace_outcome = "SUCCESS" if self.state else "FAILURE"
+                trace_meta: dict[str, Any] = {}
+                modifiers = dict(getattr(self.state, "response_modifiers", {}) or {}) if self.state else {}
+                task_outcome = str(modifiers.get("last_task_outcome", "") or "").strip().lower()
+                if task_outcome == "started":
+                    trace_outcome = "IN_PROGRESS"
+                elif task_outcome in {"failed", "capability_gap", "denied"}:
+                    trace_outcome = "FAILURE"
+                elif task_outcome == "completed":
+                    trace_outcome = "SUCCESS"
+                elif "last_skill_run" in modifiers:
+                    trace_outcome = "SUCCESS" if modifiers.get("last_skill_ok") else "FAILURE"
+
+                has_action_marker = bool(
+                    re.search(r"\[(?:SKILL_RESULT|SKILL|ACTION|TOOL|SKILL_INVOCATION)\s*:", str(response or ""), re.IGNORECASE)
+                )
+                if has_action_marker and not modifiers.get("last_skill_ok") and task_outcome != "completed":
+                    trace_outcome = "UNGROUNDED_ACTION"
+                    trace_meta["grounding_warning"] = ["marker_without_verified_execution"]
+
+                try:
+                    from core.phases.action_grounding import check_unverified_action_claims
+
+                    receipts = []
+                    if modifiers.get("last_skill_ok") and modifiers.get("last_skill_run"):
+                        receipts.append({"skill": str(modifiers.get("last_skill_run"))})
+                    unverified_claims = check_unverified_action_claims(str(response or ""), skill_receipts=receipts)
+                    if unverified_claims:
+                        trace_outcome = "UNGROUNDED_ACTION"
+                        trace_meta["grounding_warning"] = unverified_claims[:4]
+                except Exception:
+                    pass
+
                 tracer.log_cycle(
                     objective=objective,
                     context=getattr(self.state, "cognition", {}).__dict__ if self.state else {},
-                    thought={"last_response": response},
-                    outcome="SUCCESS" if self.state else "FAILURE"
+                    thought={"last_response": trace_response, **trace_meta},
+                    outcome=trace_outcome,
                 )
             except Exception as e:
                 logger.debug("Tracer failed: %s", e)
+
+            self._finalize_foreground_turn_state(objective=objective, turn_origin=turn_origin)
 
             # Record completion timestamp for telemetry staleness detection
             self._last_tick_completed_at = time.time()

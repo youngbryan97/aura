@@ -15,6 +15,7 @@ from core.state.aura_state import AuraState
 from core.consciousness.executive_authority import get_executive_authority
 from core.phases.response_contract import build_response_contract, _looks_like_search_capability_question
 from core.runtime.background_policy import background_activity_allowed
+from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request, normalize_matched_skills
 from core.runtime.tool_result_contracts import compact_result_payload
 
 if TYPE_CHECKING:
@@ -565,6 +566,76 @@ class GodModeToolPhase(Phase):
             logger.debug("GodMode: Param extraction failed: %s", e)
         return {"query": objective}
 
+    @staticmethod
+    def _validate_skill_params(skill_name: str, params: Dict, cap) -> tuple[bool, Dict, str]:
+        meta = getattr(cap, "skills", {}).get(skill_name) if cap else None
+        input_model = getattr(meta, "input_model", None) if meta else None
+        if not input_model or not isinstance(params, dict):
+            return True, dict(params or {}), ""
+
+        try:
+            if hasattr(input_model, "model_validate"):
+                validated = input_model.model_validate(params)
+            else:
+                validated = input_model(**params)
+            if hasattr(validated, "model_dump"):
+                return True, validated.model_dump(), ""
+            return True, dict(params), ""
+        except Exception as exc:
+            return False, dict(params or {}), str(exc)
+
+    async def _dispatch_task_request(self, state: AuraState, objective: str) -> AuraState:
+        try:
+            from core.agency.task_commitment_verifier import get_task_commitment_verifier
+
+            verifier = get_task_commitment_verifier(kernel=self.kernel)
+            acceptance = await verifier.verify_and_dispatch(objective, state)
+            state.cognition.working_memory.append({
+                "role": "system",
+                "content": acceptance.to_working_memory_message(),
+                "timestamp": time.time(),
+                "metadata": {
+                    "type": "task_result",
+                    "outcome": acceptance.outcome.value,
+                    "task_id": acceptance.task_id,
+                },
+            })
+            state.response_modifiers["last_task_outcome"] = acceptance.outcome.value
+            state.response_modifiers["last_task_id"] = acceptance.task_id
+            result_data = acceptance.result_data
+            state.response_modifiers["last_task_result_payload"] = compact_result_payload(
+                {
+                    "status": acceptance.outcome.value,
+                    "summary": acceptance.summary,
+                    "task_id": acceptance.task_id,
+                    "commitment_id": acceptance.commitment_id,
+                    "objective": acceptance.objective or objective,
+                    "requested_objective": acceptance.requested_objective or objective,
+                    "plan_id": getattr(result_data, "plan_id", ""),
+                    "trace_id": getattr(result_data, "trace_id", ""),
+                    "steps_completed": getattr(result_data, "steps_completed", None),
+                    "steps_total": getattr(result_data, "steps_total", None),
+                    "duration_s": getattr(result_data, "duration_s", None),
+                    "evidence": list(getattr(result_data, "evidence", []) or []),
+                    "succeeded": getattr(result_data, "succeeded", None),
+                }
+            )
+            logger.info("⚡ GodMode/TASK: %s → %s", objective[:60], acceptance.outcome.value)
+        except Exception as e:
+            logger.warning("GodMode: Task dispatch failed (%s): %s", objective[:40], e)
+        return state
+
+    @staticmethod
+    def _record_skill_blocked(state: AuraState, skill_name: str, message: str) -> None:
+        state.cognition.working_memory.append({
+            "role": "system",
+            "content": f"[SKILL BLOCKED: {skill_name}] {message}",
+            "timestamp": time.time(),
+            "metadata": {"type": "skill_result", "skill": skill_name, "ok": False},
+        })
+        state.response_modifiers["last_skill_run"] = skill_name
+        state.response_modifiers["last_skill_ok"] = False
+
     async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         if objective is None:
             objective = getattr(state.cognition, "current_objective", "")
@@ -577,50 +648,28 @@ class GodModeToolPhase(Phase):
         if intent_type not in ("SKILL", "TASK"):
             return state
 
+        cap = self._get_cap_engine()
+        matched_skill_hints = normalize_matched_skills(state.response_modifiers.get("matched_skills", []))
+        if not matched_skill_hints and cap and hasattr(cap, "detect_intent"):
+            try:
+                matched_skill_hints = list(cap.detect_intent(objective) or [])
+            except Exception as exc:
+                logger.debug("GodMode: matched skill refresh skipped: %s", exc)
+
+        if intent_type == "SKILL" and looks_like_multi_step_skill_request(objective, matched_skill_hints):
+            intent_type = "TASK"
+            state.response_modifiers["intent_type"] = "TASK"
+            if matched_skill_hints:
+                state.response_modifiers["matched_skills"] = matched_skill_hints
+            logger.info(
+                "⚡ GodMode: upgrading skill request to TASK for sustained execution → %s",
+                matched_skill_hints[:3] or ["task_engine"],
+            )
+
         # --- TASK path: multi-step goals go through TaskCommitmentVerifier ---
         if intent_type == "TASK":
-            try:
-                from core.agency.task_commitment_verifier import get_task_commitment_verifier
-                verifier = get_task_commitment_verifier(kernel=self.kernel)
-                acceptance = await verifier.verify_and_dispatch(objective, state)
-                state.cognition.working_memory.append({
-                    "role": "system",
-                    "content": acceptance.to_working_memory_message(),
-                    "timestamp": time.time(),
-                    "metadata": {
-                        "type": "task_result",
-                        "outcome": acceptance.outcome.value,
-                        "task_id": acceptance.task_id,
-                    },
-                })
-                state.response_modifiers["last_task_outcome"] = acceptance.outcome.value
-                state.response_modifiers["last_task_id"] = acceptance.task_id
-                result_data = acceptance.result_data
-                state.response_modifiers["last_task_result_payload"] = compact_result_payload(
-                    {
-                        "status": acceptance.outcome.value,
-                        "summary": acceptance.summary,
-                        "task_id": acceptance.task_id,
-                        "commitment_id": acceptance.commitment_id,
-                        "objective": acceptance.objective or objective,
-                        "requested_objective": acceptance.requested_objective or objective,
-                        "plan_id": getattr(result_data, "plan_id", ""),
-                        "trace_id": getattr(result_data, "trace_id", ""),
-                        "steps_completed": getattr(result_data, "steps_completed", None),
-                        "steps_total": getattr(result_data, "steps_total", None),
-                        "duration_s": getattr(result_data, "duration_s", None),
-                        "evidence": list(getattr(result_data, "evidence", []) or []),
-                        "succeeded": getattr(result_data, "succeeded", None),
-                    }
-                )
-                logger.info(
-                    "⚡ GodMode/TASK: %s → %s", objective[:60], acceptance.outcome.value
-                )
-            except Exception as e:
-                logger.warning("GodMode: Task dispatch failed (%s): %s", objective[:40], e)
-            return state
+            return await self._dispatch_task_request(state, objective)
 
-        cap = self._get_cap_engine()
         if not cap:
             return state
 
@@ -633,7 +682,7 @@ class GodModeToolPhase(Phase):
             state.response_modifiers["response_contract"] = contract.to_dict()
 
             # 1. Use pre-matched skills from CognitiveRoutingPhase (fastest path — no LLM cost)
-            matched_skills: List[str] = state.response_modifiers.get("matched_skills", [])
+            matched_skills: List[str] = normalize_matched_skills(state.response_modifiers.get("matched_skills", []))
             if not matched_skills and contract.required_skill:
                 matched_skills = [contract.required_skill]
 
@@ -662,6 +711,23 @@ class GodModeToolPhase(Phase):
 
             # 4. Extract params
             params = self._normalize_skill_params(skill_name, objective, await self._extract_params(skill_name, objective, cap))
+            params_ok, params, params_error = self._validate_skill_params(skill_name, params, cap)
+            if not params_ok:
+                logger.warning("GodMode: invalid params for %s → %s | params=%s", skill_name, params_error, params)
+                if looks_like_multi_step_skill_request(objective, matched_skills):
+                    logger.info("GodMode: invalid one-shot params detected; rerouting to task engine.")
+                    state.response_modifiers["intent_type"] = "TASK"
+                    state.response_modifiers["matched_skills"] = matched_skills
+                    return await self._dispatch_task_request(state, objective)
+                self._record_skill_blocked(
+                    state,
+                    skill_name,
+                    f"Param extraction failed validation; did not execute. {params_error}",
+                )
+                state.response_modifiers["last_skill_result_payload"] = compact_result_payload(
+                    {"ok": False, "error": params_error, "skill": skill_name, "params": params}
+                )
+                return state
 
             tool_source = self._resolve_tool_source(state)
 
@@ -681,14 +747,7 @@ class GodModeToolPhase(Phase):
                 )
                 if not approved:
                     logger.warning("🚫 GodMode: Tool execution '%s' blocked by Executive: %s", skill_name, reason)
-                    state.cognition.working_memory.append({
-                        "role": "system",
-                        "content": f"[SKILL BLOCKED: {skill_name}] Executive veto: {reason}",
-                        "timestamp": time.time(),
-                        "metadata": {"type": "skill_result", "skill": skill_name, "ok": False},
-                    })
-                    state.response_modifiers["last_skill_run"] = skill_name
-                    state.response_modifiers["last_skill_ok"] = False
+                    self._record_skill_blocked(state, skill_name, f"Executive veto: {reason}")
                     return state
             except Exception as e:
                 if constitutional_runtime_live:
@@ -707,14 +766,7 @@ class GodModeToolPhase(Phase):
                     except Exception as _exc:
                         logger.debug("Suppressed Exception: %s", _exc)
                     logger.warning("🚫 GodMode: Executive gate unavailable for '%s': %s", skill_name, e)
-                    state.cognition.working_memory.append({
-                        "role": "system",
-                        "content": f"[SKILL BLOCKED: {skill_name}] Executive gate unavailable.",
-                        "timestamp": time.time(),
-                        "metadata": {"type": "skill_result", "skill": skill_name, "ok": False},
-                    })
-                    state.response_modifiers["last_skill_run"] = skill_name
-                    state.response_modifiers["last_skill_ok"] = False
+                    self._record_skill_blocked(state, skill_name, "Executive gate unavailable.")
                     return state
                 logger.debug("GodMode: Executive check failed, proceeding degraded: %s", e)
 

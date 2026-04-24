@@ -15,6 +15,7 @@ from core.config import config
 from core.agency.capability_system import get_capability_manager, CapabilityToken
 from core.agency.safety_registry import get_safety_registry
 from core.mycelial.graph import get_mycelial
+from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request, normalize_matched_skills
 from core.utils.file_utils import atomic_write_json
 
 logger = logging.getLogger("Aura.TaskEngine")
@@ -218,9 +219,26 @@ class AutonomousTaskEngine:
     MAX_RESULT_CHARS = 1200
     SAFE_PARALLEL_TOOLS = frozenset({"think", "web_search", "read_file"})
     TERMINAL_PLAN_STATUSES = frozenset({"succeeded", "failed", "partial", "rejected"})
+    NON_EXECUTING_TOOLS = frozenset({"think"})
     TECHNICAL_FACT_HINTS = (
         "def ", "class ", ".py", ".ts", ".tsx", ".js", ".jsx",
         "function ", "method ", "module ", "endpoint", "api ", "schema ",
+    )
+    DESKTOP_TOOL_PREFERENCES = ("computer_use", "os_manipulation", "sovereign_vision", "sovereign_terminal")
+    COMPLETION_HEDGE_MARKERS = (
+        "i attempted",
+        "i tried",
+        "i meant to",
+        "i intended to",
+        "i wasn't able to",
+        "i was not able to",
+        "i could not",
+        "i couldn't",
+        "did not complete",
+        "not complete",
+        "not completed",
+        "not finish",
+        "still running",
     )
 
     def __init__(self, kernel: Any):
@@ -254,6 +272,37 @@ class AutonomousTaskEngine:
         if not tokens_a or not tokens_b:
             return 0.0
         return len(tokens_a & tokens_b) / max(1, len(tokens_b))
+
+    @staticmethod
+    def _normalize_origin(origin: Any) -> str:
+        return str(origin or "").strip().lower().replace("-", "_")
+
+    @classmethod
+    def _context_origin(cls, context: Optional[Dict[str, Any]]) -> str:
+        if not isinstance(context, dict):
+            return ""
+        for candidate in (
+            context.get("origin"),
+            context.get("intent_source"),
+            context.get("request_origin"),
+        ):
+            normalized = cls._normalize_origin(candidate)
+            if normalized:
+                return normalized
+        return ""
+
+    @staticmethod
+    def _callable_accepts_kwarg(tool_fn: Callable[..., Any], name: str) -> bool:
+        try:
+            signature = inspect.signature(tool_fn)
+        except (TypeError, ValueError):
+            return False
+        for parameter in signature.parameters.values():
+            if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+                return True
+            if parameter.name == name:
+                return True
+        return False
 
     def _persist_active_plans(self) -> None:
         try:
@@ -362,8 +411,16 @@ class AutonomousTaskEngine:
 
     # === AUDIT FIXES: Logic & Safety ===
 
-    async def _invoke_tool(self, tool_name: str, args: Dict, token_id: Optional[str] = None, is_shadow: bool = False) -> Any:
+    async def _invoke_tool(
+        self,
+        tool_name: str,
+        args: Dict,
+        token_id: Optional[str] = None,
+        is_shadow: bool = False,
+        origin: Optional[str] = None,
+    ) -> Any:
         """Invoke a registered tool with capability enforcement and shadow mode support."""
+        origin = self._normalize_origin(origin)
 
         # ── Capability Check (Token-based) ──
         # Note: token_id is generated per-plan based on decomposed steps.
@@ -379,7 +436,10 @@ class AutonomousTaskEngine:
 
         tool_fn = self._tool_registry.get(tool_name)
         if tool_fn is not None:
-            result = tool_fn(**dict(args or {}))
+            call_args = dict(args or {})
+            if origin and "origin" not in call_args and self._callable_accepts_kwarg(tool_fn, "origin"):
+                call_args["origin"] = origin
+            result = tool_fn(**call_args)
             if inspect.isawaitable(result):
                 return await result
             return result
@@ -389,7 +449,8 @@ class AutonomousTaskEngine:
             from core.container import ServiceContainer
             orchestrator = ServiceContainer.get("orchestrator", default=None)
             if orchestrator and hasattr(orchestrator, "execute_tool"):
-                return await orchestrator.execute_tool(tool_name, args)
+                kwargs = {"origin": origin} if origin else {}
+                return await orchestrator.execute_tool(tool_name, args, **kwargs)
         except Exception as e:
             logger.debug("Orchestrator tool fallback failed: %s", e)
 
@@ -448,6 +509,30 @@ class AutonomousTaskEngine:
             plan.context["resume_count"] = int(plan.context.get("resume_count", 0) or 0) + 1
             plan.context["last_resumed_at"] = time.time()
             logger.info("TaskEngine: resuming interrupted plan %s for goal '%s'", plan.plan_id, goal[:60])
+
+        if self._plan_needs_grounding_repair(plan, goal, plan.context):
+            repaired = self._build_grounded_fallback_plan(goal, plan.plan_id, plan.context)
+            if repaired is not None:
+                logger.warning(
+                    "TaskEngine: replacing under-grounded plan %s with deterministic fallback for '%s'",
+                    plan.plan_id,
+                    goal[:60],
+                )
+                plan = repaired
+            else:
+                logger.warning(
+                    "TaskEngine: no grounded fallback available for '%s'; refusing to degrade to think-only execution",
+                    goal[:60],
+                )
+                return TaskResult(
+                    plan_id=plan.plan_id,
+                    goal=goal,
+                    succeeded=False,
+                    summary="I couldn't build a grounded execution plan with real skills/tools for that task.",
+                    trace_id=trace_id,
+                    steps_completed=0,
+                    steps_total=0,
+                )
 
         plan.trace_id = trace_id
         plan.is_shadow = is_shadow
@@ -636,13 +721,20 @@ class AutonomousTaskEngine:
         context: Optional[Dict],
     ) -> TaskPlan:
         """Use LLM to decompose goal into concrete, verifiable steps."""
-        available_tools = list(self._tool_registry.keys())
+        tool_specs = self._build_planning_tool_specs(goal)
+        available_tools = [spec["name"] for spec in tool_specs]
+        tool_catalog = "\n".join(
+            f"- {spec['name']}: {spec['description']}"
+            + (f" Args: {spec['args']}" if spec.get("args") else "")
+            for spec in tool_specs
+        )
 
         prompt = f"""Decompose this goal into a sequence of concrete steps.
 
 Goal: {goal}
 
-Available tools: {', '.join(available_tools)}
+Available tools:
+{tool_catalog}
 
 For each step, provide:
 1. description: What to do (clear, specific)
@@ -660,6 +752,10 @@ Rules:
 - Prefer parallel-safe steps when possible
 - Only mark parallel_safe=true for read-only tools such as think, web_search, or read_file
 - For technical remember steps, only set args.verified=true after a live inspection step and list that dependency
+- Reuse the same real tool across multiple steps when needed
+- Use a real executable tool instead of `think` whenever the action can actually be performed
+- For desktop or app goals, break the work into grounded actions such as open, inspect/look, click/focus, type, verify, then summarize
+- Never invent parameter keys; stay inside the listed arguments for the chosen tool
 
 Respond ONLY with a JSON array, no other text:
 [
@@ -720,7 +816,23 @@ Respond ONLY with a JSON array, no other text:
 
         except Exception as e:
             logger.error("TaskEngine: decomposition failed: %s", e)
-            # Fallback: single-step plan using 'think'
+            if self._requires_grounded_action(goal, context):
+                fallback = self._build_grounded_fallback_plan(goal, plan_id, context)
+                if fallback is not None:
+                    logger.warning(
+                        "TaskEngine: using deterministic grounded fallback plan for '%s' after decomposition failure",
+                        goal[:60],
+                    )
+                    return fallback
+                return TaskPlan(
+                    plan_id=plan_id,
+                    goal=goal,
+                    steps=[],
+                    trace_id="",
+                    context=dict(context or {}),
+                )
+
+            # Non-embodied fallback: keep the best-effort cognitive step for generic goals.
             return TaskPlan(
                 plan_id=plan_id, goal=goal,
                 steps=[TaskStep(
@@ -733,6 +845,126 @@ Respond ONLY with a JSON array, no other text:
                 trace_id="",
                 context=dict(context or {}),
             )
+
+    @staticmethod
+    def _summarize_parameter_schema(schema: Dict[str, Any]) -> str:
+        if not isinstance(schema, dict):
+            return ""
+        props = schema.get("properties") or {}
+        if not isinstance(props, dict) or not props:
+            return ""
+
+        parts: List[str] = []
+        for name, spec in list(props.items())[:6]:
+            if not isinstance(spec, dict):
+                parts.append(str(name))
+                continue
+            type_name = str(spec.get("type", "any") or "any")
+            desc = str(spec.get("description", "") or "").strip()
+            label = f"{name}:{type_name}"
+            if desc:
+                label += f" ({desc[:80]})"
+            parts.append(label)
+        return "; ".join(parts)
+
+    @staticmethod
+    def _looks_like_desktop_goal(goal: str) -> bool:
+        lowered = str(goal or "").lower()
+        return any(
+            marker in lowered
+            for marker in (
+                "desktop",
+                "screen",
+                "window",
+                "app",
+                "application",
+                "notes",
+                "terminal",
+                "browser",
+                "tab",
+                "click",
+                "type",
+                "mouse",
+                "keyboard",
+                "on my computer",
+                "on my screen",
+            )
+        )
+
+    def _build_planning_tool_specs(self, goal: str) -> List[Dict[str, str]]:
+        specs: List[Dict[str, str]] = []
+        seen: Set[str] = set()
+
+        def _push(name: str, description: str, args: str = "") -> None:
+            tool_name = str(name or "").strip()
+            if not tool_name or tool_name in seen:
+                return
+            seen.add(tool_name)
+            specs.append(
+                {
+                    "name": tool_name,
+                    "description": str(description or "").strip() or "No description provided.",
+                    "args": str(args or "").strip(),
+                }
+            )
+
+        _push("think", "Reason about the next step or synthesize a grounded summary.", "prompt:string")
+        _push("web_search", "Search the web for grounded information.", "query:string")
+        _push("run_python", "Execute sandboxed Python code.", "code:string")
+        _push("write_file", "Write content to a file.", "path:string; content:string")
+        _push("read_file", "Read content from a file.", "path:string")
+        _push("remember", "Store grounded information after verification.", "content:string; verified:boolean")
+
+        try:
+            from core.container import ServiceContainer
+
+            cap = ServiceContainer.get("capability_engine", default=None)
+        except Exception:
+            cap = None
+
+        if cap and hasattr(cap, "get_tool_definitions"):
+            selected_defs = []
+            try:
+                if hasattr(cap, "select_tool_definitions"):
+                    selected_defs = list(cap.select_tool_definitions(objective=goal, max_tools=10) or [])
+                else:
+                    selected_defs = list(cap.get_tool_definitions() or [])
+            except Exception as exc:
+                logger.debug("TaskEngine: planning tool selection skipped: %s", exc)
+                selected_defs = []
+
+            by_name: Dict[str, Dict[str, Any]] = {}
+            try:
+                for entry in list(cap.get_tool_definitions() or []):
+                    if not isinstance(entry, dict):
+                        continue
+                    fn = entry.get("function", {}) or {}
+                    name = str(fn.get("name", "") or "").strip()
+                    if name:
+                        by_name[name] = entry
+            except Exception as exc:
+                logger.debug("TaskEngine: planning tool catalog skipped: %s", exc)
+
+            if self._looks_like_desktop_goal(goal):
+                for preferred in self.DESKTOP_TOOL_PREFERENCES:
+                    entry = by_name.get(preferred)
+                    if entry and entry not in selected_defs:
+                        selected_defs.append(entry)
+
+            for entry in selected_defs:
+                if not isinstance(entry, dict):
+                    continue
+                fn = entry.get("function", {}) or {}
+                name = str(fn.get("name", "") or "").strip()
+                if not name:
+                    continue
+                _push(
+                    name,
+                    str(fn.get("description", "") or ""),
+                    self._summarize_parameter_schema(fn.get("parameters") or {}),
+                )
+
+        return specs
 
     def _normalize_depends_on(self, raw_depends_on: Any, plan_id: str, step_index: int) -> List[str]:
         dependencies = raw_depends_on if isinstance(raw_depends_on, list) else [raw_depends_on]
@@ -768,6 +1000,261 @@ Respond ONLY with a JSON array, no other text:
         if any(hint in lowered for hint in self.TECHNICAL_FACT_HINTS):
             return True
         return bool(re.search(r"(?:[\w.-]+/)+[\w.-]+\.(?:py|tsx?|jsx?|json|ya?ml|toml|sh)", lowered))
+
+    @staticmethod
+    def _matched_skills_from_context(context: Optional[Dict[str, Any]]) -> List[str]:
+        if not isinstance(context, dict):
+            return []
+        return normalize_matched_skills(context.get("matched_skills"))
+
+    def _requires_grounded_action(self, goal: str, context: Optional[Dict[str, Any]]) -> bool:
+        matched_skills = self._matched_skills_from_context(context)
+        lowered = str(goal or "").lower()
+        if looks_like_multi_step_skill_request(goal, matched_skills):
+            return True
+        if matched_skills and self._looks_like_desktop_goal(goal):
+            return True
+        if matched_skills and any(
+            marker in lowered
+            for marker in ("actually", "on your own", "interact", "perform", "click", "type", "press", "open")
+        ):
+            return True
+        return False
+
+    def _plan_needs_grounding_repair(self, plan: TaskPlan, goal: str, context: Optional[Dict[str, Any]]) -> bool:
+        if not self._requires_grounded_action(goal, context):
+            return False
+
+        non_think_steps = [step for step in plan.steps if step.tool not in self.NON_EXECUTING_TOOLS]
+        if not non_think_steps:
+            return True
+
+        matched_skills = self._matched_skills_from_context(context)
+        if self._looks_like_desktop_goal(goal) and looks_like_multi_step_skill_request(goal, matched_skills):
+            grounded_steps = [
+                step for step in plan.steps
+                if step.tool in set(self.DESKTOP_TOOL_PREFERENCES) | set(matched_skills)
+            ]
+            if len(grounded_steps) < 3:
+                return True
+
+        return False
+
+    @staticmethod
+    def _extract_quoted_text(goal: str) -> str:
+        text = str(goal or "")
+        for pattern in (
+            r"[\"“”']([^\"“”']{1,400})[\"“”']",
+            r"\btype\s+exactly\s*:\s*(.+?)(?:,?\s+(?:press|hit|then|and|come back|report)\b|$)",
+            r"\b(?:type|write|enter)\s+(.+?)(?:,?\s+(?:press|hit|then|and|come back|report)\b|$)",
+        ):
+            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if match:
+                candidate = " ".join(match.group(1).split()).strip().strip(".,")
+                if candidate:
+                    return candidate
+        return ""
+
+    @staticmethod
+    def _extract_terminal_command(goal: str) -> str:
+        text = str(goal or "")
+        for pattern in (
+            r"^\s*(?:execute|run|terminal)(?:\s+the\s+command)?\s*:\s*(.+?)\s*$",
+            r"\btype\s+exactly\s*:\s*(.+?)(?:,?\s+(?:press|hit)\s+(?:return|enter)\b|$)",
+            r"\b(?:run|execute)\s+(.+?)(?:\.|!|\?|$)",
+        ):
+            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if match:
+                candidate = " ".join(match.group(1).split()).strip().strip(".,")
+                if candidate:
+                    return candidate
+        return ""
+
+    @staticmethod
+    def _extract_app_name(goal: str) -> str:
+        text = str(goal or "")
+        for pattern in (
+            r"\bopen(?:\s+up)?\s+(?:the\s+)?([A-Za-z][A-Za-z0-9 ._-]{1,48}?)\s+(?:app|application)\b",
+            r"\blaunch\s+(?:the\s+)?([A-Za-z][A-Za-z0-9 ._-]{1,48}?)\s+(?:app|application)?\b",
+        ):
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return " ".join(match.group(1).split()).strip(" .")
+        lowered = text.lower()
+        if "terminal" in lowered:
+            return "Terminal"
+        if "notes" in lowered:
+            return "Notes"
+        if "browser" in lowered:
+            return "Browser"
+        return ""
+
+    @staticmethod
+    def _extract_url(goal: str) -> str:
+        match = re.search(r"https?://[^\s<>\"')\]]+", str(goal or ""))
+        return match.group(0) if match else ""
+
+    def _build_desktop_fallback_plan(
+        self,
+        goal: str,
+        plan_id: str,
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[TaskPlan]:
+        matched_skills = self._matched_skills_from_context(context)
+        if "computer_use" not in matched_skills:
+            return None
+        desktop_tool = "computer_use"
+
+        app_name = self._extract_app_name(goal)
+        if not app_name:
+            return None
+
+        typed_text = self._extract_quoted_text(goal)
+        if app_name.lower() == "terminal":
+            typed_text = self._extract_terminal_command(goal) or typed_text
+
+        steps: List[TaskStep] = [
+            TaskStep(
+                step_id=f"{plan_id}_s0",
+                description=f"Open {app_name}.",
+                tool=desktop_tool,
+                args={"action": "open_app", "target": app_name},
+                success_criterion=f"result contains '{app_name}'",
+            )
+        ]
+
+        next_dep = f"{plan_id}_s0"
+        if app_name.lower() == "notes":
+            steps.append(
+                TaskStep(
+                    step_id=f"{plan_id}_s1",
+                    description="Create a new note.",
+                    tool=desktop_tool,
+                    args={"action": "hotkey", "target": "command+n"},
+                    success_criterion="result contains 'command+n'",
+                    depends_on=[next_dep],
+                )
+            )
+            next_dep = f"{plan_id}_s1"
+
+        if typed_text:
+            steps.append(
+                TaskStep(
+                    step_id=f"{plan_id}_s{len(steps)}",
+                    description=f"Type the requested text in {app_name}.",
+                    tool=desktop_tool,
+                    args={"action": "type", "target": typed_text},
+                    success_criterion=f"result contains '{typed_text[:80]}'",
+                    depends_on=[next_dep],
+                )
+            )
+            next_dep = steps[-1].step_id
+
+        if app_name.lower() == "terminal" and typed_text:
+            steps.append(
+                TaskStep(
+                    step_id=f"{plan_id}_s{len(steps)}",
+                    description="Submit the command in Terminal.",
+                    tool=desktop_tool,
+                    args={"action": "hotkey", "target": "enter"},
+                    success_criterion="result contains 'enter'",
+                    depends_on=[next_dep],
+                )
+            )
+            next_dep = steps[-1].step_id
+
+        return TaskPlan(
+            plan_id=plan_id,
+            goal=goal,
+            steps=steps,
+            trace_id="",
+            context=dict(context or {}),
+        )
+
+    def _build_single_skill_fallback_plan(
+        self,
+        goal: str,
+        plan_id: str,
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[TaskPlan]:
+        matched_skills = self._matched_skills_from_context(context)
+
+        if "sovereign_terminal" in matched_skills:
+            command = self._extract_terminal_command(goal)
+            if command:
+                needle = command.replace("echo ", "", 1).strip().strip("'\"")
+                criterion = "step completes without error"
+                if needle:
+                    criterion = f"result contains '{needle[:80]}'"
+                return TaskPlan(
+                    plan_id=plan_id,
+                    goal=goal,
+                    steps=[
+                        TaskStep(
+                            step_id=f"{plan_id}_s0",
+                            description="Execute the requested terminal command.",
+                            tool="sovereign_terminal",
+                            args={"action": "execute", "command": command},
+                            success_criterion=criterion,
+                        )
+                    ],
+                    trace_id="",
+                    context=dict(context or {}),
+                )
+
+        if "computer_use" in matched_skills:
+            url = self._extract_url(goal)
+            if url:
+                return TaskPlan(
+                    plan_id=plan_id,
+                    goal=goal,
+                    steps=[
+                        TaskStep(
+                            step_id=f"{plan_id}_s0",
+                            description="Open the requested URL.",
+                            tool="computer_use",
+                            args={"action": "open_url", "target": url},
+                            success_criterion=f"result contains '{url[:80]}'",
+                        )
+                    ],
+                    trace_id="",
+                    context=dict(context or {}),
+                )
+            app_name = self._extract_app_name(goal)
+            if app_name:
+                return TaskPlan(
+                    plan_id=plan_id,
+                    goal=goal,
+                    steps=[
+                        TaskStep(
+                            step_id=f"{plan_id}_s0",
+                            description=f"Open {app_name}.",
+                            tool="computer_use",
+                            args={"action": "open_app", "target": app_name},
+                            success_criterion=f"result contains '{app_name}'",
+                        )
+                    ],
+                    trace_id="",
+                    context=dict(context or {}),
+                )
+
+        return None
+
+    def _build_grounded_fallback_plan(
+        self,
+        goal: str,
+        plan_id: str,
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[TaskPlan]:
+        if self._looks_like_desktop_goal(goal):
+            desktop = self._build_desktop_fallback_plan(goal, plan_id, context)
+            if desktop is not None:
+                return desktop
+        return self._build_single_skill_fallback_plan(goal, plan_id, context)
+
+    def _summary_hedges_completion(self, summary: str) -> bool:
+        lowered = str(summary or "").lower()
+        return any(marker in lowered for marker in self.COMPLETION_HEDGE_MARKERS)
 
     def _compact_tool_result(self, result: Any) -> str:
         if result is None:
@@ -915,7 +1402,13 @@ Respond ONLY with a JSON array, no other text:
             try:
                 # Issue ATE-001: asyncio.timeout() is 3.11+, use wait_for for compatibility
                 raw_result = await asyncio.wait_for(
-                    self._invoke_tool(step.tool, step.args, plan.token_id, plan.is_shadow),
+                    self._invoke_tool(
+                        step.tool,
+                        step.args,
+                        plan.token_id,
+                        plan.is_shadow,
+                        origin=self._context_origin(plan.context),
+                    ),
                     timeout=self.STEP_TIMEOUT
                 )
 
@@ -1142,7 +1635,11 @@ Respond ONLY with a JSON array, no other text:
             logger.info("TaskEngine: rolling back '%s'", step.description[:40])
             try:
                 # Issue ATE-003: Pass rollback_args instead of empty dict
-                await self._invoke_tool(step.rollback_action, step.rollback_args)
+                await self._invoke_tool(
+                    step.rollback_action,
+                    step.rollback_args,
+                    origin=self._context_origin(plan.context),
+                )
                 step.status = StepStatus.ROLLED_BACK
             except Exception as e:
                 logger.warning("Rollback failed for step '%s': %s", step.description[:40], e)
@@ -1198,10 +1695,14 @@ Respond ONLY with a JSON array, no other text:
             )
             plan.final_result = summary
 
+        succeeded = not plan.any_failed
+        if self._requires_grounded_action(plan.goal, plan.context) and self._summary_hedges_completion(plan.final_result or summary):
+            succeeded = False
+
         return TaskResult(
             plan_id=plan.plan_id,
             goal=plan.goal,
-            succeeded=not plan.any_failed,
+            succeeded=succeeded,
             summary=plan.final_result or "Task failed",
             trace_id=plan.trace_id,
             steps_completed=len(plan.succeeded_steps),
@@ -1292,6 +1793,9 @@ Respond ONLY with a JSON array, no other text:
                 from core.container import ServiceContainer
                 orch = ServiceContainer.get("orchestrator", default=None)
                 if orch:
+                    origin = self._normalize_origin(kwargs.get("origin"))
+                    if origin:
+                        return await orch.execute_tool("web_search", {"query": query}, origin=origin)
                     return await orch.execute_tool("web_search", {"query": query})
             except Exception as e:
                 return f"Search failed: {e}"
@@ -1303,7 +1807,11 @@ Respond ONLY with a JSON array, no other text:
                 from core.container import ServiceContainer
                 orch = ServiceContainer.get("orchestrator", default=None)
                 if orch and hasattr(orch, "execute_tool"):
-                    result = await orch.execute_tool("run_python", {"code": code})
+                    origin = self._normalize_origin(kwargs.get("origin"))
+                    if origin:
+                        result = await orch.execute_tool("run_python", {"code": code}, origin=origin)
+                    else:
+                        result = await orch.execute_tool("run_python", {"code": code})
                     return str(result)
             except Exception as e:
                 return f"Python execution failed: {e}"

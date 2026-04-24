@@ -236,6 +236,9 @@ class IncomingLogicMixin:
         self.status.is_processing = True
         self._current_processing_start = time.monotonic()
         self._reflex_sent_for_current = False
+        previous_origin = getattr(self, "_current_origin", "")
+        previous_user_message = getattr(self, "_current_user_message", None)
+        previous_task_is_autonomous = getattr(self, "_current_task_is_autonomous", False)
         # v47: Track user interaction time for dream cooldown
         if origin in ("user", "voice", "admin"):
             self._last_user_interaction_time = time.time()
@@ -1002,3 +1005,8 @@ class IncomingLogicMixin:
             self.status.is_processing = False
         finally:
             self.status.is_processing = False
+            current_task = asyncio.current_task()
+            if getattr(self, "_current_thought_task", None) is current_task:
+                self._current_origin = previous_origin
+                self._current_user_message = previous_user_message
+                self._current_task_is_autonomous = previous_task_is_autonomous
