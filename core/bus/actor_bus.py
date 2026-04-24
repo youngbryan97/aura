@@ -3,6 +3,7 @@ import logging
 import time
 from typing import Any, Dict, Optional, Callable
 from .local_pipe_bus import LocalPipeBus
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Kernel.ActorBus")
 
@@ -86,7 +87,10 @@ class ActorBus:
         
         # Start Telemetry Broadcaster
         if self._telemetry_broadcaster_task is None:
-            self._telemetry_broadcaster_task = asyncio.create_task(self._telemetry_broadcaster())
+            self._telemetry_broadcaster_task = get_task_tracker().create_task(
+                self._telemetry_broadcaster(),
+                name="actor_bus.telemetry_broadcaster",
+            )
             
         logger.info("📡 ActorBus (Unified Layer) ONLINE.")
 

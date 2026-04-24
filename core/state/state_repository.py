@@ -16,6 +16,7 @@ import aiosqlite
 
 from core.runtime.effect_boundary import effect_sink
 from core.runtime.background_policy import is_user_facing_origin
+from core.utils.task_tracker import get_task_tracker
 
 from ..bus.shared_mem_bus import SharedMemoryTransport
 from ..container import ServiceContainer
@@ -210,10 +211,7 @@ class StateRepository:
             
             # Start consumer
             self._is_processing = True
-            self._consumer_task = asyncio.create_task(
-                self._mutation_consumer_loop(),
-                name="vault_mutation_consumer"
-            )
+            self._start_consumer_task()
         else:
             self._transport = self._resolve_transport()
             # Proxy Mode: Attach to SHM for reading
@@ -431,6 +429,14 @@ class StateRepository:
                 logger.debug("StateRepository DB close issue: %s", e)
             finally:
                 self._db = None
+
+    def _start_consumer_task(self) -> asyncio.Task:
+        task = get_task_tracker().create_task(
+            self._mutation_consumer_loop(),
+            name="vault_mutation_consumer",
+        )
+        self._consumer_task = task
+        return task
 
     async def _mutation_consumer_loop(self):
         """Atomic Mutation Consumer — The Heart of the Actor-Kernel."""
@@ -660,10 +666,7 @@ class StateRepository:
         actions: List[str] = []
 
         if self.is_vault_owner and self._is_processing and (self._consumer_task is None or self._consumer_task.done()):
-            self._consumer_task = asyncio.create_task(
-                self._mutation_consumer_loop(),
-                name="vault_mutation_consumer",
-            )
+            self._start_consumer_task()
             self._repair_count += 1
             actions.append("restarted_consumer")
 

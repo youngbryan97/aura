@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+from core.utils.task_tracker import get_task_tracker
+
 logger = logging.getLogger("Aura.SessionGuardian")
 
 
@@ -353,8 +355,9 @@ class SessionGuardian:
     def start(self):
         """Start the background monitor loop."""
         self._running = True
-        self._monitor_task = asyncio.create_task(
-            self._monitor_loop(), name="session_guardian"
+        self._monitor_task = get_task_tracker().create_task(
+            self._monitor_loop(),
+            name="session_guardian",
         )
         logger.info("SessionGuardian started")
 

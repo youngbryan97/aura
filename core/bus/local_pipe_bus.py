@@ -9,6 +9,7 @@ import weakref
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Optional, Tuple
 from core.bus.shared_mem_bus import SharedMemoryTransport
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.LocalPipeBus")
 
@@ -121,8 +122,15 @@ class LocalPipeBus:
         self._is_running = True
         if self.start_reader:
             self._dispatch_queue = asyncio.Queue(maxsize=256)
-            self._dispatcher_task = loop.create_task(self._dispatch_loop())
-            self._reader_task = loop.create_task(self._read_loop())
+            tracker = get_task_tracker()
+            self._dispatcher_task = tracker.create_task(
+                self._dispatch_loop(),
+                name="local_pipe_bus.dispatch",
+            )
+            self._reader_task = tracker.create_task(
+                self._read_loop(),
+                name="local_pipe_bus.read",
+            )
             logger.info("📡 LocalPipeBus reader ACTIVE (Child: %s)", self.is_child)
         else:
             logger.info("📡 LocalPipeBus ACTIVE (Manual Polling mode)")

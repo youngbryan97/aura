@@ -108,6 +108,19 @@ def test_aura_main_routes_bootstrap_background_tasks_through_task_tracker():
     assert 'get_task_tracker().create_task(orchestrator.run(), name="OrchestratorMainLoop")' in main_py
 
 
+def test_aura_main_uses_shared_runtime_boot_helper_across_cli_server_and_desktop():
+    main_py = (PROJECT_ROOT / "aura_main.py").read_text(encoding="utf-8")
+
+    assert "async def _boot_runtime_orchestrator(" in main_py
+    assert main_py.count("create_orchestrator()") == 1
+    assert main_py.count("await bootstrap_aura(orchestrator)") == 1
+    assert main_py.count("ServiceContainer.lock_registration()") == 1
+    assert main_py.count("_boot_runtime_orchestrator(") >= 4
+    assert 'orchestrator = await _boot_runtime_orchestrator(ready_label="CLI")' in main_py
+    assert 'ready_label="Desktop"' in main_py
+    assert 'ready_label="Server"' in main_py
+
+
 def test_3d_launcher_uses_runtime_lock_instead_of_stale_state_timestamp():
     launcher = (PROJECT_ROOT / "scripts" / "one_off" / "launch_aura_3d.py").read_text(encoding="utf-8")
 

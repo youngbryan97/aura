@@ -9,6 +9,7 @@ import sys
 import textwrap
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -721,6 +722,117 @@ def test_actor_bus_rejects_legacy_single_connection_transport():
 
 
 @pytest.mark.asyncio
+async def test_local_pipe_bus_reader_tasks_are_task_tracked(monkeypatch):
+    created = []
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
+    bus = LocalPipeBus(start_reader=True)
+    monkeypatch.setattr("core.bus.local_pipe_bus.get_task_tracker", lambda: _Tracker())
+
+    try:
+        bus.start()
+        await asyncio.sleep(0)
+
+        assert [name for name, _task in created] == [
+            "local_pipe_bus.dispatch",
+            "local_pipe_bus.read",
+        ]
+        assert bus._dispatcher_task is created[0][1]
+        assert bus._reader_task is created[1][1]
+    finally:
+        await bus.stop()
+
+
+@pytest.mark.asyncio
+async def test_actor_bus_telemetry_loop_is_task_tracked(monkeypatch):
+    await ActorBus.reset_singleton()
+    bus = ActorBus()
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr("core.bus.actor_bus.get_task_tracker", lambda: _Tracker())
+
+    bus.start()
+    try:
+        assert created["name"] == "actor_bus.telemetry_broadcaster"
+        assert bus._telemetry_broadcaster_task is created["task"]
+    finally:
+        await bus.stop()
+
+
+@pytest.mark.asyncio
+async def test_event_bus_redis_listener_is_task_tracked(monkeypatch):
+    from core.event_bus import AuraEventBus
+
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    class _PubSub:
+        async def psubscribe(self, *_args, **_kwargs):
+            return None
+
+        async def listen(self):
+            while True:
+                await asyncio.sleep(1.0)
+                yield {"type": "message"}
+
+        async def punsubscribe(self, *_args, **_kwargs):
+            return None
+
+        async def aclose(self):
+            return None
+
+    class _Redis:
+        def __init__(self):
+            self.pubsub_instance = _PubSub()
+
+        async def ping(self):
+            return True
+
+        def pubsub(self):
+            return self.pubsub_instance
+
+        async def aclose(self):
+            return None
+
+    redis_client = _Redis()
+    bus = AuraEventBus()
+    bus._use_redis = True
+    bus._redis = None
+
+    monkeypatch.setattr("core.event_bus.get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(
+        "core.event_bus.redis",
+        SimpleNamespace(from_url=lambda *_args, **_kwargs: redis_client),
+    )
+
+    await bus._setup_redis()
+
+    try:
+        assert created["name"] == "event_bus.redis_listener"
+        assert bus._pubsub_task is created["task"]
+    finally:
+        await bus.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_state_repository_prefers_bounded_hot_snapshot_before_marker():
     writes = []
 
@@ -1153,6 +1265,60 @@ async def test_state_repository_background_commit_prefers_bounded_snapshot_seria
 
 
 @pytest.mark.asyncio
+async def test_state_repository_initialize_tracks_owner_consumer_task(monkeypatch, tmp_path):
+    repo = StateRepository(db_path=str(tmp_path / "aura_state.db"), is_vault_owner=True)
+    repo._current = AuraState()
+
+    created = []
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
+    async def _hold_consumer():
+        started.set()
+        await release.wait()
+
+    class _Shm:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def create(self):
+            return None
+
+        def close(self):
+            return None
+
+    db = SimpleNamespace(execute=AsyncMock(), commit=AsyncMock(), close=AsyncMock())
+
+    @asynccontextmanager
+    async def _governed_scope(_decision):
+        yield
+
+    repo._ensure_db = AsyncMock(return_value=db)
+    repo._load_latest_state = AsyncMock()
+    repo._sync_to_shm = AsyncMock(return_value="full")
+    repo._mutation_consumer_loop = _hold_consumer
+    monkeypatch.setattr("core.state.state_repository.SharedMemoryTransport", _Shm)
+    monkeypatch.setattr("core.state.state_repository.get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr("core.governance_context.governed_scope", _governed_scope)
+
+    await repo.initialize()
+    await asyncio.wait_for(started.wait(), timeout=0.2)
+
+    try:
+        assert [name for name, _task in created] == ["vault_mutation_consumer"]
+        assert repo._consumer_task is created[0][1]
+    finally:
+        release.set()
+        await repo.close()
+
+
+@pytest.mark.asyncio
 async def test_state_repository_repair_runtime_restarts_consumer_and_coalesces_queue(monkeypatch, tmp_path):
     repo = StateRepository(db_path=str(tmp_path / "aura_state.db"), is_vault_owner=True)
     repo._current = AuraState()
@@ -1164,13 +1330,21 @@ async def test_state_repository_repair_runtime_restarts_consumer_and_coalesces_q
 
     started = asyncio.Event()
     release = asyncio.Event()
+    created = []
 
     async def _hold_consumer():
         started.set()
         await release.wait()
 
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
     repo._mutation_consumer_loop = _hold_consumer
     repo._ensure_db = AsyncMock(return_value=object())
+    monkeypatch.setattr("core.state.state_repository.get_task_tracker", lambda: _Tracker())
 
     threshold = max(1, int(repo._mutation_queue_maxsize * 0.75))
     for idx in range(threshold):
@@ -1191,6 +1365,8 @@ async def test_state_repository_repair_runtime_restarts_consumer_and_coalesces_q
         assert "restarted_consumer" in result["actions"]
         assert "reconnected_db" in result["actions"]
         assert any(action.startswith("coalesced_queue:") for action in result["actions"])
+        assert [name for name, _task in created] == ["vault_mutation_consumer"]
+        assert repo._consumer_task is created[0][1]
         assert repo._mutation_queue.qsize() == 1
         assert repo._dropped_commit_count > 0
     finally:
@@ -1725,6 +1901,137 @@ def test_collect_liquid_state_payload_prefers_runtime_signal_over_zero_stub():
     assert payload["curiosity"] == 24.0
     assert payload["frustration"] == 100.0
     assert payload["confidence"] == 87.0
+
+
+def test_scheduler_import_defers_asyncio_primitives_until_runtime():
+    import core.scheduler as scheduler_module
+
+    scheduler_module = importlib.reload(scheduler_module)
+
+    assert scheduler_module.scheduler._lock is None
+    assert scheduler_module.scheduler._stop is None
+
+
+@pytest.mark.asyncio
+async def test_scheduler_tracks_main_loop_and_registered_tasks(monkeypatch):
+    import core.scheduler as scheduler_module
+
+    scheduler_module = importlib.reload(scheduler_module)
+    sched = scheduler_module.scheduler
+    created = []
+    ran = asyncio.Event()
+    release = asyncio.Event()
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
+    async def _tick():
+        ran.set()
+        await release.wait()
+
+    monkeypatch.setattr(scheduler_module, "get_task_tracker", lambda: _Tracker())
+
+    await sched.register(scheduler_module.TaskSpec(name="heartbeat", coro=_tick, tick_interval=0.0))
+    await sched.start()
+    await asyncio.wait_for(ran.wait(), timeout=0.2)
+
+    try:
+        assert sched._lock is not None
+        assert sched._stop is not None
+        assert [name for name, _task in created[:2]] == [
+            "aura.scheduler.main_loop",
+            "scheduler.heartbeat",
+        ]
+        assert sched._main_loop_task is created[0][1]
+    finally:
+        release.set()
+        await sched.stop()
+
+
+@pytest.mark.asyncio
+async def test_continuous_cognition_loop_is_task_tracked(monkeypatch):
+    from core.continuous_cognition import ContinuousCognitionLoop
+    import core.continuous_cognition as continuous_cognition_module
+
+    created = {}
+    loop = ContinuousCognitionLoop()
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr(continuous_cognition_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.register_instance",
+        lambda *_args, **_kwargs: None,
+    )
+
+    await loop.start()
+    try:
+        assert created["name"] == "continuous_cognition"
+        assert loop._task is created["task"]
+    finally:
+        await loop.stop()
+
+
+@pytest.mark.asyncio
+async def test_session_guardian_monitor_loop_is_task_tracked(monkeypatch):
+    import core.session_guardian as session_guardian_module
+
+    guardian = session_guardian_module.SessionGuardian()
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr(session_guardian_module, "get_task_tracker", lambda: _Tracker())
+
+    guardian.start()
+    try:
+        assert created["name"] == "session_guardian"
+        assert guardian._monitor_task is created["task"]
+    finally:
+        guardian.stop()
+        await asyncio.sleep(0)
+        if guardian._monitor_task:
+            with pytest.raises(asyncio.CancelledError):
+                await guardian._monitor_task
+
+
+@pytest.mark.asyncio
+async def test_system_governor_health_loop_is_task_tracked(monkeypatch):
+    import core.guardians.governor as governor_module
+
+    governor = governor_module.SystemGovernor()
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr(governor_module, "get_task_tracker", lambda: _Tracker())
+
+    await governor.start()
+    try:
+        assert created["name"] == "system_governor.health_check"
+    finally:
+        await governor.stop()
+        created["task"].cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await created["task"]
 
 
 @pytest.mark.asyncio

@@ -34,6 +34,7 @@ import time
 from typing import Any, Optional
 
 from core.container import ServiceContainer
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ContinuousCognition")
 
@@ -69,7 +70,10 @@ class ContinuousCognitionLoop:
             return
         self._running = True
         ServiceContainer.register_instance("continuous_cognition", self, required=False)
-        self._task = asyncio.create_task(self._run(), name="continuous_cognition")
+        self._task = get_task_tracker().create_task(
+            self._run(),
+            name="continuous_cognition",
+        )
         logger.info("ContinuousCognitionLoop ONLINE — brainstem active at %.1f Hz", self._HZ)
 
     async def stop(self) -> None:

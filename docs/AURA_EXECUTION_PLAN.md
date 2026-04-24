@@ -165,6 +165,11 @@ Status:
   - strict fail-closed boot behavior for critical `ResilientBoot` stages
   - websocket disconnect task ownership via the server task spawner
   - graceful shutdown signal bridge task ownership via the task tracker
+  - canonical shared runtime boot helper across CLI/server/desktop
+  - explicit task ownership for `ActorBus` telemetry and `LocalPipeBus` reader/dispatcher loops
+  - explicit task ownership for `StateRepository` consumer startup/repair and the `AuraEventBus` Redis listener
+  - lazy runtime initialization for `Scheduler` async primitives plus tracked scheduler main/task loops
+  - tracked long-lived service loops for `ContinuousCognitionLoop`, `SessionGuardian`, and `SystemGovernor`
 
 ## Deferred Backlog Additions
 

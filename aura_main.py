@@ -442,17 +442,30 @@ async def bootstrap_aura(orchestrator: Any):
     except Exception as exc:
         logger.error("❌ Failed to apply gap-closing patches: %s", exc)
 
-async def run_console():
-    """Interactive CLI Mode"""
+
+async def _boot_runtime_orchestrator(
+    *,
+    ready_label: str,
+    readiness_context: Optional[str] = None,
+):
+    """Canonical runtime boot path shared by CLI/server/desktop surfaces."""
     from core.orchestrator import create_orchestrator
+    from core.container import ServiceContainer
+
     orchestrator = create_orchestrator()
     await bootstrap_aura(orchestrator)
     await orchestrator.start()
-    
-    # Post-boot stabilization: Lock the final assembly
-    from core.container import ServiceContainer
+
+    if readiness_context and hasattr(orchestrator, "_ensure_inference_gate_ready"):
+        await orchestrator._ensure_inference_gate_ready(context=readiness_context)
+
     ServiceContainer.lock_registration()
-    logger.info("🛡️ Registry Locked. Aura Ready (CLI).")
+    logger.info("🛡️ Registry Locked. Aura Ready (%s).", ready_label)
+    return orchestrator
+
+async def run_console():
+    """Interactive CLI Mode"""
+    orchestrator = await _boot_runtime_orchestrator(ready_label="CLI")
 
     from core.main import conversation_loop
     await conversation_loop(orchestrator=orchestrator)
@@ -541,21 +554,14 @@ async def run_desktop(port: int):
         await asyncio.to_thread(_serve_api_sync)
 
     async def _main_loop():
-        from core.orchestrator import create_orchestrator
         from core.container import ServiceContainer
         
         # 1. Initialize Orchestrator and wait for boot
         logger.info("🧠 Orchestrator boot beginning...")
-        orchestrator = create_orchestrator()
-        
-
-        await bootstrap_aura(orchestrator)
-        
-        # Explicitly start orchestrator background tasks
-        # (telemetry, audits, scheduler) to ensure uptime/cycles report correctly.
-        await orchestrator.start()
-        if hasattr(orchestrator, "_ensure_inference_gate_ready"):
-            await orchestrator._ensure_inference_gate_ready(context="server_boot")
+        orchestrator = await _boot_runtime_orchestrator(
+            ready_label="Desktop",
+            readiness_context="server_boot",
+        )
         tracker.create_task(orchestrator.run(), name="OrchestratorMainLoop")
 
         # 2. Start API Server (v21: Server now runs in Kernel)
@@ -572,11 +578,6 @@ async def run_desktop(port: int):
             logger.info("✅ API Server is HEALTHY. Proceeding to GUI launch.")
         else:
             logger.warning("⚠️ API Server health check timed out after 30s. GUI launch may be degraded.")
-        
-        # Post-boot stabilization: Lock the final assembly
-        from core.container import ServiceContainer
-        ServiceContainer.lock_registration()
-        logger.info("🛡️ Registry Locked. Aura Ready (Desktop).")
         
         # 3. Start GUI Actor (WebView Only)
         # On macOS, we use subprocess.Popen instead of multiprocessing to avoid XPC/Cocoa deadlocks
@@ -1019,12 +1020,10 @@ def main():
             ):
                 host = "0.0.0.0"
             async def _run_server_with_bootstrap():
-                from core.orchestrator import create_orchestrator
-                orchestrator = create_orchestrator()
-                await bootstrap_aura(orchestrator)
-                await orchestrator.start()
-                if hasattr(orchestrator, "_ensure_inference_gate_ready"):
-                    await orchestrator._ensure_inference_gate_ready(context="server_boot")
+                orchestrator = await _boot_runtime_orchestrator(
+                    ready_label="Server",
+                    readiness_context="server_boot",
+                )
                 from core.utils.task_tracker import get_task_tracker
 
                 get_task_tracker().create_task(orchestrator.run(), name="OrchestratorMainLoop")

@@ -6,6 +6,8 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Optional, Any, List
 
+from core.utils.task_tracker import get_task_tracker
+
 logger = logging.getLogger("Aura.Scheduler")
 
 class Lifecycle(enum.Enum):
@@ -47,16 +49,24 @@ class Scheduler:
             return
         self._tasks: Dict[str, TaskSpec] = {}
         self.state = Lifecycle.INITIALIZING
-        self._lock = asyncio.Lock()
-        self._stop = asyncio.Event()
+        self._lock: Optional[asyncio.Lock] = None
+        self._stop: Optional[asyncio.Event] = None
         self._health: Dict[str, str] = {}
         self._main_loop_task: Optional[asyncio.Task] = None
         self._initialized = True
         logger.info("Scheduler substrate initialized.")
 
+    def _ensure_async_primitives(self) -> tuple[asyncio.Lock, asyncio.Event]:
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        if self._stop is None:
+            self._stop = asyncio.Event()
+        return self._lock, self._stop
+
     async def register(self, spec: TaskSpec):
         """Register a subsystem task with the scheduler."""
-        async with self._lock:
+        lock, _stop = self._ensure_async_primitives()
+        async with lock:
             if spec.name in self._tasks:
                 logger.warning(f"Task {spec.name} already registered. Updating spec.")
             self._tasks[spec.name] = spec
@@ -69,25 +79,22 @@ class Scheduler:
             logger.warning("Scheduler already running.")
             return
 
+        _lock, stop_event = self._ensure_async_primitives()
         self.state = Lifecycle.IDLE
-        self._stop.clear()
-        try:
-            from core.utils.task_tracker import get_task_tracker
-
-            self._main_loop_task = get_task_tracker().create_task(
-                self._main_loop(),
-                name="aura.scheduler.main_loop",
-            )
-        except Exception:
-            self._main_loop_task = asyncio.create_task(self._main_loop(), name="aura.scheduler.main_loop")
+        stop_event.clear()
+        self._main_loop_task = get_task_tracker().create_task(
+            self._main_loop(),
+            name="aura.scheduler.main_loop",
+        )
         logger.info("🚀 Scheduler started.")
 
     async def _main_loop(self):
         """The heartbeat of the scheduler."""
+        lock, stop_event = self._ensure_async_primitives()
         try:
-            while not self._stop.is_set():
+            while not stop_event.is_set():
                 now = time.monotonic()
-                async with self._lock:
+                async with lock:
                     pending_tasks = sorted(
                         self._tasks.values(), 
                         key=lambda x: (x.critical, x.priority), 
@@ -102,18 +109,10 @@ class Scheduler:
                     if now - spec.last_run >= spec.tick_interval:
                         if spec.running_task is None or spec.running_task.done():
                             spec.last_run = now
-                            try:
-                                from core.utils.task_tracker import get_task_tracker
-
-                                spec.running_task = get_task_tracker().create_task(
-                                    self._run_task(spec),
-                                    name=f"scheduler.{spec.name}",
-                                )
-                            except Exception:
-                                spec.running_task = asyncio.create_task(
-                                    self._run_task(spec),
-                                    name=f"scheduler.{spec.name}",
-                                )
+                            spec.running_task = get_task_tracker().create_task(
+                                self._run_task(spec),
+                                name=f"scheduler.{spec.name}",
+                            )
                 
                 await asyncio.sleep(0.05)
         except asyncio.CancelledError:
@@ -151,10 +150,11 @@ class Scheduler:
     async def stop(self):
         """Gracefully shut down all scheduled tasks."""
         logger.info("Shutting down scheduler...")
-        self._stop.set()
+        lock, stop_event = self._ensure_async_primitives()
+        stop_event.set()
         self.state = Lifecycle.SHUTTING_DOWN
         
-        async with self._lock:
+        async with lock:
             for spec in self._tasks.values():
                 if spec.running_task:
                     spec.running_task.cancel()

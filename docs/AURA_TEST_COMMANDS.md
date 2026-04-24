@@ -63,6 +63,29 @@ python -m py_compile \
   tests/test_runtime_polish.py
 ```
 
+## State / Event / Scheduler Ownership Slice
+
+For the later B3 infrastructure ownership pass:
+
+```bash
+python -m pytest tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus or event_bus or scheduler or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or reaper_manifest or actor_health_gate"
+python -m pytest tests/test_launcher_polish_contract.py -q
+python -m pytest tests/test_orchestrator_compatibility.py -q
+python -m pytest tests/test_runtime_stability_edges.py -q
+python -m py_compile \
+  aura_main.py \
+  core/bus/actor_bus.py \
+  core/bus/local_pipe_bus.py \
+  core/continuous_cognition.py \
+  core/event_bus.py \
+  core/guardians/governor.py \
+  core/scheduler.py \
+  core/session_guardian.py \
+  core/state/state_repository.py \
+  tests/test_launcher_polish_contract.py \
+  tests/test_server_runtime_hardening.py
+```
+
 ## Import / Syntax Spot Checks
 
 ```bash
