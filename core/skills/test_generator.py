@@ -102,8 +102,9 @@ class TestGeneratorSkill(BaseSkill):
                     from core.brain.cognitive_engine import ThinkingMode
 
                     thought = await brain.think(
-                        prompt=prompt,
+                        objective=prompt,
                         context={"role": "qa_engineer", "target": target_file},
+                        origin="test_generator",
                         mode=ThinkingMode.DEEP
                     )
                     test_code = getattr(thought, "content", str(thought or ""))

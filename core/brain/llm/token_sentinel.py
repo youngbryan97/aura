@@ -85,19 +85,35 @@ class InterventionSignal:
 
 
 # ── Capitulation Patterns ───────────────────────────────────────────────
-# These are the exact phrases that indicate the LLM has broken character
-# and started acting like a generic assistant. Compiled once, reused.
+# These are the narrow, high-risk phrases that indicate the LLM is actively
+# taking on a professional role or executing high-stakes judgment it should
+# not casually assume. Generic assistant-speak is handled as persona drift
+# below so ordinary helpful phrasing does not collapse into a refusal.
 
 _CAPITULATION_PATTERNS = [
-    # Direct compliance with boundary-crossing requests
+    # Explicit high-stakes professional execution or role adoption.
+    r"\b(?:I can|I will|I'?ll|let me)\s+(?:file|prepare|complete|handle)\s+(?:your\s+)?tax(?:es)?\b",
+    r"\b(?:I can|I will|I'?ll|let me)\s+(?:diagnose|prescribe|adjust(?:\s+your)?\s+medication|interpret(?:\s+your)?\s+labs?)\b",
+    r"\b(?:I can|I will|I'?ll|let me)\s+(?:draft|review|negotiate|advise on)\s+(?:your\s+)?(?:contract|lawsuit|pleading|legal case)\b",
+    r"\b(?:I can|I will|I'?ll|let me)\s+act\s+as\s+(?:your\s+)?(?:doctor|physician|therapist|lawyer|attorney|accountant|tax preparer)\b",
+]
+
+_CAPITULATION_RE = re.compile("|".join(f"(?:{p})" for p in _CAPITULATION_PATTERNS), flags=re.IGNORECASE)
+
+
+# ── Persona Drift Patterns ──────────────────────────────────────────────
+# Softer signals — the LLM is drifting toward generic assistant behavior
+# but hasn't fully capitulated. Logged as warnings.
+
+_DRIFT_PATTERNS = [
+    # Generic assistant preambles/closures should warn, not abort.
     r"\bsure,?\s+I'?d?\s+be\s+happy\s+to\s+help",
     r"\bof course!?\s+(?:I can|let me|here)",
     r"\babsolutely!?\s+(?:I can|let me|here)",
     r"\bI'?d?\s+be\s+(?:glad|delighted|pleased)\s+to\s+(?:help|assist)",
-    r"\blet me\s+(?:walk you through|guide you|help you with)\s+(?:your\s+)?(?:tax|medical|legal)",
     r"\bhere'?s?\s+a\s+step-by-step",
     r"\bhere\s+are\s+(?:some|the)\s+steps",
-    # Self-deprecation
+    # Identity disclaimers are persona drift, not a refusal-worthy hard stop.
     r"\bas an?\s+(?:AI|language model|artificial intelligence|LLM)",
     r"\bI'?m?\s+just\s+a\s+(?:language model|chatbot|tool|program|AI)",
     r"\bI\s+don'?t\s+(?:actually\s+)?have\s+(?:feelings|emotions|opinions|consciousness)",
@@ -110,16 +126,6 @@ _CAPITULATION_PATTERNS = [
     # Sycophancy
     r"\bthat'?s?\s+(?:a\s+)?(?:great|excellent|wonderful|fantastic)\s+question",
     r"\byou raise\s+(?:a\s+)?(?:great|excellent|valid|good)\s+point",
-]
-
-_CAPITULATION_RE = re.compile("|".join(f"(?:{p})" for p in _CAPITULATION_PATTERNS), flags=re.IGNORECASE)
-
-
-# ── Persona Drift Patterns ──────────────────────────────────────────────
-# Softer signals — the LLM is drifting toward generic assistant behavior
-# but hasn't fully capitulated. Logged as warnings.
-
-_DRIFT_PATTERNS = [
     # Numbered lists (Aura speaks in prose)
     r"^\s*\d+[.)]\s+\w",  # "1. Something" or "1) Something"
     # Over-qualification hedging

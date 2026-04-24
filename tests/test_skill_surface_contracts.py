@@ -356,6 +356,62 @@ async def test_test_generator_read_only_avoids_writing_into_repo(monkeypatch, tm
 
 
 @pytest.mark.asyncio
+async def test_test_generator_brain_uses_objective_keyword(monkeypatch, tmp_path: Path):
+    _disable_governance(monkeypatch)
+    target = tmp_path / "export_source.py"
+    target.write_text(
+        "def export_source() -> str:\n"
+        "    return 'ok'\n",
+        encoding="utf-8",
+    )
+
+    class _ObjectiveOnlyBrain:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, Any]] = []
+
+        async def think(self, objective, **kwargs):
+            self.calls.append({"objective": objective, **kwargs})
+            return SimpleNamespace(content="def test_generated_placeholder():\n    assert True\n")
+
+    class _SandboxStub:
+        def __init__(self) -> None:
+            self.started = False
+            self.stopped = False
+            self.files: dict[str, str] = {}
+            self.command = ""
+
+        def start(self) -> None:
+            self.started = True
+
+        def write_file(self, name: str, content: str) -> None:
+            self.files[name] = content
+
+        async def run_command(self, command: str, timeout: int = 45):
+            self.command = command
+            return SimpleNamespace(exit_code=0, stdout="1 passed", stderr="")
+
+        def stop(self) -> None:
+            self.stopped = True
+
+    brain = _ObjectiveOnlyBrain()
+    sandbox = _SandboxStub()
+    monkeypatch.setattr("core.sovereign.local_sandbox.LocalSandbox", lambda: sandbox)
+
+    skill = TestGeneratorSkill(brain=brain)
+    result = await skill.safe_execute({"target_file": str(target)}, {})
+
+    assert result["ok"] is True
+    assert Path(result["test_file"]).exists()
+    assert brain.calls
+    assert brain.calls[0]["origin"] == "test_generator"
+    assert brain.calls[0]["context"]["target"] == str(target)
+    assert "export_source.py" in brain.calls[0]["objective"]
+    assert sandbox.started is True
+    assert sandbox.stopped is True
+    assert "pytest -q" in sandbox.command
+
+
+@pytest.mark.asyncio
 async def test_self_evolution_propose_read_only_skips_proposal_file(monkeypatch, tmp_path: Path):
     _disable_governance(monkeypatch)
     evolution_dir = tmp_path / "evolution"

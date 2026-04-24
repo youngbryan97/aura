@@ -45,6 +45,8 @@ class AutonomousOutputGate:
             r"^Context:",
             r"Internal Monologue:",
             r"^Execute Goal:",
+            r"(?m)^\s*volition_trigger\b.*$",
+            r"(?m)^\s*volition_error\b.*$",
             r"Still with me\? Sometimes quiet",
             r"Would you like to dive into",
             # v48: Block internal cognitive state leaking into chat

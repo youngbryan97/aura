@@ -220,6 +220,48 @@ class SensoryMotorCortex:
 
         return (now - self.last_interaction_time) > self.boredom_threshold_seconds
 
+    async def _dispatch_idle_volition(self, reason: str = "idle_timeout") -> None:
+        """Route idle volition into the modern autonomy path.
+
+        Older builds injected the literal control token ``volition_trigger``
+        into the normal chat pipeline. That let an internal signal get treated
+        like conversational text, which could leak into UI output or trigger
+        refusal-style responses to a non-user message.
+        """
+        orch = self.orchestrator
+        if orch is None:
+            logger.debug("SensoryMotorCortex: idle volition skipped (no orchestrator).")
+            return
+
+        trigger = getattr(orch, "_trigger_autonomous_thought", None)
+        if callable(trigger):
+            await trigger(False)
+            return
+
+        # Compatibility fallback for runtimes missing the newer autonomy mixin.
+        generator = getattr(orch, "generate_autonomous_thought", None)
+        emitter = getattr(orch, "emit_spontaneous_message", None)
+        if callable(generator) and callable(emitter):
+            thought = await generator()
+            thought_text = str(thought or "").strip()
+            if thought_text:
+                await emitter(
+                    thought_text,
+                    modality="both",
+                    origin="sensory_motor",
+                    metadata={
+                        "autonomous": True,
+                        "spontaneous": True,
+                        "trigger": "idle_volition",
+                        "reason": reason,
+                    },
+                )
+            return
+
+        logger.warning(
+            "SensoryMotorCortex: idle volition had no supported dispatch path."
+        )
+
     # ---------------------------------------------------------
     # 2. VOLITION: Spontaneous Action Generation
     # ---------------------------------------------------------
@@ -234,11 +276,7 @@ class SensoryMotorCortex:
             if self._should_trigger_volition(now=now):
                 idle_duration = now - self.last_interaction_time
                 logger.info(f"System idle for {idle_duration/60:.1f}m. Triggering spontaneous volition.")
-                if self.orchestrator:
-                    await self.orchestrator.process_event(
-                        {"content": "volition_trigger", "context": {"reason": "idle_timeout"}},
-                        origin="sensory_motor",
-                    )
+                await self._dispatch_idle_volition(reason="idle_timeout")
                 self.last_interaction_time = now # Reset clock
 
     # ---------------------------------------------------------

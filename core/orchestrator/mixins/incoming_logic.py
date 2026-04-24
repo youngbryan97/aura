@@ -133,6 +133,48 @@ class IncomingLogicMixin:
         if not isinstance(message, str):
             message = str(message)
 
+        internal_signal = message.strip().lower()
+        if origin not in ("user", "voice", "admin"):
+            if internal_signal.startswith("volition_trigger"):
+                logger.info(
+                    "⚡ Routing internal volition trigger from %s into autonomous thought.",
+                    origin,
+                )
+                trigger = getattr(self, "_trigger_autonomous_thought", None)
+                if callable(trigger):
+                    await trigger(False)
+                else:
+                    logger.warning(
+                        "Volition trigger received from %s but no autonomous trigger path is available.",
+                        origin,
+                    )
+                return None
+
+            if internal_signal.startswith("volition_error"):
+                detail = (
+                    message.split(":", 1)[1].strip()
+                    if ":" in message
+                    else str(
+                        payload_context.get("reason")
+                        or payload_context.get("error")
+                        or origin
+                    )
+                )[:160]
+                logger.warning(
+                    "⚠️ Suppressing internal volition error signal from %s (%s).",
+                    origin,
+                    detail,
+                )
+                record_degraded_event(
+                    "autonomy",
+                    "volition_control_signal_error",
+                    detail=detail,
+                    severity="warning",
+                    classification="background_degraded",
+                    context={"origin": origin},
+                )
+                return None
+
         # Detect Origin from message prefixes (Legacy support)
         safe_msg = message
 

@@ -1,7 +1,9 @@
 from pathlib import Path
 import sys
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from core.brain.inference_gate import InferenceGate
 from core.brain.llm_health_router import build_router_from_config
@@ -83,6 +85,22 @@ def test_sensory_motor_cortex_skips_volition_while_processing():
 
     assert cortex._should_trigger_volition(now=500.0) is False
     assert cortex.last_interaction_time == 500.0
+
+
+@pytest.mark.asyncio
+async def test_sensory_motor_cortex_routes_idle_volition_into_autonomy():
+    orchestrator = SimpleNamespace(
+        _trigger_autonomous_thought=AsyncMock(),
+        generate_autonomous_thought=AsyncMock(),
+        emit_spontaneous_message=AsyncMock(),
+    )
+    cortex = SensoryMotorCortex(orchestrator=orchestrator)
+
+    await cortex._dispatch_idle_volition(reason="idle_timeout")
+
+    orchestrator._trigger_autonomous_thought.assert_awaited_once_with(False)
+    orchestrator.generate_autonomous_thought.assert_not_called()
+    orchestrator.emit_spontaneous_message.assert_not_called()
 
 
 def test_memory_monitor_uses_psutil_pressure_sample(monkeypatch):

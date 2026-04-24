@@ -16,6 +16,7 @@ import asyncio
 import platform
 import time
 from typing import Any, Dict, List
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -100,6 +101,51 @@ def test_trusted_internal_origin_still_blocked_by_safety_veto():
         constitution.get_constitutional_core = original
 
     assert ok is False, "safety vetoes must still block internal volition"
+
+
+@pytest.mark.asyncio
+async def test_internal_volition_trigger_routes_to_autonomy(orchestrator):
+    orchestrator._trigger_autonomous_thought = AsyncMock()
+    orchestrator.state_machine.execute = AsyncMock()
+
+    result = await orchestrator._original_handle_incoming_logic(
+        "volition_trigger",
+        origin="sensory_motor",
+    )
+
+    assert result is None
+    orchestrator._trigger_autonomous_thought.assert_awaited_once_with(False)
+    orchestrator.state_machine.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_internal_volition_error_signal_is_suppressed(orchestrator):
+    orchestrator._trigger_autonomous_thought = AsyncMock()
+    orchestrator.state_machine.execute = AsyncMock()
+
+    result = await orchestrator._original_handle_incoming_logic(
+        "volition_error: identity_violation. request contradicts self-model. reject.",
+        origin="sensory_motor",
+    )
+
+    assert result is None
+    orchestrator._trigger_autonomous_thought.assert_not_awaited()
+    orchestrator.state_machine.execute.assert_not_awaited()
+
+
+def test_output_gate_blocks_volition_control_tokens():
+    from core.utils.output_gate import AutonomousOutputGate
+
+    gate = AutonomousOutputGate()
+
+    assert gate._is_output_blocked("volition_trigger")
+    assert gate._is_output_blocked("volition_error")
+    assert gate._is_output_blocked(
+        "volition_error: identity_violation. request contradicts self-model. reject."
+    )
+    assert gate._is_output_blocked(
+        "thinking...\nvolition_error: identity_violation. request contradicts self-model. reject."
+    )
 
 
 # ---------------------------------------------------------------------------
