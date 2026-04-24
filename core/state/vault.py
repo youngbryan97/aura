@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 from .state_repository import StateRepository, get_state_shm_size_bytes
 from .aura_state import AuraState
 from ..bus.shared_mem_bus import SharedMemoryTransport
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Actor.StateVault")
 
@@ -30,8 +31,8 @@ class StateVaultActor:
         self._heartbeat_task: Optional[asyncio.Task] = None
         self._background_tasks: set[asyncio.Task] = set()
 
-    def _track_task(self, coro: Any) -> asyncio.Task:
-        task = asyncio.create_task(coro)
+    def _track_task(self, coro: Any, *, name: Optional[str] = None) -> asyncio.Task:
+        task = get_task_tracker().create_task(coro, name=name)
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         return task
@@ -61,7 +62,10 @@ class StateVaultActor:
             self._bus.start()
             logger.info("Starting State Vault Actor with concurrent bus handlers...")
             self._is_running = True
-            self._heartbeat_task = self._track_task(self._heartbeat_loop())
+            self._heartbeat_task = self._track_task(
+                self._heartbeat_loop(),
+                name="state_vault.heartbeat",
+            )
 
             # 1. Initialize Repo
             await self.repo.initialize()
@@ -135,7 +139,10 @@ class StateVaultActor:
             now = time.time()
             if not hasattr(self, "_last_shm_update") or (now - self._last_shm_update > 0.1):
                 self._last_shm_update = now
-                self._track_task(self._update_shared_memory_async(committed_state))
+                self._track_task(
+                    self._update_shared_memory_async(committed_state),
+                    name="state_vault.sync_shared_memory",
+                )
 
             return {"version": committed_state.version, "state_id": committed_state.state_id}
         except Exception as e:

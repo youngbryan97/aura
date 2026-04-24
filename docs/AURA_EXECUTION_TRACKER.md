@@ -16,6 +16,7 @@ Phase C.
 - `docs/AURA_RISK_REGISTER.md`
 - `docs/AURA_TEST_COMMANDS.md`
 - `aura_main.py`
+- `core/actors/sensory_gate.py`
 - `core/bus/actor_bus.py`
 - `core/bus/local_pipe_bus.py`
 - `core/continuous_cognition.py`
@@ -28,6 +29,7 @@ Phase C.
 - `core/scheduler.py`
 - `core/session_guardian.py`
 - `core/state/state_repository.py`
+- `core/state/vault.py`
 - `core/supervisor/tree.py`
 - `interface/websocket_manager.py`
 - `scripts/one_off/launch_aura_3d.py`
@@ -53,6 +55,8 @@ Phase C.
 - `test_actor_bus_telemetry_loop_is_task_tracked`
 - `test_event_bus_redis_listener_is_task_tracked`
 - `test_state_repository_initialize_tracks_owner_consumer_task`
+- `test_state_vault_actor_background_tasks_use_task_tracker`
+- `test_sensory_gate_actor_background_tasks_use_task_tracker`
 - `test_resilient_boot_strict_runtime_fails_closed_on_llm_stage_error`
 - `test_resilient_boot_non_strict_runtime_degrades_on_llm_stage_error`
 - `test_websocket_manager_uses_task_spawner_for_disconnect_on_overflow`
@@ -102,6 +106,10 @@ Phase C.
 25. `python -m pytest tests/test_runtime_stability_edges.py -q`
 26. `git status --short`
 27. `git diff --stat`
+28. `python -m py_compile core/state/vault.py core/actors/sensory_gate.py tests/test_server_runtime_hardening.py`
+29. `python -m pytest tests/test_server_runtime_hardening.py -q -k "state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
+30. `git status --short`
+31. `git diff --stat`
 
 ## Pass / Fail Results
 
@@ -134,6 +142,8 @@ Phase C.
     pass (`16 passed, 59 deselected`)
   - `python -m pytest tests/test_server_runtime_hardening.py -q -k "continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
     pass (`19 passed, 59 deselected`)
+  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
+    pass (`21 passed, 59 deselected`)
   - `python -m pytest tests/test_orchestrator_compatibility.py -q`:
     pass (`8 passed`)
   - `python -m pytest tests/test_runtime_stability_edges.py -q`:
@@ -155,26 +165,26 @@ Phase C.
    remaining launch/service-manifest ownership still needs tightening.
 3. Codebase-wide background-task ownership is still incomplete outside the
    launcher/watchdog/server/shutdown/bus/state/event/scheduler/service-loop
-   slices touched so far.
+   and actor-local slices touched so far.
 4. The newly requested Chrome-polish / perception / social / formal-verification
    modules are recorded in the plan, but correctly deferred until earlier
    runtime-invariant phases are complete.
 
 ## Next Exact Task
 
-Continue Milestone B3 by hardening the next actor/process lifecycle cluster:
-audit `core/state/vault.py`, `core/actors/sensory_gate.py`, and adjacent
-actor-owned background loops to eliminate remaining raw task drift and tighten
-shutdown/readiness ownership for actor-backed services.
+Continue Milestone B3 by hardening the next coordinator/runtime loop cluster:
+audit `core/conversation_loop.py`, `core/coordinators/message_coordinator.py`,
+and adjacent orchestrator-side background reply/reflection task spawning so
+those paths move under explicit lifecycle ownership.
 
 ## Next Exact Continuation Prompt
 
 Continue Aura production hardening from `docs/AURA_EXECUTION_TRACKER.md`.
 Milestone B3 is in progress. Continue with the next runtime-breaker slice:
-harden the actor/process lifecycle cluster in `core/state/vault.py`,
-`core/actors/sensory_gate.py`, and adjacent actor-owned service loops so their
-background work is lifecycle-owned and shutdown/readiness stays canonical. Keep
-the tracker updated before any stop.
+harden the coordinator/runtime loop cluster in `core/conversation_loop.py`,
+`core/coordinators/message_coordinator.py`, and adjacent orchestrator-side
+background task spawning so those reply/reflection paths are lifecycle-owned.
+Keep the tracker updated before any stop.
 
 ## Exact Stopping Point
 
@@ -189,11 +199,13 @@ Stopped after:
    loops are task-tracked, and
 5. routing long-lived `ContinuousCognitionLoop`, `SessionGuardian`, and
    `SystemGovernor` service loops through explicit task ownership.
+6. routing actor-local `StateVaultActor` and `SensoryGateActor` background
+   loops through tracked task ownership helpers with named tasks.
 
 ## Current Known Failures
 
 - Missing requested mission docs listed in the prompt.
-- Remaining actor/process lifecycle ownership sweep is not yet complete.
+- Remaining coordinator/runtime ownership sweep is not yet complete.
 - Broader launch-surface/service-manifest canonicalization is not yet complete.
 - Additional strict-mode readiness probes for critical services beyond the
   current `ResilientBoot` critical-stage set are not yet implemented.
@@ -219,6 +231,8 @@ Stopped after:
   - lazy runtime initialization plus task-tracked loops in `Scheduler`
   - task-tracker ownership for `ContinuousCognitionLoop`, `SessionGuardian`,
     and `SystemGovernor`
+  - task-tracker ownership for actor-local `StateVaultActor` and
+    `SensoryGateActor` background loops
   - strict fail-closed boot behavior for critical `ResilientBoot` stages
   - websocket disconnect task ownership via the server task spawner
   - graceful shutdown signal bridge ownership via the task tracker

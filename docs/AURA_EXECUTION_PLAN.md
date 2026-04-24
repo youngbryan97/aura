@@ -170,6 +170,7 @@ Status:
   - explicit task ownership for `StateRepository` consumer startup/repair and the `AuraEventBus` Redis listener
   - lazy runtime initialization for `Scheduler` async primitives plus tracked scheduler main/task loops
   - tracked long-lived service loops for `ContinuousCognitionLoop`, `SessionGuardian`, and `SystemGovernor`
+  - tracked actor-owned background loops for `StateVaultActor` and `SensoryGateActor`
 
 ## Deferred Backlog Additions
 

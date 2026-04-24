@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 
 from core.bus.local_pipe_bus import LocalPipeBus
 from core.phantom_browser import PhantomBrowser
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SensoryGate")
 
@@ -24,8 +25,8 @@ class SensoryGateActor:
         self._heartbeat_interval = 3.0
         self._background_tasks: set[asyncio.Task] = set()
 
-    def _track_task(self, coro: Any) -> asyncio.Task:
-        task = asyncio.create_task(coro)
+    def _track_task(self, coro: Any, *, name: Optional[str] = None) -> asyncio.Task:
+        task = get_task_tracker().create_task(coro, name=name)
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         return task
@@ -55,7 +56,10 @@ class SensoryGateActor:
             self.bus.start()
 
             # Start heartbeat loop after bus is active
-            self._track_task(self._heartbeat_loop())
+            self._track_task(
+                self._heartbeat_loop(),
+                name="sensory_gate.heartbeat",
+            )
 
             logger.info("👁️ SensoryGate Actor ready.")
 

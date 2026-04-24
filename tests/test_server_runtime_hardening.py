@@ -2035,6 +2035,70 @@ async def test_system_governor_health_loop_is_task_tracked(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_state_vault_actor_background_tasks_use_task_tracker(monkeypatch):
+    import core.state.vault as vault_module
+
+    actor = vault_module.StateVaultActor.__new__(vault_module.StateVaultActor)
+    actor._background_tasks = set()
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    async def _hold():
+        await release.wait()
+
+    monkeypatch.setattr(vault_module, "get_task_tracker", lambda: _Tracker())
+
+    task = actor._track_task(_hold(), name="state_vault.heartbeat")
+
+    try:
+        assert created["name"] == "state_vault.heartbeat"
+        assert task is created["task"]
+        assert task in actor._background_tasks
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+
+@pytest.mark.asyncio
+async def test_sensory_gate_actor_background_tasks_use_task_tracker(monkeypatch):
+    import core.actors.sensory_gate as sensory_gate_module
+
+    actor = sensory_gate_module.SensoryGateActor.__new__(sensory_gate_module.SensoryGateActor)
+    actor._background_tasks = set()
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    async def _hold():
+        await release.wait()
+
+    monkeypatch.setattr(sensory_gate_module, "get_task_tracker", lambda: _Tracker())
+
+    task = actor._track_task(_hold(), name="sensory_gate.heartbeat")
+
+    try:
+        assert created["name"] == "sensory_gate.heartbeat"
+        assert task is created["task"]
+        assert task in actor._background_tasks
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+
+@pytest.mark.asyncio
 async def test_backup_manager_defers_maintenance_jobs_until_after_boot(monkeypatch):
     registered = []
 
