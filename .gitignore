@@ -135,3 +135,7 @@ training/fused-model/
 integration/
 skills/malware_analysis.py
 core/skills/malware_analysis.py
+
+# Critique-closure runtime scratch state
+tests/long_run_autonomy_state/
+tests/test_projects.db

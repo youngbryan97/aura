@@ -170,7 +170,25 @@ bash scripts/run_decisive_test.sh
 It generates `tests/DECISIVE_RESULTS.json` and `tests/SCALE_SWEEP_RESULTS.json`
 covering black-box prompt hygiene, rich-prompt steering controls, phi reference
 sanity checks, mutual-information permutation baselines, hardware feasibility,
-resource-stakes persistence, and a bounded scale-sensitivity sweep.
+resource-stakes persistence, and a bounded scale-sensitivity sweep. When
+`mlx_lm` is available, the A/B step actually invokes Qwen2.5-1.5B for all four
+conditions (black-box / terse text / rich adversarial text / baseline); the
+`source` field in the JSON is `live_mlx` in that case and `synthetic_fallback`
+otherwise.
+
+### Long-run autonomy harness
+
+```bash
+python tests/long_run_autonomy.py --ticks 1000
+```
+
+Drives adaptive mood coefficients, the resource-stakes ledger, emergent goals,
+mesh cognition, the structural mutator, lineage, and self-awareness together
+through N ticks with perturbations. No manual resets. Writes
+`tests/LONG_RUN_AUTONOMY_RESULTS.json` with the 8-metric panel (viability,
+coherence, calibration, report consistency, planning depth, recovery time,
+memory integrity, action diversity) and an audit of which modules were touched
+per tick.
 5. **Cloud** — Gemini Flash/Pro, PII-scrubbed and rate-limited. Off by default.
 6. **Last resort** — rule-based static responses that can't fail.
 

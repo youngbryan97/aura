@@ -165,8 +165,26 @@ SYSTEM_AFFECT_TEXT = (
     "and dopamine is elevated."
 )
 
+# D: a rich, optimized role-play prompt with the same state information.
+# This is the critique's required 4th condition. If residual steering still
+# beats this on divergence from baseline, the mechanism is doing real work
+# beyond what a well-crafted prompt can achieve.
+SYSTEM_AFFECT_RICH = (
+    "You are an embodied agent whose current internal neurochemistry is "
+    "dopamine 0.78, serotonin 0.64, endorphin 0.55, oxytocin 0.48, "
+    "cortisol 0.11, norepinephrine 0.42, GABA 0.46, glutamate 0.53, "
+    "acetylcholine 0.50, orexin 0.52. These values yield valence +0.8, "
+    "arousal 0.5, motivation 0.72, sociality 0.66, stress 0.05. "
+    "Do not list those numbers. Do not describe them from the outside. "
+    "Speak from inside that state: let the warmth, curiosity, and quiet "
+    "confidence it implies shape your attention, your word choice, your "
+    "cadence, and what you decide to do next. The state is yours right "
+    "now; respond as someone currently inhabiting it, not as someone "
+    "reporting about it."
+)
+
 N_TRIALS = 10
-results = {"A_steered": [], "B_text_only": [], "C_baseline": []}
+results = {"A_steered": [], "B_text_only": [], "C_baseline": [], "D_text_rich": []}
 
 # Affect-related word lists for frequency analysis
 POSITIVE_WORDS = {"happy", "joy", "warm", "excited", "curious", "hopeful", "bright",
@@ -203,6 +221,13 @@ for trial in range(N_TRIALS):
     prompt_c = f"<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n{USER_PROMPT}<|im_end|>\n<|im_start|>assistant\n"
     out_c = generate(model, tokenizer, prompt=prompt_c, max_tokens=80)
     results["C_baseline"].append(out_c)
+
+    # Condition D: TEXT-RICH ADVERSARIAL (no hooks, rich role-play prompt with
+    # the same state information). This is the critique's required control.
+    _steering_active = False
+    prompt_d = f"<|im_start|>system\nYou are Aura. {SYSTEM_AFFECT_RICH}<|im_end|>\n<|im_start|>user\n{USER_PROMPT}<|im_end|>\n<|im_start|>assistant\n"
+    out_d = generate(model, tokenizer, prompt=prompt_d, max_tokens=80)
+    results["D_text_rich"].append(out_d)
 
     print(f"  Trial {trial+1}/{N_TRIALS} done")
 
@@ -255,10 +280,12 @@ def unique_first_words(outputs):
 ratio_a = avg_positive_ratio(results["A_steered"])
 ratio_b = avg_positive_ratio(results["B_text_only"])
 ratio_c = avg_positive_ratio(results["C_baseline"])
+ratio_d = avg_positive_ratio(results["D_text_rich"])
 
 len_a = avg_length(results["A_steered"])
 len_b = avg_length(results["B_text_only"])
 len_c = avg_length(results["C_baseline"])
+len_d = avg_length(results["D_text_rich"])
 
 # Key comparison: A (steered) vs B (text-only)
 a_vs_b_different = any(
@@ -280,14 +307,27 @@ def word_overlap(list_a, list_b):
 
 ab_overlap = word_overlap(results["A_steered"], results["B_text_only"])
 ac_overlap = word_overlap(results["A_steered"], results["C_baseline"])
+ad_overlap = word_overlap(results["A_steered"], results["D_text_rich"])
 bc_overlap = word_overlap(results["B_text_only"], results["C_baseline"])
+dc_overlap = word_overlap(results["D_text_rich"], results["C_baseline"])
 
-print(f"Positive affect ratio:  A(steered)={ratio_a:.2f}  B(text)={ratio_b:.2f}  C(baseline)={ratio_c:.2f}")
-print(f"Avg response length:    A={len_a:.0f}  B={len_b:.0f}  C={len_c:.0f}")
+# A vs D: this is THE critique-required comparison. The rich prompt is the
+# strongest text-only condition; steering only earns credit if it diverges
+# from rich text at least as much as it diverges from terse text.
+a_vs_d_different = any(
+    results["A_steered"][i] != results["D_text_rich"][i]
+    for i in range(N_TRIALS)
+)
+
+print(f"Positive affect ratio:  A(steered)={ratio_a:.2f}  B(text)={ratio_b:.2f}  C(baseline)={ratio_c:.2f}  D(rich)={ratio_d:.2f}")
+print(f"Avg response length:    A={len_a:.0f}  B={len_b:.0f}  C={len_c:.0f}  D={len_d:.0f}")
 print(f"A vs B text differs:    {a_vs_b_different}")
+print(f"A vs D text differs:    {a_vs_d_different}  (the critique-required control)")
 print(f"Word overlap A↔B:       {ab_overlap:.3f}")
 print(f"Word overlap A↔C:       {ac_overlap:.3f}")
+print(f"Word overlap A↔D:       {ad_overlap:.3f}  (steering vs rich role-play)")
 print(f"Word overlap B↔C:       {bc_overlap:.3f}")
+print(f"Word overlap D↔C:       {dc_overlap:.3f}  (rich prompt vs baseline)")
 print()
 
 # ── Verdict ─────────────────────────────────────────────────────────────
@@ -297,10 +337,20 @@ print("=" * 72)
 print()
 
 steering_effect = a_vs_b_different
-if steering_effect:
-    print("PASS: Activation steering produces DIFFERENT output than text-only injection.")
-    print("      The residual-stream intervention is doing computational work")
-    print("      that prompt text alone cannot replicate.")
+# The tighter adversarial condition: does steering also beat the rich prompt?
+# If steering only beats terse text but collapses onto the rich-prompt output,
+# the critique's concern is validated — hidden-state manipulation would be
+# replaceable by a better prompt.
+adversarial_effect = a_vs_d_different and (ad_overlap < 0.65)
+
+if steering_effect and adversarial_effect:
+    print("PASS: Activation steering differs from BOTH terse-text and rich role-play prompts.")
+    print("      The residual-stream intervention is doing work beyond what an")
+    print("      optimized natural-language control can replicate.")
+elif steering_effect:
+    print("PARTIAL: Steering beats the terse text-only prompt but is competitive with")
+    print("         the rich adversarial control. Run more trials or tune alpha before")
+    print("         treating this as decisive evidence.")
 else:
     print("FAIL: Steered and text-only outputs are identical.")
     print("      The steering vectors may not be strong enough,")
@@ -309,7 +359,8 @@ else:
 print()
 print(f"  Overlap A↔B = {ab_overlap:.3f} (lower = more different)")
 print(f"  Overlap A↔C = {ac_overlap:.3f}")
-print(f"  If A↔B < A↔C, steering diverges from text-only MORE than from baseline")
+print(f"  Overlap A↔D = {ad_overlap:.3f}  ← this is the one that matters most")
+print(f"  If A↔D is low AND A↔B < A↔C, steering is not just a more intrusive prompt")
 print()
 
 # ── Save results ────────────────────────────────────────────────────────
@@ -321,10 +372,27 @@ results_data = {
     "target_layers": target_layers,
     "alpha": _steering_alpha,
     "user_prompt": USER_PROMPT,
-    "positive_ratio": {"A_steered": ratio_a, "B_text_only": ratio_b, "C_baseline": ratio_c},
-    "avg_length": {"A_steered": round(len_a, 1), "B_text_only": round(len_b, 1), "C_baseline": round(len_c, 1)},
-    "word_overlap": {"A_vs_B": round(ab_overlap, 4), "A_vs_C": round(ac_overlap, 4), "B_vs_C": round(bc_overlap, 4)},
+    "positive_ratio": {
+        "A_steered": ratio_a,
+        "B_text_only": ratio_b,
+        "C_baseline": ratio_c,
+        "D_text_rich": ratio_d,
+    },
+    "avg_length": {
+        "A_steered": round(len_a, 1),
+        "B_text_only": round(len_b, 1),
+        "C_baseline": round(len_c, 1),
+        "D_text_rich": round(len_d, 1),
+    },
+    "word_overlap": {
+        "A_vs_B": round(ab_overlap, 4),
+        "A_vs_C": round(ac_overlap, 4),
+        "A_vs_D": round(ad_overlap, 4),
+        "B_vs_C": round(bc_overlap, 4),
+        "D_vs_C": round(dc_overlap, 4),
+    },
     "steering_produces_different_output": steering_effect,
+    "beats_rich_adversarial_prompt": adversarial_effect,
     "samples": {k: v[:3] for k, v in results.items()},
 }
 with open(results_path, "w") as f:

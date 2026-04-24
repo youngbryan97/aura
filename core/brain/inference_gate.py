@@ -2136,12 +2136,28 @@ class InferenceGate:
 
     async def generate(self, prompt: str, context: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> Any:
         """Primary generation endpoint.
-        
+
         [v7.4] Deadline-Aware Generation:
         Instead of fragmented local timers, we now use a unified Deadline object.
         """
         if context is None:
             context = {}
+
+        # Organism-first path: try to answer from the substrate+state without
+        # invoking the LLM. This is bounded on purpose — the mesh handles only
+        # self-reports, acknowledgements, and resource-gated responses. When it
+        # does handle a request, the LLM is never called for that turn.
+        if bool(context.get("allow_mesh_cognition", True)) and not bool(context.get("is_background", False)):
+            try:
+                from core.consciousness.mesh_cognition import get_mesh_cognition
+
+                mesh_state = context.get("state")
+                mesh_decision = get_mesh_cognition().decide(prompt, state=mesh_state)
+                if mesh_decision.handled:
+                    context["mesh_cognition"] = mesh_decision.as_dict()
+                    return mesh_decision.response
+            except Exception as _mesh_exc:  # pragma: no cover - defensive
+                logger.debug("Mesh-only path declined: %s", _mesh_exc)
 
         origin = str(context.get("origin", "") or "").lower()
         purpose = str(context.get("purpose", "") or "").lower()

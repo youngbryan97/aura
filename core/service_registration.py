@@ -67,7 +67,46 @@ def register_all_services(is_proxy: bool = False):
         lifetime=ServiceLifetime.SINGLETON,
     )
     container.register('metabolic_monitor', lambda: container.get("metabolism"), lifetime=ServiceLifetime.SINGLETON)
-    
+
+    # Critique-closure services: adaptive mood, mesh cognition, emergent goals,
+    # structural mutator, lineage, self-awareness suite, identity chronicle.
+    # Every one of these must be container-registered or it is dead code.
+    def create_adaptive_mood():
+        from core.consciousness.adaptive_mood import get_adaptive_mood
+        return get_adaptive_mood()
+
+    def create_mesh_cognition():
+        from core.consciousness.mesh_cognition import get_mesh_cognition
+        return get_mesh_cognition()
+
+    def create_emergent_goal_engine():
+        from core.goals.emergent_goals import get_emergent_goal_engine
+        return get_emergent_goal_engine()
+
+    def create_structural_mutator():
+        from core.self_modification.structural_mutator import get_structural_mutator
+        return get_structural_mutator()
+
+    def create_lineage_manager():
+        from core.self_modification.lineage import get_lineage_manager
+        return get_lineage_manager()
+
+    def create_self_awareness_suite():
+        from core.consciousness.self_awareness_suite import get_self_awareness_suite
+        return get_self_awareness_suite()
+
+    def create_identity_chronicle():
+        from core.identity.id_rag import get_identity_chronicle
+        return get_identity_chronicle()
+
+    container.register('adaptive_mood', create_adaptive_mood, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('mesh_cognition', create_mesh_cognition, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('emergent_goal_engine', create_emergent_goal_engine, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('structural_mutator', create_structural_mutator, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('lineage_manager', create_lineage_manager, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('self_awareness_suite', create_self_awareness_suite, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('identity_chronicle', create_identity_chronicle, lifetime=ServiceLifetime.SINGLETON, required=False)
+
     # Patch 28: Dynamic Router & Loop Monitor
     container.register("loop_monitor", lambda: LoopLagMonitor(), lifetime=ServiceLifetime.SINGLETON)
     container.register("dynamic_router", lambda: DynamicRouter(), lifetime=ServiceLifetime.SINGLETON)

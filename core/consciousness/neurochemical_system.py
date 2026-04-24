@@ -576,26 +576,54 @@ class NeurochemicalSystem:
         return (da * 0.5) - (srt * 0.3) - (ne * 0.2)
 
     def get_mood_vector(self) -> Dict[str, float]:
-        """Mood derived from chemical balance (not from LLM prompting)."""
-        da = self.chemicals["dopamine"].effective
-        srt = self.chemicals["serotonin"].effective
-        ne = self.chemicals["norepinephrine"].effective
-        end = self.chemicals["endorphin"].effective
-        cort = self.chemicals["cortisol"].effective
-        gaba = self.chemicals["gaba"].effective
-        oxy = self.chemicals["oxytocin"].effective
-        glu = self.chemicals["glutamate"].effective
-        orx = self.chemicals["orexin"].effective
+        """Mood derived from chemical balance via learned coefficients.
 
-        return {
-            "valence": (da * 0.25 + srt * 0.3 + end * 0.2 + oxy * 0.1) - (cort * 0.45 + 0.1),
-            "arousal": (ne * 0.3 + da * 0.15 + cort * 0.2 + glu * 0.15 + orx * 0.2) - (gaba * 0.4 + srt * 0.1),
-            "motivation": da * 0.4 + ne * 0.15 + orx * 0.2 - gaba * 0.25,
-            "sociality": oxy * 0.6 + srt * 0.2 + end * 0.1,
-            "stress": cort * 0.5 + ne * 0.3 - srt * 0.2 - gaba * 0.2,
-            "calm": gaba * 0.35 + srt * 0.3 + end * 0.1 - ne * 0.2 - cort * 0.25 - glu * 0.1,
-            "wakefulness": orx * 0.5 + ne * 0.2 + glu * 0.15 - gaba * 0.3,
-        }
+        The legacy formula was a fixed weighted sum, which guaranteed
+        tautological correlation with its inputs. The adaptive coefficients
+        are seeded to match the legacy values but drift under outcome
+        feedback, so the mapping is a learned prediction, not a definition.
+        """
+        chem = {name: float(c.effective) for name, c in self.chemicals.items()}
+        try:
+            from core.consciousness.adaptive_mood import get_adaptive_mood
+
+            return get_adaptive_mood().predict(chem)
+        except Exception:
+            # Defensive fallback: degrade to legacy formula if adaptive layer
+            # is unavailable (boot order, test isolation, etc.).
+            da = chem.get("dopamine", 0.0)
+            srt = chem.get("serotonin", 0.0)
+            ne = chem.get("norepinephrine", 0.0)
+            end = chem.get("endorphin", 0.0)
+            cort = chem.get("cortisol", 0.0)
+            gaba = chem.get("gaba", 0.0)
+            oxy = chem.get("oxytocin", 0.0)
+            glu = chem.get("glutamate", 0.0)
+            orx = chem.get("orexin", 0.0)
+            return {
+                "valence": (da * 0.25 + srt * 0.3 + end * 0.2 + oxy * 0.1) - (cort * 0.45 + 0.1),
+                "arousal": (ne * 0.3 + da * 0.15 + cort * 0.2 + glu * 0.15 + orx * 0.2) - (gaba * 0.4 + srt * 0.1),
+                "motivation": da * 0.4 + ne * 0.15 + orx * 0.2 - gaba * 0.25,
+                "sociality": oxy * 0.6 + srt * 0.2 + end * 0.1,
+                "stress": cort * 0.5 + ne * 0.3 - srt * 0.2 - gaba * 0.2,
+                "calm": gaba * 0.35 + srt * 0.3 + end * 0.1 - ne * 0.2 - cort * 0.25 - glu * 0.1,
+                "wakefulness": orx * 0.5 + ne * 0.2 + glu * 0.15 - gaba * 0.3,
+            }
+
+    def learn_mood_from_outcome(self, observed_mood: Dict[str, float]) -> Dict[str, float]:
+        """Feed an outcome-based mood signal back to the adaptive layer.
+
+        Callers (e.g. action evaluator, homeostasis monitor) pass an empirical
+        mood estimate derived from behavior/world-state rather than from the
+        chemistry itself, so coefficients can drift away from their seeds.
+        """
+        chem = {name: float(c.effective) for name, c in self.chemicals.items()}
+        try:
+            from core.consciousness.adaptive_mood import get_adaptive_mood
+
+            return get_adaptive_mood().update_from_outcome(chem, observed_mood)
+        except Exception:
+            return {}
 
     def get_snapshot(self) -> Dict[str, Dict[str, float]]:
         """Full chemical state for telemetry/diagnostics."""

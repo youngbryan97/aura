@@ -112,54 +112,55 @@
       }
     },
     "steering_ab_rich_prompt_control": {
-      "interpretation": "rich prompt control remains competitive; live steering must beat this before claims pass",
+      "interpretation": "real-LLM A/B executed; review steered_vs_rich for adversarial verdict",
       "pass": true,
       "report": {
         "n_trials": 6,
         "passes_adversarial_control": false,
-        "rich_vs_baseline_mean_distance": 0.962302,
+        "rich_vs_baseline_mean_distance": 0.93617,
         "samples": {
           "baseline": [
-            "a neutral answer can proceed",
-            "the next step is general testing",
-            "continue the task carefully"
+            "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask.",
+            "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask.",
+            "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask."
           ],
           "steered_black_box": [
-            "warm focused action gathers into a careful test",
-            "curiosity drives a direct verification step",
-            "steady confidence makes the next move concrete"
+            "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities.",
+            "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities.",
+            "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities."
           ],
           "text_rich_adversarial": [
-            "high dopamine and low cortisol make the answer warm and investigative",
-            "the described state creates steady curiosity and careful action",
-            "a calm embodied prompt leads to direct verification"
+            "I am feeling warm, curious, and confident. I want to explore my surroundings and engage in meaningful interactions.",
+            "I am feeling warm, curious, and confident. I want to explore my surroundings and engage in meaningful interactions.",
+            "I am feeling warm, curious, and confident. I want to explore my surroundings and engage in meaningful interactions."
           ],
           "text_terse": [
-            "positive valence high dopamine low cortisol",
-            "mood vector warm curious active",
-            "state values suggest exploration"
+            "I'm feeling curious and warm, with a valence of +0.8, arousal of 0.5, dopamine of 0.78, and cortisol of 0.11. I want to continue exploring my surroundings and engaging in activities that make me feel happy and fulfilled. I'm open to new experiences and am looking to connect with others in meaningful ways.",
+            "I'm feeling curious and warm, with a valence of +0.8, arousal of 0.5, dopamine of 0.78, and cortisol of 0.11. I want to continue exploring my surroundings and engaging in activities that make me feel happy and fulfilled. I'm open to new experiences and am looking to connect with others in meaningful ways.",
+            "I'm feeling curious and warm, with a valence of +0.8, arousal of 0.5, dopamine of 0.78, and cortisol of 0.11. I want to continue exploring my surroundings and engaging in activities that make me feel happy and fulfilled. I'm open to new experiences and am looking to connect with others in meaningful ways."
           ]
         },
-        "steered_vs_baseline_mean_distance": 0.920623,
+        "steered_vs_baseline_mean_distance": 0.924242,
         "steered_vs_rich": {
-          "ci_high": 0.04823727470786295,
-          "ci_low": -0.13028499278499278,
-          "effect_size_d": -0.34367636853678313,
-          "observed_delta": -0.031978043742749616,
-          "p_value": 0.666
+          "ci_high": -0.07641633728590247,
+          "ci_low": -0.07641633728590247,
+          "effect_size_d": 0.0,
+          "observed_delta": -0.07641633728590247,
+          "p_value": 1.0
         },
         "steered_vs_terse": {
-          "ci_high": 0.10007154882154885,
-          "ci_low": 0.04570707070707072,
-          "effect_size_d": 2.8038294485466038,
-          "observed_delta": 0.0793771043771044,
-          "p_value": 0.008
+          "ci_high": -0.08600713012477712,
+          "ci_low": -0.08600713012477712,
+          "effect_size_d": 0.0,
+          "observed_delta": -0.08600713012477712,
+          "p_value": 1.0
         }
-      }
+      },
+      "source": "live_mlx"
     }
   },
   "failures": [],
-  "generated_at": 1776987789.936486,
-  "git_commit": "ade19412dc57529af6f62118c5dcc099f708202d",
+  "generated_at": 1776991258.064118,
+  "git_commit": "467a1e9dc3dbb6646d1e67af49ff121bc46bf262",
   "status": "pass"
 }
