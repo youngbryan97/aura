@@ -392,6 +392,16 @@ async def section_K_volition_agency() -> Section:
     orch = StubOrchestrator()
     engine = VolitionEngine(orch)
 
+    # Prime cooldowns so impulses CAN fire during the 12-tick idle window.
+    # Without this, the engine's 5-second cooldown means the harness would
+    # never actually exercise the impulse path — which is exactly the
+    # "intentionally lenient" hole the reviewer called out.
+    import time as _time
+    long_ago = _time.monotonic() - 120.0
+    engine.last_impulse_time = long_ago
+    engine.last_action_time = long_ago
+    engine.last_activity_time = long_ago
+
     initiatives = 0
     failures = 0
     for i in range(12):
@@ -412,9 +422,12 @@ async def section_K_volition_agency() -> Section:
         failures == 0,
         f"failures={failures}/12",
     ))
+    # Strict check: under idle + high curiosity (stub has 0.7), the engine
+    # must produce at least one autonomous proposal in 12 ticks. Zero means
+    # the autonomy path is theater.
     sec.add(CheckResult(
-        "K.2 Volition produced ≥1 autonomous proposal or gracefully declined",
-        initiatives >= 0,  # intentionally lenient — even 0 is OK if gated
+        "K.2 Volition produced ≥1 autonomous proposal under idle conditions",
+        initiatives >= 1,
         f"initiatives={initiatives}/12",
     ))
     return sec

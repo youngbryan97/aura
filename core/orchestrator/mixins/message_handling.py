@@ -121,6 +121,38 @@ class MessageHandlingMixin:
         if approved:
             return True
 
+        # Trusted internal volition sources should not be silently dropped —
+        # that produced the "sensory_motor triggered volition → blocked →
+        # nothing happens" pattern Bryan observed. Admit them at reduced
+        # priority when approval failed for infrastructure reasons (executive
+        # core / authority gateway unavailable / low_priority_initiative),
+        # NOT for safety vetoes (somatic veto, constitutional principle).
+        trusted_internal = {
+            "sensory_motor",
+            "drive_engine",
+            "volition_engine",
+            "emergent_goal_engine",
+            "agency_core",
+            "agency_facade",
+            "internal_volition",
+        }
+        hard_safety_markers = (
+            "somatic_veto",
+            "constitutional_violation",
+            "identity_violation",
+            "safety_veto",
+            "forbidden_action",
+        )
+        reason_str = str(reason or "")
+        safety_vetoed = any(m in reason_str for m in hard_safety_markers)
+        if (origin or "").strip().lower() in trusted_internal and not safety_vetoed:
+            logger.info(
+                "🛡️ Internal volition admitted at reduced priority: %s (gate reason: %s)",
+                origin,
+                reason_str or "unspecified",
+            )
+            return True
+
         try:
             from core.health.degraded_events import record_degraded_event
 

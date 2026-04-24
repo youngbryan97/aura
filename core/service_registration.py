@@ -118,6 +118,20 @@ def register_all_services(is_proxy: bool = False):
     container.register('life_trace', create_life_trace, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('evidence_mode', create_evidence_mode, lifetime=ServiceLifetime.SINGLETON, required=False)
 
+    def create_neural_intent_router():
+        from core.agency.neural_intent_router import get_neural_intent_router
+        return get_neural_intent_router()
+
+    def create_permission_setup():
+        # Permission setup has no singleton state; expose the module itself
+        # so callers can invoke check_all_permissions()/open_settings_pane()
+        # through the container.
+        import core.security.permission_setup as ps
+        return ps
+
+    container.register('neural_intent_router', create_neural_intent_router, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('permission_setup', create_permission_setup, lifetime=ServiceLifetime.SINGLETON, required=False)
+
     # Patch 28: Dynamic Router & Loop Monitor
     container.register("loop_monitor", lambda: LoopLagMonitor(), lifetime=ServiceLifetime.SINGLETON)
     container.register("dynamic_router", lambda: DynamicRouter(), lifetime=ServiceLifetime.SINGLETON)
