@@ -21,6 +21,18 @@ from pydantic import BaseModel
 logger = logging.getLogger("Skills")
 
 
+def _infer_ok_flag(result: Dict[str, Any]) -> bool:
+    if "ok" in result:
+        return bool(result["ok"])
+    if result.get("error") is not None or result.get("errors"):
+        return False
+    if result.get("failed") is True:
+        return False
+    if str(result.get("status", "")).lower() in {"blocked", "error", "failed"}:
+        return False
+    return True
+
+
 class SkillResult(BaseModel):
     """Standardized result from any skill execution."""
     ok: bool
@@ -220,6 +232,8 @@ class BaseSkill(ABC):
                     breaker.record_success()
                 break  # Success! Exit loop
 
+            except asyncio.CancelledError:
+                raise
             except (asyncio.TimeoutError, TimeoutError) as e:
                 error_class = "transient"
                 last_err = e
@@ -254,7 +268,7 @@ class BaseSkill(ABC):
             result = {"ok": True, "content": str(result)}
 
         # Inject standard fields
-        result.setdefault("ok", True)
+        result["ok"] = _infer_ok_flag(result)
         result["skill"] = self.name
         result["duration_ms"] = round(duration_ms, 1)
 

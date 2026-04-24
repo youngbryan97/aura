@@ -41,13 +41,6 @@ class FileOperationSkill(BaseSkill):
             full = os.path.realpath(os.path.join(self.root_dir, path))
         # Check containment
         if not full.startswith(self.root_dir):
-            # Allow a very limited exception for the developer 'Proof of Life' test
-            try:
-                user_desktop = os.path.realpath(os.path.expanduser('~/Desktop'))
-                if full.startswith(os.path.join(user_desktop, 'agency_test')):
-                    return full
-            except Exception as e:
-                self.logger.debug("FileOp: fallback desktop check failed: %s", e)
             raise PermissionError(f"Access denied: path '{path}' resolves outside workspace")
         return full
 
@@ -132,20 +125,8 @@ class FileOperationSkill(BaseSkill):
             elif action == "delete":
                 if await asyncio.to_thread(os.path.exists, full_path):
                     # Double-check containment before destructive ops
-                    # Allow deletion if inside workspace OR inside the developer Proof-of-Life Desktop exception
-                    try:
-                        user_desktop = os.path.realpath(os.path.expanduser('~/Desktop'))
-                        agency_test_dir = os.path.join(user_desktop, 'agency_test')
-                    except Exception as e:
-                        self.logger.debug("FileOp: delete safety check failed: %s", e)
-                        agency_test_dir = None
-
                     if not os.path.realpath(full_path).startswith(self.root_dir):
-                        if agency_test_dir and os.path.realpath(full_path).startswith(agency_test_dir):
-                            # Permit deletion for the Proof-of-Life test directory
-                            pass
-                        else:
-                            return {"ok": False, "error": "Delete blocked: path outside workspace"}
+                        return {"ok": False, "error": "Delete blocked: path outside workspace"}
                     
                     is_dir = await asyncio.to_thread(os.path.isdir, full_path)
                     if is_dir:

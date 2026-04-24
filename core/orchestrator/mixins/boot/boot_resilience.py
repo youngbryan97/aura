@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -12,6 +13,31 @@ from core.mind_tick import MindTick
 from core.utils.concurrency import RobustLock, LOCK_SENTINEL
 
 logger = logging.getLogger(__name__)
+
+_STRICT_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+def _strict_runtime_requested() -> bool:
+    return str(os.environ.get("AURA_STRICT_RUNTIME", "0")).strip().lower() in _STRICT_TRUE_VALUES
+
+
+def _pipe_send(pipe: Any, raw: str) -> None:
+    if isinstance(pipe, tuple):
+        pipe[1].send(raw)
+        return
+    pipe.send(raw)
+
+
+def _pipe_poll(pipe: Any, timeout: float) -> bool:
+    if isinstance(pipe, tuple):
+        return pipe[0].poll(timeout)
+    return pipe.poll(timeout)
+
+
+def _pipe_recv(pipe: Any) -> Any:
+    if isinstance(pipe, tuple):
+        return pipe[0].recv()
+    return pipe.recv()
 
 
 class BootResilienceMixin:
@@ -292,11 +318,11 @@ class BootResilienceMixin:
                             "trace_id": str(uuid.uuid4()),
                             "is_request": True,
                         }
-                        parent_pipe.send(json.dumps(ping_msg))
+                        _pipe_send(parent_pipe, json.dumps(ping_msg))
 
-                        polled = await asyncio.to_thread(parent_pipe.poll, 2.0)
+                        polled = await asyncio.to_thread(_pipe_poll, parent_pipe, 2.0)
                         if polled:
-                            resp_raw = await asyncio.to_thread(parent_pipe.recv)
+                            resp_raw = await asyncio.to_thread(_pipe_recv, parent_pipe)
                             resp = json.loads(resp_raw)
                             payload = resp.get("payload") if isinstance(resp, dict) else None
                             if (
@@ -317,9 +343,11 @@ class BootResilienceMixin:
                     await asyncio.sleep(0.5)
 
             if not ready:
-                logger.error(
-                    "❌ StateVaultActor failed to respond to ping. Boot proceeding in degraded mode."
-                )
+                message = "StateVaultActor failed to respond to ping."
+                if _strict_runtime_requested():
+                    logger.error("❌ %s Strict runtime active; aborting boot.", message)
+                    raise RuntimeError(message)
+                logger.error("❌ %s Boot proceeding in degraded mode.", message)
 
             # 4. Register pipe with Actor Bus for Orchestrator communication
             if not bus:
@@ -331,6 +359,8 @@ class BootResilienceMixin:
 
         except Exception as e:
             logger.error("Failed to start StateVaultActor: %s", e)
+            if _strict_runtime_requested():
+                raise
 
     def _initialize_resilience_systems(self):
         """Initialize diagnostics and immune systems."""

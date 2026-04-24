@@ -1846,7 +1846,14 @@ class CapabilityEngine(AuraBaseModule):
                 if self._check_success(output):
                     if isinstance(output, dict):
                         payload = dict(output)
-                        payload.setdefault("ok", True)
+                        payload["ok"] = bool(
+                            payload.get(
+                                "ok",
+                                payload.get("error") is None
+                                and not payload.get("errors")
+                                and not payload.get("failed", False),
+                            )
+                        )
                         payload["retries"] = attempt
                         return payload
                     return {"ok": True, "result": output, "retries": attempt}

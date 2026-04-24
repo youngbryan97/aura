@@ -62,7 +62,7 @@ class ActorHealthGate:
 class ManagedActor:
     spec: ActorSpec
     process: Optional[multiprocessing.Process] = None
-    pipe: Optional[multiprocessing.connection.Connection] = None
+    pipe: Optional[Any] = None
     restarts: int = 0
     consecutive_failures: int = 0
     last_restart: float = 0.0
@@ -98,6 +98,21 @@ class SupervisionTree:
         actor = self._actors.get(name)
         return actor.pipe if actor else None
 
+    def _close_pipe(self, pipe: Any) -> None:
+        if pipe is None:
+            return
+        if isinstance(pipe, tuple):
+            for endpoint in pipe:
+                try:
+                    endpoint.close()
+                except Exception:
+                    pass
+            return
+        try:
+            pipe.close()
+        except Exception:
+            pass
+
     def record_activity(self, name: str):
         """Mark an actor as alive without directly reading from its IPC pipe."""
         actor = self._actors.get(name)
@@ -124,11 +139,14 @@ class SupervisionTree:
 
         import multiprocessing
         ctx = multiprocessing.get_context("spawn")
-        parent_conn, child_conn = ctx.Pipe(duplex=True)
+        parent_read, child_write = ctx.Pipe(duplex=False)
+        child_read, parent_write = ctx.Pipe(duplex=False)
+        parent_pipe = (parent_read, parent_write)
+        child_pipe = (child_read, child_write)
         
         proc = ctx.Process(
             target=actor.spec.entry_point,
-            args=(*actor.spec.args, child_conn),
+            args=(*actor.spec.args, child_pipe),
             name=f"AuraActor:{name}",
             daemon=True
         )
@@ -137,7 +155,7 @@ class SupervisionTree:
         # PIPELINE HARDENING: Removed time.sleep(1.5) that was blocking the
         # event loop on every actor spawn. The OS handles memory without this.
         actor.process = proc
-        actor.pipe = parent_conn
+        actor.pipe = parent_pipe
         actor.last_restart = time.time()
         actor.is_circuit_broken = False
         actor.health_gate = ActorHealthGate(
@@ -147,7 +165,7 @@ class SupervisionTree:
         actor.health_gate.record_heartbeat()
         
         logger.info(f"🚀 Actor Started: {name} (PID: {proc.pid})")
-        return parent_conn
+        return parent_pipe
 
     def stop_actor(self, name: str):
         """Gracefully stop an actor.
@@ -164,6 +182,7 @@ class SupervisionTree:
             except Exception as e:
                 logger.debug(f"Error stopping actor {name}: {e}")
             finally:
+                self._close_pipe(actor.pipe)
                 actor.process = None
                 actor.pipe = None
 
@@ -229,6 +248,7 @@ class SupervisionTree:
         actor = self._actors[name]
         
         # Mark process as gone
+        self._close_pipe(actor.pipe)
         actor.process = None
         actor.pipe = None
 

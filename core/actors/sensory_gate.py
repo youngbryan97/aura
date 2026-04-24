@@ -3,12 +3,8 @@ import asyncio
 import logging
 import multiprocessing
 import os
-import sys
 import time
 from typing import Any, Dict, Optional
-
-# Ensure we can import from the root
-sys.path.append(os.getcwd())
 
 from core.bus.local_pipe_bus import LocalPipeBus
 from core.phantom_browser import PhantomBrowser
@@ -26,32 +22,58 @@ class SensoryGateActor:
         self.browser = None
         self._is_active = True
         self._heartbeat_interval = 3.0
+        self._background_tasks: set[asyncio.Task] = set()
+
+    def _track_task(self, coro: Any) -> asyncio.Task:
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
+
+    async def _cancel_background_tasks(self):
+        tasks = [task for task in self._background_tasks if not task.done()]
+        if not tasks:
+            return
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self._background_tasks.clear()
 
     async def run(self):
         """Main actor loop."""
         logger.info("👁️ SensoryGate Actor starting...")
-        
-        # Initialize browser in the child process
-        self.browser = PhantomBrowser(visible=False)
-        
-        # Register handlers
-        self.bus.register_handler("browse", self._handle_browse)
-        self.bus.register_handler("search", self._handle_search)
-        self.bus.register_handler("ping", lambda payload, tid: "pong")
-        self.bus.register_handler("shutdown", self._handle_shutdown)
-        
-        self.bus.start()
-        
-        # Start heartbeat loop after bus is active
-        asyncio.create_task(self._heartbeat_loop())
-        
-        logger.info("👁️ SensoryGate Actor ready.")
-        
-        while self._is_active:
-            await asyncio.sleep(1.0)
-            
-        await self.bus.stop()
-        logger.info("👁️ SensoryGate Actor stopped.")
+        try:
+            # Initialize browser in the child process
+            self.browser = PhantomBrowser(visible=False)
+
+            # Register handlers
+            self.bus.register_handler("browse", self._handle_browse)
+            self.bus.register_handler("search", self._handle_search)
+            self.bus.register_handler("ping", lambda payload, tid: "pong")
+            self.bus.register_handler("shutdown", self._handle_shutdown)
+
+            self.bus.start()
+
+            # Start heartbeat loop after bus is active
+            self._track_task(self._heartbeat_loop())
+
+            logger.info("👁️ SensoryGate Actor ready.")
+
+            while self._is_active:
+                await asyncio.sleep(1.0)
+        finally:
+            self._is_active = False
+            await self._cancel_background_tasks()
+            try:
+                await self.bus.stop()
+            except Exception as exc:
+                logger.error("❌ SensoryGate bus shutdown failed: %s", exc)
+            if self.browser is not None:
+                try:
+                    await self.browser.close()
+                except Exception as exc:
+                    logger.error("❌ SensoryGate browser shutdown failed: %s", exc)
+            logger.info("👁️ SensoryGate Actor stopped.")
 
     async def _heartbeat_loop(self):
         """Send heartbeats to the supervisor."""
@@ -148,7 +170,14 @@ def start_sensory_gate(connection, *args, **kwargs):
     )
     
     actor = SensoryGateActor(connection)
-    asyncio.run(actor.run())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(actor.run())
+        loop.run_until_complete(loop.shutdown_asyncgens())
+    finally:
+        asyncio.set_event_loop(None)
+        loop.close()
 
 
 if __name__ == "__main__":

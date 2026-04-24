@@ -176,6 +176,113 @@ async def test_start_state_vault_actor_fallback_ping_uses_request_wire_format(mo
 
 
 @pytest.mark.asyncio
+async def test_start_state_vault_actor_fallback_ping_supports_split_pipe_pairs(monkeypatch):
+    class _ReadPipe:
+        def __init__(self, write_pipe):
+            self.write_pipe = write_pipe
+
+        def poll(self, timeout):
+            return True
+
+        def recv(self):
+            return json.dumps(
+                {
+                    "response_to": self.write_pipe.last_request_id,
+                    "payload": {"type": "pong", "ts": 789.0},
+                }
+            )
+
+    class _WritePipe:
+        def __init__(self):
+            self.sent = []
+            self.last_request_id = None
+
+        def send(self, raw):
+            payload = json.loads(raw)
+            self.sent.append(payload)
+            self.last_request_id = payload["request_id"]
+
+    write_pipe = _WritePipe()
+    pipe_pair = (_ReadPipe(write_pipe), write_pipe)
+
+    class _Supervisor:
+        def add_actor(self, spec):
+            self.spec = spec
+
+        def start_actor(self, name):
+            assert name == "state_vault"
+            return pipe_pair
+
+    monkeypatch.setattr(
+        "core.orchestrator.mixins.boot.boot_resilience.ServiceContainer.get",
+        staticmethod(lambda _name, default=None: default),
+    )
+    monkeypatch.setattr(
+        "core.supervisor.tree.ActorSpec",
+        lambda **kwargs: SimpleNamespace(**kwargs),
+        raising=False,
+    )
+
+    probe = _ResilienceProbe()
+    probe.supervisor = _Supervisor()
+
+    await probe._start_state_vault_actor()
+
+    assert write_pipe.sent
+    assert write_pipe.sent[0]["type"] == "ping"
+    assert write_pipe.sent[0]["is_request"] is True
+
+
+@pytest.mark.asyncio
+async def test_start_state_vault_actor_strict_runtime_fails_when_handshake_never_succeeds(monkeypatch):
+    class _Pipe:
+        def __init__(self):
+            self.sent = []
+
+        def send(self, raw):
+            self.sent.append(json.loads(raw))
+
+        def poll(self, timeout):
+            return False
+
+    class _Supervisor:
+        def add_actor(self, spec):
+            self.spec = spec
+
+        def start_actor(self, name):
+            assert name == "state_vault"
+            return _Pipe()
+
+    sleep_calls = []
+
+    async def _fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setenv("AURA_STRICT_RUNTIME", "1")
+    monkeypatch.setattr(
+        "core.orchestrator.mixins.boot.boot_resilience.ServiceContainer.get",
+        staticmethod(lambda _name, default=None: default),
+    )
+    monkeypatch.setattr(
+        "core.orchestrator.mixins.boot.boot_resilience.asyncio.sleep",
+        _fake_sleep,
+    )
+    monkeypatch.setattr(
+        "core.supervisor.tree.ActorSpec",
+        lambda **kwargs: SimpleNamespace(**kwargs),
+        raising=False,
+    )
+
+    probe = _ResilienceProbe()
+    probe.supervisor = _Supervisor()
+
+    with pytest.raises(RuntimeError, match="StateVaultActor failed to respond to ping"):
+        await probe._start_state_vault_actor()
+
+    assert sleep_calls
+
+
+@pytest.mark.asyncio
 async def test_calculate_temporal_drift_routes_recovery_through_unified_will(tmp_path, monkeypatch):
     from core.orchestrator.mixins.boot import boot_resilience
 

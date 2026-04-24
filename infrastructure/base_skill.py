@@ -8,6 +8,18 @@ import time
 from typing import Any
 
 
+def _infer_ok_flag(result: dict[str, Any]) -> bool:
+    if "ok" in result:
+        return bool(result["ok"])
+    if result.get("error") is not None or result.get("errors"):
+        return False
+    if result.get("failed") is True:
+        return False
+    if str(result.get("status", "")).lower() in {"blocked", "error", "failed"}:
+        return False
+    return True
+
+
 class BaseSkill(ABC):
     """Contract for all Skills.
     Every skill must define its metadata and implement execute().
@@ -118,12 +130,14 @@ class BaseSkill(ABC):
         context = context or {}
         start = time.monotonic()
         try:
-            maybe_result = self.execute(goal, context)
-            if inspect.isawaitable(maybe_result):
+            if inspect.iscoroutinefunction(self.execute):
                 async with asyncio.timeout(self.timeout_seconds):
-                    result = await maybe_result
+                    result = await self.execute(goal, context)
             else:
-                result = maybe_result
+                async with asyncio.timeout(self.timeout_seconds):
+                    result = await asyncio.to_thread(self.execute, goal, context)
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
             result = {
                 "ok": False,
@@ -133,7 +147,7 @@ class BaseSkill(ABC):
         if not isinstance(result, dict):
             result = {"ok": True, "result": result}
 
-        result.setdefault("ok", True)
+        result["ok"] = _infer_ok_flag(result)
         result.setdefault("skill", self.name)
         result.setdefault("duration_ms", round((time.monotonic() - start) * 1000, 2))
         return result

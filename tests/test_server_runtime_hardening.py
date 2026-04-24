@@ -15,6 +15,7 @@ import pytest
 
 from core.autonomy.sleep_trigger import AutonomousSleepTrigger
 from core.backup import BackupManager
+from core.bus.actor_bus import ActorBus
 from core.bus.local_pipe_bus import LocalPipeBus
 from core.bus.shared_mem_bus import SharedMemoryTransport
 from core.intent_gate import IntentClassifierQueue, RouteKind
@@ -603,6 +604,64 @@ async def test_local_pipe_bus_retains_offloaded_shm_until_cleanup(monkeypatch):
     bus._cleanup_expired_shm_segments(force=True)
 
     assert closed == [prepared["__shm__"]]
+
+
+def test_local_pipe_bus_start_requires_running_event_loop():
+    bus = LocalPipeBus(start_reader=False)
+    try:
+        with pytest.raises(RuntimeError, match="running event loop"):
+            bus.start()
+    finally:
+        bus.read_conn.close()
+        bus.write_conn.close()
+
+
+@pytest.mark.asyncio
+async def test_local_pipe_bus_stop_closes_shared_connection_once():
+    class _FakeConn:
+        def __init__(self):
+            self.closed = False
+            self.close_calls = 0
+
+        def close(self):
+            self.close_calls += 1
+            self.closed = True
+
+    conn = _FakeConn()
+    bus = LocalPipeBus(start_reader=False, connection=conn)
+
+    await bus.stop()
+
+    assert conn.close_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_local_pipe_bus_stop_closes_connection_pairs_independently():
+    class _FakeConn:
+        def __init__(self):
+            self.closed = False
+            self.close_calls = 0
+
+        def close(self):
+            self.close_calls += 1
+            self.closed = True
+
+    read_conn = _FakeConn()
+    write_conn = _FakeConn()
+    bus = LocalPipeBus(start_reader=False, connection=(read_conn, write_conn))
+
+    await bus.stop()
+
+    assert read_conn.close_calls == 1
+    assert write_conn.close_calls == 1
+
+
+def test_actor_bus_rejects_none_transport_without_registering_actor():
+    asyncio.run(ActorBus.reset_singleton())
+    bus = ActorBus()
+
+    assert bus.add_actor("gui_window", None) is False
+    assert bus.has_actor("gui_window") is False
 
 
 @pytest.mark.asyncio

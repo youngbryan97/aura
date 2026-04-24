@@ -1,9 +1,12 @@
 import asyncio
 import importlib.util
 import os
+import signal
 import tempfile
 import time
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -299,6 +302,138 @@ async def test_base_skill_stats_are_per_instance_and_count_failures():
     assert ok_skill.get_stats()["failures"] == 0
     assert fail_skill.get_stats()["executions"] == 1
     assert fail_skill.get_stats()["failures"] == 1
+
+
+@pytest.mark.asyncio
+async def test_core_base_skill_preserves_error_dict_without_forcing_ok_true():
+    class ErrorOnlySkill(BaseSkill):
+        name = "error_only"
+
+        async def execute(self, params, context):
+            return {"error": "nope"}
+
+    result = await ErrorOnlySkill().safe_execute({})
+
+    assert result["ok"] is False
+    assert result["error"] == "nope"
+
+
+@pytest.mark.asyncio
+async def test_legacy_base_skill_uses_to_thread_for_sync_execute_and_preserves_errors(monkeypatch):
+    from infrastructure.base_skill import BaseSkill as LegacyBaseSkill
+
+    calls = []
+
+    async def fake_to_thread(fn, *args, **kwargs):
+        calls.append(fn.__name__)
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr("infrastructure.base_skill.asyncio.to_thread", fake_to_thread)
+
+    class SyncErrorSkill(LegacyBaseSkill):
+        name = "sync_error"
+
+        def execute(self, goal, context):
+            return {"error": "blocked"}
+
+    result = await SyncErrorSkill().safe_execute({})
+
+    assert calls == ["execute"]
+    assert result["ok"] is False
+    assert result["error"] == "blocked"
+
+
+@pytest.mark.asyncio
+async def test_filesystem_reality_shortcut_is_disabled_for_user_facing_requests():
+    from core.orchestrator.mixins.incoming_logic import IncomingLogicMixin
+
+    class Probe(IncomingLogicMixin):
+        output_gate = SimpleNamespace(emit=AsyncMock())
+
+    probe = Probe()
+
+    handled = await probe._handle_filesystem_reality_check(
+        "check if /tmp/example.txt exists",
+        "user",
+    )
+
+    assert handled is False
+    probe.output_gate.emit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_graceful_shutdown_signal_path_does_not_raise_system_exit(monkeypatch):
+    from core.graceful_shutdown import GracefulShutdown
+
+    hook = AsyncMock()
+    container = SimpleNamespace(shutdown=AsyncMock())
+
+    GracefulShutdown._hooks = [hook]
+    GracefulShutdown._is_shutting_down = False
+    GracefulShutdown._shutdown_event = asyncio.Event()
+
+    monkeypatch.setattr("core.container.get_container", lambda: container)
+
+    await GracefulShutdown.trigger_shutdown(signal.SIGTERM)
+
+    hook.assert_awaited_once()
+    container.shutdown.assert_awaited_once()
+    assert GracefulShutdown._shutdown_event.is_set()
+
+
+def test_file_operation_no_longer_allows_desktop_agency_test_escape(tmp_path):
+    from core.skills.file_operation import FileOperationSkill
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "agency_test" / "proof.txt"
+    outside.parent.mkdir()
+
+    skill = FileOperationSkill()
+    skill.root_dir = os.path.realpath(str(workspace))
+
+    with pytest.raises(PermissionError):
+        skill._safe_resolve(str(outside))
+
+
+@pytest.mark.asyncio
+async def test_sensory_gate_run_always_closes_browser_and_bus(monkeypatch):
+    from core.actors import sensory_gate as sensory_gate_module
+
+    events = []
+    actor = None
+
+    class FakeBus:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def register_handler(self, *_args, **_kwargs):
+            return None
+
+        def start(self):
+            actor._is_active = False
+
+        async def stop(self):
+            events.append("bus.stop")
+
+        async def send(self, *_args, **_kwargs):
+            events.append("bus.send")
+
+    class FakeBrowser:
+        def __init__(self, *args, **kwargs):
+            events.append("browser.init")
+
+        async def close(self):
+            events.append("browser.close")
+
+    monkeypatch.setattr(sensory_gate_module, "LocalPipeBus", FakeBus)
+    monkeypatch.setattr(sensory_gate_module, "PhantomBrowser", FakeBrowser)
+
+    actor = sensory_gate_module.SensoryGateActor(connection=object())
+    await actor.run()
+
+    assert "browser.close" in events
+    assert "bus.stop" in events
 
 
 def test_sensory_client_defers_async_lock_creation():

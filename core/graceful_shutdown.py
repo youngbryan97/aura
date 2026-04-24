@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import signal
-import sys
 from typing import Any, Callable, List, Union, Awaitable, ClassVar, Optional
 
 logger = logging.getLogger("Aura.Shutdown")
@@ -73,13 +72,6 @@ class GracefulShutdown:
         
         if cls._shutdown_event:
             cls._shutdown_event.set()
-        
-        # Give logs a moment to flush then exit if we were the one who started the loop
-        # Note: In some hosting environments, we shouldn't call sys.exit()
-        # but let the main loop finish.
-        if sig:
-            # Re-raise or exit
-            sys.exit(0)
 
     @classmethod
     async def wait_for_shutdown(cls):

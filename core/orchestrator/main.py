@@ -1564,41 +1564,35 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         """Initializes and starts the SensoryGateActor via the Supervision Tree (Phase 2)."""
         try:
             from core.actors.sensory_gate import start_sensory_gate
-            
+
             # 1. Get or Create Actor Bus (Parent side)
-            # multiprocessing.Pipe() returns (parent_conn, child_conn)
-            parent_conn, child_conn = multiprocessing.Pipe(duplex=True)
-            
-        # Redundant local import removed
             self._actor_bus = ServiceContainer.get("actor_bus", default=ActorBus())
-            
-            # Correctly add the new actor connection to the existing unified bus
-            self._actor_bus.add_actor("SensoryGate", parent_conn, is_child=False)
             try:
                 if not ServiceContainer.has("actor_bus"):
                     ServiceContainer.register_instance("actor_bus", self._actor_bus)
             except Exception: pass
-            self._actor_bus.start()
-            
-            # 2. Register Cross-Process Handlers
-            self._actor_bus.register_handler("SensoryGate", "SENSORY_UPDATE", self._handle_sensory_update)
-            self._actor_bus.register_handler("SensoryGate", "COMMIT_STATE", self._handle_remote_commit)
-            self._actor_bus.register_handler("SensoryGate", "HEARTBEAT", self._handle_actor_heartbeat)
-            
-            # 3. Register Actor with Supervisor Tree
+
+            # 2. Register Actor with Supervisor Tree
             spec = ActorSpec(
                 name="SensoryGate",
                 target=start_sensory_gate,
-                args=(child_conn,),
+                args=(),
                 restart_policy="one_for_one"
             )
             
             if self.supervisor:
                 self.supervisor.add_actor(spec)
                 
-                # 4. Start Supervisor and Actor
+                # 3. Start Supervisor and Actor
                 await self.supervisor.start()
-                self.supervisor.start_actor("SensoryGate")
+                parent_pipe = self.supervisor.start_actor("SensoryGate")
+                self._actor_bus.add_actor("SensoryGate", parent_pipe, is_child=False)
+                self._actor_bus.start()
+
+                # 4. Register Cross-Process Handlers
+                self._actor_bus.register_handler("SensoryGate", "SENSORY_UPDATE", self._handle_sensory_update)
+                self._actor_bus.register_handler("SensoryGate", "COMMIT_STATE", self._handle_remote_commit)
+                self._actor_bus.register_handler("SensoryGate", "HEARTBEAT", self._handle_actor_heartbeat)
                 logger.info("🛡️ SensoryGateActor managed by Supervision Tree.")
             else:
                 logger.error("❌ Cannot start SensoryGateActor: Supervisor Tree not available in container.")

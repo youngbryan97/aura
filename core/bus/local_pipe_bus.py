@@ -5,6 +5,7 @@ import asyncio
 import time
 import multiprocessing
 import multiprocessing.connection
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Optional, Tuple
 from core.bus.shared_mem_bus import SharedMemoryTransport
@@ -17,40 +18,35 @@ class LocalPipeBus:
     Refactored to use unidirectional pipe pairs to eliminate bidirectional deadlocks.
     ZENITH LOCKDOWN: Dedicated ThreadPoolExecutor for Pipe I/O to prevent starvation.
     """
-    _PIPE_EXECUTOR: Optional[ThreadPoolExecutor] = None
+    _LIVE_BUSES: "weakref.WeakSet[LocalPipeBus]" = weakref.WeakSet()
     _SHM_OFFLOAD_THRESHOLD_BYTES = 32 * 1024
     _SHM_SEGMENT_RETENTION_SECONDS = 20.0
 
-    @classmethod
-    def _get_executor(cls) -> ThreadPoolExecutor:
-        executor = cls._PIPE_EXECUTOR
-        if executor is None:
-            executor = ThreadPoolExecutor(
-                max_workers=4,
-                thread_name_prefix="AuraPipeIO",
-            )
-            cls._PIPE_EXECUTOR = executor
-        return executor
+    @staticmethod
+    def _is_connection_pair(connection: Any) -> bool:
+        return isinstance(connection, tuple) and len(connection) == 2
 
     @classmethod
     def shutdown_executor(cls) -> None:
-        executor = cls._PIPE_EXECUTOR
-        cls._PIPE_EXECUTOR = None
-        if executor is not None:
-            executor.shutdown(wait=False, cancel_futures=True)
+        for bus in list(cls._LIVE_BUSES):
+            bus._shutdown_executor()
 
     def __init__(self, is_child: bool = False, 
                  read_conn: Optional[multiprocessing.connection.Connection] = None, 
                  write_conn: Optional[multiprocessing.connection.Connection] = None,
                  start_reader: bool = True,
-                 connection: Optional[multiprocessing.connection.Connection] = None):
+                 connection: Any = None):
         self.is_child = is_child
         self.start_reader = start_reader
+        self._shared_connection = False
         
-        if connection:
+        if self._is_connection_pair(connection):
+            self.read_conn, self.write_conn = connection
+        elif connection is not None:
             self.read_conn = connection
             self.write_conn = connection
-        elif read_conn and write_conn:
+            self._shared_connection = True
+        elif read_conn is not None and write_conn is not None:
             self.read_conn = read_conn
             self.write_conn = write_conn
         else:
@@ -68,6 +64,7 @@ class LocalPipeBus:
                 self.write_conn = p_write
 
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._executor: Optional[ThreadPoolExecutor] = None
         self._reader_task: Optional[asyncio.Task] = None
         self._dispatcher_task: Optional[asyncio.Task] = None
         self._dispatch_queue: Optional[asyncio.Queue] = None
@@ -77,29 +74,55 @@ class LocalPipeBus:
         self._activity_callback: Optional[Callable[[], None]] = None
         self._pipe_broken = False
         self._outbound_shm_segments: Dict[str, Tuple[SharedMemoryTransport, float]] = {}
+        self._LIVE_BUSES.add(self)
+
+    def _get_executor(self) -> ThreadPoolExecutor:
+        executor = self._executor
+        if executor is None:
+            executor = ThreadPoolExecutor(
+                max_workers=2,
+                thread_name_prefix="AuraPipeIO",
+            )
+            self._executor = executor
+        return executor
+
+    def _shutdown_executor(self) -> None:
+        executor = self._executor
+        self._executor = None
+        if executor is not None:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop is not None:
+            return self._loop
         try:
             return asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.new_event_loop()
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "LocalPipeBus requires a running event loop. Start it from async boot/runtime code."
+            ) from exc
+
+    def _safe_close_connection(self, conn: Optional[multiprocessing.connection.Connection]) -> None:
+        if conn is None:
+            return
+        try:
+            conn.close()
+        except Exception as exc:
+            logger.debug("📡 LocalPipeBus: connection close skipped: %s", exc)
 
     def start(self):
         """Start the background reader task."""
         if self._is_running and self._reader_task and not self._reader_task.done():
             return
         
-        # Ensure we have a loop when starting
-        loop = self.loop
-        if not loop:
-            return
-
+        loop = asyncio.get_running_loop()
+        self._loop = loop
         self._is_running = True
         if self.start_reader:
             self._dispatch_queue = asyncio.Queue(maxsize=256)
-            self._dispatcher_task = asyncio.create_task(self._dispatch_loop())
-            self._reader_task = asyncio.create_task(self._read_loop())
+            self._dispatcher_task = loop.create_task(self._dispatch_loop())
+            self._reader_task = loop.create_task(self._read_loop())
             logger.info("📡 LocalPipeBus reader ACTIVE (Child: %s)", self.is_child)
         else:
             logger.info("📡 LocalPipeBus ACTIVE (Manual Polling mode)")
@@ -126,8 +149,12 @@ class LocalPipeBus:
             except Exception as e:
                 logger.error("📡 LocalPipeBus: Dispatcher stop error: %s", e)
         self._cleanup_expired_shm_segments(force=True)
-        self.read_conn.close()
-        self.write_conn.close()
+        if self._shared_connection:
+            self._safe_close_connection(self.read_conn)
+        else:
+            self._safe_close_connection(self.read_conn)
+            self._safe_close_connection(self.write_conn)
+        self._shutdown_executor()
 
     def register_handler(self, msg_type: str, handler: Callable):
         """Register a handler for a specific message type."""
@@ -225,7 +252,7 @@ class LocalPipeBus:
                 self._pipe_broken = True
                 logger.info("📡 Bus pipe closed (normal shutdown): %s", str(e)[:60])
             try:
-                self.write_conn.close()
+                self._safe_close_connection(self.write_conn)
             except Exception:
                 pass  # Already closed, expected
         except Exception as e:
@@ -279,7 +306,7 @@ class LocalPipeBus:
                 logger.warning("📡 Bus request failed (Broken Pipe): %s", e)
             
             try:
-                self.write_conn.close()
+                self._safe_close_connection(self.write_conn)
             except Exception as _e:
                 logger.debug("📡 LocalPipeBus: Secondary error during request-failure close: %s", _e)
             raise

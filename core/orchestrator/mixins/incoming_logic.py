@@ -11,6 +11,10 @@ from typing import Any
 from core.runtime.governance_policy import allow_direct_user_shortcut
 
 logger = logging.getLogger(__name__)
+_PREFIX_ORIGIN_MAP = {
+    "[VOICE]": "voice",
+    "[ADMIN]": "admin",
+}
 
 
 class IncomingLogicMixin:
@@ -19,9 +23,7 @@ class IncomingLogicMixin:
     async def _route_prefixed_message(self, message: str, prefix: str, origin: str) -> Any:
         # Implementation of legacy prefix routing (e.g. stripping tag and updating origin)
         content = message[len(prefix):].strip()
-        new_origin = origin
-        if prefix == "[VOICE]": new_origin = "voice"
-        elif prefix == "[ADMIN]": new_origin = "admin"
+        new_origin = _PREFIX_ORIGIN_MAP.get(prefix, origin)
         return await self._process_message_pipeline(content, origin=new_origin)
 
     async def _process_message_pipeline(self, message: Any, origin: str = "user", **kwargs) -> None:
@@ -49,7 +51,7 @@ class IncomingLogicMixin:
         return self._current_thought_task
 
     async def _handle_filesystem_reality_check(self, message: str, origin: str) -> bool:
-        """Fast-path explicit file existence checks without invoking deep cognition."""
+        """Legacy shortcut disabled: user-facing filesystem checks must stay governed."""
         if not isinstance(message, str):
             return False
 
@@ -65,51 +67,11 @@ class IncomingLogicMixin:
         if not raw_path:
             return False
 
-        resolved_path = os.path.expanduser(raw_path)
-        exists = await asyncio.to_thread(os.path.exists, resolved_path)
-        is_dir = await asyncio.to_thread(os.path.isdir, resolved_path) if exists else False
-        summary = f"{raw_path} exists." if exists else f"{raw_path} does not exist."
-        result = {
-            "ok": True,
-            "path": raw_path,
-            "exists": exists,
-            "kind": "directory" if exists and is_dir else ("file" if exists else None),
-            "state": "present" if exists else "missing",
-            "summary": summary,
-        }
-
-        trace = None
-        try:
-            trace = self._init_cognitive_trace(message, origin)
-            trace.record_step("filesystem_reality_check", result)
-        except Exception as trace_err:
-            logger.debug("Filesystem reality trace init skipped: %s", trace_err)
-
-        try:
-            from core.world_model.expectation_engine import ExpectationEngine
-
-            ee = ExpectationEngine(getattr(self, "cognitive_engine", None))
-            await ee.update_beliefs_from_result("file_exists_check", result)
-        except Exception as belief_err:
-            logger.debug("Filesystem reality belief update skipped: %s", belief_err)
-
-        try:
-            self._record_action_in_history("file_exists_check", result)
-        except Exception as history_err:
-            logger.debug("Filesystem reality action history skipped: %s", history_err)
-
-        self._record_message_in_history(message, origin)
-        self._record_message_in_history(summary, "assistant")
-
-        if origin in ("user", "voice", "admin"):
-            await self.output_gate.emit(summary, origin=origin, target="primary")
-
-        if trace is not None:
-            trace.record_step("end", {"response": summary[:100]})
-            trace.save()
-
-        self._last_thought_time = time.time()
-        return True
+        logger.info(
+            "Filesystem shortcut refused for '%s'; routing explicit existence checks through governed file_operation.",
+            raw_path,
+        )
+        return False
 
     async def _original_handle_incoming_logic(self, message: Any, origin: str = "user", suppress_ui: bool = False):
         """Route an incoming message through the deterministic State Machine pipeline."""

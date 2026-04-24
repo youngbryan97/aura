@@ -28,6 +28,22 @@ class StateVaultActor:
         self._bus: Optional[Any] = None # Will be linked to the pipe
         self._heartbeat_interval = 3.0
         self._heartbeat_task: Optional[asyncio.Task] = None
+        self._background_tasks: set[asyncio.Task] = set()
+
+    def _track_task(self, coro: Any) -> asyncio.Task:
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
+
+    async def _cancel_background_tasks(self):
+        tasks = [task for task in self._background_tasks if not task.done()]
+        if not tasks:
+            return
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self._background_tasks.clear()
 
     async def run(self, pipe):
         """Main actor loop."""
@@ -35,35 +51,32 @@ class StateVaultActor:
         # Use the full LocalPipeBus power with concurrent handlers
         # This prevents head-of-line blocking (e.g. slow commit vs fast ping)
         self._bus = LocalPipeBus(is_child=True, connection=pipe, start_reader=True)
-        
-        # Register handlers
-        self._bus.register_handler("commit", self._process_commit_bus)
-        self._bus.register_handler("get_state", self._process_get_state_bus)
-        self._bus.register_handler("ping", self._process_ping_bus)
-        self._bus.register_handler("stop", self._process_stop_bus)
-        
-        self._bus.start()
-        logger.info("Starting State Vault Actor with concurrent bus handlers...")
-        self._is_running = True
-        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-        
-        # 1. Initialize Repo
-        await self.repo.initialize()
-        self.shm_transport = self.repo._shm
-        logger.info("State Vault Actor ONLINE.")
-        
-        # Keep process alive while bus is running
-        while self._is_running and self._bus._is_running:
-            await asyncio.sleep(1.0)
+        try:
+            # Register handlers
+            self._bus.register_handler("commit", self._process_commit_bus)
+            self._bus.register_handler("get_state", self._process_get_state_bus)
+            self._bus.register_handler("ping", self._process_ping_bus)
+            self._bus.register_handler("stop", self._process_stop_bus)
 
-        if self._heartbeat_task:
-            self._heartbeat_task.cancel()
-            try:
-                await self._heartbeat_task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
-        await self._bus.stop()
-        self.shm_transport.close()
+            self._bus.start()
+            logger.info("Starting State Vault Actor with concurrent bus handlers...")
+            self._is_running = True
+            self._heartbeat_task = self._track_task(self._heartbeat_loop())
+
+            # 1. Initialize Repo
+            await self.repo.initialize()
+            self.shm_transport = self.repo._shm
+            logger.info("State Vault Actor ONLINE.")
+
+            # Keep process alive while bus is running
+            while self._is_running and self._bus._is_running:
+                await asyncio.sleep(1.0)
+        finally:
+            self._is_running = False
+            await self._cancel_background_tasks()
+            if self._bus is not None:
+                await self._bus.stop()
+            self.shm_transport.close()
 
     async def _heartbeat_loop(self):
         """Emit liveness pulses without racing the parent transport reader."""
@@ -122,7 +135,7 @@ class StateVaultActor:
             now = time.time()
             if not hasattr(self, "_last_shm_update") or (now - self._last_shm_update > 0.1):
                 self._last_shm_update = now
-                asyncio.create_task(self._update_shared_memory_async(committed_state))
+                self._track_task(self._update_shared_memory_async(committed_state))
 
             return {"version": committed_state.version, "state_id": committed_state.state_id}
         except Exception as e:
@@ -154,7 +167,14 @@ def vault_process_entry(db_path: str, pipe):
         logger.debug("StateVaultActor instantiating...")
         actor = StateVaultActor(db_path=db_path) 
         logger.debug("StateVaultActor instantiated. Running asyncio loop...")
-        asyncio.run(actor.run(pipe)) 
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(actor.run(pipe))
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
         logger.debug("StateVaultActor asyncio loop exited gracefully.")
     except Exception as e:
         logger.critical(f"Vault process CRASHED: {e}")

@@ -32,12 +32,15 @@ class ActorBus:
         self._is_running = False
         
         # ZENITH: Backpressured Telemetry Queue
-        self._telemetry_queue = asyncio.Queue(maxsize=100)
+        self._telemetry_queue: Optional[asyncio.Queue] = None
         self._telemetry_broadcaster_task = None
         self._initialized = True
 
     def add_actor(self, name: str, connection: Any, is_child: bool = False):
         """Register and start a new actor transport."""
+        if connection is None:
+            logger.warning("📡 Refusing to register actor '%s' without a live transport.", name)
+            return False
         transport = LocalPipeBus(is_child=is_child, connection=connection)
         try:
             from core.container import ServiceContainer
@@ -52,6 +55,7 @@ class ActorBus:
         transport.start()
         self._transports[name] = transport
         logger.info(f"📡 Registered Actor Transport: {name}")
+        return True
 
     def has_actor(self, name: str) -> bool:
         """Return whether a live transport is registered for the actor."""
@@ -69,6 +73,8 @@ class ActorBus:
     def start(self):
         """Global bus start (transports are started individually on add)."""
         self._is_running = True
+        if self._telemetry_queue is None:
+            self._telemetry_queue = asyncio.Queue(maxsize=100)
         self.start_transports()
         
         # Start Telemetry Broadcaster
@@ -81,6 +87,9 @@ class ActorBus:
         """ZENITH: Non-blocking telemetry delivery with backpressure."""
         while self._is_running:
             try:
+                if self._telemetry_queue is None:
+                    await asyncio.sleep(0.05)
+                    continue
                 topic, payload = await self._telemetry_queue.get()
                 # Broadcast to all transports that handle telemetry
                 for name, transport in self._transports.items():
@@ -98,6 +107,8 @@ class ActorBus:
     async def broadcast_telemetry(self, topic: str, payload: Any):
         """Submit telemetry to the backpressured queue. Drops if full."""
         if not self._is_running:
+            return
+        if self._telemetry_queue is None:
             return
             
         try:
@@ -232,6 +243,6 @@ class ActorBus:
 # Factory for creating a generic bus (e.g. for child actors)
 def create_actor_bus(is_child: bool = False, connection: Any = None) -> ActorBus:
     bus = ActorBus()
-    if connection:
+    if connection is not None:
         bus.add_actor("SensoryGate", connection, is_child=is_child)
     return bus
