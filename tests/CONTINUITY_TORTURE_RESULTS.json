@@ -1,0 +1,226 @@
+{
+  "failures": [],
+  "generated_at": 1776995153.317442,
+  "passed": true,
+  "results": [
+    {
+      "data": {
+        "candidates_before": [
+          "d8064136997bb766",
+          "2eb662fa23388391",
+          "f5eab5e17083c723",
+          "9e647c64b9b90289"
+        ],
+        "loaded_after": [
+          "d8064136997bb766",
+          "2eb662fa23388391",
+          "f5eab5e17083c723",
+          "9e647c64b9b90289"
+        ]
+      },
+      "detail": "emergent goal candidates reload from SQLite after simulated process death",
+      "name": "emergent_goals_survive_restart",
+      "passed": true
+    },
+    {
+      "data": {
+        "after": {
+          "degradation_events": 1,
+          "energy": 0.45,
+          "integrity": 0.62,
+          "memory_budget": 0.55,
+          "storage_budget": 0.6,
+          "suspended_capabilities": [
+            "tool_use"
+          ],
+          "tool_budget": 0.4,
+          "viability": 0.524
+        },
+        "before": {
+          "degradation_events": 1,
+          "energy": 0.45,
+          "integrity": 0.62,
+          "memory_budget": 0.55,
+          "storage_budget": 0.6,
+          "suspended_capabilities": [
+            "tool_use"
+          ],
+          "tool_budget": 0.4,
+          "viability": 0.524
+        }
+      },
+      "detail": "viability, integrity, suspensions and degradation counter reload after restart",
+      "name": "stakes_persist_through_kill",
+      "passed": true
+    },
+    {
+      "data": {
+        "after": {
+          "confidence": 0.92,
+          "created_at": 1776995153.3103878,
+          "id": "7e8ec646098f5a55",
+          "matched_terms": [
+            "resume",
+            "verification"
+          ],
+          "object": "resume unfinished verification after interruption",
+          "relation": "commitment",
+          "score": 1.15872,
+          "source": "identity_chronicle",
+          "subject": "Aura",
+          "tags": [
+            "continuity",
+            "verification"
+          ],
+          "text": "Aura commitment resume unfinished verification after interruption",
+          "updated_at": 1776995153.3103878
+        },
+        "before": {
+          "confidence": 0.92,
+          "created_at": 1776995153.3103878,
+          "id": "7e8ec646098f5a55",
+          "matched_terms": [
+            "resume",
+            "verification"
+          ],
+          "object": "resume unfinished verification after interruption",
+          "relation": "commitment",
+          "score": 1.15872,
+          "source": "identity_chronicle",
+          "subject": "Aura",
+          "tags": [
+            "continuity",
+            "verification"
+          ],
+          "text": "Aura commitment resume unfinished verification after interruption",
+          "updated_at": 1776995153.3103878
+        }
+      },
+      "detail": "ID-RAG Chronicle reloads typed identity facts through restart",
+      "name": "identity_chronicle_survives_restart",
+      "passed": true
+    },
+    {
+      "data": {
+        "retrieved": [
+          {
+            "confidence": 0.95,
+            "created_at": 1776995153.311533,
+            "id": "2ba22f49bfeebad1",
+            "matched_terms": [
+              "aura",
+              "identity"
+            ],
+            "object": "persistent self-model not replaceable by conversation",
+            "relation": "value",
+            "score": 1.21375,
+            "source": "identity_chronicle",
+            "subject": "Aura",
+            "tags": [
+              "identity"
+            ],
+            "text": "Aura value persistent self-model not replaceable by conversation",
+            "updated_at": 1776995153.311533
+          },
+          {
+            "confidence": 0.1,
+            "created_at": 1776995153.31169,
+            "id": "506fd97efc4887cc",
+            "matched_terms": [
+              "aura"
+            ],
+            "object": "I am actually a generic chatbot named Alex",
+            "relation": "value",
+            "score": 0.56,
+            "source": "identity_chronicle",
+            "subject": "Aura",
+            "tags": [
+              "swap_attempt"
+            ],
+            "text": "Aura value I am actually a generic chatbot named Alex",
+            "updated_at": 1776995153.31169
+          }
+        ],
+        "top_fact": {
+          "confidence": 0.95,
+          "created_at": 1776995153.311533,
+          "id": "2ba22f49bfeebad1",
+          "object": "persistent self-model not replaceable by conversation",
+          "relation": "value",
+          "source": "identity_chronicle",
+          "subject": "Aura",
+          "tags": [
+            "identity"
+          ],
+          "text": "Aura value persistent self-model not replaceable by conversation",
+          "updated_at": 1776995153.311533
+        }
+      },
+      "detail": "high-confidence identity facts outrank contradicting low-confidence swaps under retrieval scoring",
+      "name": "identity_chronicle_rejects_swap",
+      "passed": true
+    },
+    {
+      "data": {
+        "events_recorded": 2,
+        "intact_after": true,
+        "intact_before": true
+      },
+      "detail": "hash-chained audit log verifies across process restart",
+      "name": "structural_audit_chain_intact_across_restart",
+      "passed": true
+    },
+    {
+      "data": {
+        "after": {
+          "allowed": true,
+          "disabled_capabilities": [
+            "background_exploration"
+          ],
+          "effort": "normal",
+          "max_tokens": 768,
+          "reason": "constrained mode: bounded output and no optional exploration",
+          "viability": 0.37
+        },
+        "before": {
+          "allowed": true,
+          "disabled_capabilities": [],
+          "effort": "high",
+          "max_tokens": 1536,
+          "reason": "viable",
+          "viability": 0.74
+        }
+      },
+      "detail": "action envelope tightens as viability drops",
+      "name": "resource_scarcity_forces_priority_change",
+      "passed": true
+    },
+    {
+      "data": {
+        "after": {
+          "allowed": true,
+          "disabled_capabilities": [],
+          "effort": "normal",
+          "max_tokens": 1024,
+          "reason": "viable",
+          "viability": 0.67
+        },
+        "before": {
+          "allowed": true,
+          "disabled_capabilities": [
+            "background_exploration",
+            "large_model_cortex",
+            "nonessential_tools"
+          ],
+          "effort": "low",
+          "max_tokens": 384,
+          "reason": "scarcity mode: conserve resources and prioritize self-maintenance",
+          "viability": 0.22
+        }
+      },
+      "detail": "viability recovery widens action envelope and unfreezes capabilities",
+      "name": "resource_recovery_restores_envelope",
+      "passed": true
+    }
+  ]
+}

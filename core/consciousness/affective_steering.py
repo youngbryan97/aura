@@ -460,7 +460,19 @@ class SteeringVectorLibrary:
                 logger.info("✅ Derived: %s (norm=%.3f)", key, np.linalg.norm(vec))
             except Exception as e:
                 logger.error("❌ Failed to derive vector %s: %s", key, e)
-                # Fallback: random unit vector (non-zero but uncalibrated)
+                # Evidence-mode: random fallback vectors are NOT credited as
+                # live steering. In normal mode we still install one so the
+                # runtime keeps functioning, but the flag propagates so tests
+                # can refuse to interpret the resulting run as evidence.
+                try:
+                    from core.evaluation.evidence_mode import require
+                    require(
+                        "steering_vector_derivation",
+                        False,
+                        f"vector {key} failed to derive from hidden states: {e}",
+                    )
+                except Exception:
+                    raise
                 fallback = np.random.randn(d_model).astype(np.float32)
                 fallback /= np.linalg.norm(fallback)
                 self._vectors[key] = SteeringVector(
@@ -848,12 +860,32 @@ class SubstrateSyncThread:
                         x = np.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
                         for hook in self._hooks:
                             hook.update_substrate(x)
+                            try:
+                                hook.substrate_source = "live"  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
                     else:
-                        # Pushing neutral state if no substrate is found
+                        # Evidence mode: DO NOT credit a neutral fallback as
+                        # live substrate. We mark the hook so tests can refuse
+                        # to interpret outputs as state-caused behavior, and
+                        # we raise in evidence mode to prevent silent drift.
+                        try:
+                            from core.evaluation.evidence_mode import require
+                            require(
+                                "substrate_sync",
+                                False,
+                                "no live substrate available; neutral fallback would leak",
+                            )
+                        except Exception:
+                            raise
                         neutral = np.zeros(64, dtype=np.float32)
-                        neutral[5] = 0.7 
+                        neutral[5] = 0.7
                         for hook in self._hooks:
                             hook.update_substrate(neutral)
+                            try:
+                                hook.substrate_source = "neutral_fallback"  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
 
             except Exception as e:
                 logger.debug("SubstrateSyncThread error: %s", e)

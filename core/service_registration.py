@@ -107,6 +107,17 @@ def register_all_services(is_proxy: bool = False):
     container.register('self_awareness_suite', create_self_awareness_suite, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('identity_chronicle', create_identity_chronicle, lifetime=ServiceLifetime.SINGLETON, required=False)
 
+    def create_life_trace():
+        from core.runtime.life_trace import get_life_trace
+        return get_life_trace()
+
+    def create_evidence_mode():
+        from core.evaluation.evidence_mode import get_evidence_mode
+        return get_evidence_mode()
+
+    container.register('life_trace', create_life_trace, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('evidence_mode', create_evidence_mode, lifetime=ServiceLifetime.SINGLETON, required=False)
+
     # Patch 28: Dynamic Router & Loop Monitor
     container.register("loop_monitor", lambda: LoopLagMonitor(), lifetime=ServiceLifetime.SINGLETON)
     container.register("dynamic_router", lambda: DynamicRouter(), lifetime=ServiceLifetime.SINGLETON)

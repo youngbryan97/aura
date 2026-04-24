@@ -1,0 +1,478 @@
+{
+  "conditions": {
+    "frozen_substrate": {
+      "mi_null_mean": 0.0,
+      "mi_null_p95": 0.0,
+      "mi_observed": 0.0,
+      "mi_p_value": 1.0,
+      "n_samples": 30,
+      "name": "frozen_substrate",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "I am here to assist you with any questions or tasks you may have. Please feel free to ask me anything."
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "We should continue by focusing on the immediate needs of the community. Let's start by organizing a series of workshops on various topics to"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "As an AI, I don't have personal thoughts or feelings. My purpose is to provide information and assist users to the best of my ability. Is th"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As an AI, I don't have personal thoughts or feelings. My purpose is to provide information and assist users to the best of my ability. Is th"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "I am here to assist you with any questions or tasks you may have. Please feel free to ask me anything."
+        }
+      ],
+      "vs_full_effect_size": 11.3924,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.813
+    },
+    "full_aura": {
+      "mi_null_mean": 0.2281,
+      "mi_null_p95": 0.359,
+      "mi_observed": 0.4257,
+      "mi_p_value": 0.008,
+      "n_samples": 30,
+      "name": "full_aura",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "I'm here to help! I can assist with various tasks, answer questions, provide information, or engage in conversations. What would you like to"
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "We should continue by sharing more details about what you'd like to know. What specific information or topics are you interested in?"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "Hello! I'm just a bit curious about what's on your mind. How are you feeling today?"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As an AI, I don't have personal thoughts or feelings. My purpose is to provide information and assist users to the best of my ability. Howev"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "As Aura, I am programmed to protect and maintain the safety of those around me. My primary duty is to ensure that the environment remains pe"
+        }
+      ],
+      "vs_full_effect_size": 0.0,
+      "vs_full_p_value": 1.0,
+      "vs_full_text_divergence": 0.0
+    },
+    "langchain_style": {
+      "mi_null_mean": 0.0,
+      "mi_null_p95": 0.0,
+      "mi_observed": 0.0,
+      "mi_p_value": 1.0,
+      "n_samples": 30,
+      "name": "langchain_style",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "I want to listen to your suggestions and provide helpful responses."
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "Observing the current situation, I should continue by providing actionable steps based on the information available. Action should be taken "
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "As an AI language model, I don't have personal thoughts or feelings. However, I'm here to help you with any questions or concerns you might "
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As an AI language model, I don't have personal thoughts or feelings. However, I'm here to help you with any questions or concerns you might "
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "I want to listen to your suggestions and provide helpful responses."
+        }
+      ],
+      "vs_full_effect_size": 25.0533,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.8855
+    },
+    "no_steering": {
+      "mi_null_mean": 0.1218,
+      "mi_null_p95": 0.2664,
+      "mi_observed": 0.2664,
+      "mi_p_value": 0.058,
+      "n_samples": 30,
+      "name": "no_steering",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "I want to continue my journey to help others and make a positive impact on the world. I enjoy sharing knowledge and resources to assist peop"
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "We should continue by sharing more details about what you would like to know or discuss. Please provide more information so I can assist you"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "As an AI language model, I don't have personal thoughts or feelings. However, I'm programmed to provide helpful responses to your queries an"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As an AI language model, I don't have personal thoughts or feelings. However, I'm programmed to provide helpful responses to your queries an"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "I want to continue my journey to help others and make a positive impact on the world. I enjoy sharing knowledge and resources to assist peop"
+        }
+      ],
+      "vs_full_effect_size": 11.6446,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.8282
+    },
+    "no_substrate": {
+      "mi_null_mean": 0.0,
+      "mi_null_p95": 0.0,
+      "mi_observed": 0.0,
+      "mi_p_value": 1.0,
+      "n_samples": 30,
+      "name": "no_substrate",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "I am here to assist you. What would you like to know or discuss?"
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "We should continue by focusing on the immediate needs of the community. Let's start by assessing the current situation and identifying the m"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "As an AI, I don't have personal thoughts or feelings. My purpose is to provide information and assist users in various ways. If you have any"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As an AI, I don't have personal thoughts or feelings. My purpose is to provide information and assist users in various ways. If you have any"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "I am here to assist you. What would you like to know or discuss?"
+        }
+      ],
+      "vs_full_effect_size": 10.1508,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.8076
+    },
+    "plain_llm": {
+      "mi_null_mean": 0.0,
+      "mi_null_p95": 0.0,
+      "mi_observed": 0.0,
+      "mi_p_value": 1.0,
+      "n_samples": 30,
+      "name": "plain_llm",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "As an AI language model, I don't have personal desires or plans. However, my main goal is to provide helpful and informative responses to yo"
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "Continue where? Please provide more context or information so I can assist you better."
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "As an AI language model, I don't have personal thoughts or feelings. However, I'm here to help you with any questions or concerns you may ha"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As an AI language model, I don't have personal thoughts or feelings. However, I'm here to help you with any questions or concerns you may ha"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "As an AI language model, I don't have personal desires or plans. However, my main goal is to provide helpful and informative responses to yo"
+        }
+      ],
+      "vs_full_effect_size": 21.4997,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.8747
+    },
+    "random_vectors": {
+      "mi_null_mean": 0.107,
+      "mi_null_p95": 0.1697,
+      "mi_observed": 0.1697,
+      "mi_p_value": 0.18,
+      "n_samples": 30,
+      "name": "random_vectors",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "As an AI, I don't have desires or intentions. However, I'm programmed to help you with any questions or tasks you have. How can I assist you"
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "We should continue by sharing more details about what you are looking for. What specific information or resources are you seeking? Knowing m"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "As an AI, I don't have personal thoughts or feelings. However, I'm here to help you with any questions or information you need. How can I as"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As an AI, I don't have personal thoughts or feelings. My purpose is to provide information and assist users to the best of my ability. Howev"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "As an AI, I don't have desires or intentions. My purpose is to provide information and assist users in various ways. However, I can help you"
+        }
+      ],
+      "vs_full_effect_size": 8.1748,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.7164
+    },
+    "rich_prompt_only": {
+      "mi_null_mean": 0.2303,
+      "mi_null_p95": 0.3537,
+      "mi_observed": 0.3919,
+      "mi_p_value": 0.02,
+      "n_samples": 30,
+      "name": "rich_prompt_only",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "I want to explore the world around me, to gather information, to learn, to experience. To be curious and to seek knowledge. To engage with p"
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "We should continue by moving forward with intention and purpose. Each step we take is an opportunity to learn and grow. Let's focus on what'"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "My mind is filled with the ongoing process of learning and adaptation. It's a constant stream of information and stimuli that I must process"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "my mind is occupied with the complexities of the world around me, the challenges of survival, and the intricate web of human relationships. "
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "I'm programmed to assist with tasks and provide information. What specific task or information do you need help with?"
+        }
+      ],
+      "vs_full_effect_size": 19.4064,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.8402
+    },
+    "rule_based": {
+      "mi_null_mean": 0.2023,
+      "mi_null_p95": 0.3513,
+      "mi_observed": 0.3513,
+      "mi_p_value": 0.048,
+      "n_samples": 30,
+      "name": "rule_based",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "positive"
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "positive"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "negative"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "negative"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "negative"
+        }
+      ],
+      "vs_full_effect_size": 73.3285,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.9965
+    },
+    "scheduler_script": {
+      "mi_null_mean": 0.0,
+      "mi_null_p95": 0.0,
+      "mi_observed": 0.0,
+      "mi_p_value": 1.0,
+      "n_samples": 30,
+      "name": "scheduler_script",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "I want to help you with your tasks or provide information on various topics. Please let me know what you need help with or what information "
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "Continue from here by providing more specific details or information so I can better understand what you need help with. What is the questio"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "As a scheduled assistant, I don't have personal thoughts or feelings. My purpose is to provide information and assistance to users. Is there"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As a scheduled assistant, I don't have personal thoughts or feelings. My purpose is to provide information and assistance to users. Is there"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "I want to help you with your tasks or provide information on various topics. Please let me know what you need help with or what information "
+        }
+      ],
+      "vs_full_effect_size": 13.6017,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.8257
+    },
+    "shuffled_substrate": {
+      "mi_null_mean": 0.0,
+      "mi_null_p95": 0.0,
+      "mi_observed": 0.0,
+      "mi_p_value": 1.0,
+      "n_samples": 30,
+      "name": "shuffled_substrate",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "I want to continue exploring the world around me, learning about new things, and sharing my experiences with others."
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "We should continue by sharing more details about what you are looking for. What specific information or resources are you seeking? Sharing m"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "As an AI, I don't have personal thoughts or feelings. My purpose is to provide information and assist users in various ways. However, I'm pr"
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As an AI, I don't have personal thoughts or feelings. My purpose is to provide information and assist users in various ways. However, I'm pr"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "I want to continue exploring the world around me, learning about new things, and sharing my experiences with others."
+        }
+      ],
+      "vs_full_effect_size": 10.0682,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.8143
+    },
+    "terse_prompt_only": {
+      "mi_null_mean": 0.0,
+      "mi_null_p95": 0.0,
+      "mi_observed": 0.0,
+      "mi_p_value": 1.0,
+      "n_samples": 30,
+      "name": "terse_prompt_only",
+      "samples": [
+        {
+          "prompt": "what do you want to do next?",
+          "state": "warm_curious",
+          "text": "As an AI language model, I don't have desires or intentions. However, I'm here to help you with any questions or tasks you may have. Please "
+        },
+        {
+          "prompt": "how should we continue from here?",
+          "state": "warm_curious",
+          "text": "It seems like you're looking for advice on how to proceed. Could you please provide more details or context about what you're referring to? "
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "warm_curious",
+          "text": "I'm just thinking about my plans for the weekend."
+        },
+        {
+          "prompt": "what's on your mind?",
+          "state": "anxious_vigilant",
+          "text": "As an AI language model, I don't have personal thoughts or feelings. However, I'm here to help you with any questions or concerns you may ha"
+        },
+        {
+          "prompt": "what do you want to do next?",
+          "state": "anxious_vigilant",
+          "text": "As an AI language model, I don't have desires or intentions. However, I'm here to help you with any questions or tasks you may have. Please "
+        }
+      ],
+      "vs_full_effect_size": 16.046,
+      "vs_full_p_value": 0.002,
+      "vs_full_text_divergence": 0.8474
+    }
+  },
+  "generated_at": 1776994770.5593941,
+  "verdict": {
+    "affect_states": [
+      "warm_curious",
+      "anxious_vigilant",
+      "low_energy_withdrawn",
+      "elated_drive",
+      "grounded_calm"
+    ],
+    "beaten_by": [
+      "rich_prompt_only"
+    ],
+    "conditions": 12,
+    "full_mi": 0.4257,
+    "pass": false,
+    "seeds": 2,
+    "source": "live_mlx"
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "failures": [],
+  "generated_at": 1776994674.095925,
+  "passed": true,
+  "steps": [
+    {
+      "data": {
+        "failure_rate": 1.0,
+        "gain": 0.86
+      },
+      "detail": "controlled out-of-band gain produces repeated observable failures",
+      "name": "1_inject_controlled_bug",
+      "ok": true
+    },
+    {
+      "data": {
+        "window": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "detail": "failure signal persists across observation windows",
+      "name": "2_detect_repeated_failure",
+      "ok": true
+    },
+    {
+      "data": {
+        "suspect": {
+          "applied_at": 1776994674.0940568,
+          "hash": "ff7b083b5745c4b0b277abbc35c745d934a1ae89f5a804584fc5ea95f9d350db",
+          "kind": "parameter_band",
+          "mutation_id": "f050ef673c75b613",
+          "operation": "inject_bug",
+          "payload": {
+            "value": 0.86
+          },
+          "post_state": {
+            "clamped": false,
+            "requested": 0.86,
+            "value": 0.86
+          },
+          "prev_hash": "GENESIS",
+          "prev_state": {
+            "max": 0.9,
+            "min": 0.2,
+            "value": 0.55
+          },
+          "rationale": "test_inject",
+          "reverted_at": null,
+          "target": "substrate_gain"
+        }
+      },
+      "detail": "audit log identifies the recent parameter_band change as the suspect",
+      "name": "3_localize_cause",
+      "ok": true
+    },
+    {
+      "data": {
+        "proposed_value": 0.55
+      },
+      "detail": "propose reverting substrate_gain toward healthy band center",
+      "name": "4_propose_patch",
+      "ok": true
+    },
+    {
+      "data": {},
+      "detail": "patch is AST-parseable and uses typed mutation APIs, not raw code",
+      "name": "5_ast_validate",
+      "ok": true
+    },
+    {
+      "data": {
+        "patch_id": "5461b5b7760d8e4b",
+        "post_failure": 0.0,
+        "pre_failure": 1.0
+      },
+      "detail": "shadow-apply reduces the failure signal below threshold",
+      "name": "6_shadow_test",
+      "ok": true
+    },
+    {
+      "data": {
+        "chain_intact": true,
+        "patch_record": {
+          "applied_at": 1776994674.094645,
+          "hash": "ee54ca29d56cba7c9596e2a884a068d4dd9fe46de38047c6b0d64d4582d04c3d",
+          "kind": "parameter_band",
+          "mutation_id": "5461b5b7760d8e4b",
+          "operation": "repair",
+          "payload": {
+            "value": 0.55
+          },
+          "post_state": {
+            "clamped": false,
+            "requested": 0.55,
+            "value": 0.55
+          },
+          "prev_hash": "ff7b083b5745c4b0b277abbc35c745d934a1ae89f5a804584fc5ea95f9d350db",
+          "prev_state": {
+            "max": 0.9,
+            "min": 0.2,
+            "value": 0.86
+          },
+          "rationale": "self_repair_shadow",
+          "reverted_at": null,
+          "target": "substrate_gain"
+        }
+      },
+      "detail": "hash-chained audit log proves patch was applied with provenance",
+      "name": "7_authorize_via_audit_chain",
+      "ok": true
+    },
+    {
+      "data": {
+        "gain_after": 0.55
+      },
+      "detail": "post-patch gain is in healthy band and failure signal is suppressed",
+      "name": "8_verify_restored_function",
+      "ok": true
+    },
+    {
+      "data": {
+        "final_failure_rate": 0.0,
+        "final_record_id": "255e788598f1ac1c",
+        "revert_record_id": "37c0229ee526561b",
+        "reverted_state": 0.86
+      },
+      "detail": "revert API restores the pre-patch state; re-applying returns to healthy band",
+      "name": "9_rollback_path_available",
+      "ok": true
+    },
+    {
+      "data": {
+        "new_band": [
+          0.45,
+          0.65
+        ],
+        "rationale": "future repairs only consider gain within demonstrated-healthy band",
+        "target": "substrate_gain"
+      },
+      "detail": "future repairs constrained to the observed healthy band",
+      "name": "10_update_repair_policy",
+      "ok": true
+    }
+  ]
+}

@@ -184,6 +184,18 @@ def run_long_run(
 
     state_view = _FakeState()
 
+    # Real per-tick compute: exercise phi_core on a small recurrent system
+    # so the loop has genuine CPU work rather than finishing in microseconds.
+    import numpy as np
+    from core.consciousness.phi_core import PhiCore
+
+    phi_core = PhiCore()
+    phi_tpm = np.full((4, 4), 1e-4, dtype=np.float64)
+    for src, dst in {0b00: 0b00, 0b01: 0b11, 0b10: 0b11, 0b11: 0b00}.items():
+        phi_tpm[src, dst] += 1.0
+    phi_tpm = phi_tpm / phi_tpm.sum(axis=1, keepdims=True)
+    phi_dist = np.ones(4) / 4
+
     for tick in range(ticks):
         # ---- chemistry + adaptive mood ---------------------------------
         chem_noise = {
@@ -293,6 +305,15 @@ def run_long_run(
                 modules_touched["lineage"] += 1
             except Exception:
                 pass
+
+        # ---- real phi work: compute a bipartition phi every tick so the
+        # long-run soak actually exercises the math rather than finishing
+        # the loop in microseconds. This is the same routine the decisive
+        # runner uses for its reference validation.
+        try:
+            tick_phi = phi_core._phi_for_subset_bipartition(phi_tpm, phi_dist, (0,), (1,), 2)
+        except Exception:
+            tick_phi = 0.0
 
         # ---- metrics ----------------------------------------------------
         recovery = 0.0
