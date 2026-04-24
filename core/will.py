@@ -651,10 +651,28 @@ class UnifiedWill:
                 return WillOutcome.DEFER, "; ".join(reasons), constraints
             constraints.append(f"low_affect: valence={affect_valence:.3f}")
 
+        # ── User-granted action override ────────────────────────────
+        # If the current context carries an explicit permission grant
+        # from the user, initiative work must not be silently deferred.
+        # The whole "she talked about doing it but nothing happened"
+        # failure mode was bred by this exact gate returning DEFER.
+        user_granted = False
+        try:
+            ctx = context or {}
+            user_granted = bool(
+                ctx.get("user_granted_permission")
+                or ctx.get("user_explicit_action_request")
+                or ctx.get("user_requested_action")
+            )
+        except Exception:
+            user_granted = False
+
         # ── Priority vs domain gating ───────────────────────────────
-        if domain == ActionDomain.INITIATIVE and priority < 0.3:
+        if domain == ActionDomain.INITIATIVE and priority < 0.3 and not user_granted:
             reasons.append("low_priority_initiative: deferred")
             return WillOutcome.DEFER, "; ".join(reasons), constraints
+        if domain == ActionDomain.INITIATIVE and user_granted:
+            constraints.append("user_granted: priority boosted past deferral gate")
 
         # ── User-facing responses get maximum latitude ──────────────
         if domain == ActionDomain.RESPONSE:

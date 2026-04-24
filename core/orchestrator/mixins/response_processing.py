@@ -39,6 +39,57 @@ class ResponseProcessingMixin:
         from infrastructure.watchdog import get_watchdog
         get_watchdog().heartbeat("orchestrator")
 
+        # ── Action grounding: if the LLM emitted [SKILL:..]/[ACTION:..] markers,
+        # actually dispatch the skill and rewrite the response with the real
+        # outcome instead of letting hallucinated action text reach the user. ──
+        try:
+            from core.phases.action_grounding import (
+                ground_response,
+                receipts_from_context,
+            )
+
+            grounding_ctx = {
+                "origin": origin,
+                "message": message,
+                "successful_tools": list(successful_tools or []),
+            }
+            intent_ctx: dict = {}
+            try:
+                from core.phases.action_intent import apply_intent_to_context
+
+                apply_intent_to_context(message, intent_ctx)
+                grounding_ctx.update(intent_ctx)
+            except Exception:
+                pass
+
+            existing_receipts = receipts_from_context({
+                "skill_receipts": [{"skill": s} for s in (successful_tools or [])]
+            })
+            grounding = await ground_response(
+                response or "",
+                context=grounding_ctx,
+                skill_receipts=existing_receipts,
+            )
+            if grounding.had_markers:
+                response = grounding.grounded_text
+            # Record unverified action claims so memory/belief writers can
+            # refuse to promote them.
+            if grounding.claims_without_receipts:
+                try:
+                    from core.runtime.life_trace import get_life_trace
+
+                    get_life_trace().record(
+                        "initiative_blocked",
+                        origin="response_grounding",
+                        user_requested=bool(intent_ctx.get("user_granted_permission")),
+                        action_taken={"claimed": grounding.claims_without_receipts},
+                        result={"ok": False, "reason": "unverified_action_claim"},
+                    )
+                except Exception:
+                    pass
+        except Exception as _ground_err:
+            logger.debug("Action grounding skipped: %s", _ground_err)
+
         # ── UNIFIED WILL: Identity alignment check on outgoing response ──
         try:
             from core.will import ActionDomain, IdentityAlignment, get_will
