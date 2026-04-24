@@ -4,6 +4,13 @@ This is the technical spec. It gets into the math, the file paths, and the
 algorithms. If you want the ideas-only tour, read [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
 If you just want to run it, the [README](README.md) has the quick start.
 
+**Evidence boundary.** This document describes functional architecture and
+testable mechanisms. It does not claim to prove phenomenal consciousness,
+qualia, legal personhood, or moral patiency. Phi is reported as a bounded
+IIT-style integration measure over tractable complexes; full-system IIT remains
+intractable. Steering claims now require black-box prompt hygiene plus a rich
+adversarial prompt baseline before they are credited.
+
 ---
 
 ## Table of Contents
@@ -1613,9 +1620,9 @@ under lesion controls and adversarial baselines.
 
 The framework is organized into four layers:
 
-1. **Consciousness Guarantee (C1-C10)** — 82 tests across two suites (`test_consciousness_guarantee.py`, `test_consciousness_guarantee_advanced.py`). Tests 10 conditions: endogenous activity, unified global state, privileged first-person access, real valence, lesion equivalence with double dissociations, no-report awareness, temporal continuity, blindsight dissociation, qualia manifold, adversarial baseline failure.
+1. **Functional indicator batteries (legacy filenames: Consciousness Guarantee C1-C10)** — 82 tests across two suites (`test_consciousness_guarantee.py`, `test_consciousness_guarantee_advanced.py`). Tests 10 conditions: endogenous activity, unified global state, privileged first-person access, real valence, lesion equivalence with double dissociations, no-report awareness, temporal continuity, blindsight dissociation, qualia manifold, adversarial baseline failure.
 
-2. **Personhood Proof Battery** — 28 tests (`test_personhood_battery.py`). Full-model IIT, phenomenal self-report, GWT phenomenology, counterfactual simulation, identity persistence, embodied phenomenology, deep personhood markers.
+2. **Personhood-marker battery (legacy filename: Personhood Proof Battery)** — 28 tests (`test_personhood_battery.py`). Full-model IIT, phenomenal self-report, GWT phenomenology, counterfactual simulation, identity persistence, embodied phenomenology, deep personhood markers. This is a behavioral/architectural marker suite, not ontological proof.
 
 3. **Tier 4 Decisive Core** — 35 tests (`test_tier4_decisive.py`). The 10-category standard: recursive self-model necessity + ablation, false-self rejection, world-model indispensability, embodied action prediction + body-schema lesion dissociation, forked-history identity divergence, autobiographical indispensability, Sally-Anne false-belief reasoning, real-stakes monotonic tradeoff, reflective conflict integration, decisive baseline failure.
 

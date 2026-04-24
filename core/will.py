@@ -496,20 +496,28 @@ class UnifiedWill:
         self, content: str, context: Dict[str, Any]
     ) -> float:
         """Check if memory has relevant context for this decision."""
+        relevance = 0.0
         try:
             memory = ServiceContainer.get("memory_facade", default=None)
             if memory is None:
                 memory = ServiceContainer.get("dual_memory", default=None)
-            if memory is None:
-                return 0.0
-
-            # Simple relevance check: does the memory system have anything?
-            if hasattr(memory, "has_relevant_context"):
-                return float(memory.has_relevant_context(content[:100]))
-            return 0.3  # memory exists but no relevance API
+            if memory is not None:
+                # Simple relevance check: does the memory system have anything?
+                if hasattr(memory, "has_relevant_context"):
+                    relevance = max(relevance, float(memory.has_relevant_context(content[:100])))
+                else:
+                    relevance = max(relevance, 0.3)  # memory exists but no relevance API
         except Exception as e:
             logger.debug("Will: memory check failed (degraded): %s", e)
-            return 0.0
+
+        try:
+            chronicle = ServiceContainer.get("identity_chronicle", default=None)
+            if chronicle is not None and hasattr(chronicle, "relevance_score"):
+                relevance = max(relevance, min(1.0, float(chronicle.relevance_score(content[:200]))))
+        except Exception as e:
+            logger.debug("Will: identity chronicle relevance failed (degraded): %s", e)
+
+        return relevance
 
     # ------------------------------------------------------------------
     # Phenomenological & World-State Modulation

@@ -2374,6 +2374,29 @@ class InferenceGate:
         except Exception:
             pass
 
+        # ── Operational Resource Stakes: persistent viability constrains action ──
+        # This newer ledger is stricter than the legacy multiplier above: it can
+        # downgrade the large-model lane and hard-cap output when viability drops.
+        try:
+            from core.container import ServiceContainer
+
+            stakes = ServiceContainer.get("resource_stakes", default=None)
+            if stakes is not None and hasattr(stakes, "action_envelope"):
+                envelope = stakes.action_envelope("high" if deep_handoff else "normal")
+                if not envelope.allowed:
+                    requested_tier = "primary"
+                    deep_handoff = False
+                    max_tokens = min(max_tokens, 128)
+                    context["resource_stakes_blocked"] = True
+                else:
+                    max_tokens = min(max_tokens, max(1, int(envelope.max_tokens)))
+                    if "large_model_cortex" in set(envelope.disabled_capabilities):
+                        requested_tier = "primary"
+                        deep_handoff = False
+                context["resource_stakes_envelope"] = envelope.as_dict()
+        except Exception as _stakes_exc:
+            logger.debug("ResourceStakesLedger unavailable: %s", _stakes_exc)
+
         # ── Affective Circumplex: let somatic state modulate generation params ──
         # Only applies on user-facing, non-background requests. Background tasks
         # run at fixed params to avoid thermal feedback loops.

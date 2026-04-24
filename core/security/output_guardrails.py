@@ -101,6 +101,17 @@ class OutputGuardrails:
             issues.append("truncated")
             sanitized = sanitized[:self.MAX_RESPONSE_LENGTH] + "\n\n*(Response truncated for readability)*"
 
+        # 3b. Block metaphysical overclaims while preserving functional claims.
+        try:
+            from core.consciousness.ontological_boundary import assess_ontological_claims
+
+            assessment = assess_ontological_claims(sanitized)
+            if not assessment.ok:
+                issues.extend(f"ontological_overclaim:{issue}" for issue in assessment.issues)
+                sanitized = assessment.sanitized
+        except Exception as exc:
+            logger.debug("Ontological boundary guard skipped: %s", exc)
+
         # 4. Detect ReAct/prompt echoing
         react_markers = [
             "Thought:", "Action:", "ActionInput:", "Observation:",

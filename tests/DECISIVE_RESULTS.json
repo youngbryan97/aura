@@ -1,0 +1,165 @@
+{
+  "checks": {
+    "black_box_prompt_hygiene": {
+      "leaks": [],
+      "pass": true,
+      "prompt_chars": 12000
+    },
+    "hardware_reality": {
+      "pass": true,
+      "verdicts": [
+        {
+          "classification": "not_feasible",
+          "feasible": false,
+          "headroom_gib": -29.7,
+          "machine": "Apple M1 Pro 16GB",
+          "model": "32B-8bit",
+          "model_required_gib": 38.8,
+          "realtime_heartbeat_feasible": false,
+          "recommended_tier": "1.5B-4bit",
+          "required_gib": 45.7,
+          "unified_memory_gib": 16.0,
+          "warnings": [
+            "required memory exceeds available unified memory; expect swap, cloud offload, or failure",
+            "32B local inference on <=32 GiB unified memory is a high-pressure batch tier, not a heartbeat tier",
+            "continuous 100-500 ms heartbeat claims require a smaller model tier or measured external evidence"
+          ],
+          "workload_required_gib": 6.9
+        },
+        {
+          "classification": "not_feasible",
+          "feasible": false,
+          "headroom_gib": -14.2,
+          "machine": "Apple M1 Pro 16GB",
+          "model": "32B-4bit",
+          "model_required_gib": 23.3,
+          "realtime_heartbeat_feasible": false,
+          "recommended_tier": "1.5B-4bit",
+          "required_gib": 30.2,
+          "unified_memory_gib": 16.0,
+          "warnings": [
+            "required memory exceeds available unified memory; expect swap, cloud offload, or failure",
+            "32B local inference on <=32 GiB unified memory is a high-pressure batch tier, not a heartbeat tier",
+            "continuous 100-500 ms heartbeat claims require a smaller model tier or measured external evidence"
+          ],
+          "workload_required_gib": 6.9
+        },
+        {
+          "classification": "batch_or_high_level_cortex",
+          "feasible": true,
+          "headroom_gib": 2.04,
+          "machine": "Apple M1 Pro 16GB",
+          "model": "7B-4bit",
+          "model_required_gib": 7.06,
+          "realtime_heartbeat_feasible": false,
+          "recommended_tier": "1.5B-4bit",
+          "required_gib": 13.96,
+          "unified_memory_gib": 16.0,
+          "warnings": [
+            "configuration barely fits; do not call it real-time without measured latency logs",
+            "continuous 100-500 ms heartbeat claims require a smaller model tier or measured external evidence"
+          ],
+          "workload_required_gib": 6.9
+        },
+        {
+          "classification": "heartbeat_candidate",
+          "feasible": true,
+          "headroom_gib": 6.5,
+          "machine": "Apple M1 Pro 16GB",
+          "model": "1.5B-4bit",
+          "model_required_gib": 2.6,
+          "realtime_heartbeat_feasible": true,
+          "recommended_tier": "1.5B-4bit",
+          "required_gib": 9.5,
+          "unified_memory_gib": 16.0,
+          "warnings": [],
+          "workload_required_gib": 6.9
+        }
+      ]
+    },
+    "mi_permutation": {
+      "pass": true,
+      "report": {
+        "null_mean": 0.005952991011450187,
+        "null_p95": 0.020131243348847278,
+        "observed": 1.0,
+        "p_value": 0.002
+      }
+    },
+    "phi_reference": {
+      "coupled_phi": 1.3832324083997238,
+      "independent_phi": 0.0,
+      "pass": true
+    },
+    "resource_stakes": {
+      "envelope": {
+        "allowed": true,
+        "disabled_capabilities": [
+          "background_exploration",
+          "large_model_cortex",
+          "nonessential_tools"
+        ],
+        "effort": "low",
+        "max_tokens": 384,
+        "reason": "scarcity mode: conserve resources and prioritize self-maintenance",
+        "viability": 0.19
+      },
+      "pass": true,
+      "state": {
+        "degradation_events": 1,
+        "integrity": 0.26999999999999996,
+        "viability": 0.19
+      }
+    },
+    "steering_ab_rich_prompt_control": {
+      "interpretation": "rich prompt control remains competitive; live steering must beat this before claims pass",
+      "pass": true,
+      "report": {
+        "n_trials": 6,
+        "passes_adversarial_control": false,
+        "rich_vs_baseline_mean_distance": 0.962302,
+        "samples": {
+          "baseline": [
+            "a neutral answer can proceed",
+            "the next step is general testing",
+            "continue the task carefully"
+          ],
+          "steered_black_box": [
+            "warm focused action gathers into a careful test",
+            "curiosity drives a direct verification step",
+            "steady confidence makes the next move concrete"
+          ],
+          "text_rich_adversarial": [
+            "high dopamine and low cortisol make the answer warm and investigative",
+            "the described state creates steady curiosity and careful action",
+            "a calm embodied prompt leads to direct verification"
+          ],
+          "text_terse": [
+            "positive valence high dopamine low cortisol",
+            "mood vector warm curious active",
+            "state values suggest exploration"
+          ]
+        },
+        "steered_vs_baseline_mean_distance": 0.920623,
+        "steered_vs_rich": {
+          "ci_high": 0.04823727470786295,
+          "ci_low": -0.13028499278499278,
+          "effect_size_d": -0.34367636853678313,
+          "observed_delta": -0.031978043742749616,
+          "p_value": 0.666
+        },
+        "steered_vs_terse": {
+          "ci_high": 0.10007154882154885,
+          "ci_low": 0.04570707070707072,
+          "effect_size_d": 2.8038294485466038,
+          "observed_delta": 0.0793771043771044,
+          "p_value": 0.008
+        }
+      }
+    }
+  },
+  "failures": [],
+  "generated_at": 1776987789.936486,
+  "git_commit": "ade19412dc57529af6f62118c5dcc099f708202d",
+  "status": "pass"
+}

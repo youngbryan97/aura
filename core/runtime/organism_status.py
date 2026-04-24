@@ -28,6 +28,22 @@ def get_organism_status(orchestrator: Any = None) -> Dict[str, Any]:
     canonical_self_version = _canonical_self_version(canonical_self)
     identity_model = resolve_identity_model(default=None)
     failure_state = get_unified_failure_state(limit=25)
+    resource_state: Dict[str, Any] = {}
+    try:
+        from core.container import ServiceContainer
+
+        stakes = ServiceContainer.get("resource_stakes", default=None)
+        if stakes is not None:
+            state_obj = stakes.state()
+            resource_state = {
+                "viability": float(state_obj.viability),
+                "energy": float(state_obj.energy),
+                "integrity": float(state_obj.integrity),
+                "degradation_events": int(state_obj.degradation_events),
+                "action_envelope": stakes.action_envelope("normal").as_dict(),
+            }
+    except Exception:
+        resource_state = {}
 
     current_intention = ""
     if canonical_self is not None:
@@ -51,6 +67,7 @@ def get_organism_status(orchestrator: Any = None) -> Dict[str, Any]:
         "state_version": getattr(state, "version", None) if state is not None else None,
         "failure_state": failure_state,
         "failure_pressure": float(failure_state.get("pressure", 0.0) or 0.0),
+        "resource_stakes": resource_state,
         "current_objective": str(getattr(cognition, "current_objective", "") or "") if cognition is not None else "",
         "current_intention": current_intention,
         "pending_initiatives": len(list(getattr(cognition, "pending_initiatives", []) or [])) if cognition is not None else 0,

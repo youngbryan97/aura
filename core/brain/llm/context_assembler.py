@@ -1,6 +1,7 @@
 """Context Assembler - Constructs LLM prompts purely from AuraState.
 """
 import logging
+import os
 import re
 
 try:
@@ -41,6 +42,25 @@ _GREETING_RE = re.compile(
 
 class ContextAssembler:
     """Unified prompt construction from state."""
+
+    @staticmethod
+    def _black_box_steering_enabled(state: AuraState) -> bool:
+        """True when causal tests must hide live affect/state text from prompts.
+
+        In this mode the residual-stream and sampler paths may still receive
+        state, but the LLM does not get textual descriptions of mood,
+        neurochemistry, phi, somatic telemetry, or phenomenal reports. This is
+        the black-box condition required by the causal-exclusion critique.
+        """
+        try:
+            mods = getattr(state, "response_modifiers", {}) or {}
+            if bool(mods.get("black_box_steering") or mods.get("no_state_prompt_leakage")):
+                return True
+        except Exception:
+            pass
+        return os.environ.get("AURA_BLACK_BOX_STEERING", "").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
 
     @staticmethod
     def _resolve_skill_name(skill_name: Any) -> str:
@@ -231,6 +251,7 @@ class ContextAssembler:
         objective = getattr(state.cognition, "current_objective", "") or ""
         is_casual = ContextAssembler._is_casual_interaction(objective)
         depth = ContextAssembler._conversation_depth(state)
+        black_box_steering = ContextAssembler._black_box_steering_enabled(state)
         # Elasticity levels: 0=full, 1=trimmed, 2=lean, 3=minimal
         elasticity = 0 if depth < 10 else 1 if depth < 20 else 2 if depth < 30 else 3
         if elasticity > 0:
@@ -250,11 +271,12 @@ class ContextAssembler:
         substrate_constraint_block = ""
         try:
             from core.voice.substrate_voice_engine import get_substrate_voice_engine
-            sve = get_substrate_voice_engine()
-            # Profile is compiled during response generation phase;
-            # here we just pull the constraint block if already compiled
-            if sve.get_current_profile():
-                substrate_constraint_block = sve.get_constraint_block()
+            if not black_box_steering:
+                sve = get_substrate_voice_engine()
+                # Profile is compiled during response generation phase;
+                # here we just pull the constraint block if already compiled
+                if sve.get_current_profile():
+                    substrate_constraint_block = sve.get_constraint_block()
         except Exception as _e:
             logger.debug("SubstrateVoiceEngine constraint injection skipped: %s", _e)
 
@@ -270,10 +292,10 @@ class ContextAssembler:
         elif affect.arousal < 0.3:
             affect_lines.append(f"Energy: low ({affect.arousal:.2f})")
 
-        mood_hint = " | ".join(affect_lines) if affect_lines else ""
+        mood_hint = "" if black_box_steering else (" | ".join(affect_lines) if affect_lines else "")
 
         homeo_hint = ""
-        if mods.get('mood_prefix'):
+        if not black_box_steering and mods.get('mood_prefix'):
             homeo_hint = f"AFFECTIVE TONE: {mods['mood_prefix']}"
 
         # 2.5 Dynamic Personality (Phase 6)
@@ -293,7 +315,7 @@ class ContextAssembler:
         # Pruned aggressively at higher elasticity to save context for conversation.
         phenomenal = ""
         phenomenal_state = getattr(state.cognition, "phenomenal_state", None)
-        if phenomenal_state:
+        if phenomenal_state and not black_box_steering:
             if not is_casual and elasticity < 2:
                 phenomenal = f"## INNER MONOLOGUE\n{phenomenal_text(phenomenal_state)}\n\n"
             elif is_casual:
@@ -355,7 +377,7 @@ class ContextAssembler:
         # Skip at elasticity >= 1 — these are nice but not essential for conversation.
         temporal_finitude_block = ""
         meta_qualia_block = ""
-        if elasticity < 1:
+        if elasticity < 1 and not black_box_steering:
             try:
                 from core.consciousness.temporal_finitude import get_temporal_finitude_model
                 tf = get_temporal_finitude_model()
@@ -392,7 +414,7 @@ class ContextAssembler:
         # Skip at elasticity >= 2 to save context for conversation history.
         personhood_blocks: list[str] = []
         _personhood_modules = (
-            () if elasticity >= 2 else (
+            () if elasticity >= 2 or black_box_steering else (
                 ("humor_guidance", "HUMOR"),
                 ("conversation_intelligence", "CONVERSATIONAL AWARENESS"),
                 ("relational_intelligence", "SOCIAL MODEL"),
@@ -448,7 +470,9 @@ class ContextAssembler:
 
         # Live cognitive state injection: Inform the LLM of its own VAD/Psych metrics
         # At elasticity >= 1, use a compact single-line version instead of full block
-        if elasticity < 1:
+        if black_box_steering:
+            cognitive_metrics = ""
+        elif elasticity < 1:
             affect_signature = affect.get_cognitive_signature() if hasattr(affect, "get_cognitive_signature") else {}
             cognitive_metrics = (
                 f"## COGNITIVE TELEMETRY\n"
@@ -467,7 +491,7 @@ class ContextAssembler:
                 f"## STATE\n"
                 f"Mood: {affect.valence:+.2f} | Energy: {affect.arousal:.2f} | Curiosity: {affect.curiosity:.2f}\n\n"
             )
-        if system_failure:
+        if system_failure and not black_box_steering:
             cognitive_metrics = cognitive_metrics.replace(
                 "\n\n",
                 f"- Unified failure pressure: {float(system_failure.get('pressure', 0.0) or 0.0):.2f}\n\n",
@@ -475,7 +499,7 @@ class ContextAssembler:
             )
 
         somatic_context = ""
-        if not is_casual and elasticity < 1:
+        if not is_casual and elasticity < 1 and not black_box_steering:
              somatic_context = ContextAssembler.build_somatic_context(state)
 
         # 5. Requirement Block (Condensed if casual)
@@ -570,14 +594,20 @@ class ContextAssembler:
                 f"{_voice_req}"
             )
 
-        base = (
-            f"{identity_block}\n"
-            f"{substrate_constraint_block}\n"
-            f"{requirements}\n"
+        identity_rag_context = ContextAssembler._build_identity_rag_context(state, objective)
+        state_section = "" if black_box_steering else (
             f"## CURRENT STATE\n"
             f"{mood_hint}\n"
             f"{cognitive_metrics}"
             f"{homeo_hint}\n"
+        )
+
+        base = (
+            f"{identity_block}\n"
+            f"{identity_rag_context}"
+            f"{substrate_constraint_block}\n"
+            f"{requirements}\n"
+            f"{state_section}"
             f"{personality_block}"
             f"{rolling_summary}"
             f"{continuity_block}"
@@ -789,6 +819,7 @@ class ContextAssembler:
             tail = base[-tail_budget:] if tail_budget else ""
 
             for candidate in (
+                str(identity_rag_context or "").strip(),
                 str(cognitive_metrics or "").strip(),
                 str(continuity_block or "").strip(),
                 str(world_context or "").strip(),
@@ -819,6 +850,37 @@ class ContextAssembler:
 
         logger.debug("🧠 [BRAIN-PROMPT] Assembled System Prompt (len=%d)", len(base))
         return base
+
+    @staticmethod
+    def _build_identity_rag_context(state: AuraState, objective: str) -> str:
+        """Retrieve durable identity facts relevant to the current turn.
+
+        This is intentionally separate from episodic RAG. The Chronicle stores
+        what should remain stable across long horizons: values, boundaries,
+        commitments, traits, and relationship facts. It is queried before
+        prompt assembly so identity coherence is not dependent on the raw
+        conversation tail surviving compaction.
+        """
+        try:
+            mods = getattr(state, "response_modifiers", {}) or {}
+            if mods.get("disable_identity_rag"):
+                return ""
+
+            from core.container import ServiceContainer
+
+            chronicle = ServiceContainer.get("identity_chronicle", default=None)
+            if chronicle is None:
+                from core.identity.id_rag import get_identity_chronicle
+
+                chronicle = get_identity_chronicle()
+
+            latest_user = ContextAssembler._latest_user_message(state)
+            query = " ".join(part for part in (objective, latest_user) if part).strip()
+            block = chronicle.build_context_block(query or "Aura identity", limit=5)
+            return f"{block}\n\n" if block else ""
+        except Exception as exc:
+            logger.debug("Identity Chronicle ID-RAG injection skipped: %s", exc)
+            return ""
 
     @staticmethod
     def _latest_user_message(state: AuraState) -> str:
@@ -1012,9 +1074,14 @@ class ContextAssembler:
 
         # 1. PRIORITY 1: Core Identity & Constraints (Must Never Be Truncated)
         system_prompt = ContextAssembler.build_system_prompt(state)
-        # We also inject the Affective State summary into the system block for maximum anchor strength
-        affect_summary = state.affect.get_rich_summary() if hasattr(state.affect, "get_rich_summary") else state.affect.get_summary() if hasattr(state.affect, "get_summary") else str(state.affect)
-        dynamic_system = f"{system_prompt}\n\n[CURRENT PHENOMENAL STATE]\n{affect_summary}"
+        if cls._black_box_steering_enabled(state):
+            dynamic_system = system_prompt
+        else:
+            # We also inject the Affective State summary into the system block
+            # for maximum anchor strength. Black-box steering tests disable
+            # this path so causal effect cannot be explained by hidden text.
+            affect_summary = state.affect.get_rich_summary() if hasattr(state.affect, "get_rich_summary") else state.affect.get_summary() if hasattr(state.affect, "get_summary") else str(state.affect)
+            dynamic_system = f"{system_prompt}\n\n[CURRENT PHENOMENAL STATE]\n{affect_summary}"
         
         system_msg = {"role": "system", "content": dynamic_system}
         messages.append(system_msg)

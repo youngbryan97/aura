@@ -12,6 +12,45 @@ Fast regression spot-check:
 ./scripts/run_audit_suite.sh quick
 ```
 
+## Current decisive evidence protocol (April 23, 2026)
+
+The highest-skepticism path is now the decisive runner:
+
+```bash
+bash scripts/run_decisive_test.sh
+```
+
+It writes:
+
+- [`tests/DECISIVE_RESULTS.json`](tests/DECISIVE_RESULTS.json)
+- [`tests/SCALE_SWEEP_RESULTS.json`](tests/SCALE_SWEEP_RESULTS.json)
+
+The runner is deliberately narrower than the full battery and harder to inflate:
+
+- **Black-box prompt hygiene**: `AURA_BLACK_BOX_STEERING` /
+  `response_modifiers["black_box_steering"]` removes live affect, phenomenal,
+  somatic, and cognitive telemetry from prompt text while preserving durable
+  ID-RAG identity context.
+- **Rich adversarial prompt control**: steering is no longer compared only
+  against terse text injection. A strong role-play prompt with the same state
+  information is a required comparator, and the harness refuses to auto-pass
+  if rich text remains competitive.
+- **Statistical rigor**: bootstrap CIs, permutation tests, effect sizes, and MI
+  permutation baselines are first-class utilities under `core/evaluation/`.
+- **Phi reference validation**: the phi implementation is checked against toy
+  decomposable and coupled systems so a constant or independent network cannot
+  masquerade as integration.
+- **Hardware reality**: the auditor classifies 32B 4-bit/8-bit on 16 GB M1 Pro
+  as non-real-time/high-pressure, not a heartbeat tier.
+- **Resource stakes**: the resource ledger persists degradation, exposes action
+  envelopes, and can throttle large-model/tool use when viability drops.
+- **Scale caution**: the scale sweep is explicitly a proxy artifact, not a full
+  IIT or consciousness result.
+
+Passing this protocol closes engineering objections about prompt leakage,
+weak controls, circular MI estimates, hardware overclaiming, and decorative
+metabolism. It still does not prove phenomenal consciousness.
+
 ## Consciousness Expansion Test Suite (April 2026)
 
 Eight new subsystems from the consciousness-depth expansion each carry
@@ -127,7 +166,7 @@ philosophical question, and we come back to it throughout.
 
 ---
 
-## Consciousness Guarantee and Personhood Proof batteries (April 2026)
+## Legacy-named functional indicator batteries (April 2026)
 
 - [Consciousness Guarantee C1–C5](tests/test_consciousness_guarantee.py)
 - [Consciousness Guarantee C6–C10](tests/test_consciousness_guarantee_advanced.py)
@@ -135,7 +174,9 @@ philosophical question, and we come back to it throughout.
 
 110 tests covering ten conditions drawn from the human consciousness literature;
 each condition is checked under lesion controls and adversarial baselines. All
-ten conditions pass.
+ten conditions pass. The filenames are historical. Passing these batteries means
+the implementation satisfies the listed functional indicators; it is not a proof
+of consciousness, personhood, or moral standing.
 
 ---
 
@@ -164,10 +205,15 @@ The 8-node affective substrate is a genuine Integrated Information Theory (IIT)
 decomposes its causal structure. Computed from 299 ODE state transitions across
 127 exhaustive bipartitions over 256 possible states per seed.
 
-### A/B test: activation steering vs text-only injection
+### A/B test: activation steering vs adversarial text controls
 
 Full code and results in [`tests/test_steering_ab.py`](tests/test_steering_ab.py)
-and [`tests/STEERING_AB_RESULTS.json`](tests/STEERING_AB_RESULTS.json).
+and [`tests/STEERING_AB_RESULTS.json`](tests/STEERING_AB_RESULTS.json). The
+historical run below compared steering against terse text injection. The current
+decisive protocol adds a fourth condition: a rich, optimized role-play prompt
+that receives the same state information in natural language. Steering only gets
+credited when it beats that stronger control under randomized/statistical
+evaluation.
 
 | Condition | Output style | Example |
 |-----------|--------------|---------|
@@ -178,7 +224,9 @@ and [`tests/STEERING_AB_RESULTS.json`](tests/STEERING_AB_RESULTS.json).
 Word overlap A vs B = 0.131 — the outputs are very different. Both produce
 positive affect words, but steering makes the model *inhabit* the affect while
 text-only makes it *describe* it from outside. The residual-stream intervention
-does computational work that prompt text cannot replicate.
+does computational work that terse prompt text cannot replicate. It does not, by
+itself, rule out a strong prompt baseline; that is why the new
+`core.evaluation.steering_ab` harness requires the rich adversarial condition.
 
 ---
 

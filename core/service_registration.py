@@ -52,8 +52,20 @@ def register_all_services(is_proxy: bool = False):
     container.register('mycelial_network', create_mycelial, lifetime=ServiceLifetime.SINGLETON, required=True)
     container.register('mycelium', lambda: container.get("mycelial_network"), lifetime=ServiceLifetime.SINGLETON, required=False)
 
-    # 0.5 Metabolism (Patch 8)
-    container.register('metabolism', lambda: MetabolismService(), lifetime=ServiceLifetime.SINGLETON)
+    # 0.5 Metabolism / resource stakes.  The ledger is separate from the older
+    # consciousness.resource_stakes engine so it can persist hard action
+    # envelopes and degradation events for audit.
+    def create_resource_stakes():
+        from core.autonomic.resource_stakes import ResourceStakesLedger
+        path = config.paths.data_dir / "resource_stakes" / "stakes.sqlite3"
+        return ResourceStakesLedger(path)
+
+    container.register('resource_stakes', create_resource_stakes, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register(
+        'metabolism',
+        lambda: MetabolismService(stakes=container.get("resource_stakes", default=None)),
+        lifetime=ServiceLifetime.SINGLETON,
+    )
     container.register('metabolic_monitor', lambda: container.get("metabolism"), lifetime=ServiceLifetime.SINGLETON)
     
     # Patch 28: Dynamic Router & Loop Monitor

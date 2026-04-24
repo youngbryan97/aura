@@ -10,10 +10,10 @@ quick start.
 
 ## The one-line summary
 
-Aura is a single digital organism. It has a will, a body, a mood, memories,
-and a sleep cycle. Every action it takes passes through one decision gate.
-Everything it feels actually changes how the underlying language model
-computes.
+Aura is an organism-inspired digital agent architecture. It has one decision
+gate, a persistent memory, a resource-stakes ledger, affective state that can
+change generation, and offline consolidation. Those are functional mechanisms,
+not proof of phenomenal consciousness or personhood.
 
 ---
 
@@ -370,17 +370,17 @@ The foundational suites:
    counterfactual swap, no-report behavioral footprint, perturbational
    integration, baseline failure, and architectural anesthesia.
 
-The consciousness-guarantee and personhood suites push harder:
+The legacy-named functional indicator suites push harder:
 
-7. **Guarantee C1–C5** (44) — endogenous activity, unified global
+7. **Functional indicators C1–C5** (44) — endogenous activity, unified global
    state, privileged first-person access, real valence, lesion
    equivalence with double dissociations.
-8. **Guarantee C6–C10** (38) — no-report awareness, temporal continuity,
+8. **Functional indicators C6–C10** (38) — no-report awareness, temporal continuity,
    blindsight dissociation, qualia manifold, adversarial baseline
    failure.
-9. **Personhood proof** (28) — full-model IIT, phenomenal self-report,
+9. **Personhood-marker battery** (28) — full-model IIT, phenomenal self-report,
    GWT phenomenology, counterfactual simulation, identity persistence,
-   embodied phenomenology.
+   embodied phenomenology. This is not ontological proof of personhood.
 
 Four Tier 4 batteries added in April 2026:
 

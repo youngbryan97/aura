@@ -39,7 +39,7 @@ class ReflexiveCore:
         return "Pong (Reflex path active)."
 
     def _handle_identity(self, text: str) -> str:
-        return "I am Aura Zenith, a hardened digital organism. My reflexive core is online."
+        return "I am Aura Zenith, a hardened digital intelligence with a reflexive core online."
 
     def _handle_time(self, text: str) -> str:
         return f"Current runtime awareness: {time.strftime('%H:%M:%S UTC')}"

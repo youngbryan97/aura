@@ -25,10 +25,10 @@ echo "Python: $PYTHON"
 
 case "$MODE" in
   quick)
-    run "$PYTHON" -m pytest tests/test_audit_contracts.py crucible_test.py -q
+    run env AURA_PYTEST_FORCE_EXIT_AFTER_SUMMARY=1 "$PYTHON" -m pytest tests/test_audit_contracts.py crucible_test.py -q
     ;;
   full)
-    run "$PYTHON" -m pytest -q
+    run env AURA_PYTEST_FORCE_EXIT_AFTER_SUMMARY=1 "$PYTHON" -m pytest -q
     if command -v npm >/dev/null 2>&1; then
       run npm --prefix interface/static/shell run build
       run npm --prefix interface/static/memory run build

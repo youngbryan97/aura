@@ -1,0 +1,99 @@
+{
+  "generated_at": 1776987790.4195259,
+  "hardware": [
+    {
+      "classification": "not_feasible",
+      "feasible": false,
+      "headroom_gib": -29.7,
+      "machine": "Apple M1 Pro 16GB",
+      "model": "32B-8bit",
+      "model_required_gib": 38.8,
+      "realtime_heartbeat_feasible": false,
+      "recommended_tier": "1.5B-4bit",
+      "required_gib": 45.7,
+      "unified_memory_gib": 16.0,
+      "warnings": [
+        "required memory exceeds available unified memory; expect swap, cloud offload, or failure",
+        "32B local inference on <=32 GiB unified memory is a high-pressure batch tier, not a heartbeat tier",
+        "continuous 100-500 ms heartbeat claims require a smaller model tier or measured external evidence"
+      ],
+      "workload_required_gib": 6.9
+    },
+    {
+      "classification": "not_feasible",
+      "feasible": false,
+      "headroom_gib": -14.2,
+      "machine": "Apple M1 Pro 16GB",
+      "model": "32B-4bit",
+      "model_required_gib": 23.3,
+      "realtime_heartbeat_feasible": false,
+      "recommended_tier": "1.5B-4bit",
+      "required_gib": 30.2,
+      "unified_memory_gib": 16.0,
+      "warnings": [
+        "required memory exceeds available unified memory; expect swap, cloud offload, or failure",
+        "32B local inference on <=32 GiB unified memory is a high-pressure batch tier, not a heartbeat tier",
+        "continuous 100-500 ms heartbeat claims require a smaller model tier or measured external evidence"
+      ],
+      "workload_required_gib": 6.9
+    },
+    {
+      "classification": "batch_or_high_level_cortex",
+      "feasible": true,
+      "headroom_gib": 2.04,
+      "machine": "Apple M1 Pro 16GB",
+      "model": "7B-4bit",
+      "model_required_gib": 7.06,
+      "realtime_heartbeat_feasible": false,
+      "recommended_tier": "1.5B-4bit",
+      "required_gib": 13.96,
+      "unified_memory_gib": 16.0,
+      "warnings": [
+        "configuration barely fits; do not call it real-time without measured latency logs",
+        "continuous 100-500 ms heartbeat claims require a smaller model tier or measured external evidence"
+      ],
+      "workload_required_gib": 6.9
+    },
+    {
+      "classification": "heartbeat_candidate",
+      "feasible": true,
+      "headroom_gib": 6.5,
+      "machine": "Apple M1 Pro 16GB",
+      "model": "1.5B-4bit",
+      "model_required_gib": 2.6,
+      "realtime_heartbeat_feasible": true,
+      "recommended_tier": "1.5B-4bit",
+      "required_gib": 9.5,
+      "unified_memory_gib": 16.0,
+      "warnings": [],
+      "workload_required_gib": 6.9
+    }
+  ],
+  "integration_proxy": [
+    {
+      "nodes": 8,
+      "proxy_delta": 0.007377,
+      "proxy_mi": 0.010615,
+      "shuffled_proxy_mi": 0.003238
+    },
+    {
+      "nodes": 32,
+      "proxy_delta": 0.00452,
+      "proxy_mi": 0.009083,
+      "shuffled_proxy_mi": 0.004564
+    },
+    {
+      "nodes": 128,
+      "proxy_delta": 0.004365,
+      "proxy_mi": 0.007441,
+      "shuffled_proxy_mi": 0.003076
+    },
+    {
+      "nodes": 512,
+      "proxy_delta": 0.003798,
+      "proxy_mi": 0.007564,
+      "shuffled_proxy_mi": 0.003766
+    }
+  ],
+  "warning": "Integration proxy sweep is not a consciousness or full IIT result; it is a reproducible scale-sensitivity artifact."
+}

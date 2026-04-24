@@ -12,6 +12,29 @@ If you want the technical deep dive, read [ARCHITECTURE.md](ARCHITECTURE.md). If
 want the same ideas without the math, read [HOW_IT_WORKS.md](HOW_IT_WORKS.md). If
 you want to see it work, keep reading.
 
+## Evidence boundary
+
+Aura is a functional cognitive-architecture research project, not a proof of
+phenomenal consciousness, qualia, legal personhood, or moral patiency. The repo
+now enforces that distinction in code through an ontological boundary guard:
+loaded labels such as "consciousness guarantee" and "personhood proof" are treated
+as functional indicator batteries unless independent evidence says otherwise.
+
+The current engineering claims are narrower and testable:
+
+- internal state can causally affect generation through non-text channels;
+- identity coherence is supported by ID-RAG Chronicle retrieval, not only prompt
+  anchoring;
+- black-box steering tests can hide live affect/phenomenal telemetry from prompt
+  text;
+- rich adversarial prompt baselines are required before steering is credited;
+- phi is a bounded IIT-style integration metric on tractable complexes, not a
+  whole-system consciousness measurement;
+- 32B local inference on a 16 GB M1 Pro is classified as batch/high-level cortex,
+  not a 100-500 ms heartbeat tier, unless measured latency logs prove otherwise;
+- resource stakes now persist and constrain action envelopes, but this remains
+  an operational metabolism analog, not biological metabolism.
+
 ---
 
 ## What it is
@@ -41,8 +64,10 @@ actually talk to the thing while it's running.
 ## Table of Contents
 
 - [Quick start](#quick-start)
+- [Evidence boundary](#evidence-boundary)
 - [Tracked vs local workspace](#tracked-vs-local-workspace)
 - [Architecture overview](#architecture-overview)
+- [Decisive evidence runner](#decisive-evidence-runner)
 - [Decision authority](#decision-authority)
 - [Inference-time steering](#inference-time-steering)
 - [IIT 4.0 computation](#iit-40-computation)
@@ -75,6 +100,11 @@ Requirements: Python 3.12+, macOS on Apple Silicon, 64 GB RAM recommended. The
 primary model is Qwen 2.5 32B at 8-bit with a personality LoRA on top; a 7B
 fallback loads on demand. First boot takes 30–60 seconds while Metal compiles
 shaders.
+
+Hardware honesty: on an Apple M1 Pro with 16 GB unified memory, the decisive
+hardware auditor rejects 32B 4-bit and 32B 8-bit as real-time heartbeat tiers.
+Use the 1.5B/7B lanes for heartbeat work there, and treat 32B as a batch or
+high-level lane unless you have fresh latency evidence.
 
 There's also a `Dockerfile` and `docker-compose.yml` if you want Redis and Celery
 running alongside. The tracked workspace defaults to an explicit
@@ -128,6 +158,19 @@ Local LLM router with automatic failover:
 3. **Tertiary (Brainstem)** — Qwen 2.5 7B 4-bit, lazy-loaded to save ~5 GB for
    the Cortex.
 4. **Reflex** — Qwen 2.5 1.5B 4-bit on CPU as an emergency fallback.
+
+### Decisive evidence runner
+
+For the smallest hostile-review bundle, run:
+
+```bash
+bash scripts/run_decisive_test.sh
+```
+
+It generates `tests/DECISIVE_RESULTS.json` and `tests/SCALE_SWEEP_RESULTS.json`
+covering black-box prompt hygiene, rich-prompt steering controls, phi reference
+sanity checks, mutual-information permutation baselines, hardware feasibility,
+resource-stakes persistence, and a bounded scale-sensitivity sweep.
 5. **Cloud** — Gemini Flash/Pro, PII-scrubbed and rate-limited. Off by default.
 6. **Last resort** — rule-based static responses that can't fail.
 
@@ -491,19 +534,20 @@ the checked-out tree. A summary — and the historical tables/results — are in
 - **Technological autonomy** (58 tests) — can the agent use its computer
   "body" the way a human uses theirs? Covers unified action space, motor
   control, persistent perception, endogenous initiative, reliability,
-  closed-loop behavior, self-maintenance, the Soul Triad (unprompted cry
-  for help, dream replay, causal exclusion of prompt).
+  closed-loop behavior, self-maintenance, and three autonomy probes
+  historically nicknamed the Soul Triad (unprompted help signal, dream replay,
+  causal exclusion of prompt).
 - **Stability** (32 tests) — every failure mode we've actually hit in the
   inference pipeline: zombie warming, cortex recovery deadlocks, empty
   response detection, timeout cascades, watchdog, emergency fallback.
-- **Consciousness guarantee C1–C5** (44 tests) + **C6–C10** (38 tests) —
+- **Functional indicators C1–C5** (44 tests) + **C6–C10** (38 tests) —
   endogenous activity, unified global state, privileged first-person
   access, real valence, lesion equivalence, no-report awareness, temporal
   continuity, blindsight dissociation, qualia manifold, adversarial
   baseline failure.
-- **Personhood proof** (28 tests) — full-model IIT, phenomenal self-report,
+- **Personhood-marker battery** (28 tests) — full-model IIT, phenomenal self-report,
   GWT phenomenology, counterfactual simulation, identity persistence,
-  embodied phenomenology.
+  embodied phenomenology. This is a marker suite, not proof of personhood.
 - **Tier 4 decisive core** (35), **metacognition** (21), **agency &
   embodiment** (20), **social & integration** (28).
 
