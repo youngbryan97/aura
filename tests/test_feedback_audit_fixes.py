@@ -1940,6 +1940,22 @@ def test_same_answer_different_prompt_detection_catches_near_duplicate_reply():
     ) is True
 
 
+def test_same_answer_different_prompt_detection_ignores_near_paraphrase_followups():
+    from interface.routes import chat as chat_mod
+
+    chat_mod._recent_responses.clear()
+    chat_mod._recent_response_pairs.clear()
+    chat_mod._record_recent_response(
+        "It's there, but it isn't blocking anything specific.",
+        "Is the background hum making it hard for you to focus?",
+    )
+
+    assert chat_mod._is_same_answer_different_prompt(
+        "Is that background hum making it hard for you to focus right now?",
+        "It's there, but it isn't blocking anything specific.",
+    ) is False
+
+
 def test_reply_topicality_flags_unrequested_review_mode_drift():
     from interface.routes.chat import _evaluate_reply_topicality
 

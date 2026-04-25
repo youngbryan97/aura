@@ -689,7 +689,19 @@ def _is_same_answer_different_prompt(user_message: str, text: str) -> bool:
     if not user_fp or not response_body:
         return False
     for prev_user, prev_resp in _recent_response_pairs:
-        if prev_user != user_fp and (prev_resp == response_body or _fuzzy_similar(prev_resp, response_body)):
+        if prev_user == user_fp:
+            continue
+        # Near-paraphrase follow-ups can legitimately receive the same answer.
+        if _fuzzy_similar(prev_user, user_fp):
+            continue
+        prev_tokens = _extract_topic_tokens(prev_user)
+        current_tokens = _extract_topic_tokens(user_fp)
+        if prev_tokens and current_tokens:
+            overlap = len(prev_tokens & current_tokens)
+            smaller = min(len(prev_tokens), len(current_tokens))
+            if smaller >= 4 and overlap >= 4 and (overlap / smaller) >= 0.8:
+                continue
+        if prev_resp == response_body or _fuzzy_similar(prev_resp, response_body):
             return True
     return False
 

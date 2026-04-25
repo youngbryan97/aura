@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional, List
 
 from pydantic import BaseModel, Field
 from core.config import config
+from core.container import ServiceContainer
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.MemoryOps")
@@ -14,7 +15,11 @@ logger = logging.getLogger("Skills.MemoryOps")
 class MemoryOpsInput(BaseModel):
     action: str = Field(
         ...,
-        description="Letta-based function: 'core_append', 'core_replace', 'archival_insert', 'archival_search'.",
+        description=(
+            "Memory action. Supports canonical Letta verbs "
+            "('core_append', 'core_replace', 'archival_insert', 'archival_search') "
+            "plus runtime aliases like 'remember' and 'recall'."
+        ),
     )
     block: Optional[str] = Field(None, description="The Core Memory block name (e.g., 'persona', 'user') for core_* ops.")
     content: Optional[str] = Field(None, description="Data to append, insert, or replace.")
@@ -26,6 +31,16 @@ class MemoryOpsSkill(BaseSkill):
     name = "memory_ops"
     description = "Hierarchical memory management (RAM vs Disk) modeled after Letta. Edit Core memory blocks or search Archival storage."
     input_model = MemoryOpsInput
+    _ACTION_ALIASES = {
+        "remember": "archival_insert",
+        "memorize": "archival_insert",
+        "store": "archival_insert",
+        "save": "archival_insert",
+        "recall": "archival_search",
+        "search": "archival_search",
+        "query": "archival_search",
+        "read": "archival_search",
+    }
     
     def __init__(self):
         super().__init__()
@@ -47,7 +62,11 @@ class MemoryOpsSkill(BaseSkill):
             except Exception as e:
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
-        action = params.action.lower()
+        action = self._normalize_action(params.action)
+        if action == "archival_insert" and not params.content and params.query:
+            params = params.model_copy(update={"content": params.query})
+        elif action == "archival_search" and not params.query and params.content:
+            params = params.model_copy(update={"query": params.content})
         
         try:
             if action.startswith("core_"):
@@ -59,6 +78,15 @@ class MemoryOpsSkill(BaseSkill):
         except Exception as e:
             logger.error("MemoryOps failed: %s", e)
             return {"ok": False, "error": str(e)}
+
+    @classmethod
+    def _normalize_action(cls, action: Any) -> str:
+        lowered = str(action or "").strip().lower()
+        return cls._ACTION_ALIASES.get(lowered, lowered)
+
+    @staticmethod
+    def _resolve_memory_facade(context: Dict[str, Any]) -> Any:
+        return context.get("memory_facade") or ServiceContainer.get("memory_facade", default=None)
 
     async def _execute_core_memory(self, params: MemoryOpsInput, context: Dict[str, Any], action: str) -> Dict[str, Any]:
         """RAM: Immediate context window blocks."""
@@ -95,7 +123,7 @@ class MemoryOpsSkill(BaseSkill):
 
     async def _execute_archival_memory(self, params: MemoryOpsInput, context: Dict[str, Any], action: str) -> Dict[str, Any]:
         """Disk: Long-term archival Vector / DB storage."""
-        memory_facade = context.get("memory_facade")
+        memory_facade = self._resolve_memory_facade(context)
         if not memory_facade:
             return {"ok": False, "error": "Archival backend (memory_facade) is not wired to context."}
 
@@ -127,11 +155,23 @@ class MemoryOpsSkill(BaseSkill):
                 if hasattr(memory_facade, "search_memories"):
                     res = memory_facade.search_memories(params.query, limit=5)
                     results = await res if hasattr(res, "__await__") else res
+                elif hasattr(memory_facade, "search"):
+                    res = memory_facade.search(params.query, limit=5)
+                    results = await res if hasattr(res, "__await__") else res
+                elif hasattr(memory_facade, "query_memory"):
+                    res = memory_facade.query_memory(params.query, limit=5)
+                    results = await res if hasattr(res, "__await__") else res
                 else:
-                    return {"ok": False, "error": "Facade missing 'search_memories' capability."}
+                    return {"ok": False, "error": "Facade missing search capability."}
                 
                 # Format Letta style
-                formatted = [f"[{res.get('score', 0):.2f}] {res.get('content')}" for res in (results or []) if isinstance(res, dict)]
+                formatted = []
+                for item in results or []:
+                    if isinstance(item, dict):
+                        score = float(item.get("score", 0) or 0)
+                        content = item.get("content") or item.get("text")
+                        if content:
+                            formatted.append(f"[{score:.2f}] {content}")
                 return {
                     "ok": True, 
                     "results": formatted if formatted else ["No archival memories found."],

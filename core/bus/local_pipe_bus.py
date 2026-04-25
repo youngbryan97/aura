@@ -7,7 +7,7 @@ import multiprocessing
 import multiprocessing.connection
 import weakref
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 from core.bus.shared_mem_bus import SharedMemoryTransport
 from core.utils.task_tracker import get_task_tracker
 
@@ -103,6 +103,23 @@ class LocalPipeBus:
             raise RuntimeError(
                 "LocalPipeBus requires a running event loop. Start it from async boot/runtime code."
             ) from exc
+
+    async def _run_on_transport_loop(
+        self,
+        operation: str,
+        factory: Callable[[], Awaitable[Any]],
+    ) -> Any:
+        """Bridge calls back onto the loop that owns this transport."""
+        current_loop = asyncio.get_running_loop()
+        target_loop = self._loop
+        if target_loop is None or target_loop is current_loop:
+            return await factory()
+        if target_loop.is_closed() or not target_loop.is_running():
+            raise RuntimeError(
+                f"LocalPipeBus cannot {operation}: transport loop is unavailable"
+            )
+        bridged = asyncio.run_coroutine_threadsafe(factory(), target_loop)
+        return await asyncio.wrap_future(bridged)
 
     def _safe_close_connection(self, conn: Optional[multiprocessing.connection.Connection]) -> None:
         if conn is None:
@@ -227,8 +244,19 @@ class LocalPipeBus:
             return payload
 
     async def send(self, msg_type: str, payload: Any, trace_id: Optional[str] = None):
+        try:
+            await self._run_on_transport_loop(
+                "send",
+                lambda: self._send_local(msg_type, payload, trace_id=trace_id),
+            )
+        except RuntimeError as e:
+            if self._is_running:
+                logger.error("❌ Unexpected error in bus send: %s", e)
+
+    async def _send_local(self, msg_type: str, payload: Any, trace_id: Optional[str] = None):
         """Send a fire-and-forget message."""
         trace_id = trace_id or str(uuid.uuid4())
+        loop = asyncio.get_running_loop()
         msg = {
             "type": msg_type,
             "payload": payload,
@@ -250,7 +278,7 @@ class LocalPipeBus:
             raw_msg = await asyncio.to_thread(json.dumps, msg)
             # ZENITH LOCKDOWN: Use isolated pipe executor and hard 10s timeout
             await asyncio.wait_for(
-                self.loop.run_in_executor(self._get_executor(), self.write_conn.send, raw_msg),
+                loop.run_in_executor(self._get_executor(), self.write_conn.send, raw_msg),
                 timeout=10.0
             )
         except asyncio.TimeoutError:
@@ -268,13 +296,19 @@ class LocalPipeBus:
                 logger.error("❌ Unexpected error in bus send: %s", e)
 
     async def request(self, msg_type: str, payload: Any, timeout: float = 5.0) -> Any:
+        return await self._run_on_transport_loop(
+            "request",
+            lambda: self._request_local(msg_type, payload, timeout=timeout),
+        )
+
+    async def _request_local(self, msg_type: str, payload: Any, timeout: float = 5.0) -> Any:
         """Send a request and wait for a response."""
         request_id = str(uuid.uuid4())
         trace_id = str(uuid.uuid4())
-        
-        future = self.loop.create_future()
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
         self._pending_requests[request_id] = future
-        
+
         msg = {
             "type": msg_type,
             "payload": payload,
@@ -294,7 +328,7 @@ class LocalPipeBus:
             
             # ZENITH LOCKDOWN: Use isolated pipe executor and hard 10s timeout on write
             await asyncio.wait_for(
-                self.loop.run_in_executor(self._get_executor(), self.write_conn.send, raw_msg),
+                loop.run_in_executor(self._get_executor(), self.write_conn.send, raw_msg),
                 timeout=min(timeout, 10.0)
             )
             return await asyncio.wait_for(future, timeout=timeout)

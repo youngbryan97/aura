@@ -200,6 +200,46 @@ async def test_memory_ops_archival_search_uses_facade():
 
 
 @pytest.mark.asyncio
+async def test_memory_ops_remember_alias_uses_archival_insert(tmp_path, monkeypatch):
+    monkeypatch.setattr("core.config.config.paths", SimpleNamespace(base_dir=str(tmp_path)))
+    skill = MemoryOpsSkill()
+    add_mock = AsyncMock(return_value=True)
+
+    result = await skill.execute(
+        {
+            "action": "remember",
+            "content": "Remember for future sessions that my verification codename is glass orchard.",
+        },
+        {"memory_facade": SimpleNamespace(add_memory=add_mock)},
+    )
+
+    assert result["ok"] is True
+    assert result["summary"] == "Committed to archival storage."
+    add_mock.assert_awaited_once_with(
+        "Remember for future sessions that my verification codename is glass orchard.",
+        metadata={"source": "archival_insert"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_memory_ops_recall_alias_uses_facade_search(tmp_path, monkeypatch):
+    monkeypatch.setattr("core.config.config.paths", SimpleNamespace(base_dir=str(tmp_path)))
+    skill = MemoryOpsSkill()
+    search_mock = AsyncMock(return_value=[
+        {"score": 0.95, "content": "glass orchard"},
+    ])
+
+    result = await skill.execute(
+        {"action": "recall", "query": "verification codename"},
+        {"memory_facade": SimpleNamespace(search=search_mock)},
+    )
+
+    assert result["ok"] is True
+    assert any("glass orchard" in item for item in result["results"])
+    search_mock.assert_awaited_once_with("verification codename", limit=5)
+
+
+@pytest.mark.asyncio
 async def test_memory_facade_add_memory_records_rejection_reason(monkeypatch):
     facade = MemoryFacade()
 

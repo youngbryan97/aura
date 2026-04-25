@@ -3,9 +3,11 @@ import errno
 import gc
 import importlib
 import json
+import multiprocessing
 import os
 import subprocess
 import sys
+import threading
 import textwrap
 import time
 import uuid
@@ -751,6 +753,52 @@ async def test_local_pipe_bus_reader_tasks_are_task_tracked(monkeypatch):
         assert bus._reader_task is created[1][1]
     finally:
         await bus.stop()
+
+
+@pytest.mark.asyncio
+async def test_local_pipe_bus_request_bridges_foreign_event_loops():
+    parent_read, child_write = multiprocessing.Pipe(duplex=False)
+    child_read, parent_write = multiprocessing.Pipe(duplex=False)
+    parent_bus = LocalPipeBus(
+        start_reader=True,
+        connection=(parent_read, parent_write),
+    )
+    child_bus = LocalPipeBus(
+        start_reader=True,
+        connection=(child_read, child_write),
+    )
+    child_bus.register_handler(
+        "echo",
+        lambda payload, _trace_id: {"ok": True, "payload": payload},
+    )
+    outcome = {}
+
+    def _foreign_loop_request():
+        async def _run():
+            outcome["result"] = await parent_bus.request("echo", {"hello": "world"}, timeout=2.0)
+
+        try:
+            asyncio.run(_run())
+        except Exception as exc:
+            outcome["error"] = exc
+
+    try:
+        parent_bus.start()
+        child_bus.start()
+        worker = threading.Thread(
+            target=_foreign_loop_request,
+            name="local-pipe-cross-loop-test",
+            daemon=True,
+        )
+        worker.start()
+        await asyncio.to_thread(worker.join, 5.0)
+
+        assert not worker.is_alive()
+        assert "error" not in outcome, repr(outcome.get("error"))
+        assert outcome["result"] == {"ok": True, "payload": {"hello": "world"}}
+    finally:
+        await parent_bus.stop()
+        await child_bus.stop()
 
 
 @pytest.mark.asyncio
