@@ -275,7 +275,7 @@ class IncomingLogicMixin:
                     if affect and hasattr(affect, 'get_state_sync'):
                         emotional_context = affect.get_state_sync()
 
-                    # Non-blocking store — gated by Unified Will
+                    # Non-blocking store — gated by Unified Will (fail-closed in strict mode)
                     _mem_allowed = True
                     try:
                         from core.will import ActionDomain, get_will
@@ -286,8 +286,23 @@ class IncomingLogicMixin:
                         if not _mem_decision.is_approved():
                             _mem_allowed = False
                             logger.debug("Vector memory store blocked by Unified Will: %s", _mem_decision.reason)
-                    except Exception:
-                        pass  # fail-open for safety
+                    except Exception as _will_exc:
+                        # Governance is the *authority*: if it cannot decide, the
+                        # action does not happen. In strict mode this is fatal-by-policy
+                        # (we deny), and a degraded event is recorded either way.
+                        _mem_allowed = False
+                        try:
+                            from core.health.degraded_events import record_degraded_event
+                            record_degraded_event(
+                                "governance.unavailable.memory_write",
+                                {"error": repr(_will_exc), "source": "vector_memory"},
+                            )
+                        except Exception:
+                            pass
+                        logger.warning(
+                            "Governance unavailable for memory_write — denying action (fail-closed): %s",
+                            _will_exc,
+                        )
 
                     if _mem_allowed:
                         self._fire_and_forget(vector_mem.store(
@@ -317,7 +332,7 @@ class IncomingLogicMixin:
             _live_state = getattr(self.state_repo, "_current", None) if hasattr(self, "state_repo") else None
 
             # Update discourse state (topic thread, user emotional trend, conversation energy)
-            # Gated by Unified Will — internal model updates are STATE_MUTATION
+            # Gated by Unified Will — internal model updates are STATE_MUTATION (fail-closed)
             _internal_update_allowed = True
             try:
                 from core.will import ActionDomain, get_will
@@ -328,8 +343,20 @@ class IncomingLogicMixin:
                 if not _state_decision.is_approved():
                     _internal_update_allowed = False
                     logger.debug("Background cognitive updates blocked by Unified Will: %s", _state_decision.reason)
-            except Exception:
-                pass  # fail-open
+            except Exception as _will_exc:
+                _internal_update_allowed = False
+                try:
+                    from core.health.degraded_events import record_degraded_event
+                    record_degraded_event(
+                        "governance.unavailable.state_mutation",
+                        {"error": repr(_will_exc), "source": "cognitive_background"},
+                    )
+                except Exception:
+                    pass
+                logger.warning(
+                    "Governance unavailable for state_mutation — denying internal update (fail-closed): %s",
+                    _will_exc,
+                )
 
             if _internal_update_allowed:
                 try:

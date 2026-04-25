@@ -54,8 +54,16 @@ class EnhancedMemorySystem:
             tags=[conversation_id]
         )
         
-        # Proactive learning using the LLM (Knowledge Extraction)
-        task = asyncio.create_task(self.learn_fact_from_interaction(user_message, aura_response))
+        # Proactive learning using the LLM (Knowledge Extraction).
+        # A+ contract: route through the canonical task tracker so this
+        # background work has lifecycle ownership, supervised cancellation,
+        # and a named trace.
+        from core.utils.task_tracker import get_task_tracker
+
+        task = get_task_tracker().create_task(
+            self.learn_fact_from_interaction(user_message, aura_response),
+            name="enhanced_memory.learn_fact_from_interaction",
+        )
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 

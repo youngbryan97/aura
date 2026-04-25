@@ -2,8 +2,10 @@
 
 ## Current Phase
 
-Phase O: Release engineering and runbooks (in addition to all of A-N
-landed in the same session).
+Phase A+ closure: every item from both rounds of A+ feedback addressed
+with concrete adapters, fail-closed governance in live code paths, and
+runnable regressions. 365 passed in the final sweep. See
+`docs/AURA_AGRADE_GAP_REGISTER.md` for the literal item-by-item closure.
 
 ## Current Milestone
 

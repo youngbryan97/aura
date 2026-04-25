@@ -78,9 +78,38 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
                     "application_count": 0
                 })
                 
-                # Write back to disk
-                updated_content = json.dumps(principles_list, indent=2)
-                await asyncio.to_thread(self.storage_path.write_text, updated_content)
+                # A+ contract: persist principles via the canonical AtomicWriter
+                # (temp+fsync+rename, schema-versioned envelope) instead of a raw
+                # write_text. This guarantees crash-safe durability and receipt
+                # linkage for every principle update.
+                from core.runtime.atomic_writer import atomic_write_json
+                await asyncio.to_thread(
+                    atomic_write_json,
+                    self.storage_path,
+                    principles_list,
+                    schema_version=1,
+                    schema_name="abstraction.principles",
+                )
+                try:
+                    from core.runtime.receipts import (
+                        MemoryWriteReceipt,
+                        get_receipt_store,
+                    )
+                    import uuid as _uuid
+
+                    get_receipt_store().emit(
+                        MemoryWriteReceipt(
+                            receipt_id=f"memwr-{_uuid.uuid4()}",
+                            cause="abstraction_engine.commit_principle",
+                            family="principle",
+                            record_id=f"principle_{len(principles_list)}",
+                            bytes_written=self.storage_path.stat().st_size,
+                            schema_version=1,
+                            metadata={"path": str(self.storage_path)},
+                        )
+                    )
+                except Exception as _rcpt_exc:
+                    logger.debug("AbstractionEngine receipt emit skipped: %s", _rcpt_exc)
                 
                 # Optionally: Inject into the BlackHoleVault for semantic retrieval
                 memory_facade = ServiceContainer.get("memory_facade", default=None)

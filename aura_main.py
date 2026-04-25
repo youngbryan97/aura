@@ -461,8 +461,41 @@ async def _boot_runtime_orchestrator(
 
     ServiceContainer.lock_registration()
     _enforce_service_manifest(ready_label)
+    await _enforce_boot_probes(ready_label)
     logger.info("🛡️ Registry Locked. Aura Ready (%s).", ready_label)
     return orchestrator
+
+
+async def _enforce_boot_probes(ready_label: str) -> None:
+    """Run behavioral boot probes. In strict mode any failure aborts boot.
+
+    The probe set covers the audit's required surfaces: memory write/read,
+    state mutate/read, governance approve/deny, output gate, event bus, and
+    actor supervisor. Surface-level probes (output_gate, event_bus,
+    actor_supervisor) verify the contract is wired but do not require live
+    backends.
+    """
+    try:
+        from core.runtime.boot_probes import run_boot_probes
+    except Exception as exc:
+        logger.debug("boot_probes module unavailable: %s", exc)
+        return
+    strict_mode = os.environ.get("AURA_STRICT_RUNTIME") == "1"
+    try:
+        report = await run_boot_probes(strict=strict_mode)
+        for r in report.results:
+            if not r.ok:
+                logger.warning(
+                    "Boot probe %s failed during %s boot: %s",
+                    r.name, ready_label, r.detail,
+                )
+    except Exception as exc:
+        if strict_mode:
+            raise
+        logger.warning(
+            "Boot probes raised in non-strict mode (%s); continuing degraded: %s",
+            ready_label, exc,
+        )
 
 
 def _enforce_service_manifest(ready_label: str) -> None:

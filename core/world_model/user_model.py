@@ -100,19 +100,41 @@ class BryanModelEngine:
         }
 
     def _write_now(self) -> None:
+        # A+ contract: every durable user-model write goes through the canonical
+        # AtomicWriter so it has temp+fsync+rename, parent-dir fsync, and a
+        # schema-versioned envelope. The previous direct os.replace path was
+        # missing fsync, schema version, and receipt linkage.
         try:
             _USER_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
             payload = self._serialize()
-            fd, tmp_path = tempfile.mkstemp(dir=str(_USER_MODEL_PATH.parent), suffix=".tmp")
+            from core.runtime.atomic_writer import atomic_write_json
+
+            atomic_write_json(
+                _USER_MODEL_PATH,
+                payload,
+                schema_version=1,
+                schema_name="user_model",
+            )
+            # Optional: emit a MemoryWriteReceipt so receipt coverage tracks
+            # this durable write. Failures here are non-fatal — the file is
+            # already durable.
             try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=2)
-                os.replace(tmp_path, _USER_MODEL_PATH)
-            finally:
-                try:
-                    Path(tmp_path).unlink(missing_ok=True)
-                except Exception as _exc:
-                    logger.debug("Suppressed Exception: %s", _exc)
+                from core.runtime.receipts import MemoryWriteReceipt, get_receipt_store
+                import uuid as _uuid
+
+                get_receipt_store().emit(
+                    MemoryWriteReceipt(
+                        receipt_id=f"memwr-{_uuid.uuid4()}",
+                        cause="user_model.persist",
+                        family="user_model",
+                        record_id="user_model_singleton",
+                        bytes_written=_USER_MODEL_PATH.stat().st_size,
+                        schema_version=1,
+                        metadata={"path": str(_USER_MODEL_PATH)},
+                    )
+                )
+            except Exception as _rcpt_exc:
+                logger.debug("Receipt emit skipped: %s", _rcpt_exc)
             self._last_saved = time.time()
         except Exception as e:
             logger.error("User model save failed: %s", e)

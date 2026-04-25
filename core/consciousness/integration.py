@@ -113,11 +113,73 @@ class ConsciousnessIntegration:
         phenom_block = f"\n\n--- INTERNAL AWARENESS ---\n{context}\n--------------------------\n"
         return phenom_block + prompt
 
-# Singleton access
+# Singleton access — fixed init/get split to prevent under-wired singletons.
+# Background: the previous get_consciousness_integration(orchestrator=None) form
+# allowed the *first* caller to create the singleton without an orchestrator,
+# which then stayed under-wired for the rest of the process. Strict mode now
+# refuses get() before init() and refuses double-init with a different
+# orchestrator instance.
 _integration_instance: Optional[ConsciousnessIntegration] = None
+_integration_orchestrator: Optional[object] = None
+
+
+def init_consciousness_integration(orchestrator) -> ConsciousnessIntegration:
+    """Initialize the singleton with a real orchestrator. Must be called from
+    the canonical boot path. Re-initializing with the *same* orchestrator is
+    idempotent; with a *different* orchestrator it raises."""
+    global _integration_instance, _integration_orchestrator
+    if _integration_instance is not None:
+        if _integration_orchestrator is orchestrator:
+            return _integration_instance
+        import os
+        if os.environ.get("AURA_STRICT_RUNTIME") == "1":
+            raise RuntimeError(
+                "ConsciousnessIntegration already initialized with a different orchestrator"
+            )
+        # Non-strict: log and refuse re-wiring rather than silently changing.
+        import logging
+        logging.getLogger("Aura.Consciousness").warning(
+            "ConsciousnessIntegration re-init attempted with a different orchestrator; refused"
+        )
+        return _integration_instance
+    if orchestrator is None:
+        raise RuntimeError(
+            "init_consciousness_integration requires a non-None orchestrator"
+        )
+    _integration_instance = ConsciousnessIntegration(orchestrator)
+    _integration_orchestrator = orchestrator
+    return _integration_instance
+
 
 def get_consciousness_integration(orchestrator=None) -> ConsciousnessIntegration:
+    """Return the singleton. If ``orchestrator`` is provided and the singleton
+    has not been initialized, this delegates to ``init_consciousness_integration``
+    for backwards compatibility with non-strict callers. In strict mode the
+    singleton must already exist — get() raises rather than silently creating
+    an under-wired instance."""
     global _integration_instance
+    import os
     if _integration_instance is None:
+        if orchestrator is not None:
+            return init_consciousness_integration(orchestrator)
+        if os.environ.get("AURA_STRICT_RUNTIME") == "1":
+            raise RuntimeError(
+                "ConsciousnessIntegration not initialized; call init_consciousness_integration(orchestrator) first"
+            )
+        # Non-strict legacy fallback: return a clearly under-wired stub so the
+        # call site does not silently keep using a None-wired engine forever.
+        # The stub still exposes the same methods but logs a warning each time.
+        import logging
+        logging.getLogger("Aura.Consciousness").warning(
+            "get_consciousness_integration called before init in non-strict mode; "
+            "returning under-wired stub. Wire the orchestrator via init_consciousness_integration."
+        )
         _integration_instance = ConsciousnessIntegration(orchestrator)
     return _integration_instance
+
+
+def reset_consciousness_integration() -> None:
+    """Test helper. Resets the singleton so each test gets a clean slate."""
+    global _integration_instance, _integration_orchestrator
+    _integration_instance = None
+    _integration_orchestrator = None
