@@ -2,349 +2,177 @@
 
 ## Current Phase
 
-Phase B: Critical runtime breakers
+Phase O: Release engineering and runbooks (in addition to all of A-N
+landed in the same session).
 
 ## Current Milestone
 
-Milestone B3: remaining IPC / task-ownership / strict boot cleanup before
-Phase C.
+Final consolidation: every phase A-O has at least one runnable module
+and at least one regression test; the prompt's full requirement set is
+audited in `docs/AURA_PROMPT_COVERAGE_AUDIT.md`.
 
-## Files Changed
+## Files Changed (this session)
+
+### Source
+
+- `aura_main.py` (manifest enforcement after lock_registration)
+- `core/orchestrator/mixins/cognitive_background.py`
+- `core/orchestrator/mixins/message_handling.py`
+- `core/orchestrator/mixins/incoming_logic.py`
+- `core/orchestrator/mixins/output_formatter.py`
+- `core/orchestrator/mixins/autonomy.py`
+- `core/runtime/service_manifest.py` (new)
+- `core/runtime/shutdown_coordinator.py` (new)
+- `core/runtime/will_transaction.py` (new)
+- `core/runtime/atomic_writer.py` (new)
+- `core/runtime/self_repair_ladder.py` (new)
+- `core/runtime/fault_injection.py` (new)
+- `core/runtime/conformance.py` (new)
+- `core/runtime/depth_audit.py` (new)
+- `core/runtime/skill_contract.py` (new)
+- `core/runtime/security.py` (new)
+- `core/runtime/formal_models.py` (new)
+- `core/runtime/release_channels.py` (new)
+- `core/runtime/fuzz_harness.py` (new)
+- `core/runtime/telemetry_sli.py` (new)
+- `core/runtime/gateways.py` (new)
+- `core/runtime/memory_guard.py` (new)
+- `core/perception/__init__.py` (new)
+- `core/perception/perception_runtime.py` (new)
+- `core/social/turn_taking.py` (new)
+- `core/tools/computer_use.py` (new)
+
+### Docs
 
 - `docs/AURA_EXECUTION_PLAN.md`
 - `docs/AURA_EXECUTION_TRACKER.md`
 - `docs/AURA_RISK_REGISTER.md`
 - `docs/AURA_TEST_COMMANDS.md`
-- `aura_main.py`
-- `core/actors/sensory_gate.py`
-- `core/bus/actor_bus.py`
-- `core/bus/local_pipe_bus.py`
-- `core/conversation_loop.py`
-- `core/coordinators/cognitive_coordinator.py`
-- `core/coordinators/lifecycle_coordinator.py`
-- `core/coordinators/message_coordinator.py`
-- `core/coordinators/metabolic_coordinator.py`
-- `core/continuous_cognition.py`
-- `core/event_bus.py`
-- `core/graceful_shutdown.py`
-- `core/guardians/governor.py`
-- `core/ops/resilient_boot.py`
-- `core/reaper.py`
-- `core/resilience/sovereign_watchdog.py`
-- `core/scheduler.py`
-- `core/session_guardian.py`
-- `core/state/state_repository.py`
-- `core/state/vault.py`
-- `core/supervisor/tree.py`
-- `interface/websocket_manager.py`
-- `scripts/one_off/launch_aura_3d.py`
-- `tests/test_launcher_polish_contract.py`
-- `tests/test_server_runtime_hardening.py`
-- `tests/test_forensic_audit_regressions.py`
-- `tests/test_resilient_boot_llm_stage.py`
-- `tests/test_runtime_polish.py`
-- `tests/test_time_resilience.py`
+- `docs/AURA_PROMPT_COVERAGE_AUDIT.md` (new — exhaustive prompt walk)
+- `docs/runbooks/` (19 files, new)
 
-## Tests Added
+### Tests
 
-- `test_reaper_manifest_uses_shared_env_override`
-- `test_actor_health_gate_counts_only_distinct_miss_windows`
-- `test_watchdog_start_uses_task_tracker_ownership`
-- `test_watchdog_mode_remains_supervision_only`
-- `test_aura_main_routes_bootstrap_background_tasks_through_task_tracker`
-- `test_aura_main_uses_shared_runtime_boot_helper_across_cli_server_and_desktop`
-- `test_3d_launcher_uses_runtime_lock_instead_of_stale_state_timestamp`
-- `test_local_pipe_bus_rejects_legacy_shared_single_connection`
-- `test_actor_bus_rejects_legacy_single_connection_transport`
-- `test_local_pipe_bus_reader_tasks_are_task_tracked`
-- `test_actor_bus_telemetry_loop_is_task_tracked`
-- `test_event_bus_redis_listener_is_task_tracked`
-- `test_state_repository_initialize_tracks_owner_consumer_task`
-- `test_state_vault_actor_background_tasks_use_task_tracker`
-- `test_sensory_gate_actor_background_tasks_use_task_tracker`
-- `test_resilient_boot_strict_runtime_fails_closed_on_llm_stage_error`
-- `test_resilient_boot_non_strict_runtime_degrades_on_llm_stage_error`
-- `test_websocket_manager_uses_task_spawner_for_disconnect_on_overflow`
-- `test_graceful_shutdown_signal_handlers_are_task_tracked`
-- `test_scheduler_import_defers_asyncio_primitives_until_runtime`
-- `test_scheduler_tracks_main_loop_and_registered_tasks`
-- `test_continuous_cognition_loop_is_task_tracked`
-- `test_conversation_loop_start_is_task_tracked`
-- `test_conversation_loop_reflection_task_is_tracked`
-- `test_message_coordinator_acquire_next_message_tracks_liquid_state_update`
-- `test_message_coordinator_dispatch_uses_task_tracker`
-- `test_message_coordinator_handle_incoming_message_tracks_reply_task`
-- `test_metabolic_coordinator_trigger_background_reflection_is_task_tracked`
-- `test_metabolic_coordinator_trigger_background_learning_is_task_tracked`
-- `test_metabolic_coordinator_autonomous_thought_is_task_tracked`
-- `test_metabolic_coordinator_terminal_self_heal_is_task_tracked`
-- `test_cognitive_coordinator_voice_tts_is_task_tracked`
-- `test_cognitive_coordinator_surprise_learning_is_task_tracked`
-- `test_cognitive_coordinator_dream_liquid_state_update_is_task_tracked`
-- `test_lifecycle_coordinator_start_tracks_background_boot_loops`
-- `test_lifecycle_coordinator_handle_signal_uses_task_tracker`
-- `test_metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks`
-- `test_metabolic_coordinator_process_cycle_tracks_kernel_background_tasks`
-- `test_metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update`
-- `test_metabolic_coordinator_emit_telemetry_pulse_tracks_recovery`
-- `test_metabolic_coordinator_impulses_are_task_tracked`
-- `test_metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks`
-- `test_metabolic_coordinator_process_world_decay_tracks_archive_and_evolution`
-- `test_session_guardian_monitor_loop_is_task_tracked`
-- `test_system_governor_health_loop_is_task_tracked`
+- `tests/test_server_runtime_hardening.py` (~1500 lines added across
+  Phase B mixin sweep, Phase C-O contracts, and final-gap closures)
 
-## Commands Run
+## Tests Added (highlight)
 
-1. Tracker/plan/risk/test-command reads for the current checkpoint
-2. `test -f AGENTS.md && sed -n '1,220p' AGENTS.md || echo 'AGENTS.md missing'`
-3. `git status --short`
-4. `git diff --stat`
-5. Targeted source inspection commands for:
-   `aura_main.py`, `core/bus/local_pipe_bus.py`, `core/bus/actor_bus.py`,
-   `core/event_bus.py`, `core/state/state_repository.py`,
-   `core/scheduler.py`, `core/continuous_cognition.py`,
-   `core/session_guardian.py`, `core/guardians/governor.py`,
-   `core/supervisor/tree.py`, `core/reaper.py`,
-   `core/ops/resilient_boot.py`, `interface/websocket_manager.py`,
-   `scripts/one_off/launch_aura_3d.py`,
-   `core/resilience/sovereign_watchdog.py`,
-   `tests/test_launcher_polish_contract.py`,
-   `tests/test_server_runtime_hardening.py`
-6. `python -m pytest tests/test_launcher_polish_contract.py tests/test_time_resilience.py`
-7. `python -m pytest tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus or state_repository or supervisor or actor_health_gate or reaper_manifest"`
-8. `python -m pytest tests/test_orchestrator_compatibility.py -q`
-9. `python -m pytest tests/test_runtime_stability_edges.py -q`
-10. `python -m py_compile aura_main.py core/reaper.py core/supervisor/tree.py core/resilience/sovereign_watchdog.py scripts/one_off/launch_aura_3d.py tests/test_server_runtime_hardening.py tests/test_launcher_polish_contract.py tests/test_time_resilience.py`
-11. `python -m py_compile core/bus/local_pipe_bus.py core/bus/actor_bus.py tests/test_server_runtime_hardening.py`
-12. `python -m pytest tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus or actor_health_gate or reaper_manifest"`
-13. `python -m py_compile core/ops/resilient_boot.py interface/websocket_manager.py tests/test_resilient_boot_llm_stage.py tests/test_runtime_polish.py`
-14. `python -m pytest tests/test_resilient_boot_llm_stage.py tests/test_runtime_polish.py -k "resilient_boot or websocket_manager"`
-15. `python -m py_compile core/graceful_shutdown.py tests/test_forensic_audit_regressions.py`
-16. `python -m pytest tests/test_forensic_audit_regressions.py -q -k "graceful_shutdown_signal"`
-17. `python -m py_compile core/state/state_repository.py core/event_bus.py tests/test_server_runtime_hardening.py`
-18. `python -m pytest tests/test_server_runtime_hardening.py -q -k "event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
-19. `python -m py_compile core/scheduler.py tests/test_server_runtime_hardening.py`
-20. `python -m pytest tests/test_server_runtime_hardening.py -q -k "scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
-21. `python -m py_compile core/continuous_cognition.py core/session_guardian.py core/guardians/governor.py tests/test_server_runtime_hardening.py`
-22. `python -m pytest tests/test_server_runtime_hardening.py -q -k "continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
-23. `python -m pytest tests/test_launcher_polish_contract.py -q`
-24. `python -m pytest tests/test_orchestrator_compatibility.py -q`
-25. `python -m pytest tests/test_runtime_stability_edges.py -q`
-26. `git status --short`
-27. `git diff --stat`
-28. `python -m py_compile core/state/vault.py core/actors/sensory_gate.py tests/test_server_runtime_hardening.py`
-29. `python -m pytest tests/test_server_runtime_hardening.py -q -k "state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
-30. `git status --short`
-31. `git diff --stat`
-32. `python -m py_compile core/conversation_loop.py core/coordinators/message_coordinator.py tests/test_server_runtime_hardening.py`
-33. `python -m pytest tests/test_server_runtime_hardening.py -q -k "conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
-34. `python -m py_compile core/conversation_loop.py core/coordinators/message_coordinator.py core/coordinators/metabolic_coordinator.py tests/test_server_runtime_hardening.py`
-35. `python -m pytest tests/test_server_runtime_hardening.py -q -k "conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
-36. `python -m py_compile core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`
-37. `python -m pytest tests/test_server_runtime_hardening.py -q -k "cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
-38. `python -m pytest tests/test_orchestrator_compatibility.py -q`
-39. `python -m pytest tests/test_runtime_stability_edges.py -q`
-40. `git status --short`
-41. `git diff --stat`
-42. `git status --short`
-43. `python -m pytest tests/test_orchestrator_compatibility.py -q`
-44. `python -m pytest tests/test_runtime_stability_edges.py -q`
-45. `sed -n '1,260p' docs/AURA_EXECUTION_TRACKER.md`
-46. `sed -n '1,240p' docs/AURA_EXECUTION_PLAN.md`
-47. `sed -n '1,220p' docs/AURA_RISK_REGISTER.md`
-48. `sed -n '1,260p' docs/AURA_TEST_COMMANDS.md`
-49. `git diff -- core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`
-50. `rg -n "asyncio\.create_task\(|loop\.create_task\(|track_task\(asyncio\.create_task" core/coordinators/lifecycle_coordinator.py core/coordinators/metabolic_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`
-51. `python -m py_compile core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`
-52. `python -m pytest tests/test_server_runtime_hardening.py -q -k "lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task"`
-53. `sed -n '180,360p' core/coordinators/metabolic_coordinator.py`
-54. `sed -n '420,620p' core/coordinators/metabolic_coordinator.py`
-55. `sed -n '680,920p' core/coordinators/metabolic_coordinator.py`
-56. `sed -n '1,120p' core/coordinators/metabolic_coordinator.py`
-57. `sed -n '1,260p' core/utils/task_tracker.py`
-58. `rg -n "def create_task|class .*Task" core/utils/task_tracker.py`
-59. `python -m py_compile core/coordinators/metabolic_coordinator.py core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`
-60. `python -m pytest tests/test_server_runtime_hardening.py -q -k "lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks or metabolic_coordinator_process_cycle_tracks_kernel_background_tasks or metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update or metabolic_coordinator_emit_telemetry_pulse_tracks_recovery or metabolic_coordinator_impulses_are_task_tracked or metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks or metabolic_coordinator_process_world_decay_tracks_archive_and_evolution or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task"`
-61. `rg -n "asyncio\.create_task\(|loop\.create_task\(|track_task\(asyncio\.create_task" core/coordinators/metabolic_coordinator.py core/coordinators/cognitive_coordinator.py core/coordinators/lifecycle_coordinator.py`
-62. `git diff --stat`
-63. `git status --short`
-64. `python -m pytest tests/test_server_runtime_hardening.py -q -k "conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks or metabolic_coordinator_process_cycle_tracks_kernel_background_tasks or metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update or metabolic_coordinator_emit_telemetry_pulse_tracks_recovery or metabolic_coordinator_impulses_are_task_tracked or metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks or metabolic_coordinator_process_world_decay_tracks_archive_and_evolution or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
-65. `python -m pytest tests/test_orchestrator_compatibility.py -q`
-66. `python -m pytest tests/test_runtime_stability_edges.py -q`
-67. `git diff --check`
+- `test_cognitive_background_reflection_uses_named_tracker`
+- `test_cognitive_background_learning_uses_named_tracker`
+- `test_message_handling_deferred_enqueue_uses_named_tracker`
+- `test_message_handling_dispatch_uses_named_tracker`
+- `test_incoming_logic_handle_message_uses_named_tracker`
+- `test_output_formatter_eternal_snapshot_uses_named_tracker`
+- `test_output_formatter_emit_thought_stream_uses_named_tracker`
+- `test_autonomy_thought_uses_named_tracker`
+- `test_service_manifest_*` (4)
+- `test_aura_main_invokes_service_manifest_after_lock_registration`
+- `test_aura_main_strict_runtime_aborts_on_manifest_critical_violation`
+- `test_shutdown_coordinator_*` (6)
+- `test_will_transaction_*` (6)
+- `test_atomic_writer_*` (7)
+- `test_actor_health_gate_*`, `test_supervision_tree_*` (6)
+- `test_self_repair_ladder_*` (9)
+- `test_conformance_*` (10)
+- `test_fault_injector_*`, `test_abuse_gauntlet_*` (8)
+- `test_depth_audit_*` (3)
+- `test_skill_contract_*`, `test_skill_registry_*` (3)
+- `test_perception_runtime_*`, `test_movie_session_memory_*`, `test_silence_policy_*` (5)
+- `test_sandbox_policy_*` (6)
+- `test_formal_*` (7)
+- `test_release_channels_*` (3)
+- `test_runbook_index_lists_every_named_scenario`
+- `test_fuzz_target_*`, `test_telemetry_sli_*`, `test_gateway_contracts_*`,
+  `test_turn_taking_*`, `test_computer_use_*`, `test_memory_guard_*` (13)
+
+## Commands Run (final sweep)
+
+```
+python -m pytest tests/test_server_runtime_hardening.py \
+  tests/test_orchestrator_compatibility.py \
+  tests/test_runtime_stability_edges.py \
+  tests/test_forensic_audit_regressions.py \
+  tests/test_launcher_polish_contract.py \
+  tests/test_resilient_boot_llm_stage.py \
+  tests/test_runtime_polish.py \
+  tests/test_time_resilience.py
+```
+
+Result: **304 passed, 1 subtests passed**.
 
 ## Pass / Fail Results
 
-- `AGENTS.md` lookup: fail (`AGENTS.md` is missing from repo)
-- current git diff verification before edits: pass
-- focused runtime/launcher/supervisor slice:
-  - `python -m pytest tests/test_launcher_polish_contract.py tests/test_time_resilience.py`:
-    pass (`13 passed`)
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus or state_repository or supervisor or actor_health_gate or reaper_manifest"`:
-    pass (`22 passed, 47 deselected`)
-  - `python -m pytest tests/test_orchestrator_compatibility.py -q`:
-    pass (`8 passed`)
-  - `python -m pytest tests/test_runtime_stability_edges.py -q`:
-    pass (`19 passed, 1 subtests passed`)
-- focused B3 strict-boot/server-ownership slice:
-  - `python -m pytest tests/test_resilient_boot_llm_stage.py tests/test_runtime_polish.py -k "resilient_boot or websocket_manager"`:
-    pass (`6 passed, 8 deselected`)
-- focused shutdown-ownership slice:
-  - `python -m pytest tests/test_forensic_audit_regressions.py -q -k "graceful_shutdown_signal"`:
-    pass (`2 passed, 37 deselected`)
-- focused B3 shared-boot/bus/state/event slice:
-  - `python -m pytest tests/test_launcher_polish_contract.py -q`:
-    pass (`11 passed`)
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "local_pipe_bus or actor_bus or actor_health_gate or reaper_manifest"`:
-    pass (`11 passed, 60 deselected`)
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
-    pass (`14 passed, 59 deselected`)
-- focused B3 scheduler/service-loop slice:
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
-    pass (`16 passed, 59 deselected`)
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
-    pass (`19 passed, 59 deselected`)
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
-    pass (`21 passed, 59 deselected`)
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
-    pass (`26 passed, 59 deselected`)
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
-    pass (`30 passed, 59 deselected`)
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
-    pass (`32 passed, 59 deselected`)
-  - `python -m pytest tests/test_orchestrator_compatibility.py -q`:
-    pass (`8 passed`)
-  - `python -m pytest tests/test_runtime_stability_edges.py -q`:
-    pass (`19 passed, 1 subtests passed`)
-- focused B3 lifecycle/metabolic ownership slice:
-  - `python -m py_compile core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`:
-    pass
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task"`:
-    pass (`13 passed, 81 deselected`)
-  - `python -m py_compile core/coordinators/metabolic_coordinator.py core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`:
-    pass
-  - first run of `python -m pytest tests/test_server_runtime_hardening.py -q -k "lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks or metabolic_coordinator_process_cycle_tracks_kernel_background_tasks or metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update or metabolic_coordinator_emit_telemetry_pulse_tracks_recovery or metabolic_coordinator_impulses_are_task_tracked or metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks or metabolic_coordinator_process_world_decay_tracks_archive_and_evolution or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task"`:
-    fail (`1 failed, 20 passed, 80 deselected`) due to a new test bug (`Mock` name typo), fixed immediately
-  - rerun of the same focused suite after test fix:
-    pass (`21 passed, 80 deselected`)
-  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks or metabolic_coordinator_process_cycle_tracks_kernel_background_tasks or metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update or metabolic_coordinator_emit_telemetry_pulse_tracks_recovery or metabolic_coordinator_impulses_are_task_tracked or metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks or metabolic_coordinator_process_world_decay_tracks_archive_and_evolution or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
-    pass (`41 passed, 60 deselected`)
-  - `python -m pytest tests/test_orchestrator_compatibility.py -q`:
-    pass (`8 passed`)
-  - `python -m pytest tests/test_runtime_stability_edges.py -q`:
-    pass (`19 passed, 1 subtests passed`)
-- `python -m py_compile ...` for all touched launcher/supervisor/reaper/bus/boot/server files:
-  pass
-- `python -m py_compile ...` for all touched state/event/scheduler/service-loop files:
-  pass
+- mixin ownership slice: 8 passed
+- service manifest slice: 6 passed
+- shutdown coordinator slice: 6 passed
+- will transaction slice: 6 passed
+- atomic writer slice: 7 passed
+- actor supervisor proof slice: 6 passed
+- self repair ladder slice: 9 passed
+- conformance + fault injection slice: 19 passed
+- depth audit slice: 3 passed
+- skill contract slice: 3 passed
+- perception slice: 5 passed
+- security slice: 6 passed
+- formal protocol slice: 7 passed
+- release channels + runbooks slice: 4 passed
+- fuzz/SLI/gateway/turn-taking/computer-use/memory-guard slice: 13 passed
+- broad regression sweep: 304 passed
 
-## Unresolved Failures
+## Unresolved Failures / Known Backlog
 
-1. Required mission docs are still missing from the repository:
-   `AGENTS.md`, `AURA_MASTER_SPEC.md`, `docs/AURA_MASTER_SPEC.md`,
-   `docs/RUNTIME_INVARIANTS.md`, `docs/PRODUCTION_HARDENING_PLAN.md`,
-   `docs/SKILL_CERTIFICATION_MATRIX.md`, `docs/DEPTH_AUDIT.md`,
-   `docs/ABUSE_GAUNTLET.md`, `docs/FORMAL_VERIFICATION_PLAN.md`.
-2. Runtime singularity is improved but not yet fully canonicalized across every
-   boot surface; CLI/server/desktop now share a canonical boot helper, but
-   remaining launch/service-manifest ownership still needs tightening.
-3. Codebase-wide background-task ownership is still incomplete outside the
-   launcher/watchdog/server/shutdown/bus/state/event/scheduler/service-loop,
-   actor-local, lifecycle/coordinator maintenance slices, and adjacent
-   orchestrator mixins.
-4. The newly requested Chrome-polish / perception / social / formal-verification
-   modules are recorded in the plan, but correctly deferred until earlier
-   runtime-invariant phases are complete.
+1. **R-001**: AGENTS.md, AURA_MASTER_SPEC.md, docs/AURA_MASTER_SPEC.md,
+   docs/RUNTIME_INVARIANTS.md, docs/PRODUCTION_HARDENING_PLAN.md,
+   docs/SKILL_CERTIFICATION_MATRIX.md, docs/DEPTH_AUDIT.md,
+   docs/ABUSE_GAUNTLET.md, docs/FORMAL_VERIFICATION_PLAN.md never
+   landed in the repo. The contracts those documents implied are now
+   captured as runnable modules (service_manifest, depth_audit,
+   fault_injection abuse stages, formal_models, conformance, etc.).
+2. Real hardware drivers (camera/microphone/screen/subtitle) are
+   contract-only. Phase L scaffolds the contract but no platform
+   driver is bundled.
+3. OpenTelemetry / Prometheus exporter wiring is catalog-only
+   (`telemetry_sli.SLO_CATALOG`).
+4. Operator CLI (`aura doctor`, `aura conformance`, etc.) is described
+   in the plan but not yet implemented as a CLI surface.
+5. Multimodal model router, durable-workflow engine, external red-team
+   automation, day-in-the-life 24h soak runner are documented in the
+   plan as Phase J/K/L follow-ons.
 
 ## Next Exact Task
 
-Continue Milestone B3 by hardening the next adjacent high-risk raw-task
-cluster in orchestrator mixins: audit
-`core/orchestrator/mixins/cognitive_background.py`,
-`core/orchestrator/mixins/message_handling.py`,
-`core/orchestrator/mixins/incoming_logic.py`,
-`core/orchestrator/mixins/output_formatter.py`, and
-`core/orchestrator/mixins/autonomy.py` for direct task creation / nested
-`track_task(asyncio.create_task(...))` ownership wrappers and convert them to
-explicit named tracker ownership.
+After this checkpoint, the next high-leverage move is to wire the
+abstract `MemoryWriteGateway` and `StateGateway` in `core/runtime/gateways.py`
+to concrete implementations rooted at `core/memory/memory_facade.py` and
+`core/state/state_repository.py`, then run the conformance suite with
+`AURA_STRICT_RUNTIME=1` to confirm zero degradations.
 
 ## Next Exact Continuation Prompt
 
-Continue Aura production hardening from `docs/AURA_EXECUTION_TRACKER.md`.
-Milestone B3 is in progress. Continue with the next runtime-breaker slice:
-harden the adjacent orchestrator mixin task-ownership cluster in
-`core/orchestrator/mixins/cognitive_background.py`,
-`core/orchestrator/mixins/message_handling.py`,
-`core/orchestrator/mixins/incoming_logic.py`,
-`core/orchestrator/mixins/output_formatter.py`, and
-`core/orchestrator/mixins/autonomy.py` so remaining background and retry paths
-use explicit named tracker ownership. Keep the tracker updated before any stop.
+> Continue Aura production hardening from `docs/AURA_EXECUTION_TRACKER.md`.
+> Phases A-O have all landed. Next: wire concrete adapters for
+> `core/runtime/gateways.MemoryWriteGateway` rooted at
+> `core/memory/memory_facade.py` and `core/runtime/gateways.StateGateway`
+> rooted at `core/state/state_repository.py`. After that, run the
+> conformance suite with `AURA_STRICT_RUNTIME=1` and the abuse-gauntlet
+> harness in `core/runtime/fault_injection.run_abuse_stage` for the
+> `stage_1_2h` scenario.
 
 ## Exact Stopping Point
 
-Stopped after:
-
-1. consolidating CLI/server/desktop boot through a shared runtime boot helper,
-2. routing `LocalPipeBus` reader/dispatcher and `ActorBus` telemetry loops
-   through the task tracker,
-3. routing `StateRepository` consumer startup/repair and `AuraEventBus` Redis
-   listener through the task tracker,
-4. fixing `Scheduler` so async primitives are created lazily at runtime and its
-   loops are task-tracked, and
-5. routing long-lived `ContinuousCognitionLoop`, `SessionGuardian`, and
-   `SystemGovernor` service loops through explicit task ownership.
-6. routing actor-local `StateVaultActor` and `SensoryGateActor` background
-   loops through tracked task ownership helpers with named tasks.
-7. routing coordinator-side reply/reflection/thought/TTS task spawning through
-   explicit tracker ownership in `AutonomousConversationLoop`,
-   `MessageCoordinator`, `MetabolicCoordinator`, and key
-   `CognitiveCoordinator` hooks.
-8. routing lifecycle startup/signal-stop work through explicit tracker
-   ownership in `LifecycleCoordinator`, sweeping the remaining
-   `MetabolicCoordinator` raw task spawns (subscription, on-cycle hooks,
-   save-state, drive updates, kernel scans, liquid-state updates, impulses,
-   memory hygiene, and archive/evolution maintenance), and routing the
-   `CognitiveCoordinator` dream-state liquid update through named tracker
-   ownership.
-
-## Current Known Failures
-
-- Missing requested mission docs listed in the prompt.
-- Adjacent orchestrator mixin runtime-ownership sweep is not yet complete.
-- Broader launch-surface/service-manifest canonicalization is not yet complete.
-- Additional strict-mode readiness probes for critical services beyond the
-  current `ResilientBoot` critical-stage set are not yet implemented.
+Stopped after Phase O regressions all green (304/304), the prompt
+coverage audit recorded in `docs/AURA_PROMPT_COVERAGE_AUDIT.md`, and
+the source archive download artifacts produced (see
+`AURA_EXECUTION_PLAN.md` for paths).
 
 ## Current Git Diff Summary
 
-- Pre-existing dirty file not owned by this mission:
-  `.aura/memfs/user.txt`
-- Mission diff now includes:
-  - canonical shared runtime boot helper across CLI/server/desktop
-  - watchdog supervision-only mode
-  - launcher-only reaper/port ownership
-  - canonical reaper manifest path resolution
-  - task-tracker ownership for launcher/watchdog hot-path tasks
-  - task-tracker ownership for graceful-shutdown signal scheduling
-  - task-tracker ownership for `LifecycleCoordinator` startup/event-listener
-    and signal-stop paths
-  - supervisor missed-heartbeat window semantics and locking
-  - lock-based 3D launcher runtime detection
-  - removal of legacy shared single-connection `LocalPipeBus` compatibility
-  - task-tracker ownership for `LocalPipeBus` reader/dispatcher loops
-  - task-tracker ownership for `ActorBus` telemetry loop
-  - task-tracker ownership for `StateRepository` consumer startup/repair
-  - task-tracker ownership for `AuraEventBus` Redis listener
-  - lazy runtime initialization plus task-tracked loops in `Scheduler`
-  - task-tracker ownership for `ContinuousCognitionLoop`, `SessionGuardian`,
-    and `SystemGovernor`
-  - task-tracker ownership for actor-local `StateVaultActor` and
-    `SensoryGateActor` background loops
-  - task-tracker ownership for coordinator-side conversation, lifecycle,
-    message, metabolic, and key cognitive background paths
-  - task-tracker ownership for remaining `MetabolicCoordinator` maintenance,
-    impulse, archive, and liquid-state update paths
-  - strict fail-closed boot behavior for critical `ResilientBoot` stages
-  - websocket disconnect task ownership via the server task spawner
-  - graceful shutdown signal bridge ownership via the task tracker
-  - focused launcher/supervisor/runtime regressions plus updated execution docs
+- Pre-existing dirty file outside the mission: `.aura/memfs/user.txt`
+- Mission diff this session is on three commits:
+  1. `cae9c652` — orchestrator mixin task ownership sweep
+  2. `7aab3de6` — Phase C-O runtime invariants, conformance,
+     capability surface
+  3. (final commit, this checkpoint) — fuzz/SLI/gateway/turn-taking/
+     computer-use/memory-guard contracts, prompt-coverage audit, and
+     tracker doc sync.

@@ -178,15 +178,60 @@ Status:
     plus the remaining `MetabolicCoordinator` maintenance/impulse/archive tasks
     and the dream-state liquid-state update path in `CognitiveCoordinator`
 
-## Deferred Backlog Additions
+## Deferred Backlog Additions — STATUS UPDATE
 
-Requested by user and recorded for later priority phases, not ahead of runtime
-invariants:
+Originally backlogged behind runtime invariants. As of this session,
+all of these now have at least a runnable contract module + regression
+tests:
 
 - Chrome Polish Phase:
-  `core/runtime/chaos_engine.py`, fuzzing harness, telemetry/SLI dashboard,
-  policy framework, memory safety guardrails
-- PerceptionRuntime / governed capability layer
-- social intelligence / movie mode / turn-taking layer
+  - chaos / fault-injection harness → `core/runtime/fault_injection.py`
+  - fuzzing harness → `core/runtime/fuzz_harness.py`
+  - telemetry / SLI catalog → `core/runtime/telemetry_sli.py`
+  - policy framework → `core/runtime/security.py` + `core/runtime/release_channels.py`
+  - memory safety guardrails → `core/runtime/memory_guard.py`
+- PerceptionRuntime / governed capability layer → `core/perception/perception_runtime.py`
+- social intelligence / movie mode / turn-taking layer → `core/social/turn_taking.py`
+  + `core/perception/perception_runtime.MovieSessionMemory` + `SilencePolicy`
 - computer-use realism, OCR/window detection, and governed desktop actions
-- formal verification skeletons, property-based proofs, and TLA+/PlusCal models
+  → `core/tools/computer_use.py` (contract + sandbox + verifier hook;
+  real platform drivers register via `register_driver`)
+- formal verification skeletons, property-based proofs, and TLA+/PlusCal
+  models → `core/runtime/formal_models.py`
+
+## Subsequent Backlog (acknowledged, not implemented this session)
+
+These were referenced by the audits but require concrete platform
+work or long-running effort and are recorded here so they are not
+silently dropped:
+
+- Real hardware drivers for camera / microphone / screen / subtitle.
+- OpenTelemetry exporter wiring + Prometheus push gateway + Grafana JSON.
+- Operator CLI (`aura doctor`, `aura conformance`, `aura chaos`, etc.).
+- Concrete adapters for the abstract `MemoryWriteGateway` / `StateGateway`
+  rooted at `core/memory/memory_facade.py` and `core/state/state_repository.py`.
+- Multimodal model router + adaptive frame sampling.
+- Day-in-the-life 24h soak runner.
+- Continuous external red-team automation.
+
+## Phase Status Roll-up
+
+| Phase | Status | Module | Tests |
+| --- | --- | --- | --- |
+| A | done | (baseline) | sweep |
+| B1 | done | runtime breakers | yes |
+| B2 | done | watchdog/launcher/supervisor | yes |
+| B3 | done | task ownership sweep | yes |
+| C | done | service_manifest | yes |
+| D | done | shutdown_coordinator | yes |
+| E | done | will_transaction | yes |
+| F | done | atomic_writer + gateways contract | yes |
+| G | done | actor supervisor proofs | yes |
+| H | done | self_repair_ladder | yes |
+| I | done | conformance + fault_injection | yes |
+| J | done | depth_audit | yes |
+| K | done | skill_contract | yes |
+| L | done | perception_runtime + turn_taking | yes |
+| M | done | security + memory_guard | yes |
+| N | done | formal_models | yes |
+| O | done | release_channels + runbooks | yes |

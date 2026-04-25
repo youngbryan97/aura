@@ -27,3 +27,22 @@ No critical risk can be considered mitigated until:
 - at least one regression test exists,
 - the verification command is recorded in the tracker,
 - unresolved follow-up work is documented if the fix is partial.
+
+## Phase C-O Risks Mitigated This Session
+
+| ID | Risk | Impact | Likelihood | Current Mitigation | Planned Action |
+|---|---|---|---|---|---|
+| R-015 | Multiple model/memory/state owners drift after boot | Critical | Medium | `core/runtime/service_manifest.py` + `_enforce_service_manifest` after `lock_registration`; strict-mode aborts on critical violation | Wire concrete `MemoryWriteGateway` / `StateGateway` adapters |
+| R-016 | Shutdown order leaves uncommitted state behind | Critical | Medium | `core/runtime/shutdown_coordinator.py` ordered phases (output→memory→state→actors→model→bus→tasks); strict-mode logs failures | Hook into existing graceful shutdown so all subsystems register handlers |
+| R-017 | Consequential action commits without governance receipt | Critical | Medium | `core/runtime/will_transaction.py` async context manager; fail-closed; strict-mode logs missing-result | Apply WillTransaction across memory/tool/output paths |
+| R-018 | Persistent writes leave torn state | Critical | Medium | `core/runtime/atomic_writer.py` (temp+fsync+rename, parent dir fsync, cleanup on failure, schema-versioned envelopes) | Route remaining JSON state writes through it |
+| R-019 | Self-repair patch lands on AST parse alone | Critical | Medium | `core/runtime/self_repair_ladder.py` 8-rung validator; banned-import AST scan; `patch_is_acceptable` requires every rung | Wire into existing self-modification proposal flow |
+| R-020 | Flagship modules ship below their named depth | High | High | `core/runtime/depth_audit.py` Tier 0-5 + `enforce_depth_audit` strict-mode block | Have each flagship module emit `report(...)` |
+| R-021 | Skill returns success without verifier coverage | Critical | Medium | `core/runtime/skill_contract.py` registry auto-tags un-verified skills as `success_unverified` | Register concrete verifiers per skill |
+| R-022 | Sensors activated without governance receipt | Critical | Medium | `core/perception/perception_runtime.py` denies capability without governance and refuses sensor start without token | Wire real platform driver registrations |
+| R-023 | Tool / browser action escapes workspace sandbox | Critical | Medium | `core/runtime/security.py` deny-by-default for terminal/network.post/credentials/self.modify; protected-path patterns; browser file:// blocked | Apply policy across browser + file tools |
+| R-024 | Stable release ships without abuse / migration / rollback proof | High | Medium | `core/runtime/release_channels.py` enforces gate set; `evaluate_release` rejects partial submissions | Hook into actual release pipeline once it exists |
+| R-025 | Formal protocols drift from spec | High | Low | `core/runtime/formal_models.py` state machines + invariant checks for all 7 dangerous protocols | Extend with hypothesis-based property tests |
+| R-026 | SLI/SLO targets undocumented | Medium | High | `core/runtime/telemetry_sli.py` SLO_CATALOG covering availability, latency, durability, governance coverage, recovery, actor health, self-mod safety, checkpoints | Wire to OpenTelemetry/Prometheus exporters |
+| R-027 | Per-actor resource exhaustion | High | Medium | `core/runtime/memory_guard.py` quotas per actor (memory, threads, fds, subprocess, browser ctx, queue depth, CPU) | Wire enforcement to supervisor health gate |
+| R-028 | Conversational turn-taking absent in voice/movie modes | High | Medium | `core/social/turn_taking.py` four-mode engine + `SilencePolicy` | Wire into output gate + perception event stream |

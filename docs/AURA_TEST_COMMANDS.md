@@ -128,3 +128,55 @@ checkpointed runtime-fix pass.
 - If a command cannot run because of missing optional dependencies or platform
   constraints, record the exact blocker in `docs/AURA_EXECUTION_TRACKER.md`.
 - Add new commands here as each milestone introduces new focused test slices.
+
+## Phase C-O verification slices
+
+```
+# Phase C: ServiceManifest
+python -m pytest tests/test_server_runtime_hardening.py -q -k "service_manifest or aura_main_invokes_service_manifest or aura_main_strict_runtime_aborts"
+
+# Phase D: ShutdownCoordinator
+python -m pytest tests/test_server_runtime_hardening.py -q -k "shutdown_coordinator"
+
+# Phase E: WillTransaction
+python -m pytest tests/test_server_runtime_hardening.py -q -k "will_transaction"
+
+# Phase F: AtomicWriter
+python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"
+
+# Phase G: Actor supervisor proof
+python -m pytest tests/test_server_runtime_hardening.py -q -k "actor_health_gate or supervision_tree_handles_actor_failure or supervision_tree_stop_all_terminates_orphans or supervision_tree_records_activity or supervision_tree_record_activity_unknown"
+
+# Phase H: Self-repair ladder
+python -m pytest tests/test_server_runtime_hardening.py -q -k "self_repair_ladder"
+
+# Phase I: Conformance + abuse harness
+python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance or fault_injector or abuse_gauntlet"
+
+# Phase J: Depth audit
+python -m pytest tests/test_server_runtime_hardening.py -q -k "depth_audit"
+
+# Phase K: Skill contracts
+python -m pytest tests/test_server_runtime_hardening.py -q -k "skill_contract or skill_registry"
+
+# Phase L: Perception runtime + movie
+python -m pytest tests/test_server_runtime_hardening.py -q -k "perception_runtime or movie_session_memory or silence_policy"
+
+# Phase M: Security / sandbox
+python -m pytest tests/test_server_runtime_hardening.py -q -k "sandbox_policy"
+
+# Phase N: Formal protocol models
+python -m pytest tests/test_server_runtime_hardening.py -q -k "formal_runtime_singularity or formal_governance_receipt or formal_state_commit or formal_actor_lifecycle or formal_self_modification or formal_shutdown_ordering or formal_capability_token"
+
+# Phase O: Release channels + runbooks
+python -m pytest tests/test_server_runtime_hardening.py -q -k "release_channels or runbook_index"
+
+# Final fuzz / SLI / gateway / turn-taking / computer-use / memory-guard
+python -m pytest tests/test_server_runtime_hardening.py -q -k "fuzz_target or telemetry_sli or gateway_contracts or turn_taking or computer_use or memory_guard"
+
+# Mixin task ownership sweep
+python -m pytest tests/test_server_runtime_hardening.py -q -k "cognitive_background_reflection_uses or cognitive_background_learning_uses or message_handling_deferred_enqueue or message_handling_dispatch_uses or incoming_logic_handle_message_uses or output_formatter_eternal_snapshot or output_formatter_emit_thought_stream or autonomy_thought_uses_named"
+
+# Full regression sweep across all touched suites
+python -m pytest tests/test_server_runtime_hardening.py tests/test_orchestrator_compatibility.py tests/test_runtime_stability_edges.py tests/test_forensic_audit_regressions.py tests/test_launcher_polish_contract.py tests/test_resilient_boot_llm_stage.py tests/test_runtime_polish.py tests/test_time_resilience.py
+```

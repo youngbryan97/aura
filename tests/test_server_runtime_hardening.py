@@ -4945,3 +4945,218 @@ def test_runbook_index_lists_every_named_scenario():
     for slug in expected:
         assert slug in index, f"runbook index missing {slug}"
         assert (project_root / "docs" / "runbooks" / f"{slug}.md").exists()
+
+
+# ==========================================================================
+# Final: fuzz harness, SLIs, gateways, turn-taking, computer-use, guards
+# ==========================================================================
+
+
+def test_fuzz_target_passes_when_parser_handles_every_input():
+    from core.runtime.fuzz_harness import FuzzReport, fuzz_target
+
+    def _safe(_payload):
+        return None  # never raises
+
+    report = fuzz_target("safe_parser", _safe, iterations=50)
+    assert report.passed is True
+    assert isinstance(report, FuzzReport)
+
+
+def test_fuzz_target_records_failure_when_parser_crashes_with_forbidden_exception():
+    from core.runtime.fuzz_harness import fuzz_target
+
+    def _crashy(payload):
+        # raises TypeError on most random dicts -> forbidden -> recorded
+        return payload["nope"][0]
+
+    report = fuzz_target("crashy_parser", _crashy, iterations=10)
+    assert report.passed is False
+    assert report.failures
+
+
+def test_telemetry_sli_catalog_covers_pageable_set():
+    from core.runtime.telemetry_sli import (
+        REQUIRED_SLO_NAMES,
+        SLO_CATALOG,
+        required_pageable_slos,
+    )
+
+    pageable = required_pageable_slos()
+    assert "governance_receipt_coverage" in pageable
+    assert "memory_write_durability" in pageable
+    assert "ungoverned_tool_executions_strict" in pageable
+    # Every required name resolves to an SLO with target/unit/pageable.
+    for name in REQUIRED_SLO_NAMES:
+        slo = SLO_CATALOG[name]
+        assert slo.target >= 0
+        assert slo.unit
+        assert isinstance(slo.pageable, bool)
+
+
+def test_gateway_contracts_are_abstract():
+    import inspect
+
+    from core.runtime.gateways import MemoryWriteGateway, StateGateway
+
+    assert inspect.isabstract(MemoryWriteGateway)
+    assert inspect.isabstract(StateGateway)
+
+
+def test_turn_taking_engine_blocks_speech_when_user_speaking():
+    from core.social.turn_taking import (
+        ConversationMode,
+        TurnTakingEngine,
+    )
+
+    engine = TurnTakingEngine()
+    engine.set_mode(ConversationMode.CONVERSATION)
+    engine.user_started_speaking()
+    assert engine.can_aura_speak() is False
+    engine.user_stopped_speaking()
+    # immediately after, conversation cooldown still blocks
+    assert engine.can_aura_speak() is False
+
+
+def test_turn_taking_engine_movie_mode_blocks_on_high_scene_energy():
+    from core.social.turn_taking import (
+        ConversationMode,
+        TurnTakingEngine,
+    )
+
+    fake_now = [1000.0]
+    engine = TurnTakingEngine(clock=lambda: fake_now[0])
+    engine.set_mode(ConversationMode.MOVIE)
+    engine.user_stopped_speaking()
+    fake_now[0] += 30.0  # plenty of silence past movie cooldown
+    engine.update_scene_energy(0.8)
+    assert engine.can_aura_speak() is False
+    engine.update_scene_energy(0.1)
+    assert engine.can_aura_speak() is True
+
+
+def test_turn_taking_engine_focus_mode_only_speaks_on_repair():
+    from core.social.turn_taking import (
+        ConversationMode,
+        TurnTakingEngine,
+    )
+
+    engine = TurnTakingEngine()
+    engine.set_mode(ConversationMode.FOCUS)
+    engine.user_stopped_speaking()
+    engine.state.last_user_speech_at = 0.0
+    engine.state.last_aura_speech_at = 0.0
+    assert engine.can_aura_speak() is False
+    engine.request_repair()
+    assert engine.can_aura_speak() is True
+
+
+@pytest.mark.asyncio
+async def test_computer_use_blocks_action_without_capability():
+    from core.tools.computer_use import (
+        ComputerUseAction,
+        ComputerUseSkill,
+    )
+
+    skill = ComputerUseSkill()
+    res = await skill.perform(
+        ComputerUseAction(kind="screenshot", target="display:0"),
+        sandbox_check=lambda cap, target: (True, "ok"),
+        capability_grant=False,
+    )
+    assert res.ok is False
+    assert res.failure_reason == "no capability token"
+
+
+@pytest.mark.asyncio
+async def test_computer_use_destructive_action_requires_approval():
+    from core.tools.computer_use import (
+        ComputerUseAction,
+        ComputerUseSkill,
+    )
+
+    skill = ComputerUseSkill()
+    skill.register_driver("click", lambda action: asyncio.sleep(0))
+    res = await skill.perform(
+        ComputerUseAction(kind="click", target="ok-button"),
+        sandbox_check=lambda cap, target: (True, "ok"),
+        capability_grant=True,
+        approval_for_destructive=False,
+    )
+    assert res.ok is False
+    assert "approval" in res.failure_reason
+
+
+@pytest.mark.asyncio
+async def test_computer_use_runs_verifier_on_success():
+    from core.tools.computer_use import (
+        ComputerUseAction,
+        ComputerUseSkill,
+    )
+
+    skill = ComputerUseSkill()
+
+    async def _driver(action):
+        return {"image": b"xx"}
+
+    async def _verifier(action, output):
+        return True, {"hash": "abc"}
+
+    skill.register_driver("screenshot", _driver)
+    skill.register_verifier("screenshot", _verifier)
+    res = await skill.perform(
+        ComputerUseAction(kind="screenshot", target="display:0"),
+        sandbox_check=lambda cap, target: (True, "ok"),
+        capability_grant=True,
+    )
+    assert res.ok is True
+    assert res.verification_evidence["hash"] == "abc"
+
+
+def test_memory_guard_flags_actor_over_quota():
+    from core.runtime.memory_guard import ActorUsage, evaluate_actor_usage
+
+    usage = ActorUsage(
+        actor="sensory_gate",
+        memory_mb=10_000,  # well over 2_048
+        threads=4,
+        open_fds=64,
+        subprocess_count=1,
+        browser_contexts=1,
+        queue_depth=4,
+        cpu_seconds_per_minute=2.0,
+    )
+    violations = evaluate_actor_usage(usage)
+    assert any(v.field_name == "memory_mb" for v in violations)
+
+
+def test_memory_guard_clean_actor_returns_no_violations():
+    from core.runtime.memory_guard import ActorUsage, evaluate_actor_usage
+
+    usage = ActorUsage(
+        actor="state_vault",
+        memory_mb=64,
+        threads=2,
+        open_fds=16,
+        subprocess_count=0,
+        browser_contexts=0,
+        queue_depth=4,
+        cpu_seconds_per_minute=1.0,
+    )
+    assert evaluate_actor_usage(usage) == []
+
+
+def test_memory_guard_unknown_actor_returns_no_violations():
+    from core.runtime.memory_guard import ActorUsage, evaluate_actor_usage
+
+    usage = ActorUsage(
+        actor="ghost_actor",
+        memory_mb=10_000_000,
+        threads=10_000,
+        open_fds=10_000,
+        subprocess_count=10_000,
+        browser_contexts=10_000,
+        queue_depth=10_000,
+        cpu_seconds_per_minute=10_000,
+    )
+    assert evaluate_actor_usage(usage) == []
