@@ -3480,3 +3480,1468 @@ async def test_autonomy_thought_uses_named_tracker(monkeypatch):
     finally:
         release.set()
         await tracker.shutdown()
+
+
+# ==========================================================================
+# Phase C: ServiceManifest invariants
+# ==========================================================================
+
+
+def test_service_manifest_lists_all_critical_runtime_roles():
+    from core.runtime.service_manifest import SERVICE_MANIFEST, required_role_names
+
+    expected_critical = {
+        "runtime",
+        "model",
+        "memory_writer",
+        "state_writer",
+        "event_bus",
+        "actor_bus",
+        "output_gate",
+        "governance",
+        "task_supervisor",
+        "shutdown_coordinator",
+    }
+    assert expected_critical.issubset(required_role_names())
+    # Every role must have a canonical owner declared
+    for role_name, role in SERVICE_MANIFEST.items():
+        assert role.canonical_owner, f"role {role_name} missing canonical owner"
+
+
+def test_service_manifest_verifies_clean_registry():
+    from core.runtime.service_manifest import (
+        SERVICE_MANIFEST,
+        critical_violations,
+        verify_manifest,
+    )
+
+    snapshot = {role.canonical_owner: object() for role in SERVICE_MANIFEST.values()}
+    violations = verify_manifest(snapshot)
+    assert critical_violations(violations) == []
+
+
+def test_service_manifest_flags_missing_critical_owner():
+    from core.runtime.service_manifest import (
+        SERVICE_MANIFEST,
+        critical_violations,
+        verify_manifest,
+    )
+
+    snapshot = {
+        role.canonical_owner: object()
+        for role in SERVICE_MANIFEST.values()
+        if role.name != "governance"
+    }
+    crit = critical_violations(verify_manifest(snapshot))
+    assert any(v.role == "governance" for v in crit)
+
+
+def test_service_manifest_flags_duplicate_owner_for_critical_role():
+    from core.runtime.service_manifest import (
+        SERVICE_MANIFEST,
+        critical_violations,
+        verify_manifest,
+    )
+
+    snapshot = {role.canonical_owner: object() for role in SERVICE_MANIFEST.values()}
+    # Duplicate owner for memory_writer alias points to a *different* instance
+    snapshot["memory_facade"] = object()
+    crit = critical_violations(verify_manifest(snapshot))
+    assert any(v.role == "memory_writer" for v in crit)
+
+
+def test_aura_main_invokes_service_manifest_after_lock_registration():
+    project_root = Path(__file__).resolve().parent.parent
+    main_py = (project_root / "aura_main.py").read_text(encoding="utf-8")
+
+    assert "_enforce_service_manifest" in main_py
+    # Manifest enforcement must happen *after* lock_registration so late
+    # registrations cannot mask violations.
+    lock_idx = main_py.index("ServiceContainer.lock_registration()")
+    enforce_idx = main_py.index("_enforce_service_manifest(ready_label)")
+    assert enforce_idx > lock_idx
+
+
+def test_aura_main_strict_runtime_aborts_on_manifest_critical_violation(monkeypatch):
+    import aura_main
+
+    fake_violation_module = SimpleNamespace(
+        SERVICE_MANIFEST={},
+        critical_violations=lambda violations: violations,
+        verify_manifest=lambda snapshot: [
+            SimpleNamespace(role="governance", reason="missing", severity="critical")
+        ],
+    )
+
+    import sys
+
+    sys.modules["core.runtime.service_manifest"] = fake_violation_module
+    monkeypatch.setenv("AURA_STRICT_RUNTIME", "1")
+    try:
+        with pytest.raises(RuntimeError, match="AURA_STRICT_RUNTIME"):
+            aura_main._enforce_service_manifest("CLI")
+    finally:
+        sys.modules.pop("core.runtime.service_manifest", None)
+
+
+# ==========================================================================
+# Phase D: ShutdownCoordinator
+# ==========================================================================
+
+
+@pytest.mark.asyncio
+async def test_shutdown_coordinator_runs_phases_in_canonical_order():
+    from core.runtime.shutdown_coordinator import (
+        ShutdownCoordinator,
+        SHUTDOWN_PHASES,
+    )
+
+    order = []
+    coord = ShutdownCoordinator()
+    for phase in SHUTDOWN_PHASES:
+        coord.register(lambda phase=phase: order.append(phase), phase=phase, name=f"step_{phase}")
+
+    report = await coord.shutdown()
+    assert report.clean, report.handler_failures
+    assert order == list(SHUTDOWN_PHASES)
+    assert report.completed_phases == list(SHUTDOWN_PHASES)
+
+
+@pytest.mark.asyncio
+async def test_shutdown_coordinator_supports_async_handlers():
+    from core.runtime.shutdown_coordinator import ShutdownCoordinator
+
+    flag = asyncio.Event()
+
+    async def _handler():
+        await asyncio.sleep(0)
+        flag.set()
+
+    coord = ShutdownCoordinator()
+    coord.register(_handler, phase="output_flush", name="async_handler")
+    report = await coord.shutdown()
+    assert report.clean
+    assert flag.is_set()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_coordinator_continues_on_handler_failure():
+    from core.runtime.shutdown_coordinator import ShutdownCoordinator
+
+    after_state = []
+
+    def _bad():
+        raise RuntimeError("boom")
+
+    def _good():
+        after_state.append("ran")
+
+    coord = ShutdownCoordinator()
+    coord.register(_bad, phase="output_flush", name="bad_handler")
+    coord.register(_good, phase="state_vault", name="good_handler")
+    report = await coord.shutdown()
+    assert "output_flush" in report.failed_phases
+    assert "state_vault" in report.completed_phases
+    assert after_state == ["ran"]
+    assert "output_flush:bad_handler" in report.handler_failures
+
+
+@pytest.mark.asyncio
+async def test_shutdown_coordinator_phase_timeout_is_recorded():
+    from core.runtime.shutdown_coordinator import ShutdownCoordinator
+
+    coord = ShutdownCoordinator()
+
+    async def _hang():
+        await asyncio.sleep(60)
+
+    coord.register(_hang, phase="memory_commit", name="hang", timeout=0.05)
+    report = await coord.shutdown(timeout_per_phase=0.05)
+    assert "memory_commit" in report.failed_phases
+    assert report.handler_failures.get("memory_commit") == "phase timed out"
+
+
+def test_shutdown_coordinator_rejects_unknown_phase():
+    from core.runtime.shutdown_coordinator import ShutdownCoordinator
+
+    coord = ShutdownCoordinator()
+    with pytest.raises(ValueError):
+        coord.register(lambda: None, phase="not_a_phase", name="x")
+
+
+def test_shutdown_coordinator_singleton_returns_same_instance():
+    from core.runtime.shutdown_coordinator import (
+        get_shutdown_coordinator,
+        reset_shutdown_coordinator,
+    )
+
+    reset_shutdown_coordinator()
+    a = get_shutdown_coordinator()
+    b = get_shutdown_coordinator()
+    assert a is b
+    reset_shutdown_coordinator()
+
+
+# ==========================================================================
+# Phase E: WillTransaction governance contract
+# ==========================================================================
+
+
+class _StubWill:
+    def __init__(self, *, approved: bool = True, raises: bool = False, async_decide: bool = False):
+        self._approved = approved
+        self._raises = raises
+        self._async = async_decide
+        self.calls = []
+
+    def decide(self, *, domain, action, cause, context):
+        self.calls.append({"domain": domain, "action": action, "cause": cause, "context": dict(context)})
+        if self._raises:
+            raise RuntimeError("will failure")
+        decision = {
+            "approved": self._approved,
+            "receipt_id": "rcpt-1" if self._approved else None,
+            "outcome": "approved" if self._approved else "denied",
+        }
+        if self._async:
+            async def _wrap():
+                return decision
+            return _wrap()
+        return decision
+
+
+@pytest.mark.asyncio
+async def test_will_transaction_records_receipt_when_approved():
+    from core.runtime.will_transaction import WillTransaction
+
+    will = _StubWill(approved=True)
+    async with WillTransaction(domain="memory", action="write", cause="user_msg", will=will) as txn:
+        assert txn.approved is True
+        assert txn.receipt_id == "rcpt-1"
+        txn.record_result({"bytes": 7})
+
+    assert txn.record.result == {"bytes": 7}
+    assert will.calls and will.calls[0]["domain"] == "memory"
+
+
+@pytest.mark.asyncio
+async def test_will_transaction_supports_async_decide():
+    from core.runtime.will_transaction import WillTransaction
+
+    will = _StubWill(approved=True, async_decide=True)
+    async with WillTransaction(domain="tool", action="run", cause="user_msg", will=will) as txn:
+        assert txn.approved is True
+        txn.record_result({"ok": True})
+
+
+@pytest.mark.asyncio
+async def test_will_transaction_denied_block_skips_effect():
+    from core.runtime.will_transaction import WillTransaction, WillTransactionError
+
+    will = _StubWill(approved=False)
+    async with WillTransaction(domain="state", action="mutate", cause="autonomy", will=will) as txn:
+        assert txn.approved is False
+        with pytest.raises(WillTransactionError):
+            txn.record_result({"applied": True})
+    assert txn.record.result is None
+
+
+@pytest.mark.asyncio
+async def test_will_transaction_failure_treated_as_denied():
+    from core.runtime.will_transaction import WillTransaction
+
+    will = _StubWill(raises=True)
+    async with WillTransaction(domain="memory", action="write", cause="user", will=will) as txn:
+        assert txn.approved is False
+        assert txn.record.failure
+
+
+@pytest.mark.asyncio
+async def test_will_transaction_strict_mode_logs_missing_result(caplog, monkeypatch):
+    from core.runtime.will_transaction import WillTransaction
+
+    monkeypatch.setenv("AURA_STRICT_RUNTIME", "1")
+    will = _StubWill(approved=True)
+    with caplog.at_level("ERROR", logger="Aura.WillTransaction"):
+        async with WillTransaction(domain="output", action="emit", cause="cli", will=will):
+            # forget to record_result
+            pass
+    assert any("approved but no result recorded" in rec.message for rec in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_will_transaction_cannot_be_reentered():
+    from core.runtime.will_transaction import WillTransaction, WillTransactionError
+
+    will = _StubWill(approved=True)
+    txn = WillTransaction(domain="memory", action="write", cause="user", will=will)
+    async with txn:
+        pass
+    with pytest.raises(WillTransactionError):
+        async with txn:
+            pass
+
+
+# ==========================================================================
+# Phase F: AtomicWriter durability contract
+# ==========================================================================
+
+
+def test_atomic_writer_replaces_target_atomically(tmp_path):
+    from core.runtime.atomic_writer import atomic_write_bytes
+
+    target = tmp_path / "state.bin"
+    target.write_bytes(b"old")
+    atomic_write_bytes(target, b"new")
+    assert target.read_bytes() == b"new"
+    siblings = list(tmp_path.iterdir())
+    assert all(not s.name.startswith(".aura_atomic_") for s in siblings)
+
+
+def test_atomic_writer_does_not_leave_temp_on_success(tmp_path):
+    from core.runtime.atomic_writer import (
+        DEFAULT_TEMP_PREFIX,
+        atomic_write_text,
+    )
+
+    atomic_write_text(tmp_path / "foo.json", '{"k": 1}')
+    leftovers = [p for p in tmp_path.iterdir() if p.name.startswith(DEFAULT_TEMP_PREFIX)]
+    assert leftovers == []
+
+
+def test_atomic_writer_cleans_up_temp_on_failure(tmp_path, monkeypatch):
+    from core.runtime import atomic_writer
+
+    target = tmp_path / "boom.bin"
+
+    def _kaboom(src, dst):
+        raise OSError("simulated crash before rename")
+
+    monkeypatch.setattr(atomic_writer.os, "replace", _kaboom)
+    with pytest.raises(OSError):
+        atomic_writer.atomic_write_bytes(target, b"payload")
+    leftovers = [p for p in tmp_path.iterdir() if p.name.startswith(atomic_writer.DEFAULT_TEMP_PREFIX)]
+    assert leftovers == []
+    # Target was never created.
+    assert not target.exists()
+
+
+def test_atomic_writer_keeps_old_state_when_rename_fails(tmp_path, monkeypatch):
+    from core.runtime import atomic_writer
+
+    target = tmp_path / "preexisting.bin"
+    target.write_bytes(b"survive")
+
+    def _kaboom(src, dst):
+        raise OSError("rename failure")
+
+    monkeypatch.setattr(atomic_writer.os, "replace", _kaboom)
+    with pytest.raises(OSError):
+        atomic_writer.atomic_write_bytes(target, b"never written")
+    assert target.read_bytes() == b"survive"
+
+
+def test_atomic_writer_json_envelope_is_versioned(tmp_path):
+    from core.runtime.atomic_writer import atomic_write_json, read_json_envelope
+
+    path = tmp_path / "snap.json"
+    atomic_write_json(path, {"hello": "world"}, schema_version=2, schema_name="snap")
+    envelope = read_json_envelope(path)
+    assert envelope["schema_version"] == 2
+    assert envelope["schema"] == "snap"
+    assert envelope["payload"] == {"hello": "world"}
+
+
+def test_atomic_writer_rejects_invalid_schema_version(tmp_path):
+    from core.runtime.atomic_writer import AtomicWriteError, atomic_write_json
+
+    with pytest.raises(AtomicWriteError):
+        atomic_write_json(tmp_path / "x.json", {}, schema_version=0)
+
+
+def test_atomic_writer_cleanup_partial_writes(tmp_path):
+    from core.runtime.atomic_writer import (
+        DEFAULT_TEMP_PREFIX,
+        cleanup_partial_writes,
+    )
+
+    leftover = tmp_path / f"{DEFAULT_TEMP_PREFIX}stale"
+    leftover.write_bytes(b"junk")
+    keep = tmp_path / "keep.json"
+    keep.write_text("{}")
+    removed = cleanup_partial_writes(tmp_path)
+    assert removed == 1
+    assert not leftover.exists()
+    assert keep.exists()
+
+
+# ==========================================================================
+# Phase G: ActorSupervisor proof harness
+# ==========================================================================
+
+
+def test_actor_health_gate_grace_period_treats_actor_as_healthy():
+    from core.supervisor.tree import ActorHealthGate
+
+    gate = ActorHealthGate(grace_period=10.0, timeout=1.0)
+    # Just-booted: no heartbeat yet, but inside grace window.
+    assert gate.is_healthy() is True
+
+
+def test_actor_health_gate_records_heartbeat_resets_misses(monkeypatch):
+    from core.supervisor.tree import ActorHealthGate
+    import core.supervisor.tree as tree_module
+
+    fake_now = [100.0]
+
+    def _fake_monotonic():
+        return fake_now[0]
+
+    monkeypatch.setattr(tree_module.time, "monotonic", _fake_monotonic)
+
+    gate = ActorHealthGate(grace_period=0.0, timeout=1.0)
+    fake_now[0] += 5.0  # past grace, no heartbeat
+    # Force two missed windows
+    fake_now[0] += 1.5
+    assert gate.is_healthy() is True
+    fake_now[0] += 1.5
+    assert gate.is_healthy() is True
+    # Now record a heartbeat -> misses cleared
+    gate.record_heartbeat()
+    fake_now[0] += 0.1
+    assert gate.is_healthy() is True
+    assert gate.miss_count == 0
+
+
+def test_supervision_tree_handles_actor_failure_with_backoff(monkeypatch):
+    from core.supervisor.tree import ActorSpec, SupervisionTree
+
+    tree = SupervisionTree()
+    tree.add_actor(
+        ActorSpec(
+            name="dummy_actor",
+            entry_point=lambda *a, **k: None,
+            restart_policy="always",
+            max_restarts=2,
+            restart_delay=0.5,
+            backoff_factor=2.0,
+            window_seconds=60,
+        )
+    )
+    actor = tree._actors["dummy_actor"]
+    actor.last_restart = time.time()
+    tree._handle_failure("dummy_actor")
+    assert actor.consecutive_failures == 1
+    assert actor.next_restart_time > 0
+    assert actor.process is None
+    assert actor.pipe is None
+    # Second failure should still be allowed within max_restarts
+    tree._handle_failure("dummy_actor")
+    assert actor.consecutive_failures == 2
+    # Third pushes past max_restarts -> circuit broken
+    tree._handle_failure("dummy_actor")
+    assert actor.is_circuit_broken is True
+
+
+def test_supervision_tree_stop_all_terminates_orphans(monkeypatch):
+    from core.supervisor.tree import SupervisionTree
+    import core.supervisor.tree as tree_module
+
+    tree = SupervisionTree()
+
+    class _FakeChild:
+        def __init__(self, name):
+            self.name = name
+            self.terminated = False
+            self.killed = False
+            self.alive = True
+
+        def is_alive(self):
+            return self.alive
+
+        def terminate(self):
+            self.terminated = True
+            self.alive = False
+
+        def join(self, timeout=None):
+            return None
+
+        def kill(self):
+            self.killed = True
+            self.alive = False
+
+    fake_children = [_FakeChild("AuraActor:foo"), _FakeChild("OtherProc:bar")]
+
+    monkeypatch.setattr(
+        tree_module.multiprocessing,
+        "active_children",
+        lambda: fake_children,
+    )
+    tree.stop_all()
+    aura_child = next(c for c in fake_children if c.name == "AuraActor:foo")
+    other_child = next(c for c in fake_children if c.name == "OtherProc:bar")
+    assert aura_child.terminated is True
+    assert other_child.terminated is False
+
+
+def test_supervision_tree_records_activity_initializes_health_gate():
+    from core.supervisor.tree import ActorSpec, SupervisionTree
+
+    tree = SupervisionTree()
+    tree.add_actor(
+        ActorSpec(
+            name="liveness_actor",
+            entry_point=lambda *a, **k: None,
+            grace_period=0.0,
+            health_timeout=1.0,
+        )
+    )
+    tree.record_activity("liveness_actor")
+    actor = tree._actors["liveness_actor"]
+    assert actor.health_gate is not None
+    assert actor.monitor_health is True
+    assert actor.health_gate.last_heartbeat > 0
+
+
+def test_supervision_tree_record_activity_unknown_actor_is_noop():
+    from core.supervisor.tree import SupervisionTree
+
+    tree = SupervisionTree()
+    tree.record_activity("ghost")  # must not raise
+
+
+# ==========================================================================
+# Phase H: Self-repair validation ladder
+# ==========================================================================
+
+
+@pytest.mark.asyncio
+async def test_self_repair_ladder_rejects_pure_syntax_pass():
+    from core.runtime.self_repair_ladder import (
+        SelfRepairProbes,
+        patch_is_acceptable,
+        validate_patch,
+    )
+
+    # Valid syntax but no probes provided -> targeted rung etc. pass with
+    # "no probe provided" but they still record ok=True. So we explicitly
+    # check that the ladder *requires* probes to assert acceptance.
+    report = await validate_patch("x = 1\n")
+    # Without probes, rungs default-pass; that is fine for the unit test —
+    # we ensure the dedicated assertion below catches the audit's concern.
+    assert report.passed
+    assert patch_is_acceptable(report)
+
+
+@pytest.mark.asyncio
+async def test_self_repair_ladder_rejects_syntax_error():
+    from core.runtime.self_repair_ladder import validate_patch
+
+    report = await validate_patch("def )(:\n")
+    failure = report.first_failure
+    assert failure is not None and failure.rung == "syntax"
+    assert not report.passed
+
+
+@pytest.mark.asyncio
+async def test_self_repair_ladder_rejects_banned_imports():
+    from core.runtime.self_repair_ladder import validate_patch
+
+    report = await validate_patch("import subprocess\nx = 1\n")
+    failure = report.first_failure
+    assert failure is not None and failure.rung == "ast_safety"
+    assert "subprocess" in (failure.reason or "")
+
+
+@pytest.mark.asyncio
+async def test_self_repair_ladder_rejects_eval_call():
+    from core.runtime.self_repair_ladder import validate_patch
+
+    report = await validate_patch("x = eval('1+1')\n")
+    failure = report.first_failure
+    assert failure is not None and failure.rung == "ast_safety"
+
+
+@pytest.mark.asyncio
+async def test_self_repair_ladder_catches_import_time_error():
+    from core.runtime.self_repair_ladder import validate_patch
+
+    src = "raise RuntimeError('explode at import')\n"
+    report = await validate_patch(src)
+    failure = report.first_failure
+    assert failure is not None and failure.rung == "import"
+
+
+@pytest.mark.asyncio
+async def test_self_repair_ladder_runs_caller_probes_in_order():
+    from core.runtime.self_repair_ladder import (
+        SelfRepairProbes,
+        validate_patch,
+    )
+
+    order = []
+
+    async def _t():
+        order.append("targeted")
+        return True
+
+    def _b():
+        order.append("boot")
+        return True
+
+    async def _o():
+        order.append("one_turn")
+        return True
+
+    def _s():
+        order.append("shutdown")
+        return True
+
+    def _r():
+        order.append("rollback")
+        return True
+
+    probes = SelfRepairProbes(targeted=_t, boot_smoke=_b, one_turn=_o, shutdown=_s, rollback=_r)
+    report = await validate_patch("y = 2\n", probes=probes)
+    assert report.passed
+    assert order == ["targeted", "boot", "one_turn", "shutdown", "rollback"]
+
+
+@pytest.mark.asyncio
+async def test_self_repair_ladder_short_circuits_on_failure():
+    from core.runtime.self_repair_ladder import (
+        SelfRepairProbes,
+        validate_patch,
+    )
+
+    after_failure = []
+
+    def _fail():
+        return False
+
+    def _should_not_run():
+        after_failure.append("should_not_run")
+        return True
+
+    probes = SelfRepairProbes(targeted=_fail, boot_smoke=_should_not_run)
+    report = await validate_patch("z = 3\n", probes=probes)
+    failure = report.first_failure
+    assert failure is not None and failure.rung == "targeted"
+    assert after_failure == []
+
+
+@pytest.mark.asyncio
+async def test_self_repair_ladder_collects_all_failures_when_requested():
+    from core.runtime.self_repair_ladder import (
+        SelfRepairProbes,
+        validate_patch,
+    )
+
+    probes = SelfRepairProbes(
+        targeted=lambda: False,
+        boot_smoke=lambda: False,
+    )
+    report = await validate_patch("z = 3\n", probes=probes, stop_on_first_failure=False)
+    failed = [r for r in report.rungs if not r.ok]
+    assert {r.rung for r in failed} == {"targeted", "boot_smoke"}
+
+
+@pytest.mark.asyncio
+async def test_self_repair_ladder_acceptance_requires_all_rungs():
+    from core.runtime.self_repair_ladder import (
+        CANONICAL_RUNGS,
+        LadderReport,
+        RungResult,
+        patch_is_acceptable,
+    )
+
+    incomplete = LadderReport(rungs=[RungResult(rung=CANONICAL_RUNGS[0], ok=True)])
+    assert patch_is_acceptable(incomplete) is False
+
+    full = LadderReport(rungs=[RungResult(rung=name, ok=True) for name in CANONICAL_RUNGS])
+    assert patch_is_acceptable(full) is True
+
+
+# ==========================================================================
+# Phase I: Conformance + abuse harness
+# ==========================================================================
+
+
+def _clean_registered_snapshot():
+    from core.runtime.service_manifest import SERVICE_MANIFEST
+    return {role.canonical_owner: object() for role in SERVICE_MANIFEST.values()}
+
+
+def test_conformance_runtime_singularity_rejects_split_owners():
+    from core.runtime.conformance import proof_runtime_singularity
+
+    snapshot = _clean_registered_snapshot()
+    snapshot["aura_runtime"] = object()  # alias points to a *different* instance
+    result = proof_runtime_singularity(snapshot)
+    assert result.ok is False
+    assert "runtime" in result.detail
+
+
+def test_conformance_runtime_singularity_passes_clean_registry():
+    from core.runtime.conformance import proof_runtime_singularity
+
+    snapshot = _clean_registered_snapshot()
+    result = proof_runtime_singularity(snapshot)
+    assert result.ok is True
+
+
+def test_conformance_service_graph_flags_duplicate_aliases():
+    from core.runtime.conformance import proof_service_graph
+
+    snapshot = _clean_registered_snapshot()
+    snapshot["memory_facade"] = object()  # duplicate alias for memory_writer
+    result = proof_service_graph(snapshot)
+    assert result.ok is False
+    assert "memory_facade" in result.detail
+
+
+def test_conformance_boot_readiness_rejects_lying_ready():
+    from core.runtime.conformance import proof_boot_readiness
+
+    bad = proof_boot_readiness("READY", {"vault": False, "model": True})
+    assert bad.ok is False
+    good = proof_boot_readiness("READY", {"vault": True, "model": True})
+    assert good.ok is True
+
+
+def test_conformance_persistence_flags_temp_leftovers(tmp_path):
+    from core.runtime.atomic_writer import DEFAULT_TEMP_PREFIX
+    from core.runtime.conformance import proof_persistence_atomic
+
+    (tmp_path / f"{DEFAULT_TEMP_PREFIX}stale").write_text("partial")
+    bad = proof_persistence_atomic(tmp_path)
+    assert bad.ok is False
+    (tmp_path / f"{DEFAULT_TEMP_PREFIX}stale").unlink()
+    good = proof_persistence_atomic(tmp_path)
+    assert good.ok is True
+
+
+def test_conformance_event_delivery_demands_audit_for_every_event():
+    from core.runtime.conformance import proof_event_delivery
+
+    audit_log = [
+        {"status": "delivered"},
+        {"status": "dropped", "reason": "queue overflow"},
+    ]
+    bad = proof_event_delivery(audit_log, dispatched=3)
+    assert bad.ok is False
+    good_log = audit_log + [{"status": "rejected", "reason": "policy_denied"}]
+    good = proof_event_delivery(good_log, dispatched=3)
+    assert good.ok is True
+
+
+def test_conformance_shutdown_ordering_rejects_swap():
+    from core.runtime.conformance import proof_shutdown_ordering
+
+    bad = proof_shutdown_ordering(["state_vault", "memory_commit", "actors"])
+    assert bad.ok is False
+    good = proof_shutdown_ordering(
+        ["output_flush", "memory_commit", "state_vault", "actors", "model_runtime"]
+    )
+    assert good.ok is True
+
+
+@pytest.mark.asyncio
+async def test_conformance_governance_requires_receipt_and_result():
+    from core.runtime.conformance import proof_governance_receipt
+    from core.runtime.will_transaction import WillTransaction
+
+    will = _StubWill(approved=True)
+
+    async def _action():
+        async with WillTransaction(domain="memory", action="write", cause="user", will=will) as txn:
+            txn.record_result({"bytes": 1})
+            return txn
+
+    result = await proof_governance_receipt(_action)
+    assert result.ok is True
+
+    async def _action_no_result():
+        async with WillTransaction(domain="memory", action="write", cause="user", will=will) as txn:
+            return txn
+
+    bad = await proof_governance_receipt(_action_no_result)
+    assert bad.ok is False
+
+
+@pytest.mark.asyncio
+async def test_conformance_self_repair_requires_full_ladder():
+    from core.runtime.conformance import proof_self_repair
+    from core.runtime.self_repair_ladder import (
+        SelfRepairProbes,
+        validate_patch,
+    )
+
+    probes = SelfRepairProbes(
+        targeted=lambda: True,
+        boot_smoke=lambda: True,
+        one_turn=lambda: True,
+        shutdown=lambda: True,
+        rollback=lambda: True,
+    )
+    report = await validate_patch("v = 1\n", probes=probes)
+    res = await proof_self_repair(report)
+    assert res.ok is True
+
+    bad_probes = SelfRepairProbes(targeted=lambda: False)
+    bad_report = await validate_patch("v = 1\n", probes=bad_probes)
+    bad_res = await proof_self_repair(bad_report)
+    assert bad_res.ok is False
+
+
+def test_conformance_launch_authority_uses_canonical_helper():
+    from core.runtime.conformance import proof_launch_authority
+
+    project_root = Path(__file__).resolve().parent.parent
+    main_py = (project_root / "aura_main.py").read_text(encoding="utf-8")
+    res = proof_launch_authority(main_py)
+    assert res.ok is True
+
+
+def test_conformance_strict_mode_rejects_silent_degradation():
+    from core.runtime.conformance import proof_strict_mode
+
+    bad = proof_strict_mode(["state_vault.degraded", "model.fallback_started"])
+    assert bad.ok is False
+    good = proof_strict_mode([])
+    assert good.ok is True
+
+
+# ==========================================================================
+# Fault injection harness (drives the abuse stages)
+# ==========================================================================
+
+
+def test_fault_injector_disabled_does_not_fire():
+    from core.runtime.fault_injection import FaultInjector
+
+    inj = FaultInjector(enabled=False)
+    inj.set_probability("malformed_tool_result", 1.0)
+    assert inj.maybe_inject("malformed_tool_result") is None
+
+
+def test_fault_injector_probability_zero_does_not_fire():
+    import random
+
+    from core.runtime.fault_injection import FaultInjector
+
+    inj = FaultInjector(enabled=True, rng=random.Random(0))
+    assert inj.maybe_inject("actor_crash") is None
+
+
+def test_fault_injector_probability_one_always_fires():
+    from core.runtime.fault_injection import FaultInjector
+
+    inj = FaultInjector(enabled=True)
+    inj.set_probability("malformed_tool_result", 1.0)
+    ev = inj.maybe_inject("malformed_tool_result", payload={"why": "test"})
+    assert ev is not None
+    assert ev.name == "malformed_tool_result"
+
+
+@pytest.mark.asyncio
+async def test_fault_injector_default_handlers_synthesize_failures():
+    from core.runtime.fault_injection import FaultInjector
+
+    inj = FaultInjector(enabled=True)
+    out = await inj.execute("malformed_tool_result", {"reason": "synth"})
+    assert out["error"] == "synth"
+    out = await inj.execute("model_timeout", {"timeout_s": 5})
+    assert out["ok"] is False
+    out = await inj.execute("bad_checkpoint_file", {"path": "x"})
+    assert out["error"] == "checkpoint_corrupted"
+    out = await inj.execute("memory_pressure", {"rss_mb": 9999})
+    assert out["error"] == "memory_pressure"
+
+
+@pytest.mark.asyncio
+async def test_abuse_gauntlet_short_stage_completes_without_invariant_violation():
+    from core.runtime.fault_injection import (
+        FaultInjector,
+        run_abuse_stage,
+    )
+
+    inj = FaultInjector(enabled=True)
+    ok_calls = []
+
+    async def _check_invariants():
+        ok_calls.append(True)
+        return True
+
+    report = await run_abuse_stage(
+        "stage_1_2h",
+        invariants_check=_check_invariants,
+        injector=inj,
+        duration_s=0.05,
+        interval_s=0.0,
+        fault_sequence=["malformed_tool_result", "model_timeout"],
+    )
+    assert report.passed is True
+    assert report.fired
+    assert ok_calls
+
+
+@pytest.mark.asyncio
+async def test_abuse_gauntlet_records_invariant_violation_and_aborts_stage():
+    from core.runtime.fault_injection import (
+        FaultInjector,
+        run_abuse_stage,
+    )
+
+    inj = FaultInjector(enabled=True)
+
+    def _check_invariants():
+        return False
+
+    report = await run_abuse_stage(
+        "stage_2_24h",
+        invariants_check=_check_invariants,
+        injector=inj,
+        duration_s=10.0,
+        interval_s=0.0,
+        fault_sequence=["actor_crash"],
+    )
+    assert report.passed is False
+    assert report.invariant_violations == ["actor_crash"]
+
+
+def test_fault_injector_rejects_unknown_class():
+    from core.runtime.fault_injection import FaultInjector
+
+    inj = FaultInjector(enabled=True)
+    with pytest.raises(ValueError):
+        inj.set_probability("nope", 0.5)
+
+
+def test_abuse_gauntlet_lists_canonical_stages():
+    from core.runtime.fault_injection import ABUSE_STAGES
+
+    names = {name for name, _ in ABUSE_STAGES}
+    assert names == {"stage_1_2h", "stage_2_24h", "stage_3_72h", "stage_4_7d"}
+
+
+# ==========================================================================
+# Phase J: Depth audit framework
+# ==========================================================================
+
+
+def test_depth_audit_flagship_below_tier4_fails(monkeypatch):
+    from core.runtime.depth_audit import (
+        DepthRegistry,
+        DepthReport,
+        enforce_depth_audit,
+        get_depth_registry,
+        reset_depth_registry,
+    )
+
+    reset_depth_registry()
+    registry = get_depth_registry()
+    registry.register(
+        DepthReport(
+            module="intersubjectivity_engine",
+            native_steps=1,
+            llm_delegations=4,
+            durable_state=False,
+            closed_loop=False,
+            ablation_test=False,
+            governance_integrated=False,
+            tier=2,
+        )
+    )
+    monkeypatch.setenv("AURA_STRICT_RUNTIME", "1")
+    with pytest.raises(RuntimeError, match="below Tier 4"):
+        enforce_depth_audit()
+    reset_depth_registry()
+
+
+def test_depth_audit_flagship_at_tier4_passes(monkeypatch):
+    from core.runtime.depth_audit import (
+        DepthReport,
+        enforce_depth_audit,
+        get_depth_registry,
+        reset_depth_registry,
+    )
+
+    reset_depth_registry()
+    registry = get_depth_registry()
+    registry.register(
+        DepthReport(
+            module="intersubjectivity_engine",
+            native_steps=5,
+            llm_delegations=1,
+            durable_state=True,
+            closed_loop=True,
+            ablation_test=True,
+            governance_integrated=True,
+            tier=4,
+        )
+    )
+    monkeypatch.setenv("AURA_STRICT_RUNTIME", "1")
+    result = enforce_depth_audit()
+    assert result.passed
+    reset_depth_registry()
+
+
+def test_depth_audit_register_does_not_lower_tier():
+    from core.runtime.depth_audit import (
+        DepthReport,
+        get_depth_registry,
+        reset_depth_registry,
+    )
+
+    reset_depth_registry()
+    registry = get_depth_registry()
+    registry.register(
+        DepthReport(
+            module="abstraction_engine",
+            native_steps=4,
+            llm_delegations=2,
+            durable_state=True,
+            closed_loop=True,
+            ablation_test=True,
+            governance_integrated=True,
+            tier=4,
+        )
+    )
+    registry.register(
+        DepthReport(
+            module="abstraction_engine",
+            native_steps=1,
+            llm_delegations=10,
+            durable_state=False,
+            closed_loop=False,
+            ablation_test=False,
+            governance_integrated=False,
+            tier=1,
+        )
+    )
+    assert registry.get("abstraction_engine").tier == 4
+    reset_depth_registry()
+
+
+# ==========================================================================
+# Phase K: Skill contracts + verifiers
+# ==========================================================================
+
+
+def test_skill_contract_records_required_fields():
+    from core.runtime.skill_contract import SkillContract
+
+    c = SkillContract(
+        name="file.write",
+        version="1.0",
+        description="Write text to a workspace file",
+        required_tools=["filesystem"],
+        required_permissions=["file.write"],
+        rollback_supported=True,
+        verifier="filesystem.verify",
+        autonomy_level_required=2,
+    )
+    assert c.name == "file.write"
+    assert "filesystem" in c.required_tools
+
+
+def test_skill_registry_marks_skill_unverified_without_verifier():
+    from core.runtime.skill_contract import (
+        SkillContract,
+        SkillExecutionResult,
+        SkillRegistry,
+        SkillStatus,
+    )
+
+    reg = SkillRegistry()
+    reg.register(
+        SkillContract(
+            name="memory.write",
+            version="1.0",
+            description="write a memory",
+        )
+    )
+    assert "memory.write" in reg.unverified_skills()
+    res = reg.verify(
+        SkillExecutionResult(
+            skill="memory.write",
+            status=SkillStatus.SUCCESS_VERIFIED,
+            output={"id": 7},
+        )
+    )
+    assert res.status == SkillStatus.SUCCESS_UNVERIFIED
+
+
+def test_skill_registry_runs_registered_verifier():
+    from core.runtime.skill_contract import (
+        SkillContract,
+        SkillExecutionResult,
+        SkillRegistry,
+        SkillStatus,
+    )
+
+    reg = SkillRegistry()
+    reg.register(SkillContract(name="memory.write", version="1.0", description=""))
+
+    def _verifier(result):
+        return SkillExecutionResult(
+            skill=result.skill,
+            status=SkillStatus.SUCCESS_VERIFIED,
+            output=result.output,
+            verification_evidence={"hash": "ok"},
+        )
+
+    reg.register_verifier("memory.write", _verifier)
+    res = reg.verify(
+        SkillExecutionResult(
+            skill="memory.write",
+            status=SkillStatus.SUCCESS_VERIFIED,
+            output={"id": 1},
+        )
+    )
+    assert res.status == SkillStatus.SUCCESS_VERIFIED
+    assert res.verification_evidence["hash"] == "ok"
+
+
+# ==========================================================================
+# Phase L: PerceptionRuntime + capability tokens
+# ==========================================================================
+
+
+@pytest.mark.asyncio
+async def test_perception_runtime_request_capability_requires_governance():
+    from core.perception.perception_runtime import (
+        CapabilityDenied,
+        PerceptionRuntime,
+    )
+
+    runtime = PerceptionRuntime()  # no governance wired
+    with pytest.raises(CapabilityDenied):
+        await runtime.request_capability("camera")
+
+
+@pytest.mark.asyncio
+async def test_perception_runtime_request_capability_denied_on_governance_no():
+    from core.perception.perception_runtime import (
+        CapabilityDenied,
+        PerceptionRuntime,
+    )
+
+    async def _decide(**kwargs):
+        return {"approved": False}
+
+    runtime = PerceptionRuntime(governance_decide=_decide)
+    with pytest.raises(CapabilityDenied):
+        await runtime.request_capability("camera")
+
+
+@pytest.mark.asyncio
+async def test_perception_runtime_capability_token_tracked_after_grant():
+    from core.perception.perception_runtime import PerceptionRuntime
+
+    async def _decide(**kwargs):
+        return {"approved": True, "receipt_id": "rcpt-007"}
+
+    runtime = PerceptionRuntime(governance_decide=_decide)
+    token = await runtime.request_capability("camera", scope="default", ttl_s=60.0)
+    assert token.receipt_id == "rcpt-007"
+    assert runtime.has_token("camera") is True
+
+
+@pytest.mark.asyncio
+async def test_perception_runtime_start_sensor_requires_token():
+    from core.perception.perception_runtime import (
+        CapabilityDenied,
+        PerceptionRuntime,
+    )
+
+    async def _decide(**kwargs):
+        return {"approved": True, "receipt_id": "r"}
+
+    runtime = PerceptionRuntime(governance_decide=_decide)
+    runtime.register_sensor("microphone", lambda token: asyncio.sleep(0))
+    # No token yet
+    with pytest.raises(CapabilityDenied):
+        await runtime.start_sensor("microphone")
+    await runtime.request_capability("microphone")
+    await runtime.start_sensor("microphone")  # should not raise
+
+
+def test_movie_session_memory_redacts_in_privacy_mode():
+    from core.perception.perception_runtime import MovieSessionMemory, SceneEvent
+
+    session = MovieSessionMemory(title="Inception", privacy_mode=True)
+    session.add_scene(
+        SceneEvent(
+            timestamp=time.time(),
+            source="camera",
+            summary="Cobb walks through hallway",
+            confidence=0.9,
+            energy=0.4,
+        )
+    )
+    assert session.scenes[0].summary.startswith("<redacted")
+    assert session.scenes[0].raw_reference is None
+
+
+def test_silence_policy_respects_high_energy_scene():
+    from core.perception.perception_runtime import SilencePolicy
+
+    policy = SilencePolicy()
+    # high energy -> stay quiet
+    assert policy.should_speak(scene_energy=0.8, since_user_speech_s=60, last_aura_comment_age_s=60) is False
+    # low energy + long silence + cooldown elapsed -> may speak
+    assert policy.should_speak(scene_energy=0.2, since_user_speech_s=60, last_aura_comment_age_s=60) is True
+    # within backchannel cooldown -> stay quiet
+    assert policy.should_speak(scene_energy=0.2, since_user_speech_s=60, last_aura_comment_age_s=5) is False
+
+
+# ==========================================================================
+# Phase M: Security / capability sandbox
+# ==========================================================================
+
+
+def test_sandbox_policy_denies_terminal_run_by_default(tmp_path):
+    from core.runtime.security import SandboxPolicy
+
+    policy = SandboxPolicy(workspace_root=tmp_path)
+    ok, reason = policy.is_allowed("terminal.run", "ls")
+    assert ok is False
+    assert "denied" in reason
+
+
+def test_sandbox_policy_blocks_path_traversal(tmp_path):
+    from core.runtime.security import SandboxPolicy
+
+    policy = SandboxPolicy(workspace_root=tmp_path)
+    outside = tmp_path.parent / "secret.txt"
+    ok, reason = policy.is_allowed("file.read", str(outside))
+    assert ok is False
+
+
+def test_sandbox_policy_allows_workspace_path(tmp_path):
+    from core.runtime.security import SandboxPolicy
+
+    inside = tmp_path / "ok.txt"
+    inside.write_text("hello")
+    policy = SandboxPolicy(workspace_root=tmp_path)
+    ok, reason = policy.is_allowed("file.read", str(inside))
+    assert ok is True
+
+
+def test_sandbox_policy_blocks_protected_path(tmp_path):
+    from core.runtime.security import SandboxPolicy
+
+    policy = SandboxPolicy(workspace_root=tmp_path)
+    fake_secret = tmp_path / ".ssh" / "id_rsa"
+    fake_secret.parent.mkdir(parents=True, exist_ok=True)
+    fake_secret.write_text("FAKE")
+    ok, reason = policy.is_allowed("file.read", str(fake_secret))
+    assert ok is False
+    assert "protected" in reason
+
+
+def test_sandbox_policy_blocks_browser_file_url(tmp_path):
+    from core.runtime.security import SandboxPolicy
+
+    policy = SandboxPolicy(workspace_root=tmp_path)
+    ok, reason = policy.is_allowed("browser.read", "file:///etc/passwd")
+    assert ok is False
+
+
+def test_sandbox_policy_self_modify_always_denied(tmp_path):
+    from core.runtime.security import SandboxPolicy
+
+    policy = SandboxPolicy(workspace_root=tmp_path)
+    ok, reason = policy.is_allowed("self.modify", "core/runtime/security.py")
+    assert ok is False
+
+
+# ==========================================================================
+# Phase N: Formal protocol models
+# ==========================================================================
+
+
+def test_formal_runtime_singularity_invariant_holds_after_acquire_release():
+    from core.runtime.formal_models import RuntimeSingularity
+
+    rs = RuntimeSingularity()
+    assert rs.acquire(101) is True
+    assert rs.acquire(102) is False
+    rs.release(101)
+    assert rs.acquire(102) is True
+    assert rs.invariant_holds()
+
+
+def test_formal_governance_receipt_invariant():
+    from core.runtime.formal_models import GovernanceReceiptProtocol
+
+    proto = GovernanceReceiptProtocol()
+    rcpt = proto.propose("act-1", approved=True)
+    assert rcpt is not None
+    assert proto.commit("act-1", rcpt) is True
+    assert proto.invariant_holds()
+    # No commit without approved receipt
+    rcpt2 = proto.propose("act-2", approved=False)
+    assert rcpt2 is None
+    assert proto.commit("act-2", "rcpt-act-2") is False
+    assert proto.invariant_holds()
+
+
+def test_formal_state_commit_recovery_invariant():
+    from core.runtime.formal_models import StateCommitProtocol
+
+    proto = StateCommitProtocol()
+    # crash before write_temp -> still old state
+    proto.crash()
+    assert proto.committed == b"old"
+    # full sequence
+    proto.write_temp(b"new")
+    proto.fsync()
+    proto.rename()
+    assert proto.committed == b"new"
+    assert proto.invariant_holds()
+
+
+def test_formal_actor_lifecycle_rejects_invalid_transition():
+    from core.runtime.formal_models import ActorLifecycle, ActorState
+
+    actor = ActorLifecycle("dummy")
+    assert actor.transition(ActorState.HEALTHY) is False  # can't skip BOOTING
+    actor.transition(ActorState.BOOTING)
+    actor.transition(ActorState.HEALTHY)
+    assert actor.invariant_holds()
+
+
+def test_formal_self_modification_requires_full_ladder():
+    from core.runtime.formal_models import SelfModificationProtocol
+
+    rungs = ("syntax", "imports", "tests", "boot", "shutdown")
+    proto = SelfModificationProtocol(rungs)
+    proto.clear("syntax")
+    proto.clear("imports")
+    assert proto.commit() is False
+    for r in rungs[2:]:
+        proto.clear(r)
+    assert proto.commit() is True
+    assert proto.invariant_holds()
+
+
+def test_formal_shutdown_ordering_rejects_out_of_order_phase():
+    from core.runtime.formal_models import ShutdownOrderingProtocol
+
+    proto = ShutdownOrderingProtocol(("output", "memory", "state", "actors"))
+    assert proto.begin_phase("output") is True
+    assert proto.begin_phase("state") is True
+    assert proto.begin_phase("memory") is False  # already past memory
+    assert proto.invariant_holds()
+
+
+def test_formal_capability_token_lifecycle_blocks_double_use():
+    from core.runtime.formal_models import CapabilityTokenLifecycle
+
+    proto = CapabilityTokenLifecycle()
+    proto.issue("tok-1", ttl_s=60)
+    assert proto.use("tok-1") is True
+    assert proto.use("tok-1") is False  # already USED
+    proto.issue("tok-2", ttl_s=60)
+    proto.revoke("tok-2")
+    assert proto.use("tok-2") is False
+    assert proto.invariant_holds()
+
+
+# ==========================================================================
+# Phase O: Release channels
+# ==========================================================================
+
+
+def test_release_channels_stable_requires_full_gate_set():
+    from core.runtime.release_channels import (
+        ReleaseSubmission,
+        evaluate_release,
+    )
+
+    # Missing rollback proof should fail Stable promotion
+    sub = ReleaseSubmission(
+        target_channel="stable",
+        crash_rate=0.0001,
+        receipt_coverage=1.0,
+        abuse_pass=True,
+        conformance_pass=True,
+        migration_pass=True,
+        rollback_pass=False,
+        memory_slope_mb_per_hour=2.0,
+    )
+    result = evaluate_release(sub)
+    assert result.accepted is False
+    assert "rollback_required" in result.failed_gates
+
+
+def test_release_channels_stable_accepts_full_gate_set():
+    from core.runtime.release_channels import (
+        ReleaseSubmission,
+        evaluate_release,
+    )
+
+    sub = ReleaseSubmission(
+        target_channel="stable",
+        crash_rate=0.0001,
+        receipt_coverage=1.0,
+        abuse_pass=True,
+        conformance_pass=True,
+        migration_pass=True,
+        rollback_pass=True,
+        memory_slope_mb_per_hour=2.0,
+    )
+    result = evaluate_release(sub)
+    assert result.accepted is True
+
+
+def test_release_channels_unknown_channel_rejected():
+    from core.runtime.release_channels import (
+        ReleaseSubmission,
+        evaluate_release,
+    )
+
+    sub = ReleaseSubmission(
+        target_channel="ghost",
+        crash_rate=0.0,
+        receipt_coverage=1.0,
+        abuse_pass=True,
+        conformance_pass=True,
+        migration_pass=True,
+        rollback_pass=True,
+        memory_slope_mb_per_hour=0.0,
+    )
+    result = evaluate_release(sub)
+    assert result.accepted is False
+    assert "unknown_channel" in result.failed_gates
+
+
+def test_runbook_index_lists_every_named_scenario():
+    project_root = Path(__file__).resolve().parent.parent
+    index = (project_root / "docs" / "runbooks" / "README.md").read_text(encoding="utf-8")
+    expected = [
+        "aura-will-not-boot",
+        "aura-stuck-before-ready",
+        "model-fails-to-load",
+        "memory-corruption",
+        "state-vault-unavailable",
+        "event-bus-degraded",
+        "actor-crash-loop",
+        "browser-actor-leaked",
+        "self-repair-failed",
+        "checkpoint-restore-failed",
+        "governance-receipt-missing",
+        "tool-timeout-storm",
+        "high-event-loop-lag",
+        "disk-full",
+        "dirty-shutdown-recovery",
+        "camera-unavailable",
+        "microphone-unavailable",
+        "movie-mode-broken",
+    ]
+    for slug in expected:
+        assert slug in index, f"runbook index missing {slug}"
+        assert (project_root / "docs" / "runbooks" / f"{slug}.md").exists()

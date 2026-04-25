@@ -460,8 +460,53 @@ async def _boot_runtime_orchestrator(
         await orchestrator._ensure_inference_gate_ready(context=readiness_context)
 
     ServiceContainer.lock_registration()
+    _enforce_service_manifest(ready_label)
     logger.info("🛡️ Registry Locked. Aura Ready (%s).", ready_label)
     return orchestrator
+
+
+def _enforce_service_manifest(ready_label: str) -> None:
+    """Verify ServiceManifest invariants once the registry is locked.
+
+    In strict runtime, a critical violation aborts boot. Otherwise the
+    violation is logged so operators can see the drift without forcing
+    a desktop crash.
+    """
+    try:
+        from core.runtime.service_manifest import (
+            SERVICE_MANIFEST,
+            critical_violations,
+            verify_manifest,
+        )
+        from core.container import ServiceContainer
+    except Exception as exc:  # pragma: no cover - defensive import
+        logger.debug("ServiceManifest unavailable during boot: %s", exc)
+        return
+
+    snapshot: dict = {}
+    for role in SERVICE_MANIFEST.values():
+        for candidate in (role.canonical_owner, *role.aliases):
+            if ServiceContainer.has(candidate):
+                instance = ServiceContainer.get(candidate, default=None)
+                if instance is not None:
+                    snapshot[candidate] = instance
+
+    violations = verify_manifest(snapshot)
+    crit = critical_violations(violations)
+    if violations:
+        for v in violations:
+            logger.warning(
+                "ServiceManifest %s violation [%s]: %s",
+                v.severity,
+                v.role,
+                v.reason,
+            )
+    strict_mode = os.environ.get("AURA_STRICT_RUNTIME", "0") == "1"
+    if crit and strict_mode:
+        raise RuntimeError(
+            f"AURA_STRICT_RUNTIME: ServiceManifest critical violations during {ready_label} boot: "
+            + "; ".join(f"{v.role}: {v.reason}" for v in crit)
+        )
 
 async def run_console():
     """Interactive CLI Mode"""
