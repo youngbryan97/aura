@@ -459,11 +459,68 @@ async def _boot_runtime_orchestrator(
     if readiness_context and hasattr(orchestrator, "_ensure_inference_gate_ready"):
         await orchestrator._ensure_inference_gate_ready(context=readiness_context)
 
+    # Register the runtime singletons that the ServiceManifest names as
+    # canonical owners but that did not previously live in ServiceContainer.
+    # Done before lock_registration so they show up to the manifest check.
+    _register_runtime_singletons(orchestrator)
+
     ServiceContainer.lock_registration()
     _enforce_service_manifest(ready_label)
     await _enforce_boot_probes(ready_label)
     logger.info("🛡️ Registry Locked. Aura Ready (%s).", ready_label)
     return orchestrator
+
+
+def _register_runtime_singletons(orchestrator: Any) -> None:
+    """Register module-level singletons + orchestrator-attached components
+    with ServiceContainer so the manifest verification finds canonical owners.
+
+    Surfaces registered:
+      - task_tracker / task_supervisor (alias)
+      - shutdown_coordinator
+      - output_gate (orchestrator attribute -> registry)
+      - aura_runtime / orchestrator (alias)
+    """
+    try:
+        from core.container import ServiceContainer
+    except Exception:
+        return
+
+    try:
+        from core.utils.task_tracker import get_task_tracker
+
+        tracker = get_task_tracker()
+        if not ServiceContainer.has("task_tracker"):
+            ServiceContainer.register_instance("task_tracker", tracker, required=False)
+        if not ServiceContainer.has("task_supervisor"):
+            ServiceContainer.register_instance("task_supervisor", tracker, required=False)
+    except Exception as exc:
+        logger.debug("task_tracker registration skipped: %s", exc)
+
+    try:
+        from core.runtime.shutdown_coordinator import get_shutdown_coordinator
+
+        coord = get_shutdown_coordinator()
+        if not ServiceContainer.has("shutdown_coordinator"):
+            ServiceContainer.register_instance("shutdown_coordinator", coord, required=False)
+    except Exception as exc:
+        logger.debug("shutdown_coordinator registration skipped: %s", exc)
+
+    output_gate = getattr(orchestrator, "output_gate", None)
+    if output_gate is not None:
+        try:
+            if not ServiceContainer.has("output_gate"):
+                ServiceContainer.register_instance("output_gate", output_gate, required=False)
+        except Exception as exc:
+            logger.debug("output_gate registration skipped: %s", exc)
+
+    try:
+        if not ServiceContainer.has("orchestrator"):
+            ServiceContainer.register_instance("orchestrator", orchestrator, required=False)
+        if not ServiceContainer.has("aura_runtime"):
+            ServiceContainer.register_instance("aura_runtime", orchestrator, required=False)
+    except Exception as exc:
+        logger.debug("orchestrator registration skipped: %s", exc)
 
 
 async def _enforce_boot_probes(ready_label: str) -> None:

@@ -138,6 +138,10 @@ async def probe_state_mutate_read(
 
 
 async def probe_governance_approve_deny(*, will: Any = None) -> ProbeResult:
+    """Smoke-test that UnifiedWill.decide is reachable. Real signature:
+
+        decide(content, source, domain, *, priority, is_critical, context)
+    """
     if will is None:
         try:
             from core.will import get_will
@@ -149,15 +153,35 @@ async def probe_governance_approve_deny(*, will: Any = None) -> ProbeResult:
     if decide is None:
         return ProbeResult(name="governance_approve_deny", ok=False, detail="will.decide missing")
     try:
-        approve = decide(domain="boot_probe", action="approve_smoke", cause="boot_probe", context={})
-        deny = decide(domain="boot_probe", action="deny_smoke", cause="boot_probe", context={"deny": True})
+        from core.will import ActionDomain
+
+        smoke_domain = ActionDomain.STATE_MUTATION
+    except Exception:
+        smoke_domain = "state_mutation"
+    try:
+        approve = decide(
+            content="boot_probe.approve_smoke",
+            source="boot_probe",
+            domain=smoke_domain,
+            priority=0.1,
+            context={"smoke": "approve"},
+        )
+        deny = decide(
+            content="boot_probe.deny_smoke",
+            source="boot_probe",
+            domain=smoke_domain,
+            priority=0.1,
+            context={"smoke": "deny"},
+        )
         if asyncio.iscoroutine(approve):
             approve = await approve
         if asyncio.iscoroutine(deny):
             deny = await deny
     except BaseException as exc:
         return ProbeResult(name="governance_approve_deny", ok=False, detail=f"decide raised: {exc!r}")
-    return ProbeResult(name="governance_approve_deny", ok=True)
+    if approve is None and deny is None:
+        return ProbeResult(name="governance_approve_deny", ok=False, detail="both decisions returned None")
+    return ProbeResult(name="governance_approve_deny", ok=True, detail="approve+deny round-trip ok")
 
 
 async def probe_output_gate_dry_emit(*, output_gate: Any = None) -> ProbeResult:
