@@ -425,6 +425,49 @@ def test_degraded_events_forward_schedules_async_on_error(monkeypatch):
     assert calls[0]["goal"] == "reason"
 
 
+def test_record_degraded_event_skips_background_warning_forward(monkeypatch):
+    from core.health import degraded_events as de_mod
+
+    forwarded = []
+
+    def fake_forward(key, event, *, exc=None):
+        forwarded.append((key, dict(event), exc))
+
+    monkeypatch.setattr(de_mod, "_forward_to_error_intelligence", fake_forward)
+
+    de_mod.record_degraded_event(
+        "stability_guardian",
+        "degraded_report",
+        detail="tick_rate:Event loop lag is elevated",
+        severity="warning",
+        classification="background_degraded",
+    )
+
+    assert forwarded == []
+
+
+def test_record_degraded_event_keeps_foreground_warning_forward(monkeypatch):
+    from core.health import degraded_events as de_mod
+
+    forwarded = []
+
+    def fake_forward(key, event, *, exc=None):
+        forwarded.append((key, dict(event), exc))
+
+    monkeypatch.setattr(de_mod, "_forward_to_error_intelligence", fake_forward)
+
+    de_mod.record_degraded_event(
+        "mlx_client",
+        "request_lock_timeout",
+        detail="Aura-32B-v2 owner=Cortex held=13.5s",
+        severity="warning",
+        classification="foreground_blocking",
+    )
+
+    assert len(forwarded) == 1
+    assert forwarded[0][1]["classification"] == "foreground_blocking"
+
+
 @pytest.mark.asyncio
 async def test_state_vault_uses_repository_bounded_shm_sync():
     from core.state.vault import StateVaultActor
@@ -450,6 +493,41 @@ async def test_state_vault_uses_repository_bounded_shm_sync():
     await StateVaultActor._update_shared_memory_async(actor, DummyState())
 
     assert calls == [("serialize", 3), ("sync", 3, '{"version": 3}')]
+
+
+@pytest.mark.asyncio
+async def test_state_vault_shm_sync_runs_inside_governed_scope(monkeypatch):
+    from core.governance_context import require_governance
+    from core.state.vault import StateVaultActor
+
+    calls = []
+
+    class DummyRepo:
+        def _serialize(self, state):
+            calls.append(("serialize", state.version))
+            return '{"version": 7}'
+
+        async def _sync_to_shm(self, state, serialized_state):
+            token = require_governance(
+                "state.sync_to_shm",
+                strict=True,
+                allowed_domains=("state_mutation",),
+            )
+            calls.append(("sync", state.version, serialized_state, token.domain))
+            return "full"
+
+    actor = StateVaultActor.__new__(StateVaultActor)
+    actor.repo = DummyRepo()
+    actor.shm_transport = None
+
+    monkeypatch.setattr("core.governance_context.governance_runtime_active", lambda: True)
+
+    class DummyState:
+        version = 7
+
+    await StateVaultActor._update_shared_memory_async(actor, DummyState())
+
+    assert calls == [("serialize", 7), ("sync", 7, '{"version": 7}', "state_mutation")]
 
 
 def test_governance_policy_blocks_legacy_user_shortcuts_by_default(monkeypatch):

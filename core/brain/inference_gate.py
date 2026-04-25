@@ -457,6 +457,11 @@ class InferenceGate:
             lane["last_progress_at"] = float(raw.get("last_progress_at", 0.0) or 0.0)
             lane["warmup_attempted"] = bool(raw.get("warmup_attempted", False))
             lane["warmup_in_flight"] = bool(raw.get("warmup_in_flight", lane["warmup_in_flight"]))
+            lane["foreground_owned"] = bool(raw.get("foreground_owned", False))
+            lane["foreground_owner"] = str(raw.get("foreground_owner", "") or "")
+            lane["active_generations"] = int(raw.get("active_generations", 0) or 0)
+            lane["request_age_s"] = float(raw.get("request_age_s", 0.0) or 0.0)
+            lane["current_request_started_at"] = float(raw.get("current_request_started_at", 0.0) or 0.0)
             if lane["conversation_ready"]:
                 lane["foreground_endpoint"] = PRIMARY_ENDPOINT
         # [STABILITY v51] If the prewarm task completed (success or failure),

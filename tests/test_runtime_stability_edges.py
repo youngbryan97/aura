@@ -101,6 +101,31 @@ class TestAffectBroadcastBackpressure(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(result)
         self.assertEqual(engine._llm_failure_count, 0)
 
+    async def test_affect_appraisal_skips_llm_when_foreground_turn_is_active(self):
+        with patch("core.affect.damasio_v2.PhysicalActuator", return_value=MagicMock()):
+            from core.affect.damasio_v2 import AffectEngineV2
+
+            engine = AffectEngineV2()
+
+        guarded_gate = MagicMock()
+        guarded_gate._foreground_user_turn_active.return_value = True
+        guarded_gate.get_conversation_status.return_value = {
+            "conversation_ready": True,
+            "state": "ready",
+            "warmup_in_flight": False,
+            "foreground_owned": False,
+            "active_generations": 0,
+            "request_age_s": 0.0,
+        }
+        guarded_gate.generate = AsyncMock(side_effect=AssertionError("LLM appraisal should have been deferred"))
+
+        with patch("core.container.ServiceContainer.get", return_value=guarded_gate), \
+             patch("core.brain.llm.mlx_client._foreground_owner_active", return_value=False):
+            result = await engine.react("I feel frustrated and need to reflect on recent interactions.")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(engine._llm_failure_count, 0)
+
 
 class TestEternalMemoryCaching(unittest.IsolatedAsyncioTestCase):
     async def test_eternal_memory_reuses_recent_summary_cache(self):

@@ -5,6 +5,7 @@ import os
 import json
 import traceback
 from multiprocessing import Process, Pipe
+from types import SimpleNamespace
 from typing import Dict, Any, Optional
 
 from .state_repository import StateRepository, get_state_shm_size_bytes
@@ -153,7 +154,16 @@ class StateVaultActor:
         """Async wrapper for non-blocking SHM sync."""
         try:
             serialized_state = await asyncio.to_thread(self.repo._serialize, state)
-            mode = await self.repo._sync_to_shm(state, serialized_state)
+            from core.governance_context import governed_scope
+
+            sync_decision = SimpleNamespace(
+                receipt_id=f"state_vault_shm_sync:{getattr(state, 'version', 'unknown')}",
+                domain="state_mutation",
+                source="state_vault.sync_shared_memory",
+                constraints={"path": "shared_memory", "state_version": getattr(state, "version", None)},
+            )
+            async with governed_scope(sync_decision):
+                mode = await self.repo._sync_to_shm(state, serialized_state)
             logger.debug("SHM Updated: Version %s (%s)", state.version, mode)
         except Exception as e:
             logger.error(f"SHM Update Failed: {e}")

@@ -707,7 +707,25 @@ class AffectEngineV2:
                     logger.debug("Suppressed Exception: %s", _exc)
             if not gate or not hasattr(gate, "get_conversation_status"):
                 return False
+            if hasattr(gate, "_foreground_user_turn_active"):
+                try:
+                    if gate._foreground_user_turn_active():
+                        return True
+                except Exception as _exc:
+                    logger.debug("Suppressed Exception: %s", _exc)
+            if hasattr(gate, "_foreground_owner_active"):
+                try:
+                    if gate._foreground_owner_active():
+                        return True
+                except Exception as _exc:
+                    logger.debug("Suppressed Exception: %s", _exc)
             lane = gate.get_conversation_status() or {}
+            if bool(lane.get("foreground_owned")):
+                return True
+            if int(lane.get("active_generations", 0) or 0) > 0:
+                return True
+            if float(lane.get("request_age_s", 0.0) or 0.0) > 0.0:
+                return True
             if lane.get("conversation_ready"):
                 return False
             lane_state = str(lane.get("state", "") or "").strip().lower()

@@ -19,6 +19,8 @@ class ContinuousSensoryBuffer:
         self.sct = None
         self._mss_module = None
         self._screen_probe_cooldown_until = 0.0
+        self._screen_permission_notice_at = 0.0
+        self._screen_permission_notice_interval_s = 300.0
         try:
             import mss
 
@@ -89,9 +91,17 @@ class ContinuousSensoryBuffer:
             check = await guard.check_permission(PermissionType.SCREEN)
             granted = bool(check.get("granted", False))
             if not granted:
-                logger.info(
-                    "👁️ [VISION] Continuous screen buffer deferred: screen permission is not active for this app identity."
-                )
+                now = time.monotonic()
+                if (
+                    self._screen_permission_notice_at <= 0.0
+                    or (now - self._screen_permission_notice_at) >= self._screen_permission_notice_interval_s
+                ):
+                    logger.info(
+                        "👁️ [VISION] Continuous screen buffer deferred: screen permission is not active for this app identity."
+                    )
+                    self._screen_permission_notice_at = now
+            else:
+                self._screen_permission_notice_at = 0.0
             return granted
         except Exception as exc:
             logger.debug("ContinuousSensoryBuffer permission probe failed: %s", exc)

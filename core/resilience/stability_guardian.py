@@ -515,6 +515,7 @@ class StabilityGuardian:
             )
             thread_map = {thread.ident: thread for thread in threading.enumerate() if thread.ident is not None}
             main_ident = threading.main_thread().ident
+            main_block: Optional[str] = None
             blocks: list[str] = []
             for thread_id, frame in sys._current_frames().items():
                 stack = "".join(traceback.format_stack(frame))
@@ -522,14 +523,16 @@ class StabilityGuardian:
                     continue
                 thread = thread_map.get(thread_id)
                 thread_name = thread.name if thread else f"thread-{thread_id}"
-                blocks.append(f"[{thread_name} #{thread_id}]\n{stack.strip()}")
+                block = f"[{thread_name} #{thread_id}]\n{stack.strip()}"
+                if thread_id == main_ident:
+                    main_block = block
+                else:
+                    blocks.append(block)
 
-            if not blocks:
+            if main_block is None and not blocks:
                 frame = sys._current_frames().get(main_ident)
                 if frame is not None:
-                    blocks.append(
-                        f"[main-thread #{main_ident}]\n{''.join(traceback.format_stack(frame)).strip()}"
-                    )
+                    main_block = f"[main-thread #{main_ident}]\n{''.join(traceback.format_stack(frame)).strip()}"
 
             loop = asyncio.get_running_loop()
             live_tasks = sorted(
@@ -539,8 +542,12 @@ class StabilityGuardian:
             if live_tasks:
                 task_block = "\n[asyncio tasks]\n" + "\n".join(f"- {name}" for name in live_tasks[:25])
 
-            dump = "\n\n".join(blocks)
-            logger.error("🚨 [StabilityGuardian] %s. THREAD DUMP:%s\n%s", label, task_block, dump[:3000])
+            ordered_blocks: list[str] = []
+            if main_block:
+                ordered_blocks.append(main_block)
+            ordered_blocks.extend(sorted(blocks, key=len, reverse=True)[:6])
+            dump = "\n\n".join(ordered_blocks)
+            logger.error("🚨 [StabilityGuardian] %s. THREAD DUMP:%s\n%s", label, task_block, dump[:6000])
             return True
         except Exception as exc:
             logger.debug("StabilityGuardian thread dump failed: %s", exc)

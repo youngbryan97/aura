@@ -103,7 +103,11 @@ def record_degraded_event(
         _EVENTS.append(dict(event))
 
     _forward_to_terminal_monitor(dict(event))
-    if severity in {"error", "critical", "warning"}:
+    should_forward_to_error_intelligence = (
+        severity in {"error", "critical"}
+        or classification == "foreground_blocking"
+    )
+    if should_forward_to_error_intelligence:
         _forward_to_error_intelligence(key, dict(event), exc=exc)
     return dict(event)
 
