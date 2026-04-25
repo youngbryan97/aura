@@ -920,7 +920,10 @@ class MetabolicCoordinator:
             if idle >= threshold:
                 orch.boredom = int(idle)
                 logger.info("🧠 Accelerated Thought (Volition: L%d, Factor: %.1fx, Threshold: %.1fs)", volition, factor, threshold)
-                orch._current_thought_task = get_task_tracker().track_task(asyncio.create_task(orch._perform_autonomous_thought()))
+                orch._current_thought_task = get_task_tracker().create_task(
+                    orch._perform_autonomous_thought(),
+                    name="metabolic.autonomous_thought",
+                )
 
     # ------------------------------------------------------------------
     # Terminal Self-Heal
@@ -946,9 +949,10 @@ class MetabolicCoordinator:
                         )
                     runner = getattr(orch, "_run_cognitive_loop", None) or getattr(orch, "_handle_incoming_message", None)
                     if runner is not None:
-                        orch._current_thought_task = get_task_tracker().track_task(asyncio.create_task(
-                            runner(error_goal['objective'], origin="terminal_monitor")
-                        ))
+                        orch._current_thought_task = get_task_tracker().create_task(
+                            runner(error_goal['objective'], origin="terminal_monitor"),
+                            name="metabolic.terminal_self_heal",
+                        )
         except Exception as e:
             try:
                 from core.health.degraded_events import record_degraded_event
@@ -985,12 +989,15 @@ class MetabolicCoordinator:
                 time_str=orch._get_current_time_str(),
             )
             try:
-                reflect_task = asyncio.create_task(reflect_coro)
+                reflect_task = get_task_tracker().create_task(
+                    reflect_coro,
+                    name="metabolic.background_reflection",
+                )
             except RuntimeError:
                 reflect_coro.close()
             else:
                 try:
-                    get_task_tracker().track_task(reflect_task).add_done_callback(_bg_task_exception_handler)
+                    reflect_task.add_done_callback(_bg_task_exception_handler)
                 except Exception:
                     reflect_task.cancel()
                     raise
@@ -1010,12 +1017,15 @@ class MetabolicCoordinator:
             original_msg = message.replace("Impulse: ", "").replace("Thought: ", "")
             learn_coro = orch._learn_from_exchange(original_msg, response)
             try:
-                learn_task = asyncio.create_task(learn_coro)
+                learn_task = get_task_tracker().create_task(
+                    learn_coro,
+                    name="metabolic.background_learning",
+                )
             except RuntimeError:
                 learn_coro.close()
             else:
                 try:
-                    get_task_tracker().track_task(learn_task).add_done_callback(_bg_task_exception_handler)
+                    learn_task.add_done_callback(_bg_task_exception_handler)
                 except Exception:
                     learn_task.cancel()
                     raise

@@ -21,6 +21,8 @@ from core.backup import BackupManager
 from core.bus.actor_bus import ActorBus
 from core.bus.local_pipe_bus import LocalPipeBus
 from core.bus.shared_mem_bus import SharedMemoryTransport
+from core.conversation_loop import AutonomousConversationLoop
+from core.coordinators.cognitive_coordinator import CognitiveCoordinator
 from core.intent_gate import IntentClassifierQueue, RouteKind
 from core.kernel.bridge import AffectBridge
 from core.memory.memory_facade import MemoryFacade
@@ -28,6 +30,8 @@ from core.memory_synthesizer import MemorySynthesizer
 from core.mind_tick import MindTick
 from core.motivation.engine import MotivationEngine
 from core.motivation.intention import DriveType, Intention
+from core.coordinators.metabolic_coordinator import MetabolicCoordinator
+from core.coordinators.message_coordinator import MessageCoordinator
 from core.orchestrator.main import RobustOrchestrator
 from core.proactive_communication import ProactiveCommunicationManager
 from core.process_manager import ManagedProcess, ProcessConfig, ProcessManager
@@ -2032,6 +2036,454 @@ async def test_system_governor_health_loop_is_task_tracked(monkeypatch):
         created["task"].cancel()
         with pytest.raises(asyncio.CancelledError):
             await created["task"]
+
+
+@pytest.mark.asyncio
+async def test_conversation_loop_start_is_task_tracked(monkeypatch):
+    import core.conversation_loop as conversation_loop_module
+
+    created = {}
+    loop = AutonomousConversationLoop(
+        planner=SimpleNamespace(),
+        executor=SimpleNamespace(),
+        drive_system=SimpleNamespace(),
+        memory=SimpleNamespace(),
+        brain=SimpleNamespace(),
+    )
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr(conversation_loop_module, "get_task_tracker", lambda: _Tracker())
+
+    loop.start()
+    try:
+        assert created["name"] == "AuraAutonomousLoop"
+        assert loop.background_thread is created["task"]
+    finally:
+        loop.stop()
+        with pytest.raises(asyncio.CancelledError):
+            await loop.background_thread
+
+
+@pytest.mark.asyncio
+async def test_conversation_loop_reflection_task_is_tracked(monkeypatch):
+    import core.conversation_loop as conversation_loop_module
+
+    created = {}
+    release = asyncio.Event()
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    class _Transcript:
+        def add(self, *_args, **_kwargs):
+            return None
+
+        def get_context_window(self, n=50):
+            return []
+
+    async def _reflect():
+        await release.wait()
+
+    brain = SimpleNamespace(generate=AsyncMock(return_value="ok"))
+    loop = AutonomousConversationLoop(
+        planner=SimpleNamespace(),
+        executor=SimpleNamespace(),
+        drive_system=SimpleNamespace(satisfy=lambda *_args, **_kwargs: None),
+        memory=SimpleNamespace(),
+        brain=brain,
+    )
+    loop.hierarchical_orch = SimpleNamespace(maybe_compact=AsyncMock(return_value=None))
+    loop.conversation_reflector = SimpleNamespace(
+        maybe_reflect=lambda *_args, **_kwargs: _reflect()
+    )
+
+    monkeypatch.setattr(conversation_loop_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(conversation_loop_module, "get_transcript", lambda: _Transcript())
+
+    try:
+        result = await loop.process_user_input("hello there")
+        assert result["ok"] is True
+        assert created["name"] == "conversation_loop_reflection"
+    finally:
+        task = created.get("task")
+        if task is not None and not task.done():
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+
+@pytest.mark.asyncio
+async def test_message_coordinator_acquire_next_message_tracks_liquid_state_update(monkeypatch):
+    import core.coordinators.message_coordinator as message_coordinator_module
+
+    created = {}
+    queue_obj = asyncio.Queue()
+    queue_obj.put_nowait("hello")
+    orch = SimpleNamespace(
+        message_queue=queue_obj,
+        liquid_state=SimpleNamespace(update=AsyncMock(return_value=None)),
+        _last_thought_time=0.0,
+    )
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr(message_coordinator_module, "get_task_tracker", lambda: _Tracker())
+
+    coord = MessageCoordinator(orch)
+    message = await coord.acquire_next_message()
+    await asyncio.sleep(0)
+
+    assert message == "hello"
+    assert created["name"] == "message_coordinator.liquid_state_update"
+    orch.liquid_state.update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_message_coordinator_dispatch_uses_task_tracker(monkeypatch):
+    import core.coordinators.message_coordinator as message_coordinator_module
+    import core.orchestrator.types as orchestrator_types_module
+
+    created = {}
+    callbacks = []
+    orch = SimpleNamespace()
+    coord = MessageCoordinator(orch)
+    coord.handle_incoming_message = AsyncMock(return_value=None)
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr(message_coordinator_module, "task_tracker", _Tracker())
+    monkeypatch.setattr(orchestrator_types_module, "_bg_task_exception_handler", lambda task: callbacks.append(task))
+
+    coord.dispatch_message("hi there", origin="voice")
+    await asyncio.sleep(0)
+    await created["task"]
+    await asyncio.sleep(0)
+
+    assert created["name"] == "message_coordinator.dispatch"
+    coord.handle_incoming_message.assert_awaited_once_with("hi there", origin="voice")
+    assert callbacks == [created["task"]]
+
+
+@pytest.mark.asyncio
+async def test_message_coordinator_handle_incoming_message_tracks_reply_task(monkeypatch):
+    import core.coordinators.message_coordinator as message_coordinator_module
+
+    created = {}
+    orch = SimpleNamespace(
+        hooks=SimpleNamespace(trigger=AsyncMock(return_value=None)),
+        _current_thought_task=None,
+        status=SimpleNamespace(is_processing=False),
+        intent_router=SimpleNamespace(classify=AsyncMock(return_value={"kind": "test"})),
+        state_machine=SimpleNamespace(execute=AsyncMock(return_value="reply text")),
+        conversation_history=[],
+        AI_ROLE="Aura",
+        reply_queue=asyncio.Queue(),
+    )
+    coord = MessageCoordinator(orch)
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr(message_coordinator_module, "task_tracker", _Tracker())
+
+    await coord.handle_incoming_message("hello", origin="user")
+    await orch._current_thought_task
+
+    assert created["name"] == "message_coordinator.execute_and_reply"
+    assert orch._current_thought_task is created["task"]
+    assert orch.conversation_history[-1] == {"role": "Aura", "content": "reply text"}
+    assert orch.reply_queue.get_nowait() == "reply text"
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_trigger_background_reflection_is_task_tracked(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+    import core.orchestrator.types as orchestrator_types_module
+
+    created = {}
+    callbacks = []
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    release = asyncio.Event()
+
+    async def _reflect():
+        await release.wait()
+
+    orch = SimpleNamespace(
+        conversation_history=[],
+        cognitive_engine=SimpleNamespace(),
+        _get_current_mood=lambda: "calm",
+        _get_current_time_str=lambda: "now",
+    )
+    coord = MetabolicCoordinator(orch=orch)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(
+        "core.conversation_reflection.get_reflector",
+        lambda: SimpleNamespace(maybe_reflect=lambda *_args, **_kwargs: _reflect()),
+    )
+    monkeypatch.setattr(orchestrator_types_module, "_bg_task_exception_handler", lambda task: callbacks.append(task))
+
+    coord.trigger_background_reflection("hi")
+    await asyncio.sleep(0)
+
+    try:
+        assert created["name"] == "metabolic.background_reflection"
+        assert callbacks == []
+    finally:
+        created["task"].cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await created["task"]
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_trigger_background_learning_is_task_tracked(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+    import core.orchestrator.types as orchestrator_types_module
+
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    release = asyncio.Event()
+
+    async def _learn(_msg, _response):
+        await release.wait()
+
+    curiosity_calls = []
+    orch = SimpleNamespace(
+        _learn_from_exchange=_learn,
+        curiosity=SimpleNamespace(
+            extract_curiosity_from_conversation=lambda msg: curiosity_calls.append(msg)
+        ),
+    )
+    coord = MetabolicCoordinator(orch=orch)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(orchestrator_types_module, "_bg_task_exception_handler", lambda _task: None)
+
+    coord.trigger_background_learning("Thought: hello", "response")
+    await asyncio.sleep(0)
+
+    try:
+        assert created["name"] == "metabolic.background_learning"
+        assert curiosity_calls == ["hello"]
+    finally:
+        created["task"].cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await created["task"]
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_autonomous_thought_is_task_tracked(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    orch = SimpleNamespace(
+        cognitive_engine=SimpleNamespace(singularity_factor=1.0),
+        _current_thought_task=None,
+        _last_thought_time=time.time() - 120.0,
+        singularity_monitor=None,
+        kernel=SimpleNamespace(volition_level=2),
+        boredom=0,
+        _perform_autonomous_thought=AsyncMock(return_value=None),
+    )
+    coord = MetabolicCoordinator(orch=orch)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(metabolic_module, "runtime_mode_value", lambda *_args, **_kwargs: 45.0)
+
+    await coord.trigger_autonomous_thought(False)
+    await orch._current_thought_task
+
+    assert created["name"] == "metabolic.autonomous_thought"
+    orch._perform_autonomous_thought.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_terminal_self_heal_is_task_tracked(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    modifier_calls = []
+
+    class _Monitor:
+        async def check_for_errors(self):
+            return {
+                "objective": "repair thing",
+                "error": "boom",
+                "command": "run cmd",
+                "output": "trace",
+            }
+
+    async def _runner(_objective, origin="terminal_monitor"):
+        return origin
+
+    orch = SimpleNamespace(
+        _current_thought_task=None,
+        self_modifier=SimpleNamespace(on_error=lambda *args, **kwargs: modifier_calls.append((args, kwargs))),
+        _run_cognitive_loop=_runner,
+        _handle_incoming_message=None,
+    )
+    coord = MetabolicCoordinator(orch=orch)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr("core.terminal_monitor.get_terminal_monitor", lambda: _Monitor())
+
+    await coord.run_terminal_self_heal()
+    await orch._current_thought_task
+
+    assert created["name"] == "metabolic.terminal_self_heal"
+    assert modifier_calls
+
+
+@pytest.mark.asyncio
+async def test_cognitive_coordinator_voice_tts_is_task_tracked(monkeypatch):
+    import core.coordinators.cognitive_coordinator as cognitive_module
+
+    created = {}
+    reflections = []
+    learns = []
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    trace = SimpleNamespace(record_step=lambda *args, **kwargs: None, save=lambda: None)
+    drives = SimpleNamespace(satisfy=AsyncMock(return_value=None))
+    ears_engine = SimpleNamespace(synthesize_speech=AsyncMock(return_value=None))
+    orch = SimpleNamespace(
+        meta_learning=None,
+        social=None,
+        self_modifier=None,
+        affect_engine=None,
+        cognition=None,
+        _epistemic_engine=SimpleNamespace(
+            should_ask_for_clarification=lambda _message: (False, ""),
+            apply_epistemic_humility=lambda _message, response: response,
+        ),
+        _trigger_background_reflection=lambda response: reflections.append(response),
+        _trigger_background_learning=lambda message, response: learns.append((message, response)),
+        _last_thought_time=0.0,
+        drives=drives,
+        reply_queue=asyncio.Queue(),
+        ears=SimpleNamespace(_engine=ears_engine),
+        _filter_output=lambda text: text,
+    )
+    coord = CognitiveCoordinator.__new__(CognitiveCoordinator)
+    coord.orch = orch
+    coord.apply_constitutional_guard = AsyncMock(side_effect=lambda response: response)
+    coord.generate_fallback = AsyncMock(return_value="fallback")
+
+    monkeypatch.setattr("core.utils.task_tracker.task_tracker", _Tracker())
+
+    result = await coord.finalize_response("hello", "voice reply", "voice", trace, [])
+    await created["task"]
+
+    assert result == "voice reply"
+    assert created["name"] == "cognitive_coordinator.voice_tts"
+    ears_engine.synthesize_speech.assert_awaited_once_with("voice reply")
+    assert reflections == ["voice reply"]
+    assert learns == [("hello", "voice reply")]
+
+
+@pytest.mark.asyncio
+async def test_cognitive_coordinator_surprise_learning_is_task_tracked(monkeypatch):
+    import core.coordinators.cognitive_coordinator as cognitive_module
+
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    class _ExpectationEngine:
+        def __init__(self, _engine):
+            pass
+
+        async def calculate_surprise(self, *_args, **_kwargs):
+            return 0.8
+
+        async def update_beliefs_from_result(self, *_args, **_kwargs):
+            return None
+
+    orch = SimpleNamespace(
+        cognitive_engine=SimpleNamespace(),
+        _history_lock=asyncio.Lock(),
+        conversation_history=[],
+    )
+    coord = CognitiveCoordinator.__new__(CognitiveCoordinator)
+    coord.orch = orch
+    thought = SimpleNamespace(expectation="expected result")
+
+    monkeypatch.setattr("core.utils.task_tracker.task_tracker", _Tracker())
+    monkeypatch.setattr(
+        "core.world_model.expectation_engine.ExpectationEngine",
+        _ExpectationEngine,
+    )
+
+    result = await coord.check_surprise_and_learn(thought, "actual result", "web_search")
+
+    assert result is True
+    assert created["name"] == "cognitive_coordinator.surprise_learning"
+    assert orch.conversation_history[-1]["role"] == "internal"
 
 
 @pytest.mark.asyncio

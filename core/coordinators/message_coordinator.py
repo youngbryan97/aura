@@ -10,6 +10,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from core.tagged_reply_queue import reply_delivery_scope
+from core.utils.task_tracker import get_task_tracker, task_tracker
 from core.utils.queues import unpack_priority_message
 
 logger = logging.getLogger(__name__)
@@ -35,8 +36,10 @@ class MessageCoordinator:
             logger.info("Processing queued message: %s", str(msg)[:100])
             if hasattr(orch, 'liquid_state') and orch.liquid_state:
                 try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(orch.liquid_state.update(delta_curiosity=0.2, delta_frustration=-0.1))
+                    get_task_tracker().create_task(
+                        orch.liquid_state.update(delta_curiosity=0.2, delta_frustration=-0.1),
+                        name="message_coordinator.liquid_state_update",
+                    )
                 except RuntimeError as _e:
                     logger.debug('Ignored RuntimeError in message_coordinator.py: %s', _e)
             orch._last_thought_time = time.time()
@@ -61,7 +64,6 @@ class MessageCoordinator:
 
     def dispatch_message(self, message: str, origin: str = "user"):
         """Dispatch message to the async handler with bounded concurrency."""
-        from core.utils.task_tracker import task_tracker
         from core.orchestrator.types import _bg_task_exception_handler
         orch = self.orch
         if not hasattr(orch, "_dispatch_semaphore"):
@@ -69,7 +71,10 @@ class MessageCoordinator:
         async def _bounded_handler():
             async with orch._dispatch_semaphore:
                 await self.handle_incoming_message(message, origin=origin)
-        task_tracker.track_task(asyncio.create_task(_bounded_handler())).add_done_callback(_bg_task_exception_handler)
+        task_tracker.create_task(
+            _bounded_handler(),
+            name="message_coordinator.dispatch",
+        ).add_done_callback(_bg_task_exception_handler)
         self.emit_dispatch_telemetry(message)
 
     def emit_dispatch_telemetry(self, message: str):
@@ -159,7 +164,6 @@ class MessageCoordinator:
 
     async def handle_incoming_message(self, message: Any, origin: str = "user"):
         """Route an incoming message through the deterministic State Machine pipeline."""
-        from core.utils.task_tracker import task_tracker
         orch = self.orch
         payload_context = {}
         if isinstance(message, tuple):
@@ -211,7 +215,10 @@ class MessageCoordinator:
                     logger.error("State machine execution failed: %s", e)
                 finally:
                     orch.status.is_processing = False
-            orch._current_thought_task = task_tracker.track_task(asyncio.create_task(_execute_and_reply()))
+            orch._current_thought_task = task_tracker.create_task(
+                _execute_and_reply(),
+                name="message_coordinator.execute_and_reply",
+            )
         except Exception as e:
             logger.error("Error in handle_incoming_message: %s", e)
             orch.status.is_processing = False

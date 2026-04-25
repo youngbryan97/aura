@@ -17,6 +17,7 @@ from queue import Empty, Queue
 from typing import Any, Dict, List, Optional
 
 from core.conversation.unified_transcript import UnifiedTranscript
+from core.utils.task_tracker import get_task_tracker
 
 def get_transcript() -> UnifiedTranscript:
     global _transcript
@@ -92,7 +93,10 @@ class AutonomousConversationLoop:
         self.is_running = True
         try:
             self._main_loop = asyncio.get_running_loop()
-            self.background_thread = self._main_loop.create_task(self._background_loop(), name="AuraAutonomousLoop")
+            self.background_thread = get_task_tracker().create_task(
+                self._background_loop(),
+                name="AuraAutonomousLoop",
+            )
             logger.info("✓ Autonomous conversation loop started")
         except RuntimeError:
             logger.error("No running event loop found when starting AutonomousConversationLoop")
@@ -142,7 +146,10 @@ class AutonomousConversationLoop:
             # Background the reflection task to avoid blocking the main interaction
             reflect_coro = self.conversation_reflector.maybe_reflect(self.conversation_history, self.brain)
             try:
-                reflect_task = asyncio.create_task(reflect_coro)
+                reflect_task = get_task_tracker().create_task(
+                    reflect_coro,
+                    name="conversation_loop_reflection",
+                )
             except RuntimeError:
                 reflect_coro.close()
             except Exception:
@@ -152,15 +159,8 @@ class AutonomousConversationLoop:
                 if not (asyncio.isfuture(reflect_task) or isinstance(reflect_task, asyncio.Task)):
                     reflect_coro.close()
                     reflect_task = None
-                try:
-                    if reflect_task is not None:
-                        from core.utils.task_tracker import get_task_tracker
-
-                        get_task_tracker().track_task(reflect_task, name="conversation_loop_reflection")
-                except Exception:
-                    if reflect_task is not None:
-                        reflect_task.cancel()
-                    raise
+                if reflect_task is None:
+                    reflect_coro.close()
         
         # Update stats
         self.stats["user_goals"] += 1

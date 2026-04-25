@@ -126,7 +126,10 @@ class CognitiveCoordinator:
                 logger.debug("🔇 Internal Response (Origin: %s) suppressed from UI.", origin)
         if origin == "voice" and orch.ears and hasattr(orch.ears, "_engine"):
             logger.info("🎙️ Origin was voice: Triggering TTS synthesis...")
-            task_tracker.track_task(asyncio.create_task(orch.ears._engine.synthesize_speech(response)))
+            task_tracker.create_task(
+                orch.ears._engine.synthesize_speech(response),
+                name="cognitive_coordinator.voice_tts",
+            )
         response = orch._filter_output(response)
         return response
 
@@ -412,7 +415,10 @@ class CognitiveCoordinator:
             from core.world_model.expectation_engine import ExpectationEngine
             ee = ExpectationEngine(orch.cognitive_engine)
             surprise = await ee.calculate_surprise(thought.expectation, str(result)[:500])
-            task_tracker.track_task(asyncio.create_task(ee.update_beliefs_from_result(tool_name, str(result)[:1000])))
+            task_tracker.create_task(
+                ee.update_beliefs_from_result(tool_name, str(result)[:1000]),
+                name="cognitive_coordinator.surprise_learning",
+            )
             if surprise > 0.7:
                 logger.info("😲 HIGH SURPRISE: Triggering re-think.")
                 async with orch._history_lock:

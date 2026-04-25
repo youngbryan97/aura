@@ -171,6 +171,9 @@ Status:
   - lazy runtime initialization for `Scheduler` async primitives plus tracked scheduler main/task loops
   - tracked long-lived service loops for `ContinuousCognitionLoop`, `SessionGuardian`, and `SystemGovernor`
   - tracked actor-owned background loops for `StateVaultActor` and `SensoryGateActor`
+  - tracked coordinator-side task ownership across `AutonomousConversationLoop`,
+    `MessageCoordinator`, `MetabolicCoordinator`, and key
+    `CognitiveCoordinator` background paths
 
 ## Deferred Backlog Additions
 
