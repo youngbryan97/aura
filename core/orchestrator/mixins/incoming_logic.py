@@ -40,13 +40,19 @@ class IncomingLogicMixin:
                 if message.startswith(prefix):
                     coro = self._route_prefixed_message(message, prefix, origin)
                     # v31.1: Await the task to ensure serialization via the dispatch semaphore.
-                    self._current_thought_task = tracker.track_task(asyncio.create_task(coro))
+                    self._current_thought_task = tracker.create_task(
+                        coro,
+                        name=f"incoming_logic.prefixed.{prefix.strip('[]:').lower() or 'tag'}",
+                    )
                     await self._current_thought_task
                     return
 
         # Default path
         coro = self._process_message_pipeline(message, origin=origin, **kwargs)
-        self._current_thought_task = tracker.track_task(asyncio.create_task(coro))
+        self._current_thought_task = tracker.create_task(
+            coro,
+            name=f"incoming_logic.process_message.{origin}",
+        )
         await self._current_thought_task
         return self._current_thought_task
 
@@ -741,7 +747,11 @@ class IncomingLogicMixin:
                                                 if origin in ("user", "voice", "admin"):
                                                     await self.output_gate.emit("I'm still processing your request. My logic is deep, but I'm with you.", origin=origin, target="primary")
 
-                                    heartbeat_task = asyncio.create_task(_reasoning_heartbeat())
+                                    from core.utils.task_tracker import get_task_tracker as _get_tracker_hb
+                                    heartbeat_task = _get_tracker_hb().create_task(
+                                        _reasoning_heartbeat(),
+                                        name="incoming_logic.reasoning_heartbeat",
+                                    )
                                     priority = origin in ("user", "voice", "admin")
                                     try:
                                         async for event in self.react_loop.run_stream(message, priority=priority):
@@ -985,7 +995,10 @@ class IncomingLogicMixin:
                     return f"Cognitive failure: {str(e)}"
 
             from core.utils.task_tracker import get_task_tracker
-            task = get_task_tracker().track_task(asyncio.create_task(_watchdog_wrapper()))
+            task = get_task_tracker().create_task(
+                _watchdog_wrapper(),
+                name="incoming_logic.thinking_watchdog",
+            )
             self._current_thought_task = task
 
             # Await inline — guard against cross-loop Future errors that can occur when

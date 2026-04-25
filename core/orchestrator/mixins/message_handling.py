@@ -195,7 +195,8 @@ class MessageHandlingMixin:
             priority = decision.priority
             if decision.defer_seconds > 0:
                 try:
-                    asyncio.create_task(
+                    from core.utils.task_tracker import get_task_tracker
+                    get_task_tracker().create_task(
                         self._defer_enqueue_message(
                             message,
                             priority=priority,
@@ -203,7 +204,7 @@ class MessageHandlingMixin:
                             delay=decision.defer_seconds,
                             _authority_checked=_authority_checked,
                         ),
-                        name="DeferredEnqueue",
+                        name="message_handling.deferred_enqueue",
                     )
                     logger.debug(
                         "⏳ FlowControl: Deferred message from %s for %.2fs.",
@@ -404,7 +405,10 @@ class MessageHandlingMixin:
             except Exception as e:
                 logging.getLogger("Aura.BgTasks").debug(f"Task exception handler itself failed: {e}")
 
-        get_task_tracker().track_task(asyncio.create_task(_bounded_handler())).add_done_callback(_bg_task_exception_handler)
+        get_task_tracker().create_task(
+            _bounded_handler(),
+            name="message_handling.bounded_dispatch",
+        ).add_done_callback(_bg_task_exception_handler)
         self._emit_dispatch_telemetry(message)
 
     def _emit_dispatch_telemetry(self, message: Any):

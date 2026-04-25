@@ -3159,3 +3159,324 @@ async def test_liquid_substrate_idle_throttles_without_recent_user(monkeypatch, 
 
     assert dt == pytest.approx(substrate.config.time_constant * 4.0)
     assert substrate.current_update_rate == pytest.approx(max(2.0, substrate.config.update_rate / 4.0))
+
+
+# ==========================================================================
+# Phase B3: Orchestrator mixin task-ownership regressions
+# ==========================================================================
+
+
+class _NamedTracker:
+    """Test double mirroring TaskTracker.create_task semantics for ownership tests."""
+
+    def __init__(self):
+        self.created = []
+
+    def create_task(self, coro, name=None):
+        task = asyncio.create_task(coro, name=name)
+        self.created.append({"name": name, "task": task})
+        return task
+
+    track = create_task
+    track_task = create_task
+
+    async def shutdown(self):
+        for entry in self.created:
+            task = entry["task"]
+            if not task.done():
+                task.cancel()
+        for entry in self.created:
+            task = entry["task"]
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+
+@pytest.mark.asyncio
+async def test_cognitive_background_reflection_uses_named_tracker(monkeypatch):
+    import core.orchestrator.mixins.cognitive_background as cb_module
+    from core.orchestrator.mixins.cognitive_background import CognitiveBackgroundMixin
+
+    tracker = _NamedTracker()
+    release = asyncio.Event()
+
+    async def _reflect(*args, **kwargs):
+        await release.wait()
+
+    class _Reflector:
+        def maybe_reflect(self, *args, **kwargs):
+            return _reflect()
+
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker", lambda: tracker
+    )
+    monkeypatch.setattr(
+        "core.conversation_reflection.get_reflector", lambda: _Reflector()
+    )
+
+    class _Orchestrator(CognitiveBackgroundMixin):
+        conversation_history = []
+        cognitive_engine = SimpleNamespace()
+
+        def _get_current_mood(self):
+            return "calm"
+
+        def _get_current_time_str(self):
+            return "now"
+
+    orch = _Orchestrator()
+    try:
+        orch._trigger_background_reflection("response")
+        assert tracker.created, "reflection should have created a tracked task"
+        assert tracker.created[0]["name"] == "cognitive_background.reflection"
+    finally:
+        release.set()
+        await tracker.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_cognitive_background_learning_uses_named_tracker(monkeypatch):
+    import core.orchestrator.mixins.cognitive_background as cb_module
+    from core.orchestrator.mixins.cognitive_background import CognitiveBackgroundMixin
+
+    tracker = _NamedTracker()
+    release = asyncio.Event()
+
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker", lambda: tracker
+    )
+
+    class _Curiosity:
+        async def extract_curiosity_from_conversation(self, original_msg):
+            await release.wait()
+
+    class _Belief:
+        async def update_belief_from_conversation(self, **kwargs):
+            await release.wait()
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        lambda name, default=None: _Belief() if name == "belief_revision_engine" else default,
+    )
+
+    class _Orchestrator(CognitiveBackgroundMixin):
+        curiosity = _Curiosity()
+
+        def _get_world_context(self):
+            return {}
+
+        async def _learn_from_exchange(self, msg, response):
+            await release.wait()
+
+    orch = _Orchestrator()
+    try:
+        orch._trigger_background_learning("hello", "ack")
+        names = [entry["name"] for entry in tracker.created]
+        assert "cognitive_background.learn_from_exchange" in names
+        assert "cognitive_background.curiosity_extract" in names
+        assert "cognitive_background.belief_revision" in names
+    finally:
+        release.set()
+        await tracker.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_message_handling_deferred_enqueue_uses_named_tracker(monkeypatch):
+    import core.orchestrator.mixins.message_handling as mh_module
+
+    tracker = _NamedTracker()
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker", lambda: tracker
+    )
+
+    class _FlowDecision:
+        allow = True
+        reason = ""
+        priority = 5
+        defer_seconds = 0.5
+
+    class _FlowController:
+        def admit(self, *args, **kwargs):
+            return _FlowDecision()
+
+    release = asyncio.Event()
+
+    class _Orch(mh_module.MessageHandlingMixin):
+        _flow_controller = _FlowController()
+        _last_user_interaction_time = 0.0
+
+        def _is_user_facing_origin(self, origin):
+            return False
+
+        def _authorize_background_enqueue_sync(self, message, origin, priority):
+            return True
+
+        async def _defer_enqueue_message(self, *args, **kwargs):
+            await release.wait()
+
+        def _dispatch_message(self, *args, **kwargs):
+            return None
+
+    orch = _Orch()
+    try:
+        orch.enqueue_message("hello", origin="background", priority=20)
+        await asyncio.sleep(0)
+        assert tracker.created, "deferred enqueue should produce a tracked task"
+        assert tracker.created[0]["name"] == "message_handling.deferred_enqueue"
+    finally:
+        release.set()
+        await tracker.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_message_handling_dispatch_uses_named_tracker(monkeypatch):
+    import core.orchestrator.mixins.message_handling as mh_module
+
+    tracker = _NamedTracker()
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker", lambda: tracker
+    )
+
+    release = asyncio.Event()
+
+    class _Orch(mh_module.MessageHandlingMixin):
+        async def _handle_incoming_message(self, message, origin="user"):
+            await release.wait()
+
+        def _emit_dispatch_telemetry(self, message):
+            return None
+
+    orch = _Orch()
+    try:
+        orch._dispatch_message("hi", origin="user")
+        await asyncio.sleep(0)
+        assert tracker.created, "dispatch should produce a tracked task"
+        assert tracker.created[0]["name"] == "message_handling.bounded_dispatch"
+    finally:
+        release.set()
+        await tracker.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_incoming_logic_handle_message_uses_named_tracker(monkeypatch):
+    import core.orchestrator.mixins.incoming_logic as il_module
+
+    tracker = _NamedTracker()
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker", lambda: tracker
+    )
+
+    class _Orch(il_module.IncomingLogicMixin):
+        async def _process_message_pipeline(self, message, origin="user", **kwargs):
+            return "ok"
+
+        async def _route_prefixed_message(self, message, prefix, origin):
+            return "routed"
+
+    orch = _Orch()
+    await orch._handle_incoming_message("plain message", origin="user")
+    names = [entry["name"] for entry in tracker.created]
+    assert any(n.startswith("incoming_logic.process_message") for n in names)
+
+    tracker_b = _NamedTracker()
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker", lambda: tracker_b
+    )
+    orch2 = _Orch()
+    await orch2._handle_incoming_message("[VOICE] hi", origin="voice")
+    names2 = [entry["name"] for entry in tracker_b.created]
+    assert any(n.startswith("incoming_logic.prefixed.") for n in names2)
+
+
+@pytest.mark.asyncio
+async def test_output_formatter_eternal_snapshot_uses_named_tracker(monkeypatch):
+    import core.orchestrator.mixins.output_formatter as of_module
+
+    tracker = _NamedTracker()
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker", lambda: tracker
+    )
+
+    class _Orch(of_module.OutputFormatterMixin):
+        def _emit_thought_stream(self, thought):
+            return None
+
+    orch = _Orch()
+    try:
+        orch._emit_eternal_record()
+        await asyncio.sleep(0)
+        names = [entry["name"] for entry in tracker.created]
+        assert "output_formatter.eternal_snapshot" in names
+    finally:
+        await tracker.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_output_formatter_emit_thought_stream_uses_named_tracker(monkeypatch):
+    import core.orchestrator.mixins.output_formatter as of_module
+
+    tracker = _NamedTracker()
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker", lambda: tracker
+    )
+
+    release = asyncio.Event()
+
+    async def _async_emit(thought):
+        await release.wait()
+
+    class _Engine:
+        def _emit_thought(self, thought):
+            return _async_emit(thought)
+
+    class _Orch(of_module.OutputFormatterMixin):
+        cognitive_engine = _Engine()
+
+    orch = _Orch()
+    try:
+        orch._emit_thought_stream("hello")
+        await asyncio.sleep(0)
+        names = [entry["name"] for entry in tracker.created]
+        assert "output_formatter.emit_thought" in names
+    finally:
+        release.set()
+        await tracker.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_autonomy_thought_uses_named_tracker(monkeypatch):
+    import core.orchestrator.mixins.autonomy as autonomy_module
+
+    tracker = _NamedTracker()
+    monkeypatch.setattr(
+        "core.utils.task_tracker.get_task_tracker", lambda: tracker
+    )
+
+    release = asyncio.Event()
+
+    class _Orch(autonomy_module.AutonomyMixin):
+        cognitive_engine = SimpleNamespace(singularity_factor=1.0)
+        soul = None
+        boredom = 0
+        _current_task_is_autonomous = False
+        status = SimpleNamespace(is_processing=False)
+        _current_thought_task = None
+        _last_thought_time = 0.0
+        _last_user_interaction_time = 0.0
+        singularity_monitor = SimpleNamespace(acceleration_factor=1.0)
+
+        async def _perform_autonomous_thought(self):
+            await release.wait()
+
+    orch = _Orch()
+    # Force pre-conditions: not thinking, idle long enough, social window passed
+    orch._last_thought_time = time.time() - 999
+    orch._last_user_interaction_time = time.time() - 999
+    try:
+        await orch._trigger_autonomous_thought(has_message=False)
+        names = [entry["name"] for entry in tracker.created]
+        assert "autonomy.autonomous_thought" in names
+    finally:
+        release.set()
+        await tracker.shutdown()

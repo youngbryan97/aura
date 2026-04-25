@@ -73,7 +73,11 @@ class OutputFormatterMixin:
             emitted = self.cognitive_engine._emit_thought(thought)
             if inspect.isawaitable(emitted):
                 try:
-                    asyncio.get_running_loop().create_task(emitted)
+                    from core.utils.task_tracker import get_task_tracker
+                    get_task_tracker().create_task(
+                        emitted,
+                        name="output_formatter.emit_thought",
+                    )
                 except RuntimeError:
                     _dispose_awaitable(emitted)
             return
@@ -110,9 +114,12 @@ class OutputFormatterMixin:
                 logger.debug("Eternal record snapshot failed: %s", e)
         
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             from core.utils.task_tracker import get_task_tracker
-            get_task_tracker().track_task(loop.create_task(_run_eternal_snapshot()))
+            get_task_tracker().create_task(
+                _run_eternal_snapshot(),
+                name="output_formatter.eternal_snapshot",
+            )
         except (RuntimeError, ValueError):
             # Sync fallback (for tests without loop)
             try:

@@ -64,7 +64,6 @@ class CognitiveBackgroundMixin:
 
     def _trigger_background_reflection(self, response: str):
         reflect_coro = None
-        reflect_task = None
         try:
             from core.conversation_reflection import get_reflector
             from core.utils.task_tracker import get_task_tracker
@@ -75,64 +74,50 @@ class CognitiveBackgroundMixin:
                 time_str=self._get_current_time_str(),
             )
             try:
-                reflect_task = asyncio.create_task(reflect_coro)
+                reflect_task = get_task_tracker().create_task(
+                    reflect_coro,
+                    name="cognitive_background.reflection",
+                )
             except RuntimeError:
                 _dispose_awaitable(reflect_coro)
-            else:
-                if not _task_scheduled(reflect_task):
-                    _dispose_awaitable(reflect_coro)
-                    return
-                try:
-                    get_task_tracker().track_task(
-                        reflect_task,
-                        name="background_reflection",
-                    ).add_done_callback(_bg_task_exception_handler)
-                except Exception:
-                    reflect_task.cancel()
-                    raise
+                return
+            reflect_task.add_done_callback(_bg_task_exception_handler)
         except Exception as e:
-            if reflect_coro is not None and reflect_task is None:
+            if reflect_coro is not None:
                 _dispose_awaitable(reflect_coro)
             logger.debug("Background reflection setup failed: %s", e)
 
     def _trigger_background_learning(self, message: str, response: str):
         learn_coro = None
-        learn_task = None
         try:
             original_msg = message.replace("Impulse: ", "").replace("Thought: ", "")
             from core.utils.task_tracker import get_task_tracker
+            tracker = get_task_tracker()
             learn_coro = self._learn_from_exchange(original_msg, response)
             try:
-                learn_task = asyncio.create_task(learn_coro)
+                learn_task = tracker.create_task(
+                    learn_coro,
+                    name="cognitive_background.learn_from_exchange",
+                )
             except RuntimeError:
                 _dispose_awaitable(learn_coro)
-            else:
-                if not _task_scheduled(learn_task):
-                    _dispose_awaitable(learn_coro)
-                    return
-                try:
-                    get_task_tracker().track_task(
-                        learn_task,
-                        name="learn_from_exchange",
-                    ).add_done_callback(_bg_task_exception_handler)
-                except Exception:
-                    learn_task.cancel()
-                    raise
-            
+                return
+            learn_task.add_done_callback(_bg_task_exception_handler)
+
             # Feed curiosity engine from conversation
             if hasattr(self, 'curiosity') and self.curiosity and hasattr(self.curiosity, 'extract_curiosity_from_conversation'):
                 curiosity_result = self.curiosity.extract_curiosity_from_conversation(original_msg)
                 if inspect.isawaitable(curiosity_result):
                     try:
-                        curiosity_task = asyncio.create_task(curiosity_result)
+                        curiosity_task = tracker.create_task(
+                            curiosity_result,
+                            name="cognitive_background.curiosity_extract",
+                        )
                     except RuntimeError:
                         _dispose_awaitable(curiosity_result)
                     else:
-                        if not _task_scheduled(curiosity_task):
-                            _dispose_awaitable(curiosity_result)
-                        else:
-                            get_task_tracker().track_task(curiosity_task, name="curiosity_extract").add_done_callback(_bg_task_exception_handler)
-                
+                        curiosity_task.add_done_callback(_bg_task_exception_handler)
+
             # Phase 26: Belief Revision Engine
             from core.container import ServiceContainer
             belief_engine = ServiceContainer.get("belief_revision_engine", default=None)
@@ -143,16 +128,16 @@ class CognitiveBackgroundMixin:
                     context={"world_state": self._get_world_context()}
                 )
                 try:
-                    belief_task = asyncio.create_task(belief_coro)
+                    belief_task = tracker.create_task(
+                        belief_coro,
+                        name="cognitive_background.belief_revision",
+                    )
                 except RuntimeError:
                     _dispose_awaitable(belief_coro)
                 else:
-                    if not _task_scheduled(belief_task):
-                        _dispose_awaitable(belief_coro)
-                    else:
-                        get_task_tracker().track_task(belief_task, name="belief_revision").add_done_callback(_bg_task_exception_handler)
-                
+                    belief_task.add_done_callback(_bg_task_exception_handler)
+
         except Exception as e:
-            if learn_coro is not None and learn_task is None:
+            if learn_coro is not None:
                 _dispose_awaitable(learn_coro)
             logger.debug("Background learning setup failed: %s", e)
