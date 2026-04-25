@@ -21,6 +21,7 @@ Phase C.
 - `core/bus/local_pipe_bus.py`
 - `core/conversation_loop.py`
 - `core/coordinators/cognitive_coordinator.py`
+- `core/coordinators/lifecycle_coordinator.py`
 - `core/coordinators/message_coordinator.py`
 - `core/coordinators/metabolic_coordinator.py`
 - `core/continuous_cognition.py`
@@ -79,6 +80,16 @@ Phase C.
 - `test_metabolic_coordinator_terminal_self_heal_is_task_tracked`
 - `test_cognitive_coordinator_voice_tts_is_task_tracked`
 - `test_cognitive_coordinator_surprise_learning_is_task_tracked`
+- `test_cognitive_coordinator_dream_liquid_state_update_is_task_tracked`
+- `test_lifecycle_coordinator_start_tracks_background_boot_loops`
+- `test_lifecycle_coordinator_handle_signal_uses_task_tracker`
+- `test_metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks`
+- `test_metabolic_coordinator_process_cycle_tracks_kernel_background_tasks`
+- `test_metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update`
+- `test_metabolic_coordinator_emit_telemetry_pulse_tracks_recovery`
+- `test_metabolic_coordinator_impulses_are_task_tracked`
+- `test_metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks`
+- `test_metabolic_coordinator_process_world_decay_tracks_archive_and_evolution`
 - `test_session_guardian_monitor_loop_is_task_tracked`
 - `test_system_governor_health_loop_is_task_tracked`
 
@@ -135,6 +146,32 @@ Phase C.
 39. `python -m pytest tests/test_runtime_stability_edges.py -q`
 40. `git status --short`
 41. `git diff --stat`
+42. `git status --short`
+43. `python -m pytest tests/test_orchestrator_compatibility.py -q`
+44. `python -m pytest tests/test_runtime_stability_edges.py -q`
+45. `sed -n '1,260p' docs/AURA_EXECUTION_TRACKER.md`
+46. `sed -n '1,240p' docs/AURA_EXECUTION_PLAN.md`
+47. `sed -n '1,220p' docs/AURA_RISK_REGISTER.md`
+48. `sed -n '1,260p' docs/AURA_TEST_COMMANDS.md`
+49. `git diff -- core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`
+50. `rg -n "asyncio\.create_task\(|loop\.create_task\(|track_task\(asyncio\.create_task" core/coordinators/lifecycle_coordinator.py core/coordinators/metabolic_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`
+51. `python -m py_compile core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`
+52. `python -m pytest tests/test_server_runtime_hardening.py -q -k "lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task"`
+53. `sed -n '180,360p' core/coordinators/metabolic_coordinator.py`
+54. `sed -n '420,620p' core/coordinators/metabolic_coordinator.py`
+55. `sed -n '680,920p' core/coordinators/metabolic_coordinator.py`
+56. `sed -n '1,120p' core/coordinators/metabolic_coordinator.py`
+57. `sed -n '1,260p' core/utils/task_tracker.py`
+58. `rg -n "def create_task|class .*Task" core/utils/task_tracker.py`
+59. `python -m py_compile core/coordinators/metabolic_coordinator.py core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`
+60. `python -m pytest tests/test_server_runtime_hardening.py -q -k "lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks or metabolic_coordinator_process_cycle_tracks_kernel_background_tasks or metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update or metabolic_coordinator_emit_telemetry_pulse_tracks_recovery or metabolic_coordinator_impulses_are_task_tracked or metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks or metabolic_coordinator_process_world_decay_tracks_archive_and_evolution or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task"`
+61. `rg -n "asyncio\.create_task\(|loop\.create_task\(|track_task\(asyncio\.create_task" core/coordinators/metabolic_coordinator.py core/coordinators/cognitive_coordinator.py core/coordinators/lifecycle_coordinator.py`
+62. `git diff --stat`
+63. `git status --short`
+64. `python -m pytest tests/test_server_runtime_hardening.py -q -k "conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks or metabolic_coordinator_process_cycle_tracks_kernel_background_tasks or metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update or metabolic_coordinator_emit_telemetry_pulse_tracks_recovery or metabolic_coordinator_impulses_are_task_tracked or metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks or metabolic_coordinator_process_world_decay_tracks_archive_and_evolution or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`
+65. `python -m pytest tests/test_orchestrator_compatibility.py -q`
+66. `python -m pytest tests/test_runtime_stability_edges.py -q`
+67. `git diff --check`
 
 ## Pass / Fail Results
 
@@ -179,6 +216,23 @@ Phase C.
     pass (`8 passed`)
   - `python -m pytest tests/test_runtime_stability_edges.py -q`:
     pass (`19 passed, 1 subtests passed`)
+- focused B3 lifecycle/metabolic ownership slice:
+  - `python -m py_compile core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`:
+    pass
+  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task"`:
+    pass (`13 passed, 81 deselected`)
+  - `python -m py_compile core/coordinators/metabolic_coordinator.py core/coordinators/lifecycle_coordinator.py core/coordinators/cognitive_coordinator.py tests/test_server_runtime_hardening.py`:
+    pass
+  - first run of `python -m pytest tests/test_server_runtime_hardening.py -q -k "lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks or metabolic_coordinator_process_cycle_tracks_kernel_background_tasks or metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update or metabolic_coordinator_emit_telemetry_pulse_tracks_recovery or metabolic_coordinator_impulses_are_task_tracked or metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks or metabolic_coordinator_process_world_decay_tracks_archive_and_evolution or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task"`:
+    fail (`1 failed, 20 passed, 80 deselected`) due to a new test bug (`Mock` name typo), fixed immediately
+  - rerun of the same focused suite after test fix:
+    pass (`21 passed, 80 deselected`)
+  - `python -m pytest tests/test_server_runtime_hardening.py -q -k "conversation_loop_start_is_task_tracked or conversation_loop_reflection_task_is_task_tracked or message_coordinator_acquire_next_message_tracks_liquid_state_update or message_coordinator_dispatch_uses_task_tracker or message_coordinator_handle_incoming_message_tracks_reply_task or metabolic_coordinator_trigger_background_reflection_is_task_tracked or metabolic_coordinator_trigger_background_learning_is_task_tracked or metabolic_coordinator_autonomous_thought_is_task_tracked or metabolic_coordinator_terminal_self_heal_is_task_tracked or metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks or metabolic_coordinator_process_cycle_tracks_kernel_background_tasks or metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update or metabolic_coordinator_emit_telemetry_pulse_tracks_recovery or metabolic_coordinator_impulses_are_task_tracked or metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks or metabolic_coordinator_process_world_decay_tracks_archive_and_evolution or cognitive_coordinator_voice_tts_is_task_tracked or cognitive_coordinator_surprise_learning_is_task_tracked or cognitive_coordinator_dream_liquid_state_update_is_task_tracked or lifecycle_coordinator_start_tracks_background_boot_loops or lifecycle_coordinator_handle_signal_uses_task_tracker or state_vault_actor_background_tasks_use_task_tracker or sensory_gate_actor_background_tasks_use_task_tracker or continuous_cognition_loop_is_task_tracked or session_guardian_monitor_loop_is_task_tracked or system_governor_health_loop_is_task_tracked or scheduler or event_bus or state_repository_repair_runtime or state_repository_initialize_tracks_owner_consumer_task or local_pipe_bus or actor_bus or reaper_manifest or actor_health_gate"`:
+    pass (`41 passed, 60 deselected`)
+  - `python -m pytest tests/test_orchestrator_compatibility.py -q`:
+    pass (`8 passed`)
+  - `python -m pytest tests/test_runtime_stability_edges.py -q`:
+    pass (`19 passed, 1 subtests passed`)
 - `python -m py_compile ...` for all touched launcher/supervisor/reaper/bus/boot/server files:
   pass
 - `python -m py_compile ...` for all touched state/event/scheduler/service-loop files:
@@ -196,28 +250,35 @@ Phase C.
    remaining launch/service-manifest ownership still needs tightening.
 3. Codebase-wide background-task ownership is still incomplete outside the
    launcher/watchdog/server/shutdown/bus/state/event/scheduler/service-loop,
-   actor-local, and coordinator reply/reflection/thought slices touched so far.
+   actor-local, lifecycle/coordinator maintenance slices, and adjacent
+   orchestrator mixins.
 4. The newly requested Chrome-polish / perception / social / formal-verification
    modules are recorded in the plan, but correctly deferred until earlier
    runtime-invariant phases are complete.
 
 ## Next Exact Task
 
-Continue Milestone B3 by hardening the next lifecycle/runtime cluster:
-audit `core/coordinators/lifecycle_coordinator.py` and the remaining raw
-`create_task` hotspots in `core/coordinators/metabolic_coordinator.py` /
-`core/coordinators/cognitive_coordinator.py`, especially loop-created health,
-state-save, and event-listener work.
+Continue Milestone B3 by hardening the next adjacent high-risk raw-task
+cluster in orchestrator mixins: audit
+`core/orchestrator/mixins/cognitive_background.py`,
+`core/orchestrator/mixins/message_handling.py`,
+`core/orchestrator/mixins/incoming_logic.py`,
+`core/orchestrator/mixins/output_formatter.py`, and
+`core/orchestrator/mixins/autonomy.py` for direct task creation / nested
+`track_task(asyncio.create_task(...))` ownership wrappers and convert them to
+explicit named tracker ownership.
 
 ## Next Exact Continuation Prompt
 
 Continue Aura production hardening from `docs/AURA_EXECUTION_TRACKER.md`.
 Milestone B3 is in progress. Continue with the next runtime-breaker slice:
-harden `core/coordinators/lifecycle_coordinator.py` and the remaining
-coordinator raw-task hotspots in `core/coordinators/metabolic_coordinator.py`
-and `core/coordinators/cognitive_coordinator.py` so lifecycle/startup and
-background maintenance paths are lifecycle-owned. Keep the tracker updated
-before any stop.
+harden the adjacent orchestrator mixin task-ownership cluster in
+`core/orchestrator/mixins/cognitive_background.py`,
+`core/orchestrator/mixins/message_handling.py`,
+`core/orchestrator/mixins/incoming_logic.py`,
+`core/orchestrator/mixins/output_formatter.py`, and
+`core/orchestrator/mixins/autonomy.py` so remaining background and retry paths
+use explicit named tracker ownership. Keep the tracker updated before any stop.
 
 ## Exact Stopping Point
 
@@ -238,11 +299,18 @@ Stopped after:
    explicit tracker ownership in `AutonomousConversationLoop`,
    `MessageCoordinator`, `MetabolicCoordinator`, and key
    `CognitiveCoordinator` hooks.
+8. routing lifecycle startup/signal-stop work through explicit tracker
+   ownership in `LifecycleCoordinator`, sweeping the remaining
+   `MetabolicCoordinator` raw task spawns (subscription, on-cycle hooks,
+   save-state, drive updates, kernel scans, liquid-state updates, impulses,
+   memory hygiene, and archive/evolution maintenance), and routing the
+   `CognitiveCoordinator` dream-state liquid update through named tracker
+   ownership.
 
 ## Current Known Failures
 
 - Missing requested mission docs listed in the prompt.
-- Remaining lifecycle/coordinator/runtime ownership sweep is not yet complete.
+- Adjacent orchestrator mixin runtime-ownership sweep is not yet complete.
 - Broader launch-surface/service-manifest canonicalization is not yet complete.
 - Additional strict-mode readiness probes for critical services beyond the
   current `ResilientBoot` critical-stage set are not yet implemented.
@@ -258,6 +326,8 @@ Stopped after:
   - canonical reaper manifest path resolution
   - task-tracker ownership for launcher/watchdog hot-path tasks
   - task-tracker ownership for graceful-shutdown signal scheduling
+  - task-tracker ownership for `LifecycleCoordinator` startup/event-listener
+    and signal-stop paths
   - supervisor missed-heartbeat window semantics and locking
   - lock-based 3D launcher runtime detection
   - removal of legacy shared single-connection `LocalPipeBus` compatibility
@@ -270,8 +340,10 @@ Stopped after:
     and `SystemGovernor`
   - task-tracker ownership for actor-local `StateVaultActor` and
     `SensoryGateActor` background loops
-  - task-tracker ownership for coordinator-side conversation, message,
-    metabolic, and key cognitive background paths
+  - task-tracker ownership for coordinator-side conversation, lifecycle,
+    message, metabolic, and key cognitive background paths
+  - task-tracker ownership for remaining `MetabolicCoordinator` maintenance,
+    impulse, archive, and liquid-state update paths
   - strict fail-closed boot behavior for critical `ResilientBoot` stages
   - websocket disconnect task ownership via the server task spawner
   - graceful shutdown signal bridge ownership via the task tracker

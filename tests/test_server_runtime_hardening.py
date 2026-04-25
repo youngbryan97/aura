@@ -23,6 +23,7 @@ from core.bus.local_pipe_bus import LocalPipeBus
 from core.bus.shared_mem_bus import SharedMemoryTransport
 from core.conversation_loop import AutonomousConversationLoop
 from core.coordinators.cognitive_coordinator import CognitiveCoordinator
+from core.coordinators.lifecycle_coordinator import LifecycleCoordinator
 from core.intent_gate import IntentClassifierQueue, RouteKind
 from core.kernel.bridge import AffectBridge
 from core.memory.memory_facade import MemoryFacade
@@ -2389,6 +2390,413 @@ async def test_metabolic_coordinator_terminal_self_heal_is_task_tracked(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_metabolic_coordinator_process_cycle_tracks_bootstrap_and_drive_tasks(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+
+    created = []
+    tracker = None
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
+    tracker = _Tracker()
+
+    event_bus_queue = asyncio.Queue()
+
+    class _EventBus:
+        async def subscribe(self, _topic):
+            return event_bus_queue
+
+    orch = SimpleNamespace(
+        status=SimpleNamespace(
+            cycle_count=500,
+            is_processing=False,
+            singularity_threshold=False,
+            state="idle",
+            last_user_interaction_time=0.0,
+        ),
+        hooks=SimpleNamespace(trigger=AsyncMock(return_value=None)),
+        _save_state_async=AsyncMock(return_value=None),
+        drive_controller=SimpleNamespace(
+            name="drive_controller",
+            update=AsyncMock(return_value=None),
+        ),
+        drives=SimpleNamespace(update=AsyncMock(return_value=None)),
+        latent_core=None,
+        predictive_model=None,
+        kernel=None,
+        state=None,
+        message_queue=SimpleNamespace(_queue=[]),
+        _acquire_next_message=AsyncMock(return_value=None),
+        _dispatch_message=lambda _message: None,
+        memory_manager=None,
+        swarm=None,
+        _last_thought_time=time.time(),
+        _last_pulse=time.time(),
+    )
+    coord = MetabolicCoordinator(orch=orch)
+    coord._consume_energy = lambda _cost: False
+    coord.manage_memory_hygiene = lambda: None
+    coord.process_world_decay = AsyncMock(return_value=None)
+    coord.update_liquid_pacing = lambda: None
+    coord.trigger_autonomous_thought = AsyncMock(return_value=None)
+    coord.run_terminal_self_heal = AsyncMock(return_value=None)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: tracker)
+    monkeypatch.setattr("core.event_bus.get_event_bus", lambda: _EventBus())
+
+    await coord._process_metabolic_tasks()
+    await asyncio.sleep(0)
+
+    try:
+        assert [name for name, _task in created[:5]] == [
+            "metabolic.bci_event_subscription",
+            "metabolic.on_cycle_hook",
+            "metabolic.periodic_state_save",
+            "metabolic.drive_controller_update",
+            "metabolic.drives_update",
+        ]
+        orch.hooks.trigger.assert_awaited_once_with("on_cycle", {"cycle": 500})
+        orch._save_state_async.assert_awaited_once_with("periodic")
+        orch.drive_controller.update.assert_awaited_once()
+        orch.drives.update.assert_awaited_once()
+    finally:
+        for name, task in created:
+            if name == "metabolic.bci_event_subscription" and not task.done():
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            elif not task.done():
+                await task
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_process_cycle_tracks_kernel_background_tasks(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+
+    created = []
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
+    tracker = _Tracker()
+    cookie = SimpleNamespace(instance=SimpleNamespace(reflect=AsyncMock(return_value=None)))
+    tricorder = SimpleNamespace(instance=SimpleNamespace(scan=AsyncMock(return_value=None)))
+    continuity = SimpleNamespace(instance=SimpleNamespace(distill=AsyncMock(return_value=None)))
+    state = SimpleNamespace(
+        cognition=SimpleNamespace(
+            active_goals=[{"description": "System Integrity"}],
+            current_mode="dreaming",
+        ),
+        affect=SimpleNamespace(focus=0.9),
+    )
+    orch = SimpleNamespace(
+        status=SimpleNamespace(
+            cycle_count=5,
+            is_processing=False,
+            singularity_threshold=False,
+            state="idle",
+            last_user_interaction_time=0.0,
+        ),
+        hooks=SimpleNamespace(trigger=AsyncMock(return_value=None)),
+        _save_state_async=AsyncMock(return_value=None),
+        drive_controller=None,
+        drives=None,
+        latent_core=None,
+        predictive_model=None,
+        kernel=SimpleNamespace(
+            volition_level=0,
+            organs={
+                "cookie": cookie,
+                "tricorder": tricorder,
+                "continuity": continuity,
+            },
+        ),
+        state=state,
+        message_queue=SimpleNamespace(_queue=[]),
+        _acquire_next_message=AsyncMock(return_value=None),
+        _dispatch_message=lambda _message: None,
+        memory_manager=None,
+        swarm=None,
+        _last_thought_time=time.time(),
+        _last_pulse=time.time(),
+    )
+    coord = MetabolicCoordinator(orch=orch)
+    coord._event_bus = object()
+    coord._consume_energy = lambda _cost: False
+    coord.manage_memory_hygiene = lambda: None
+    coord.process_world_decay = AsyncMock(return_value=None)
+    coord.update_liquid_pacing = lambda: None
+    coord.trigger_autonomous_thought = AsyncMock(return_value=None)
+    coord.run_terminal_self_heal = AsyncMock(return_value=None)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: tracker)
+
+    await coord._process_metabolic_tasks()
+    await asyncio.sleep(0)
+
+    for _name, task in created:
+        if not task.done():
+            await task
+
+    assert [name for name, _task in created] == [
+        "metabolic.on_cycle_hook",
+        "metabolic.cookie_reflection",
+        "metabolic.tricorder_scan",
+        "metabolic.continuity_distill",
+    ]
+    cookie.instance.reflect.assert_awaited_once()
+    tricorder.instance.scan.assert_awaited_once_with(state)
+    continuity.instance.distill.assert_awaited_once_with(state)
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_update(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    orch = SimpleNamespace(
+        liquid_state=SimpleNamespace(
+            update=AsyncMock(return_value=None),
+            current=SimpleNamespace(curiosity=0.3, frustration=0.1, energy=0.7),
+            get_mood=lambda: "Stable",
+            get_status=lambda: {
+                "energy": 0.7,
+                "curiosity": 0.3,
+                "frustration": 0.1,
+                "focus": 0.8,
+                "mood": "Stable",
+            },
+        ),
+        _watchdog=None,
+        lnn=None,
+        mortality=None,
+        affect_engine=None,
+        status=SimpleNamespace(cycle_count=1, acceleration_factor=1.0, singularity_threshold=False, agency=0.0, curiosity=0.0),
+        _last_thought_time=time.time(),
+        homeostasis=None,
+        _last_boredom_impulse=time.time(),
+        _last_reflection_impulse=time.time(),
+        _last_pulse=time.time(),
+        singularity_monitor=None,
+    )
+    coord = MetabolicCoordinator(orch=orch)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(
+        metabolic_module.ServiceContainer,
+        "get",
+        lambda name, default=None: SimpleNamespace(get_status=lambda: {"valence": 0.25, "arousal": 0.75})
+        if name == "affect_engine"
+        else default,
+    )
+
+    coord.update_liquid_pacing()
+    await created["task"]
+
+    assert created["name"] == "metabolic.liquid_state_update"
+    orch.liquid_state.update.assert_awaited_once_with(valence=0.25, arousal=0.75)
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_emit_telemetry_pulse_tracks_recovery(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    def _publish_telemetry(_payload):
+        raise RuntimeError("boom")
+
+    orch = SimpleNamespace(
+        liquid_state=SimpleNamespace(
+            get_status=lambda: {
+                "energy": 0.8,
+                "curiosity": 0.4,
+                "frustration": 0.2,
+                "focus": 0.9,
+                "mood": "CALM",
+            }
+        ),
+        _publish_telemetry=_publish_telemetry,
+        _recover_from_stall=True,
+    )
+    coord = MetabolicCoordinator(orch=orch)
+    coord.recover_from_stall = AsyncMock(return_value=None)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
+
+    coord.emit_telemetry_pulse()
+    await created["task"]
+
+    assert created["name"] == "metabolic.recover_from_stall"
+    coord.recover_from_stall.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_impulses_are_task_tracked(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+
+    created = []
+    impulse = AsyncMock(return_value=None)
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
+    orch = SimpleNamespace(
+        _last_boredom_impulse=0.0,
+        _last_reflection_impulse=0.0,
+    )
+    coord = MetabolicCoordinator(orch=orch)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(metabolic_module, "background_activity_reason", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(metabolic_module, "run_governed_impulse", impulse)
+    monkeypatch.setattr(metabolic_module.random, "choice", lambda _topics: "quantum physics")
+
+    coord.trigger_boredom_impulse()
+    coord.trigger_reflection_impulse()
+
+    for _name, task in created:
+        await task
+
+    assert [name for name, _task in created] == [
+        "metabolic.boredom_impulse",
+        "metabolic.reflection_impulse",
+    ]
+    assert impulse.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_memory_hygiene_tracks_maintenance_tasks(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+
+    created = []
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
+    tracker = _Tracker()
+    audit = SimpleNamespace(
+        get_status=lambda _name: {"degraded": False},
+        report_failure=lambda *_args, **_kwargs: None,
+        heartbeat=lambda *_args, **_kwargs: None,
+    )
+    fake_db_coordinator = SimpleNamespace(execute_write=AsyncMock(return_value=None))
+    orch = SimpleNamespace(
+        conversation_history=[{"role": "user", "content": f"msg-{idx}"} for idx in range(151)],
+        status=SimpleNamespace(cycle_count=1000),
+        memory_manager=object(),
+        memory=None,
+    )
+    coord = MetabolicCoordinator(orch=orch)
+    coord.prune_history_async = AsyncMock(return_value=None)
+    coord.consolidate_long_term_memory = AsyncMock(return_value=None)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: tracker)
+    monkeypatch.setattr(
+        metabolic_module.ServiceContainer,
+        "get",
+        lambda name, default=None: audit if name == "subsystem_audit" else default,
+    )
+    monkeypatch.setattr(
+        "core.resilience.database_coordinator.get_db_coordinator",
+        lambda: fake_db_coordinator,
+    )
+
+    coord.manage_memory_hygiene()
+
+    for _name, task in created:
+        await task
+
+    assert [name for name, _task in created] == [
+        "metabolic.prune_history",
+        "metabolic.optimize_databases",
+        "metabolic.consolidate_long_term_memory",
+    ]
+    coord.prune_history_async.assert_awaited_once()
+    coord.consolidate_long_term_memory.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_metabolic_coordinator_process_world_decay_tracks_archive_and_evolution(monkeypatch):
+    import core.coordinators.metabolic_coordinator as metabolic_module
+
+    created = []
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
+    tracker = _Tracker()
+    archive_engine = SimpleNamespace(archive_vital_logs=AsyncMock(return_value=None))
+    evolution_runner = AsyncMock(return_value=None)
+    orch = SimpleNamespace(
+        status=SimpleNamespace(cycle_count=3600),
+        metabolic_monitor=SimpleNamespace(
+            get_current_metabolism=lambda: SimpleNamespace(health_score=0.1)
+        ),
+    )
+    coord = MetabolicCoordinator(orch=orch)
+
+    monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: tracker)
+    monkeypatch.setattr(
+        metabolic_module.ServiceContainer,
+        "get",
+        lambda name, default=None: archive_engine if name == "archive_engine" else default,
+    )
+    monkeypatch.setattr(metabolic_module, "runtime_feature_enabled", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "core.evolution.persona_evolver.PersonaEvolver",
+        lambda _orch: SimpleNamespace(run_evolution_cycle=evolution_runner),
+    )
+    monkeypatch.setattr(
+        "core.world_model.belief_graph.belief_graph",
+        SimpleNamespace(decay=lambda _rate: None),
+    )
+
+    await coord.process_world_decay()
+
+    for _name, task in created:
+        await task
+
+    assert [name for name, _task in created] == [
+        "metabolic.emergency_archive",
+        "metabolic.persona_evolution_cycle",
+    ]
+    archive_engine.archive_vital_logs.assert_awaited_once()
+    evolution_runner.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_cognitive_coordinator_voice_tts_is_task_tracked(monkeypatch):
     import core.coordinators.cognitive_coordinator as cognitive_module
 
@@ -2484,6 +2892,147 @@ async def test_cognitive_coordinator_surprise_learning_is_task_tracked(monkeypat
     assert result is True
     assert created["name"] == "cognitive_coordinator.surprise_learning"
     assert orch.conversation_history[-1]["role"] == "internal"
+
+
+@pytest.mark.asyncio
+async def test_cognitive_coordinator_dream_liquid_state_update_is_task_tracked(monkeypatch):
+    import core.coordinators.cognitive_coordinator as cognitive_module
+
+    created = {}
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr(cognitive_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(
+        "core.thought_stream.get_emitter",
+        lambda: SimpleNamespace(emit=lambda *args, **kwargs: None),
+    )
+
+    orch = SimpleNamespace(
+        status=SimpleNamespace(cycle_count=1),
+        boredom=0,
+        goal_hierarchy=None,
+        liquid_state=SimpleNamespace(
+            current=SimpleNamespace(curiosity=0.1),
+            update=AsyncMock(return_value=None),
+        ),
+        knowledge_graph=None,
+        cognitive_engine=SimpleNamespace(),
+        _last_thought_time=0.0,
+    )
+    coord = CognitiveCoordinator.__new__(CognitiveCoordinator)
+    coord.orch = orch
+
+    await coord.perform_autonomous_thought()
+    await created["task"]
+
+    assert created["name"] == "cognitive_coordinator.dream_liquid_state_update"
+    orch.liquid_state.update.assert_awaited_once_with(delta_curiosity=0.2)
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_coordinator_start_tracks_background_boot_loops(monkeypatch):
+    import core.coordinators.lifecycle_coordinator as lifecycle_module
+
+    created = []
+    release = asyncio.Event()
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created.append((name, task))
+            return task
+
+    async def _hold():
+        await release.wait()
+
+    monkeypatch.setattr(lifecycle_module, "get_task_tracker", lambda: _Tracker())
+    monkeypatch.setattr(
+        "core.memory.semantic_defrag.SemanticDefragmenter",
+        lambda: SimpleNamespace(start=lambda: None),
+    )
+    monkeypatch.setattr(
+        "core.resilience.dream_cycle.DreamCycle",
+        lambda *_args, **_kwargs: SimpleNamespace(start=lambda: None),
+    )
+
+    orch = SimpleNamespace(
+        status=SimpleNamespace(initialized=True, running=False, start_time=0.0),
+        _async_init_subsystems=AsyncMock(return_value=None),
+        _async_init_threading=lambda: None,
+        _start_sensory_systems=AsyncMock(return_value=None),
+        belief_sync=None,
+        attention_summarizer=None,
+        probe_manager=SimpleNamespace(auto_cleanup_loop=_hold),
+        self_model=None,
+        hardware_manager=None,
+        consciousness=None,
+        curiosity=None,
+        proactive_comm=None,
+        narrative_engine=None,
+        global_workspace=SimpleNamespace(run_loop=_hold),
+        ears=None,
+        instincts=None,
+        pulse_manager=None,
+        _setup_event_listeners=_hold,
+        cognition=None,
+        autonomic_core=None,
+    )
+    coord = LifecycleCoordinator(orch)
+    coord._boot_barrier = AsyncMock(return_value=None)
+
+    started = await coord.start()
+    await asyncio.sleep(0)
+
+    try:
+        assert started is True
+        assert orch.status.running is True
+        assert [name for name, _task in created] == [
+            "lifecycle.probe_auto_cleanup",
+            "lifecycle.global_workspace",
+            "lifecycle.event_listeners",
+        ]
+    finally:
+        release.set()
+        for _name, task in created:
+            if not task.done():
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_coordinator_handle_signal_uses_task_tracker(monkeypatch):
+    import core.coordinators.lifecycle_coordinator as lifecycle_module
+
+    created = {}
+    orch = SimpleNamespace(
+        _stop_event=asyncio.Event(),
+        status=SimpleNamespace(running=True),
+    )
+    coord = LifecycleCoordinator(orch)
+    coord.stop = AsyncMock(return_value=None)
+
+    class _Tracker:
+        def create_task(self, coro, name=None):
+            task = asyncio.create_task(coro, name=name)
+            created["name"] = name
+            created["task"] = task
+            return task
+
+    monkeypatch.setattr(lifecycle_module, "get_task_tracker", lambda: _Tracker())
+
+    coord.handle_signal(15, None)
+    await asyncio.sleep(0)
+    await created["task"]
+
+    assert created["name"] == "lifecycle.signal_stop.15"
+    coord.stop.assert_awaited_once()
 
 
 @pytest.mark.asyncio

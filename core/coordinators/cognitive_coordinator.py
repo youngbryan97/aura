@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional
 
 from core.runtime.governance_policy import allow_direct_user_shortcut
 from core.runtime.turn_analysis import analyze_turn
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -527,8 +528,10 @@ class CognitiveCoordinator:
                     emitter.emit("Sleep Error", str(dream_err)[:100], level="warning")
                 if hasattr(orch, 'liquid_state'):
                     try:
-                        loop = asyncio.get_running_loop()
-                        loop.create_task(orch.liquid_state.update(delta_curiosity=0.2))
+                        get_task_tracker().create_task(
+                            orch.liquid_state.update(delta_curiosity=0.2),
+                            name="cognitive_coordinator.dream_liquid_state_update",
+                        )
                     except RuntimeError as _e:
                         logger.debug('Ignored RuntimeError in cognitive_coordinator.py: %s', _e)
                 orch._last_thought_time = time.time()

@@ -174,6 +174,9 @@ Status:
   - tracked coordinator-side task ownership across `AutonomousConversationLoop`,
     `MessageCoordinator`, `MetabolicCoordinator`, and key
     `CognitiveCoordinator` background paths
+  - tracked lifecycle-owned startup/signal-stop paths in `LifecycleCoordinator`
+    plus the remaining `MetabolicCoordinator` maintenance/impulse/archive tasks
+    and the dream-state liquid-state update path in `CognitiveCoordinator`
 
 ## Deferred Backlog Additions
 

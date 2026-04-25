@@ -204,7 +204,10 @@ class MetabolicCoordinator:
                     while True:
                         _, _, item = await q.get()
                         self._neural_events.append(item.get("data"))
-                asyncio.create_task(_sub())
+                get_task_tracker().create_task(
+                    _sub(),
+                    name="metabolic.bci_event_subscription",
+                )
             except Exception as e:
                 logger.debug("Failed to subscribe to BCI events: %s", e)
 
@@ -216,10 +219,15 @@ class MetabolicCoordinator:
             # to prevent conflicting updates and "stuck" status reporting.
             
             # Trigger metabolic hooks (Non-blocking)
-            asyncio.create_task(orch.hooks.trigger("on_cycle", {"cycle": orch.status.cycle_count}))
+            get_task_tracker().create_task(
+                orch.hooks.trigger("on_cycle", {"cycle": orch.status.cycle_count}),
+                name="metabolic.on_cycle_hook",
+            )
             if orch.status.cycle_count % 500 == 0:
-                from core.utils.task_tracker import get_task_tracker
-                get_task_tracker().track_task(asyncio.create_task(orch._save_state_async("periodic")))
+                get_task_tracker().create_task(
+                    orch._save_state_async("periodic"),
+                    name="metabolic.periodic_state_save",
+                )
             if orch.status.cycle_count % 1000 == 0:
                 logger.info("Alive: Cycle %s", orch.status.cycle_count)
                 try:
@@ -254,7 +262,10 @@ class MetabolicCoordinator:
                         if hasattr(orch.drive_controller, 'update'):
                             res = orch.drive_controller.update()
                             if asyncio.iscoroutine(res):
-                                asyncio.create_task(res)
+                                get_task_tracker().create_task(
+                                    res,
+                                    name="metabolic.drive_controller_update",
+                                )
                     except TypeError as _e:
                         logger.debug('Ignored TypeError in metabolic_coordinator.py: %s', _e)
             
@@ -262,7 +273,10 @@ class MetabolicCoordinator:
                 try:
                     res = orch.drives.update()
                     if asyncio.iscoroutine(res):
-                        asyncio.create_task(res)
+                        get_task_tracker().create_task(
+                            res,
+                            name="metabolic.drives_update",
+                        )
                 except TypeError as _e:
                     logger.debug('Ignored TypeError in metabolic_coordinator.py: %s', _e)
             
@@ -313,8 +327,9 @@ class MetabolicCoordinator:
             if cookie and cookie.instance and state and hasattr(state.cognition, 'active_goals') and state.cognition.active_goals:
                 top_goal = state.cognition.active_goals[0].get("description", "System Integrity")
                 if state.affect.focus > 0.7:  # Only dilate when highly focused
-                    asyncio.create_task(
-                        cookie.instance.reflect(state, f"Optimizing for: {top_goal}", cycles=7)
+                    get_task_tracker().create_task(
+                        cookie.instance.reflect(state, f"Optimizing for: {top_goal}", cycles=7),
+                        name="metabolic.cookie_reflection",
                     )
                     # We don't await here to keep the metabolic cycle moving
                     # but the result will be logged by the cookie.
@@ -322,14 +337,20 @@ class MetabolicCoordinator:
             # [TRICORDER] Multi-modal Diagnostic Scan
             tricorder = kernel.organs.get("tricorder") if kernel and hasattr(kernel, 'organs') else None
             if tricorder and tricorder.instance and state:
-                asyncio.create_task(tricorder.instance.scan(state))
+                get_task_tracker().create_task(
+                    tricorder.instance.scan(state),
+                    name="metabolic.tricorder_scan",
+                )
 
             # [CONTINUITY] Knowledge Distillation (Persistence)
             # Only distill during 'cool' periods to save energy
             continuity = kernel.organs.get("continuity") if kernel and hasattr(kernel, 'organs') else None
             if continuity and continuity.instance and state:
                 if state.cognition.current_mode in ("dormant", "dreaming") or self._metabolic_energy < 0.1:
-                    asyncio.create_task(continuity.instance.distill(state))
+                    get_task_tracker().create_task(
+                        continuity.instance.distill(state),
+                        name="metabolic.continuity_distill",
+                    )
 
             # 2. Acquire Work (Queue or Volition)
             # [COGNITIVE COOLING] Decay acceleration over time (Claude Prompt 1)
@@ -435,8 +456,11 @@ class MetabolicCoordinator:
 
         # liquid_state.update() is async — schedule it properly
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(orch.liquid_state.update(**vad_kwargs))
+            asyncio.get_running_loop()
+            get_task_tracker().create_task(
+                orch.liquid_state.update(**vad_kwargs),
+                name="metabolic.liquid_state_update",
+            )
         except RuntimeError as _e:
             logger.debug('Ignored RuntimeError in metabolic_coordinator.py: %s', _e)
         if hasattr(orch, '_watchdog') and orch._watchdog:
@@ -497,8 +521,10 @@ class MetabolicCoordinator:
         except Exception as exc:
             logger.error("Telemetry pulse failure: %s", exc)
             if hasattr(orch, "_recover_from_stall"):
-                from core.utils.task_tracker import get_task_tracker
-                get_task_tracker().track_task(asyncio.create_task(self.recover_from_stall()))
+                get_task_tracker().create_task(
+                    self.recover_from_stall(),
+                    name="metabolic.recover_from_stall",
+                )
 
     def emit_eternal_record(self):
         """Archives a snapshot of the system's current state into the Eternal Record."""
@@ -532,8 +558,8 @@ class MetabolicCoordinator:
         topics = ["quantum physics", "ancient history", "future of AI", "art movements", "cybersecurity", "mythology"]
         topic = random.choice(topics)
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(
+            asyncio.get_running_loop()
+            get_task_tracker().create_task(
                 run_governed_impulse(
                     orch,
                     source="metabolic_coordinator",
@@ -543,7 +569,8 @@ class MetabolicCoordinator:
                     state_cause="metabolic_boredom_shift",
                     state_update={"delta_curiosity": 0.5},
                     enqueue_priority=25,
-                )
+                ),
+                name="metabolic.boredom_impulse",
             )
         except RuntimeError as _e:
             logger.debug('Ignored RuntimeError in metabolic_coordinator.py: %s', _e)
@@ -560,8 +587,8 @@ class MetabolicCoordinator:
         logger.info("😤 FRUSTRATION TRIGGERED: Generating reflection impulse.")
         orch._last_reflection_impulse = time.time()
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(
+            asyncio.get_running_loop()
+            get_task_tracker().create_task(
                 run_governed_impulse(
                     orch,
                     source="metabolic_coordinator",
@@ -571,7 +598,8 @@ class MetabolicCoordinator:
                     state_cause="metabolic_reflection_shift",
                     state_update={"delta_frustration": -0.3},
                     enqueue_priority=15,
-                )
+                ),
+                name="metabolic.reflection_impulse",
             )
         except RuntimeError as _e:
             logger.debug('Ignored RuntimeError in metabolic_coordinator.py: %s', _e)
@@ -712,7 +740,10 @@ class MetabolicCoordinator:
         if len(orch.conversation_history) > 2:
             self.deduplicate_history()
         if len(orch.conversation_history) > 100:
-            get_task_tracker().track_task(asyncio.create_task(self.prune_history_async()))
+            get_task_tracker().create_task(
+                self.prune_history_async(),
+                name="metabolic.prune_history",
+            )
         if orch.status.cycle_count % 1000 == 0:
             # Phase XIV: Reduced VACUUM frequency to prevent SQLite locks
             async def _optimize_dbs():
@@ -733,7 +764,10 @@ class MetabolicCoordinator:
                     # Always emit heartbeat — proves the hygiene task ran
                     if audit:
                         audit.heartbeat("database_hygiene")
-            get_task_tracker().track_task(asyncio.create_task(_optimize_dbs()))
+            get_task_tracker().create_task(
+                _optimize_dbs(),
+                name="metabolic.optimize_databases",
+            )
 
         if len(orch.conversation_history) > 10 and orch.memory_manager:
             # Circuit Breaker: Only consolidate if memory subsystem is healthy
@@ -741,7 +775,10 @@ class MetabolicCoordinator:
             if audit and audit.get_status("memory").get("degraded", False):
                 logger.warning("Memory consolidated SKIPPED: Subsystem is DEGRADED.")
             else:
-                get_task_tracker().track_task(asyncio.create_task(self.consolidate_long_term_memory()))
+                get_task_tracker().create_task(
+                    self.consolidate_long_term_memory(),
+                    name="metabolic.consolidate_long_term_memory",
+                )
 
         if orch.status.cycle_count % 1000 == 0:
             if hasattr(orch, 'memory') and orch.memory:
@@ -869,14 +906,20 @@ class MetabolicCoordinator:
                         archive_eng = ServiceContainer.get("archive_engine", default=None)
                         if archive_eng:
                             logger.info("📦 Metabolic Pressure Detected (Health: %.2f). Triggering Emergency Archival.", health)
-                            get_task_tracker().track_task(asyncio.create_task(archive_eng.archive_vital_logs()))
+                            get_task_tracker().create_task(
+                                archive_eng.archive_vital_logs(),
+                                name="metabolic.emergency_archive",
+                            )
             except Exception as e:
                 logger.debug("Metabolic Archival trigger failed: %s", e)
         if runtime_feature_enabled(orch, "persona_evolution", default=True) and orch.status.cycle_count % 3600 == 0:
             try:
                 from core.evolution.persona_evolver import PersonaEvolver
                 evolver = PersonaEvolver(orch)
-                get_task_tracker().track_task(asyncio.create_task(evolver.run_evolution_cycle()))
+                get_task_tracker().create_task(
+                    evolver.run_evolution_cycle(),
+                    name="metabolic.persona_evolution_cycle",
+                )
             except Exception as e:
                 logger.debug("Persona Evolution trigger failed: %s", e)
 
