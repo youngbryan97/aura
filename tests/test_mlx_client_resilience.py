@@ -161,6 +161,57 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
 
         reboot_mock.assert_not_awaited()
 
+    async def test_generate_times_out_waiting_for_foreground_owner(self):
+        import core.brain.llm.mlx_client as mlx_module
+
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        old_owner = mlx_module._FOREGROUND_OWNER_NAME
+        old_owned_at = mlx_module._FOREGROUND_OWNER_ACQUIRED_AT
+        mlx_module._FOREGROUND_OWNER_NAME = "warmup:cortex"
+        mlx_module._FOREGROUND_OWNER_ACQUIRED_AT = time.time()
+
+        try:
+            with patch.object(client, "_acquire_request_lock", new=AsyncMock(return_value=True)):
+                with patch.object(client, "_generate_inner", new=AsyncMock()) as inner:
+                    with patch("core.brain.llm.mlx_client._foreground_owner_wait_budget", return_value=0.0):
+                        result = await client.generate(
+                            "hello",
+                            foreground_request=True,
+                            owner_label="test",
+                            deadline=get_deadline(30.0),
+                        )
+        finally:
+            mlx_module._FOREGROUND_OWNER_NAME = old_owner
+            mlx_module._FOREGROUND_OWNER_ACQUIRED_AT = old_owned_at
+
+        self.assertIsNone(result)
+        inner.assert_not_awaited()
+
+    async def test_generate_clears_stale_foreground_owner_and_continues(self):
+        import core.brain.llm.mlx_client as mlx_module
+
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        old_owner = mlx_module._FOREGROUND_OWNER_NAME
+        old_owned_at = mlx_module._FOREGROUND_OWNER_ACQUIRED_AT
+        mlx_module._FOREGROUND_OWNER_NAME = "warmup:cortex"
+        mlx_module._FOREGROUND_OWNER_ACQUIRED_AT = time.time() - 120.0
+
+        try:
+            with patch.object(client, "_acquire_request_lock", new=AsyncMock(return_value=True)):
+                with patch.object(client, "_generate_inner", new=AsyncMock(return_value="ok")) as inner:
+                    result = await client.generate(
+                        "hello",
+                        foreground_request=True,
+                        owner_label="test",
+                        deadline=get_deadline(30.0),
+                    )
+        finally:
+            mlx_module._FOREGROUND_OWNER_NAME = old_owner
+            mlx_module._FOREGROUND_OWNER_ACQUIRED_AT = old_owned_at
+
+        self.assertEqual(result, "ok")
+        inner.assert_awaited_once()
+
 
     async def test_primary_lane_generate_requires_explicit_foreground_request(self):
         client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")

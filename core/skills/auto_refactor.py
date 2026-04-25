@@ -109,6 +109,8 @@ class AutoRefactorSkill(BaseSkill):
                             "message": f"Found TODO: {line.strip()}"
                         })
                         
+            except SyntaxError as e:
+                logger.debug("Skipping unparsable Python candidate %s: %s", file_path, e)
             except Exception as e:
                 logger.warning("Failed to scan %s: %s", file_path, e)
                 

@@ -91,22 +91,94 @@ def _foreground_owner_active() -> bool:
     return _FOREGROUND_OWNER_NAME is not None
 
 
+def _foreground_owner_age(now: Optional[float] = None) -> float:
+    if _FOREGROUND_OWNER_ACQUIRED_AT <= 0.0:
+        return 0.0
+    current_time = float(now if now is not None else time.time())
+    return max(0.0, current_time - _FOREGROUND_OWNER_ACQUIRED_AT)
+
+
+def _foreground_owner_wait_budget(
+    deadline: Optional[Deadline],
+    *,
+    foreground_request: bool,
+) -> float:
+    default = 10.0 if foreground_request else 8.0
+    if not isinstance(deadline, Deadline):
+        return default
+
+    remaining = deadline.remaining
+    if remaining is None:
+        return default
+
+    reserve = 3.0 if foreground_request else 1.5
+    return max(0.25, min(default, remaining - reserve))
+
+
 @contextlib.asynccontextmanager
-async def _foreground_owner_context(owner_name: str):
+async def _foreground_owner_context(
+    owner_name: str,
+    *,
+    deadline: Optional[Deadline] = None,
+    foreground_request: bool = False,
+    stale_after: Optional[float] = None,
+):
     """Serialize foreground work so background model activity cannot compete with it."""
     global _FOREGROUND_OWNER_NAME, _FOREGROUND_OWNER_ACQUIRED_AT
+
+    wait_budget = _foreground_owner_wait_budget(
+        deadline,
+        foreground_request=foreground_request,
+    )
+    loop = asyncio.get_running_loop()
+    wait_started = loop.time()
+    last_log_at = 0.0
 
     while True:
         acquired = _FOREGROUND_OWNER_LOCK.acquire(False)
         try:
-            if acquired and _FOREGROUND_OWNER_NAME is None:
-                _FOREGROUND_OWNER_NAME = owner_name
-                _FOREGROUND_OWNER_ACQUIRED_AT = time.time()
-                break
+            if acquired:
+                holder = _FOREGROUND_OWNER_NAME
+                holder_age = _foreground_owner_age()
+                if holder is None:
+                    _FOREGROUND_OWNER_NAME = owner_name
+                    _FOREGROUND_OWNER_ACQUIRED_AT = time.time()
+                    break
+                if stale_after is not None and holder != owner_name and holder_age > stale_after:
+                    logger.warning(
+                        "♻️ [MLX] Clearing stale foreground owner %s after %.1fs so %s can proceed.",
+                        holder,
+                        holder_age,
+                        owner_name,
+                    )
+                    _FOREGROUND_OWNER_NAME = None
+                    _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
+                    continue
         finally:
             if acquired:
                 _FOREGROUND_OWNER_LOCK.release()
-        await asyncio.sleep(0.05)
+
+        now = loop.time()
+        waited = max(0.0, now - wait_started)
+        if waited >= wait_budget:
+            holder = _FOREGROUND_OWNER_NAME or "foreground"
+            holder_age = _foreground_owner_age()
+            raise TimeoutError(
+                f"Foreground owner wait timed out after {wait_budget:.1f}s "
+                f"waiting on {holder} (held {holder_age:.1f}s)"
+            )
+
+        if waited >= 5.0 and (now - last_log_at) >= 5.0:
+            holder = _FOREGROUND_OWNER_NAME or "foreground"
+            holder_age = _foreground_owner_age()
+            logger.info(
+                "⏳ [MLX] Waiting for foreground owner %s to release (held %.1fs).",
+                holder,
+                holder_age,
+            )
+            last_log_at = now
+
+        await asyncio.sleep(min(0.05, max(0.0, wait_budget - waited)))
 
     try:
         yield
@@ -1684,15 +1756,30 @@ class MLXLocalClient:
             return None
         try:
             if foreground_request:
-                async with _foreground_owner_context(owner_label):
-                    result = await self._generate_inner(
-                        prompt,
-                        _retry=True,
-                        request_is_background=request_is_background,
-                        foreground_request=foreground_request,
-                        owner_label=owner_label,
-                        **kwargs,
+                try:
+                    async with _foreground_owner_context(
+                        owner_label,
+                        deadline=deadline if isinstance(deadline, Deadline) else None,
+                        foreground_request=True,
+                        stale_after=self._first_token_sla(foreground_request=True),
+                    ):
+                        result = await self._generate_inner(
+                            prompt,
+                            _retry=True,
+                            request_is_background=request_is_background,
+                            foreground_request=foreground_request,
+                            owner_label=owner_label,
+                            **kwargs,
+                        )
+                except TimeoutError as exc:
+                    logger.warning("⏸️ [MLX] %s", exc)
+                    self._record_degraded_event(
+                        "foreground_owner_timeout",
+                        detail=f"{os.path.basename(self.model_path)}:{exc}",
+                        severity="warning",
+                        foreground_request=True,
                     )
+                    return None
             else:
                 result = await self._generate_inner(
                     prompt,
@@ -2109,33 +2196,47 @@ class MLXLocalClient:
         self._set_lane_state("warming")
         try:
             if foreground_request:
-                async with _foreground_owner_context(owner_name):
-                    alive = await self._ensure_worker_alive(
-                        request_is_background=request_is_background,
-                        foreground_request=foreground_request,
-                    )
-                    if not alive:
-                        if self._lane_state != "failed":
-                            self._set_lane_state("recovering", "warmup_deferred")
-                        logger.info("⏸️ [MLX] Warmup deferred for %s.", os.path.basename(self.model_path))
-                        return
-
-                    try:
-                        await self._run_warmup_precompile(
+                try:
+                    async with _foreground_owner_context(
+                        owner_name,
+                        deadline=get_deadline(min(8.0, warmup_timeout)),
+                        foreground_request=True,
+                    ):
+                        alive = await self._ensure_worker_alive(
                             request_is_background=request_is_background,
                             foreground_request=foreground_request,
-                            owner_name=owner_name,
-                            warmup_timeout=warmup_timeout,
                         )
-                    except Exception as e:
-                        self._set_lane_state("recovering", f"warmup_precompile_failed:{type(e).__name__}")
-                        self._record_degraded_event(
-                            "warmup_precompile_failed",
-                            detail=f"{os.path.basename(self.model_path)}:{type(e).__name__}",
-                            severity="warning",
-                            foreground_request=foreground_request,
-                        )
-                        logger.warning("⚠️ [MLX] Warmup pre-compile skipped: %s (non-fatal)", e)
+                        if not alive:
+                            if self._lane_state != "failed":
+                                self._set_lane_state("recovering", "warmup_deferred")
+                            logger.info("⏸️ [MLX] Warmup deferred for %s.", os.path.basename(self.model_path))
+                            return
+
+                        try:
+                            await self._run_warmup_precompile(
+                                request_is_background=request_is_background,
+                                foreground_request=foreground_request,
+                                owner_name=owner_name,
+                                warmup_timeout=warmup_timeout,
+                            )
+                        except Exception as e:
+                            self._set_lane_state("recovering", f"warmup_precompile_failed:{type(e).__name__}")
+                            self._record_degraded_event(
+                                "warmup_precompile_failed",
+                                detail=f"{os.path.basename(self.model_path)}:{type(e).__name__}",
+                                severity="warning",
+                                foreground_request=foreground_request,
+                            )
+                            logger.warning("⚠️ [MLX] Warmup pre-compile skipped: %s (non-fatal)", e)
+                except TimeoutError as exc:
+                    self._set_lane_state("recovering", "warmup_foreground_owner_timeout")
+                    self._record_degraded_event(
+                        "warmup_foreground_owner_timeout",
+                        detail=f"{os.path.basename(self.model_path)}:{exc}",
+                        severity="warning",
+                        foreground_request=foreground_request,
+                    )
+                    logger.info("⏸️ [MLX] Warmup deferred for %s: %s", os.path.basename(self.model_path), exc)
                 return
 
             alive = await self._ensure_worker_alive(

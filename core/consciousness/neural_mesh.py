@@ -236,6 +236,11 @@ class NeuralMesh:
         self._mean_column_energy: float = 0.0
         self._global_synchrony: float = 0.0
         self._tier_energies: Dict[CorticalTier, float] = {t: 0.0 for t in CorticalTier}
+        initial_state = np.concatenate([col.x for col in self.columns]).astype(np.float32, copy=False)
+        self._cached_field_state = initial_state.copy()
+        self._cached_executive_projection = np.tanh(
+            self._projection @ self._cached_field_state
+        ).astype(np.float32)
 
         logger.info(
             "NeuralMesh initialized: %d neurons, %d columns, tiers=[S:%d A:%d E:%d]",
@@ -634,6 +639,27 @@ class NeuralMesh:
             std_of_means = col_means.std() + 1e-8
             self._global_synchrony = float(np.clip(std_of_means / mean_of_stds, 0.0, 1.0))
 
+        full_state = X.reshape(-1).astype(np.float32, copy=True)
+        self._cached_field_state = full_state
+        self._cached_executive_projection = np.tanh(
+            self._projection @ full_state
+        ).astype(np.float32)
+
+    def _refresh_cached_snapshots(self) -> None:
+        full_state = np.concatenate([col.x for col in self.columns]).astype(np.float32, copy=True)
+        self._cached_field_state = full_state
+        self._cached_executive_projection = np.tanh(
+            self._projection @ full_state
+        ).astype(np.float32)
+
+    def _refresh_cached_snapshots_if_idle(self) -> None:
+        if not self._lock.acquire(False):
+            return
+        try:
+            self._refresh_cached_snapshots()
+        finally:
+            self._lock.release()
+
     # ── External API ─────────────────────────────────────────────────
 
     def inject_sensory(self, vector: np.ndarray):
@@ -660,15 +686,13 @@ class NeuralMesh:
         """Project full 4096-d state down to 64-d for LiquidSubstrate injection.
         This is how the mesh feeds into the existing consciousness core.
         """
-        with self._lock:
-            full = np.concatenate([col.x for col in self.columns])
-        projected = self._projection @ full
-        return np.tanh(projected).astype(np.float32)
+        self._refresh_cached_snapshots_if_idle()
+        return self._cached_executive_projection.copy()
 
     def get_field_state(self) -> np.ndarray:
         """Full 4096-dimensional activation snapshot."""
-        with self._lock:
-            return np.concatenate([col.x for col in self.columns])
+        self._refresh_cached_snapshots_if_idle()
+        return self._cached_field_state.copy()
 
     def get_column_summary(self, col_idx: int) -> Dict:
         """Per-column diagnostic."""

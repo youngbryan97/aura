@@ -1072,7 +1072,11 @@ class LocalServerClient:
                 if foreground_request:
                     from .mlx_client import _foreground_owner_context
 
-                    async with _foreground_owner_context(owner_label):
+                    async with _foreground_owner_context(
+                        owner_label,
+                        deadline=deadline if isinstance(deadline, Deadline) else None,
+                        foreground_request=foreground_request,
+                    ):
                         return await self._chat_completion(
                             payload_messages,
                             max_tokens=max_tokens,

@@ -16,6 +16,7 @@ Coverage:
 
 import asyncio
 import math
+import threading
 import time
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -97,6 +98,48 @@ class TestNeuralMesh:
         mesh = self._make_mesh()
         state = mesh.get_field_state()
         assert state.shape == (256,)
+
+    def test_executive_projection_uses_cached_snapshot_when_lock_is_busy(self):
+        mesh = self._make_mesh()
+        mesh._tick()
+        expected = mesh.get_executive_projection()
+        result = {}
+
+        assert mesh._lock.acquire(False)
+        worker = threading.Thread(
+            target=lambda: result.setdefault("value", mesh.get_executive_projection()),
+            daemon=True,
+        )
+        worker.start()
+        worker.join(timeout=0.2)
+        try:
+            assert not worker.is_alive()
+        finally:
+            mesh._lock.release()
+            worker.join(timeout=0.2)
+
+        np.testing.assert_allclose(result["value"], expected)
+
+    def test_field_state_uses_cached_snapshot_when_lock_is_busy(self):
+        mesh = self._make_mesh()
+        mesh._tick()
+        expected = mesh.get_field_state()
+        result = {}
+
+        assert mesh._lock.acquire(False)
+        worker = threading.Thread(
+            target=lambda: result.setdefault("value", mesh.get_field_state()),
+            daemon=True,
+        )
+        worker.start()
+        worker.join(timeout=0.2)
+        try:
+            assert not worker.is_alive()
+        finally:
+            mesh._lock.release()
+            worker.join(timeout=0.2)
+
+        np.testing.assert_allclose(result["value"], expected)
 
     def test_sensory_injection(self):
         mesh = self._make_mesh()
