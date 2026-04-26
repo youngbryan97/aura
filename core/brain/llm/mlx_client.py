@@ -1297,6 +1297,28 @@ class MLXLocalClient:
             other_heavy_path = deep_path if target_path == primary_path else primary_path
             other_client = _CLIENTS.get(other_heavy_path)
             if other_client and other_client is not self and other_client.is_alive():
+                # Cortex-protection mirror of the smaller-yield loop below: if
+                # the warm heavy model just served the user, do not evict it
+                # to bring up the other heavy lane. Background promotions in
+                # the middle of a conversation were the primary cause of the
+                # 32B → 72B → 32B thrash that left the user with "I got
+                # interrupted mid-thought" replies.
+                last_user_facing = float(
+                    getattr(other_client, "_last_user_facing_completed_at", 0.0) or 0.0
+                )
+                if (
+                    request_is_background
+                    and last_user_facing > 0.0
+                    and (time.time() - last_user_facing) < 180.0
+                ):
+                    logger.info(
+                        "🛡️ [MLX] NOT hot-swapping heavy model %s (served user %.1fs ago); "
+                        "background warmup of %s deferred.",
+                        os.path.basename(other_heavy_path),
+                        time.time() - last_user_facing,
+                        os.path.basename(target_path),
+                    )
+                    return False
                 logger.warning(
                     "♻️ [MLX] Hot-swapping heavy model: unloading %s before loading %s.",
                     os.path.basename(other_heavy_path),

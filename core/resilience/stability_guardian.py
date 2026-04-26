@@ -498,11 +498,31 @@ class StabilityGuardian:
             return HealthCheckResult("lock_watchdog", False, f"Check failed: {exc}", "error")
 
     def _dump_thread_stacks(self, label: str) -> bool:
+        if not self._repair_allowed("stability_guardian_thread_dump", self.EVENT_LOOP_LAG_DUMP_COOLDOWN_S):
+            return False
+        # Snapshot live task names cheaply on the loop, then offload the
+        # heavy stack-formatting (sys._current_frames + traceback.format_stack
+        # for every thread) to a worker thread. The previous implementation
+        # ran entirely on the event loop and was itself a frequent source
+        # of the 0.5–2.5s lag spikes it was meant to diagnose.
+        try:
+            loop = asyncio.get_running_loop()
+            live_tasks = sorted(
+                t.get_name() for t in asyncio.all_tasks(loop) if not t.done()
+            )
+        except Exception:
+            live_tasks = []
+        try:
+            loop.run_in_executor(None, self._dump_thread_stacks_blocking, label, live_tasks)
+        except Exception as exc:
+            logger.debug("StabilityGuardian thread dump dispatch failed: %s", exc)
+            return False
+        return True
+
+    @staticmethod
+    def _dump_thread_stacks_blocking(label: str, live_tasks: list[str]) -> None:
         try:
             import traceback
-
-            if not self._repair_allowed("stability_guardian_thread_dump", self.EVENT_LOOP_LAG_DUMP_COOLDOWN_S):
-                return False
 
             idle_markers = (
                 "threading.py\", line 355, in wait",
@@ -534,10 +554,6 @@ class StabilityGuardian:
                 if frame is not None:
                     main_block = f"[main-thread #{main_ident}]\n{''.join(traceback.format_stack(frame)).strip()}"
 
-            loop = asyncio.get_running_loop()
-            live_tasks = sorted(
-                t.get_name() for t in asyncio.all_tasks(loop) if not t.done()
-            )
             task_block = ""
             if live_tasks:
                 task_block = "\n[asyncio tasks]\n" + "\n".join(f"- {name}" for name in live_tasks[:25])
@@ -548,10 +564,8 @@ class StabilityGuardian:
             ordered_blocks.extend(sorted(blocks, key=len, reverse=True)[:6])
             dump = "\n\n".join(ordered_blocks)
             logger.error("🚨 [StabilityGuardian] %s. THREAD DUMP:%s\n%s", label, task_block, dump[:6000])
-            return True
         except Exception as exc:
             logger.debug("StabilityGuardian thread dump failed: %s", exc)
-            return False
 
     def _check_tick_rate(self) -> HealthCheckResult:
         now = time.time()

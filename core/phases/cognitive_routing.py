@@ -418,7 +418,16 @@ class CognitiveRoutingPhase(BasePhase):
             if norepinephrine > 0.5:
                 substrate_score += 0.1
 
-            if substrate_score >= 0.4 and (explicit_deep_request or looks_technical):
+            # Require an explicit deep-reasoning request OR a substantial technical
+            # prompt for substrate-approved handoff. Borderline philosophical
+            # questions ("describe one moment …") were spuriously promoted to
+            # the 72B lane, hot-swapping the warm 32B and forcing 12s cooldowns
+            # mid-conversation. Keep them on the primary lane unless the user
+            # clearly signaled heavy work.
+            if substrate_score >= 0.5 and (
+                explicit_deep_request
+                or (looks_technical and word_count >= 60)
+            ):
                 logger.info(
                     "🧠 CognitiveRouting: SUBSTRATE approves deep handoff (score=%.2f, "
                     "coherence=%.2f, phi=%.2f, complexity=%.2f)",

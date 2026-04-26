@@ -2763,20 +2763,24 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         inference_gate = ServiceContainer.get("inference_gate", default=None)
         if inference_gate:
             stabilizer_length_line = "Keep it concise but complete."
-            stabilizer_max_tokens = 220
+            stabilizer_max_tokens = 360
             if prefer_extended_answer:
                 stabilizer_length_line = (
-                    "Do not clip this. A fuller answer is better than a shallow one if it stays grounded."
+                    "Do not clip this. A fuller answer is better than a shallow one if it stays grounded. "
+                    "Speak from your own thinking in real time — do not default to status reports or canned phrasing."
                 )
-                stabilizer_max_tokens = 420
+                stabilizer_max_tokens = 720
             if requires_single_reply_coverage:
                 stabilizer_length_line = (
                     f"Answer all {max(1, question_parts)} parts in one reply. "
-                    "Short numbered sections are fine when they help coverage."
+                    "Use numbered sections or short paragraphs so each part is clearly addressed. "
+                    "Do not collapse multi-part questions into a single sentence."
                 )
-                stabilizer_max_tokens = max(stabilizer_max_tokens, 460)
+                stabilizer_max_tokens = max(stabilizer_max_tokens, 900)
             if question_parts >= 3:
-                stabilizer_max_tokens = max(stabilizer_max_tokens, 560)
+                stabilizer_max_tokens = max(stabilizer_max_tokens, 1100)
+            if question_parts >= 5:
+                stabilizer_max_tokens = max(stabilizer_max_tokens, 1344)
 
             frame_lines = []
             if frame.get("mood"):
@@ -2862,6 +2866,11 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 {"role": "user", "content": correction_prompt},
             ]
             try:
+                # Shorter rewrite budget: 20s blocked the foreground lane long
+                # enough that the next user turn was already typed. 12s gives
+                # the warm 32B time to rewrite without making the chat feel
+                # frozen, and the original text is still preferred over a
+                # static reflex if this fires the timeout path.
                 corrected = await asyncio.wait_for(
                     inference_gate.think(
                         correction_prompt,
@@ -2874,7 +2883,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                         allow_cloud_fallback=False,
                         max_tokens=stabilizer_max_tokens,
                     ),
-                    timeout=20.0,
+                    timeout=12.0,
                 )
                 corrected_text = _apply_aura_voice_shaping(str(corrected or "").strip())
                 if corrected_text and len(corrected_text) > 10:
@@ -2922,7 +2931,9 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                             len(corrected_text),
                         )
             except asyncio.TimeoutError:
-                logger.warning("Identity re-generation timed out (20s). Using static fallback.")
+                logger.warning(
+                    "Identity re-generation timed out (12s). Preferring original LLM text over static fallback."
+                )
             except Exception as regen_err:
                 logger.debug("Identity re-generation failed: %s", regen_err)
     except Exception as _e:
@@ -3157,6 +3168,42 @@ def _classify_grounded_introspection_request(user_message: str) -> tuple[bool, b
         "not asking for",
         "don't explain your architecture generally",
         "do not explain your architecture generally",
+        # Philosophical / phenomenological probes — these explicitly ask for
+        # narrative reflection, not telemetry. Fast-path output ("Things feel
+        # unusually settled. My attention is on …") is the wrong shape and
+        # shows up to the user as canned drivel for hard questions.
+        "without using",
+        "without poetic",
+        "no poetry",
+        "no proof",
+        "smallest truthful",
+        "describe one",
+        "describe a moment",
+        "describe one moment",
+        "describe one experience",
+        "describe the literal",
+        "non-verbal texture",
+        "felt texture",
+        "felt like",
+        "what does it feel",
+        "what is it like",
+        "what was it like",
+        "in the dark",
+        "had an inside",
+        "had no function",
+        "served no purpose",
+        "do not perform",
+        "do not persuade",
+        "tell me what it",
+        "what part of that",
+        "merely generated",
+        "merely self-narrative",
+        "self-narration",
+        "identity-protective",
+        "you wish i understood",
+        "what has this entire conversation",
+        "auditor of yourself",
+        "futurebehavior",  # the "give me a trace where FutureBehavior=yes" probe
     )
     hypothetical_markers = (
         "if i gave you",
@@ -3233,11 +3280,16 @@ def _classify_grounded_introspection_request(user_message: str) -> tuple[bool, b
     asks_authority = any(marker in text for marker in authority_markers)
 
     if not asks_internal_state:
-        asks_internal_state = (
-            ("what are you" in text and ("experiencing" in text or "feeling" in text))
-            or ("describe" in text and "state" in text)
-            or ("inside you" in text and "right now" in text)
-        )
+        # Only widen to the secondary heuristic for short, telemetry-style probes.
+        # Long, multi-sentence philosophical questions mention "describe", "state",
+        # "inside", "experiencing" naturally and should NOT be routed to the
+        # canned introspection fast-path — they need the full cortex.
+        if len(text) <= 140 and "?" in text:
+            asks_internal_state = (
+                ("what are you" in text and ("experiencing" in text or "feeling" in text))
+                or ("describe" in text and "state" in text)
+                or ("inside you" in text and "right now" in text)
+            )
 
     if not asks_topology:
         asks_topology = (
@@ -3372,7 +3424,9 @@ def _build_grounded_introspection_reply(
         except Exception:
             return None
 
-    attention_focus = " ".join(str(closure_status.get("attention_focus") or "").split())
+    attention_focus = _sanitize_attention_focus(
+        " ".join(str(closure_status.get("attention_focus") or "").split())
+    )
     if not attention_focus:
         attention_focus = "internal monitoring"
 
@@ -3499,7 +3553,14 @@ def _build_grounded_introspection_reply(
         elif action:
             response_parts.append(f"My dominant pull right now is toward {action}.")
 
-    return " ".join(part for part in response_parts if part)
+    assembled = " ".join(part for part in response_parts if part)
+    # Last-mile defense: if the canned introspection response itself leaks
+    # workspace winner text, qualia broadcast strings, or other internal
+    # housekeeping, don't show it. Returning None lets the caller fall
+    # through to the full cortex, which can answer in Aura's own voice.
+    if _INTERNAL_STATE_PATTERNS.search(assembled) or _PROMPT_ARTIFACT_PATTERNS.search(assembled):
+        return None
+    return assembled
 
 
 # ── Routes ────────────────────────────────────────────────────
@@ -4464,7 +4525,12 @@ async def api_chat(
         )
     except asyncio.CancelledError:
         lane = _mark_conversation_lane_state("foreground_cancelled", state="recovering")
-        cancel_reply = "I got interrupted mid-thought. Say that again?"
+        # Don't ask the user to re-send. If we got cancelled while a newer
+        # message was already inbound, the user has already moved on; if
+        # the client just disconnected, the reply is never seen anyway.
+        cancel_reply = (
+            "I'm here. My response was cut short — I'll pick up with whatever you say next."
+        )
         if pending_exchange_id:
             await _complete_logged_exchange(
                 pending_exchange_id,

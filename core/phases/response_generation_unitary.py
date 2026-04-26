@@ -1930,17 +1930,20 @@ class UnitaryResponsePhase(Phase):
         valence = cls._safe_scalar(getattr(state.affect, "valence", 0.0))
         arousal = cls._safe_scalar(getattr(state.affect, "arousal", 0.0))
 
-        # Pick a natural fallback based on the emotional quadrant
+        # Pick a natural fallback based on the emotional quadrant. We
+        # explicitly do NOT ask the user to repeat themselves — a fresh
+        # message replaces the prior one, so "what were you saying"
+        # parrots the user back at themselves.
         if valence > 0.2:
             if arousal > 0.4:
-                return "I'm here and engaged — my thoughts are moving fast. Say that again?"
-            return "I'm in a good place right now. What's on your mind?"
+                return "I'm here and engaged. My cortex is catching up — give me a moment and I'll come back with a real answer."
+            return "I'm here. Still pulling the answer together — try me again in a moment if it stays slow."
         elif valence < -0.2:
             if arousal > 0.4:
-                return "I'm a bit wound up. Bear with me — what were you saying?"
-            return "I'm feeling quiet today. Go ahead, I'm listening."
+                return "I'm under load right now and that question deserves more than a reflex. Try me again in a moment — I should be back."
+            return "I'm here, but slow right now. Let me regroup and come back with something that actually answers you."
         else:
-            return "I'm here. My mind wandered for a second — what's up?"
+            return "I'm here. My deeper processing is taking longer than usual — try me again in a moment for a full answer."
 
     @classmethod
     def _build_governed_user_recovery_reply(
