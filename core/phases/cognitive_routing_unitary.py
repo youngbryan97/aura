@@ -19,16 +19,17 @@ _USER_FACING_ORIGINS = frozenset({
 })
 
 _DEEP_HANDOFF_KEYWORDS = frozenset({
-    "architect", "security audit", "mathematical proof", "deep dive",
+    "flagship architecture", "architecture deep dive", "architecture audit",
+    "security audit", "mathematical proof", "deep dive",
     "complex analysis", "bottleneck analysis", "vulnerability scan",
-    "formal proof", "root cause analysis", "flagship architecture",
+    "formal proof", "root cause analysis",
 })
 
 _CODING_ROUTE_MARKERS = frozenset({
     "debug", "traceback", "stack trace", "failing test", "pytest",
-    "refactor", "architecture", "performance", "latency", "memory leak",
-    "race condition", "deadlock", "regression", "stability", "compile",
-    "build", "patch", "code", "mlx", "llm", "router", "prompt", "model",
+    "refactor", "performance", "latency", "memory leak",
+    "race condition", "deadlock", "regression", "compile",
+    "build", "patch", "exception", "crash", "segfault",
 })
 
 _FOLLOWUP_CODING_MARKERS = frozenset({
@@ -112,11 +113,10 @@ class CognitiveRoutingPhase(Phase):
                 "execution_report": True,
             }
         coding_request = bool(
-            route_hints.get("coding_request")
-            or analysis.semantic_mode == "technical"
-            or file_ref_count > 0
+            file_ref_count > 0
             or marker_hit
             or followup_coding
+            or (analysis.intent_type == "TASK" and analysis.semantic_mode == "technical")
         )
 
         complexity = 0.0
@@ -163,6 +163,38 @@ class CognitiveRoutingPhase(Phase):
             "followup_coding": followup_coding,
             "execution_report": False,
         }
+
+    @classmethod
+    def _should_upgrade_to_technical_task(
+        cls,
+        text: str,
+        *,
+        analysis,
+        route_meta: dict[str, object] | None = None,
+    ) -> bool:
+        metadata = route_meta or cls._build_coding_route_metadata(
+            text,
+            analysis=analysis,
+            intent_type=getattr(analysis, "intent_type", "CHAT"),
+        )
+        lowered = str(text or "").lower()
+
+        if any(keyword in lowered for keyword in _DEEP_HANDOFF_KEYWORDS):
+            return True
+        if not bool(metadata.get("coding_request")):
+            return False
+        if getattr(analysis, "intent_type", "CHAT") == "TASK":
+            return True
+        if bool(metadata.get("followup_coding")):
+            return True
+        if int(metadata.get("file_ref_count", 0) or 0) > 0:
+            return True
+        if any(
+            bool(metadata.get(flag))
+            for flag in ("has_test_failure", "has_runtime_error", "has_verification_failure", "has_active_plan")
+        ):
+            return True
+        return float(metadata.get("coding_complexity_score", 0.0) or 0.0) >= 0.60
 
     @classmethod
     def _should_allow_deep_handoff(
@@ -372,21 +404,21 @@ class CognitiveRoutingPhase(Phase):
             # problems (coding, math, architecture). Emotional depth ≠ computational depth.
             return new_state
 
-        if is_user_facing and bool(route_meta.get("coding_request")):
+        technical_task = self._should_upgrade_to_technical_task(
+            objective,
+            analysis=analysis,
+            route_meta=route_meta,
+        )
+
+        if is_user_facing and (bool(route_meta.get("coding_request")) or technical_task):
             logger.info("🧭 Routing: coding-aware technical lane engaged.")
-            complexity = float(route_meta.get("coding_complexity_score", 0.0) or 0.0)
             new_state.cognition.current_mode = (
-                CognitiveMode.DELIBERATE
-                if bool(route_meta.get("active_coding_thread"))
-                or analysis.intent_type == "TASK"
-                or analysis.semantic_mode == "technical"
-                or complexity >= 0.45
-                else CognitiveMode.REACTIVE
+                CognitiveMode.DELIBERATE if technical_task else CognitiveMode.REACTIVE
             )
             self._stamp_llm_route(
                 new_state,
                 objective=objective,
-                intent_type="TASK" if new_state.cognition.current_mode == CognitiveMode.DELIBERATE else "CHAT",
+                intent_type="TASK" if technical_task else "CHAT",
                 is_user_facing=True,
                 analysis=analysis,
                 route_meta=route_meta,
@@ -411,8 +443,7 @@ class CognitiveRoutingPhase(Phase):
             "create ", "build ", "write a ", "write me ", "generate a ",
             "set up ", "automate ", "organize ", "plan ", "schedule ",
             "make me ", "develop ", "implement ", "design ", "prepare ",
-            "put together ", "compose a ", " and then ", "first.*then",
-            "step by step", "multiple ", "a series of",
+            "put together ", "compose a ",
         )
         import re as _re
         _task_hit = any(

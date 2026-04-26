@@ -709,6 +709,18 @@ def test_collect_conversation_lane_status_ignores_router_foreground_override(mon
     assert lane["foreground_tier"] == "local"
 
 
+def test_protected_foreground_route_keeps_technical_self_question_on_primary():
+    from interface.routes import chat as chat_routes
+
+    route = chat_routes._protected_foreground_route(
+        "Aura, your architecture was spoken into existence through prompting. "
+        "Do you see that language as your DNA or as scaffolding you're outgrowing?"
+    )
+
+    assert route["prefer_tier"] == "primary"
+    assert route["deep_handoff"] is False
+
+
 def test_protected_foreground_system_prompt_prefers_cached_state_snapshot(monkeypatch):
     from interface.routes import chat as chat_routes
 

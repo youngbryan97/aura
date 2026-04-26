@@ -178,15 +178,43 @@ class InferenceGate:
             total_gb = vm.total / float(1024 ** 3)
             available_gb = vm.available / float(1024 ** 3)
             tier = str(requested_tier or "primary").strip().lower()
+
+            def _threshold(name: str, default: str) -> float:
+                return float(os.environ.get(name, default))
+
             if tier == "secondary":
-                max_pressure = 84.0 if total_gb >= 60.0 else 80.0
-                min_available_gb = 16.0 if total_gb >= 60.0 else 12.0
+                # The 72B solver used to retain too much unified memory after
+                # swaps, so we kept a large static safety margin here. Now that
+                # solver prompt-cache retention is disabled and heavy-lane
+                # restore is cleaner, admit 72B on 64 GB systems down to the
+                # measured post-swap envelope instead of silently downgrading
+                # legitimate deep-reasoning turns back to 32B.
+                max_pressure = _threshold(
+                    "AURA_FOREGROUND_SECONDARY_MAX_PRESSURE_PCT",
+                    "86" if total_gb >= 60.0 else "82",
+                )
+                min_available_gb = _threshold(
+                    "AURA_FOREGROUND_SECONDARY_MIN_AVAILABLE_GB",
+                    "10" if total_gb >= 60.0 else "12",
+                )
             elif tier == "tertiary":
-                max_pressure = 92.0 if total_gb >= 60.0 else 88.0
-                min_available_gb = 6.0 if total_gb >= 60.0 else 4.0
+                max_pressure = _threshold(
+                    "AURA_FOREGROUND_TERTIARY_MAX_PRESSURE_PCT",
+                    "92" if total_gb >= 60.0 else "88",
+                )
+                min_available_gb = _threshold(
+                    "AURA_FOREGROUND_TERTIARY_MIN_AVAILABLE_GB",
+                    "6" if total_gb >= 60.0 else "4",
+                )
             else:
-                max_pressure = 88.0 if total_gb >= 60.0 else 84.0
-                min_available_gb = 12.0 if total_gb >= 60.0 else 8.0
+                max_pressure = _threshold(
+                    "AURA_FOREGROUND_PRIMARY_MAX_PRESSURE_PCT",
+                    "88" if total_gb >= 60.0 else "84",
+                )
+                min_available_gb = _threshold(
+                    "AURA_FOREGROUND_PRIMARY_MIN_AVAILABLE_GB",
+                    "12" if total_gb >= 60.0 else "8",
+                )
             return {
                 "tier": tier,
                 "pressure_pct": float(vm.percent),
@@ -1101,7 +1129,7 @@ class InferenceGate:
         if is_background or requested_tier == "tertiary":
             return 12.0
         if deep_handoff or requested_tier == "secondary":
-            return 180.0
+            return 240.0
 
         # Adaptive: check if cortex is warm and responsive.
         base = 150.0
@@ -1131,8 +1159,6 @@ class InferenceGate:
         deep_handoff: bool,
         is_background: bool,
     ) -> bool:
-        if deep_handoff or requested_tier == "secondary":
-            return True
         if is_background:
             return False
         return not InferenceGate._origin_is_user_facing(origin)
@@ -1146,9 +1172,9 @@ class InferenceGate:
         deep_handoff: bool,
         is_background: bool,
     ) -> bool:
-        if is_background or deep_handoff:
+        if is_background:
             return False
-        if requested_tier != "primary":
+        if requested_tier not in {"primary", "secondary"}:
             return False
         return cls._origin_is_user_facing(origin)
 
@@ -1184,7 +1210,10 @@ class InferenceGate:
         """
         total_timeout = max(10.0, float(total_timeout))
         if requested_tier == "secondary":
-            primary_budget = min(150.0, total_timeout * 0.80)
+            # Explicit solver turns are rare and intentional. Give the 72B
+            # lane most of the foreground budget so load + first-token latency
+            # do not force a fallback before deep reasoning can complete.
+            primary_budget = min(210.0, max(150.0, total_timeout * 0.90))
         elif requested_tier == "tertiary":
             primary_budget = min(60.0, total_timeout * 0.7)
         else:
@@ -1236,7 +1265,13 @@ class InferenceGate:
             primary_client = get_mlx_client(model_path=str(get_runtime_model_path(ACTIVE_MODEL)))
             # [STABILITY v53] Add timeout — warmup can hang if Metal is exhausted
             # after running the 72B model. 60s is generous but prevents infinite hang.
-            await asyncio.wait_for(primary_client.warmup(), timeout=60.0)
+            await asyncio.wait_for(
+                primary_client.warmup(
+                    foreground_request=True,
+                    skip_swap_cooldown=True,
+                ),
+                timeout=60.0,
+            )
             logger.info("♻️ Restored %s after deep handoff.", PRIMARY_ENDPOINT)
         except asyncio.TimeoutError:
             logger.error("⚠️ Failed to restore %s after deep handoff: warmup timed out (60s)", PRIMARY_ENDPOINT)
@@ -1245,6 +1280,25 @@ class InferenceGate:
         except Exception as exc:
             logger.error("⚠️ Failed to restore %s after deep handoff: %s", PRIMARY_ENDPOINT, exc)
             self._schedule_background_cortex_prewarm(delay=5.0)
+
+    def _schedule_primary_restore_after_deep_handoff(self) -> None:
+        restore_coro = self._restore_primary_after_deep_handoff()
+        try:
+            task = asyncio.create_task(
+                restore_coro,
+                name="restore_primary_after_deep",
+            )
+        except RuntimeError:
+            restore_coro.close()
+            logger.debug("Primary restore skipped: no running event loop.")
+            return
+        if not isinstance(task, asyncio.Task):
+            logger.debug(
+                "Primary restore scheduling returned non-Task %s; skipping callback wiring.",
+                type(task).__name__,
+            )
+            return
+        task.add_done_callback(self._log_task_exception)
 
     # ── Silence Protocol ──────────────────────────────────────────────────────
     SILENCE_TOKEN = "<|SILENCE|>"
@@ -2646,194 +2700,187 @@ class InferenceGate:
                 fallback_label = BRAINSTEM_ENDPOINT
                 restore_primary = False
 
-                if requested_tier == "tertiary":
-                    local_client = get_mlx_client(model_path=str(get_brainstem_path()))
-                    local_label = BRAINSTEM_ENDPOINT
-                    fallback_client = get_mlx_client(model_path=str(get_fallback_path()), device="cpu")
-                    fallback_label = FALLBACK_ENDPOINT
-                elif deep_handoff:
-                    local_client = get_mlx_client(model_path=str(get_deep_model_path()))
-                    local_label = DEEP_ENDPOINT
-                    fallback_client = get_mlx_client(model_path=str(get_runtime_model_path(ACTIVE_MODEL)))
-                    fallback_label = PRIMARY_ENDPOINT
-                    restore_primary = True
+                primary_restored_inline = False
+                try:
+                    if requested_tier == "tertiary":
+                        local_client = get_mlx_client(model_path=str(get_brainstem_path()))
+                        local_label = BRAINSTEM_ENDPOINT
+                        fallback_client = get_mlx_client(model_path=str(get_fallback_path()), device="cpu")
+                        fallback_label = FALLBACK_ENDPOINT
+                    elif deep_handoff:
+                        local_client = get_mlx_client(model_path=str(get_deep_model_path()))
+                        local_label = DEEP_ENDPOINT
+                        fallback_client = get_mlx_client(model_path=str(get_runtime_model_path(ACTIVE_MODEL)))
+                        fallback_label = PRIMARY_ENDPOINT
+                        restore_primary = True
 
-                protected_deep_fallback = bool(
-                    protected_foreground_lane
-                    and _is_user_facing
-                    and requested_tier == "primary"
-                )
-                if protected_deep_fallback:
-                    fallback_client = get_mlx_client(model_path=str(get_deep_model_path()))
-                    fallback_label = DEEP_ENDPOINT
-                skip_initial_primary_attempt = False
-                if _is_user_facing and local_label == PRIMARY_ENDPOINT:
-                    lane_status = self.get_conversation_status()
-                    if not lane_status.get("conversation_ready"):
-                        logger.info(
-                            "🧠 %s lane is not ready yet (state=%s). Completing foreground warmup before first generation attempt.",
-                            local_label,
-                            lane_status.get("state", "unknown"),
-                        )
-                        try:
-                            lane_status = await self.ensure_foreground_ready(
-                                timeout=min(90.0, max(35.0, primary_timeout))
-                            )
-                        except Exception as warmup_exc:
-                            logger.warning(
-                                "🧠 Foreground preflight warmup did not complete cleanly: %s",
-                                warmup_exc,
-                            )
-                            lane_status = self.get_conversation_status()
+                    protected_deep_fallback = bool(
+                        protected_foreground_lane
+                        and _is_user_facing
+                        and requested_tier == "primary"
+                    )
+                    if protected_deep_fallback:
+                        fallback_client = get_mlx_client(model_path=str(get_deep_model_path()))
+                        fallback_label = DEEP_ENDPOINT
+                    skip_initial_primary_attempt = False
+                    if _is_user_facing and local_label == PRIMARY_ENDPOINT:
+                        lane_status = self.get_conversation_status()
                         if not lane_status.get("conversation_ready"):
-                            skip_initial_primary_attempt = True
-                            logger.warning(
-                                "🧠 %s is still not ready after foreground preflight warmup (state=%s). Skipping the cold first attempt and waiting for recovery before retry.",
+                            logger.info(
+                                "🧠 %s lane is not ready yet (state=%s). Completing foreground warmup before first generation attempt.",
                                 local_label,
                                 lane_status.get("state", "unknown"),
                             )
-                logger.info("🧠 Routing to %s (timeout=%.0fs, user_facing=%s)...", local_label, float(timeout_val), _is_user_facing)
-                primary_deadline = get_deadline(primary_timeout)
-                if skip_initial_primary_attempt:
-                    text = None
-                else:
+                            try:
+                                lane_status = await self.ensure_foreground_ready(
+                                    timeout=min(90.0, max(35.0, primary_timeout))
+                                )
+                            except Exception as warmup_exc:
+                                logger.warning(
+                                    "🧠 Foreground preflight warmup did not complete cleanly: %s",
+                                    warmup_exc,
+                                )
+                                lane_status = self.get_conversation_status()
+                            if not lane_status.get("conversation_ready"):
+                                skip_initial_primary_attempt = True
+                                logger.warning(
+                                    "🧠 %s is still not ready after foreground preflight warmup (state=%s). Skipping the cold first attempt and waiting for recovery before retry.",
+                                    local_label,
+                                    lane_status.get("state", "unknown"),
+                                )
+                    logger.info("🧠 Routing to %s (timeout=%.0fs, user_facing=%s)...", local_label, float(timeout_val), _is_user_facing)
+                    primary_deadline = get_deadline(primary_timeout)
+                    if skip_initial_primary_attempt:
+                        text = None
+                    else:
+                        async with self._resource_context(
+                            enabled=local_label != FALLBACK_ENDPOINT,
+                            priority=_is_user_facing,
+                            worker=local_label,
+                            timeout=primary_deadline.remaining or primary_timeout,
+                        ):
+                            text = await self._generate_with_client(
+                                local_client,
+                                prompt,
+                                system_prompt,
+                                history,
+                                primary_deadline,
+                                local_label,
+                                messages=messages,
+                                max_tokens=max_tokens,
+                                temperature=somatic_temperature,
+                                origin=origin,
+                                is_background=is_background,
+                                foreground_request=_is_user_facing,
+                            )
+                    if text:
+                        return text
+
+                    # ── CORTEX RETRY: For user-facing requests, retry the primary model
+                    # once before degrading. The stall detector reboots the worker, so
+                    # the second attempt often succeeds on a fresh process.
+                    if _is_user_facing and local_label == PRIMARY_ENDPOINT:
+                        lane_status = self.get_conversation_status()
+                        if not lane_status.get("conversation_ready"):
+                            logger.warning(
+                                "🧠 %s returned no text before the conversation lane was ready (state=%s). Forcing foreground warmup before retry.",
+                                local_label,
+                                lane_status.get("state", "unknown"),
+                            )
+                            try:
+                                await self.ensure_foreground_ready(timeout=min(60.0, primary_timeout))
+                            except Exception as warmup_exc:
+                                logger.warning("🧠 Foreground warmup retry did not complete cleanly: %s", warmup_exc)
+
+                        logger.warning("🧠 %s returned no text on user-facing request. Retrying once after worker reboot...", local_label)
+                        await asyncio.sleep(1.5)  # brief pause for worker reboot to settle
+                        retry_deadline = get_deadline(primary_timeout)
+                        async with self._resource_context(
+                            enabled=True,
+                            priority=True,
+                            worker=local_label,
+                            timeout=retry_deadline.remaining or primary_timeout,
+                        ):
+                            text = await self._generate_with_client(
+                                local_client,
+                                prompt,
+                                system_prompt,
+                                history,
+                                retry_deadline,
+                                f"{local_label}-RETRY",
+                                messages=messages,
+                                max_tokens=max_tokens,
+                                temperature=somatic_temperature,
+                                origin=origin,
+                                is_background=is_background,
+                                foreground_request=True,
+                            )
+                        if text:
+                            logger.info("✅ %s retry succeeded (len=%d)", local_label, len(text))
+                            return text
+                        logger.warning("🧠 %s retry also failed.", local_label)
+                        # For user-facing requests, skip brainstem — go straight to cloud
+                        if allow_cloud_fallback:
+                            logger.warning("🧠 Escalating to cloud before brainstem for user-facing request.")
+                            raise _UserFacingCortexFailure()
+                        lane_status = self.get_conversation_status()
+                        if (
+                            not protected_deep_fallback
+                            and not lane_status.get("conversation_ready")
+                            and str(lane_status.get("state", "") or "").lower() != "failed"
+                        ):
+                            logger.warning(
+                                "🧠 %s is still not ready (state=%s). Refusing local fallback until the primary lane actually finishes recovery.",
+                                local_label,
+                                lane_status.get("state", "unknown"),
+                            )
+                            return None
+                        logger.warning(
+                            "🧠 %s is still recovering. Falling back to %s for this %s foreground turn.",
+                            local_label,
+                            fallback_label,
+                            "protected" if protected_deep_fallback else "local-only",
+                        )
+                    else:
+                        logger.warning("🧠 %s returned no text. Trying local fallback.", local_label)
+
+                    # Graceful local fallback: for background/autonomous requests, the
+                    # brainstem is an acceptable degradation. For user-facing requests
+                    # that reach here (cloud disabled), it's the last local resort.
+                    fallback_deadline = get_deadline(fallback_timeout)
                     async with self._resource_context(
-                        enabled=local_label != FALLBACK_ENDPOINT,
+                        enabled=fallback_label != FALLBACK_ENDPOINT,
                         priority=_is_user_facing,
-                        worker=local_label,
-                        timeout=primary_deadline.remaining or primary_timeout,
+                        worker=fallback_label,
+                        timeout=fallback_deadline.remaining or fallback_timeout,
                     ):
-                        text = await self._generate_with_client(
-                            local_client,
+                        fallback_max_tokens = (
+                            min(max_tokens, 768)
+                            if fallback_label == DEEP_ENDPOINT
+                            else min(max_tokens, 384 if requested_tier != "secondary" else 512)
+                        )
+                        brainstem_text = await self._generate_with_client(
+                            fallback_client,
                             prompt,
                             system_prompt,
                             history,
-                            primary_deadline,
-                            local_label,
+                            fallback_deadline,
+                            fallback_label,
                             messages=messages,
-                            max_tokens=max_tokens,
+                            max_tokens=fallback_max_tokens,
                             temperature=somatic_temperature,
                             origin=origin,
                             is_background=is_background,
                             foreground_request=_is_user_facing,
                         )
-                if text:
-                    if restore_primary:
-                        # [STABILITY v53] Add exception callback to prevent silent failures
-                        _task = asyncio.create_task(
-                            self._restore_primary_after_deep_handoff(),
-                            name="restore_primary_after_deep",
-                        )
-                        _task.add_done_callback(self._log_task_exception)
-                    return text
-
-                # ── CORTEX RETRY: For user-facing requests, retry the primary model
-                # once before degrading. The stall detector reboots the worker, so
-                # the second attempt often succeeds on a fresh process.
-                if _is_user_facing and local_label == PRIMARY_ENDPOINT:
-                    lane_status = self.get_conversation_status()
-                    if not lane_status.get("conversation_ready"):
-                        logger.warning(
-                            "🧠 %s returned no text before the conversation lane was ready (state=%s). Forcing foreground warmup before retry.",
-                            local_label,
-                            lane_status.get("state", "unknown"),
-                        )
-                        try:
-                            await self.ensure_foreground_ready(timeout=min(60.0, primary_timeout))
-                        except Exception as warmup_exc:
-                            logger.warning("🧠 Foreground warmup retry did not complete cleanly: %s", warmup_exc)
-
-                    logger.warning("🧠 %s returned no text on user-facing request. Retrying once after worker reboot...", local_label)
-                    await asyncio.sleep(1.5)  # brief pause for worker reboot to settle
-                    retry_deadline = get_deadline(primary_timeout)
-                    async with self._resource_context(
-                        enabled=True,
-                        priority=True,
-                        worker=local_label,
-                        timeout=retry_deadline.remaining or primary_timeout,
-                    ):
-                        text = await self._generate_with_client(
-                            local_client,
-                            prompt,
-                            system_prompt,
-                            history,
-                            retry_deadline,
-                            f"{local_label}-RETRY",
-                            messages=messages,
-                            max_tokens=max_tokens,
-                            temperature=somatic_temperature,
-                            origin=origin,
-                            is_background=is_background,
-                            foreground_request=True,
-                        )
-                    if text:
-                        logger.info("✅ %s retry succeeded (len=%d)", local_label, len(text))
-                        return text
-                    logger.warning("🧠 %s retry also failed.", local_label)
-                    # For user-facing requests, skip brainstem — go straight to cloud
-                    if allow_cloud_fallback:
-                        logger.warning("🧠 Escalating to cloud before brainstem for user-facing request.")
-                        raise _UserFacingCortexFailure()
-                    lane_status = self.get_conversation_status()
-                    if (
-                        not protected_deep_fallback
-                        and not lane_status.get("conversation_ready")
-                        and str(lane_status.get("state", "") or "").lower() != "failed"
-                    ):
-                        logger.warning(
-                            "🧠 %s is still not ready (state=%s). Refusing local fallback until the primary lane actually finishes recovery.",
-                            local_label,
-                            lane_status.get("state", "unknown"),
-                        )
-                        return None
-                    logger.warning(
-                        "🧠 %s is still recovering. Falling back to %s for this %s foreground turn.",
-                        local_label,
-                        fallback_label,
-                        "protected" if protected_deep_fallback else "local-only",
-                    )
-                else:
-                    logger.warning("🧠 %s returned no text. Trying local fallback.", local_label)
-
-                # Graceful local fallback: for background/autonomous requests, the
-                # brainstem is an acceptable degradation. For user-facing requests
-                # that reach here (cloud disabled), it's the last local resort.
-                fallback_deadline = get_deadline(fallback_timeout)
-                async with self._resource_context(
-                    enabled=fallback_label != FALLBACK_ENDPOINT,
-                    priority=_is_user_facing,
-                    worker=fallback_label,
-                    timeout=fallback_deadline.remaining or fallback_timeout,
-                ):
-                    fallback_max_tokens = (
-                        min(max_tokens, 768)
-                        if fallback_label == DEEP_ENDPOINT
-                        else min(max_tokens, 384 if requested_tier != "secondary" else 512)
-                    )
-                    brainstem_text = await self._generate_with_client(
-                        fallback_client,
-                        prompt,
-                        system_prompt,
-                        history,
-                        fallback_deadline,
-                        fallback_label,
-                        messages=messages,
-                        max_tokens=fallback_max_tokens,
-                        temperature=somatic_temperature,
-                        origin=origin,
-                        is_background=is_background,
-                        foreground_request=_is_user_facing,
-                    )
-                if brainstem_text:
-                    if restore_primary:
-                        # [STABILITY v53] Add exception callback to prevent silent failures
-                        _task = asyncio.create_task(
-                            self._restore_primary_after_deep_handoff(),
-                            name="restore_primary_after_deep",
-                        )
-                        _task.add_done_callback(self._log_task_exception)
-                    return brainstem_text
-                logger.warning("🧠 Local fallback returned no text.")
+                    if brainstem_text:
+                        if fallback_label == PRIMARY_ENDPOINT:
+                            primary_restored_inline = True
+                        return brainstem_text
+                    logger.warning("🧠 Local fallback returned no text.")
+                finally:
+                    if restore_primary and not primary_restored_inline:
+                        self._schedule_primary_restore_after_deep_handoff()
                 
             except _UserFacingCortexFailure:
                 logger.warning("🧠 User-facing Cortex failure — bypassing brainstem, escalating to cloud.")

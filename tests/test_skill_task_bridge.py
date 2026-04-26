@@ -34,6 +34,14 @@ def test_analyze_turn_keeps_single_step_skill_request_as_skill():
     assert analysis.intent_type == "SKILL"
 
 
+def test_analyze_turn_keeps_conversational_and_then_question_as_chat():
+    analysis = analyze_turn(
+        "And then what? Asking one person a question wouldn't change that.",
+    )
+
+    assert analysis.intent_type == "CHAT"
+
+
 def test_execution_report_is_not_reclassified_as_fresh_task():
     text = 'Made some fixes. This is what I did: "Committed as 83e16743" and verified the tests passed.'
 

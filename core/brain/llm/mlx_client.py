@@ -1234,6 +1234,7 @@ class MLXLocalClient:
         foreground_request: bool = False,
         init_timeout: Optional[float] = None,
         soft_timeout: bool = False,
+        skip_swap_cooldown: bool = False,
     ) -> bool:
         """Self-healing supervisor for the MLX worker.
         
@@ -1261,6 +1262,7 @@ class MLXLocalClient:
                 foreground_request=foreground_request,
                 init_timeout=init_timeout,
                 soft_timeout=soft_timeout,
+                skip_swap_cooldown=skip_swap_cooldown,
             )
 
     async def _ensure_worker_alive_inner(
@@ -1270,6 +1272,7 @@ class MLXLocalClient:
         foreground_request: bool = False,
         init_timeout: Optional[float] = None,
         soft_timeout: bool = False,
+        skip_swap_cooldown: bool = False,
     ) -> bool:
         """Inner implementation — called while holding the global spawn gate."""
         should_wait_init = False
@@ -1304,10 +1307,16 @@ class MLXLocalClient:
             if _GLOBAL_LAST_HEAVY_MODEL and _GLOBAL_LAST_HEAVY_MODEL != target_path:
                 now = time.time()
                 elapsed = now - _GLOBAL_LAST_SWAP_TIME
-                if elapsed < 12.0:
+                if elapsed < 12.0 and not skip_swap_cooldown:
                     wait_time = 12.0 - elapsed
                     logger.warning("⏳ [MLX] SWAP COOLDOWN: Waiting %.1fs...", wait_time)
                     await asyncio.sleep(wait_time)
+                elif elapsed < 12.0 and skip_swap_cooldown:
+                    logger.info(
+                        "⚡ [MLX] Skipping %.1fs swap cooldown for %s.",
+                        12.0 - elapsed,
+                        os.path.basename(target_path),
+                    )
             for other_path, other_client in list(_CLIENTS.items()):
                 if other_path in (target_path, other_heavy_path):
                     continue
@@ -2231,9 +2240,17 @@ class MLXLocalClient:
                     continue
                 raise last_exc
 
-    async def warmup(self):
+    async def warmup(
+        self,
+        *,
+        foreground_request: Optional[bool] = None,
+        skip_swap_cooldown: bool = False,
+    ):
         """Boot-time warmup: spawn worker + 1-token pre-compile."""
-        foreground_request = self._is_primary_or_deep_lane()
+        if foreground_request is None:
+            foreground_request = self._is_primary_or_deep_lane()
+        else:
+            foreground_request = bool(foreground_request)
         request_is_background = not foreground_request
         owner_name = f"warmup:{os.path.basename(self.model_path)}"
         warmup_timeout = self._warmup_timeout()
@@ -2263,6 +2280,7 @@ class MLXLocalClient:
                         alive = await self._ensure_worker_alive(
                             request_is_background=request_is_background,
                             foreground_request=foreground_request,
+                            skip_swap_cooldown=skip_swap_cooldown,
                         )
                         if not alive:
                             if self._lane_state != "failed":
@@ -2300,6 +2318,7 @@ class MLXLocalClient:
             alive = await self._ensure_worker_alive(
                 request_is_background=request_is_background,
                 foreground_request=foreground_request,
+                skip_swap_cooldown=skip_swap_cooldown,
             )
             if not alive:
                 if self._lane_state != "failed":
@@ -2326,9 +2345,9 @@ class MLXLocalClient:
         finally:
             self._warmup_in_flight = False
 
-    async def warm_up(self):
+    async def warm_up(self, **kwargs):
         """Backward-compatible alias for older call sites."""
-        return await self.warmup()
+        return await self.warmup(**kwargs)
 
     async def reboot_worker(self, reason: str = "manual_reboot", mark_failed: bool = False):
         """Forcibly reboots the worker."""

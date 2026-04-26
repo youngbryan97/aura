@@ -1464,7 +1464,16 @@ Respond ONLY with a JSON array, no other text:
                     logger.warning("TaskEngine: step '%s' verification failed (attempt %d)", step.description[:40], attempt + 1)
                     # Modify args for retry: ask LLM for an alternative approach
                     if attempt < self.MAX_RETRIES - 1:
-                        step.args = await self._get_alternative_approach(step)
+                        new_args = await self._get_alternative_approach(step)
+                        if new_args is None:
+                            step.error = "verification failed with no viable alternative"
+                            logger.warning(
+                                "TaskEngine: no viable alternative for '%s'. Failing fast after verification miss.",
+                                step.description[:40],
+                            )
+                            self._persist_plan_state(plan)
+                            break
+                        step.args = new_args
                         self._record_coding_execution(
                             "record_execution_repair",
                             step_description=step.description,
@@ -1586,7 +1595,7 @@ Respond ONLY with a JSON array, no other text:
             logger.debug("Verification LLM call failed: %s. Assuming pass.", e)
             return bool(result_str.strip())
 
-    async def _get_alternative_approach(self, step: TaskStep) -> Dict:
+    async def _get_alternative_approach(self, step: TaskStep) -> Optional[Dict]:
         """Ask LLM to suggest alternative args after verification failure."""
         try:
             llm = self.kernel.organs["llm"].get_instance()
@@ -1621,7 +1630,7 @@ Respond ONLY with a JSON array, no other text:
 
         # Signal exhaustion rather than silently looping identically
         logger.warning("No alternative found for '%s'; step will likely fail.", step.description[:40])
-        return step.args
+        return None
 
     # ── Rollback ─────────────────────────────────────────────────────────────
 

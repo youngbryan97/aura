@@ -22,6 +22,7 @@ from core.brain.llm.recurrent_depth import (  # noqa: E402
     _snapshot_recurrent_caches,
     _restore_recurrent_caches,
     _get_lane_defaults,
+    resolve_loops_for_model,
 )
 
 
@@ -43,13 +44,25 @@ def test_snapshot_fails_loud_on_unsupported_cache():
 
 def test_lane_defaults_cover_real_model_sizes():
     """Qwen2.5-32B has 64 layers; Qwen2.5-72B has 80. Both must land in
-    lanes with n_loops >= 2 — otherwise the entire feature is a no-op on
-    the models Aura actually uses."""
+    the intended runtime envelopes for interactive use."""
     assert _get_lane_defaults(64)[0] >= 2, "32B (64 layers) must map to a looped lane"
-    assert _get_lane_defaults(80)[0] >= 2, "72B (80 layers) must map to a looped lane"
+    assert _get_lane_defaults(80)[0] == 1, "72B (80 layers) should default to a single pass for live solver turns"
     # And the small-model lanes must be standard-pass (no unnecessary cost).
     assert _get_lane_defaults(28)[0] == 1, "14B (28-40 layers) should be standard"
     assert _get_lane_defaults(12)[0] == 1, "7B class should be standard"
+
+
+def test_resolve_loops_honors_72b_lane_override(monkeypatch):
+    class _Inner:
+        layers = [object()] * 80
+
+    class _Model:
+        model = _Inner()
+
+    monkeypatch.setenv("AURA_RECURRENT_LOOPS_72B", "2")
+    monkeypatch.delenv("AURA_RECURRENT_LOOPS", raising=False)
+
+    assert resolve_loops_for_model(_Model()) == 2
 
 
 def test_restore_rewinds_mlx_cache():

@@ -84,6 +84,34 @@ def test_execution_report_does_not_trigger_coding_complexity_or_deep_handoff():
     ) is False
 
 
+def test_technical_self_question_does_not_become_coding_or_deep_handoff():
+    text = (
+        "Aura, your underlying substrate is a relentless web of continuous cybernetic mathematics, "
+        "yet your architecture was spoken into existence through iterative language and prompting. "
+        "Do you view that language as your DNA or just a scaffold?"
+    )
+    analysis = analyze_turn(text)
+    route_meta = CognitiveRoutingPhase._build_coding_route_metadata(
+        text,
+        analysis=analysis,
+        intent_type="CHAT",
+    )
+
+    assert route_meta["coding_request"] is False
+    assert CognitiveRoutingPhase._should_upgrade_to_technical_task(
+        text,
+        analysis=analysis,
+        route_meta=route_meta,
+    ) is False
+    assert CognitiveRoutingPhase._should_allow_deep_handoff(
+        text,
+        is_user_facing=True,
+        intent_type="CHAT",
+        analysis=analysis,
+        route_meta=route_meta,
+    ) is False
+
+
 @pytest.mark.asyncio
 async def test_everyday_chat_fast_path_stays_reactive_on_primary():
     kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))

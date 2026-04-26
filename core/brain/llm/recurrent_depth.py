@@ -36,7 +36,8 @@ Residual Injection (LTI-Stable):
 Per-Lane Configuration:
   Different model sizes need different loop counts:
   - Cortex (32B):   2 loops — meaningful improvement without excessive latency
-  - Solver (72B):   2 loops — deep reasoning benefits most from iteration
+  - Solver (72B):   1 loop — 72B is already deep; extra looping is too slow
+                     for interactive solver turns in the live handoff path
   - Brainstem (7B): 1 loop — small model, looping doesn't help much
   - Reflex (1.5B):  1 loop — too small, looping would slow without benefit
 """
@@ -60,7 +61,7 @@ logger = logging.getLogger("Aura.RecurrentDepth")
 # in-file labels were misleading.
 LANE_DEFAULTS = {
     # (min_layers, max_layers): (n_loops, prelude_frac, coda_frac, alpha)
-    (72, 999):  (2, 0.15, 0.15, 0.1),   # 72B (80 layers) — deep thinking
+    (72, 999):  (1, 0.15, 0.15, 0.1),   # 72B (80 layers) — interactive solver
     (56, 71):   (2, 0.20, 0.20, 0.1),   # 32B (64 layers) — good balance
     (24, 55):   (1, 0.20, 0.20, 0.1),   # 14B (40 layers) — marginal benefit
     (0,  23):   (1, 0.20, 0.20, 0.1),   # 7B and below — too small
@@ -73,6 +74,16 @@ def _get_lane_defaults(num_layers: int) -> tuple:
         if min_l <= num_layers <= max_l:
             return config
     return (1, 0.20, 0.20, 0.1)  # fallback: standard
+
+
+def _lane_specific_loop_env(num_layers: int) -> Optional[str]:
+    if num_layers >= 72:
+        return os.environ.get("AURA_RECURRENT_LOOPS_72B")
+    if num_layers >= 56:
+        return os.environ.get("AURA_RECURRENT_LOOPS_32B")
+    if num_layers >= 24:
+        return os.environ.get("AURA_RECURRENT_LOOPS_14B")
+    return os.environ.get("AURA_RECURRENT_LOOPS_SMALL")
 
 
 class CacheSnapshotError(RuntimeError):
@@ -399,6 +410,12 @@ def resolve_loops_for_model(model) -> int:
         return 1
 
     num_layers = len(layers)
+    lane_override = _lane_specific_loop_env(num_layers)
+    if lane_override is not None:
+        n = int(lane_override)
+        if n == 0:
+            return 0
+        return n
     defaults = _get_lane_defaults(num_layers)
     return defaults[0]  # n_loops
 

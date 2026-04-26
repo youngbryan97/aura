@@ -50,6 +50,17 @@ def _should_emit_generation_progress(
         return True
     return (now - float(last_emit_at or 0.0)) >= max(0.1, float(every_seconds))
 
+
+def _prompt_cache_entry_budget_for_model(model_path: str) -> int:
+    lowered = os.path.basename(str(model_path or "")).lower()
+    if any(token in lowered for token in ("72b", "solver")):
+        return 0
+    if any(token in lowered for token in ("32b", "cortex", "zenith")):
+        return 2
+    if any(token in lowered for token in ("14b", "7b", "brainstem")):
+        return 6
+    return 12
+
 class IPCWriterThread(threading.Thread):
     """
     ZENITH LOCKDOWN: Non-blocking IPC writer.
@@ -566,7 +577,20 @@ def _mlx_worker_loop(
             }
         )
     # ZENITH: Prompt Cache LRU for massive speedup in multi-turn
-    prompt_cache_lru = _PromptCacheLRU(max_size=12)
+    prompt_cache_budget = _prompt_cache_entry_budget_for_model(model_path)
+    prompt_cache_lru = (
+        _PromptCacheLRU(max_size=prompt_cache_budget)
+        if prompt_cache_budget > 0
+        else None
+    )
+    if prompt_cache_lru is None:
+        logger.info("Prompt cache disabled for %s to protect RAM headroom.", os.path.basename(model_path))
+    else:
+        logger.info(
+            "Prompt cache budget for %s: %d entries.",
+            os.path.basename(model_path),
+            prompt_cache_budget,
+        )
 
     while True:
         try:
@@ -699,11 +723,14 @@ def _mlx_worker_loop(
                                     if hasattr(u, "trim_prompt_cache"): u.trim_prompt_cache(pc, num)
                                 
                                 model_key = id(model)
-                                cache, remaining_tokens = prompt_cache_lru.fetch_nearest_cache(
-                                    model_key, tokens, 
-                                    can_trim_prompt_cache=_can_trim, 
-                                    trim_prompt_cache=_do_trim
-                                )
+                                cache = None
+                                remaining_tokens = tokens
+                                if prompt_cache_lru is not None:
+                                    cache, remaining_tokens = prompt_cache_lru.fetch_nearest_cache(
+                                        model_key, tokens,
+                                        can_trim_prompt_cache=_can_trim,
+                                        trim_prompt_cache=_do_trim
+                                    )
                                 
                                 gen_prompt = remaining_tokens if cache is not None else prompt
                                 if cache is not None:
@@ -716,7 +743,11 @@ def _mlx_worker_loop(
                                     progress_now = time.time()
                                     
                                     # Snag the prompt cache from the response if supported to save for next turn
-                                    if hasattr(response, "prompt_cache") and response.prompt_cache is not None:
+                                    if (
+                                        prompt_cache_lru is not None
+                                        and hasattr(response, "prompt_cache")
+                                        and response.prompt_cache is not None
+                                    ):
                                         prompt_cache_lru.insert_cache(model_key, tokens + [response.token], response.prompt_cache)
                                     
                                     current_response += response.text
@@ -807,7 +838,8 @@ def _mlx_worker_loop(
                         # the very next request starts from a clean state
                         # instead of looping in "Cortex returned no text".
                         try:
-                            prompt_cache_lru.clear()
+                            if prompt_cache_lru is not None:
+                                prompt_cache_lru.clear()
                         except Exception:
                             pass
                         if mx and device != "cpu":
@@ -961,7 +993,8 @@ def _mlx_worker_loop(
                 if mx and device != "cpu":
                     _clear_mlx_cache(mx)
                 try:
-                    prompt_cache_lru.clear()
+                    if prompt_cache_lru is not None:
+                        prompt_cache_lru.clear()
                 except Exception:
                     pass
                 ipc_writer.put({"status": "ok"})

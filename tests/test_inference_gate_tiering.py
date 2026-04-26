@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import os
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -219,6 +220,48 @@ async def test_deep_handoff_uses_solver_then_returns_response():
 
 
 @pytest.mark.asyncio
+async def test_deep_handoff_failure_still_schedules_primary_restore():
+    gate = InferenceGate()
+    cortex = _NoTextClient()
+    solver = _NoTextClient()
+    reflex = _NoTextClient()
+    gate._mlx_client = cortex
+    gate._schedule_primary_restore_after_deep_handoff = MagicMock()
+
+    def _fake_get_mlx_client(model_path=None, **kwargs):
+        if model_path == "/models/deep":
+            return solver
+        if model_path == "/models/active":
+            return cortex
+        if model_path == "/models/fallback":
+            return reflex
+        raise AssertionError(f"Unexpected model path: {model_path}")
+
+    with patch.object(
+        gate,
+        "_enforce_foreground_admission",
+        new=AsyncMock(
+            return_value={
+                "can_admit": True,
+                "pressure_pct": 40.0,
+                "available_gb": 28.0,
+            }
+        ),
+    ):
+        with patch("core.brain.llm.mlx_client.get_mlx_client", side_effect=_fake_get_mlx_client):
+            with patch("core.brain.llm.model_registry.get_deep_model_path", return_value="/models/deep"):
+                with patch("core.brain.llm.model_registry.get_runtime_model_path", return_value="/models/active"):
+                    with patch("core.brain.llm.model_registry.get_fallback_path", return_value="/models/fallback"):
+                        with patch("core.brain.llm.model_registry.ACTIVE_MODEL", "ACTIVE"):
+                            await gate.generate(
+                                "perform a flagship architecture deep dive",
+                                context={"origin": "user", "prefer_tier": "secondary", "deep_handoff": True},
+                            )
+
+    gate._schedule_primary_restore_after_deep_handoff.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_user_facing_primary_uses_conversational_budget_and_chatml():
     gate = InferenceGate()
     cortex = _RecordingClient("hello")
@@ -300,6 +343,55 @@ async def test_user_facing_primary_uses_compact_foreground_context_builders():
     gate._build_compact_living_mind_context.assert_awaited_once()
     assert "compact-system" in cortex.prompts[0]
     assert "compact-live" in cortex.prompts[0]
+
+
+@pytest.mark.asyncio
+async def test_user_facing_secondary_uses_compact_foreground_context_builders():
+    gate = InferenceGate()
+    cortex = _RecordingClient("cortex")
+    solver = _RecordingClient("solver")
+    gate._mlx_client = cortex
+    gate._build_compact_system_prompt = MagicMock(return_value="compact-system")
+    gate._build_compact_living_mind_context = AsyncMock(return_value="compact-live")
+    gate._build_system_prompt = MagicMock(side_effect=AssertionError("full system prompt should not be used"))
+    gate._build_living_mind_context = AsyncMock(side_effect=AssertionError("full living context should not be used"))
+    gate._schedule_primary_restore_after_deep_handoff = MagicMock()
+
+    def _fake_get_mlx_client(model_path=None, **kwargs):
+        if model_path == "/models/deep":
+            return solver
+        if model_path == "/models/fallback":
+            return _FakeClient("fallback")
+        if model_path == "/models/active":
+            return cortex
+        raise AssertionError(f"Unexpected model path: {model_path}")
+
+    low_pressure = {
+        "tier": "secondary",
+        "pressure_pct": 40.0,
+        "total_gb": 64.0,
+        "available_gb": 32.0,
+        "max_pressure_pct": 86.0,
+        "min_available_gb": 10.0,
+        "can_admit": True,
+    }
+
+    with patch("core.brain.llm.mlx_client.get_mlx_client", side_effect=_fake_get_mlx_client):
+        with patch("core.brain.llm.model_registry.get_deep_model_path", return_value="/models/deep"):
+            with patch("core.brain.llm.model_registry.get_runtime_model_path", return_value="/models/active"):
+                with patch("core.brain.llm.model_registry.get_fallback_path", return_value="/models/fallback"):
+                    with patch("core.brain.llm.model_registry.ACTIVE_MODEL", "ACTIVE"):
+                        with patch.object(InferenceGate, "_headroom_snapshot", staticmethod(lambda *a, **kw: low_pressure)):
+                            result = await gate.generate(
+                                "Do a root-cause analysis of this async deadlock.",
+                                context={"origin": "api", "prefer_tier": "secondary", "deep_handoff": True, "history": []},
+                            )
+
+    assert result == "solver"
+    gate._build_compact_system_prompt.assert_called_once()
+    gate._build_compact_living_mind_context.assert_awaited_once()
+    assert "compact-system" in solver.prompts[0]
+    assert "compact-live" in solver.prompts[0]
 
 
 def test_compact_prebuilt_messages_preserves_grounding_system_evidence():
@@ -439,6 +531,20 @@ def test_user_facing_primary_budget_allows_32b_cold_start():
     assert total == 150.0
     assert primary >= 120.0
     assert fallback >= 5.0
+
+
+def test_user_facing_secondary_budget_preserves_solver_generation_headroom():
+    total = InferenceGate._default_timeout_for_request(
+        "user",
+        "secondary",
+        deep_handoff=True,
+        is_background=False,
+    )
+    primary, fallback = InferenceGate._split_attempt_timeouts(total, "secondary")
+
+    assert total == 240.0
+    assert primary == 210.0
+    assert fallback == 30.0
 
 
 @pytest.mark.asyncio
@@ -929,6 +1035,26 @@ async def test_secondary_requests_downgrade_to_primary_when_headroom_is_tight():
     assert cortex.deadlines
     assert not solver.deadlines
     gate._restore_primary_after_deep_handoff.assert_not_awaited()
+
+
+def test_secondary_headroom_snapshot_allows_measured_64gb_solver_envelope(monkeypatch):
+    monkeypatch.delenv("AURA_FOREGROUND_SECONDARY_MAX_PRESSURE_PCT", raising=False)
+    monkeypatch.delenv("AURA_FOREGROUND_SECONDARY_MIN_AVAILABLE_GB", raising=False)
+    monkeypatch.setattr(
+        "core.brain.inference_gate.psutil.virtual_memory",
+        lambda: SimpleNamespace(
+            percent=77.5,
+            total=64 * 1024 ** 3,
+            available=int(14.4 * 1024 ** 3),
+            used=int((64.0 - 14.4) * 1024 ** 3),
+        ),
+    )
+
+    snapshot = InferenceGate._headroom_snapshot("secondary")
+
+    assert snapshot["max_pressure_pct"] == 86.0
+    assert snapshot["min_available_gb"] == 10.0
+    assert snapshot["can_admit"] is True
 
 
 def test_desktop_safe_boot_still_schedules_deferred_cortex_prewarm(monkeypatch):

@@ -38,11 +38,6 @@ _SKILL_PATTERNS = (
 
 _TASK_PATTERNS = (
     r"^(?:please\s+|can you\s+|could you\s+|would you\s+|i need you to\s+|help me\s+)?(?:create|build|write|generate|implement|design|prepare|put together|refactor|audit|research and write|organize|automate|fix)\b",
-    r"\band then\b",
-    r"\bfirst\b.+\bthen\b",
-    r"\bstep by step\b",
-    r"\bmultiple steps?\b",
-    r"\bseries of\b",
 )
 
 _STATE_PATTERNS = (

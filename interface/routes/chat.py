@@ -1278,18 +1278,18 @@ def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
             analysis=analysis,
             intent_type=intent_type,
         )
-        if bool(route_meta.get("coding_request")):
+        technical_task = CognitiveRoutingPhase._should_upgrade_to_technical_task(
+            text,
+            analysis=analysis,
+            route_meta=route_meta,
+        )
+        if technical_task:
             # Keep the protected lane aligned with the main routing phase so
             # explicit multi-file debugging/root-cause work can still claim
-            # the deeper solver when the kernel path is bypassed.
-            complexity = float(route_meta.get("coding_complexity_score", 0.0) or 0.0)
-            if (
-                analysis.intent_type == "TASK"
-                or analysis.semantic_mode == "technical"
-                or bool(route_meta.get("active_coding_thread"))
-                or complexity >= 0.45
-            ):
-                intent_type = "TASK"
+            # the deeper solver when the kernel path is bypassed, without
+            # letting technical conversation about Aura/selfhood masquerade
+            # as an executable coding task.
+            intent_type = "TASK"
         deep_handoff = CognitiveRoutingPhase._should_allow_deep_handoff(
             text,
             is_user_facing=True,

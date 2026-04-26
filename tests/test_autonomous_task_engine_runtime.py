@@ -137,6 +137,30 @@ async def test_task_engine_records_execution_repair_pressure(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_task_engine_fails_fast_when_no_alternative_args_exist():
+    engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
+    engine._invoke_tool = AsyncMock(return_value={"ok": True, "stdout": "still failing"})
+    engine._verify_step = AsyncMock(return_value=False)
+    engine._get_alternative_approach = AsyncMock(return_value=None)
+    engine._persist_plan_state = lambda plan: None
+    engine._record_coding_execution = lambda *_args, **_kwargs: None
+
+    step = TaskStep(
+        step_id="plan-1_s0",
+        description="Re-run the failing pytest",
+        tool="sovereign_terminal",
+        args={"command": "pytest tests/test_runtime_service_access.py -q"},
+        success_criterion="pytest output contains '1 passed'",
+    )
+    plan = TaskPlan(plan_id="plan-1", goal="Fix the failing pytest", steps=[step], trace_id="trace")
+
+    await AutonomousTaskEngine._execute_step_with_retry(engine, step, plan)
+
+    assert step.status.value == "failed"
+    assert step.attempts == 1
+
+
+@pytest.mark.asyncio
 async def test_task_engine_verify_step_uses_deterministic_result_checks_before_llm():
     llm = SimpleNamespace(think=AsyncMock(return_value="NO"))
     engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)

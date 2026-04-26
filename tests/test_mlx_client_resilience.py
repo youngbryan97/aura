@@ -7,7 +7,11 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.brain.llm.mlx_client import MLXLocalClient
-from core.brain.llm.mlx_worker import IPCWriterThread, _should_emit_generation_progress
+from core.brain.llm.mlx_worker import (
+    IPCWriterThread,
+    _prompt_cache_entry_budget_for_model,
+    _should_emit_generation_progress,
+)
 from core.utils.deadlines import get_deadline
 
 
@@ -485,6 +489,41 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         sleep_mock.assert_any_await(7.0)
         self.assertTrue(solver._init_done)
 
+    async def test_heavy_model_swap_can_bypass_cooldown_for_fast_restore(self):
+        import core.brain.llm.mlx_client as mlx_module
+
+        primary_path = "/models/32B"
+        deep_path = "/models/72B"
+        primary = MLXLocalClient(model_path=primary_path)
+
+        primary_proc = MagicMock()
+        primary_proc.is_alive.return_value = True
+
+        async def _spawn_primary():
+            primary._init_future.set_result({"status": "ok", "action": "init"})
+            return primary_proc
+
+        old_last_heavy = mlx_module._GLOBAL_LAST_HEAVY_MODEL
+        old_last_swap = mlx_module._GLOBAL_LAST_SWAP_TIME
+        mlx_module._GLOBAL_LAST_HEAVY_MODEL = deep_path
+        mlx_module._GLOBAL_LAST_SWAP_TIME = 100.0
+
+        try:
+            with patch("core.brain.llm.model_registry.ACTIVE_MODEL", "Qwen2.5-32B-Instruct-8bit"), \
+                 patch("core.brain.llm.model_registry.DEEP_MODEL", "Qwen2.5-72B-Instruct-4bit"), \
+                 patch("core.brain.llm.model_registry.get_model_path", side_effect=lambda name=None: primary_path if "32B" in str(name) or name is None else deep_path), \
+                 patch("core.brain.llm.mlx_client.os.path.realpath", side_effect=lambda path: path), \
+                 patch("core.brain.llm.mlx_client.time.time", return_value=105.0), \
+                 patch("core.brain.llm.mlx_client.asyncio.sleep", new_callable=AsyncMock) as sleep_mock, \
+                 patch.object(primary, "_spawn_worker", side_effect=_spawn_primary):
+                await primary._ensure_worker_alive(skip_swap_cooldown=True)
+        finally:
+            mlx_module._GLOBAL_LAST_HEAVY_MODEL = old_last_heavy
+            mlx_module._GLOBAL_LAST_SWAP_TIME = old_last_swap
+
+        sleep_mock.assert_not_awaited()
+        self.assertTrue(primary._init_done)
+
 
 class TestIPCWriterThread(unittest.TestCase):
     def test_essential_messages_bypass_full_buffer(self):
@@ -510,6 +549,10 @@ class TestIPCWriterThread(unittest.TestCase):
 
 
 class TestMLXWorkerProgress(unittest.TestCase):
+    def test_prompt_cache_budget_disables_deep_solver_retention(self):
+        self.assertEqual(_prompt_cache_entry_budget_for_model("/models/Qwen2.5-72B-Instruct-4bit"), 0)
+        self.assertEqual(_prompt_cache_entry_budget_for_model("/models/Qwen2.5-32B-Instruct-8bit"), 2)
+
     def test_generation_progress_emits_on_first_token(self):
         self.assertTrue(
             _should_emit_generation_progress(
