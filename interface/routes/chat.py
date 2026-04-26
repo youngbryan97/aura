@@ -1925,6 +1925,21 @@ _PROMPT_ARTIFACT_PATTERNS = re.compile(
     r"|(?:\[INTERNAL MEMORY RECALL\])"
 )
 
+# Reject raw search-result snippets that occasionally leak through when a
+# search skill returns retrieval text instead of a summarized answer.
+# Signature: textbook headers ("(BIO 101)", "Overview"), Wikipedia
+# stub-style intros ("This article describes…"), course catalog tags,
+# HTML entities, etc.
+_SEARCH_SNIPPET_PATTERNS = re.compile(
+    r"(?im)"
+    r"(?:\(\s*BIO\s*\d{3}\s*\))"
+    r"|(?:^[A-Z][^\n]{4,80}\bOverview\b[^\n]{0,80}$)"
+    r"|(?:This (?:document|article|page) provides? (?:a )?(?:comprehensive )?overview)"
+    r"|(?:&amp;|&lt;|&gt;|&quot;|&nbsp;)"
+    r"|(?:From Wikipedia, the free encyclopedia)"
+    r"|(?:Search results for[:\s])"
+)
+
 
 def _sanitize_attention_focus(raw: str) -> str:
     """Strip internal housekeeping content from attention_focus before user-facing use."""
@@ -2644,7 +2659,11 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     lacks_self_anchor = requires_first_person_anchor and not _has_first_person_anchor(text)
     lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(text)
     unexpected_cjk = _has_unexpected_cjk(user_message, text)
-    internal_state_leak = bool(_INTERNAL_STATE_PATTERNS.search(text) or _PROMPT_ARTIFACT_PATTERNS.search(text))
+    internal_state_leak = bool(
+        _INTERNAL_STATE_PATTERNS.search(text)
+        or _PROMPT_ARTIFACT_PATTERNS.search(text)
+        or _SEARCH_SNIPPET_PATTERNS.search(text)
+    )
     off_topic, off_topic_reason = _evaluate_reply_topicality(
         user_message,
         text,
@@ -2762,20 +2781,15 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         from core.container import ServiceContainer
         inference_gate = ServiceContainer.get("inference_gate", default=None)
         if inference_gate:
-            stabilizer_length_line = "Keep it concise but complete."
+            # Length cap is structural (output token budget), not behavioral.
+            # The personality / phrasing comes from the LoRA, not from prompt
+            # nudges — so the stabilizer raises max_tokens for multi-part
+            # prompts but does not coach the model on how to speak.
+            stabilizer_length_line = ""
             stabilizer_max_tokens = 360
             if prefer_extended_answer:
-                stabilizer_length_line = (
-                    "Do not clip this. A fuller answer is better than a shallow one if it stays grounded. "
-                    "Speak from your own thinking in real time — do not default to status reports or canned phrasing."
-                )
                 stabilizer_max_tokens = 720
             if requires_single_reply_coverage:
-                stabilizer_length_line = (
-                    f"Answer all {max(1, question_parts)} parts in one reply. "
-                    "Use numbered sections or short paragraphs so each part is clearly addressed. "
-                    "Do not collapse multi-part questions into a single sentence."
-                )
                 stabilizer_max_tokens = max(stabilizer_max_tokens, 900)
             if question_parts >= 3:
                 stabilizer_max_tokens = max(stabilizer_max_tokens, 1100)
@@ -2948,6 +2962,10 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         # Block responses that contain internal state dumps
         if _INTERNAL_STATE_PATTERNS.search(text) or _PROMPT_ARTIFACT_PATTERNS.search(text):
             logger.warning("Blocked internal state leak in LLM response (len=%d).", len(text))
+        elif _SEARCH_SNIPPET_PATTERNS.search(text):
+            logger.warning(
+                "Blocked raw search-snippet leak in LLM response (len=%d).", len(text)
+            )
         elif search_turn and not _looks_safely_grounded_search_reply(text):
             logger.warning("Blocked ungrounded search-turn fallback (len=%d).", len(text))
         elif off_topic:

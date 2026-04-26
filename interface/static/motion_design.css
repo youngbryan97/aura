@@ -1,0 +1,70 @@
+/* motion_design.css — Aura's coherent motion language.
+ *
+ * Honors prefers-reduced-motion and the runtime's "aura-throttle-motion"
+ * class (set by the PerformanceGuard when the frame budget is breached).
+ * Every animation defines a "hold" variant that snaps to the final state
+ * when motion is throttled, so the UI never visibly stalls.
+ */
+
+:root {
+  --aura-ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+  --aura-ease-in:   cubic-bezier(0.7, 0, 0.84, 0);
+  --aura-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --aura-dur-fast: 120ms;
+  --aura-dur:      240ms;
+  --aura-dur-slow: 460ms;
+}
+
+@keyframes aura-thinking-breath {
+  0%, 100% { transform: scale(0.96); opacity: 0.6; }
+  50%      { transform: scale(1.04); opacity: 1.0; }
+}
+.aura-thinking-orb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #d4cdfd 0%, #5b46c8 70%);
+  animation: aura-thinking-breath 1500ms var(--aura-ease-out) infinite;
+  box-shadow: 0 0 18px rgba(177, 164, 255, 0.5);
+}
+
+@keyframes aura-memory-thread {
+  0%   { stroke-dashoffset: 60; opacity: 0; }
+  100% { stroke-dashoffset: 0;  opacity: 0.5; }
+}
+.aura-memory-thread {
+  stroke-dasharray: 60;
+  animation: aura-memory-thread 720ms var(--aura-ease-out);
+}
+
+@keyframes aura-arc-complete {
+  0%   { transform: scale(1); }
+  60%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes aura-scar-fade {
+  0%   { opacity: 1; }
+  100% { opacity: 0.35; }
+}
+
+.aura-thread-continuation {
+  transition: padding-left var(--aura-dur) var(--aura-ease-spring),
+              border-left-color var(--aura-dur) var(--aura-ease-out);
+  border-left: 2px solid rgba(177, 164, 255, 0.3);
+  padding-left: 12px;
+}
+.aura-thread-continuation.is-active {
+  padding-left: 18px;
+  border-left-color: rgba(177, 164, 255, 0.85);
+}
+
+/* Reduced motion / throttle override: snap to the final state. */
+@media (prefers-reduced-motion: reduce) {
+  .aura-thinking-orb { animation: none; opacity: 1; }
+  .aura-memory-thread { animation: none; opacity: 0.5; stroke-dashoffset: 0; }
+  .aura-thread-continuation { transition: none; }
+}
+body.aura-throttle-motion .aura-thinking-orb { animation-duration: 4s; }
+body.aura-throttle-motion .aura-memory-thread { animation: none; }
+body.aura-throttle-motion .aura-thread-continuation { transition: none; }

@@ -481,6 +481,9 @@ from interface.routes import interaction_signals as interaction_signal_routes
 from interface.routes import privacy as privacy_routes
 from interface.routes import rpc as rpc_routes
 from interface.routes import inner_state as inner_state_routes
+from interface.routes import dashboard as dashboard_routes
+from interface.routes import settings as settings_routes
+from interface.routes import multimodal as multimodal_routes
 from core.session.checkpointing import CheckpointService
 
 checkpoint_service = CheckpointService()
@@ -495,6 +498,10 @@ app.include_router(interaction_signal_routes.router, prefix="/api", tags=["inter
 app.include_router(privacy_routes.router, prefix="/api", tags=["privacy"])
 app.include_router(rpc_routes.router, prefix="/rpc", tags=["rpc"])
 app.include_router(inner_state_routes.router, tags=["proof-surface"])
+app.include_router(dashboard_routes.router, prefix="/api", tags=["dashboard"])
+app.include_router(dashboard_routes.trace_router, prefix="/api", tags=["trace"])
+app.include_router(settings_routes.router, prefix="/api", tags=["settings"])
+app.include_router(multimodal_routes.router, prefix="/api", tags=["multimodal"])
 
 _system_collect_liquid_state_payload = system_routes._collect_liquid_state_payload
 

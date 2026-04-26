@@ -1,0 +1,108 @@
+:root {
+  --aura-bg: #0d0c0f;
+  --aura-fg: #f4ede4;
+  --aura-fg-dim: rgba(244, 237, 228, 0.62);
+  --aura-accent: #b1a4ff;
+  --aura-card: rgba(255, 255, 255, 0.05);
+  --aura-card-border: rgba(255, 255, 255, 0.08);
+  --aura-radius: 14px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: radial-gradient(1200px 800px at 30% 20%, #1c1726 0%, #0d0c0f 60%);
+  color: var(--aura-fg);
+  font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+#wizard {
+  width: min(960px, 92vw);
+  background: var(--aura-card);
+  border: 1px solid var(--aura-card-border);
+  border-radius: var(--aura-radius);
+  padding: 28px 28px 22px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 24px;
+  min-height: 60vh;
+  backdrop-filter: blur(14px);
+}
+
+.aura-wizard__rail {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 10px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.aura-wizard__rail li {
+  padding: 6px 12px;
+  border: 1px solid var(--aura-card-border);
+  border-radius: 999px;
+  color: var(--aura-fg-dim);
+}
+.aura-wizard__rail li.active {
+  border-color: var(--aura-accent);
+  color: var(--aura-fg);
+  background: rgba(177, 164, 255, 0.12);
+}
+
+.aura-wizard__panel {
+  font-size: 15.5px;
+  line-height: 1.55;
+  display: grid;
+  gap: 14px;
+}
+
+.aura-wizard__panel h2 { font-size: 22px; margin: 0 0 4px; }
+.aura-wizard__panel label { font-size: 13.5px; color: var(--aura-fg-dim); }
+.aura-wizard__panel input,
+.aura-wizard__panel select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--aura-card-border);
+  color: var(--aura-fg);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.aura-wizard__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.aura-wizard__footer button {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--aura-card-border);
+  color: var(--aura-fg);
+  padding: 8px 18px;
+  border-radius: 999px;
+  font: inherit;
+  cursor: pointer;
+}
+.aura-wizard__footer button.primary {
+  background: rgba(177, 164, 255, 0.85);
+  border-color: rgba(177, 164, 255, 1);
+  color: #14111c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body { background: #0d0c0f; }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --aura-bg: #f4ede4;
+    --aura-fg: #14111c;
+    --aura-fg-dim: rgba(20, 17, 28, 0.62);
+    --aura-card: rgba(0, 0, 0, 0.04);
+    --aura-card-border: rgba(0, 0, 0, 0.08);
+  }
+}

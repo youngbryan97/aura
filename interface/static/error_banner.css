@@ -1,0 +1,78 @@
+/* Universal four-button error UX banner.
+   Bound to phenomenal-error envelopes from /api/* responses with
+   `status === "phenomenal"`. The banner is full-width at the top of the
+   viewport, dismissible, and always exposes [Retry] [Use fallback]
+   [Open diagnostics]. No traceback ever reaches this surface. */
+
+.aura-error-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: linear-gradient(180deg, rgba(60, 28, 40, 0.94), rgba(40, 14, 24, 0.94));
+  color: #f5f0eb;
+  font-family: var(--aura-ui-font, "Inter", system-ui, sans-serif);
+  padding: 14px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+  animation: aura-error-slide 220ms ease-out;
+}
+
+@keyframes aura-error-slide {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+.aura-error-banner__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.aura-error-banner__msg {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.aura-error-banner__sub {
+  font-size: 12.5px;
+  color: rgba(245, 240, 235, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aura-error-banner__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.aura-error-banner__btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f5f0eb;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.aura-error-banner__btn:hover  { background: rgba(255, 255, 255, 0.12); }
+.aura-error-banner__btn:active { transform: scale(0.97); }
+.aura-error-banner__btn--primary {
+  background: rgba(112, 90, 255, 0.85);
+  border-color: rgba(112, 90, 255, 0.95);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aura-error-banner { animation: none; }
+}

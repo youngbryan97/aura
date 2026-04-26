@@ -1919,6 +1919,27 @@ class MLXLocalClient:
         if not alive:
             return None
 
+        # ── Latent-space bridge: substrate state directly modulates
+        # sampling parameters at the inference call (NOT via prompt
+        # injection). Caller-supplied kwargs win; the bridge fills any
+        # field the caller didn't pin. This is the structural alternative
+        # to "tell the LLM how to feel" — sampling itself changes.
+        try:
+            from core.brain.latent_bridge import compute_inference_params
+            _bridge = compute_inference_params(
+                base_max_tokens=int(kwargs.get("max_tokens", self.max_tokens) or self.max_tokens),
+                base_temperature=float(kwargs.get("temperature", kwargs.get("temp", self.temp)) or self.temp),
+                foreground=bool(foreground_request),
+            )
+        except Exception as _bridge_exc:
+            _bridge = None
+            logger.debug("latent_bridge unavailable: %s", _bridge_exc)
+
+        def _bridge_get(field: str, fallback: Any) -> Any:
+            if _bridge is None:
+                return fallback
+            return getattr(_bridge, field, fallback)
+
         req_id = uuid.uuid4().hex
         req = {
             "id": req_id,
@@ -1926,14 +1947,38 @@ class MLXLocalClient:
             "prompt": prompt,
             "messages": kwargs.get("messages"),
             "tools": kwargs.get("tools"),
-            "temp": kwargs.get("temp", kwargs.get("temperature", self.temp)),
-            "top_p": kwargs.get("top_p", self.top_p),
+            "temp": kwargs.get(
+                "temp",
+                kwargs.get("temperature", _bridge_get("temperature", self.temp)),
+            ),
+            "top_p": kwargs.get("top_p", _bridge_get("top_p", self.top_p)),
+            "top_k": kwargs.get("top_k", _bridge_get("top_k", 60)),
             "min_p": kwargs.get("min_p", 0.05),
-            "repetition_penalty": kwargs.get("repetition_penalty", 1.08),
+            "repetition_penalty": kwargs.get(
+                "repetition_penalty", _bridge_get("repetition_penalty", 1.08)
+            ),
             "repetition_context_size": kwargs.get("repetition_context_size", 64),
-            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+            "presence_penalty": kwargs.get(
+                "presence_penalty", _bridge_get("presence_penalty", 0.0)
+            ),
+            # max_tokens is a *cap*: the bridge can shrink it (vitality
+            # drops shorten output), but never expands what the caller
+            # asked for.
+            "max_tokens": min(
+                int(kwargs.get("max_tokens", self.max_tokens) or self.max_tokens),
+                int(_bridge_get("max_tokens", self.max_tokens)),
+            ),
             "schema": kwargs.get("schema"),
         }
+        # Activation-steering offsets ride along when present; the worker
+        # consumes them if its build supports residual-stream injection,
+        # otherwise it ignores the field with no harm.
+        if _bridge is not None and getattr(_bridge, "layer_offsets", None):
+            req["layer_offsets"] = _bridge.layer_offsets
+        if _bridge is not None and getattr(_bridge, "extra_stop_sequences", None):
+            existing_stops = list(kwargs.get("stop_sequences") or [])
+            existing_stops.extend(_bridge.extra_stop_sequences)
+            req["stop_sequences"] = existing_stops
 
         fut = _new_shared_future()
         self._pending_generations[req_id] = fut

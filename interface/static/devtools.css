@@ -1,0 +1,59 @@
+body {
+  margin: 0;
+  font: 14px -apple-system, "SF Pro Text", system-ui, sans-serif;
+  background: #0d0c0f;
+  color: #f4ede4;
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+.dt-header {
+  padding: 14px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  gap: 22px;
+  align-items: baseline;
+  background: rgba(255,255,255,0.02);
+}
+.dt-header h1 { margin: 0; font-size: 16px; letter-spacing: 0.6px; }
+.dt-header nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.dt-header nav button {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: inherit;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.dt-header nav button.active {
+  background: rgba(177,164,255,0.15);
+  border-color: rgba(177,164,255,0.6);
+}
+#dt-pane { padding: 18px 22px; overflow: auto; }
+.dt-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 0 0 14px;
+}
+.dt-card h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; color: rgba(244,237,228,0.6); }
+.dt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.dt-kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px; font-size: 13px; }
+.dt-kv .k { color: rgba(244,237,228,0.55); }
+pre.dt-pre { white-space: pre-wrap; max-height: 240px; overflow: auto; font: 12px ui-monospace, "SF Mono", monospace; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 8px; }
+.dt-footer {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding: 10px 22px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  align-items: center;
+}
+#scrub { width: 100%; }

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aura · First Run</title>
+  <link rel="stylesheet" href="/static/error_banner.css" />
+  <link rel="stylesheet" href="/static/first_run.css" />
+</head>
+<body>
+  <main id="wizard" role="main" aria-live="polite">
+    <ol class="aura-wizard__rail">
+      <li data-step="1" class="active">Welcome</li>
+      <li data-step="2">System check</li>
+      <li data-step="3">Model</li>
+      <li data-step="4">Memory</li>
+      <li data-step="5">Permissions</li>
+      <li data-step="6">Safety</li>
+      <li data-step="7">Fallback</li>
+      <li data-step="8">Test voice</li>
+      <li data-step="9">Test chat</li>
+      <li data-step="10">Ready</li>
+    </ol>
+    <section id="panel" class="aura-wizard__panel"></section>
+    <footer class="aura-wizard__footer">
+      <button id="back" type="button">Back</button>
+      <button id="next" type="button" class="primary">Next</button>
+    </footer>
+  </main>
+  <script src="/static/error_banner.js"></script>
+  <script src="/static/first_run.js"></script>
+</body>
+</html>

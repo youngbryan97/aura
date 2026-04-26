@@ -1,0 +1,89 @@
+/* design_tokens.css — single source of truth for spacing, type, color.
+ * Every other stylesheet uses these tokens. Affect-driven theming is
+ * applied by mutating ``--aura-affect-*`` custom properties on `<body>`.
+ */
+:root {
+  --aura-bg:           #0d0c0f;
+  --aura-fg:           #f4ede4;
+  --aura-fg-dim:       rgba(244, 237, 228, 0.62);
+  --aura-fg-mute:      rgba(244, 237, 228, 0.42);
+  --aura-accent:       #b1a4ff;
+  --aura-accent-soft:  rgba(177, 164, 255, 0.18);
+  --aura-warn:         #f0a06a;
+  --aura-error:        #f17a7a;
+  --aura-card:         rgba(255, 255, 255, 0.04);
+  --aura-card-border:  rgba(255, 255, 255, 0.08);
+
+  --aura-space-1:  4px;
+  --aura-space-2:  8px;
+  --aura-space-3:  12px;
+  --aura-space-4:  18px;
+  --aura-space-5:  24px;
+  --aura-space-6:  36px;
+
+  --aura-radius-1: 6px;
+  --aura-radius-2: 12px;
+  --aura-radius-3: 18px;
+  --aura-radius-pill: 999px;
+
+  --aura-font-ui:    -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --aura-font-mono:  ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+  --aura-text-1:     14px;
+  --aura-text-1h:    1.5;
+  --aura-text-2:     12.5px;
+  --aura-text-2h:    1.4;
+  --aura-text-h:     22px;
+
+  /* Affect-driven theming. The substrate writes these values via the
+   * latent_bridge dashboard hook — animations pick them up live. */
+  --aura-affect-warmth:    0.5;
+  --aura-affect-tension:   0.0;
+  --aura-affect-fatigue:   0.0;
+  --aura-affect-curiosity: 0.5;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --aura-bg:          #f4ede4;
+    --aura-fg:          #14111c;
+    --aura-fg-dim:      rgba(20, 17, 28, 0.62);
+    --aura-fg-mute:     rgba(20, 17, 28, 0.42);
+    --aura-card:        rgba(0, 0, 0, 0.04);
+    --aura-card-border: rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* High-contrast variant the settings panel toggles. */
+body.aura-theme-high-contrast {
+  --aura-fg:          #ffffff;
+  --aura-fg-dim:      #cccccc;
+  --aura-bg:          #000000;
+  --aura-card:        #161616;
+  --aura-card-border: #4f4f4f;
+  --aura-accent:      #ffd400;
+}
+
+/* Affect-driven background tint (used by the chat shell). */
+body {
+  background:
+    radial-gradient(
+      900px 700px at 30% 0%,
+      hsla(calc(260 - 60 * var(--aura-affect-tension)), 80%, 16%, calc(0.16 + 0.4 * var(--aura-affect-warmth))) 0%,
+      transparent 60%),
+    var(--aura-bg);
+  color: var(--aura-fg);
+  font-family: var(--aura-font-ui);
+  font-size: var(--aura-text-1);
+  line-height: var(--aura-text-1h);
+}
+
+/* Skip-to-content + focus-visible for accessibility. */
+.aura-skip-link {
+  position: absolute; left: -9999px; top: 0;
+  background: var(--aura-fg); color: var(--aura-bg);
+  padding: 8px 14px; border-radius: var(--aura-radius-1);
+  z-index: 9999;
+}
+.aura-skip-link:focus { left: 12px; top: 12px; }
+
+:focus-visible { outline: 2px solid var(--aura-accent); outline-offset: 2px; }

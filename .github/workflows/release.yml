@@ -1,0 +1,57 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+jobs:
+  macos-sign-notarize:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version 2.0.0-beta.18
+      - name: Install Python deps
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -U pip
+          pip install -r requirements/runtime.txt || pip install -r requirements.txt || true
+      - name: Build (unsigned)
+        env:
+          AURA_BUILD_PROFILE: release
+        working-directory: native/aura-shell
+        run: |
+          cargo tauri build
+      - name: Sign + notarize
+        if: ${{ secrets.APPLE_DEVELOPER_ID && secrets.APPLE_ID && secrets.APPLE_PASSWORD }}
+        env:
+          APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+          APPLE_ID:           ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD:     ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID:      ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          BUNDLE=native/aura-shell/target/release/bundle/macos/Aura.app
+          codesign --deep --force --options runtime \
+            --entitlements Aura.entitlements \
+            --sign "$APPLE_DEVELOPER_ID" "$BUNDLE"
+          ditto -c -k --keepParent "$BUNDLE" Aura.zip
+          xcrun notarytool submit Aura.zip \
+            --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$BUNDLE"
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-macos
+          path: |
+            native/aura-shell/target/release/bundle/macos/*.app
+            native/aura-shell/target/release/bundle/dmg/*.dmg

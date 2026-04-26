@@ -483,30 +483,81 @@ class AgencyCore:
         # Select the highest-priority action
         if proposed_actions:
             # NOTE: Global 120s cooldown REMOVED (was Phase 37).
-            # AgencyBus already enforces per-pathway cooldowns (30s-120s by priority class).
+            # AgencyBus already enforces per-pathway cooldowns by priority class.
             # Keeping both meant pathways almost never fired.
-                
+
             # Select the highest-priority action
             proposed_actions.sort(key=lambda a: a.get("priority", 0), reverse=True)
-            # Mental rehearsal with virtual body (embodied cognition)
+            winner = proposed_actions[0]
+
+            # ── Mental rehearsal (embodied cognition) ─────────────────
+            # Run forward simulation against an isolated *clone* of the live
+            # virtual body so rehearsal never mutates the agent's actual
+            # body state. Live mutation here was the slow leak that made
+            # post-rehearsal motor commands drift.
             virtual_body = ServiceContainer.get("virtual_body", default=None)
             if virtual_body:
-                # Use a representative action for rehearsal
-                winner_proposal = proposed_actions[0]
-                # AC-004: Ensure rehearsal uses temporary state, not mutating core
-                proposed_motors = winner_proposal.get("motors", {"forward": 0.5, "turn": 0.1})
-                for _ in range(5):  # 5-step forward simulation
-                    virtual_body.apply_motor_commands(proposed_motors)
-                    await asyncio.sleep(0)  # yield to event loop
+                proposed_motors = winner.get("motors", {"forward": 0.5, "turn": 0.1})
+                # Prefer a clone-context API if the body provides one.
+                sim_ctx = getattr(virtual_body, "simulation_clone", None)
+                if callable(sim_ctx):
+                    try:
+                        async with sim_ctx() as sim_body:
+                            for _ in range(5):
+                                sim_body.apply_motor_commands(proposed_motors)
+                                await asyncio.sleep(0)
+                    except TypeError:
+                        # simulation_clone may be a sync context manager
+                        with sim_ctx() as sim_body:
+                            for _ in range(5):
+                                sim_body.apply_motor_commands(proposed_motors)
+                                await asyncio.sleep(0)
+                else:
+                    # Fall back to deep-copy snapshot/restore so the live
+                    # body is never permanently changed by rehearsal.
+                    import copy as _copy
+                    snapshot = None
+                    try:
+                        if hasattr(virtual_body, "snapshot_state"):
+                            snapshot = virtual_body.snapshot_state()
+                        else:
+                            snapshot = _copy.deepcopy(virtual_body.__dict__)
+                        for _ in range(5):
+                            virtual_body.apply_motor_commands(proposed_motors)
+                            await asyncio.sleep(0)
+                    finally:
+                        if snapshot is not None:
+                            try:
+                                if hasattr(virtual_body, "restore_state"):
+                                    virtual_body.restore_state(snapshot)
+                                else:
+                                    virtual_body.__dict__.update(snapshot)
+                            except Exception as _e:
+                                logger.debug("virtual_body restore failed: %s", _e)
 
-            winner = proposed_actions[0]
-            
-            # Phase 40: Modulate action probability by ResilienceEngine effort modifier
+            # Phase 40: ResilienceEngine veto is *causal*. If the effort
+            # modifier rolls below random, the action is blocked: we log,
+            # record, and return None — not just logged-and-then-emit.
             resilience = ServiceContainer.get("resilience_engine", default=None)
             if resilience:
                 effort = resilience.get_effort_modifier()
                 if random.random() > effort:
-                    logger.debug("⚡ Agency Action Suppressed by ResilienceEngine (Effort: %.2f)", effort)
+                    logger.info(
+                        "⚡ Agency action suppressed by ResilienceEngine (effort=%.2f)",
+                        effort,
+                    )
+                    try:
+                        from core.unified_action_log import get_action_log
+                        get_action_log().record(
+                            winner.get("id", "agency"),
+                            "AgencyCore",
+                            "gen2_agency",
+                            "resilience_veto",
+                            f"effort={effort:.2f}",
+                        )
+                    except Exception:
+                        pass
+                    return None
             # AC-003: Gating via AgencyBus (Unified Output Cooldown)
             bus = AgencyBus.get()
             if not bus.submit({"origin": "agency_core", "priority_class": winner.get("priority_class", "drive")}):

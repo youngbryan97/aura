@@ -24,11 +24,15 @@ class AgencyBus:
     boredom/reflection) must call submit() before emitting. Only one message
     per cooldown window is allowed through.
 
-    Priority classes control minimum cooldown:
-        duty:    30s  — system obligations
-        drive:   60s  — curiosity/exploration
-        impulse: 90s  — spontaneous thoughts
-        boredom: 120s — idle chatter
+    Priority classes control minimum cooldown (seconds):
+        duty:     3s  — system obligations
+        drive:    5s  — curiosity/exploration
+        impulse:  8s  — spontaneous thoughts
+        boredom: 10s  — idle chatter
+
+    Note: COOLDOWNS values are the source of truth. The earlier draft of this
+    docstring listed 30/60/90/120s as the intended values; production tuning
+    moved them to 3/5/8/10s and the docstring is kept in sync with the code.
     """
     _instance: AgencyBus | None = None
 
@@ -89,19 +93,16 @@ class AgencyBus:
         return True
 
     def on_user_interaction(self) -> None:
-        """Reset the cooldown when the user interacts.
+        """Open the gate after a user interaction.
 
-        User interaction means Aura should be allowed to respond sooner
-        after the interaction ends, rather than being suppressed by a stale
-        autonomous-output cooldown.
+        Right after the user talks to Aura, an autonomous turn is allowed to
+        fire as soon as the minimum cooldown has elapsed — we don't want a
+        stale autonomous-emission cooldown to suppress the next legitimate
+        spontaneous turn. Concretely: pretend the last autonomous emission
+        happened DEFAULT_COOLDOWN seconds ago, so the gate re-opens on the
+        next tick.
         """
-        now = time.time()
-        elapsed = now - self._last_output
-        if elapsed < 30:
-            pass  # If last autonomous output was very recent, keep cooldown
-        else:
-            # Reset so next autonomous thought can fire after minimum cooldown
-            self._last_output = now - self.DEFAULT_COOLDOWN + 30
+        self._last_output = time.time() - self.DEFAULT_COOLDOWN
 
     @property
     def stats(self) -> dict[str, object]:

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aura · DevTools</title>
+  <link rel="stylesheet" href="/static/devtools.css" />
+</head>
+<body>
+  <header class="dt-header">
+    <h1>Aura DevTools</h1>
+    <nav>
+      <button data-tab="snapshot" class="active">Snapshot</button>
+      <button data-tab="receipts">Receipts</button>
+      <button data-tab="trace">Causal Trace</button>
+      <button data-tab="performance">Performance</button>
+      <button data-tab="phi">Phi</button>
+      <button data-tab="conscience">Conscience</button>
+      <button data-tab="world">World</button>
+      <button data-tab="scrub">Time Scrub</button>
+    </nav>
+  </header>
+  <main id="dt-pane"></main>
+  <footer class="dt-footer">
+    <div id="status">connecting…</div>
+    <input type="range" id="scrub" min="0" max="100" value="100" />
+  </footer>
+  <script src="/static/devtools.js"></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0-beta",
+  "productName": "Aura",
+  "version": "0.1.0",
+  "identifier": "ai.aura.app",
+  "build": {
+    "beforeDevCommand": "python aura_main.py --desktop --port 7400",
+    "beforeBuildCommand": "python -m compileall -q core",
+    "devUrl": "http://localhost:7400",
+    "frontendDist": "../../interface/static"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Aura",
+        "width": 1180,
+        "height": 800,
+        "minWidth": 880,
+        "minHeight": 600,
+        "decorations": true,
+        "resizable": true,
+        "transparent": false,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:* ws://localhost:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:"
+    },
+    "macOSPrivateApi": false
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "category": "public.app-category.utilities",
+    "shortDescription": "Sovereign cognitive architecture",
+    "longDescription": "Aura is a local-first sovereign cognitive architecture. The shell wraps the runtime in a signed, notarized native app.",
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "13.0",
+      "hardenedRuntime": true,
+      "entitlements": "../../Aura.entitlements",
+      "signingIdentity": null,
+      "providerShortName": null
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.icns"
+    ],
+    "resources": []
+  },
+  "plugins": {}
+}
