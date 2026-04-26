@@ -2296,6 +2296,23 @@ class InferenceGate:
                     )
                 return None
 
+        # ── Morphogenesis routing advice ──────────────────────────────────
+        # If the morphogenetic metabolism reports very high system pressure,
+        # downgrade non-protected foreground requests from the heavy 32B
+        # cortex to the lighter brainstem to avoid OOM/stall under load.
+        if not is_background and not protected_foreground_lane and requested_tier != "tertiary":
+            try:
+                from core.morphogenesis.hooks import get_morphogenesis_routing_advice
+                _morph_advice = get_morphogenesis_routing_advice()
+                if _morph_advice.get("recommend_downgrade", False):
+                    logger.info(
+                        "🧬 Morphogenesis recommends tier downgrade: %s",
+                        _morph_advice.get("reason", "unknown"),
+                    )
+                    requested_tier = "tertiary"
+            except Exception:
+                pass
+
         # ── Proactive cortex recovery (laptop sleep / MLX worker death) ───
         if not is_background:
             await self._ensure_cortex_recovery()

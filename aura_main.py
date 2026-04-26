@@ -454,6 +454,19 @@ async def _boot_runtime_orchestrator(
 
     orchestrator = create_orchestrator()
     await bootstrap_aura(orchestrator)
+
+    # ── Morphogenetic self-organization runtime ───────────────────────
+    # Starts bounded cell ecology, metabolism, and organ stabilizer.
+    # Must boot after ServiceContainer is populated (bootstrap_aura)
+    # and before orchestrator enters long-running loops.
+    try:
+        from core.morphogenesis.integration import start_morphogenesis_runtime
+        await start_morphogenesis_runtime()
+        logger.info("🧬 Morphogenetic self-organization runtime online.")
+    except Exception as morph_exc:
+        # Never block boot. Morphogenesis is an adaptive layer, not the boot root.
+        logger.warning("Morphogenetic runtime startup skipped/degraded: %s", morph_exc)
+
     await orchestrator.start()
 
     if readiness_context and hasattr(orchestrator, "_ensure_inference_gate_ready"):

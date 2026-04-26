@@ -1010,6 +1010,25 @@ async def api_health(request: Request):
     except Exception as e:
         logger.debug("Consolidator status failed: %s", e)
 
+    # ── Morphogenesis Status ──
+    morphogenesis_data: Dict[str, Any] = {"online": False, "cells": 0, "organs": 0, "_stale": True}
+    try:
+        morpho_rt = ServiceContainer.get("morphogenetic_runtime", default=None)
+        if morpho_rt is not None and hasattr(morpho_rt, "status"):
+            ms = morpho_rt.status()
+            morphogenesis_data = {
+                "online": ms.get("running", False),
+                "enabled": ms.get("enabled", False),
+                "tick": ms.get("tick", 0),
+                "cells": ms.get("registry", {}).get("cells", 0),
+                "organs": ms.get("registry", {}).get("organs", 0),
+                "queued_signals": ms.get("queued_signals", 0),
+                "last_tick_error": ms.get("last_tick_error", ""),
+                "_stale": False,
+            }
+    except Exception as e:
+        logger.debug("Morphogenesis status collection failed: %s", e)
+
     # ── Terminal Fallback Status ──
     terminal_data: Dict[str, Any] = {"active": False, "pending": 0, "watchdog": False}
     try:
@@ -1085,6 +1104,7 @@ async def api_health(request: Request):
             "security":       security_data,
             "circadian":      circadian_data,
             "substrate":      substrate_data,
+            "morphogenesis":  morphogenesis_data,
             "terminal":       terminal_data,
             "desktop_access": desktop_access_data,
             "transcendence": transcendence_data,

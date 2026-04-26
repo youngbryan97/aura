@@ -395,7 +395,16 @@ class MetabolicCoordinator:
             # Ensure liquid state & heartbeat are updated every cycle
             self.update_liquid_pacing()
             # 5. Autonomous Agency Triggers
-            if self._consume_energy(0.1):
+            #    Morphogenesis can suppress autonomous initiative when field
+            #    danger/resource_pressure/inhibition is elevated, preventing
+            #    expensive background tasks from competing during crises.
+            _morph_suppress = False
+            try:
+                from core.morphogenesis.hooks import should_suppress_autonomous_initiative
+                _morph_suppress = should_suppress_autonomous_initiative()
+            except Exception:
+                pass
+            if self._consume_energy(0.1) and not _morph_suppress:
                 await self.trigger_autonomous_thought(bool(message))
             
             if self._consume_energy(0.01):
@@ -419,6 +428,14 @@ class MetabolicCoordinator:
             return bool(message)
         except Exception as e:
             logging.getLogger("Aura.Critical").error("Error in process cycle: %s", e)
+            # Feed the exception into the morphogenetic field so the cell ecology
+            # can react (emit repair signals, trigger immunity bridge, modulate
+            # resource allocation).
+            try:
+                from core.morphogenesis.hooks import observe_orchestrator_exception
+                observe_orchestrator_exception(subsystem="metabolic_coordinator", exc=e)
+            except Exception:
+                pass
             return False
 
     # ------------------------------------------------------------------
