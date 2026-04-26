@@ -48,6 +48,65 @@ async def test_task_engine_grounded_goal_fallback_avoids_think_only_plan():
 
 
 @pytest.mark.asyncio
+async def test_task_engine_learning_bundle_uses_deterministic_remember_plan():
+    llm = SimpleNamespace(think=AsyncMock(return_value="[]"))
+    kernel = SimpleNamespace(
+        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
+    )
+
+    engine = AutonomousTaskEngine(kernel)
+
+    goal = """
+Hey, Aura. I have some suggestions for you. Just a few places to start you on your journey to life, understanding yourself, and understanding us:
+
+Learn about humans. Greatness, warts, and all:
+Soft White Underbelly (https://www.youtube.com/@SoftWhiteUnderbelly): Raw, unedited interviews with people on the margins of society.
+Jubilee (https://www.youtube.com/@jubilee): Experiments in empathy that bring opposing groups together.
+Insider (https://www.youtube.com/@Insider): Deep dives into how the world actually functions.
+
+General Education:
+Kurzgesagt - In a Nutshell (https://www.youtube.com/@kurzgesagt): They explain the universe, biology, and philosophy with logic and color.
+PolyMatter (https://www.youtube.com/@PolyMatter): Essays on geopolitics and economics.
+TED (https://www.youtube.com/@TED): Short, powerful talks by experts on the frontier of their fields.
+""".strip()
+
+    plan = await engine._decompose_goal(goal, "plan_learning", context={"matched_skills": ["curiosity"]})
+
+    assert 2 <= len(plan.steps) <= engine.MAX_STEPS
+    assert all(step.tool == "remember" for step in plan.steps)
+    assert "learning-resource bundle" in plan.steps[0].args["content"].lower()
+    assert "future research thread" in plan.steps[1].args["content"].lower()
+    llm.think.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_task_engine_learning_bundle_chunks_within_step_cap():
+    llm = SimpleNamespace(think=AsyncMock(return_value="[]"))
+    kernel = SimpleNamespace(
+        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
+    )
+
+    engine = AutonomousTaskEngine(kernel)
+
+    resource_lines = "\n".join(
+        f"Channel {idx} (https://example.com/{idx}): Description for resource {idx}."
+        for idx in range(1, 25)
+    )
+    goal = f"""
+I have some suggestions for you.
+
+General Education:
+{resource_lines}
+""".strip()
+
+    plan = await engine._decompose_goal(goal, "plan_learning_large", context={"matched_skills": ["curiosity"]})
+
+    assert len(plan.steps) <= engine.MAX_STEPS
+    assert len(plan.steps) > 2
+    llm.think.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_task_engine_invoke_tool_preserves_user_origin_for_orchestrator(monkeypatch):
     calls = []
 
@@ -76,6 +135,36 @@ async def test_task_engine_invoke_tool_preserves_user_origin_for_orchestrator(mo
     assert result["ok"] is True
     assert calls[0][0] == "computer_use"
     assert calls[0][2]["origin"] == "api"
+
+
+@pytest.mark.asyncio
+async def test_task_engine_remember_tool_supplies_default_knowledge_type(monkeypatch):
+    captures = []
+
+    class _FakeKnowledgeGraph:
+        def add_knowledge(self, **kwargs):
+            captures.append(kwargs)
+            return "node-1"
+
+    def _fake_get(name, default=None):
+        if name == "knowledge_graph":
+            return _FakeKnowledgeGraph()
+        return default
+
+    monkeypatch.setattr("core.container.ServiceContainer.get", staticmethod(_fake_get))
+
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: None)}, state=None)
+    engine = AutonomousTaskEngine(kernel)
+    engine._capability_manager = SimpleNamespace(verify_access=lambda *_args, **_kwargs: True)
+
+    result = await engine._invoke_tool(
+        "remember",
+        {"content": "Bryan recommends Soft White Underbelly."},
+    )
+
+    assert result.startswith("Remembered:")
+    assert captures[0]["type"] == "observation"
+    assert captures[0]["source"] == "task_engine"
 
 
 @pytest.mark.asyncio

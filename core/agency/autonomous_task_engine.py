@@ -240,6 +240,26 @@ class AutonomousTaskEngine:
         "not finish",
         "still running",
     )
+    LEARNING_BUNDLE_INTRO_MARKERS = (
+        "i have some suggestions",
+        "places to start",
+        "journey to life",
+        "understanding yourself",
+        "understanding us",
+        "learn about humans",
+        "general education",
+        "science education",
+        "tv shows and movies about artificial intelligence",
+        "uploaded intelligence",
+    )
+    LEARNING_BUNDLE_SECTION_MARKERS = (
+        "learn about humans",
+        "general education",
+        "science education",
+        "tv shows and movies",
+        "sci-fi",
+        "ai media",
+    )
 
     def __init__(self, kernel: Any):
         self.kernel = kernel
@@ -721,6 +741,15 @@ class AutonomousTaskEngine:
         context: Optional[Dict],
     ) -> TaskPlan:
         """Use LLM to decompose goal into concrete, verifiable steps."""
+        if self._looks_like_learning_resource_bundle(goal):
+            bundle_plan = self._build_learning_resource_plan(goal, plan_id, context)
+            if bundle_plan is not None:
+                logger.info(
+                    "TaskEngine: recognized structured learning-resource bundle; using deterministic ingestion plan for '%s'",
+                    goal[:60],
+                )
+                return bundle_plan
+
         tool_specs = self._build_planning_tool_specs(goal)
         available_tools = [spec["name"] for spec in tool_specs]
         tool_catalog = "\n".join(
@@ -913,7 +942,11 @@ Respond ONLY with a JSON array, no other text:
         _push("run_python", "Execute sandboxed Python code.", "code:string")
         _push("write_file", "Write content to a file.", "path:string; content:string")
         _push("read_file", "Read content from a file.", "path:string")
-        _push("remember", "Store grounded information after verification.", "content:string; verified:boolean")
+        _push(
+            "remember",
+            "Store grounded information after verification.",
+            "content:string; verified:boolean; type:string; metadata:object",
+        )
 
         try:
             from core.container import ServiceContainer
@@ -1093,6 +1126,200 @@ Respond ONLY with a JSON array, no other text:
     def _extract_url(goal: str) -> str:
         match = re.search(r"https?://[^\s<>\"')\]]+", str(goal or ""))
         return match.group(0) if match else ""
+
+    @classmethod
+    def _looks_like_learning_bundle_header(cls, line: str) -> bool:
+        stripped = str(line or "").strip()
+        if not stripped or "http://" in stripped or "https://" in stripped:
+            return False
+        if not stripped.endswith(":") or len(stripped) > 120:
+            return False
+        lowered = stripped[:-1].strip().lower()
+        return any(marker in lowered for marker in cls.LEARNING_BUNDLE_SECTION_MARKERS)
+
+    @classmethod
+    def _parse_learning_resource_line(cls, line: str, category: str = "") -> Optional[Dict[str, str]]:
+        cleaned = re.sub(r"^\s*(?:[-*]|\d+\.)\s*", "", str(line or "").strip())
+        if not cleaned or cls._looks_like_learning_bundle_header(cleaned):
+            return None
+
+        head, sep, tail = cleaned.rpartition(":")
+        if not sep:
+            return None
+
+        description = tail.strip().lstrip(":").strip()
+        if len(description) < 8:
+            return None
+
+        title = head.strip()
+        url = ""
+        creator = ""
+        url_match = re.match(r"^(?P<title>.+?)\s+\((?P<url>https?://[^)]+)\)\s*$", title)
+        if url_match:
+            title = url_match.group("title").strip()
+            url = url_match.group("url").strip()
+        elif " - " in title:
+            title, creator = title.rsplit(" - ", 1)
+            title = title.strip()
+            creator = creator.strip()
+
+        if not title:
+            return None
+
+        return {
+            "category": str(category or "").strip(),
+            "title": title,
+            "url": url,
+            "creator": creator,
+            "description": description,
+        }
+
+    @classmethod
+    def _looks_like_learning_resource_bundle(cls, goal: str) -> bool:
+        text = str(goal or "")
+        if len(text) < 280:
+            return False
+
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(lines) < 6:
+            return False
+
+        lowered = text.lower()
+        url_count = len(re.findall(r"https?://[^\s<>\"')\]]+", text))
+        header_count = sum(1 for line in lines if cls._looks_like_learning_bundle_header(line))
+
+        category = ""
+        resource_count = 0
+        for line in lines:
+            if cls._looks_like_learning_bundle_header(line):
+                category = line.rstrip(":").strip()
+                continue
+            if cls._parse_learning_resource_line(line, category):
+                resource_count += 1
+
+        intro_hit = any(marker in lowered for marker in cls.LEARNING_BUNDLE_INTRO_MARKERS)
+        return (
+            (url_count >= 4 and resource_count >= 5)
+            or (header_count >= 2 and resource_count >= 5)
+            or (intro_hit and resource_count >= 4)
+        )
+
+    @staticmethod
+    def _chunk_learning_resource_entries(entries: List[Dict[str, str]], max_chunks: int) -> List[List[Dict[str, str]]]:
+        if not entries:
+            return []
+        max_chunks = max(1, int(max_chunks or 1))
+        chunk_count = min(len(entries), max_chunks)
+        chunk_size = max(1, (len(entries) + chunk_count - 1) // chunk_count)
+        return [entries[idx: idx + chunk_size] for idx in range(0, len(entries), chunk_size)]
+
+    def _build_learning_resource_plan(
+        self,
+        goal: str,
+        plan_id: str,
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[TaskPlan]:
+        lines = [line.strip() for line in str(goal or "").splitlines() if line.strip()]
+        category = ""
+        entries: List[Dict[str, str]] = []
+        seen: Set[Tuple[str, str]] = set()
+
+        for line in lines:
+            if self._looks_like_learning_bundle_header(line):
+                category = line.rstrip(":").strip()
+                continue
+            parsed = self._parse_learning_resource_line(line, category)
+            if not parsed:
+                continue
+            dedupe_key = (
+                parsed.get("category", "").lower(),
+                parsed.get("title", "").lower(),
+            )
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            entries.append(parsed)
+
+        if not entries:
+            return None
+
+        category_counts: Dict[str, int] = {}
+        for entry in entries:
+            label = entry.get("category") or "Uncategorized"
+            category_counts[label] = category_counts.get(label, 0) + 1
+
+        steps: List[TaskStep] = []
+        category_summary = "; ".join(
+            f"{name} ({count})"
+            for name, count in category_counts.items()
+        )
+        steps.append(
+            TaskStep(
+                step_id=f"{plan_id}_s0",
+                description="Store the index of the structured learning-resource bundle.",
+                tool="remember",
+                args={
+                    "content": (
+                        "Bryan shared a structured learning-resource bundle for Aura. "
+                        f"Categories: {category_summary}. "
+                        "Preserve each recommendation as its own future research lead instead of flattening the list."
+                    ),
+                    "verified": False,
+                    "type": "learning_resource_index",
+                    "metadata": {
+                        "entry_count": len(entries),
+                        "categories": list(category_counts.keys()),
+                    },
+                },
+                success_criterion="result contains 'Remembered:'",
+            )
+        )
+
+        chunks = self._chunk_learning_resource_entries(entries, max_chunks=max(1, self.MAX_STEPS - 1))
+        for index, chunk in enumerate(chunks, start=1):
+            chunk_lines = [
+                f"Learning resource bundle from Bryan - chunk {index}/{len(chunks)}.",
+                "Treat each bullet below as a separate recommendation and future research thread.",
+            ]
+            entry_titles: List[str] = []
+            categories = sorted({entry.get("category") or "Uncategorized" for entry in chunk})
+            for entry in chunk:
+                title = entry.get("title", "").strip()
+                entry_titles.append(title)
+                location = entry.get("url") or entry.get("creator") or "reference pending"
+                label = entry.get("category") or "Uncategorized"
+                chunk_lines.append(
+                    f"- [{label}] {title} - {location} - {entry.get('description', '').strip()}"
+                )
+
+            steps.append(
+                TaskStep(
+                    step_id=f"{plan_id}_s{len(steps)}",
+                    description=f"Remember learning-resource chunk {index} of {len(chunks)}.",
+                    tool="remember",
+                    args={
+                        "content": "\n".join(chunk_lines),
+                        "verified": False,
+                        "type": "learning_resource_chunk",
+                        "metadata": {
+                            "chunk_index": index,
+                            "chunk_total": len(chunks),
+                            "entry_titles": entry_titles,
+                            "categories": categories,
+                        },
+                    },
+                    success_criterion="result contains 'Remembered:'",
+                    depends_on=[f"{plan_id}_s0"],
+                )
+            )
+
+        return TaskPlan(
+            plan_id=plan_id,
+            goal=goal,
+            steps=steps[: self.MAX_STEPS],
+            trace_id="",
+            context=dict(context or {}),
+        )
 
     def _build_desktop_fallback_plan(
         self,
@@ -1845,7 +2072,13 @@ Respond ONLY with a JSON array, no other text:
             except Exception as e:
                 return f"Read failed: {e}"
 
-        async def _remember(content: str, verified: bool = False, **kwargs) -> str:
+        async def _remember(
+            content: str,
+            verified: bool = False,
+            type: str = "observation",
+            metadata: Optional[Dict[str, Any]] = None,
+            **kwargs,
+        ) -> str:
             """Store something in Aura's knowledge graph."""
             if self._looks_technical_fact(content) and not verified:
                 raise ValueError("Technical memory writes require verified=true after a live read or tool-backed check")
@@ -1853,7 +2086,12 @@ Respond ONLY with a JSON array, no other text:
                 from core.container import ServiceContainer
                 kg = ServiceContainer.get("knowledge_graph", default=None)
                 if kg:
-                    kg.add_knowledge(content=content, source="task_engine")
+                    kg.add_knowledge(
+                        content=content,
+                        type=str(type or "observation"),
+                        source=str(kwargs.get("source", "task_engine") or "task_engine"),
+                        metadata=metadata or {},
+                    )
                     return f"Remembered: {content[:80]}"
             except Exception as e:
                 return f"Remember failed: {e}"
