@@ -453,7 +453,39 @@ class AgencyCore:
             if random.random() < 0.05: # Only log occasionally to avoid spam
                 logger.warning("🚫 Agency suppressed by Spinal Cord Safemode. Awaiting manual override.")
             return None
-        
+
+        # ── Viability gate ──────────────────────────────────────────
+        # The viability state machine is *load-bearing* on agency
+        # emission: when initiative budget is zero (INJURED, REBOOTING,
+        # DEAD, ASLEEP, DREAMING) no action is emitted. Otherwise the
+        # per-minute initiative budget caps how often pathways may fire.
+        try:
+            from core.organism.viability import get_viability
+            _viability = get_viability()
+            _behavior = _viability.behavior()
+            if _behavior.initiative_budget_per_min <= 0.0:
+                if random.random() < 0.02:
+                    logger.info(
+                        "🩸 agency suppressed by viability=%s (budget=0)",
+                        _viability.state.value,
+                    )
+                return None
+            # Initiative-budget rate limit: per-minute throttle.
+            self._viability_emit_window = getattr(self, "_viability_emit_window", [])
+            _now = time.time()
+            self._viability_emit_window = [t for t in self._viability_emit_window if (_now - t) <= 60.0]
+            if len(self._viability_emit_window) >= int(_behavior.initiative_budget_per_min):
+                if random.random() < 0.02:
+                    logger.info(
+                        "🩸 agency throttled by viability=%s (budget=%.1f, emitted=%d)",
+                        _viability.state.value,
+                        _behavior.initiative_budget_per_min,
+                        len(self._viability_emit_window),
+                    )
+                return None
+        except Exception as _vexc:
+            logger.debug("viability gate skipped: %s", _vexc)
+
         # Sync state from orchestrator subsystems
         self._sync_from_orchestrator()
         
@@ -574,6 +606,11 @@ class AgencyCore:
 
             # Update last action time (for telemetry, not gating)
             self.state.last_agency_action_time = now
+            # Record this emission against the viability per-minute budget.
+            try:
+                self._viability_emit_window.append(now)
+            except Exception:
+                pass
             
             # Phase 11.3: Sync to UnifiedStateRegistry
             try:

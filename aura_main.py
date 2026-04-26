@@ -468,6 +468,77 @@ async def _boot_runtime_orchestrator(
     _enforce_service_manifest(ready_label)
     await _enforce_boot_probes(ready_label)
     logger.info("🛡️ Registry Locked. Aura Ready (%s).", ready_label)
+
+    # ── Wire viability + self-healing + stem cells + boot phases ───────
+    # All four subsystems live in core/ and are independent of the
+    # orchestrator's existing lifecycle. We start them here so they are
+    # active for the same lifetime as the orchestrator.
+    try:
+        from core.organism.viability import get_viability
+        await get_viability().start(interval=5.0)
+        ServiceContainer.register_instance("viability", get_viability(), required=False)
+    except Exception as exc:
+        logger.warning("viability engine start failed: %s", exc)
+
+    try:
+        from core.runtime.self_healing import get_healer
+        healer = get_healer()
+        # Watch the orchestrator main loop; the orchestrator is expected
+        # to call `healer.heartbeat("orchestrator")` on every tick. If
+        # the heartbeat goes stale by 2.5x its expected interval, the
+        # healer asks the orchestrator to restart_async() (no-op if
+        # the method isn't defined — falls back to ServiceContainer).
+        healer.watch("orchestrator", expected_interval_s=15.0, container_key="orchestrator")
+        healer.watch("agency_bus",   expected_interval_s=30.0, container_key="agency_bus")
+        healer.watch("phi_core",     expected_interval_s=30.0, container_key="phi_core")
+        healer.watch("memory_facade", expected_interval_s=60.0, container_key="memory_facade")
+        await healer.start(interval=5.0)
+        ServiceContainer.register_instance("self_healing", healer, required=False)
+    except Exception as exc:
+        logger.warning("self-healing watcher start failed: %s", exc)
+
+    try:
+        from core.runtime.boot_phases import get_boot_phases
+        bp = get_boot_phases()
+        # Reflect the post-boot ready state into the boot panel.
+        bp.update_organ("core", "ready")
+        bp.update_organ("memory", "ready")
+        bp.update_organ("cortex", "ready")
+        bp.update_organ("voice", "waiting")
+        bp.update_organ("autonomy", "ready")
+        ServiceContainer.register_instance("boot_phases", bp, required=False)
+    except Exception as exc:
+        logger.debug("boot phases hook skipped: %s", exc)
+
+    try:
+        from core.runtime.performance_guard import get_guard
+        await get_guard().start(interval=5.0)
+        ServiceContainer.register_instance("performance_guard", get_guard(), required=False)
+    except Exception as exc:
+        logger.debug("performance guard start skipped: %s", exc)
+
+    # Capture stem-cell snapshots for the load-bearing organs so the
+    # immune layer has something to revert to if a future mutation
+    # corrupts them. Snapshots are HMAC-signed in
+    # ~/.aura/data/stem_cells/.
+    try:
+        from core.resilience.stem_cell import get_registry
+        reg = get_registry()
+        will = ServiceContainer.get("unified_will", default=None) or ServiceContainer.get("will", default=None)
+        if will is not None:
+            reg.register("unified_will")
+            reg.capture("unified_will", will, schema_version="1")
+        from core.agency.agency_orchestrator import get_orchestrator as _get_ao
+        ao = _get_ao()
+        reg.register("agency_orchestrator")
+        reg.capture("agency_orchestrator", ao, schema_version="1")
+        from core.identity.self_object import get_self
+        reg.register("self_object")
+        reg.capture("self_object", get_self().snapshot().continuity_hash, schema_version="1")
+        ServiceContainer.register_instance("stem_cell_registry", reg, required=False)
+    except Exception as exc:
+        logger.warning("stem-cell capture at boot failed: %s", exc)
+
     return orchestrator
 
 

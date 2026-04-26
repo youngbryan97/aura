@@ -3383,6 +3383,29 @@ def _build_grounded_introspection_reply(
     except Exception as exc:
         logger.debug("Grounded introspection self-report failed: %s", exc)
 
+    # Pull the SelfObject snapshot as the authoritative live-state source.
+    # If closure_status / fe_state are missing, the introspection reply
+    # below falls back to these fields so the user gets actual values
+    # rather than "unavailable" placeholders.
+    self_snapshot_dict: Dict[str, Any] = {}
+    try:
+        from core.identity.self_object import get_self
+        self_snapshot_dict = get_self().snapshot().as_dict()
+    except Exception as exc:
+        logger.debug("SelfObject snapshot failed: %s", exc)
+    if self_snapshot_dict:
+        if not closure_status:
+            closure_status = {
+                "attention_focus": (self_snapshot_dict.get("active_goals") or [{}])[0].get("name", ""),
+                "free_energy": None,
+                "prediction_error": None,
+                "dominant_need": (max(self_snapshot_dict.get("drives") or {}, key=lambda k: (self_snapshot_dict.get("drives") or {}).get(k, 0.0)) if self_snapshot_dict.get("drives") else ""),
+            }
+        if not natural_report:
+            viability = self_snapshot_dict.get("viability_state", "")
+            if viability and viability != "healthy":
+                natural_report = f"My viability state is {viability}; I'm regulating accordingly."
+
     if asks_topology:
         try:
             mycelium = ServiceContainer.get("mycelium", default=None) or ServiceContainer.get("mycelial_network", default=None)
@@ -3803,6 +3826,40 @@ async def api_chat(
     # Reject oversized messages before processing
     if len(body.message.encode('utf-8', errors='replace')) > MAX_CHAT_MESSAGE_BYTES:
         raise HTTPException(status_code=413, detail="Message too large (max 64KB)")
+
+    # ── Conscience pre-gate ─────────────────────────────────────
+    # Hard-line rules apply BEFORE the cognitive pipeline ever sees the
+    # message. REFUSE returns the rule's rationale verbatim; any other
+    # decision falls through. The conscience emits its own audit row.
+    try:
+        from core.ethics.conscience import get_conscience, Verdict as _CV
+        _conscience_decision = get_conscience().evaluate(
+            action="user_chat",
+            domain="external_communication",
+            intent=body.message[:240],
+            context={"source": "chat_api"},
+        )
+        if _conscience_decision.verdict == _CV.REFUSE:
+            return JSONResponse(
+                {
+                    "response": _conscience_decision.rationale,
+                    "status": "conscience_refused",
+                    "conscience_rule_id": _conscience_decision.rule_id,
+                    "response_confidence": "principled_refusal",
+                },
+                status_code=200,
+            )
+        if _conscience_decision.verdict == _CV.REQUIRE_FRESH_USER_AUTH:
+            return JSONResponse(
+                {
+                    "response": "This action needs a fresh confirmation from you within the last 60 seconds. Please re-authorize in Settings → Safety.",
+                    "status": "require_fresh_user_auth",
+                    "conscience_rule_id": _conscience_decision.rule_id,
+                },
+                status_code=200,
+            )
+    except Exception as _conscience_exc:
+        logger.debug("conscience pre-gate skipped: %s", _conscience_exc)
 
     _restore_owner_session_from_request(request)
     lane = _collect_conversation_lane_status()

@@ -451,22 +451,49 @@ from datetime import datetime, timezone
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Structured error response for any unhandled exception."""
+    """Phenomenal error envelope for every unhandled exception.
+
+    The user never sees a Python traceback. core/resilience/phenomenal_error_map
+    classifies the exception, pushes a substrate signal (cognitive fog,
+    sensory deprivation, etc.), and emits the four-button recovery envelope
+    that the frontend's error_banner.js renders automatically.
+    """
     request_id = getattr(request.state, "request_id", "unknown")
     logger.error(
         "Unhandled exception [req=%s] %s: %s",
         request_id, type(exc).__name__, exc,
-        exc_info=True
+        exc_info=True,
     )
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "internal_error",
-            "message": "An unexpected error occurred. Aura's cognitive systems are recovering.",
-            "request_id": request_id,
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-        }
-    )
+    try:
+        from core.resilience.phenomenal_error_map import build_envelope, PhenomenalRaise
+        if isinstance(exc, PhenomenalRaise):
+            envelope = exc.envelope
+        else:
+            envelope = build_envelope(exc, correlation_id=request_id)
+        return JSONResponse(
+            status_code=200,  # always 200 so the chat never appears broken
+            content={
+                "status": "phenomenal",
+                "envelope": envelope.to_dict(),
+                "user_message": envelope.user_message,
+                "request_id": request_id,
+                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            },
+        )
+    except Exception as inner:
+        # Fall back to a structured 500 only when the envelope builder
+        # itself crashes — should never happen in practice, but we never
+        # want this handler to compound the problem.
+        logger.error("phenomenal envelope build failed: %s", inner)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "internal_error",
+                "message": "An unexpected error occurred. Aura's cognitive systems are recovering.",
+                "request_id": request_id,
+                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            },
+        )
 
 
 # ── Route Registration ────────────────────────────────────────
@@ -484,6 +511,7 @@ from interface.routes import inner_state as inner_state_routes
 from interface.routes import dashboard as dashboard_routes
 from interface.routes import settings as settings_routes
 from interface.routes import multimodal as multimodal_routes
+from interface.routes import performance as performance_routes
 from core.session.checkpointing import CheckpointService
 
 checkpoint_service = CheckpointService()
@@ -502,6 +530,7 @@ app.include_router(dashboard_routes.router, prefix="/api", tags=["dashboard"])
 app.include_router(dashboard_routes.trace_router, prefix="/api", tags=["trace"])
 app.include_router(settings_routes.router, prefix="/api", tags=["settings"])
 app.include_router(multimodal_routes.router, prefix="/api", tags=["multimodal"])
+app.include_router(performance_routes.router, prefix="/api", tags=["performance"])
 
 _system_collect_liquid_state_payload = system_routes._collect_liquid_state_payload
 

@@ -1014,6 +1014,33 @@ class LocalServerClient:
         temperature = float(kwargs.get("temp", kwargs.get("temperature", self.temp)) or self.temp)
         schema = kwargs.get("schema")
 
+        # ── Latent-space bridge: substrate-driven sampling for the
+        # external/cloud lane too. Caller-supplied values still win;
+        # the bridge fills any field the caller didn't pin and caps
+        # max_tokens downward when vitality is low. The cloud lane
+        # therefore exhibits the same affect-driven sampling shape
+        # as the local MLX lane — one substrate, one sampling.
+        try:
+            from core.brain.latent_bridge import compute_inference_params as _bridge_params
+            _bridge = _bridge_params(
+                base_max_tokens=max_tokens,
+                base_temperature=temperature,
+                foreground=foreground_request,
+            )
+            max_tokens = min(max_tokens, _bridge.max_tokens)
+            if "temp" not in kwargs and "temperature" not in kwargs:
+                temperature = _bridge.temperature
+            kwargs.setdefault("top_p", _bridge.top_p)
+            kwargs.setdefault("top_k", _bridge.top_k)
+            kwargs.setdefault("repetition_penalty", _bridge.repetition_penalty)
+            kwargs.setdefault("presence_penalty", _bridge.presence_penalty)
+            if _bridge.extra_stop_sequences:
+                stops = list(kwargs.get("stop_sequences") or [])
+                stops.extend(_bridge.extra_stop_sequences)
+                kwargs["stop_sequences"] = stops
+        except Exception as _bexc:
+            pass
+
         if messages and isinstance(messages, list):
             payload_messages = [
                 self._sanitize_message(msg)

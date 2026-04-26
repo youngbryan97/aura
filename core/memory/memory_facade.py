@@ -681,6 +681,29 @@ class MemoryFacade:
     ) -> bool:
         """Compatibility API for legacy callers expecting async long-term memory writes."""
         payload = dict(metadata or {})
+        # Provenance envelope: every memory write gets stamped with
+        # source / confidence / identity_relevant / contested so downstream
+        # readers can distinguish memory from inference / fantasy.
+        try:
+            from core.memory.provenance import wrap as _provenance_wrap
+            _stamped = _provenance_wrap(
+                text,
+                source=str(payload.get("provenance_source") or payload.get("source") or "self_inferred"),
+                confidence=payload.get("confidence"),
+                identity_relevant=bool(payload.get("identity_relevant", False)),
+                contested=bool(payload.get("contested", False)),
+            )
+            payload["provenance"] = {
+                "record_id": _stamped.provenance.record_id,
+                "when_created": _stamped.provenance.when_created,
+                "source": _stamped.provenance.source,
+                "confidence": _stamped.provenance.confidence,
+                "contested": _stamped.provenance.contested,
+                "identity_relevant": _stamped.provenance.identity_relevant,
+                "schema_version": _stamped.provenance.schema_version,
+            }
+        except Exception as _prov_exc:
+            logger.debug("provenance stamp skipped: %s", _prov_exc)
         resolved_source = self._resolve_memory_write_source(payload)
         self._last_add_memory_status = {"ok": False, "reason": "pending"}
         governance_decision = None
