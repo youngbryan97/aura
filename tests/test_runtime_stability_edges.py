@@ -171,6 +171,60 @@ class TestJsonRepairGuards(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(parsed, {})
 
+    async def test_json_repair_handles_python_style_dict_payloads(self):
+        from core.utils.json_utils import SelfHealingJSON
+
+        repairer = SelfHealingJSON(brain=MagicMock())
+
+        parsed = await repairer.parse(
+            "{'signature_phrase': 'I am steady.', 'stable_traits': ['curious'], "
+            "'learned_preferences': ['space'], 'growth_edges': ['patience'],}"
+        )
+
+        self.assertEqual(parsed["signature_phrase"], "I am steady.")
+        self.assertEqual(parsed["stable_traits"], ["curious"])
+
+
+class TestExperienceConsolidatorGuards(unittest.IsolatedAsyncioTestCase):
+    async def test_consolidator_defers_without_marking_last_run_when_foreground_is_busy(self):
+        from core.consciousness.experience_consolidator import ExperienceConsolidator
+
+        consolidator = ExperienceConsolidator(cognitive_engine=None)
+        before = consolidator._last_run
+        consolidator._background_should_defer = MagicMock(return_value=True)
+        consolidator._gather_material = MagicMock(side_effect=AssertionError("foreground defer should skip work"))
+
+        result = await consolidator.run_now()
+
+        self.assertIsNone(result)
+        self.assertEqual(consolidator._last_run, before)
+
+
+class TestSubstrateStimulusGuards(unittest.IsolatedAsyncioTestCase):
+    async def test_liquid_substrate_scales_constrained_stimulus_weight(self):
+        import numpy as np
+
+        from core.consciousness.liquid_substrate import LiquidSubstrate, SubstrateConfig
+        from core.consciousness.substrate_authority import AuthorizationDecision
+
+        substrate = LiquidSubstrate(SubstrateConfig(neuron_count=4))
+        substrate.x[:] = 0.0
+
+        class _Authority:
+            def authorize(self, *args, **kwargs):
+                return SimpleNamespace(
+                    decision=AuthorizationDecision.CONSTRAIN,
+                    constraints=["neurochemical_gaba_collapse: internal_state_mutation_constrained"],
+                )
+
+        with patch(
+            "core.container.ServiceContainer.get",
+            staticmethod(lambda name, default=None: _Authority() if name == "substrate_authority" else default),
+        ):
+            await substrate.inject_stimulus([1.0, 1.0, 1.0, 1.0], weight=1.0)
+
+        np.testing.assert_allclose(substrate.x, np.full(4, 0.02), atol=1e-6)
+
 
 class TestSovereignPrunerGuards(unittest.IsolatedAsyncioTestCase):
     async def test_pruner_caps_consolidation_batch_and_preserves_deferred_memories(self):

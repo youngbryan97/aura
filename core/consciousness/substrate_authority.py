@@ -172,6 +172,11 @@ class SubstrateAuthority:
         tokens = {token for token in normalized.split("_") if token}
         return bool(tokens & direct)
 
+    @staticmethod
+    def _is_internal_substrate_source(source: str) -> bool:
+        normalized = str(source or "").strip().lower().replace("-", "_")
+        return normalized in {"substrate_stimulus", "substrate", "liquid_substrate"}
+
     # ── Main authorization ───────────────────────────────────────────────
 
     def authorize(
@@ -259,6 +264,14 @@ class SubstrateAuthority:
                     chem_decision = AuthorizationDecision.CONSTRAIN
                     constraints.append(
                         f"neurochemical_{chem_state}: user_facing_{category.name.lower()}_constrained"
+                    )
+                elif (
+                    category == ActionCategory.STATE_MUTATION
+                    and self._is_internal_substrate_source(source)
+                ):
+                    chem_decision = AuthorizationDecision.CONSTRAIN
+                    constraints.append(
+                        f"neurochemical_{chem_state}: internal_state_mutation_constrained"
                     )
                 else:
                     chem_decision = AuthorizationDecision.BLOCK

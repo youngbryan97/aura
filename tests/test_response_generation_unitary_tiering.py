@@ -375,6 +375,55 @@ async def test_unitary_response_uses_grounded_technical_recovery_when_generation
 
 
 @pytest.mark.asyncio
+async def test_unitary_response_does_not_leak_stale_technical_recovery_into_non_coding_turn(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "What do you want to talk about?"
+    state.response_modifiers["coding_request"] = False
+    state.response_modifiers["coding_route_hints"] = {
+        "has_active_plan": True,
+        "has_verification_failure": True,
+        "repair_attempts": 1,
+        "execution_phase": "verifying",
+        "followup_coding": False,
+    }
+    state.response_modifiers["last_task_result_payload"] = {
+        "status": "started",
+        "summary": "I've started this task (id=48792829). I'll follow up when it's done. Tracking commitment 8ec3f96b.",
+        "steps_completed": 1,
+        "steps_total": 3,
+    }
+
+    llm = SimpleNamespace(think=AsyncMock(side_effect=RuntimeError("mlx lane crashed")))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.ContextAssembler.build_messages",
+        staticmethod(lambda _state, objective: [
+            {"role": "system", "content": "rich_context"},
+            {"role": "user", "content": objective},
+        ]),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.build_response_contract",
+        lambda _state, _objective, is_user_facing=False: ResponseContract(
+            is_user_facing=is_user_facing,
+            reason="ordinary_dialogue",
+        ),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    assert "i hit an interruption" not in new_state.cognition.last_response.lower()
+    assert "tracking commitment" not in new_state.cognition.last_response.lower()
+
+
+@pytest.mark.asyncio
 async def test_unitary_response_fails_closed_when_grounding_is_required_without_evidence(monkeypatch):
     state = AuraState()
     state.cognition.current_origin = "api"

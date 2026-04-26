@@ -1419,6 +1419,33 @@ class CapabilityEngine(AuraBaseModule):
             return nested_params
         return normalized
 
+    @staticmethod
+    def _apply_executive_constraints(ctx: Dict[str, Any]) -> Dict[str, Any]:
+        constraints = dict(ctx.get("executive_constraints", {}) or {})
+        if not constraints:
+            return ctx
+
+        if "read_only" in constraints and "read_only" not in ctx:
+            ctx["read_only"] = bool(constraints.get("read_only"))
+
+        timeout_raw = constraints.get("timeout_s")
+        if timeout_raw is not None:
+            try:
+                timeout_s = float(timeout_raw)
+            except (TypeError, ValueError):
+                timeout_s = 0.0
+            if timeout_s > 0.0:
+                current = ctx.get("timeout_s")
+                if current is None:
+                    ctx["timeout_s"] = timeout_s
+                else:
+                    try:
+                        ctx["timeout_s"] = min(float(current), timeout_s)
+                    except (TypeError, ValueError):
+                        ctx["timeout_s"] = timeout_s
+
+        return ctx
+
     async def execute(self, skill_name: str, params: Dict[str, Any],
                       context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Safe execution wrapper with adaptivity, security, and retries."""
@@ -1520,6 +1547,7 @@ class CapabilityEngine(AuraBaseModule):
                     merged_constraints = dict(ctx.get("executive_constraints", {}) or {})
                     merged_constraints.update(constraints)
                     ctx["executive_constraints"] = merged_constraints
+                    ctx = self._apply_executive_constraints(ctx)
 
                 capability_token_id = getattr(tool_handle, "capability_token_id", None)
                 if constitutional_runtime_live:
@@ -1679,6 +1707,13 @@ class CapabilityEngine(AuraBaseModule):
                 float(getattr(meta, "timeout_seconds", 30) or 30),
                 float(getattr(skill_instance, "timeout_seconds", 30) or 30),
             )
+            constrained_timeout = ctx.get("timeout_s")
+            try:
+                constrained_timeout = float(constrained_timeout)
+            except (TypeError, ValueError):
+                constrained_timeout = 0.0
+            if constrained_timeout and constrained_timeout > 0.0:
+                timeout_budget = max(1.0, min(timeout_budget, constrained_timeout))
 
             try:
                 # Execute safely via the Governor to prevent cascading API failures

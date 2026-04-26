@@ -1813,13 +1813,9 @@ class UnitaryResponsePhase(Phase):
         last_task = modifiers.get("last_task_result_payload")
         last_skill = modifiers.get("last_skill_result_payload")
         coding_request = bool(modifiers.get("coding_request"))
+        followup_coding = bool(route_hints.get("followup_coding"))
 
-        if not (
-            coding_request
-            or route_hints.get("has_active_plan")
-            or route_hints.get("has_verification_failure")
-            or isinstance(last_task, dict)
-        ):
+        if not (coding_request or followup_coding):
             return ""
 
         focus = cls._normalize_text(

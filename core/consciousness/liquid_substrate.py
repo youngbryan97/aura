@@ -734,6 +734,14 @@ class LiquidSubstrate:
                 if _sv.decision == AuthorizationDecision.BLOCK:
                     logger.debug("Stimulus injection BLOCKED by authority (weight=%.2f)", weight)
                     return
+                if _sv.decision == AuthorizationDecision.CONSTRAIN:
+                    original_weight = weight
+                    weight = min(weight, 0.2)
+                    logger.debug(
+                        "Stimulus injection constrained by authority (weight %.2f -> %.2f)",
+                        original_weight,
+                        weight,
+                    )
         except Exception:
             pass  # fail-open
 

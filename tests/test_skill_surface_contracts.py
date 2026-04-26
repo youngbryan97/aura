@@ -10,6 +10,8 @@ from typing import Any
 import pytest
 
 from core.capability_engine import CapabilityEngine
+from core.capability_engine import SkillMetadata
+from core.constitution import ConstitutionalDecision, ProposalKind, ProposalOutcome
 from core.skills.install_package import InstallPackageSkill
 from core.skills.self_evolution import SelfEvolutionSkill
 from core.skills.self_improvement import SelfImprovementSkill
@@ -356,6 +358,27 @@ async def test_test_generator_read_only_avoids_writing_into_repo(monkeypatch, tm
 
 
 @pytest.mark.asyncio
+async def test_test_generator_read_only_skips_llm_generation(monkeypatch, tmp_path: Path):
+    _disable_governance(monkeypatch)
+    target = tmp_path / "sample_module.py"
+    target.write_text(
+        "def square(value: int) -> int:\n"
+        "    return value * value\n",
+        encoding="utf-8",
+    )
+
+    class _ForbiddenBrain:
+        async def think(self, *args, **kwargs):
+            raise AssertionError("read-only test generation should not use the LLM path")
+
+    skill = TestGeneratorSkill(brain=_ForbiddenBrain())
+    result = await skill.safe_execute({"target_file": str(target)}, {"read_only": True})
+
+    assert result["ok"] is True
+    assert result.get("fallback_used") is False
+
+
+@pytest.mark.asyncio
 async def test_test_generator_brain_uses_objective_keyword(monkeypatch, tmp_path: Path):
     _disable_governance(monkeypatch)
     target = tmp_path / "export_source.py"
@@ -412,6 +435,57 @@ async def test_test_generator_brain_uses_objective_keyword(monkeypatch, tmp_path
 
 
 @pytest.mark.asyncio
+async def test_test_generator_recovers_with_deterministic_fallback_after_llm_failure(monkeypatch, tmp_path: Path):
+    _disable_governance(monkeypatch)
+    target = tmp_path / "sample_module.py"
+    target.write_text(
+        "def square(value: int) -> int:\n"
+        "    return value * value\n",
+        encoding="utf-8",
+    )
+
+    class _Brain:
+        async def think(self, *args, **kwargs):
+            return SimpleNamespace(content="def test_bad_generated_case():\n    assert False\n")
+
+    class _SandboxStub:
+        def __init__(self) -> None:
+            self.started = False
+            self.stopped = False
+            self.commands: list[str] = []
+            self.files: dict[str, str] = {}
+            self._runs = 0
+
+        def start(self) -> None:
+            self.started = True
+
+        def write_file(self, name: str, content: str) -> None:
+            self.files[name] = content
+
+        async def run_command(self, command: str, timeout: int = 45):
+            self.commands.append(command)
+            self._runs += 1
+            if self._runs == 1:
+                return SimpleNamespace(exit_code=1, stdout="", stderr="generated test failed")
+            return SimpleNamespace(exit_code=0, stdout="1 passed", stderr="")
+
+        def stop(self) -> None:
+            self.stopped = True
+
+    sandbox = _SandboxStub()
+    monkeypatch.setattr("core.sovereign.local_sandbox.LocalSandbox", lambda: sandbox)
+
+    skill = TestGeneratorSkill(brain=_Brain())
+    result = await skill.safe_execute({"target_file": str(target)}, {})
+
+    assert result["ok"] is True
+    assert result["fallback_used"] is True
+    assert sandbox.started is True
+    assert sandbox.stopped is True
+    assert len(sandbox.commands) == 2
+
+
+@pytest.mark.asyncio
 async def test_self_evolution_propose_read_only_skips_proposal_file(monkeypatch, tmp_path: Path):
     _disable_governance(monkeypatch)
     evolution_dir = tmp_path / "evolution"
@@ -431,6 +505,94 @@ async def test_self_evolution_propose_read_only_skips_proposal_file(monkeypatch,
     assert result["read_only"] is True
     assert result.get("proposal_path") in (None, "")
     assert not list(evolution_dir.glob("evolution_proposal_*.md"))
+
+
+@pytest.mark.asyncio
+async def test_self_evolution_read_only_skips_llm_planning(monkeypatch, tmp_path: Path):
+    _disable_governance(monkeypatch)
+    evolution_dir = tmp_path / "evolution"
+    monkeypatch.setattr(
+        SelfEvolutionSkill,
+        "_evolution_dir",
+        staticmethod(lambda: evolution_dir),
+    )
+
+    class _ForbiddenBrain:
+        async def think(self, *args, **kwargs):
+            raise AssertionError("read-only self-evolution should not use the LLM path")
+
+    target = tmp_path / "sample_module.py"
+    target.write_text("def ok():\n    return 1\n", encoding="utf-8")
+
+    skill = SelfEvolutionSkill()
+    result = await skill.safe_execute(
+        {
+            "action": "propose",
+            "objective": "Draft a safe refactor plan.",
+            "files": [str(target)],
+        },
+        {"read_only": True, "brain": _ForbiddenBrain()},
+    )
+
+    assert result["ok"] is True
+    assert result["read_only"] is True
+    assert result["fallback"] is True
+
+
+@pytest.mark.asyncio
+async def test_capability_engine_promotes_executive_constraints_into_skill_context(monkeypatch):
+    class _ConstraintProbeSkill:
+        name = "constraint_probe"
+        timeout_seconds = 30
+
+        async def safe_execute(self, params, context):
+            return {
+                "ok": True,
+                "read_only": bool(context.get("read_only")),
+                "timeout_s": context.get("timeout_s"),
+            }
+
+    engine = CapabilityEngine()
+    probe = _ConstraintProbeSkill()
+    engine.skills["constraint_probe"] = SkillMetadata(
+        name="constraint_probe",
+        description="Probe merged execution constraints.",
+        skill_class=_ConstraintProbeSkill,
+        instance=probe,
+    )
+    engine.instances["constraint_probe"] = probe
+
+    async def _begin_tool_execution(*_args, **_kwargs):
+        return SimpleNamespace(
+            approved=True,
+            capability_token_id="token-1",
+            constraints={"read_only": True, "timeout_s": 9},
+            decision=ConstitutionalDecision(
+                proposal_id="proposal-1",
+                kind=ProposalKind.TOOL,
+                outcome=ProposalOutcome.DEGRADED,
+                reason="temporal_safe_autonomous_tool",
+                source="autonomous",
+            ),
+        )
+
+    async def _finish_tool_execution(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        "core.constitution.get_constitutional_core",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            begin_tool_execution=_begin_tool_execution,
+            finish_tool_execution=_finish_tool_execution,
+        ),
+    )
+    monkeypatch.setattr("core.container.ServiceContainer.has", staticmethod(lambda _name: False))
+
+    result = await engine.execute("constraint_probe", {}, context={"objective": "probe constraints"})
+
+    assert result["ok"] is True
+    assert result["read_only"] is True
+    assert result["timeout_s"] == 9
 
 
 @pytest.mark.asyncio

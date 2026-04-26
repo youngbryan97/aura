@@ -170,6 +170,23 @@ class TestMandatoryGating:
         assert verdict.decision == AuthorizationDecision.BLOCK
         assert "gaba_collapse" in verdict.reason
 
+    def test_gaba_collapse_constrains_internal_substrate_state_mutation(self):
+        """Internal substrate settling work should degrade, not deadlock, during GABA collapse."""
+        auth = SubstrateAuthority()
+        auth._field_ref = MockUnifiedField(coherence=0.7)
+        auth._somatic_ref = MockSomaticGate(approach=0.0)
+        auth._neurochemical_ref = MockNeurochemicalSystem(gaba=0.05)
+
+        verdict = auth.authorize(
+            "stimulus_injection:weight=1.00",
+            "substrate_stimulus",
+            ActionCategory.STATE_MUTATION,
+            0.8,
+        )
+
+        assert verdict.decision == AuthorizationDecision.CONSTRAIN
+        assert any("internal_state_mutation_constrained" in item for item in verdict.constraints)
+
     def test_constrain_on_field_warning(self):
         """Field coherence in warning zone → CONSTRAIN."""
         auth = SubstrateAuthority()

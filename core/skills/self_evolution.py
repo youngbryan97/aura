@@ -1,3 +1,4 @@
+import asyncio
 import ast
 import json
 import logging
@@ -86,6 +87,37 @@ class SelfEvolutionSkill(BaseSkill):
             if candidate.exists() and candidate not in resolved:
                 resolved.append(candidate)
         return resolved
+
+    @staticmethod
+    def _effective_timeout(context: Optional[Dict[str, Any]], default: float = 15.0) -> float:
+        ctx = context or {}
+        timeout_raw = (
+            ctx.get("timeout_s")
+            or (ctx.get("executive_constraints", {}) or {}).get("timeout_s")
+            or default
+        )
+        try:
+            return max(5.0, float(timeout_raw))
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _is_read_only(context: Optional[Dict[str, Any]]) -> bool:
+        ctx = context or {}
+        if ctx.get("read_only") is not None:
+            return bool(ctx.get("read_only"))
+        return bool((ctx.get("executive_constraints", {}) or {}).get("read_only"))
+
+    async def _think_with_timeout(
+        self,
+        brain: Any,
+        prompt: str,
+        context: Optional[Dict[str, Any]],
+        *,
+        default_timeout: float = 12.0,
+    ) -> Any:
+        timeout_s = min(self._effective_timeout(context, default_timeout), max(default_timeout, 20.0))
+        return await asyncio.wait_for(brain.think(prompt), timeout=timeout_s)
 
     @staticmethod
     def _scan_python_file(path: Path) -> Dict[str, Any]:
@@ -206,7 +238,7 @@ class SelfEvolutionSkill(BaseSkill):
 
         action = params.action
         objective = params.objective
-        read_only = bool(context.get("read_only"))
+        read_only = self._is_read_only(context)
 
         if action == "scramble":
             return self._perform_scrambling()
@@ -224,7 +256,9 @@ class SelfEvolutionSkill(BaseSkill):
         proposal: Optional[str] = None
         
         # 2. SYNTHESIZE
-        if brain:
+        if read_only:
+            fallback_reason = "read_only_deterministic_planning"
+        elif brain:
             try:
                 prompt = (
                     f"Objective: {objective}\n"
@@ -233,7 +267,7 @@ class SelfEvolutionSkill(BaseSkill):
                     f"Format: Provide a detailed Implementation Plan in Markdown.\n"
                     f"Security: Ensure all code matches Aura v14 'Sovereign' protocols."
                 )
-                thought = await brain.think(prompt)
+                thought = await self._think_with_timeout(brain, prompt, context, default_timeout=12.0)
                 proposal = thought.content
             except Exception as e:
                 fallback_reason = str(e)
@@ -305,7 +339,7 @@ class SelfEvolutionSkill(BaseSkill):
         if not files:
              # Use LLM to identify the best file to target
              search_prompt = f"Objective: {objective}\nTask: Identify the SINGLE most relevant file in the codebase to modify."
-             search_thought = await brain.think(search_prompt)
+             search_thought = await self._think_with_timeout(brain, search_prompt, context, default_timeout=10.0)
              # Basic extraction for now
              target_file = search_thought.content.strip().split('\n')[0].strip('` ')
         else:

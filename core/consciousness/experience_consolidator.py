@@ -127,6 +127,17 @@ class ExperienceConsolidator:
     def narrative(self) -> Optional[IdentityNarrative]:
         return self._narrative
 
+    def _background_should_defer(self) -> bool:
+        try:
+            from core.container import ServiceContainer
+
+            gate = ServiceContainer.get("inference_gate", default=None)
+            if gate and hasattr(gate, "_background_local_deferral_reason"):
+                return bool(gate._background_local_deferral_reason(origin="experience_consolidator"))
+        except Exception:
+            return False
+        return False
+
     # ── Loop ───────────────────────────────────────────────────────────────
 
     async def _consolidation_loop(self):
@@ -156,6 +167,9 @@ class ExperienceConsolidator:
 
     async def _consolidate(self) -> Optional[IdentityNarrative]:
         logger.info("ExperienceConsolidator: beginning consolidation cycle...")
+        if self._background_should_defer():
+            logger.info("ExperienceConsolidator: foreground inference is active, deferring this cycle.")
+            return None
         self._last_run = time.time()
 
         # Gather experience material

@@ -1,6 +1,7 @@
 """core/utils/json_utils.py
 Robust JSON utilities for Sovereign local models.
 """
+import ast
 from core.utils.exceptions import capture_and_log
 import json
 import logging
@@ -59,11 +60,18 @@ class SelfHealingJSON:
                     return json.loads(self._heuristic_repair(candidate))
                 except json.JSONDecodeError as exc:
                     logger.debug("Ignored json.JSONDecodeError in json_utils.py: %s", exc)
+                parsed = self._parse_pythonish_dict(candidate)
+                if parsed:
+                    return parsed
 
         try:
             return json.loads(self._heuristic_repair(clean_text))
         except json.JSONDecodeError as exc:
             logger.debug("Ignored json.JSONDecodeError in json_utils.py: %s", exc)
+
+        parsed = self._parse_pythonish_dict(clean_text)
+        if parsed:
+            return parsed
 
         return {}
 
@@ -95,9 +103,22 @@ class SelfHealingJSON:
 
     def _heuristic_repair(self, text: Optional[str]) -> str:
         normalized = self._coerce_text(text)
+        normalized = normalized.replace("“", '"').replace("”", '"')
+        normalized = normalized.replace("‘", "'").replace("’", "'")
+        normalized = normalized.strip().rstrip(";")
         normalized = re.sub(r",\s*}", "}", normalized)
         normalized = re.sub(r",\s*]", "]", normalized)
         return normalized
+
+    def _parse_pythonish_dict(self, text: Optional[str]) -> Dict[str, Any]:
+        normalized = self._heuristic_repair(text)
+        if not normalized:
+            return {}
+        try:
+            parsed = ast.literal_eval(normalized)
+        except Exception:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
 
     def _find_json_candidates(self, text: Optional[str]) -> List[str]:
         normalized = self._coerce_text(text)
