@@ -3,7 +3,7 @@ import logging
 import re
 import time
 from typing import Optional, TYPE_CHECKING
-from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request
+from core.runtime.skill_task_bridge import looks_like_execution_report, looks_like_multi_step_skill_request
 from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState, CognitiveMode
 from core.kernel.bridge import Phase
@@ -83,6 +83,7 @@ class CognitiveRoutingPhase(Phase):
         lowered = str(text or "").lower()
         word_count = len(str(text or "").split())
         file_ref_count = cls._count_file_refs(text)
+        is_execution_report = looks_like_execution_report(text)
 
         route_hints: dict[str, object] = {}
         try:
@@ -95,6 +96,21 @@ class CognitiveRoutingPhase(Phase):
         active_thread = bool(route_hints.get("active_coding_thread"))
         followup_coding = active_thread and any(marker in lowered for marker in _FOLLOWUP_CODING_MARKERS)
         marker_hit = any(marker in lowered for marker in _CODING_ROUTE_MARKERS)
+        if is_execution_report:
+            return {
+                "coding_request": False,
+                "coding_complexity_score": 0.0,
+                "file_ref_count": file_ref_count,
+                "active_coding_thread": active_thread,
+                "has_test_failure": bool(route_hints.get("has_test_failure")),
+                "has_runtime_error": bool(route_hints.get("has_runtime_error")),
+                "has_active_plan": bool(route_hints.get("has_active_plan")),
+                "has_verification_failure": bool(route_hints.get("has_verification_failure")),
+                "repair_attempts": int(route_hints.get("repair_attempts", 0) or 0),
+                "execution_phase": str(route_hints.get("execution_phase", "") or ""),
+                "followup_coding": False,
+                "execution_report": True,
+            }
         coding_request = bool(
             route_hints.get("coding_request")
             or analysis.semantic_mode == "technical"
@@ -145,6 +161,7 @@ class CognitiveRoutingPhase(Phase):
             "repair_attempts": int(route_hints.get("repair_attempts", 0) or 0),
             "execution_phase": str(route_hints.get("execution_phase", "") or ""),
             "followup_coding": followup_coding,
+            "execution_report": False,
         }
 
     @classmethod
@@ -174,18 +191,19 @@ class CognitiveRoutingPhase(Phase):
             # CHAT intent stays on 32B — it handles conversation beautifully.
             return False
         lower = text.lower()
-        word_count = len(text.split())
-
-        # Only explicit deep-dive technical keywords trigger handoff
-        if any(keyword in lower for keyword in _DEEP_HANDOFF_KEYWORDS):
-            return True
-
         current_analysis = analysis or analyze_turn(text)
         metadata = route_meta or cls._build_coding_route_metadata(
             text,
             analysis=current_analysis,
             intent_type=intent_type,
         )
+        if bool(metadata.get("execution_report")) or getattr(current_analysis, "is_execution_report", False):
+            return False
+
+        # Only explicit deep-dive technical keywords trigger handoff
+        if any(keyword in lower for keyword in _DEEP_HANDOFF_KEYWORDS):
+            return True
+
         # Must be technical AND a coding request
         if current_analysis.semantic_mode != "technical" or not metadata.get("coding_request"):
             return False
@@ -237,6 +255,7 @@ class CognitiveRoutingPhase(Phase):
         state.response_modifiers["deep_handoff"] = deep_handoff
         state.response_modifiers["coding_request"] = bool(metadata.get("coding_request"))
         state.response_modifiers["coding_complexity_score"] = float(metadata.get("coding_complexity_score", 0.0) or 0.0)
+        state.response_modifiers["execution_report"] = bool(metadata.get("execution_report"))
         state.response_modifiers["coding_route_hints"] = {
             "file_ref_count": int(metadata.get("file_ref_count", 0) or 0),
             "active_coding_thread": bool(metadata.get("active_coding_thread")),
@@ -426,8 +445,13 @@ class CognitiveRoutingPhase(Phase):
             if cap and hasattr(cap, "detect_intent"):
                 matched = cap.detect_intent(objective)
                 if matched:
-                    new_state.response_modifiers["matched_skills"] = matched
-                    if looks_like_multi_step_skill_request(objective, matched):
+                    if looks_like_execution_report(objective):
+                        logger.info(
+                            "🧭 Routing: execution report detected; ignoring skill fast-path candidates %s",
+                            matched[:3],
+                        )
+                    elif looks_like_multi_step_skill_request(objective, matched):
+                        new_state.response_modifiers["matched_skills"] = matched
                         logger.info("🧭 Routing: multi-step skill-backed task detected → TASK via %s", matched[:3])
                         new_state.cognition.current_mode = CognitiveMode.DELIBERATE
                         self._stamp_llm_route(
@@ -438,7 +462,15 @@ class CognitiveRoutingPhase(Phase):
                             analysis=analysis,
                             route_meta=route_meta,
                         )
+                        new_state.world.recent_percepts.append({
+                            "type": "goal_achieved",
+                            "content": f"Skill pattern match: {matched[0]}",
+                            "intensity": 0.4,
+                            "timestamp": time.time()
+                        })
+                        return new_state
                     else:
+                        new_state.response_modifiers["matched_skills"] = matched
                         logger.info("🧭 Routing: SKILL detected via patterns → %s", matched[:3])
                         new_state.cognition.current_mode = CognitiveMode.REACTIVE
                         self._stamp_llm_route(
@@ -449,13 +481,13 @@ class CognitiveRoutingPhase(Phase):
                             analysis=analysis,
                             route_meta=route_meta,
                         )
-                    new_state.world.recent_percepts.append({
-                        "type": "goal_achieved",
-                        "content": f"Skill pattern match: {matched[0]}",
-                        "intensity": 0.4,
-                        "timestamp": time.time()
-                    })
-                    return new_state
+                        new_state.world.recent_percepts.append({
+                            "type": "goal_achieved",
+                            "content": f"Skill pattern match: {matched[0]}",
+                            "intensity": 0.4,
+                            "timestamp": time.time()
+                        })
+                        return new_state
         except Exception as e:
             logger.debug("🧭 Routing: detect_intent check failed: %s", e)
 

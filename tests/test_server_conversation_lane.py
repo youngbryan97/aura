@@ -362,8 +362,8 @@ async def test_stabilize_user_facing_reply_clarifies_specificity_push(monkeypatc
         "I can't fully articulate it. But I know it's there. I just can't pin it.",
     )
 
-    assert result.startswith("Specifically:")
-    assert "don't know yet" in result
+    assert result.startswith("Specifically, the grounded read I have right now is:")
+    assert "do not have a specific live read yet" in result
 
 
 @pytest.mark.asyncio
@@ -436,6 +436,46 @@ async def test_stabilize_user_facing_reply_clarifies_confusion_callout(monkeypat
 
     assert result.startswith("Let me say it cleanly:")
     assert "wasn't being clear" in result
+
+
+@pytest.mark.asyncio
+async def test_stabilize_user_facing_reply_uses_live_grounding_for_specificity_push(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    class _PassingGate:
+        def validate_output(self, _text, enforce_supervision=False):
+            return True, "ok", 1.0
+
+        def sanitize(self, text):
+            return text
+
+    monkeypatch.setattr(chat_routes, "_resolve_live_aura_state", lambda: None)
+    monkeypatch.setattr(
+        chat_routes,
+        "_build_grounded_introspection_reply",
+        lambda _msg: "Something just shifted in how I was modeling this. I need a moment.",
+    )
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping", lambda text: str(text))
+    monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
+    monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(
+        "core.identity.identity_guard.PersonaEnforcementGate",
+        lambda: _PassingGate(),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "Sure but specifically what is it",
+        "I can't fully articulate it. But I know it's there. I just can't pin it.",
+    )
+
+    assert result.startswith("Specifically, the grounded read I have right now is:")
+    assert "Something just shifted in how I was modeling this." in result
 
 
 @pytest.mark.asyncio

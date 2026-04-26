@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from core.agency.commitment_engine import CommitmentStatus
 from core.agency.task_commitment_verifier import (
     CapabilityAssessment,
     DispatchOutcome,
@@ -357,3 +358,41 @@ def test_task_commitment_verifier_builds_grounded_status_reply(tmp_path):
 
     assert "still running" in reply.lower()
     assert "conversation_support.py" in reply
+
+
+@pytest.mark.asyncio
+async def test_async_failure_breaks_commitment_instead_of_leaving_it_active(monkeypatch, tmp_path):
+    verifier = TaskCommitmentVerifier(kernel=None, persist_path=tmp_path / "task_commitment_state.json")
+
+    class _BrokenTaskEngine:
+        async def execute(self, goal, context=None):
+            return SimpleNamespace(succeeded=False, summary=f"failed {goal}")
+
+    def _fake_get(name, default=None):
+        if name == "task_engine":
+            return _BrokenTaskEngine()
+        return default
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(_fake_get),
+    )
+    monkeypatch.setattr(
+        TaskCommitmentVerifier,
+        "_assess_capability",
+        lambda self, objective: CapabilityAssessment(can_fulfil=True, matched_tools=["think"], confidence=1.0),
+    )
+
+    from core.agency import commitment_engine as commitment_module
+
+    monkeypatch.setattr(commitment_module, "PERSIST_PATH", tmp_path / "commitments.json")
+    monkeypatch.setattr(commitment_module, "_engine", None)
+
+    acceptance = await verifier.verify_and_dispatch("Investigate the broken runtime lane", state=None, force_async=True)
+    assert acceptance.outcome == DispatchOutcome.STARTED
+
+    await asyncio.sleep(0.05)
+
+    commitment = commitment_module.get_commitment_engine()._commitments[acceptance.commitment_id]
+    assert commitment.status == CommitmentStatus.BROKEN
+    assert any("Task failed" in note for note in commitment.notes)

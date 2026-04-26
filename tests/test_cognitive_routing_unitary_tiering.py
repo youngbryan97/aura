@@ -63,6 +63,27 @@ def test_complex_coding_debug_turn_enables_deep_handoff():
     ) is True
 
 
+def test_execution_report_does_not_trigger_coding_complexity_or_deep_handoff():
+    text = 'Made some fixes. This is what I did: "Committed as 83e16743" and verified the tests passed in core/runtime/conversation_support.py.'
+    analysis = analyze_turn(text)
+    route_meta = CognitiveRoutingPhase._build_coding_route_metadata(
+        text,
+        analysis=analysis,
+        intent_type="CHAT",
+    )
+
+    assert analysis.is_execution_report is True
+    assert route_meta["coding_request"] is False
+    assert route_meta["execution_report"] is True
+    assert CognitiveRoutingPhase._should_allow_deep_handoff(
+        text,
+        is_user_facing=True,
+        intent_type="TASK",
+        analysis=analysis,
+        route_meta=route_meta,
+    ) is False
+
+
 @pytest.mark.asyncio
 async def test_everyday_chat_fast_path_stays_reactive_on_primary():
     kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))

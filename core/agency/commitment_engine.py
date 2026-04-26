@@ -139,6 +139,32 @@ class CommitmentEngine:
         logger.info("CommitmentEngine: FULFILLED '%s'", c.description[:60])
         return c
 
+    def break_commitment(
+        self,
+        commitment_id: str,
+        note: str = "",
+        *,
+        progress: Optional[float] = None,
+        orchestrator=None,
+    ) -> Optional[Commitment]:
+        """Mark a commitment as broken so failed work stops lingering as active."""
+        c = self._commitments.get(commitment_id)
+        if not c or c.status == CommitmentStatus.FULFILLED:
+            return c
+
+        if progress is not None:
+            c.progress = max(0.0, min(1.0, progress))
+        already_broken = c.status == CommitmentStatus.BROKEN
+        c.status = CommitmentStatus.BROKEN
+        if note:
+            c.notes.append(f"[Broken] {note}")
+        if not already_broken:
+            self._broken_count += 1
+            self._on_broken(c, orchestrator)
+        self._save()
+        logger.warning("CommitmentEngine: BROKEN '%s'", c.description[:60])
+        return c
+
     def update_progress(self, commitment_id: str, progress: float,
                         note: str = "") -> Optional[Commitment]:
         c = self._commitments.get(commitment_id)

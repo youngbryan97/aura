@@ -917,10 +917,10 @@ class TaskCommitmentVerifier:
                     if succeeded:
                         get_commitment_engine().fulfill(commitment_id, note=summary[:200])
                     else:
-                        get_commitment_engine().update_progress(
+                        get_commitment_engine().break_commitment(
                             commitment_id,
-                            0.5,
-                            note=f"Partial: {summary[:100]}",
+                            note=f"Task failed: {summary[:160]}",
+                            progress=0.0,
                         )
                 except Exception as exc:
                     logger.debug("TaskCommitmentVerifier: commitment settlement failed: %s", exc)
@@ -941,6 +941,17 @@ class TaskCommitmentVerifier:
                 )
             except Exception:
                 pass
+            if commitment_id:
+                try:
+                    from core.agency.commitment_engine import get_commitment_engine
+
+                    get_commitment_engine().break_commitment(
+                        commitment_id,
+                        note="Task was cancelled before completion.",
+                        progress=0.0,
+                    )
+                except Exception as exc:
+                    logger.debug("TaskCommitmentVerifier: cancelled commitment settlement failed: %s", exc)
             logger.warning("TaskCommitmentVerifier: async task %s was cancelled", task_id)
         except Exception as e:
             self._update_task_entry(
@@ -958,6 +969,17 @@ class TaskCommitmentVerifier:
                 )
             except Exception as goal_exc:
                 logger.error("TaskCommitmentVerifier: goal dispatch failed during error handling for %s: %s", task_id, goal_exc)
+            if commitment_id:
+                try:
+                    from core.agency.commitment_engine import get_commitment_engine
+
+                    get_commitment_engine().break_commitment(
+                        commitment_id,
+                        note=f"Task execution raised: {str(e)[:160]}",
+                        progress=0.0,
+                    )
+                except Exception as exc:
+                    logger.debug("TaskCommitmentVerifier: exception commitment settlement failed: %s", exc)
             logger.warning("TaskCommitmentVerifier: async task %s failed: %s", task_id, e)
         finally:
             # Prevent unbounded _active_tasks growth: clean up terminal entries

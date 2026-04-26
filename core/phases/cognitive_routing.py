@@ -7,7 +7,7 @@ from . import BasePhase
 from ..state.aura_state import AuraState, CognitiveMode
 from ..cognitive.parallel_thought import ParallelThoughtStream
 from ..consciousness.executive_authority import get_executive_authority
-from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request
+from core.runtime.skill_task_bridge import looks_like_execution_report, looks_like_multi_step_skill_request
 from core.runtime.turn_analysis import analyze_turn
 from core.utils.queues import decode_stringified_priority_message, role_for_origin
 
@@ -115,6 +115,7 @@ class CognitiveRoutingPhase(BasePhase):
         input_text = str(raw_input_text or "")
         lower_input = input_text.lower()
         is_autonomous = bool(active_objective) and routing_origin not in user_origins
+        is_execution_report = looks_like_execution_report(input_text)
 
         if lower_input.startswith(_AUTONOMOUS_OBJECTIVE_PREFIXES):
             is_autonomous = True
@@ -153,13 +154,19 @@ class CognitiveRoutingPhase(BasePhase):
             if cap and hasattr(cap, "detect_intent") and routing_origin in user_origins:
                 matched_skills = list(cap.detect_intent(input_text) or [])
                 if matched_skills:
-                    new_state.response_modifiers["matched_skills"] = matched_skills
-                    if looks_like_multi_step_skill_request(input_text, matched_skills):
+                    if is_execution_report:
+                        logger.info(
+                            "🧭 Routing: execution report detected; ignoring skill fast-path candidates %s",
+                            matched_skills[:3],
+                        )
+                    elif looks_like_multi_step_skill_request(input_text, matched_skills):
+                        new_state.response_modifiers["matched_skills"] = matched_skills
                         logger.info(
                             "🧭 Routing: multi-step skill-backed task detected → TASK via %s",
                             matched_skills[:3],
                         )
                     else:
+                        new_state.response_modifiers["matched_skills"] = matched_skills
                         logger.info("🧭 Routing: SKILL detected via patterns → %s", matched_skills[:3])
                         new_state.cognition.current_mode = CognitiveMode.REACTIVE
                         new_state.cognition.current_objective = input_text
@@ -211,7 +218,14 @@ class CognitiveRoutingPhase(BasePhase):
             analysis.semantic_mode,
             analysis.requires_live_aura_voice,
         )
-        if analysis.intent_type == "TASK" or analysis.suggests_deliberate_mode or self._has_deliberate_keywords(input_text):
+        if (
+            not analysis.is_execution_report
+            and (
+                analysis.intent_type == "TASK"
+                or analysis.suggests_deliberate_mode
+                or self._has_deliberate_keywords(input_text)
+            )
+        ):
             cognitive_mode = CognitiveMode.DELIBERATE
 
         # Casual Bypass: If autonomous or matches casual keywords, force REACTIVE (32B)
@@ -271,7 +285,7 @@ class CognitiveRoutingPhase(BasePhase):
         )
         new_state.response_modifiers["model_tier"] = model_tier
         new_state.response_modifiers["deep_handoff"] = deep_handoff
-        if routing_origin in user_origins:
+        if routing_origin in user_origins and not analysis.is_execution_report:
             try:
                 cap = self.container.get("capability_engine", default=None)
                 if cap and hasattr(cap, "detect_intent"):
@@ -344,6 +358,8 @@ class CognitiveRoutingPhase(BasePhase):
         lower = text.lower()
         word_count = len(text.split())
         current_analysis = analysis or analyze_turn(text)
+        if getattr(current_analysis, "is_execution_report", False) or looks_like_execution_report(text):
+            return False
         semantic_mode = str(getattr(current_analysis, "semantic_mode", "") or "").lower()
         explicit_deep_request = any(keyword in lower for keyword in _DEEP_HANDOFF_KEYWORDS)
         looks_technical = semantic_mode == "technical" or any(

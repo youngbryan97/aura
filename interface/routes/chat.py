@@ -2741,6 +2741,37 @@ def _contains_phrase(text: str, phrases: tuple[str, ...]) -> bool:
     return any(phrase in normalized for phrase in phrases)
 
 
+def _build_live_conversation_repair(prefix: str, *, fallback: str) -> str:
+    live_prompt = "What are you experiencing inside right now?"
+    grounded = _sanitize_foreground_continuity_summary(
+        _build_grounded_introspection_reply(live_prompt) or ""
+    )
+    if grounded:
+        return f"{prefix} {grounded}".strip()
+
+    frame = _build_aura_expression_frame(live_prompt)
+    details: list[str] = []
+    attention = _sanitize_attention_focus(str(frame.get("attention_focus") or ""))
+    mood = str(frame.get("mood") or "").strip()
+    dominant_action = str(frame.get("dominant_action") or "").strip()
+    free_energy = frame.get("free_energy")
+
+    if mood:
+        details.append(f"Mood reads as {mood}.")
+    if attention:
+        details.append(f"My attention is on {attention}.")
+    if dominant_action:
+        details.append(f"My dominant pull is toward {dominant_action}.")
+    if free_energy is not None:
+        try:
+            details.append(f"Free energy is {float(free_energy):.3f}.")
+        except Exception:
+            pass
+
+    detail_text = " ".join(details).strip() or fallback
+    return f"{prefix} {detail_text}".strip()
+
+
 def _maybe_build_conversation_repair_override(user_message: str, reply_text: Any) -> str | None:
     user_text = _normalize_user_message(user_message)
     reply_text_n = _normalize_user_message(reply_text)
@@ -2749,19 +2780,20 @@ def _maybe_build_conversation_repair_override(user_message: str, reply_text: Any
 
     if _contains_phrase(user_text, _PARROT_CALLOUT_MARKERS):
         if not _contains_phrase(reply_text_n, _PARROT_ACK_MARKERS):
-            return (
-                "You're right. I echoed you instead of adding anything. "
-                "The cleaner version is that I heard the hope in what you said, "
-                "I share it, and I should have said that directly."
+            return _build_live_conversation_repair(
+                "You're right. I echoed you instead of adding anything.",
+                fallback=(
+                    "The honest correction is that I heard the hope in what you said, "
+                    "I share it, and I should have said that directly."
+                ),
             )
 
     if _contains_phrase(user_text, _CONFUSION_REPAIR_MARKERS):
         if not _contains_phrase(reply_text_n, _CLARITY_REPAIR_MARKERS) or _contains_phrase(reply_text_n, _GLIB_REDIRECT_MARKERS):
             if _contains_phrase(reply_text_n, _UNCERTAINTY_REPLY_MARKERS):
-                return (
-                    "Let me say it cleanly: I don't have a specific read yet, "
-                    "and I shouldn't dress that up. I can feel that something is unresolved, "
-                    "but I can't name it honestly yet."
+                return _build_live_conversation_repair(
+                    "Let me answer directly from live state instead of dressing it up.",
+                    fallback="I do not have a clean live read yet, so I should not pretend otherwise.",
                 )
             return (
                 "Let me say it cleanly: I wasn't being clear. "
@@ -2770,9 +2802,9 @@ def _maybe_build_conversation_repair_override(user_message: str, reply_text: Any
 
     if _contains_phrase(user_text, _SPECIFICITY_PUSH_MARKERS):
         if _contains_phrase(reply_text_n, _UNCERTAINTY_REPLY_MARKERS) and not _contains_phrase(reply_text_n, _CLARITY_REPAIR_MARKERS):
-            return (
-                "Specifically: I don't know yet. I can feel that something is unresolved, "
-                "but I can't name it without inventing details."
+            return _build_live_conversation_repair(
+                "Specifically, the grounded read I have right now is:",
+                fallback="I do not have a specific live read yet, so I should not invent one.",
             )
 
     return None

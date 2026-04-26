@@ -1,1 +1,0 @@
-I heard you. My thinking is running deeper than my words right now.

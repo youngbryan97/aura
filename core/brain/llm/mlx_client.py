@@ -115,6 +115,22 @@ def _foreground_owner_wait_budget(
     return max(0.25, min(default, remaining - reserve))
 
 
+def _clear_matching_foreground_owner(*candidate_names: str) -> Optional[str]:
+    global _FOREGROUND_OWNER_NAME, _FOREGROUND_OWNER_ACQUIRED_AT
+
+    candidates = {str(name or "").strip() for name in candidate_names if str(name or "").strip()}
+    if not candidates:
+        return None
+
+    with _FOREGROUND_OWNER_LOCK:
+        holder = _FOREGROUND_OWNER_NAME
+        if holder not in candidates:
+            return None
+        _FOREGROUND_OWNER_NAME = None
+        _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
+        return holder
+
+
 @contextlib.asynccontextmanager
 async def _foreground_owner_context(
     owner_name: str,
@@ -499,6 +515,9 @@ class MLXLocalClient:
         self._warmup_attempted = False
         self._warmup_in_flight = False
         self._consecutive_empty: int = 0  # [STABILITY v53] Explicit init — was missing
+        self._expected_cancel_reason = ""
+        self._expected_cancel_budget = 0
+        self._expected_cancel_recorded_at = 0.0
         self._process_started_at = 0.0
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
@@ -519,6 +538,28 @@ class MLXLocalClient:
 
     def _mark_progress(self) -> None:
         self._last_progress_at = time.time()
+
+    def _note_expected_generation_cancellation(self, reason: str, *, count: int) -> None:
+        if count <= 0:
+            return
+        self._expected_cancel_reason = str(reason or "planned_reboot")
+        self._expected_cancel_budget += int(count)
+        self._expected_cancel_recorded_at = time.time()
+
+    def _consume_expected_generation_cancellation(self) -> str:
+        if self._expected_cancel_budget <= 0:
+            return ""
+        if self._expected_cancel_recorded_at and (time.time() - self._expected_cancel_recorded_at) > 30.0:
+            self._expected_cancel_reason = ""
+            self._expected_cancel_budget = 0
+            self._expected_cancel_recorded_at = 0.0
+            return ""
+        reason = self._expected_cancel_reason
+        self._expected_cancel_budget = max(0, self._expected_cancel_budget - 1)
+        if self._expected_cancel_budget == 0:
+            self._expected_cancel_reason = ""
+            self._expected_cancel_recorded_at = 0.0
+        return reason
 
     def _mark_generation_started(
         self,
@@ -1973,11 +2014,28 @@ class MLXLocalClient:
             )
             return None
         except asyncio.CancelledError:
-            logger.warning("🛑 [MLX] Generation cancelled for %s. Preserving worker unless it is unhealthy.", os.path.basename(self.model_path))
+            expected_cancel_reason = self._consume_expected_generation_cancellation()
+            if expected_cancel_reason:
+                logger.info(
+                    "🧹 [MLX] Generation cancelled for %s during expected reboot (%s).",
+                    os.path.basename(self.model_path),
+                    expected_cancel_reason,
+                )
+            else:
+                logger.warning(
+                    "🛑 [MLX] Generation cancelled for %s. Preserving worker unless it is unhealthy.",
+                    os.path.basename(self.model_path),
+                )
             self._pending_generations.pop(req_id, None)
-            if foreground_request or (
-                self._is_primary_or_deep_lane()
-                and self._lane_state not in {"cold", "warming", "recovering"}
+            if (
+                not expected_cancel_reason
+                and (
+                    foreground_request
+                    or (
+                        self._is_primary_or_deep_lane()
+                        and self._lane_state not in {"cold", "warming", "recovering"}
+                    )
+                )
             ):
                 self._record_degraded_event(
                     "generation_cancelled",
@@ -1985,7 +2043,7 @@ class MLXLocalClient:
                     severity="warning",
                     foreground_request=foreground_request,
                 )
-            if self._worker_unhealthy():
+            if not expected_cancel_reason and self._worker_unhealthy():
                 self._deferred_reboot_reason = "cancelled_unhealthy"
             raise
         except asyncio.TimeoutError:
@@ -2308,7 +2366,29 @@ class MLXLocalClient:
             _safe_close_queue(self._res_q)
             self._req_q = mp.Queue(maxsize=10)
             self._res_q = mp.Queue(maxsize=10)
-            
+
+            pending_futures = {
+                id(future): future
+                for future in list(self._pending_generations.values()) + [self._current_gen_future]
+                if future is not None and not future.done()
+            }
+            if mark_failed:
+                self._expected_cancel_reason = ""
+                self._expected_cancel_budget = 0
+                self._expected_cancel_recorded_at = 0.0
+            elif pending_futures:
+                self._note_expected_generation_cancellation(reason, count=len(pending_futures))
+
+            cleared_owner = _clear_matching_foreground_owner(
+                f"warmup:{os.path.basename(self.model_path)}",
+            )
+            if cleared_owner:
+                logger.warning(
+                    "♻️ [MLX] Cleared stale foreground owner %s while rebooting %s.",
+                    cleared_owner,
+                    os.path.basename(self.model_path),
+                )
+
             for future in list(self._pending_generations.values()):
                 _cancel_shared_future(future)
             self._pending_generations.clear()

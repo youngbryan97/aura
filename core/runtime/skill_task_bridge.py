@@ -88,6 +88,41 @@ _SINGLE_STEP_PATTERNS = (
     r"^\s*(?:what(?:'s| is)\s+the\s+time|what(?:'s| is)\s+today(?:'s)? date)\b",
 )
 
+_REPORTBACK_PATTERNS = (
+    r"\bthis is what i did\b",
+    r"\bhere(?:'s| is) what i did\b",
+    r"\b(?:here(?:'s| is)|this is) what i changed\b",
+    r"\bmade some fixes\b",
+    r"\bmade a few fixes\b",
+    r"\bcommitted as [0-9a-f]{7,40}\b",
+    r"\b(?:summary|status update)\s*:",
+)
+
+_REPORTBACK_VERBS = (
+    "fixed",
+    "patched",
+    "updated",
+    "changed",
+    "committed",
+    "verified",
+    "ran",
+    "tested",
+    "implemented",
+    "completed",
+    "finished",
+    "added",
+    "removed",
+)
+
+_REPORTBACK_VERB_RE = re.compile(
+    r"\b(?:"
+    + "|".join(re.escape(verb).replace(r"\ ", r"\s+") for verb in _REPORTBACK_VERBS)
+    + r")\b",
+    re.IGNORECASE,
+)
+
+_FIRST_PERSON_REPORT_RE = re.compile(r"\b(?:i|we)\b", re.IGNORECASE)
+
 
 def normalize_matched_skills(matched_skills: object) -> List[str]:
     if matched_skills is True:
@@ -106,12 +141,33 @@ def normalize_matched_skills(matched_skills: object) -> List[str]:
     return [str(matched_skills)]
 
 
+def looks_like_execution_report(text: str) -> bool:
+    normalized = normalize_memory_intent_text(text)
+    if not normalized:
+        return False
+
+    lowered = normalized.lower()
+    if any(re.search(pattern, lowered, re.IGNORECASE) for pattern in _REPORTBACK_PATTERNS):
+        return True
+
+    report_verbs = {match.group(0).lower() for match in _REPORTBACK_VERB_RE.finditer(lowered)}
+    if not report_verbs:
+        return False
+
+    if _FIRST_PERSON_REPORT_RE.search(lowered) and len(report_verbs) >= 2 and not lowered.endswith("?"):
+        return True
+
+    return False
+
+
 def looks_like_multi_step_skill_request(
     text: str,
     matched_skills: object = None,
 ) -> bool:
     normalized = normalize_memory_intent_text(text)
     if not normalized:
+        return False
+    if looks_like_execution_report(normalized):
         return False
 
     lowered = normalized.lower()

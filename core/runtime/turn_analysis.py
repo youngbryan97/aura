@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
-from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request, normalize_matched_skills
+from core.runtime.skill_task_bridge import (
+    looks_like_execution_report,
+    looks_like_multi_step_skill_request,
+    normalize_matched_skills,
+)
 from core.utils.intent_normalization import normalize_memory_intent_text
 
 
@@ -180,6 +184,7 @@ class TurnAnalysis:
     requires_live_aura_voice: bool
     everyday_chat_safe: bool
     suggests_deliberate_mode: bool
+    is_execution_report: bool
 
 
 def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> TurnAnalysis:
@@ -188,6 +193,7 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
     word_count = len(lower.split())
     matched_skill_list = normalize_matched_skills(matched_skills)
     has_matched_skills = bool(matched_skill_list)
+    is_execution_report = looks_like_execution_report(normalized)
 
     requires_live_voice = (
         _matches_any(lower, _STATE_PATTERNS)
@@ -197,6 +203,8 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
 
     if _matches_any(lower, _SYSTEM_PATTERNS):
         intent_type = "SYSTEM"
+    elif is_execution_report:
+        intent_type = "CHAT"
     elif looks_like_multi_step_skill_request(normalized, matched_skill_list):
         intent_type = "TASK"
     elif has_matched_skills or _matches_any(lower, _SKILL_PATTERNS):
@@ -224,11 +232,14 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
         semantic_mode = "casual"
 
     suggests_deliberate = (
-        intent_type == "TASK"
-        or semantic_mode in {"critical", "planning"}
-        or (
-            semantic_mode in {"technical", "philosophical"}
-            and (_matches_any(lower, _DELIBERATE_HINTS) or word_count >= 12)
+        not is_execution_report
+        and (
+            intent_type == "TASK"
+            or semantic_mode in {"critical", "planning"}
+            or (
+                semantic_mode in {"technical", "philosophical"}
+                and (_matches_any(lower, _DELIBERATE_HINTS) or word_count >= 12)
+            )
         )
     )
 
@@ -249,4 +260,5 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
         requires_live_aura_voice=requires_live_voice,
         everyday_chat_safe=everyday_chat_safe,
         suggests_deliberate_mode=suggests_deliberate,
+        is_execution_report=is_execution_report,
     )

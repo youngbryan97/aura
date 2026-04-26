@@ -4,7 +4,6 @@ import queue
 import threading
 import time
 import unittest
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.brain.llm.mlx_client import MLXLocalClient
@@ -84,7 +83,6 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         live_process.is_alive.return_value = True
         client._process = live_process
         client._init_done = False
-        fut = AsyncMock()
         client._init_future = AsyncMock()
         # Replace the async mock with a real Future to match runtime behavior.
         import asyncio
@@ -161,6 +159,24 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
 
         reboot_mock.assert_not_awaited()
 
+    async def test_expected_cancelled_generation_does_not_mark_worker_unhealthy(self):
+        client = MLXLocalClient(model_path="/tmp/test-model")
+        client._expected_cancel_reason = "yield_to_Qwen2.5-72B-Instruct-4bit"
+        client._expected_cancel_budget = 1
+        client._expected_cancel_recorded_at = 10_000.0
+
+        async def _cancelled(*args, **kwargs):
+            raise asyncio.CancelledError
+
+        with patch.object(client, "_ensure_worker_alive", new=AsyncMock(return_value=True)):
+            with patch.object(client, "_wait_for_generation_result", side_effect=_cancelled):
+                with patch("time.time", return_value=10_001.0):
+                    with self.assertRaises(asyncio.CancelledError):
+                        await client._generate_inner("hello", foreground_request=True)
+
+        self.assertIsNone(client._deferred_reboot_reason)
+        self.assertEqual(client._expected_cancel_budget, 0)
+
     async def test_generate_times_out_waiting_for_foreground_owner(self):
         import core.brain.llm.mlx_client as mlx_module
 
@@ -211,6 +227,23 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, "ok")
         inner.assert_awaited_once()
+
+    async def test_reboot_worker_clears_matching_warmup_owner(self):
+        import core.brain.llm.mlx_client as mlx_module
+
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        old_owner = mlx_module._FOREGROUND_OWNER_NAME
+        old_owned_at = mlx_module._FOREGROUND_OWNER_ACQUIRED_AT
+        mlx_module._FOREGROUND_OWNER_NAME = "warmup:Qwen2.5-32B-Instruct-8bit"
+        mlx_module._FOREGROUND_OWNER_ACQUIRED_AT = time.time() - 20.0
+
+        try:
+            await client.reboot_worker(reason="yield_to_solver", mark_failed=False)
+            self.assertIsNone(mlx_module._FOREGROUND_OWNER_NAME)
+            self.assertEqual(mlx_module._FOREGROUND_OWNER_ACQUIRED_AT, 0.0)
+        finally:
+            mlx_module._FOREGROUND_OWNER_NAME = old_owner
+            mlx_module._FOREGROUND_OWNER_ACQUIRED_AT = old_owned_at
 
 
     async def test_primary_lane_generate_requires_explicit_foreground_request(self):

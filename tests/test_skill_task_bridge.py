@@ -11,6 +11,7 @@ from core.brain.llm.function_calling_adapter import FunctionCallingAdapter
 from core.capability_engine import CapabilityEngine
 from core.kernel.upgrades_10x import GodModeToolPhase
 from core.phases.cognitive_routing import CognitiveRoutingPhase
+from core.runtime.skill_task_bridge import looks_like_execution_report
 from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState, CognitiveMode
 
@@ -33,6 +34,17 @@ def test_analyze_turn_keeps_single_step_skill_request_as_skill():
     assert analysis.intent_type == "SKILL"
 
 
+def test_execution_report_is_not_reclassified_as_fresh_task():
+    text = 'Made some fixes. This is what I did: "Committed as 83e16743" and verified the tests passed.'
+
+    assert looks_like_execution_report(text) is True
+    analysis = analyze_turn(text, matched_skills=["self_evolution", "test_generator"])
+
+    assert analysis.intent_type == "CHAT"
+    assert analysis.is_execution_report is True
+    assert analysis.suggests_deliberate_mode is False
+
+
 @pytest.mark.asyncio
 async def test_cognitive_routing_upgrades_multi_step_skill_fast_path_to_task():
     capability_engine = SimpleNamespace(detect_intent=lambda text: ["computer_use"])
@@ -50,6 +62,26 @@ async def test_cognitive_routing_upgrades_multi_step_skill_fast_path_to_task():
     assert new_state.response_modifiers["intent_type"] == "TASK"
     assert new_state.response_modifiers["matched_skills"] == ["computer_use"]
     assert new_state.cognition.current_mode == CognitiveMode.DELIBERATE
+
+
+@pytest.mark.asyncio
+async def test_cognitive_routing_keeps_execution_report_off_skill_and_task_fast_paths():
+    capability_engine = SimpleNamespace(detect_intent=lambda text: ["self_evolution", "test_generator"])
+    container = SimpleNamespace(
+        get=lambda name, default=None: capability_engine if name == "capability_engine" else default
+    )
+    phase = CognitiveRoutingPhase(container)
+
+    state = AuraState.default()
+    state.cognition.current_objective = 'Made some fixes. This is what I did: "Committed as 83e16743" and verified the tests passed.'
+    state.cognition.current_origin = "user"
+
+    new_state = await phase.execute(state)
+
+    assert new_state.response_modifiers["intent_type"] == "CHAT"
+    assert "matched_skills" not in new_state.response_modifiers
+    assert new_state.response_modifiers["deep_handoff"] is False
+    assert new_state.cognition.current_mode == CognitiveMode.REACTIVE
 
 
 @pytest.mark.asyncio
