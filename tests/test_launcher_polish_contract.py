@@ -136,9 +136,11 @@ def test_bundle_script_builds_regular_dock_app_and_embeds_version_metadata():
     assert 'ROOT_DIR="$(cd -P "$(dirname "$0")/.." && pwd -P)"' in bundle_script
     assert 'VERSION_FULL_FILE="${RESOURCES_DIR}/aura-version-full"' in bundle_script
     assert 'INSTALL_PATH="${AURA_INSTALL_PATH:-}"' in bundle_script
+    assert 'CODESIGN_IDENTITY="${AURA_CODESIGN_IDENTITY:--}"' in bundle_script
     assert 'cp -R "${APP_DIR}" "${INSTALL_PATH}"' in bundle_script
-    assert 'codesign --force --sign - "${APP_DIR}"' in bundle_script
-    assert 'codesign --force --sign - "${INSTALL_PATH}"' in bundle_script
+    assert 'CODESIGN_ARGS=(--force --sign "${CODESIGN_IDENTITY}")' in bundle_script
+    assert 'codesign "${CODESIGN_ARGS[@]}" "${APP_DIR}"' in bundle_script
+    assert 'codesign "${CODESIGN_ARGS[@]}" "${INSTALL_PATH}"' in bundle_script
     assert "CFBundleShortVersionString" in bundle_script
     assert "LSUIElement" not in bundle_script
 

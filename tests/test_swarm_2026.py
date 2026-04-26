@@ -2,6 +2,7 @@
 
 import pytest
 import asyncio
+import time
 from unittest.mock import MagicMock, AsyncMock, patch
 from core.collective.delegator import AgentDelegator, SwarmAgent
 from core.collective.belief_sync import BeliefSync
@@ -71,3 +72,36 @@ async def test_belief_sync_rpc_validation():
     res = await bs.handle_rpc_request("query_beliefs", {"entity": 123})
     assert res == {"error": "Invalid entity parameter"}
 
+
+@pytest.mark.asyncio
+async def test_belief_sync_discovery_defers_when_background_policy_blocks(monkeypatch):
+    orchestrator = MagicMock()
+    orchestrator._last_user_interaction_time = time.time()
+    bs = BeliefSync(orchestrator)
+    bs.running = True
+    bs.discovery_interval = 300.0
+
+    engine = MagicMock()
+    engine.execute = AsyncMock()
+
+    monkeypatch.setattr(
+        "core.collective.belief_sync.ServiceContainer.get",
+        lambda name, default=None: engine if name == "capability_engine" else default,
+    )
+    monkeypatch.setattr(
+        "core.collective.belief_sync.background_policy.background_activity_reason",
+        lambda *args, **kwargs: "recent_user_5",
+    )
+
+    sleep_calls = {"count": 0}
+
+    async def _fake_sleep(_seconds):
+        sleep_calls["count"] += 1
+        bs.running = False
+
+    monkeypatch.setattr("core.collective.belief_sync.asyncio.sleep", _fake_sleep)
+
+    await bs._discovery_loop()
+
+    engine.execute.assert_not_awaited()
+    assert sleep_calls["count"] == 1

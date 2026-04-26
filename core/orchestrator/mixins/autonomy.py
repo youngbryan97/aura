@@ -7,6 +7,7 @@ import random
 import time
 
 from core.health.degraded_events import record_degraded_event
+from core.runtime.background_policy import background_activity_reason
 from core.runtime.impulse_governance import run_governed_impulse
 from core.safe_mode import runtime_mode_value
 from core.utils.exceptions import capture_and_log
@@ -469,6 +470,17 @@ class AutonomyMixin:
                 logger.debug("🧠 Autonomous thought suppressed (Social Cooling: %.0fs left)", 20 - _since_user)
                 return
 
+            block_reason = background_activity_reason(
+                self,
+                min_idle_seconds=max(threshold, 180.0),
+                max_memory_percent=72.0,
+                max_failure_pressure=0.08,
+                require_conversation_ready=False,
+            )
+            if block_reason:
+                logger.debug("🧠 Autonomous thought suppressed: %s", block_reason)
+                return
+
             if idle >= threshold:
                 # Boredom increases linearly with idle time
                 self.boredom = int(idle)
@@ -488,6 +500,16 @@ class AutonomyMixin:
 
             boredom = self._autonomous_boredom_seconds()
             logger.debug("🧠 Autonomous thought triggered (boredom=%.1fs idle)", boredom)
+            block_reason = background_activity_reason(
+                self,
+                min_idle_seconds=180.0,
+                max_memory_percent=72.0,
+                max_failure_pressure=0.08,
+                require_conversation_ready=False,
+            )
+            if block_reason:
+                logger.debug("🧠 Autonomous thought aborted after wake: %s", block_reason)
+                return
             emitter.emit(
                 "Autonomous Drift",
                 f"Idle for {boredom:.0f}s. Scanning goals, loose threads, and internal pressure.",

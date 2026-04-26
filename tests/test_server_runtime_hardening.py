@@ -3186,6 +3186,36 @@ async def test_backup_manager_skips_maintenance_during_active_runtime(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_backup_manager_get_health_offloads_backup_listing(monkeypatch, tmp_path):
+    from core import backup as backup_module
+    from core.backup import BackupManager
+
+    monkeypatch.setattr(
+        backup_module,
+        "config",
+        SimpleNamespace(paths=SimpleNamespace(data_dir=tmp_path, home_dir=tmp_path)),
+    )
+
+    manager = BackupManager()
+    backup_path = manager.backup_dir / "aura_backup_20260426_000000.zip"
+    backup_path.write_text("ok", encoding="utf-8")
+
+    calls = []
+
+    async def _fake_to_thread(fn, *args, **kwargs):
+        calls.append(getattr(fn, "__name__", repr(fn)))
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(backup_module.asyncio, "to_thread", _fake_to_thread)
+
+    health = await manager.get_health()
+
+    assert health["backup_count"] == 1
+    assert health["latest_backup"] == backup_path.name
+    assert calls == ["_list_backups_sync"]
+
+
+@pytest.mark.asyncio
 async def test_liquid_substrate_idle_throttles_without_recent_user(monkeypatch, tmp_path):
     import psutil
 
@@ -3527,6 +3557,41 @@ async def test_autonomy_thought_uses_named_tracker(monkeypatch):
         assert "autonomy.autonomous_thought" in names
     finally:
         release.set()
+        await tracker.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_autonomy_thought_respects_background_failure_gate(monkeypatch):
+    import core.orchestrator.mixins.autonomy as autonomy_module
+
+    tracker = _NamedTracker()
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker)
+    monkeypatch.setattr(
+        autonomy_module,
+        "background_activity_reason",
+        lambda *args, **kwargs: "failure_lockdown_0.24",
+    )
+
+    class _Orch(autonomy_module.AutonomyMixin):
+        cognitive_engine = SimpleNamespace(singularity_factor=1.0)
+        soul = None
+        boredom = 0
+        _current_task_is_autonomous = False
+        status = SimpleNamespace(is_processing=False)
+        _current_thought_task = None
+        _last_thought_time = 0.0
+        _last_user_interaction_time = 0.0
+        singularity_monitor = SimpleNamespace(acceleration_factor=1.0)
+
+    orch = _Orch()
+    orch._last_thought_time = time.time() - 999
+    orch._last_user_interaction_time = time.time() - 999
+
+    try:
+        await orch._trigger_autonomous_thought(has_message=False)
+        names = [entry["name"] for entry in tracker.created]
+        assert "autonomy.autonomous_thought" not in names
+    finally:
         await tracker.shutdown()
 
 

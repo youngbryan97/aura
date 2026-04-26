@@ -55,6 +55,9 @@ class BackupManager:
             deduped.append(item)
         return deduped
 
+    def _list_backups_sync(self) -> List[Path]:
+        return sorted(self.backup_dir.glob("aura_backup_*.zip"), key=os.path.getmtime)
+
     def _maintenance_block_reason(self) -> str:
         try:
             from core.container import ServiceContainer
@@ -94,7 +97,7 @@ class BackupManager:
         logger.info("Starting periodic database VACUUM...")
         self._vacuum_in_progress = True
         try:
-            dbs_to_vacuum = self._discover_database_paths()
+            dbs_to_vacuum = await asyncio.to_thread(self._discover_database_paths)
             if not dbs_to_vacuum:
                 logger.info("No SQLite databases discovered for VACUUM.")
                 self._last_vacuum_at = time.time()
@@ -160,10 +163,7 @@ class BackupManager:
     async def _enforce_rotation(self):
         """Enforces the maximum number of retained backups."""
         try:
-            backups: List[Path] = sorted(
-                self.backup_dir.glob("aura_backup_*.zip"),
-                key=os.path.getmtime
-            )
+            backups = await asyncio.to_thread(self._list_backups_sync)
             
             while len(backups) > self.max_backups:
                 oldest = backups.pop(0)
@@ -213,7 +213,7 @@ class BackupManager:
 
     async def get_health(self):
         """Service health check."""
-        backups = sorted(self.backup_dir.glob("aura_backup_*.zip"), key=os.path.getmtime)
+        backups = await asyncio.to_thread(self._list_backups_sync)
         latest_backup = backups[-1] if backups else self._last_backup_path
         latest_backup_age_s = (
             max(0.0, time.time() - self._last_backup_at)

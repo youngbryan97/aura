@@ -7,6 +7,7 @@ except ImportError:
     np = None
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Union
+from core.runtime.background_policy import background_activity_reason
 
 logger = logging.getLogger("Aura.MetaCognition")
 
@@ -31,10 +32,30 @@ class MetaCognitionShard:
         self._audit_task = asyncio.create_task(self._audit_loop())
         logger.info("🧠 Meta-Cognition Shard ONLINE.")
 
+    def _background_block_reason(self) -> str:
+        try:
+            return str(
+                background_activity_reason(
+                    self.orchestrator,
+                    min_idle_seconds=180.0,
+                    max_memory_percent=78.0,
+                    max_failure_pressure=0.10,
+                    require_conversation_ready=False,
+                )
+                or ""
+            )
+        except Exception as exc:
+            logger.debug("Meta-Cognition background gate skipped: %s", exc)
+            return ""
+
     async def _audit_loop(self):
         while self.is_running:
             try:
                 await asyncio.sleep(60)
+                reason = self._background_block_reason()
+                if reason:
+                    logger.debug("🧠 Meta-Cognitive Audit deferred: %s", reason)
+                    continue
                 await self.perform_audit()
             except Exception as e:
                 logger.error(f"Meta-Cognition audit loop failed: {e}")

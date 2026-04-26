@@ -11,6 +11,7 @@ import time
 from typing import Dict, List, Any, Optional
 from core.container import ServiceContainer
 from core.adaptation.immune_system import get_immune_system
+from core.runtime import background_policy
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Collective.BeliefSync")
@@ -395,6 +396,15 @@ class BeliefSync:
         """Background task to discover peers via SovereignNetworkSkill."""
         while self.running:
             try:
+                reason = background_policy.background_activity_reason(
+                    self.orchestrator,
+                    profile=background_policy.MAINTENANCE_BACKGROUND_POLICY,
+                )
+                if reason:
+                    logger.debug("BeliefSync discovery deferred: %s", reason)
+                    await asyncio.sleep(min(self.discovery_interval, 60.0))
+                    continue
+
                 # 1. Use SovereignNetwork skill for discovery
                 engine = ServiceContainer.get("capability_engine", default=None)
                 if engine:

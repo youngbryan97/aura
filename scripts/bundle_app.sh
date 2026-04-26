@@ -10,6 +10,7 @@ APP_BASENAME="${AURA_APP_NAME:-Aura}"
 APP_NAME="${APP_BASENAME}.app"
 APP_DIR="${DIST_DIR}/${APP_NAME}"
 INSTALL_PATH="${AURA_INSTALL_PATH:-}"
+CODESIGN_IDENTITY="${AURA_CODESIGN_IDENTITY:--}"
 CONTENTS_DIR="${APP_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
@@ -131,7 +132,11 @@ echo "🧠 Live source link: ${ROOT_DIR}"
 echo "✍️ Edit the repo normally — this launcher always runs the current workspace code."
 
 if command -v codesign >/dev/null 2>&1; then
-    codesign --force --sign - "${APP_DIR}" >/dev/null
+    CODESIGN_ARGS=(--force --sign "${CODESIGN_IDENTITY}")
+    if [ "${CODESIGN_IDENTITY}" != "-" ]; then
+        CODESIGN_ARGS+=(--options runtime --timestamp)
+    fi
+    codesign "${CODESIGN_ARGS[@]}" "${APP_DIR}" >/dev/null
 fi
 
 if [ -n "${INSTALL_PATH}" ]; then
@@ -139,7 +144,7 @@ if [ -n "${INSTALL_PATH}" ]; then
     rm -rf "${INSTALL_PATH}"
     cp -R "${APP_DIR}" "${INSTALL_PATH}"
     if command -v codesign >/dev/null 2>&1; then
-        codesign --force --sign - "${INSTALL_PATH}" >/dev/null
+        codesign "${CODESIGN_ARGS[@]}" "${INSTALL_PATH}" >/dev/null
     fi
     echo "✅ Installed ${INSTALL_PATH}"
 fi

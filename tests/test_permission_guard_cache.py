@@ -1,4 +1,5 @@
 import unittest
+import time
 from unittest.mock import AsyncMock
 
 import core.security.permission_guard as permission_guard_module
@@ -17,6 +18,24 @@ class TestPermissionGuardCache(unittest.IsolatedAsyncioTestCase):
         second = await guard.check_permission(PermissionType.SCREEN, force=True)
 
         self.assertEqual(first, second)
+        guard._check_screen_permission.assert_awaited_once()
+
+    async def test_non_force_refreshes_stale_cache_after_ttl(self):
+        guard = PermissionGuard()
+        guard._cache_ttl_s = 5.0
+        guard._cache[PermissionType.SCREEN] = {
+            "granted": False,
+            "status": "denied",
+            "guidance": "stale",
+        }
+        guard._cache_ts[PermissionType.SCREEN] = time.monotonic() - 10.0
+        guard._check_screen_permission = AsyncMock(
+            return_value={"granted": True, "status": "active", "guidance": ""}
+        )
+
+        refreshed = await guard.check_permission(PermissionType.SCREEN, force=False)
+
+        self.assertTrue(refreshed["granted"])
         guard._check_screen_permission.assert_awaited_once()
 
     def test_shared_permission_guard_accessor_reuses_singleton(self):

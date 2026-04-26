@@ -24,6 +24,7 @@ class PermissionGuard(AuraBaseModule):
         super().__init__("PermissionGuard")
         self._cache: Dict[PermissionType, Dict[str, Any]] = {}
         self._cache_ts: Dict[PermissionType, float] = {}
+        self._cache_ttl_s: float = 15.0
         self._force_refresh_floor_s: float = 20.0
 
     async def check_permission(self, ptype: PermissionType, force: bool = False) -> Dict[str, Any]:
@@ -37,7 +38,10 @@ class PermissionGuard(AuraBaseModule):
         cached_at = float(self._cache_ts.get(ptype, 0.0) or 0.0)
         if cached is not None:
             cache_age = max(0.0, now - cached_at)
-            if (not force) or cache_age < self._force_refresh_floor_s:
+            if force:
+                if cache_age < self._force_refresh_floor_s:
+                    return cached
+            elif cache_age < self._cache_ttl_s:
                 return cached
 
         self.logger.info("Checking %s permission...", ptype.name)
