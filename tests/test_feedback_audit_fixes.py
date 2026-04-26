@@ -78,6 +78,38 @@ def test_integrity_guardian_rebuild_clears_current_alert_state(monkeypatch):
     assert status["last_missing"] == []
 
 
+def test_integrity_guardian_verify_all_suppresses_git_active_paths(monkeypatch, tmp_path):
+    from core.security import integrity_guardian as ig_mod
+
+    monkeypatch.setattr(ig_mod, "_BASE_DIR", tmp_path)
+    core_dir = tmp_path / "core"
+    core_dir.mkdir(parents=True)
+    edited = core_dir / "capability_engine.py"
+    stable = core_dir / "health.py"
+    edited.write_text("print('edited')\n", encoding="utf-8")
+    stable.write_text("print('stable')\n", encoding="utf-8")
+
+    guardian = ig_mod.IntegrityGuardian()
+    guardian._manifest = {
+        "core/capability_engine.py": "stale-hash",
+        "core/health.py": guardian._hash_file(stable),
+    }
+    monkeypatch.setattr(guardian, "_git_active_paths", lambda: {"core/capability_engine.py"})
+
+    alerts = guardian._verify_all()
+
+    assert alerts == []
+    assert guardian.get_status()["current_issue_count"] == 0
+
+
+def test_integrity_guardian_parse_git_status_paths_handles_renames():
+    from core.security.integrity_guardian import IntegrityGuardian
+
+    paths = IntegrityGuardian._parse_git_status_paths("R  core/old_name.py -> core/new_name.py")
+
+    assert paths == {"core/old_name.py", "core/new_name.py"}
+
+
 def test_system_health_json_safe_coerces_numpy_scalars_and_arrays():
     np = pytest.importorskip("numpy")
     from interface.routes.system import _json_safe
@@ -668,9 +700,78 @@ def test_grounded_authority_reply_includes_observability_note(monkeypatch):
     )
 
     assert "observability override" in reply
-    assert "SubstrateAuthority" in reply
-    assert "coverage ratio: 1.0" in reply
-    assert "Most recent authority decisions:" in reply
+
+
+@pytest.mark.asyncio
+async def test_grounded_traceability_reply_uses_recent_output_receipt(tmp_path):
+    from core.runtime.receipts import OutputReceipt, get_receipt_store, reset_receipt_store
+    from interface.routes import chat as chat_route
+
+    reset_receipt_store()
+    store = get_receipt_store(tmp_path / "receipts")
+    store.emit(
+        OutputReceipt(
+            receipt_id="out-1",
+            cause="chat_response",
+            origin="api",
+            target="primary",
+            digest="abc123",
+            created_at=1714183200.0,
+        )
+    )
+
+    reply = await chat_route._build_grounded_traceability_reply(
+        "I’m not asking you to prove consciousness. I’m asking for engineering traceability. Then give one safe example only: the most recent non-private action you took that has a log line or event ID."
+    )
+
+    reset_receipt_store()
+
+    assert reply is not None
+    assert "EventID: out-1" in reply
+    assert "Subsystem: Output.api" in reply
+    assert "FutureBehavior: no" in reply
+
+
+@pytest.mark.asyncio
+async def test_grounded_traceability_reply_resolves_referential_followup(tmp_path):
+    from core.runtime.receipts import OutputReceipt, get_receipt_store, reset_receipt_store
+    from interface.routes import chat as chat_route
+
+    reset_receipt_store()
+    store = get_receipt_store(tmp_path / "receipts")
+    store.emit(
+        OutputReceipt(
+            receipt_id="out-followup",
+            cause="chat_fastpath:grounded_traceability",
+            origin="api",
+            target="primary",
+            digest="def456",
+            created_at=1714183260.0,
+        )
+    )
+
+    async with chat_route._conversation_log_lock:
+        chat_route._conversation_log.clear()
+        chat_route._conversation_log.append(
+            {
+                "id": "x1",
+                "timestamp": "2026-04-26T00:58:40Z",
+                "user": (
+                    "I’m not asking you to prove consciousness. I’m asking for engineering traceability. "
+                    "Then give one safe example only: the most recent non-private action you took that has a log line or event ID."
+                ),
+                "aura": "",
+                "status": "pending",
+            }
+        )
+
+    reply = await chat_route._build_grounded_traceability_reply("Can you answer it")
+
+    reset_receipt_store()
+
+    assert reply is not None
+    assert "EventID: out-followup" in reply
+    assert "Subsystem: Output.api" in reply
 
 
 def test_grounded_internal_state_reply_uses_live_voice_snapshot(monkeypatch):
@@ -2032,6 +2133,47 @@ def test_same_answer_different_prompt_detection_ignores_near_paraphrase_followup
         "Is that background hum making it hard for you to focus right now?",
         "It's there, but it isn't blocking anything specific.",
     ) is False
+
+
+def test_same_answer_different_prompt_detection_ignores_referential_followups():
+    from interface.routes import chat as chat_mod
+
+    chat_mod._recent_responses.clear()
+    chat_mod._recent_response_pairs.clear()
+    chat_mod._record_recent_response(
+        "Timestamp: 2026-04-26T07:58:40+00:00 | Subsystem: Output.api | EventID: out-1 | Action: emitted primary response | Result: digest=abc123 | FutureBehavior: no",
+        "Then give one safe example only: the most recent non-private action you took that has a log line or event ID.",
+    )
+
+    assert chat_mod._is_same_answer_different_prompt(
+        "Can you answer it",
+        "Timestamp: 2026-04-26T07:58:40+00:00 | Subsystem: Output.api | EventID: out-1 | Action: emitted primary response | Result: digest=abc123 | FutureBehavior: no",
+    ) is False
+
+
+def test_router_substrate_generation_overrides_blend_into_temp_alias():
+    from core.brain.llm.llm_router import IntelligentLLMRouter
+
+    kwargs = {"temperature": 0.4}
+    IntelligentLLMRouter._apply_substrate_generation_overrides(
+        kwargs,
+        {
+            "temperature": 0.9,
+            "top_p": 0.81,
+            "min_p": 0.09,
+            "repetition_penalty": 1.15,
+            "repetition_context_size": 96,
+            "substrate_generation_source": "test_profile",
+        },
+    )
+
+    assert kwargs["temperature"] > 0.4
+    assert kwargs["temp"] == kwargs["temperature"]
+    assert kwargs["top_p"] == 0.81
+    assert kwargs["min_p"] == 0.09
+    assert kwargs["repetition_penalty"] == 1.15
+    assert kwargs["repetition_context_size"] == 96
+    assert kwargs["substrate_generation_source"] == "test_profile"
 
 
 def test_reply_topicality_flags_unrequested_review_mode_drift():

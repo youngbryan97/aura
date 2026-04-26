@@ -45,6 +45,7 @@ from core.brain.llm.model_registry import (
 )
 from core.brain.llm.runtime_wiring import (
     build_agentic_tool_map,
+    derive_substrate_generation_overrides,
     prepare_runtime_payload,
     should_force_tool_handoff,
 )
@@ -267,6 +268,7 @@ class LocalLLMAdapter:
                             "messages": normalized_messages,
                             "max_tokens": kwargs.get("max_tokens", self.endpoint.max_tokens),
                             "temperature": kwargs.get("temperature", self.endpoint.temperature),
+                            "top_p": kwargs.get("top_p", 0.9),
                         },
                     )
                     if response.status_code == 200:
@@ -297,7 +299,9 @@ class LocalLLMAdapter:
                         "stream": False,
                         "options": {
                             "temperature": kwargs.get("temperature", self.endpoint.temperature),
-                            "num_predict": kwargs.get("max_tokens", self.endpoint.max_tokens)
+                            "top_p": kwargs.get("top_p", 0.9),
+                            "repeat_penalty": kwargs.get("repetition_penalty", 1.08),
+                            "num_predict": kwargs.get("max_tokens", self.endpoint.max_tokens),
                         }
                     }
                     response = await client.post(url, json=payload)
@@ -333,7 +337,8 @@ class LocalLLMAdapter:
                     "model": self.endpoint.model_name,
                     "messages": messages,
                     "max_tokens": kwargs.get("max_tokens", self.endpoint.max_tokens),
-                    "temperature": kwargs.get("temperature", self.endpoint.temperature)
+                    "temperature": kwargs.get("temperature", self.endpoint.temperature),
+                    "top_p": kwargs.get("top_p", 0.9),
                 }
                 
                 response = await client.post(
@@ -503,6 +508,52 @@ class IntelligentLLMRouter:
         persona = cls._core_persona_prompt()
         return f"{persona}\n\n{prompt}".strip() if prompt else persona
 
+    @staticmethod
+    def _blend_generation_value(
+        existing: Optional[Any],
+        substrate: Optional[Any],
+        *,
+        substrate_weight: float = 0.65,
+    ) -> Optional[float]:
+        if substrate is None:
+            if existing is None:
+                return None
+            return round(float(existing), 4)
+        if existing is None:
+            return round(float(substrate), 4)
+        try:
+            blended = (float(existing) * (1.0 - substrate_weight)) + (float(substrate) * substrate_weight)
+            return round(blended, 4)
+        except Exception:
+            return round(float(substrate), 4)
+
+    @classmethod
+    def _apply_substrate_generation_overrides(
+        cls,
+        kwargs: Dict[str, Any],
+        overrides: Optional[Dict[str, Any]],
+    ) -> None:
+        if not overrides:
+            return
+
+        existing_temp = kwargs.get("temp", kwargs.get("temperature"))
+        blended_temp = cls._blend_generation_value(existing_temp, overrides.get("temperature"))
+        if blended_temp is not None:
+            kwargs["temperature"] = blended_temp
+            kwargs["temp"] = blended_temp
+
+        for name in ("top_p", "min_p", "repetition_penalty"):
+            if name not in overrides:
+                continue
+            blended = cls._blend_generation_value(kwargs.get(name), overrides.get(name))
+            if blended is not None:
+                kwargs[name] = blended
+
+        if "repetition_context_size" in overrides and kwargs.get("repetition_context_size") is None:
+            kwargs["repetition_context_size"] = int(overrides["repetition_context_size"])
+        if overrides.get("substrate_generation_source"):
+            kwargs["substrate_generation_source"] = overrides["substrate_generation_source"]
+
     def _setup_static_reflex(self) -> None:
         """Register a zero-dependency static fallback."""
         endpoint = LLMEndpoint(
@@ -650,6 +701,15 @@ class IntelligentLLMRouter:
             state=state,
             origin=origin,
             is_background=is_background,
+        )
+        self._apply_substrate_generation_overrides(
+            kwargs,
+            derive_substrate_generation_overrides(
+                runtime_state=_runtime_state,
+                objective=prompt,
+                origin=origin,
+                is_background=is_background,
+            ),
         )
         kwargs["system_prompt"] = system_prompt_from_payload or kwargs.get("system_prompt", "")
         if _messages is not None:
@@ -913,6 +973,15 @@ class IntelligentLLMRouter:
             origin=origin,
             is_background=is_background,
         )
+        self._apply_substrate_generation_overrides(
+            kwargs,
+            derive_substrate_generation_overrides(
+                runtime_state=_runtime_state,
+                objective=prompt,
+                origin=origin,
+                is_background=is_background,
+            ),
+        )
         system_prompt = self._apply_core_persona(system_prompt_from_payload or system_prompt or "")
         kwargs["system_prompt"] = system_prompt
         if prepared_messages is not None:
@@ -1126,6 +1195,15 @@ class IntelligentLLMRouter:
             state=state,
             origin=origin,
             is_background=is_background,
+        )
+        self._apply_substrate_generation_overrides(
+            kwargs,
+            derive_substrate_generation_overrides(
+                runtime_state=runtime_state,
+                objective=objective,
+                origin=origin,
+                is_background=is_background,
+            ),
         )
         if prepared_messages is not None:
             kwargs["messages"] = prepared_messages

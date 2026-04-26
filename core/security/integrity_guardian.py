@@ -28,6 +28,7 @@ import hmac
 import json
 import logging
 import os
+import subprocess
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
@@ -147,7 +148,7 @@ class IntegrityGuardian:
         await asyncio.sleep(CHECK_INTERVAL)  # skip the just-booted window
         while True:
             try:
-                tampered = self._verify_all()
+                tampered = await asyncio.to_thread(self._verify_all)
                 if tampered:
                     logger.warning(
                         "IntegrityGuardian [bg]: %d issues detected: %s",
@@ -249,21 +250,10 @@ class IntegrityGuardian:
         if tampered or missing:
             # Drop legitimately modified files tracked by git to prevent local edits from causing alerts
             try:
-                import subprocess
-                git_status = subprocess.run(
-                    ["git", "status", "--porcelain"],
-                    cwd=str(_BASE_DIR),
-                    capture_output=True,
-                    text=True,
-                    timeout=2.0
-                )
-                git_active = []
-                for line in git_status.stdout.splitlines():
-                    if len(line) > 3:
-                        git_active.append(line[3:])
-                
-                tampered = [p for p in tampered if p not in git_active]
-                missing = [p for p in missing if p not in git_active]
+                git_active = self._git_active_paths()
+                if git_active:
+                    tampered = [p for p in tampered if self._normalize_repo_path(p) not in git_active]
+                    missing = [p for p in missing if self._normalize_repo_path(p) not in git_active]
             except Exception as exc:
                 logger.debug("IntegrityGuardian: git check failed: %s", exc)
 
@@ -364,6 +354,47 @@ class IntegrityGuardian:
             MANIFEST_PATH.write_text(json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("Manifest save failed: %s", e)
+
+    @staticmethod
+    def _normalize_repo_path(path: str) -> str:
+        raw = str(path or "").strip()
+        if not raw:
+            return ""
+        return Path(raw.lstrip("./")).as_posix()
+
+    @classmethod
+    def _parse_git_status_paths(cls, line: str) -> Set[str]:
+        payload = str(line or "")
+        if len(payload) < 4:
+            return set()
+
+        path_blob = payload[3:].strip()
+        if not path_blob:
+            return set()
+
+        if " -> " in path_blob:
+            before, after = path_blob.split(" -> ", 1)
+            return {
+                cls._normalize_repo_path(before),
+                cls._normalize_repo_path(after),
+            }
+        return {cls._normalize_repo_path(path_blob)}
+
+    def _git_active_paths(self) -> Set[str]:
+        status = subprocess.run(
+            ["git", "status", "--porcelain=v1", "--untracked-files=no", "--ignored=no"],
+            cwd=str(_BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=8.0,
+        )
+        if status.returncode not in (0, 1):
+            raise RuntimeError(f"git status returned {status.returncode}")
+
+        active: Set[str] = set()
+        for line in status.stdout.splitlines():
+            active.update(self._parse_git_status_paths(line))
+        return active
 
 
 # ── Singleton ──────────────────────────────────────────────────────────────────

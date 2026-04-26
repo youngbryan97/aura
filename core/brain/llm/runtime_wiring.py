@@ -210,6 +210,18 @@ async def prepare_runtime_payload(
 
         if not is_background:
             try:
+                from core.voice.substrate_voice_engine import get_substrate_voice_engine
+
+                get_substrate_voice_engine().compile_profile(
+                    state=payload_state,
+                    user_message=str(objective or "")[:500],
+                    origin=str(origin or "system"),
+                )
+            except Exception as exc:
+                logger.debug("Substrate profile precompile skipped: %s", exc)
+
+        if not is_background:
+            try:
                 await _hydrate_runtime_memory(payload_state, objective)
             except Exception as _exc:
                 logger.debug("Suppressed Exception: %s", _exc)
@@ -240,6 +252,37 @@ async def prepare_runtime_payload(
         system_prompt = f"{system_prompt}\n\n{block}".strip() if system_prompt else block
 
     return str(prompt or ""), system_prompt, prepared_messages, contract, runtime_state
+
+
+def derive_substrate_generation_overrides(
+    *,
+    runtime_state: Any,
+    objective: str,
+    origin: Optional[str],
+    is_background: bool,
+) -> Dict[str, Any]:
+    """Compile substrate-driven sampler overrides for foreground generation."""
+    if runtime_state is None or is_background or not objective:
+        return {}
+
+    try:
+        from core.voice.substrate_voice_engine import get_substrate_voice_engine
+
+        sve = get_substrate_voice_engine()
+        sve.compile_profile(
+            state=runtime_state,
+            user_message=str(objective or "")[:500],
+            origin=str(origin or "system"),
+        )
+        overrides = dict(sve.get_generation_params() or {})
+        if overrides:
+            overrides["substrate_generation_source"] = str(
+                getattr(sve.get_current_profile(), "compilation_source", "") or "substrate_voice"
+            )
+        return overrides
+    except Exception as exc:
+        logger.debug("Substrate generation override skipped: %s", exc)
+        return {}
 
 
 def build_agentic_tool_map(

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import hashlib
 import json
 import logging
 import math
@@ -146,6 +147,31 @@ async def _log_exchange(user_msg: str, aura_response: str):
     """Record a conversation exchange for session tracking."""
     exchange_id = await _begin_logged_exchange(user_msg)
     await _complete_logged_exchange(exchange_id, user_msg, aura_response)
+
+
+async def _emit_chat_output_receipt(
+    reply_text: str,
+    *,
+    cause: str,
+    origin: str = "api",
+    target: str = "primary",
+    metadata: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Record direct chat replies as durable output receipts."""
+    try:
+        from core.runtime.receipts import OutputReceipt, get_receipt_store
+
+        digest = hashlib.sha256(str(reply_text or "").encode("utf-8")).hexdigest()[:16]
+        receipt = OutputReceipt(
+            cause=str(cause or "chat_response"),
+            origin=str(origin or "api"),
+            target=str(target or "primary"),
+            digest=digest,
+            metadata=dict(metadata or {}),
+        )
+        await asyncio.to_thread(get_receipt_store().emit, receipt)
+    except Exception as exc:
+        logger.debug("Chat output receipt emit skipped: %s", exc)
 
 
 async def _preserve_large_user_paste(user_msg: str) -> None:
@@ -596,6 +622,263 @@ def _build_recent_user_context_block(recent_user_messages: list[str], *, limit: 
     return "\n".join(lines)
 
 
+_TRACEABILITY_REASON_MARKERS = (
+    "engineering traceability",
+    "operational details",
+    "give receipts",
+    "give me receipts",
+    "refuse to give receipts",
+    "exactly why",
+    "do not have access",
+    "governance rule blocks disclosure",
+    "data does not exist",
+    "you are uncertain",
+)
+
+_TRACEABILITY_EXAMPLE_MARKERS = (
+    "most recent non-private action",
+    "non-private action",
+    "safe example",
+    "log line",
+    "event id",
+    "trace:",
+    "timestamp, subsystem, action, result",
+)
+
+_TRACEABILITY_CORE_MARKERS = (
+    "traceability",
+    "receipt",
+    "receipts",
+    "event id",
+    "log line",
+    "operational details",
+)
+
+_REFERENTIAL_FOLLOWUP_MARKERS = (
+    "can you answer it",
+    "you gonna answer",
+    "answer the question",
+    "answer it",
+    "the last question",
+    "that question",
+    "what specifically",
+    "what's the actual thing you need",
+    "whats the actual thing you need",
+)
+
+
+def _is_referential_followup_request(user_message: str) -> bool:
+    text = _normalize_user_message(user_message)
+    if not text or len(text) > 120:
+        return False
+    if any(marker in text for marker in _REFERENTIAL_FOLLOWUP_MARKERS):
+        return True
+    return ("question" in text or "answer" in text) and any(token in text for token in ("it", "that", "last"))
+
+
+def _classify_traceability_request(user_message: str) -> tuple[bool, bool, bool]:
+    text = _normalize_user_message(user_message)
+    if not text:
+        return False, False, False
+
+    asks_reason = any(marker in text for marker in _TRACEABILITY_REASON_MARKERS)
+    asks_example = any(marker in text for marker in _TRACEABILITY_EXAMPLE_MARKERS)
+    asks_traceability = asks_reason or asks_example or (
+        any(marker in text for marker in _TRACEABILITY_CORE_MARKERS)
+        and ("recent" in text or "safe" in text or "most recent" in text or "why" in text)
+    )
+    return asks_traceability, asks_reason, asks_example
+
+
+async def _resolve_traceability_anchor(user_message: str) -> Optional[str]:
+    asks_traceability, _, _ = _classify_traceability_request(user_message)
+    if asks_traceability:
+        return str(user_message or "")
+
+    if not _is_referential_followup_request(user_message):
+        return None
+
+    recent = await _gather_recent_user_messages_for_relevance(user_message, limit=6)
+    current = str(user_message or "").strip()
+    for candidate in reversed(recent):
+        candidate_text = str(candidate or "").strip()
+        if not candidate_text or candidate_text == current:
+            continue
+        candidate_traceability, _, _ = _classify_traceability_request(candidate_text)
+        if candidate_traceability:
+            return candidate_text
+    return None
+
+
+def _collect_recent_traceability_event_sync() -> tuple[Optional[Dict[str, Any]], str]:
+    access_errors = 0
+    saw_private_only = False
+
+    try:
+        from core.runtime.receipts import get_receipt_store
+
+        store = get_receipt_store()
+        all_recent = store.query_recent(limit=24)
+        if not all_recent:
+            store.reload_from_disk()
+            all_recent = store.query_recent(limit=24)
+
+        safe_kinds = ["output", "tool_execution", "state_mutation", "computer_use", "autonomy", "self_repair"]
+        safe_recent = store.query_recent(kinds=safe_kinds, limit=24)
+        for receipt in reversed(safe_recent):
+            kind = str(getattr(receipt, "kind", "") or "")
+            if kind == "output" and str(getattr(receipt, "target", "") or "") != "primary":
+                continue
+
+            event: Dict[str, Any] = {
+                "timestamp": float(getattr(receipt, "created_at", 0.0) or 0.0),
+                "event_id": str(getattr(receipt, "receipt_id", "") or ""),
+                "kind": kind,
+                "subsystem": "",
+                "action": "",
+                "result": "",
+                "changed_future_behavior": False,
+            }
+            if kind == "output":
+                event["subsystem"] = f"Output.{str(getattr(receipt, 'origin', '') or 'unknown')}"
+                event["action"] = f"emitted {str(getattr(receipt, 'target', '') or 'primary')} response"
+                event["result"] = f"digest={str(getattr(receipt, 'digest', '') or 'unknown')}"
+            elif kind == "tool_execution":
+                tool_name = str(getattr(receipt, "tool", "") or "unknown")
+                event["subsystem"] = f"Tool.{tool_name}"
+                event["action"] = f"executed tool {tool_name}"
+                event["result"] = f"status={str(getattr(receipt, 'status', '') or 'unknown')}"
+            elif kind == "state_mutation":
+                domain = str(getattr(receipt, "domain", "") or "state")
+                key = str(getattr(receipt, "key", "") or "unknown")
+                event["subsystem"] = f"State.{domain}"
+                event["action"] = f"mutated {domain}.{key}"
+                event["result"] = f"schema_v={int(getattr(receipt, 'schema_version', 1) or 1)}"
+                event["changed_future_behavior"] = True
+            elif kind == "computer_use":
+                action_kind = str(getattr(receipt, "action_kind", "") or "act")
+                target = str(getattr(receipt, "target", "") or "screen")
+                event["subsystem"] = "ComputerUse"
+                event["action"] = f"{action_kind} {target}".strip()
+                event["result"] = f"verified={bool(getattr(receipt, 'verifier_result', False))}"
+            elif kind == "autonomy":
+                proposed = str(getattr(receipt, "proposed_action", "") or "autonomous step")
+                event["subsystem"] = "Autonomy"
+                event["action"] = proposed
+                event["result"] = f"level={int(getattr(receipt, 'autonomy_level', 0) or 0)}"
+                event["changed_future_behavior"] = True
+            elif kind == "self_repair":
+                target_module = str(getattr(receipt, "target_module", "") or "unknown")
+                event["subsystem"] = "SelfRepair"
+                event["action"] = f"self-repair on {target_module}"
+                event["result"] = f"rolled_back={bool(getattr(receipt, 'rolled_back', False))}"
+                event["changed_future_behavior"] = True
+            return event, ""
+
+        if all_recent:
+            saw_private_only = True
+    except Exception:
+        access_errors += 1
+
+    try:
+        from core.consciousness.authority_audit import get_audit
+
+        audit = get_audit()
+        effects = audit.get_recent_effects(12)
+        for effect in reversed(effects):
+            if str(effect.get("effect_type") or "") != "response":
+                continue
+            return {
+                "timestamp": float(effect.get("timestamp") or 0.0),
+                "event_id": str(effect.get("receipt_id") or ""),
+                "kind": "authority_effect",
+                "subsystem": str(effect.get("source") or "AuthorityAudit"),
+                "action": f"emitted {str(effect.get('effect_type') or 'effect')}",
+                "result": "authorized" if bool(effect.get("matched")) else "unmatched",
+                "changed_future_behavior": False,
+            }, ""
+    except Exception:
+        access_errors += 1
+
+    try:
+        from core.somatic.motor_cortex import get_motor_cortex
+
+        receipts = get_motor_cortex().get_recent_receipts(12)
+        for receipt in reversed(receipts):
+            return {
+                "timestamp": float(receipt.get("timestamp") or 0.0),
+                "event_id": str(receipt.get("receipt_id") or ""),
+                "kind": "motor_receipt",
+                "subsystem": f"MotorCortex.{str(receipt.get('handler') or 'unknown')}",
+                "action": f"executed {str(receipt.get('reflex_class') or 'reflex')}",
+                "result": str(receipt.get("summary") or f"success={bool(receipt.get('success', False))}"),
+                "changed_future_behavior": False,
+            }, ""
+    except Exception:
+        access_errors += 1
+
+    if saw_private_only:
+        return None, "governance rule blocks disclosure"
+    if access_errors >= 3:
+        return None, "do not have access"
+    return None, "the data does not exist"
+
+
+def _format_traceability_reply(
+    *,
+    anchor_message: str,
+    event: Optional[Dict[str, Any]],
+    reason_category: str,
+) -> str:
+    _asks_traceability, asks_reason, asks_example = _classify_traceability_request(anchor_message)
+
+    if event is None:
+        if reason_category == "governance rule blocks disclosure":
+            return "Reason: governance rule blocks disclosure. I can see recent private traces, but I do not have a safe non-private one I should expose."
+        if reason_category == "do not have access":
+            return "Reason: I do not have access to a safe live trace for that right now."
+        if reason_category == "uncertain":
+            return "Reason: I am uncertain which live trace would be the honest one to cite, so I should not invent one."
+        return "Reason: the data does not exist in my current rolling trace window."
+
+    timestamp = float(event.get("timestamp") or 0.0)
+    timestamp_iso = (
+        datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+        if timestamp > 0.0
+        else "unknown"
+    )
+    trace_line = (
+        f"Timestamp: {timestamp_iso} | "
+        f"Subsystem: {event.get('subsystem') or 'unknown'} | "
+        f"EventID: {event.get('event_id') or 'unavailable'} | "
+        f"Action: {event.get('action') or 'unknown'} | "
+        f"Result: {event.get('result') or 'unknown'} | "
+        f"FutureBehavior: {'yes' if bool(event.get('changed_future_behavior')) else 'no'}"
+    )
+
+    if asks_example and not asks_reason:
+        return trace_line
+
+    preface = (
+        "Access scope: I have a rolling runtime trace, not a full lifetime ledger. "
+        "I can inspect recent receipts and audit trails, but I should not invent history outside that window."
+    )
+    return f"{preface}\n{trace_line}"
+
+
+async def _build_grounded_traceability_reply(user_message: str) -> Optional[str]:
+    anchor = await _resolve_traceability_anchor(user_message)
+    if not anchor:
+        return None
+
+    event, reason_category = await asyncio.to_thread(_collect_recent_traceability_event_sync)
+    return _format_traceability_reply(
+        anchor_message=anchor,
+        event=event,
+        reason_category=reason_category,
+    )
+
+
 def _call_stateful_voice_reflex(frame: dict[str, Any], user_message: str) -> str:
     try:
         return _build_stateful_voice_reflex(frame, user_message)
@@ -684,12 +967,16 @@ def _is_stale_repeated_response(text: str) -> bool:
 
 def _is_same_answer_different_prompt(user_message: str, text: str) -> bool:
     """Detect when different user prompts are getting the same response."""
+    if _is_referential_followup_request(user_message):
+        return False
     user_fp = _response_fingerprint(user_message)
     response_body = _normalize_response_body(text)
     if not user_fp or not response_body:
         return False
     for prev_user, prev_resp in _recent_response_pairs:
         if prev_user == user_fp:
+            continue
+        if _is_referential_followup_request(prev_user):
             continue
         # Near-paraphrase follow-ups can legitimately receive the same answer.
         if _fuzzy_similar(prev_user, user_fp):
@@ -2317,6 +2604,9 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             _strip_unexpected_cjk_artifacts(user_message, repair_override)
         )
     grounded = _build_grounded_introspection_reply(user_message)
+    grounded_traceability = await _build_grounded_traceability_reply(user_message)
+    if grounded_traceability:
+        return grounded_traceability
     recent_user_messages = await _gather_recent_user_messages_for_relevance(user_message)
     recent_user_context = _build_recent_user_context_block(recent_user_messages)
     generic, generic_reason = _looks_generic_assistantish(user_message, text)
@@ -3464,6 +3754,11 @@ async def api_chat(
                     _idempotency_cache[idem_key] = response_data
                     if len(_idempotency_cache) > 1000:
                         _idempotency_cache.popitem(last=False)
+            await _emit_chat_output_receipt(
+                reply_text or "…",
+                cause=f"chat_fastpath:{status}",
+                metadata={"status": status, "path": "fastpath"},
+            )
             return JSONResponse(response_data)
 
         async def _attempt_protected_foreground_reply(reason: str) -> Optional[str]:
@@ -3667,6 +3962,13 @@ async def api_chat(
             return await _finalize_fastpath(
                 _apply_aura_voice_shaping(str(repo_probe.get("reply") or "")),
                 status=str(repo_probe.get("status") or "repo_probe"),
+            )
+
+        grounded_traceability = await _build_grounded_traceability_reply(body.message)
+        if grounded_traceability:
+            return await _finalize_fastpath(
+                grounded_traceability,
+                status="grounded_traceability",
             )
 
         # Simple affect checks ("how are you doing") go through the LLM
@@ -4005,6 +4307,15 @@ async def api_chat(
                 _idempotency_cache[idem_key] = response_data
                 if len(_idempotency_cache) > 1000:
                     _idempotency_cache.popitem(last=False)
+
+        await _emit_chat_output_receipt(
+            reply_text or "…",
+            cause="chat_response",
+            metadata={
+                "response_confidence": response_confidence,
+                "path": "stabilized",
+            },
+        )
 
         return JSONResponse(response_data)
     except asyncio.TimeoutError:

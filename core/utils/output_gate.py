@@ -5,6 +5,7 @@ Prevents "Autonomous Pollution" where background search results flood the chat.
 """
 import logging
 import asyncio
+import hashlib
 import time
 from typing import Any, Dict, Optional, Union
 
@@ -77,6 +78,34 @@ class AutonomousOutputGate:
             if re.search(pattern, text, re.IGNORECASE):
                 return True
         return False
+
+    async def _emit_output_receipt(
+        self,
+        content: str,
+        *,
+        origin: str,
+        target: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        try:
+            from core.runtime.receipts import OutputReceipt, get_receipt_store
+
+            digest = hashlib.sha256(str(content or "").encode("utf-8")).hexdigest()[:16]
+            receipt = OutputReceipt(
+                cause=f"output_gate:{origin}",
+                origin=str(origin or "system"),
+                target=str(target or "primary"),
+                digest=digest,
+                governance_receipt_id=str((metadata or {}).get("will_receipt_id") or "") or None,
+                metadata={
+                    "origin": str(origin or "system"),
+                    "target": str(target or "primary"),
+                    "autonomous": bool((metadata or {}).get("autonomous", False)),
+                },
+            )
+            await asyncio.to_thread(get_receipt_store().emit, receipt)
+        except Exception as exc:
+            logger.debug("OutputGate: output receipt emit skipped: %s", exc)
         
     async def emit(self, content: str,
              origin: str = "system",
@@ -362,6 +391,8 @@ class AutonomousOutputGate:
                         logger.warning("OutputGate: Mycelial UI callback is NOT set.")
                 except Exception as e2:
                     logger.critical("Final fail-safe failed: %s", e2)
+
+        await self._emit_output_receipt(content, origin=origin, target="primary", metadata=metadata)
 
         # 4. Trigger High-Fidelity Multimodal Manifestation
         from core.container import ServiceContainer

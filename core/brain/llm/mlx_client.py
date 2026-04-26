@@ -1904,7 +1904,7 @@ class MLXLocalClient:
             "prompt": prompt,
             "messages": kwargs.get("messages"),
             "tools": kwargs.get("tools"),
-            "temp": kwargs.get("temp", self.temp),
+            "temp": kwargs.get("temp", kwargs.get("temperature", self.temp)),
             "top_p": kwargs.get("top_p", self.top_p),
             "min_p": kwargs.get("min_p", 0.05),
             "repetition_penalty": kwargs.get("repetition_penalty", 1.08),

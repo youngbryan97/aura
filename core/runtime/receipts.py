@@ -204,6 +204,25 @@ class ReceiptStore:
         with self._lock:
             return [r for r in self._index.values() if r.kind == kind]
 
+    def query_recent(
+        self,
+        *,
+        kinds: Optional[List[str]] = None,
+        limit: int = 20,
+    ) -> List[AnyReceipt]:
+        """Return the newest receipts across one or more kinds."""
+        with self._lock:
+            receipts = list(self._index.values())
+
+        if kinds:
+            allowed = {str(kind or "").strip() for kind in kinds if str(kind or "").strip()}
+            receipts = [receipt for receipt in receipts if receipt.kind in allowed]
+
+        receipts.sort(key=lambda receipt: float(getattr(receipt, "created_at", 0.0) or 0.0))
+        if limit <= 0:
+            return []
+        return receipts[-limit:]
+
     def reload_from_disk(self) -> int:
         """Rebuild the in-memory index from disk. Returns count loaded."""
         count = 0

@@ -164,6 +164,60 @@ class SpeechProfile:
         lines.append("")
         return "\n".join(lines)
 
+    def to_generation_params(self) -> Dict[str, float | int]:
+        """Compile sampler settings from the current speech profile.
+
+        This is the lowest-level place short of retraining where the substrate
+        can shape generation itself rather than only the prompt and post-pass.
+        """
+        temperature = _bounded(
+            0.26
+            + (self.energy * 0.34)
+            + (self.playfulness * 0.18)
+            + (self.warmth * 0.08)
+            + (self.topic_shift_probability * 0.12)
+            - (self.directness * 0.12)
+            - ((1.0 - self.hedge_probability) * 0.05),
+            0.18,
+            1.08,
+        )
+        top_p = _bounded(
+            0.70
+            + (self.playfulness * 0.12)
+            + (self.warmth * 0.08)
+            + (self.topic_shift_probability * 0.10)
+            - (self.directness * 0.08),
+            0.58,
+            0.97,
+        )
+        min_p = _bounded(
+            0.03
+            + (self.directness * 0.09)
+            + ((1.0 - self.hedge_probability) * 0.05)
+            + ((1.0 - self.fragment_ratio) * 0.03),
+            0.02,
+            0.18,
+        )
+        repetition_penalty = _bounded(
+            1.03
+            + (self.directness * 0.10)
+            + ((1.0 - self.topic_shift_probability) * 0.05)
+            + ((1.0 - self.unprompted_share_probability) * 0.04),
+            1.02,
+            1.22,
+        )
+        repetition_context_size = 96 if self.word_budget >= 140 else 64
+        if self.multi_message:
+            repetition_context_size = max(repetition_context_size, 128)
+
+        return {
+            "temperature": round(temperature, 4),
+            "top_p": round(top_p, 4),
+            "min_p": round(min_p, 4),
+            "repetition_penalty": round(repetition_penalty, 4),
+            "repetition_context_size": int(repetition_context_size),
+        }
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # The Compiler — reads substrate, outputs SpeechProfile
@@ -677,3 +731,7 @@ def _safe_str(obj: Any, attr: str, default: str) -> str:
         return default
     val = getattr(obj, attr, default)
     return str(val) if val is not None else default
+
+
+def _bounded(value: float, minimum: float, maximum: float) -> float:
+    return max(minimum, min(maximum, float(value)))

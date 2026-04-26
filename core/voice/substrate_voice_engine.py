@@ -170,6 +170,12 @@ class SubstrateVoiceEngine:
             return ""
         return self._current_profile.to_constraint_block()
 
+    def get_generation_params(self) -> Dict[str, Any]:
+        """Expose substrate-derived sampler settings for the inference layer."""
+        if not self._current_profile:
+            return {}
+        return dict(self._current_profile.to_generation_params())
+
     # ══════════════════════════════════════════════════════════════════════
     # 3. RESPONSE SHAPING — post-LLM enforcement
     # ══════════════════════════════════════════════════════════════════════

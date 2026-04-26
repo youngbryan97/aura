@@ -190,6 +190,20 @@ class AuthorityAudit:
                 for r in list(self._receipts)[-n:]
             ]
 
+    def get_recent_effects(self, n: int = 20) -> List[Dict]:
+        with self._lock:
+            return [
+                {
+                    "timestamp": round(e.timestamp, 3),
+                    "effect_type": e.effect_type,
+                    "source": e.source,
+                    "content": e.content_hash,
+                    "receipt_id": e.receipt_id,
+                    "matched": e.matched,
+                }
+                for e in list(self._effects)[-n:]
+            ]
+
     def get_status(self) -> Dict:
         return self.verify()
 
