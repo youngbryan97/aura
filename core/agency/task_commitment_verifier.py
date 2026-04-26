@@ -258,12 +258,13 @@ class TaskCommitmentVerifier:
         """
         t0 = time.monotonic()
         task_id = str(uuid.uuid4())[:8]
-        requested_objective = " ".join(str(objective or "").split()).strip()
-        objective = requested_objective
-        followup_entry = self._resolve_relevant_entry(objective)
+        requested_objective = str(objective or "").strip()
+        normalized_objective = " ".join(requested_objective.split()).strip()
+        objective = requested_objective or normalized_objective
+        followup_entry = self._resolve_relevant_entry(normalized_objective)
         resume_plan_id = str((followup_entry or {}).get("plan_id", "") or "")
 
-        if self.is_continuation_request(objective):
+        if self.is_continuation_request(normalized_objective):
             if followup_entry is None:
                 elapsed = (time.monotonic() - t0) * 1000
                 return TaskAcceptance(
@@ -283,9 +284,10 @@ class TaskCommitmentVerifier:
                 return reuse_acceptance
 
             objective = str(followup_entry.get("objective", "") or requested_objective).strip() or requested_objective
+            normalized_objective = " ".join(objective.split()).strip()
 
         # 1. Capability pre-check
-        assessment = self._assess_capability(objective)
+        assessment = self._assess_capability(normalized_objective or objective)
 
         if not assessment.can_fulfil:
             elapsed = (time.monotonic() - t0) * 1000

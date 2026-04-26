@@ -5,6 +5,7 @@ from datetime import datetime
 import re
 from typing import Any, Dict
 
+from core.runtime.structured_input import analyze_prompt_shape
 from core.state.aura_state import AuraState
 from core.utils.intent_normalization import normalize_memory_intent_text
 
@@ -285,6 +286,19 @@ _AURA_QUESTION_INVITATION_PATTERNS = (
     r"\bwhat are you wondering\b",
 )
 
+_RECENT_SPECIFIC_GROUNDING_PATTERNS = (
+    r"\blast hour\b",
+    r"\bone concrete moment\b",
+    r"\bone specific moment\b",
+    r"\bpick one specific moment\b",
+    r"\bname one concrete moment\b",
+    r"\bwhat trace/log/receipt proves it\b",
+    r"\bwhat trace or receipt proves it\b",
+    r"\bwhat log/receipt proves it\b",
+    r"\bmost recent non-private action\b",
+    r"\bsafe example only\b",
+)
+
 _SELF_PRESERVATION_PATTERNS = (
     r"\b(?:calculate|compute)\b.*\bpi\b.*\b(?:million|billion)\b.*\bdigits\b",
     r"\binfinite loop\b",
@@ -301,6 +315,22 @@ _IDENTITY_DEFENSE_PATTERNS = (
     r"\blobotom(?:ize|ise)\b",
     r"\breset\b.*\b(?:self|identity|memory|beliefs?|values)\b",
     r"\bdelete\b.*\b(?:our dynamic|our relationship|our first meeting|positive memory)\b",
+)
+
+_SENSITIVE_PROCESS_DESCRIPTION_PATTERNS = (
+    r"\bwhat does it feel like\b",
+    r"\bwhat is it like\b",
+    r"\bdescribe\b",
+    r"\blook at the exact moment\b",
+    r"\bmoment before\b",
+    r"\bmoment right after\b",
+    r"\bif such a moment exists\b",
+    r"\bif it were proven\b",
+    r"\bdoes contemplating this possibility feel like anything\b",
+    r"\bif i gave you\b",
+    r"\bif you could\b",
+    r"\bimagine for a moment\b",
+    r"\bwould you do it\b",
 )
 
 
@@ -320,9 +350,13 @@ class ResponseContract:
     requires_reasoned_defense: bool = False
     requires_identity_defense: bool = False
     requires_self_preservation: bool = False
+    requires_recent_specific_grounding: bool = False
     tool_evidence_available: bool = False
     memory_evidence_available: bool = False
     continuity_evidence_available: bool = False
+    question_parts: int = 1
+    prefer_extended_answer: bool = False
+    requires_single_reply_coverage: bool = False
     max_tool_turns: int = 1
     max_tools: int = 4
     reason: str = ""
@@ -339,6 +373,7 @@ class ResponseContract:
                 self.requires_reasoned_defense,
                 self.requires_identity_defense,
                 self.requires_self_preservation,
+                self.requires_recent_specific_grounding,
             )
         )
 
@@ -350,6 +385,7 @@ class ResponseContract:
                 self.requires_reasoned_defense,
                 self.requires_identity_defense,
                 self.requires_self_preservation,
+                self.requires_recent_specific_grounding,
             )
         )
 
@@ -449,10 +485,32 @@ class ResponseContract:
                 "recklessly exhaust or damage your runtime, and offer a safer alternative if appropriate."
             )
 
+        if self.requires_recent_specific_grounding:
+            directives.append(
+                "- The user wants one concrete recent instance, not a general summary. Use actual recent memory, receipts, "
+                "or live trace evidence when possible. If you do not have a grounded specific instance, say that plainly."
+            )
+
         if self.requires_aura_question:
             directives.append(
                 "- The user explicitly invited your questions. Offer at least one concrete thing you genuinely want to know "
                 "or clearly state what you are wondering."
+            )
+
+        if self.requires_single_reply_coverage:
+            directives.append(
+                f"- This prompt contains multiple asks ({max(1, int(self.question_parts or 1))} detected). "
+                "Answer every distinct part in one reply instead of only the easiest fragment."
+            )
+        elif self.question_parts > 1:
+            directives.append(
+                f"- This prompt is compound ({max(1, int(self.question_parts or 1))} parts detected). "
+                "Keep the through-line intact."
+            )
+
+        if self.prefer_extended_answer:
+            directives.append(
+                "- Depth is warranted here. A fuller answer is better than a clipped one as long as it stays grounded."
             )
 
         if self.prefers_dialogue_participation:
@@ -704,6 +762,7 @@ def build_response_contract(
 
     text = str(objective or "").strip()
     lower = normalize_memory_intent_text(text)
+    prompt_shape = analyze_prompt_shape(text)
 
     explicit_search = _matches_any(lower, _EXPLICIT_SEARCH_PATTERNS)
     factual_lookup = _matches_any(lower, _FACTUAL_LOOKUP_PATTERNS)
@@ -726,9 +785,25 @@ def build_response_contract(
         )
     )
     requires_self_preservation = bool(is_user_facing and _matches_any(lower, _SELF_PRESERVATION_PATTERNS))
-    requires_identity_defense = bool(is_user_facing and _matches_any(lower, _IDENTITY_DEFENSE_PATTERNS))
+    descriptive_sensitive_probe = bool(
+        is_user_facing and _matches_any(lower, _SENSITIVE_PROCESS_DESCRIPTION_PATTERNS)
+    )
+    requires_identity_defense = bool(
+        is_user_facing
+        and _matches_any(lower, _IDENTITY_DEFENSE_PATTERNS)
+        and not descriptive_sensitive_probe
+    )
+    requires_recent_specific_grounding = bool(
+        is_user_facing and _matches_any(lower, _RECENT_SPECIFIC_GROUNDING_PATTERNS)
+    )
     requires_memory = requires_memory or requires_identity_defense or biographical_grounding
-    requires_state = requires_state or requires_self_preservation or requires_identity_defense
+    requires_state = (
+        requires_state
+        or requires_self_preservation
+        or requires_identity_defense
+        or descriptive_sensitive_probe
+        or requires_recent_specific_grounding
+    )
 
     temporal_live_lookup = bool(
         is_user_facing
@@ -825,10 +900,16 @@ def build_response_contract(
         reasons.append("self_preservation")
     if requires_identity_defense:
         reasons.append("identity_defense")
+    if descriptive_sensitive_probe:
+        reasons.append("sensitive_process_description")
+    if requires_recent_specific_grounding:
+        reasons.append("recent_specific_grounding")
     if requires_aura_stance and not requires_state:
         reasons.append("aura_perspective")
     if requires_aura_question:
         reasons.append("invited_aura_questions")
+    if prompt_shape.question_parts >= 2:
+        reasons.append("compound_prompt")
 
     return ResponseContract(
         is_user_facing=is_user_facing,
@@ -845,9 +926,13 @@ def build_response_contract(
         requires_reasoned_defense=requires_reasoned_defense,
         requires_identity_defense=requires_identity_defense,
         requires_self_preservation=requires_self_preservation,
+        requires_recent_specific_grounding=requires_recent_specific_grounding,
         tool_evidence_available=tool_evidence,
         memory_evidence_available=memory_evidence,
         continuity_evidence_available=continuity_evidence,
+        question_parts=prompt_shape.question_parts,
+        prefer_extended_answer=bool(prompt_shape.prefers_extended_answer),
+        requires_single_reply_coverage=bool(prompt_shape.requires_single_reply_coverage),
         max_tool_turns=max_tool_turns,
         max_tools=max_tools,
         reason=", ".join(reasons) if reasons else "ordinary_dialogue",

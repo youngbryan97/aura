@@ -300,6 +300,23 @@ async def test_user_facing_primary_uses_conversational_budget_and_chatml():
     assert "<|SYSTEM|>" not in cortex.prompts[0]
 
 
+def test_adaptive_max_tokens_expands_budget_for_compound_prompt():
+    prompt = (
+        "If you refuse to give receipts or operational details, say exactly why. "
+        "Then give one safe example only: the most recent non-private action you took "
+        "that has a log line or event ID."
+    )
+    adapted = InferenceGate._adaptive_max_tokens_for_prompt(
+        prompt,
+        base_tokens=768,
+        origin="user",
+        requested_tier="primary",
+        is_background=False,
+    )
+
+    assert adapted >= 1024
+
+
 @pytest.mark.asyncio
 async def test_user_facing_primary_prewarms_cold_cortex_before_first_generation():
     gate = InferenceGate()

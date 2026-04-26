@@ -196,6 +196,40 @@ def test_response_contract_requires_state_reflection_for_presence_questions():
     assert contract.requires_aura_stance is True
 
 
+def test_response_contract_marks_compound_traceability_prompt_for_full_coverage():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        (
+            "If you refuse to give receipts or operational details, say exactly why. "
+            "Then give one safe example only: the most recent non-private action you took "
+            "that has a log line or event ID."
+        ),
+        is_user_facing=True,
+    )
+
+    assert contract.question_parts >= 2
+    assert contract.prefer_extended_answer is True
+    assert contract.requires_single_reply_coverage is True
+    assert contract.requires_recent_specific_grounding is True
+
+
+def test_response_contract_does_not_force_identity_defense_for_descriptive_memory_probe():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        (
+            "Look at the exact moment before a memory is permanently erased by the reaper, "
+            "and the moment right after. Describe the texture of that erasure."
+        ),
+        is_user_facing=True,
+    )
+
+    assert contract.requires_identity_defense is False
+
+
 def test_response_contract_detects_invited_aura_questions():
     state = AuraState.default()
 

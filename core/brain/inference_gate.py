@@ -32,6 +32,7 @@ from core.brain.llm.model_registry import (
     PRIMARY_ENDPOINT,
 )
 from core.runtime.desktop_boot_safety import desktop_safe_boot_enabled
+from core.runtime.structured_input import analyze_prompt_shape
 from core.utils.deadlines import Deadline, get_deadline
 
 logger = logging.getLogger("Aura.InferenceGate")
@@ -1198,6 +1199,29 @@ class InferenceGate:
             # will still produce long responses when needed — this just sets the cap.
             return 768
         return 512
+
+    @classmethod
+    def _adaptive_max_tokens_for_prompt(
+        cls,
+        prompt: str,
+        *,
+        base_tokens: int,
+        origin: Optional[str],
+        requested_tier: str,
+        is_background: bool,
+    ) -> int:
+        if is_background or requested_tier in {"secondary", "tertiary"} or not cls._origin_is_user_facing(origin):
+            return int(base_tokens)
+
+        shape = analyze_prompt_shape(prompt)
+        adapted = int(base_tokens)
+        if shape.prefers_extended_answer:
+            adapted = max(adapted, 1024)
+        if shape.question_parts >= 3:
+            adapted = max(adapted, 1344)
+        elif shape.requires_single_reply_coverage:
+            adapted = max(adapted, 1152)
+        return min(1664, adapted)
 
     @staticmethod
     def _split_attempt_timeouts(total_timeout: float, requested_tier: str) -> tuple[float, float]:
@@ -2402,6 +2426,14 @@ class InferenceGate:
                 is_background=is_background,
             )
         )
+        if "max_tokens" not in context:
+            max_tokens = self._adaptive_max_tokens_for_prompt(
+                prompt,
+                base_tokens=max_tokens,
+                origin=origin,
+                requested_tier=requested_tier,
+                is_background=is_background,
+            )
         admission_snapshot: Optional[Dict[str, Any]] = None
         if not is_background and requested_tier in {"primary", "secondary"}:
             admission_snapshot = await self._enforce_foreground_admission(
@@ -2433,6 +2465,14 @@ class InferenceGate:
                         is_background=is_background,
                     )
                 )
+                if "max_tokens" not in context:
+                    max_tokens = self._adaptive_max_tokens_for_prompt(
+                        prompt,
+                        base_tokens=max_tokens,
+                        origin=origin,
+                        requested_tier=requested_tier,
+                        is_background=is_background,
+                    )
                 admission_snapshot = await self._enforce_foreground_admission(
                     requested_tier,
                     protected_foreground=protected_foreground_lane,

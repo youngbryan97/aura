@@ -26,6 +26,7 @@ from pydantic import BaseModel
 
 from core.config import config
 from core.container import ServiceContainer
+from core.runtime.structured_input import analyze_prompt_shape
 from core.utils.intent_normalization import normalize_memory_intent_text
 from core.version import version_string
 
@@ -707,6 +708,24 @@ async def _resolve_traceability_anchor(user_message: str) -> Optional[str]:
         candidate_traceability, _, _ = _classify_traceability_request(candidate_text)
         if candidate_traceability:
             return candidate_text
+    return None
+
+
+async def _resolve_referential_followup_anchor(user_message: str) -> Optional[str]:
+    if not _is_referential_followup_request(user_message):
+        return None
+
+    recent = await _gather_recent_user_messages_for_relevance(user_message, limit=8)
+    current = str(user_message or "").strip()
+    for candidate in reversed(recent):
+        candidate_text = str(candidate or "").strip()
+        if not candidate_text or candidate_text == current:
+            continue
+        if _is_referential_followup_request(candidate_text):
+            continue
+        if len(candidate_text) < 24:
+            continue
+        return candidate_text
     return None
 
 
@@ -2594,6 +2613,15 @@ def _strip_unexpected_cjk_artifacts(user_message: str, reply_text: Any) -> str:
 async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> str:
     frame = _build_aura_expression_frame(user_message)
     contract = frame.get("contract")
+    prompt_shape = analyze_prompt_shape(user_message)
+    prefer_extended_answer = bool(
+        getattr(contract, "prefer_extended_answer", False) or prompt_shape.prefers_extended_answer
+    )
+    requires_single_reply_coverage = bool(
+        getattr(contract, "requires_single_reply_coverage", False)
+        or prompt_shape.requires_single_reply_coverage
+    )
+    question_parts = int(getattr(contract, "question_parts", prompt_shape.question_parts or 1) or 1)
     architecture_self_assessment = _is_architecture_self_assessment_request(user_message)
     text = _apply_aura_voice_shaping(
         _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or "…")
@@ -2734,6 +2762,22 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         from core.container import ServiceContainer
         inference_gate = ServiceContainer.get("inference_gate", default=None)
         if inference_gate:
+            stabilizer_length_line = "Keep it concise but complete."
+            stabilizer_max_tokens = 220
+            if prefer_extended_answer:
+                stabilizer_length_line = (
+                    "Do not clip this. A fuller answer is better than a shallow one if it stays grounded."
+                )
+                stabilizer_max_tokens = 420
+            if requires_single_reply_coverage:
+                stabilizer_length_line = (
+                    f"Answer all {max(1, question_parts)} parts in one reply. "
+                    "Short numbered sections are fine when they help coverage."
+                )
+                stabilizer_max_tokens = max(stabilizer_max_tokens, 460)
+            if question_parts >= 3:
+                stabilizer_max_tokens = max(stabilizer_max_tokens, 560)
+
             frame_lines = []
             if frame.get("mood"):
                 frame_lines.append(f"- mood: {frame['mood']}")
@@ -2776,7 +2820,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 "Never mix in Chinese, Japanese, or Korean text unless requested. "
                 "Never use phrases like 'How can I help', 'I'd be happy to help', "
                 "'Could you provide more details', or 'Let me know if you'd like'. "
-                "Do not mention corrections, drift, or being an AI. Keep it brief (1-4 sentences).\n\n"
+                f"Do not mention corrections, drift, or being an AI. {stabilizer_length_line}\n\n"
                 f"## LIVE SELF-EXPRESSION FRAME\n{frame_block}\n\n"
                 f"{contract_block}"
             )
@@ -2828,7 +2872,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                         foreground_request=True,
                         is_background=False,
                         allow_cloud_fallback=False,
-                        max_tokens=220,
+                        max_tokens=stabilizer_max_tokens,
                     ),
                     timeout=20.0,
                 )
@@ -3106,12 +3150,29 @@ def _classify_grounded_introspection_request(user_message: str) -> tuple[bool, b
     if not text:
         return False, False, False, False
 
-    free_energy_markers = (
-        "free energy",
-        "dominant action tendency",
-        "dominant action",
-        "surprise level",
-        "prediction error",
+    negative_report_markers = (
+        "without telling me",
+        "don't tell me",
+        "do not tell me",
+        "not asking for",
+        "don't explain your architecture generally",
+        "do not explain your architecture generally",
+    )
+    hypothetical_markers = (
+        "if i gave you",
+        "if you could",
+        "imagine for a moment",
+        "would you do it",
+        "if it were proven",
+    )
+    free_energy_report_patterns = (
+        r"\bwhat(?:'s| is)\s+your\s+(?:current\s+)?free energy\b",
+        r"\b(?:tell|show|give|report)\b.{0,40}\b(?:your\s+)?(?:current\s+)?free energy\b",
+        r"\bwhat(?:'s| is)\s+your\s+dominant action(?: tendency)?\b",
+        r"\b(?:tell|show|give|report)\b.{0,40}\bdominant action(?: tendency)?\b",
+        r"\bwhat(?:'s| is)\s+your\s+prediction error\b",
+        r"\b(?:tell|show|give|report)\b.{0,40}\bprediction error\b",
+        r"\bfree energy state\b",
     )
     # Only trigger introspection for explicitly technical/diagnostic queries.
     # Casual greetings like "how are you" should go through normal LLM inference
@@ -3161,7 +3222,12 @@ def _classify_grounded_introspection_request(user_message: str) -> tuple[bool, b
         "permitted to answer",
     )
 
-    asks_free_energy = any(marker in text for marker in free_energy_markers)
+    suppress_diagnostic_fastpath = any(marker in text for marker in negative_report_markers) or any(
+        marker in text for marker in hypothetical_markers
+    )
+    asks_free_energy = any(
+        re.search(pattern, text, re.IGNORECASE) for pattern in free_energy_report_patterns
+    )
     asks_internal_state = any(marker in text for marker in internal_state_markers)
     asks_topology = any(marker in text for marker in topology_markers)
     asks_authority = any(marker in text for marker in authority_markers)
@@ -3178,6 +3244,11 @@ def _classify_grounded_introspection_request(user_message: str) -> tuple[bool, b
             "mycelial" in text
             and any(marker in text for marker in ("topology", "graph", "nodes", "links", "pathways", "counts"))
         )
+
+    if suppress_diagnostic_fastpath:
+        asks_free_energy = False
+        if not asks_authority and not asks_topology:
+            asks_internal_state = False
 
     return asks_internal_state, asks_free_energy, asks_topology, asks_authority
 
@@ -4099,6 +4170,15 @@ async def api_chat(
         # Crash-safe persistence: persist the user's message BEFORE calling
         # the LLM. If the process dies mid-inference, the message is preserved
         # and the conversation can be resumed. (Pattern from Claude Code.)
+        effective_user_message = str(body.message or "")
+        referential_anchor = await _resolve_referential_followup_anchor(body.message)
+        if referential_anchor:
+            effective_user_message = (
+                f"{body.message}\n\n"
+                "[REFERENTIAL ANCHOR]\n"
+                "The user is referring to this earlier user question/request:\n"
+                f"{referential_anchor}"
+            )
         try:
             await _preserve_large_user_paste(body.message)
             pending_exchange_id = await _begin_logged_exchange(body.message)
@@ -4117,7 +4197,7 @@ async def api_chat(
             try:
                 kernel_timeout = _remaining_foreground_budget()
                 kernel_task = asyncio.create_task(
-                    ki.process(body.message, origin="api", priority=True),
+                    ki.process(effective_user_message, origin="api", priority=True),
                     name="Aura.Server.Chat.kernel_foreground",
                 )
                 # [STABILITY v53] Two-phase timeout:
@@ -4200,13 +4280,17 @@ async def api_chat(
                 logger.debug("REST: Awaiting priority processing from legacy orchestrator...")
                 legacy_timeout = _remaining_foreground_budget()
                 reply_text = await asyncio.wait_for(
-                    orch.process_user_input_priority(body.message, origin="api", timeout_sec=legacy_timeout),
+                    orch.process_user_input_priority(
+                        effective_user_message,
+                        origin="api",
+                        timeout_sec=legacy_timeout,
+                    ),
                     timeout=legacy_timeout,
                 )
             else:
                 from core.tasks import dispatch_user_input
                 asyncio.ensure_future(
-                    asyncio.to_thread(dispatch_user_input, body.message)
+                    asyncio.to_thread(dispatch_user_input, effective_user_message)
                 )
                 reply_text = "Message dispatched (Kernel and Orchestrator offline)."
 

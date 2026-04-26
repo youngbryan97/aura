@@ -166,6 +166,18 @@ class EndpointHealth:
                 )
             self.state = CircuitState.OPEN
 
+    def trip_temporarily(self, reason: str):
+        """Open the circuit on a transient local-runtime failure without poisoning health counters."""
+        self.total_requests += 1
+        self.last_failure = time.time()
+        if self.state != CircuitState.OPEN:
+            logger.warning(
+                "Circuit OPEN for %s on transient runtime failure. Reason: %s",
+                self.name,
+                reason,
+            )
+        self.state = CircuitState.OPEN
+
     def record_empty(self):
         """Zero-token or whitespace-only response — treat as failure."""
         self.empty_responses += 1
@@ -234,6 +246,28 @@ def validate_response(text: Optional[str], min_tokens: int = 1) -> tuple[bool, s
     return True, "ok"
 
 
+def _is_transient_local_runtime_failure(error: str) -> bool:
+    normalized = str(error or "").strip().lower()
+    if not normalized:
+        return False
+    return normalized in {
+        "client_returned_no_text",
+        "heartbeat_stalled_during_generation",
+        "first_token_sla_exceeded",
+        "token_progress_stalled",
+    } or normalized.startswith(
+        (
+            "background_deferred:",
+            "foreground_quiet_window",
+            "foreground_busy",
+            "mlx_runtime_unavailable:",
+            "mlx_runtime_probe_failed:",
+            "local_runtime_unavailable:",
+            "prewarm_failed:",
+        )
+    )
+
+
 def _background_error_is_quiet(error: str) -> bool:
     normalized = str(error or "")
     return normalized in {
@@ -245,6 +279,9 @@ def _background_error_is_quiet(error: str) -> bool:
         "background_deferred:cortex_resident",
         "background_deferred:cortex_failed",
         "background_deferred:foreground_reserved",
+        "heartbeat_stalled_during_generation",
+        "first_token_sla_exceeded",
+        "token_progress_stalled",
     } or normalized.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:"))
 
 
@@ -323,12 +360,8 @@ def _local_client_failure_reason(client: Any) -> str:
 
 def _supports_foreground_cloud_recovery(error: str) -> bool:
     normalized = str(error or "").strip().lower()
-    return normalized == "client_returned_no_text" or normalized.startswith(
+    return _is_transient_local_runtime_failure(normalized) or normalized.startswith(
         (
-            "mlx_runtime_unavailable:",
-            "mlx_runtime_probe_failed:",
-            "local_runtime_unavailable:",
-            "prewarm_failed:",
             "lane_failed",
         )
     )
@@ -1586,7 +1619,10 @@ class HealthAwareLLMRouter:
                     token_count = 0
                     client_failure = _local_client_failure_reason(client) if ep.is_local else ""
                     if client_failure:
-                        ep.record_failure(client_failure)
+                        if ep.is_local and _is_transient_local_runtime_failure(client_failure):
+                            ep.trip_temporarily(client_failure)
+                        else:
+                            ep.record_failure(client_failure)
                         return {"ok": False, "error": client_failure}
                     
                     # Aura Hardening: Formatting for local models
@@ -1623,7 +1659,10 @@ class HealthAwareLLMRouter:
                             raw_text = res
                         elif meta and meta.get("error"):
                             client_failure = meta.get("error")
-                            ep.record_failure(client_failure)
+                            if ep.is_local and _is_transient_local_runtime_failure(client_failure):
+                                ep.trip_temporarily(client_failure)
+                            else:
+                                ep.record_failure(client_failure)
                             return {"ok": False, "error": client_failure}
                     elif hasattr(client, "generate_text_async"):
                         # Prefer the higher-level async text adapter when both are
@@ -1681,12 +1720,17 @@ class HealthAwareLLMRouter:
                         # UI and router stop reporting an endless warmup loop.
                         client_failure = _local_client_failure_reason(client) if ep.is_local else ""
                         if client_failure:
-                            ep.record_failure(client_failure)
+                            if ep.is_local and _is_transient_local_runtime_failure(client_failure):
+                                ep.trip_temporarily(client_failure)
+                            else:
+                                ep.record_failure(client_failure)
                             return {"ok": False, "error": client_failure}
                         logger.debug(
                             "Endpoint %s returned no text (client warming up or rate-limited). "
                             "NOT recording as circuit failure.", ep.name
                         )
+                        if ep.is_local:
+                            ep.trip_temporarily("client_returned_no_text")
                         return {"ok": False, "error": "client_returned_no_text"}
                 except AttributeError as ae:
                     # Missing method on client wrapper (e.g. InferenceGate) — this is NOT

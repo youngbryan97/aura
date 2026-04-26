@@ -156,6 +156,46 @@ async def test_task_commitment_verifier_passes_user_origin_into_task_context(mon
 
 
 @pytest.mark.asyncio
+async def test_task_commitment_verifier_preserves_structured_multiline_goal(monkeypatch, tmp_path):
+    tracker = _GoalTracker()
+    task_engine = _FastTaskEngine()
+
+    def _fake_get(name, default=None):
+        if name == "task_engine":
+            return task_engine
+        if name == "goal_engine":
+            return tracker
+        return default
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(_fake_get),
+    )
+    monkeypatch.setattr(
+        TaskCommitmentVerifier,
+        "_assess_capability",
+        lambda self, objective: CapabilityAssessment(can_fulfil=True, matched_tools=["remember"], confidence=1.0),
+    )
+    monkeypatch.setattr(TaskCommitmentVerifier, "_register_commitment", lambda self, objective: None)
+
+    verifier = TaskCommitmentVerifier(kernel=None, persist_path=tmp_path / "task_commitment_state.json")
+    goal = (
+        "I have some suggestions for you.\n\n"
+        "General Education:\n"
+        "Kurzgesagt (https://example.com/k): Explains science beautifully.\n"
+        "TED (https://example.com/t): Talks from experts.\n"
+    )
+
+    acceptance = await verifier.verify_and_dispatch(goal, state=None)
+
+    assert acceptance.outcome == DispatchOutcome.COMPLETED
+    dispatched_goal = task_engine.goals[0][0]
+    assert dispatched_goal.startswith("I have some suggestions for you.\n\n")
+    assert "\nGeneral Education:\n" in dispatched_goal
+    assert "Kurzgesagt (https://example.com/k): Explains science beautifully." in dispatched_goal
+
+
+@pytest.mark.asyncio
 async def test_task_commitment_verifier_continues_relevant_task_for_short_followup(monkeypatch, tmp_path):
     tracker = _GoalTracker()
     task_engine = _FastTaskEngine()

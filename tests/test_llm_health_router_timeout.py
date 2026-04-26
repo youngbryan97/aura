@@ -392,6 +392,49 @@ async def test_router_reads_failed_inference_gate_lane_without_calling_client():
     assert client.calls == 0
 
 
+class _HeartbeatStalledClient:
+    def __init__(self):
+        self.calls = 0
+
+    def get_conversation_status(self):
+        return {
+            "state": "failed",
+            "last_failure_reason": "heartbeat_stalled_during_generation",
+            "conversation_ready": False,
+        }
+
+    async def think(self, prompt: str, system_prompt: str = "", **kwargs):
+        self.calls += 1
+        return None
+
+
+@pytest.mark.asyncio
+async def test_router_treats_heartbeat_stall_as_transient_cooldown(monkeypatch):
+    router = HealthAwareLLMRouter()
+    client = _HeartbeatStalledClient()
+    endpoint = EndpointHealth(
+        name="Brainstem",
+        url="internal",
+        model="test",
+        is_local=True,
+        tier="local_fast",
+        client=client,
+    )
+
+    result = await router._call_endpoint(
+        endpoint,
+        "With me?",
+        "Be helpful",
+        timeout=10.0,
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "heartbeat_stalled_during_generation"
+    assert client.calls == 0
+    assert endpoint.failure_count == 0
+    assert endpoint.state.value == "open"
+
+
 def test_background_quiet_error_treats_local_runtime_unavailable_as_non_user_noise():
     from core.brain.llm_health_router import _background_error_is_quiet
 

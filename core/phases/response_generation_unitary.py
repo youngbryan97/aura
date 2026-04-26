@@ -247,6 +247,9 @@ class UnitaryResponsePhase(Phase):
         requires_aura_stance = bool(self._response_contract_attr(contract, "requires_aura_stance", False))
         requires_aura_question = bool(self._response_contract_attr(contract, "requires_aura_question", False))
         requires_reasoned_defense = bool(self._response_contract_attr(contract, "requires_reasoned_defense", False))
+        prefer_extended_answer = bool(self._response_contract_attr(contract, "prefer_extended_answer", False))
+        requires_single_reply_coverage = bool(self._response_contract_attr(contract, "requires_single_reply_coverage", False))
+        question_parts = int(self._response_contract_attr(contract, "question_parts", 1) or 1)
         needs_live_self_context = bool(
             requires_state_reflection or requires_aura_stance or requires_aura_question or requires_reasoned_defense
         )
@@ -273,8 +276,17 @@ class UnitaryResponsePhase(Phase):
             "- NEVER end with 'What would you like to discuss?' or 'How can I help?'",
             "- When asked for an opinion, give YOUR opinion first, then explain.",
             f"MOOD: {mood}. RESONANCE: {resonance}.",
-            "Speak in short, punchy sentences. Be warm but never servile.",
+            "Be warm but never servile.",
         ]
+        if requires_single_reply_coverage:
+            parts.append(
+                f"Answer all {max(1, question_parts)} parts of the user's prompt in one reply. "
+                "Do not collapse into a single fragment."
+            )
+        if prefer_extended_answer:
+            parts.append("This question deserves a fuller answer. Depth beats clipped brevity.")
+        else:
+            parts.append("Speak in short, punchy sentences.")
         if needs_live_self_context:
             parts.append(f"PHENOM: {phenomenal}")
 
@@ -1022,6 +1034,37 @@ class UnitaryResponsePhase(Phase):
 
         return lines[:limit]
 
+    @classmethod
+    def _collect_recent_turn_evidence_lines(
+        cls,
+        state: AuraState,
+        *,
+        limit: int = 4,
+    ) -> list[str]:
+        lines: list[str] = []
+        seen: set[str] = set()
+
+        for item in reversed(list(getattr(state.cognition, "working_memory", []) or [])[-12:]):
+            if not isinstance(item, dict):
+                continue
+            role = str(item.get("role", "") or "").strip().lower()
+            content = cls._normalize_text(item.get("content", ""), 260)
+            if not content:
+                continue
+            if role == "assistant":
+                line = f"Aura said: {content}"
+            elif role == "user":
+                line = f"User said: {content}"
+            else:
+                line = content
+            if line not in seen:
+                seen.add(line)
+                lines.append(line)
+            if len(lines) >= limit:
+                break
+
+        return lines[:limit]
+
     @staticmethod
     async def _direct_episodic_matches(objective: str, limit: int = 3) -> list[Any]:
         try:
@@ -1260,6 +1303,18 @@ class UnitaryResponsePhase(Phase):
                 lines.extend(f"- Recalled continuity context: {line}" for line in evidence)
             if cls._response_contract_attr(contract, "tool_evidence_available", False):
                 lines.append("- Tool evidence is available elsewhere in this prompt. If it matters, cite it directly instead of guessing.")
+            blocks.append("\n".join(lines))
+
+        if cls._response_contract_attr(contract, "requires_recent_specific_grounding", False):
+            recent_evidence = cls._collect_recent_turn_evidence_lines(state, limit=4)
+            lines = [
+                "## PRIORITY RECENT SPECIFICITY",
+                "The user asked for one concrete recent moment or trace.",
+                "Choose one grounded recent event from the evidence below when possible. "
+                "If no specific grounded event is available, say that directly instead of inventing one.",
+            ]
+            if recent_evidence:
+                lines.extend(f"- {line}" for line in recent_evidence)
             blocks.append("\n".join(lines))
 
         return "\n\n".join(blocks).strip()

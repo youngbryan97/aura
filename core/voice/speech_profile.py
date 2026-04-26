@@ -18,6 +18,8 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.runtime.structured_input import analyze_prompt_shape
+
 logger = logging.getLogger("Voice.SpeechProfile")
 
 
@@ -337,6 +339,7 @@ class SpeechProfileCompiler:
 
         # User message length for mirroring
         user_words = len(user_message.split()) if user_message else 0
+        prompt_shape = analyze_prompt_shape(user_message)
 
         # ─── COMPILATION RULES ────────────────────────────────────────────
         # Each rule maps substrate state → speech parameter.
@@ -378,6 +381,10 @@ class SpeechProfileCompiler:
             sources.append("low_conv_energy")
 
         profile.word_budget = max(5, min(250, base_budget))
+        if prompt_shape.prefers_extended_answer:
+            budget_boost = 1.25 if prompt_shape.question_parts < 3 else 1.45
+            profile.word_budget = int(profile.word_budget * budget_boost)
+            sources.append("compound_prompt_budget")
 
         # ══════════════════════════════════════════════════════════════════
         # 2. SENTENCE STRUCTURE
@@ -412,6 +419,10 @@ class SpeechProfileCompiler:
             profile.multi_message = True
             profile.multi_message_count = 2 if multi_score < 0.8 else 3
             sources.append("multi_message")
+        if prompt_shape.requires_single_reply_coverage:
+            profile.multi_message = False
+            profile.multi_message_count = 1
+            sources.append("single_reply_coverage")
 
         # ══════════════════════════════════════════════════════════════════
         # 4. PUNCTUATION & FORMATTING
@@ -671,6 +682,13 @@ class SpeechProfileCompiler:
             profile.sentence_length_variance = max(0.1, profile.sentence_length_variance - 0.15)
             sources.append("binding_demand_high")
 
+        if prompt_shape.prefers_extended_answer:
+            profile.word_budget = max(profile.word_budget, 140)
+            if prompt_shape.question_parts >= 3:
+                profile.word_budget = max(profile.word_budget, 180)
+            profile.fragment_ratio = max(0.0, profile.fragment_ratio - 0.05)
+            profile.sentence_length_mean = min(18, profile.sentence_length_mean + 1)
+
         # ══════════════════════════════════════════════════════════════════
         # 9. TONE OVERRIDE (dominant emotion → specific voice)
         # ══════════════════════════════════════════════════════════════════
@@ -696,6 +714,7 @@ class SpeechProfileCompiler:
             sources.append(f"tone_{dominant_emotion}")
 
         # ─── Finalize ─────────────────────────────────────────────────────
+        profile.word_budget = max(5, min(380, profile.word_budget))
         profile.compilation_source = ", ".join(sources) if sources else "baseline"
         profile.substrate_snapshot = snapshot
 
