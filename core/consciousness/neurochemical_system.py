@@ -41,9 +41,9 @@ Each chemical has:
 The system runs at 2 Hz and pushes modulatory state into the NeuralMesh and
 other consciousness subsystems every tick.
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import logging

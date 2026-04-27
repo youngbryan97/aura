@@ -18,8 +18,8 @@ Architecture:
     OpinionEngine.surface_random() ← called by the proactive loop to
                                       spontaneously share a position
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio

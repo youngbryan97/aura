@@ -13,8 +13,8 @@ Covers:
   3. Post-cycle state verification (non-trivial state accumulated)
   4. Response feedback loop: homeostasis + credit EMA shift
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import sys

@@ -12,8 +12,8 @@ Concrete and load-bearing — flagship modules (BryanModelEngine,
 AbstractionEngine, EnhancedMemorySystem) should call this gateway
 instead of writing JSON to disk directly.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

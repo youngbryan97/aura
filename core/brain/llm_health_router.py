@@ -13,8 +13,8 @@ Fixes:
 Drop-in: replace the existing router instantiation in orchestrator_boot.py
 with HealthAwareLLMRouter.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import inspect

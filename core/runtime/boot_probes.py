@@ -14,8 +14,8 @@ service:
 Strict mode (AURA_STRICT_RUNTIME=1) raises on any failed probe; non-strict
 records a degraded event but allows boot to proceed.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

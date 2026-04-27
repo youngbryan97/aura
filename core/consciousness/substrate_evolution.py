@@ -25,9 +25,9 @@ Safety:
   • Rate-limited to prevent destabilizing rapid topology changes
   • Generational history logged for analysis
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import copy

@@ -58,8 +58,8 @@ USAGE
     pytest tests/test_consciousness_conditions.py -v
     pytest tests/test_consciousness_conditions.py -v --tb=short -q  # summary only
 """
-
 from __future__ import annotations
+
 
 import ast
 import asyncio

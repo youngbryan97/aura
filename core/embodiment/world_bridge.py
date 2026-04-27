@@ -35,8 +35,8 @@ takes effect immediately.
 This module deliberately does NOT implement the network/IoT clients
 itself — that's `core/embodiment/iot_bridge.py` — it provides the gate.
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json

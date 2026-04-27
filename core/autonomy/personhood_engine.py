@@ -1,8 +1,8 @@
 """core/autonomy/personhood_engine.py — The Personhood Engine.
 Spontaneous speech based on internal state triggers.
 """
-from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging

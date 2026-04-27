@@ -23,8 +23,8 @@ Belief states:
 
 Persistence: belief graph saved to ~/.aura/data/belief_graph.json
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import enum

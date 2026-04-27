@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Shared helpers for safer macOS desktop boot behavior."""
 
-from __future__ import annotations
 
 import os
 import platform

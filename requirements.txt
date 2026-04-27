@@ -18,7 +18,10 @@ opencv-python-headless
 #piper-tts
 playwright>=1.42.0
 #TTS>=0.22.0
-#pyttsx3>=2.90
+pyttsx3>=2.90
+cryptography
+tweepy
+praw
 pydantic-settings
 aiosqlite
 PyYAML

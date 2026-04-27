@@ -34,8 +34,8 @@ file satisfies the system's load-bearing invariants:
 
 The verifier is *fail-closed*: any unverifiable claim blocks the mutation.
 """
-
 from __future__ import annotations
+
 
 import ast
 import logging

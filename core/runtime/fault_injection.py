@@ -19,8 +19,8 @@ Fault classes (mapped from the audit prompt):
 The harness is opt-in via the AURA_FAULT_INJECTION=1 env var or by
 explicit construction, so chaos cannot fire in normal runs.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

@@ -4,8 +4,8 @@ Audit constraint: every action checks a token with capability, scope,
 expiry, trace_id, receipt_id, issuer, revoked_at. Tokens cannot be
 re-used across turns once consumed.
 """
-
 from __future__ import annotations
+
 
 import threading
 import time

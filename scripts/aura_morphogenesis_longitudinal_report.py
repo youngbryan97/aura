@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Generate a longitudinal morphogenesis report.
 
@@ -7,7 +8,6 @@ runtime is actually operating over time.
 """
 
 from core.runtime.atomic_writer import atomic_write_text
-from __future__ import annotations
 
 import argparse
 import json

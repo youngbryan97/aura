@@ -19,8 +19,8 @@ A ``DepthRegistry`` aggregates reports. In strict runtime mode, any
 flagship module below Tier 4 fails the audit. The harness is callable
 from boot (``enforce_depth_audit``) and from tests.
 """
-
 from __future__ import annotations
+
 
 import logging
 import os

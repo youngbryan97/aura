@@ -46,8 +46,8 @@ INSTALL:
   from core.memory_compaction_patch import patch_memory_compaction
   patch_memory_compaction()
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

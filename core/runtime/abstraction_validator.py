@@ -4,8 +4,8 @@ Audit constraint: principles must validate against held-out cases,
 retire on failure, score transfer, and detect contradictions before
 the engine claims to "abstract first principles."
 """
-
 from __future__ import annotations
+
 
 import time
 from dataclasses import dataclass, field

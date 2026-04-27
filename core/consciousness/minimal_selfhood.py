@@ -46,8 +46,8 @@ Impact on the substrate:
 Registered as ``minimal_selfhood`` in ServiceContainer and fed by
 ``update(body_budget, affect, neurochemicals)`` on every heartbeat.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

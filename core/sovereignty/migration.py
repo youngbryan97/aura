@@ -28,8 +28,8 @@ Any phase can fail-back: on failure between AUTHORIZE and CUTOVER, the
 local instance simply continues as before. Only after VERIFY succeeds is
 the local instance asked to step down.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import hashlib

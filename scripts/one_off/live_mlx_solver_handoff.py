@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Manual live harness for the MLX 72B solver handoff path.
 
@@ -7,7 +8,6 @@ This script proves three things independently:
 3. the InferenceGate deep-handoff path can swap to 72B and recover 32B
 """
 
-from __future__ import annotations
 
 import asyncio
 import json

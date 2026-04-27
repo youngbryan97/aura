@@ -11,8 +11,8 @@ ablated. The audit's required behaviors:
 The contract here is small enough to be exercised by tests but real
 enough to drive explanation strategy.
 """
-
 from __future__ import annotations
+
 
 import time
 from dataclasses import dataclass, field

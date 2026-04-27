@@ -21,8 +21,8 @@ After this rewrite:
   3. It enforces the ExecutiveGuard to ensure the AI never breaks its
      sovereignty or narrative boundaries.
 """
-from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging

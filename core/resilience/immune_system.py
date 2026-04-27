@@ -6,8 +6,8 @@ This module preserves the older resilience-oriented API that exposes:
 - ``phagocyte.scan_and_neutralize(...)`` for prompt/pathogen scrubbing
 - ``ProcessTCell.patrol_bloodstream()`` for cancelling stuck async tasks
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

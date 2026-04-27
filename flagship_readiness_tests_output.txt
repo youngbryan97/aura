@@ -1,0 +1,227 @@
+Aura flagship gate: FAIL
+[WARNING] DIRECT_WRITE_TEXT test_fix_persistence.py:19 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_fix_persistence.py:26 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK test_runtime_polish.py:108 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT life_trial.py:70 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_personality_adapter_resolution.py:26 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT run_decisive_test.py:79 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_autonomous_task_engine_runtime.py:316 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT long_run_autonomy.py:391 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_feedback_audit_fixes.py:89 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_feedback_audit_fixes.py:90 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_feedback_audit_fixes.py:1760 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_feedback_audit_fixes.py:1781 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK test_mlx_client_resilience.py:302 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT test_closure_patch_03.py:9 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_closure_patch_03.py:17 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_closure_patch_03.py:25 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_closure_patch_03.py:33 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_orchestrator_compatibility.py:290 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT verify_harness.py:38 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_safe_mode_runtime.py:92 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT run_scale_sweep.py:29 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK test_cognitive_engine_2026.py:90 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:737 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:812 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:835 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:1158 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:1331 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:1380 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:1394 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:1703 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:1980 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2017 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2045 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2073 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2105 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2131 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2189 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2218 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2255 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2281 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2327 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2369 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2403 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2449 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2532 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2615 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2671 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2713 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2749 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2803 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2857 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2908 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2953 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:2995 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:3071 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:3096 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:3128 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT test_server_runtime_hardening.py:3201 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:3254 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT test_server_runtime_hardening.py:3984 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_server_runtime_hardening.py:4840 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_server_runtime_hardening.py:4852 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:5713 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_server_runtime_hardening.py:5732 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT test_sandbox_hardening.py:159 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_sandbox_hardening.py:225 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_sandbox_hardening.py:240 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_autonomous_resilience.py:50 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_autonomous_resilience.py:119 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE test_orchestrator.py:850 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE test_orchestrator.py:1739 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[WARNING] RAW_ASYNCIO_TASK test_controlled_complexity_runtime.py:102 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT run_causal_exclusion_suite.py:653 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_demo_audit_fixes.py:50 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_runtime_stability_edges.py:394 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_runtime_stability_edges.py:395 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT continuity_torture.py:276 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_forensic_audit_regressions.py:88 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_forensic_audit_regressions.py:97 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK test_forensic_audit_regressions.py:398 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT live_harness_registered_skills.py:203 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT live_harness_registered_skills.py:212 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK test_time_resilience.py:57 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK test_runtime_hygiene.py:26 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT test_task_commitment_verifier_runtime.py:357 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK test_local_server_client.py:35 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT test_local_server_client.py:336 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT self_repair_demo.py:238 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_closure_patch_04.py:18 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_closure_patch_04.py:43 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_closure_patch_04.py:62 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_closure_patch_04.py:87 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_skill_surface_contracts.py:118 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_skill_surface_contracts.py:254 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_skill_surface_contracts.py:328 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_skill_surface_contracts.py:346 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_skill_surface_contracts.py:364 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_skill_surface_contracts.py:385 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_skill_surface_contracts.py:441 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_skill_surface_contracts.py:525 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT test_closure_patch_05.py:28 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE test_architecture_hardening.py:418 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[WARNING] DIRECT_WRITE_TEXT test_consciousness_patch_retirement.py:65 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT integration/verify_harness.py:40 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK integration/verify_arbitrator_container.py:29 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK integration/verify_metal_persistence.py:77 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT integration/verify_type_safe_repair.py:26 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK integration/verify_phase_2_2.py:93 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK integration/verify_10_unique_messages.py:48 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK integration/verify_system_health.py:42 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK integration/verify_system_health.py:44 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK integration/chaos_fuzzer.py:89 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT governance/test_governance_lint.py:34 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.

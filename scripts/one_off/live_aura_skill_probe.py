@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Run a file-backed live Aura proof through the real orchestrator.
 
@@ -8,7 +9,6 @@ entrypoints instead of us doing them externally and calling it good.
 
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
-from __future__ import annotations
 
 import asyncio
 import json

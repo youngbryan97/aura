@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """tools/lint_governance.py
 
@@ -21,7 +22,6 @@ Exit codes:
 Run as part of ``make quality``. Wired into pre-commit via the same hook
 suite as ruff / mypy / pytest.
 """
-from __future__ import annotations
 
 import ast
 import os

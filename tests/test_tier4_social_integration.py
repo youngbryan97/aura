@@ -17,8 +17,8 @@ TIER 4: SOCIAL MIND, DEVELOPMENTAL NECESSITY, PERTURBATIONAL COMPLEXITY,
 USAGE:
     pytest tests/test_tier4_social_integration.py -v
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import copy

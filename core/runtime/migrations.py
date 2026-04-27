@@ -5,8 +5,8 @@ schema_version envelope. This module declares migration steps that
 upgrade ``schema_version=N-1`` records to ``schema_version=N`` and keep
 a migration log so partial migrations can resume.
 """
-
 from __future__ import annotations
+
 
 import json
 import logging

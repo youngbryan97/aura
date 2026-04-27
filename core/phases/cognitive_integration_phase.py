@@ -30,8 +30,8 @@ evolves her own neural wiring, maintains dual thermodynamic constraints
 (energy AND entropy), replicates successful patterns, and forms functional
 species within her cortical columns.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

@@ -20,8 +20,8 @@ Integration:
 - Feeds into qualia_synthesizer as a "peripheral field" dimension
 - Injects context when peripheral content is notably strong
 """
-
 from __future__ import annotations
+
 
 import logging
 import time

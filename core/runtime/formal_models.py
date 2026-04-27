@@ -15,8 +15,8 @@ that the test suite drives through every transition. The TLA+ specs live
 as docstrings on each model so the reader knows the formal property the
 machine is claiming to enforce.
 """
-
 from __future__ import annotations
+
 
 import time
 from dataclasses import dataclass, field

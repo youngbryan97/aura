@@ -7,8 +7,8 @@ config loader, migration loader. This module gives a tiny but *real* fuzzer
 that drives those targets with deterministic inputs (no Hypothesis dependency
 required) so the contract is exercised in CI even without the full chaos run.
 """
-
 from __future__ import annotations
+
 
 import random
 import string

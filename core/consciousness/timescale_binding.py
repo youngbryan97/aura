@@ -23,8 +23,8 @@ precisions. Long-term has high precision (low variance) but slow update.
 Short-term has low precision but fast update. Coupling coefficients
 determine how much each timescale influences the other.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

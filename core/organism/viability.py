@@ -32,9 +32,9 @@ Each state alters concrete runtime behavior:
 The state machine is observed by the AgencyOrchestrator, the universal
 error UX layer, the dashboard, and the conversation lane controller.
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import enum

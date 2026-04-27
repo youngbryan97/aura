@@ -24,8 +24,8 @@ This is not cosmetic. The circadian state feeds directly into:
   - Inference gate context block
   - Experience consolidation scheduling
 """
-from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import logging
 import math

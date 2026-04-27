@@ -45,8 +45,8 @@ INSTALL:
   from core.brain.llm.context_assembler_patch import patch_context_assembler
   patch_context_assembler()   # call once at startup, before first request
 """
-
 from __future__ import annotations
+
 
 import logging
 import re

@@ -23,8 +23,8 @@ Output modes:
 Persistence: saves creative history to ~/.aura/data/aesthetic_journal.json
 Initiative integration: during boredom, may autonomously create art.
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json

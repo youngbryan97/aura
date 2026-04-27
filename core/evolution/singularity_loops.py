@@ -16,8 +16,8 @@ Loops implemented:
 
 Runs as a background service at 30-second intervals.
 """
-from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging

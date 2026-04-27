@@ -36,8 +36,8 @@ and uses a PID controller to steer the neural mesh toward the critical point:
 The PID output adjusts three knobs in the neural mesh and neurochemical
 system: modulatory gain, noise level, and excitation/inhibition balance.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

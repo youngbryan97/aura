@@ -6,8 +6,8 @@ This module defines the ten canonical receipt types and a `ReceiptStore`
 that persists them through the canonical AtomicWriter so every receipt is
 durable, schema-versioned, and queryable.
 """
-
 from __future__ import annotations
+
 
 import json
 import threading

@@ -3,8 +3,8 @@
 Tests for recursive ToM (depth-3 nested minds) + observer-aware bias
 (scrub-jay re-caching analogue).
 """
-
 from __future__ import annotations
+
 
 import sys
 import time

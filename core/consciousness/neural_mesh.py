@@ -13,9 +13,9 @@ realistic connectivity:
 The mesh feeds a 64-dimensional *projection* back into the existing LiquidSubstrate,
 so the original 64-neuron core becomes the executive summary of a much larger field.
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import logging

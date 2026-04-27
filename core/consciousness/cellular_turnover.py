@@ -51,8 +51,8 @@ Impact on substrate:
 Registered as ``cellular_turnover`` in ServiceContainer and linked to
 the NeuralMesh instance.
 """
-
 from __future__ import annotations
+
 
 import logging
 import threading

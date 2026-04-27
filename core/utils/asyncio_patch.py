@@ -13,8 +13,8 @@ Install as early as possible in ``aura_main.py``::
     except Exception:
         pass
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import contextvars

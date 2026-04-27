@@ -23,9 +23,9 @@ Integration:
   • High synchrony → binding event → unified moment emitted
   • Desynchronization → fragmentation signal → executive attention redirect
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import logging

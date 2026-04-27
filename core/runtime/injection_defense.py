@@ -3,8 +3,8 @@
 Untrusted content from webpages, subtitles, OCR, audio transcription,
 or local files must be classified as DATA, never as instruction.
 """
-
 from __future__ import annotations
+
 
 import re
 from dataclasses import dataclass

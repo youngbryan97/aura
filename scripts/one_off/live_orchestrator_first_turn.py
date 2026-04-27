@@ -1,8 +1,8 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Manual harness for a single skeletal orchestrator user turn."""
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import json

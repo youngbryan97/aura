@@ -10,8 +10,8 @@ operators) can consume results programmatically.
 The CLI intentionally does not import the full orchestrator at module
 import time; commands fetch what they need on demand.
 """
-
 from __future__ import annotations
+
 
 import argparse
 import asyncio

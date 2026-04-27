@@ -1,0 +1,43 @@
+Aura flagship gate: PASS
+[WARNING] DIRECT_WRITE_TEXT aura_collect_flagship_evidence.py:97 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT bundle_aura.py:56 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK tunnel_manager.py:62 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT export_source_bundle.py:157 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT verify_robustness.py:34 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT verify_robustness.py:58 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT verify_robustness.py:78 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT aura_morphogenesis_longitudinal_report.py:121 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT generate_architecture_report.py:572 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT cognitive_crucible.py:223 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT cognitive_crucible.py:283 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT patch_paths.py:53 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT aura_task_ownership_codemod.py:107 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT aura_task_ownership_codemod.py:108 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK one_off/live_aura_skill_probe.py:337 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT one_off/live_aura_skill_probe.py:523 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT one_off/verify_zenith.py:63 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK one_off/live_unitary_local_probe.py:40 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK one_off/live_orchestrator_first_turn.py:39 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT one_off/live_orchestrator_trace_payload.py:55 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK one_off/live_orchestrator_trace_payload.py:188 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.

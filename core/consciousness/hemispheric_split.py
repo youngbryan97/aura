@@ -48,8 +48,8 @@ This is registered as ``hemispheric_split`` in ServiceContainer and is
 fed by ClosedCausalLoop on each prediction tick.  It also participates in
 the consciousness_bridge subsystem audit.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

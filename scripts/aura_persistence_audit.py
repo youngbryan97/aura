@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Audit direct persistence writes in Aura.
 
@@ -6,7 +7,6 @@ persistence_ownership. It does not blindly rewrite because some write_text calls
 are harmless generated assets, docs, or tests.
 """
 
-from __future__ import annotations
 
 import argparse
 import ast

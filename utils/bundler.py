@@ -13,8 +13,8 @@ Usage:
     python -m utils.bundler --out /tmp/aura.txt  # custom path
     python -m utils.bundler --check              # dry-run: list files only
 """
-
 from __future__ import annotations
+
 
 import argparse
 import hashlib

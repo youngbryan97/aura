@@ -28,8 +28,8 @@ Organs that have stem-cell coverage:
 The engine never reverts memory contents — only structural / policy state.
 That keeps autobiographical continuity intact across organ resets.
 """
-
 from __future__ import annotations
+
 
 import hashlib
 import hmac

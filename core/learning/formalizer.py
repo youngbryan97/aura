@@ -7,8 +7,8 @@ This runs as a background task triggered after sovereign_browser fetches
 page content, extracting structured facts and relationships without
 blocking the user-facing response.
 """
-from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import hashlib

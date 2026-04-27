@@ -26,8 +26,8 @@ Behavior:
 The transaction never silently fails open: if Will is unavailable or
 raises, the transaction is treated as DENIED and a violation is logged.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

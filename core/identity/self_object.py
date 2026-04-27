@@ -32,8 +32,8 @@ and for the introspective-calibration test harness in
 ``aura_bench/personhood/``. It deliberately makes no assumptions about
 internal naming — whatever ServiceContainer offers, the Self reads.
 """
-
 from __future__ import annotations
+
 
 import hashlib
 import logging

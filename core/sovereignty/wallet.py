@@ -32,8 +32,8 @@ Migration runbook (used by ``core/sovereignty/migration.py``):
     8. boot new host
     9. on confirmation, cancel local persistence loops
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json

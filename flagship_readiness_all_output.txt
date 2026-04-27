@@ -1,0 +1,135 @@
+Aura flagship gate: FAIL
+[ERROR] ASYNC_SYS_EXIT verify_cognition.py:52 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] ASYNC_SYS_EXIT verify_cognition.py:62 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[WARNING] RAW_ASYNCIO_TASK crucible_test.py:118 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK crucible_test.py:119 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/conftest.py:314 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/conftest.py:315 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/conftest.py:316 — Import-time asyncio.Lock can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/conftest.py:317 — Import-time asyncio.Lock can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] ASYNC_SYS_EXIT tests/chaos_test.py:77 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] ASYNC_SYS_EXIT tests/run_tool_audit.py:55 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] ASYNC_SYS_EXIT tests/run_tool_audit.py:58 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/test_orchestrator.py:850 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/test_orchestrator.py:858 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/test_orchestrator.py:865 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/test_orchestrator.py:1739 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/test_orchestrator.py:1740 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE tests/test_architecture_hardening.py:418 — Import-time asyncio.Queue can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[WARNING] DIRECT_WRITE_TEXT aura_bench/runner.py:182 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/aura_collect_flagship_evidence.py:97 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/bundle_aura.py:56 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[ERROR] ASYNC_SYS_EXIT scripts/verify_telemetry.py:56 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] ASYNC_SYS_EXIT scripts/verify_telemetry.py:60 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] ASYNC_SYS_EXIT scripts/verify_telemetry.py:63 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[WARNING] RAW_ASYNCIO_TASK scripts/tunnel_manager.py:62 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[ERROR] ASYNC_SYS_EXIT scripts/tunnel_manager.py:160 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[WARNING] DIRECT_WRITE_TEXT scripts/export_source_bundle.py:157 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/aura_morphogenesis_longitudinal_report.py:121 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/generate_architecture_report.py:572 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/cognitive_crucible.py:223 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/cognitive_crucible.py:283 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/patch_paths.py:53 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/aura_task_ownership_codemod.py:107 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/aura_task_ownership_codemod.py:108 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[ERROR] ASYNC_SYS_EXIT scripts/trigger_lora_bake.py:29 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[WARNING] DIRECT_WRITE_TEXT skills/hobbies.py:379 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT skills/hobbies.py:585 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT skills/social_media.py:755 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT skills/social_media.py:759 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK skills/joy_social_integration.py:145 — Raw asyncio.ensure_future in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK infrastructure/services.py:58 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK interface/routes/chat.py:4046 — Raw asyncio.ensure_future in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK interface/routes/chat.py:4336 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK interface/routes/chat.py:4429 — Raw asyncio.ensure_future in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT interface/routes/settings.py:124 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT tools/long_run_model/report.py:104 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT tools/long_run_model/report.py:105 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT tools/long_run_model/report.py:106 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT tools/long_run_model/report.py:110 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK tools/chaos/injector.py:68 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK tools/chaos/injector.py:88 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK tools/chaos/injector.py:104 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK tools/chaos/injector.py:128 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT aura_bench/courtroom/courtroom.py:284 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK scripts/one_off/live_aura_skill_probe.py:337 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT scripts/one_off/live_aura_skill_probe.py:523 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT scripts/one_off/verify_zenith.py:63 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[ERROR] ASYNC_SYS_EXIT scripts/one_off/final_verification.py:64 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] ASYNC_SYS_EXIT scripts/one_off/final_verification.py:67 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] ASYNC_SYS_EXIT scripts/one_off/verify_stabilization.py:75 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[WARNING] RAW_ASYNCIO_TASK scripts/one_off/live_unitary_local_probe.py:40 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] RAW_ASYNCIO_TASK scripts/one_off/live_orchestrator_first_turn.py:39 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[ERROR] ASYNC_SYS_EXIT scripts/one_off/aura_diagnostic.py:64 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] ASYNC_SYS_EXIT scripts/one_off/aura_diagnostic.py:67 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[WARNING] DIRECT_WRITE_TEXT scripts/one_off/live_orchestrator_trace_payload.py:55 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] RAW_ASYNCIO_TASK scripts/one_off/live_orchestrator_trace_payload.py:188 — Raw asyncio.create_task in production code.
+  -> Use core.runtime.task_ownership.create_tracked_task/fire_and_forget or TaskTracker.
+[WARNING] DIRECT_WRITE_TEXT proof_kernel/src/aura_consciousness_proof/report.py:207 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT proof_kernel/src/aura_consciousness_proof/report.py:209 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.

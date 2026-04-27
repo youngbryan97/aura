@@ -44,9 +44,9 @@ INSTALL:
   from core.cognitive_integration_patch import patch_cognitive_integration
   patch_cognitive_integration()
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import json

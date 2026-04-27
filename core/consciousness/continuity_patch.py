@@ -40,8 +40,8 @@ INSTALL:
 
   Or via the unified apply_consciousness_patches() in this package's __init__.
 """
-
 from __future__ import annotations
+
 
 import json
 import logging

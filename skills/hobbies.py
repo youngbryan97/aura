@@ -16,8 +16,8 @@ Wiring:
 - AgencyCore._pathway_curiosity_drive ← exploratory session proposals
 - CognitiveContextManager ← get_joy_summary() injection
 """
-from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 import logging

@@ -15,8 +15,8 @@ The store is in-process; persistence is intentionally out of scope to
 prevent cross-restart token reuse. ``revoke_all()`` is called on graceful
 shutdown.
 """
-
 from __future__ import annotations
+
 
 import logging
 import os

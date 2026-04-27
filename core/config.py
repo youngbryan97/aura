@@ -2,9 +2,7 @@
 Hardened Configuration System for Aura.
 2026 Standards: Pydantic Settings V2, Strict Validation, and Mycelial Observability.
 """
-
 from __future__ import annotations
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -63,6 +61,7 @@ class Paths(BaseModel):
         candidate = self.home_dir.expanduser().resolve()
         try:
             candidate.mkdir(parents=True, exist_ok=True)
+            from core.runtime.atomic_writer import atomic_write_text
             probe = candidate / ".aura_write_probe"
             atomic_write_text(probe, "ok", encoding="utf-8")
             probe.unlink(missing_ok=True)

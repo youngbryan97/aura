@@ -19,8 +19,8 @@ Integration:
   inference_gate (token budget), subcortical_core (arousal)
 - Persists across restarts via state file
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json

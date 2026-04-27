@@ -3,8 +3,8 @@
 Extracted from server.py — Chat, session management, conversation lane,
 and related API endpoints.
 """
-from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import collections
@@ -67,6 +67,7 @@ MAX_CHAT_MESSAGE_BYTES = 64 * 1024  # 64KB
 _conversation_log: list[dict] = []  # In-memory session log for current runtime
 _locks = {}
 def _get_convo_lock(): return _locks.setdefault("convo", asyncio.Lock())
+_conversation_log_lock = _get_convo_lock()
 _session_memory_pins: list[dict] = []
 _MAX_CONVERSATION_LOG_EXCHANGES = 500
 def _get_fg_lock(): return _locks.setdefault("fg", asyncio.Lock())

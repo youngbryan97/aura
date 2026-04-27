@@ -3,8 +3,8 @@
 Tests for the Glasgow-inspired minimal selfhood stack:
   trichoplax → dugesia transition, chemotaxis speed, directed action priority.
 """
-
 from __future__ import annotations
+
 
 import math
 import sys

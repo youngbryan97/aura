@@ -5,8 +5,8 @@ compact stateful controller that learns the same endpoint mapping.  If Aura's
 full stack cannot beat this baseline on coherence/process metrics, the critic
 is right: the process is replaceable theater.
 """
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Sequence

@@ -25,8 +25,8 @@ Usage:
     from core.version import VERSION
     setup(version=VERSION)
 """
-
 from __future__ import annotations
+
 
 import logging
 

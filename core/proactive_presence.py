@@ -10,8 +10,8 @@ module now treats the primary chat lane as a scarce channel:
   - concrete progress/thread updates only after meaningful idle
   - background reflections stay in the neural feed
 """
-
 from __future__ import annotations
+
 
 import asyncio
 from collections import deque

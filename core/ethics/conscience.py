@@ -39,8 +39,8 @@ Stability properties
 The conscience is not personality. It is the irreversible safety floor
 that lets the rest of the system be expressive without becoming dangerous.
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import hashlib

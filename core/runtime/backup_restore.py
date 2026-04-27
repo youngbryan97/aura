@@ -3,8 +3,8 @@
 Atomic backup that bundles state, memory, and the receipt store. Restore
 verifies schema versions before swapping live directories.
 """
-
 from __future__ import annotations
+
 
 import shutil
 import tarfile

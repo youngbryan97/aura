@@ -9,8 +9,8 @@ and the loop_guard layer can enforce caps. Real syscall enforcement
 (rlimit, cgroups) lives in the platform-specific drivers; this layer is
 the contract + the in-process tracker.
 """
-
 from __future__ import annotations
+
 
 import time
 from dataclasses import dataclass, field

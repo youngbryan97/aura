@@ -1,5 +1,5 @@
-"""SelfObject — snapshot, calibration, bias detection."""
 from __future__ import annotations
+"""SelfObject — snapshot, calibration, bias detection."""
 
 from core.identity.self_object import get_self
 

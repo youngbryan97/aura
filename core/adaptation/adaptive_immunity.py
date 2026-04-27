@@ -15,8 +15,8 @@ The design here deliberately keeps the adaptive layer *advisory and bounded*.
 It can execute only a narrow subset of repair actions through the existing
 autopoiesis engine. Everything sensitive remains governance-gated.
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio

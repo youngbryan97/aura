@@ -6,8 +6,8 @@ mock LLM.  Verifies that a message goes in and a real response comes out.
 
 NOT a unit test -- this exercises the actual assembled AuraKernel pipeline.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import os

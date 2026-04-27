@@ -1,5 +1,5 @@
-"""interface/routes/multimodal.py — SSE for the multimodal coordinator."""
 from __future__ import annotations
+"""interface/routes/multimodal.py — SSE for the multimodal coordinator."""
 
 import asyncio
 import json

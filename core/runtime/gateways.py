@@ -10,8 +10,8 @@ These are intentionally *abstract* — the goal is to have a stable
 contract that runtime invariants can assert against without rewriting
 the existing implementations all at once.
 """
-
 from __future__ import annotations
+
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field

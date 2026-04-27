@@ -87,7 +87,7 @@ class TaskTracker:
         else:
             token = _SKIP_FACTORY_TRACK.set(True)
             try:
-                task = get_task_tracker().create_task(coro_or_task, name=name)
+                task = asyncio.create_task(coro_or_task, name=name)
             finally:
                 _SKIP_FACTORY_TRACK.reset(token)
         self._total_tracked += 1
@@ -121,7 +121,7 @@ class TaskTracker:
 
         token = _SKIP_FACTORY_TRACK.set(True)
         try:
-            task = get_task_tracker().create_task(_bounded(), name=name)
+            task = asyncio.create_task(_bounded(), name=name)
         finally:
             _SKIP_FACTORY_TRACK.reset(token)
         self._total_tracked += 1

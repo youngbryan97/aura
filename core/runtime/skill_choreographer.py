@@ -3,8 +3,8 @@
 Combines goal decomposition, skill selection, dependency ordering,
 verification chaining, rollback plan, and per-chain memory updates.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 from dataclasses import dataclass, field

@@ -6,8 +6,8 @@ machine" instead of laundering a memory-bound setup into a real-time autonomy
 claim.  It is intentionally conservative because optimistic memory math is how
 32B-on-16GB claims become theater.
 """
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass, field
 from typing import Iterable

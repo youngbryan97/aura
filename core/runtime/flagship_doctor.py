@@ -9,8 +9,8 @@ It is intentionally conservative: a PASS means "basic operational readiness
 checks are green", not "Aura is proven conscious" or "the whole product is
 perfect".
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json

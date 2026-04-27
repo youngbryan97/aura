@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Manual harness for the embedded MLX first-turn failure.
 
@@ -9,7 +10,6 @@ Runs a few real foreground probes in a fresh process so we can compare:
 This is intentionally a manual/live tool, not a unit test.
 """
 
-from __future__ import annotations
 
 import asyncio
 import json

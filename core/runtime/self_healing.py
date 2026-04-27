@@ -21,8 +21,8 @@ Repair actions:
     re-instantiate via ServiceContainer
   * record an action receipt + a phenomenal envelope (severity = 0.5)
 """
-from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import json

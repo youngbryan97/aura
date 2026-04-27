@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Aura model fetcher for both MLX and managed GGUF runtimes."""
 
-from __future__ import annotations
 
 from pathlib import Path
 import re

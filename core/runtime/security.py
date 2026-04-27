@@ -6,8 +6,8 @@ process kill, browser file://, and private-key reads. This module
 declares the capability taxonomy and a sandbox policy registry that the
 governed tools call into.
 """
-
 from __future__ import annotations
+
 
 import logging
 import os

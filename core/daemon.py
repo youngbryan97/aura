@@ -2,8 +2,8 @@
 ─────────────────
 Aura Cognitive Daemon — always-on process.
 """
-
 from __future__ import annotations
+
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
 

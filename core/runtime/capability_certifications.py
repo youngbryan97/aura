@@ -5,8 +5,8 @@ beyond-human target, score rubric, and pass conditions. The audit
 explicitly forbids overclaiming, so each cert carries explicit
 "cannot" disclosures.
 """
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional

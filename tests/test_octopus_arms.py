@@ -3,8 +3,8 @@
 Tests for 8-arm octopus federation: local autonomy + central arbitration,
 link severance, integration latency.
 """
-
 from __future__ import annotations
+
 
 import sys
 from pathlib import Path

@@ -16,8 +16,8 @@ AFTER: One definition here. Both modules import from here.
       from core.memory.base import MemoryEvent, MemoryType
   Update sqlite_storage.py line ~24: same.
 """
-
 from __future__ import annotations
+
 
 import time
 from dataclasses import asdict, dataclass, field

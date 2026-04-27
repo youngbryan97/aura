@@ -26,9 +26,9 @@ signal.  The combined signal vector is:
 Resilient: if psutil or any sensor fails, that channel returns its last good
 value.  Total sensor failure degrades gracefully to neutral baseline.
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import logging

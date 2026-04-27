@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 # Conservative task ownership scanner/codemod.
 #
@@ -10,7 +11,6 @@
 
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
-from __future__ import annotations
 
 import argparse
 import ast

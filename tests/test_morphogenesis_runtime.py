@@ -14,8 +14,8 @@ Tests cover:
   9. Registry persistence round-trip
   10. Runtime start/stop lifecycle
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import json

@@ -27,8 +27,8 @@ Integration:
 - Updates temporal_finitude (irreversible actions increase biographical weight)
 - Connects to subcortical_core (sandbox stimulus raises arousal)
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import hashlib

@@ -3,8 +3,8 @@
 Per the audit, each channel has different gates. Stable promotion
 requires conformance + abuse + migration + rollback proof.
 """
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, Optional

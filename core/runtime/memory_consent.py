@@ -5,8 +5,8 @@ session_only / private_mode / forget. Explicit user commands like
 "forget this", "remember this part", "private mode" are honored at
 write time.
 """
-
 from __future__ import annotations
+
 
 import threading
 import time

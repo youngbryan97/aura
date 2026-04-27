@@ -11,8 +11,8 @@ This object is intentionally small: the existing live code paths can
 adopt it incrementally by replacing direct mutations / fire-and-forget
 calls with tx.stage_*() and tx.commit().
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

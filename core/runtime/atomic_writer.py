@@ -19,8 +19,8 @@ This module exposes:
 with explicit schema-version envelopes so loaders can detect ancient
 records and refuse rather than silently misread.
 """
-
 from __future__ import annotations
+
 
 import json
 import logging

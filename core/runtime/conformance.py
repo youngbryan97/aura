@@ -17,8 +17,8 @@ This module exposes runnable check functions for each invariant. Each
 function returns ``ConformanceResult`` so the conformance test suite and
 the abuse gauntlet runner can both consume the same evidence.
 """
-
 from __future__ import annotations
+
 
 import inspect
 import logging

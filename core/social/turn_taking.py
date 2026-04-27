@@ -5,8 +5,8 @@ she may speak, vs. when she stays quiet, in conversation, movie, focus,
 and collaborative modes. The state is updated by perception/audio
 inputs and consumed by output paths before they emit.
 """
-
 from __future__ import annotations
+
 
 import time
 from dataclasses import dataclass, field

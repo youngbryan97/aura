@@ -5,8 +5,8 @@ must pass through this gateway; mutations are durably committed via
 atomic_writer with schema-versioned envelopes and recorded as
 StateMutationReceipts.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

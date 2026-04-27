@@ -24,8 +24,8 @@ This keeps the biases COMPOSABLE — each layer's intended contribution
 is visible in the fused vector and attributable via
 ``contribution_summary``.
 """
-
 from __future__ import annotations
+
 
 import logging
 import threading

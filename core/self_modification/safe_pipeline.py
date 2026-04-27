@@ -31,8 +31,8 @@ All ten phases produce auditable receipts in the same JSONL ledger as
 agency receipts so external reviewers can reconstruct the lineage of
 every code change.
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio

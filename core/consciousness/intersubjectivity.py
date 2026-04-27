@@ -22,8 +22,8 @@ This integrates with:
 - core/consciousness/unified_field.py (as an additional tensor dimension)
 - core/consciousness/qualia_synthesizer.py (enriches phenomenal reports)
 """
-
 from __future__ import annotations
+
 
 import logging
 import time

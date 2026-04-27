@@ -5,8 +5,8 @@ does not prove consciousness.  It checks the hard engineering claims that were
 criticized: black-box prompt hygiene, rich-prompt steering controls, phi sanity,
 MI statistics, hardware honesty, and non-cosmetic resource stakes.
 """
-
 from __future__ import annotations
+
 
 import json
 import os

@@ -1,5 +1,5 @@
-"""Relationship model invariants."""
 from __future__ import annotations
+"""Relationship model invariants."""
 
 import os
 import tempfile

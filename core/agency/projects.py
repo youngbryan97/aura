@@ -25,8 +25,8 @@ The ledger is intentionally evidence-based: a project that claims completion
 without artifacts and acceptance-criteria checks is rejected by
 ``mark_completed()``.
 """
-
 from __future__ import annotations
+
 
 import json
 import logging

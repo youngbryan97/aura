@@ -15,8 +15,8 @@ Coverage:
     Phase 8 (UnifiedCognitiveBias) — fused vector composition sanity
     Cross-phase — biases stay bounded, stress under 500 combined ticks.
 """
-
 from __future__ import annotations
+
 
 import math
 import sys

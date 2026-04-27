@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Machine-readable flagship readiness checks for Aura."""
 
-from __future__ import annotations
 
 import ast
 import json

@@ -13,8 +13,8 @@ Covers:
   - adversarial: constant nodes → 0 contribution
   - stress: 5× longer history compute still under 1 s budget
 """
-
 from __future__ import annotations
+
 
 import math
 import os

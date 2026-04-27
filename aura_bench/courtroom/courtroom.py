@@ -32,8 +32,8 @@ Pre-registered pass condition for the courtroom:
 Output: ``aura_bench/courtroom/results.jsonl`` plus a markdown report at
 ``aura_bench/courtroom/report.md``.
 """
-from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json

@@ -33,8 +33,8 @@ Security:
     - Content is validated before workspace injection
     - No arbitrary code execution -- only structured data
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import json

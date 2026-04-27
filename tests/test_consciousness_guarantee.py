@@ -58,8 +58,8 @@ USAGE:
     pytest tests/test_consciousness_guarantee.py -v
     pytest tests/test_consciousness_guarantee.py -v -k "TestContinuousEndogenousActivity"
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import copy

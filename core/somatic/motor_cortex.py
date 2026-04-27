@@ -22,8 +22,8 @@ Design invariants:
   4. All actions require a valid CapabilityToken from the Will.
   5. Every completed action emits a MotorReceipt for audit + awareness.
 """
-from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import hashlib

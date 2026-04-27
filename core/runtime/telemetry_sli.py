@@ -7,8 +7,8 @@ movie comment timing, conversation repair). This module captures the SLO
 catalog as data so dashboards and alerts can be derived from a single
 source of truth and tested for completeness.
 """
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass
 from typing import Dict

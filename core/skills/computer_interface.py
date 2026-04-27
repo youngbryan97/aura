@@ -5,8 +5,8 @@ Provides a common interface for different browser backends (Playwright,
 Selenium, Cloud) so the Computer Use agent can swap backends without
 logic changes.
 """
-
 from __future__ import annotations
+
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass

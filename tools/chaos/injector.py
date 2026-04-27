@@ -19,8 +19,8 @@ Each fault returns a dict ``{kind, applied: True|False, detail}``. The
 chaos run records the fault and the system's repair signal (the
 StabilityGuardian and ResilienceEngine telemetry) for later analysis.
 """
-from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging

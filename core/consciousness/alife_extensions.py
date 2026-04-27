@@ -49,8 +49,8 @@ Thread-safety: all mutable state is guarded by a threading.Lock.
 Dependencies: numpy only (no sklearn -- k-means and silhouette are implemented
 from scratch to avoid adding a heavy dependency).
 """
-
 from __future__ import annotations
+
 
 import logging
 import threading

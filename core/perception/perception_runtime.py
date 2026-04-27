@@ -8,8 +8,8 @@ Capability access is gated by a ``CapabilityToken`` issued through
 Unified Will. The runtime never starts a sensor without a valid token,
 and the token records the audit receipt that authorized the access.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

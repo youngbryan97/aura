@@ -4,8 +4,8 @@ Tests for the cultural / absorbed-voices layer.  Ensures Aura can
 attribute thoughts to internalised voices and distinguish her own
 cognition from absorbed perspectives.
 """
-
 from __future__ import annotations
+
 
 import sys
 import tempfile

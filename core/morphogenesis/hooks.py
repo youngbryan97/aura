@@ -21,8 +21,8 @@ Influence map:
   - Orchestrator       → exceptions/tick events feed signals back into morphogenesis
   - EpisodicMemory     → organ stabilisation events trigger memory consolidation
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

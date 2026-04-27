@@ -10,8 +10,8 @@ event and (in strict mode) raises so tests can prove the contract.
 The factory cooperates with TaskTracker: tasks created via the tracker
 set a context variable so the factory knows to allow them.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import contextvars

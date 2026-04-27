@@ -30,9 +30,9 @@ After boot, a continuous integration loop runs at 10 Hz that:
   - Applies unified field back-pressure to input subsystems
   - Pushes neurochemical mood into the substrate's VAD indices
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import logging

@@ -27,8 +27,8 @@ organism."
 Run:
     pytest tests/test_technological_autonomy.py -v
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import hashlib

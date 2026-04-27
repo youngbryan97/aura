@@ -6,8 +6,8 @@ state constrains what the system can do, persists, and has consequences."  The
 ledger records scarcity, applies irreversible degradation until explicit repair,
 and produces action envelopes that other subsystems can obey.
 """
-
 from __future__ import annotations
+
 
 import json
 import os

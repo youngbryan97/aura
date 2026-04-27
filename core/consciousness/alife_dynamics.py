@@ -44,8 +44,8 @@ Integration between the three systems:
   - CPU allocation amplifies entropy (more substeps = more entropy per column)
   - High entropy reduces CPU credits (entropy crisis throttles computation)
 """
-
 from __future__ import annotations
+
 
 __all__ = [
     "ALifeDynamics",

@@ -16,9 +16,9 @@ Strict mode (AURA_STRICT_RUNTIME=1) elevates phase failures so they are
 visible in tests and conformance harnesses, while still completing the
 remaining phases.
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import inspect

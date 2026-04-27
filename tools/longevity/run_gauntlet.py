@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """tools/longevity/run_gauntlet.py
 
@@ -26,7 +27,6 @@ Artifacts produced per run
 Usage:
     python tools/longevity/run_gauntlet.py --profile 24h_no_user
 """
-from __future__ import annotations
 
 import argparse
 import asyncio

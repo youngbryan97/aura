@@ -12,8 +12,8 @@ Covers:
   - dissent signal when right-hemisphere pattern hits
   - fused bias is NOT identical to either hemisphere's bias
 """
-
 from __future__ import annotations
+
 
 import sys
 import time

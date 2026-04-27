@@ -21,8 +21,8 @@ Integration points:
 
 Registered in ServiceContainer as "substrate_voice_engine".
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

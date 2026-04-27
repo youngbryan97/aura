@@ -28,9 +28,9 @@ Invariants:
     3. Resource accounting enforced via per-tick CPU timing
     4. A branch without a WillReceipt is invalid and will not run
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import hashlib

@@ -3,8 +3,8 @@ integration/aura_master_integration.py
 Aura v3.0 Master Integration System
 Production-ready integration manager with fault tolerance and monitoring.
 """
-
 from __future__ import annotations
+
 import logging
 from typing import Optional, Dict, Any, Callable, List, Tuple
 from dataclasses import dataclass, field

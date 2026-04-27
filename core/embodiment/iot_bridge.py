@@ -28,9 +28,9 @@ The reverse direction — env → substrate — uses ``observe()`` to inject an
 event into the prediction-error stream tagged with provenance so it never
 gets confused with internal state.
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import json

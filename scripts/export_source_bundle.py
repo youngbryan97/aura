@@ -9,8 +9,8 @@ screen recordings, model weights, large binary assets, and any redacted
 personal-content paths. Keeps: Python core, infrastructure (scripts, CI,
 docker, configs), HTML/CSS/JS interface, markdown docs, shell, Makefile.
 """
-from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import argparse
 import fnmatch

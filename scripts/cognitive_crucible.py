@@ -24,8 +24,8 @@ Results:
     `~/.aura/live-source/training/crucible_results.jsonl` so the user can
     review them post-hoc without re-running the slow scenarios.
 """
-from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json

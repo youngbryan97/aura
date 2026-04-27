@@ -8,8 +8,8 @@ connections, or message floods.
 All tests are marked @pytest.mark.slow and @pytest.mark.stress so they
 can be excluded from fast CI runs with:  pytest -m "not stress"
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import json

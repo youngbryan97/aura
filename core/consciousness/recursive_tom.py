@@ -50,8 +50,8 @@ Registered as ``recursive_tom`` in ServiceContainer.  Fed by the
 conversation layer (``observe_agent(id)``, ``register_interaction``)
 and by ClosedCausalLoop (``tick()``).
 """
-
 from __future__ import annotations
+
 
 import logging
 import threading

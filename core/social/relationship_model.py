@@ -25,8 +25,8 @@ Storage: durable JSON per-relationship in
 atomically (write-tmp + rename) so a crash mid-write never produces a
 half-written dossier.
 """
-
 from __future__ import annotations
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json

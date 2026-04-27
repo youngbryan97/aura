@@ -29,8 +29,8 @@ This module measures EI across four levels of Aura's architecture:
 For each level, we clamp states, measure downstream effects on the next
 tick, and compute EI. Comparing across levels produces the emergence profile.
 """
-
 from __future__ import annotations
+
 
 import logging
 import time

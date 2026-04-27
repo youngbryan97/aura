@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Generate a bounded scale-sweep artifact for reviewers."""
 
-from __future__ import annotations
 
 import json
 import sys

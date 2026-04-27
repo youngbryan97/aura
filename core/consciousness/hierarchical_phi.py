@@ -40,8 +40,8 @@ Registered in ServiceContainer as "hierarchical_phi".  Fed by
 ClosedCausalLoop which calls ``record_mesh_snapshot(mesh_field)`` every
 prediction tick.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

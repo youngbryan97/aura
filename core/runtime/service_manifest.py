@@ -21,8 +21,8 @@ roles may be unbound. Late critical registrations are forbidden once the
 registry is locked, which is enforced by the existing ServiceContainer
 lock_registration() gate.
 """
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, Optional, Set

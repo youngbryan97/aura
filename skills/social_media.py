@@ -30,8 +30,8 @@ Twitter: TWITTER_BEARER_TOKEN, TWITTER_API_KEY, TWITTER_API_SECRET,
 Reddit:  REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME,
          REDDIT_PASSWORD, REDDIT_USER_AGENT
 """
-from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 import logging

@@ -5,8 +5,8 @@ All generate / embed / vision / pause / unload routes through this
 actor, which serializes access via an asyncio queue and records
 per-call ToolExecutionReceipt entries when receipts are requested.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

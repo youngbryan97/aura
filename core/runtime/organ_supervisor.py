@@ -27,9 +27,9 @@ The organ-side controller stub is a small entry-point that knows how to
 open its socket, accept requests, and dispatch to the local handler;
 each organ ships its own stub (e.g. ``core/brain/llm/mlx_controller.py``).
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import json

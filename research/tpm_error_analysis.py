@@ -23,8 +23,8 @@ Uses numpy throughout. Compatible with both the RIIU surrogate phi
 (core/consciousness/iit_surrogate.py) and the spectral approximation
 (research/phi_approximation.py).
 """
-
 from __future__ import annotations
+
 
 import logging
 import time

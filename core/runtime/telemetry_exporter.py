@@ -7,8 +7,8 @@ the call graph without a backend.
 
 Real adapters can register a concrete exporter via ``set_exporter()``.
 """
-
 from __future__ import annotations
+
 
 import time
 from dataclasses import dataclass, field

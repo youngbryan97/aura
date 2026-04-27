@@ -18,8 +18,8 @@ The substrate is the decision-maker. The LLM is just the voice.
 Key principle: ABSENCE of follow-up is the default. Follow-up is the exception
 that requires real substrate justification.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

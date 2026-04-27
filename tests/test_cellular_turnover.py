@@ -3,8 +3,8 @@
 Tests for neuron turnover + pattern-identity preservation on the
 NeuralMesh (Theseus / Kurzgesagt cell-replacement thought experiment).
 """
-
 from __future__ import annotations
+
 
 import sys
 from pathlib import Path

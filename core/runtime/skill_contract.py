@@ -14,8 +14,8 @@ failed_recoverable / failed_fatal / blocked_by_policy / needs_human_approval.
 A skill without a registered verifier is recorded as ``unverified`` and is
 flagged by the conformance suite.
 """
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass, field
 from enum import Enum

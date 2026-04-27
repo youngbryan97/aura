@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Collect a flagship-readiness evidence bundle for Aura.
 
@@ -10,7 +11,6 @@ This does not claim metaphysical proof. It creates a concrete artifact with:
 """
 
 from core.runtime.atomic_writer import atomic_write_text
-from __future__ import annotations
 
 import argparse
 import json

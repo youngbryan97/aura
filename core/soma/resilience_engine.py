@@ -15,9 +15,9 @@ Three states:
     STRAIN     — Sustained frustration, requires strategy change.
     DEPLETION  — Deep exhaustion, requires rest, not more effort.
 """
+from __future__ import annotations
 
 from core.utils.task_tracker import get_task_tracker
-from __future__ import annotations
 
 import asyncio
 import logging

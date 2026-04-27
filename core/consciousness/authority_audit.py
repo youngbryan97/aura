@@ -10,8 +10,8 @@ An effect without a valid receipt_id is flagged as UNMATCHED.
 
 Queryable at any time via get_audit().verify() or the /audit endpoint.
 """
-
 from __future__ import annotations
+
 
 import hashlib
 import logging

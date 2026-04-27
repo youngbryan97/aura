@@ -36,8 +36,8 @@ only computes the offsets from substrate state. If MLX cannot accept
 activation steering on a given build, the bridge degrades gracefully —
 the sampling-parameter modulation continues to work.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

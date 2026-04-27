@@ -24,8 +24,8 @@ of the original exception. The HTTP middleware in ``interface/server.py``
 maps the envelope to a 200-with-status response so the chat UI never sees
 a non-200 unless something truly catastrophic is happening.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import functools

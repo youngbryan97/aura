@@ -16,8 +16,8 @@ If any rung fails, the patch is rejected with the exact failing rung and
 reason recorded. The audits explicitly forbid patches landing on AST parse
 alone — this module enforces that contract.
 """
-
 from __future__ import annotations
+
 
 import ast
 import importlib.util

@@ -5,8 +5,8 @@ possible, and easy to audit. This module wraps Aura's canonical AtomicWriter
 when present and falls back to temp+replace when imported in test/minimal
 contexts.
 """
-
 from __future__ import annotations
+
 
 import json
 import os

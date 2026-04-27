@@ -10,8 +10,8 @@ The harness can run in 'fast' mode (subseconds) for CI proofs, or in
 'real' mode (the actual 24h soak). In fast mode every event is fired
 deterministically; in real mode they are spaced across the duration.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import time

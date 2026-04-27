@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Extract proper CAA steering vectors from model hidden states.
 
@@ -28,7 +29,6 @@ Usage:
 Requires MLX and mlx-lm.
 """
 
-from __future__ import annotations
 
 import argparse
 import json

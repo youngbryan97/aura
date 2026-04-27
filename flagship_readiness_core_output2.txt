@@ -1,0 +1,125 @@
+Aura flagship gate: FAIL
+[WARNING] DIRECT_WRITE_TEXT terminal_monitor.py:121 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT insight_journal.py:140 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT belief_revision.py:172 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT initiative_synthesis.py:575 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT config.py:66 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[ERROR] ASYNC_SYS_EXIT aura_3_boot.py:48 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[ERROR] ASYNC_SYS_EXIT aura_3_boot.py:81 — sys.exit inside async function can bypass cleanup.
+  -> Return status or delegate process exit to the launcher.
+[WARNING] DIRECT_WRITE_TEXT opinion_engine.py:316 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT inquiry_engine.py:510 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT demo_support.py:139 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT container.py:667 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT mutate.py:58 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT memory_synthesizer.py:461 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT self_modification_engine.py:356 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT final_engines.py:76 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT final_engines.py:145 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT self_model.py:90 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT fictional_ai_synthesis.py:511 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT fictional_ai_synthesis.py:661 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE long_term_memory_engine.py:200 — Import-time asyncio.Lock can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[WARNING] DIRECT_WRITE_TEXT epistemic_tracker.py:483 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT daemon.py:40 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT agi/hierarchical_planner.py:286 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT agi/skill_synthesizer.py:252 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE cognitive/autopoiesis.py:1090 — Import-time asyncio.Lock can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[WARNING] DIRECT_WRITE_TEXT memory/conversation_persistence.py:269 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT memory/conversation_persistence.py:305 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT identity/__init__.py:61 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT identity/__init__.py:67 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT identity/__init__.py:159 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT security/user_recognizer.py:389 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT security/user_recognizer.py:405 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT security/integrity_guardian.py:355 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT collective/probe_manager.py:59 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT creativity/aesthetic_engine.py:743 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT cognition/precognitive_model.py:829 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT cognition/paraconsistent_logic.py:677 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT learning/live_learner.py:137 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT consciousness/crsm.py:294 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT consciousness/experience_consolidator.py:430 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT consciousness/experience_consolidator.py:490 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT consciousness/resource_stakes.py:103 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT consciousness/unified_audit.py:84 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT agency/sandboxed_modifier.py:161 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT agency/sandboxed_modifier.py:235 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT agency/sandboxed_modifier.py:238 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT agency/sandboxed_modifier.py:248 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT agency/tension_engine.py:114 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT agency/commitment_engine.py:290 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT agency/tool_orchestrator.py:59 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT runtime/flagship_doctor.py:287 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT safety/self_preservation_safe.py:82 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT social/relationship_model.py:311 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT ethics/conscience.py:147 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE resilience/factory.py:11 — Import-time asyncio.Lock can bind to the wrong/stale event loop.
+  -> Lazy-create the primitive inside the running loop.
+[WARNING] DIRECT_WRITE_TEXT resilience/startup_validator.py:241 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT resilience/dream_cycle.py:66 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT self/canonical_self.py:835 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT sovereign/local_sandbox.py:65 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT sovereign/local_sandbox.py:167 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT evolution/evolution_orchestrator.py:549 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.
+[WARNING] DIRECT_WRITE_TEXT evaluation/evidence_mode.py:100 — Direct write_text call may bypass AtomicWriter durability/receipt policy.
+  -> Use core.runtime.atomic_writer for durable state.

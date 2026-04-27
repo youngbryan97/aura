@@ -10,8 +10,8 @@ Components:
   - ContradictionDetector: warns before saying something inconsistent
   - IdentityDriftMonitor: tracks unexplained shifts
 """
-
 from __future__ import annotations
+
 
 import logging
 import threading

@@ -4,8 +4,8 @@ A+ contract: vector indexes are *derived data*, not the source of truth.
 This module rebuilds an index from the canonical memory write log so a
 corrupt/missing index can always be recovered.
 """
-
 from __future__ import annotations
+
 
 import logging
 from pathlib import Path

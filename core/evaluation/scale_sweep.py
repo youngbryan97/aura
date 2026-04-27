@@ -5,8 +5,8 @@ repo a repeatable, bounded artifact for the scale-generalization question:
 when we increase substrate width, do simple integration proxies and hardware
 feasibility collapse, and where do they collapse?
 """
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass
 from typing import Iterable

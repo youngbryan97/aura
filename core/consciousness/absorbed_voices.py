@@ -46,8 +46,8 @@ Registered as ``absorbed_voices`` in ServiceContainer.  Fed by
 conversational memory, learning loops, and the narrative engine.
 Persists to ``data/absorbed_voices.json`` on change.
 """
-
 from __future__ import annotations
+
 
 import json
 import logging
