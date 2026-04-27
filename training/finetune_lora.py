@@ -49,22 +49,35 @@ SAVE_EVERY = 500        # Checkpoint frequency
 
 
 def find_base_model() -> str:
-    """Find the currently loaded base model path."""
-    # Check common MLX model locations
+    """Find the base model path. Honors AURA_LORA_BASE_MODEL env first."""
+    explicit = os.environ.get("AURA_LORA_BASE_MODEL", "").strip()
+    if explicit and Path(explicit).is_dir():
+        return explicit
+
+    repo_root = Path(__file__).resolve().parent.parent
+    # Prefer the canonical 8-bit base inside the repo before falling back to
+    # caches — this is what train_and_fuse.py expects to fuse against.
     candidates = [
-        os.path.expanduser("~/.cache/huggingface/hub"),
-        os.path.expanduser("~/models"),
-        os.path.expanduser("~/.aura/models"),
+        repo_root / "models" / "Qwen2.5-32B-Instruct-8bit",
+        repo_root / "models",
+        Path(os.path.expanduser("~/.aura/models")),
+        Path(os.path.expanduser("~/models")),
+        Path(os.path.expanduser("~/.cache/huggingface/hub")),
     ]
 
     for base in candidates:
-        if os.path.isdir(base):
-            for d in Path(base).rglob("config.json"):
+        if not base.exists():
+            continue
+        if (base / "config.json").exists():
+            if (base / "model.safetensors").exists() or list(base.glob("model-*.safetensors")):
+                return str(base)
+        if base.is_dir():
+            for d in base.rglob("config.json"):
                 model_dir = d.parent
                 if (model_dir / "model.safetensors").exists() or list(model_dir.glob("model-*.safetensors")):
                     return str(model_dir)
 
-    # Fallback: use mlx_lm's model resolution
+    # Fallback: use mlx_lm's model resolution (will download).
     return "mlx-community/Qwen2.5-32B-Instruct-4bit"
 
 
