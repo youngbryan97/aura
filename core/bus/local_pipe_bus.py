@@ -79,6 +79,20 @@ class LocalPipeBus:
 
     def _get_executor(self) -> ThreadPoolExecutor:
         executor = self._executor
+        # If the cached executor has already been shut down (e.g. a stray
+        # LocalPipeBus.shutdown_executor() classmethod call from a sibling
+        # subsystem), don't propagate the failure to every state commit
+        # forever — recreate it. Bus shutdown is supposed to coincide with
+        # process shutdown; if the bus is still being asked to do work, the
+        # process is still alive and the executor must come back.
+        if executor is not None:
+            shutdown_flag = getattr(executor, "_shutdown", False)
+            if shutdown_flag and self._is_running:
+                logger.warning(
+                    "LocalPipeBus: cached executor was shut down while bus is still running — recreating."
+                )
+                executor = None
+                self._executor = None
         if executor is None:
             executor = ThreadPoolExecutor(
                 max_workers=2,

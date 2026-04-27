@@ -1387,6 +1387,52 @@ class MLXLocalClient:
                 return True  # Already healthy, release gate
 
             if self._process and self._process.is_alive() and not self._init_done:
+                # Stale-handshake watchdog: if the worker process has been
+                # alive but failing to complete its handshake for longer
+                # than 2x the handshake timeout, the init future is wedged
+                # (worker stuck loading weights, IPC pipe wedged, etc.).
+                # Recycle the worker instead of waiting forever, otherwise
+                # every subsequent appraisal request piles onto the same
+                # never-resolving future and the lane stays in "handshaking"
+                # for hours, which is what produced the cascading damasio
+                # timeout / "Worker alive but still handshaking" loop.
+                handshake_age = (
+                    time.time() - getattr(self, "_lane_transition_at", time.time())
+                )
+                handshake_budget = max(60.0, 2.0 * self._handshake_timeout())
+                if (
+                    self._init_future is not None
+                    and self._lane_state == "handshaking"
+                    and handshake_age > handshake_budget
+                ):
+                    logger.warning(
+                        "♻️ [MLX] Worker handshake stuck for %.0fs (>%.0fs budget) on %s — recycling.",
+                        handshake_age,
+                        handshake_budget,
+                        os.path.basename(self.model_path),
+                    )
+                    self._set_lane_state("recovering", "stale_handshake")
+                    try:
+                        if self._init_future and not self._init_future.done():
+                            self._init_future.set_exception(
+                                RuntimeError("stale_handshake_recycled")
+                            )
+                    except Exception as _exc:
+                        logger.debug("Suppressed stale-handshake future-set: %s", _exc)
+                    self._init_future = None
+                    await asyncio.get_running_loop().run_in_executor(
+                        None, self._kill_and_join_blocking, self._process
+                    )
+                    self._process = None
+                    self._init_done = False
+                    self._last_heartbeat = 0.0
+                    self._last_progress_at = 0.0
+                    self._drain_queue()
+                    self._req_q = mp.Queue()
+                    self._res_q = mp.Queue()
+                    # Fall through into the missing-init-lifecycle path on
+                    # the next iteration of caller's outer loop.
+
                 if self._init_future is not None:
                     logger.info(
                         "⏳ [MLX] Worker alive but still handshaking: %s",
