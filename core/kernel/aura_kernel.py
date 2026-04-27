@@ -46,6 +46,7 @@ from core.state.aura_state import AuraState
 from core.state.state_repository import StateRepository
 from core.thought_tracer import tracer
 from core.utils.concurrency import RobustLock
+from core.utils.task_tracker import get_task_tracker
 
 from .feedback_observer import FeedbackObserver, TickEntry
 from .self_review import SelfReviewPhase

@@ -2541,6 +2541,7 @@ class InferenceGate:
         # Only applies on user-facing, non-background requests. Background tasks
         # run at fixed params to avoid thermal feedback loops.
         somatic_temperature: Optional[float] = None
+        morpho_kwargs: Dict[str, Any] = {}
         if not is_background and self._origin_is_user_facing(origin):
             try:
                 from core.affect.affective_circumplex import get_circumplex
@@ -2614,7 +2615,6 @@ class InferenceGate:
             except Exception as _he_e:
                 logger.debug("Homeostasis inference modifiers unavailable: %s", _he_e)
 
-            morpho_kwargs = {}
             # ── Morphogenetic Substrate (True Embodied Cognition) ────────────
             # Curing Mind-Body Dualism: The physical tissue state directly alters
             # the structural generation parameters (temperature, top_p, etc)

@@ -68,10 +68,21 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
         """Asynchronously appends the new principle to the JSON store."""
         async with self._lock:
             try:
-                # Read existing principles
+                # Read existing principles. The file is written as a versioned
+                # envelope {schema, schema_version, payload}; older revisions
+                # stored a bare list. Handle both shapes.
                 content = await asyncio.to_thread(self.storage_path.read_text)
-                principles_list = json.loads(content) if content else []
-                
+                if content:
+                    parsed = json.loads(content)
+                    if isinstance(parsed, dict) and "payload" in parsed:
+                        principles_list = parsed.get("payload") or []
+                    elif isinstance(parsed, list):
+                        principles_list = parsed
+                    else:
+                        principles_list = []
+                else:
+                    principles_list = []
+
                 # Append new principle with timestamp
                 principles_list.append({
                     "timestamp": time.time(),
@@ -141,7 +152,15 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
                 return ""
                 
             content = await asyncio.to_thread(self.storage_path.read_text)
-            principles = json.loads(content)
+            if not content:
+                return ""
+            parsed = json.loads(content)
+            if isinstance(parsed, dict) and "payload" in parsed:
+                principles = parsed.get("payload") or []
+            elif isinstance(parsed, list):
+                principles = parsed
+            else:
+                principles = []
             if not principles:
                 return ""
                 
