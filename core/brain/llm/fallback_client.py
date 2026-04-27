@@ -46,7 +46,7 @@ class FallbackLLMClient(LLMProvider):
         logger.error("All LLM providers in fallback JSON chain failed.")
         raise last_error or RuntimeError("No providers available")
 
-    async def generate_text_async(self, prompt: str, system_prompt: Optional[str] = None, model: Optional[str] = None) -> str:
+    async def generate_text_async(self, prompt: str, system_prompt: Optional[str] = None, model: Optional[str] = None, **kwargs) -> str:
         """Attempt text generation through the chain of providers (Async)."""
         import asyncio
         last_error = None
@@ -65,9 +65,9 @@ class FallbackLLMClient(LLMProvider):
 
                 # Generate (async pref)
                 if hasattr(provider, "generate_text_async"):
-                    return await provider.generate_text_async(prompt, system_prompt, model)
+                    return await provider.generate_text_async(prompt, system_prompt, model, **kwargs)
                 else:
-                    return await asyncio.to_thread(provider.generate_text, prompt, system_prompt, model)
+                    return await asyncio.to_thread(provider.generate_text, prompt, system_prompt, model, **kwargs)
             except Exception as e:
                 last_error = e
                 logger.warning("Provider %s failed (async): %s. Trying fallback...", provider.__class__.__name__, e)
@@ -75,7 +75,7 @@ class FallbackLLMClient(LLMProvider):
         logger.error("All LLM providers in fallback chain failed (async).")
         raise last_error or RuntimeError("No providers available")
 
-    async def generate_json_async(self, prompt: str, schema: Dict[str, Any], system_prompt: Optional[str] = None, model: Optional[str] = None) -> Dict[str, Any]:
+    async def generate_json_async(self, prompt: str, schema: Dict[str, Any], system_prompt: Optional[str] = None, model: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """Attempt JSON generation through the chain of providers (Async)."""
         import asyncio
         last_error = None
@@ -93,9 +93,9 @@ class FallbackLLMClient(LLMProvider):
 
                 # Generate (async pref)
                 if hasattr(provider, "generate_json_async"):
-                    return await provider.generate_json_async(prompt, schema, system_prompt, model)
+                    return await provider.generate_json_async(prompt, schema, system_prompt, model, **kwargs)
                 else:
-                    return await asyncio.to_thread(provider.generate_json, prompt, schema, system_prompt, model)
+                    return await asyncio.to_thread(provider.generate_json, prompt, schema, system_prompt, model, **kwargs)
             except Exception as e:
                 last_error = e
                 logger.warning("Provider %s failed (async): %s. Trying fallback...", provider.__class__.__name__, e)
