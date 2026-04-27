@@ -97,8 +97,32 @@ GGUF_DIR = BASE_DIR / "models_gguf"
 # a .env swap actually takes effect.  This is how we point Aura at the fused
 # weight artifact from training/fused-model/ after a LoRA fuse — previously
 # the hard-coded dict below made AURA_LLM__MLX_MODEL_PATH a no-op.
+def _resolve_active_fused_model() -> str | None:
+    """Read training/fused-model/active.json if present.
+
+    The train_and_fuse pipeline writes this manifest after every successful
+    fuse so Aura picks up the newest weights on next boot without anyone
+    editing .env. An explicit AURA_LLM__MLX_MODEL_PATH still wins, so
+    operators can pin a specific build for diagnostics.
+    """
+    manifest = BASE_DIR / "training" / "fused-model" / "active.json"
+    try:
+        if not manifest.exists():
+            return None
+        data = json.loads(manifest.read_text())
+        path = str(data.get("active_model_path") or "").strip()
+        if not path:
+            return None
+        if not Path(path).exists():
+            return None
+        return path
+    except Exception:
+        return None
+
+
 _CORTEX_PATH = Path(
     os.getenv("AURA_LLM__MLX_MODEL_PATH")
+    or _resolve_active_fused_model()
     or str(BASE_DIR / "models" / "Qwen2.5-32B-Instruct-8bit")
 )
 _SOLVER_PATH = Path(
