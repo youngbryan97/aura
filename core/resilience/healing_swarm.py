@@ -12,20 +12,30 @@ class HealingSwarmService:
     Monitors SubsystemAudit for STALE or failing components.
     Spawns recovery shards via SovereignSwarm to attempt autonomous repair.
     """
+    # Boot grace mirrors SelfModificationEngine._health_watcher_loop — all
+    # subsystems need time to register their first heartbeat before the
+    # audit's NEVER_SEEN signal means anything.
+    _BOOT_GRACE_SECONDS = 300.0
+
     def __init__(self, orchestrator: Any):
         self.orchestrator = orchestrator
         self.is_running = False
         self._monitor_task: Optional[asyncio.Task] = None
         self._repair_history: Dict[str, float] = {}
+        self._started_at: float = 0.0
 
     def start(self):
         if self.is_running:
             return
         self.is_running = True
+        self._started_at = time.time()
         self._monitor_task = get_task_tracker().create_task(self._monitor_loop())
         logger.info("🛡️ Healing Swarm Service ONLINE.")
 
     async def _monitor_loop(self):
+        # Match SelfModificationEngine's 300s boot grace so we don't spawn
+        # repair shards for subsystems that simply haven't checked in yet.
+        await asyncio.sleep(self._BOOT_GRACE_SECONDS)
         while self.is_running:
             try:
                 await asyncio.sleep(45) # Lower frequency than MetaCognition
@@ -47,8 +57,16 @@ class HealingSwarmService:
 
         for name, info in health.get("subsystems", {}).items():
             status = info.get("status", "UNKNOWN")
-            if status != "ACTIVE":
-                await self.attempt_repair(name, info)
+            # Only act on subsystems that genuinely went STALE/DEGRADED. A
+            # NEVER_SEEN subsystem hasn't booted yet — it's not failing, it
+            # just hasn't sent its first heartbeat. Spawning a recovery
+            # shard for every NEVER_SEEN entry on every cycle exhausts the
+            # SovereignSwarm's capacity (M5 Pro 64GB safeguard) and burns
+            # LLM calls retrying ShardResponse generations that can't
+            # actually fix anything.
+            if status not in {"STALE", "DEGRADED"}:
+                continue
+            await self.attempt_repair(name, info)
 
     async def attempt_repair(self, subsystem_name: str, info: Dict[str, Any]):
         """Trigger an autonomous repair shard for a failing subsystem."""
