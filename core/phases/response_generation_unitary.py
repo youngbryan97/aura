@@ -2799,16 +2799,48 @@ class UnitaryResponsePhase(Phase):
                         final_validation = candidate_validation
 
             if is_user_facing and not final_validation.ok and live_grounding_required:
-                minimal, minimal_validation = self._select_valid_recovery_variant(
-                    self._build_minimal_live_voice_reply(new_state),
-                    contract,
+                # The minimal canned line is strictly worse than a real
+                # cortex reply that simply lacks an explicit "I/me" anchor or
+                # live-state phrase. Only force it when the response is
+                # actually broken — too short to be substantive, or only
+                # tripping low-signal-style violations. A 50+ char reply that
+                # the cortex generated for this turn is a real answer the
+                # user should see, even if dialogue_policy wanted more
+                # first-person grounding.
+                substantive_violations = {
+                    "empty_response",
+                    "prompt_artifact",
+                    "generic_assistant_language",
+                    "low_signal_preamble",
+                    "low_signal_redirect",
+                    "moderator_turn",
+                    "prompt_fishing_closer",
+                }
+                stripped_response = str(response_text or "").strip()
+                only_grounding_complaints = (
+                    bool(final_validation.violations)
+                    and not (set(final_validation.violations) & substantive_violations)
                 )
-                logger.info(
-                    "🗣️ UnitaryResponse: forcing minimal live-voice fallback (%s)",
-                    ", ".join(final_validation.violations) or "post_process_invalid",
-                )
-                response_text = minimal
-                final_validation = minimal_validation
+                if (
+                    only_grounding_complaints
+                    and len(stripped_response) >= 50
+                ):
+                    logger.info(
+                        "🗣️ UnitaryResponse: keeping cortex reply despite grounding-only violation (%s, len=%d)",
+                        ", ".join(final_validation.violations) or "ungrounded_only",
+                        len(stripped_response),
+                    )
+                else:
+                    minimal, minimal_validation = self._select_valid_recovery_variant(
+                        self._build_minimal_live_voice_reply(new_state),
+                        contract,
+                    )
+                    logger.info(
+                        "🗣️ UnitaryResponse: forcing minimal live-voice fallback (%s)",
+                        ", ".join(final_validation.violations) or "post_process_invalid",
+                    )
+                    response_text = minimal
+                    final_validation = minimal_validation
 
             new_state.response_modifiers["dialogue_validation"] = final_validation.to_dict()
 
