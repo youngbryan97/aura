@@ -36,16 +36,18 @@ class StructuredLLM:
                 f"GHOST EXAMPLE (Follow this structure exactly):\n{ghost_example}"
             )
 
-        escalated = False
+        escalated_tier = None
         for attempt in range(self.max_retries):
             logger.info("🤖 StructuredLLM: Attempt %d/%d for %s", 
                         attempt + 1, self.max_retries, self.model_class.__name__)
             
             try:
-                # [STABILITY v54] On technical failure, escalate to SECONDARY (Cloud/Deep).
-                # Otherwise, stay on TERTIARY (Light local) for background work to save quota.
-                if escalated:
-                    force_tier = "secondary"
+                # [STABILITY v54.1] Multi-stage escalation:
+                # Attempt 0: TERTIARY (Local fast)
+                # Attempt 1 (Failure 1): PRIMARY (Local 32B)
+                # Attempt 2 (Failure 2): SECONDARY (Cloud/Deep)
+                if escalated_tier:
+                    force_tier = escalated_tier
                 else:
                     force_tier = "tertiary" if attempt >= 1 else None
 
@@ -57,7 +59,7 @@ class StructuredLLM:
                         prefer_tier=force_tier,
                         schema=schema,
                         origin="structured_llm",
-                        is_background=not escalated, # Allow cloud usage if escalated
+                        is_background=not escalated_tier, # Allow cloud usage if escalated
                     )
                     response_text = str((metadata or {}).get("text") or "")
                 else:
@@ -67,7 +69,7 @@ class StructuredLLM:
                         prefer_tier=force_tier,
                         schema=schema,
                         origin="structured_llm",
-                        is_background=not escalated,
+                        is_background=not escalated_tier,
                     )
 
                 error_code = str((metadata or {}).get("error") or "")
@@ -92,13 +94,20 @@ class StructuredLLM:
                         )
                     except Exception as _exc:
                         logger.debug("Suppressed Exception: %s", _exc)
-                    logger.warning("⚠️ StructuredLLM: LLM Technical Failure (%s) on attempt %d", 
-                                   error_code or response_text or "empty", attempt + 1)
+                    # [STABILITY v54.1] Escalation Strategy:
+                    # 1. First Technical Failure -> Try PRIMARY (32B Local)
+                    # 2. Second Technical Failure -> Try SECONDARY (Cloud)
+                    if attempt == 0:
+                        logger.info("⚡ StructuredLLM: Technical failure on TERTIARY — escalating to PRIMARY (Local 32B) for next attempt.")
+                        escalated_tier = "primary"
+                    elif attempt == 1:
+                        logger.info("⚡ StructuredLLM: Technical failure on PRIMARY — escalating to SECONDARY (Cloud/Deep) for next attempt.")
+                        escalated_tier = "secondary"
+                    else:
+                        escalated_tier = "secondary"
                     
-                    # [STABILITY v54] Set escalation flag for next attempt
-                    if attempt < self.max_retries - 1:
-                        logger.info("⚡ StructuredLLM: Technical failure detected — escalating to SECONDARY tier for next attempt.")
-                        escalated = True
+                    escalated = True
+                    force_tier = escalated_tier
                     continue
 
                 # 2. Extract JSON (handle markers like ```json)
