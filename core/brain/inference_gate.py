@@ -2464,6 +2464,29 @@ class InferenceGate:
                 requested_tier=requested_tier,
                 is_background=is_background,
             )
+        # When the 32B cortex is still warming or recovering, refuse to load
+        # the 72B Solver alongside it — they don't fit in 64GB together and
+        # the resulting MemoryGuard panic-eviction creates a thrash loop where
+        # neither lane stays up long enough to answer. Force primary; the
+        # cortex will handle the turn when warmup finishes.
+        if (
+            not is_background
+            and requested_tier == "secondary"
+            and not protected_foreground_lane
+        ):
+            try:
+                _cortex_lane = self.get_conversation_status() or {}
+                _cortex_state = str(_cortex_lane.get("state", "") or "").lower()
+                if _cortex_state in {"warming", "handshaking", "recovering"}:
+                    logger.info(
+                        "🛡️ InferenceGate: cortex is %s; refusing secondary handoff to avoid 32B/72B memory thrash. Staying on primary.",
+                        _cortex_state,
+                    )
+                    requested_tier = "primary"
+                    deep_handoff = False
+            except Exception as _swap_exc:
+                logger.debug("Cortex lane probe before secondary admission failed: %s", _swap_exc)
+
         admission_snapshot: Optional[Dict[str, Any]] = None
         if not is_background and requested_tier in {"primary", "secondary"}:
             admission_snapshot = await self._enforce_foreground_admission(

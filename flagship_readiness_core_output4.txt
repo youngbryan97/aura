@@ -1,9 +1,0 @@
-Aura flagship gate: FAIL
-[ERROR] ASYNC_SYS_EXIT aura_3_boot.py:48 — sys.exit inside async function can bypass cleanup.
-  -> Return status or delegate process exit to the launcher.
-[ERROR] ASYNC_SYS_EXIT aura_3_boot.py:81 — sys.exit inside async function can bypass cleanup.
-  -> Return status or delegate process exit to the launcher.
-[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE long_term_memory_engine.py:200 — Import-time asyncio.Lock can bind to the wrong/stale event loop.
-  -> Lazy-create the primitive inside the running loop.
-[ERROR] IMPORT_TIME_ASYNC_PRIMITIVE cognitive/autopoiesis.py:1090 — Import-time asyncio.Lock can bind to the wrong/stale event loop.
-  -> Lazy-create the primitive inside the running loop.

@@ -2308,10 +2308,21 @@ class MLXLocalClient:
                     ),
                     timeout=warmup_timeout + (10.0 * attempt),
                 )
-                if warmup_text is None:
-                    raise RuntimeError("warmup_precompile_no_text")
-                if not str(warmup_text).strip():
-                    logger.info("🔥 [MLX] Warmup returned no visible text — treating shader precompile as successful.")
+                # max_tokens=1 against a fresh worker often returns "" (empty
+                # generation) or None (no payload from the IPC channel before
+                # Metal kernels finish compiling). Both states mean the same
+                # thing operationally: the worker is alive, weights are
+                # resident, and shader compile took place. Only a hard worker
+                # death should fail warmup — verify with is_alive() instead of
+                # treating None as fatal, which previously caused a reboot
+                # loop on every cold start.
+                if warmup_text is None and not self.is_alive():
+                    raise RuntimeError("warmup_precompile_worker_dead")
+                if not warmup_text or not str(warmup_text).strip():
+                    logger.info(
+                        "🔥 [MLX] Warmup produced no visible text for %s — worker is alive, treating shader precompile as successful.",
+                        os.path.basename(self.model_path),
+                    )
                 self._set_lane_state("ready")
                 logger.info("🔥 [MLX] Warmup complete — Metal shaders compiled.")
                 return

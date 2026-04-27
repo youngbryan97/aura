@@ -1570,11 +1570,44 @@ async def _build_protected_foreground_messages(
     return messages
 
 
+_FORCE_PRIMARY_PHRASES = (
+    "don't go to your 72",
+    "dont go to your 72",
+    "don't use 72",
+    "dont use 72",
+    "no 72b",
+    "no 72-b",
+    "stay on 32",
+    "stay on the 32",
+    "stay primary",
+    "stay on primary",
+    "32b only",
+    "primary only",
+    "skip the solver",
+    "don't escalate",
+    "dont escalate",
+)
+
+
+def _user_requested_primary_only(text: str) -> bool:
+    """Honor explicit user directives to stay on the 32B cortex."""
+    lower = (text or "").lower()
+    return any(phrase in lower for phrase in _FORCE_PRIMARY_PHRASES)
+
+
 def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
     text = str(user_message or "").strip()
     intent_type = "CHAT"
     deep_handoff = False
     route_meta: Dict[str, Any] = {}
+
+    if _user_requested_primary_only(text):
+        return {
+            "prefer_tier": "primary",
+            "deep_handoff": False,
+            "intent_type": "CHAT",
+            "coding_request": False,
+        }
 
     try:
         from core.runtime.turn_analysis import analyze_turn
