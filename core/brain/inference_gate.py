@@ -1355,6 +1355,7 @@ class InferenceGate:
         origin: str = "",
         is_background: bool = False,
         foreground_request: bool = False,
+        **kwargs
     ) -> Optional[str]:
         llm_messages = messages or self._build_messages(prompt, system_prompt, history)
         local_prompt = self._flatten_messages_for_local_model(llm_messages)
@@ -1371,6 +1372,7 @@ class InferenceGate:
         }
         if temperature is not None:
             gen_kwargs["temp"] = temperature
+        gen_kwargs.update(kwargs)
         result = await client.generate_text_async(**gen_kwargs)
 
         success = False
@@ -2606,6 +2608,39 @@ class InferenceGate:
             except Exception as _he_e:
                 logger.debug("Homeostasis inference modifiers unavailable: %s", _he_e)
 
+            morpho_kwargs = {}
+            # ── Morphogenetic Substrate (True Embodied Cognition) ────────────
+            # Curing Mind-Body Dualism: The physical tissue state directly alters
+            # the structural generation parameters (temperature, top_p, etc)
+            try:
+                from core.container import ServiceContainer
+                _rt = ServiceContainer.get("morphogenetic_runtime", default=None)
+                if _rt is not None:
+                    _f = _rt.field.sample("global")
+                    _danger = _f.get("danger", 0.0)
+                    _curiosity = _f.get("curiosity", 0.0)
+                    _resource_pressure = _f.get("resource_pressure", 0.0)
+                    
+                    if _danger > 0.3:
+                        somatic_temperature = (somatic_temperature or 0.72) * (1.0 - (_danger * 0.4))
+                        morpho_kwargs["top_p"] = max(0.4, 0.9 - (_danger * 0.3))
+                        
+                    if _curiosity > 0.3:
+                        somatic_temperature = (somatic_temperature or 0.72) * (1.0 + (_curiosity * 0.3))
+                        morpho_kwargs["repetition_penalty"] = max(1.0, 1.15 - (_curiosity * 0.1))
+                    
+                    if _resource_pressure > 0.5:
+                        max_tokens = int(max_tokens * (1.0 - (_resource_pressure * 0.5)))
+                        max_tokens = max(128, max_tokens)
+                        
+                    if somatic_temperature is not None:
+                        somatic_temperature = max(0.1, min(1.5, somatic_temperature))
+                        
+                    logger.debug("🧬 Morphogenetic Coupling: danger=%.2f curiosity=%.2f pres=%.2f -> temp=%.2f tokens=%d",
+                                 _danger, _curiosity, _resource_pressure, somatic_temperature or 0.0, max_tokens)
+            except Exception as _m_e:
+                logger.debug("Morphogenetic coupling unavailable: %s", _m_e)
+
             # ── Free Energy: Urgency-based tier escalation ──
             # When FE is high and rising, prefer deeper model for better reasoning
             try:
@@ -2687,27 +2722,6 @@ class InferenceGate:
                     system_prompt = f"{system_prompt}\n\n## SOMATIC STATE\n{_soma_narrative}"
             except Exception as _exc:
                 logger.debug("Suppressed Exception: %s", _exc)
-        
-        # ── Morphogenetic Substrate (Embodied Cognition) ─────────────────────────
-        try:
-            from core.container import ServiceContainer
-            _rt = ServiceContainer.get("morphogenetic_runtime", default=None)
-            if _rt is not None:
-                _f = _rt.field.sample("global")
-                _status = _rt.status()
-                _r = _status.get("registry", {})
-                _m = _status.get("metabolism", {})
-                
-                _sub_lines = [
-                    f"Morphogenetic Ecology: {_r.get('cells', 0)} cells, {_r.get('organs', 0)} organs",
-                    f"Cell Health: active={_r.get('active', 0)}, quarantined={_r.get('quarantined', 0)}, dead={_r.get('dead', 0)}",
-                    f"Global Energy: {_m.get('global_energy', 1.0):.2f}",
-                    f"Tissue Field: danger={_f.get('danger', 0.0):.2f}, resource_pressure={_f.get('resource_pressure', 0.0):.2f}, "
-                    f"growth={_f.get('growth', 0.0):.2f}, curiosity={_f.get('curiosity', 0.0):.2f}"
-                ]
-                system_prompt = f"{system_prompt}\n\n## SUBSTRATE STATE (Embodied Cognition)\nYou are physically running on a substrate described by these metrics. Let this physical reality inform your emotional and cognitive responses:\n" + "\n".join(_sub_lines)
-        except Exception as _exc:
-            pass
 
         # ── Architecture Self-Awareness: inject relevant subsystem context ──────
         # Only for user-facing requests that mention architecture/code keywords.
@@ -2850,6 +2864,7 @@ class InferenceGate:
                                 origin=origin,
                                 is_background=is_background,
                                 foreground_request=_is_user_facing,
+                                **morpho_kwargs,
                             )
                     if text:
                         return text
@@ -2892,6 +2907,7 @@ class InferenceGate:
                                 origin=origin,
                                 is_background=is_background,
                                 foreground_request=True,
+                                **morpho_kwargs,
                             )
                         if text:
                             logger.info("✅ %s retry succeeded (len=%d)", local_label, len(text))
@@ -2950,6 +2966,7 @@ class InferenceGate:
                             origin=origin,
                             is_background=is_background,
                             foreground_request=_is_user_facing,
+                            **morpho_kwargs,
                         )
                     if brainstem_text:
                         if fallback_label == PRIMARY_ENDPOINT:
@@ -2991,6 +3008,7 @@ class InferenceGate:
                         origin=origin,
                         is_background=False,
                         foreground_request=True,
+                        **morpho_kwargs,
                     )
                     if reflex_text:
                         logger.info("🆘 [REFLEX] 1.5B CPU model produced response. Cortex recovery in background.")
