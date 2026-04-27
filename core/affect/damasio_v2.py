@@ -783,17 +783,29 @@ class AffectEngineV2:
             raise RuntimeError("router_unavailable")
 
         import json
-        prompt = (
-            "SYSTEM: AFFECTIVE APPRAISAL (PAD)\n"
-            "You are scoring a compact affective appraisal for Aura.\n"
-            f"Event: {json.dumps(trigger)}\n"
-            f"Context: {json.dumps(context) if context else 'null'}\n"
-            f"Current State: {self.get_context_injection()}\n"
-            "Return JSON only with numeric keys v, a, e.\n"
-            "{\"v\": -1.0..1.0, \"a\": 0.0..1.0, \"e\": 0.0..1.0}"
+        # Background PAD appraisal must stay tiny so the 7B Brainstem can finish
+        # within its 6s budget. We build the messages explicitly and pass them
+        # via context["messages"] so the InferenceGate skips the full
+        # _build_system_prompt + _build_living_mind_context pipeline (which
+        # otherwise produces a 15KB+ prompt and chronically times out).
+        trigger_str = (trigger or "")[:600]
+        ctx_str = json.dumps(context)[:400] if context else "null"
+        state_str = self.get_context_injection()[:200]
+        system_msg = (
+            "Affective appraisal. Score the event on PAD axes. "
+            "Return JSON only: {\"v\": <-1..1>, \"a\": <0..1>, \"e\": <0..1>}."
         )
+        user_msg = (
+            f"Event: {json.dumps(trigger_str)}\n"
+            f"Context: {ctx_str}\n"
+            f"State: {state_str}"
+        )
+        messages = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ]
         response = await gate.generate(
-            prompt,
+            user_msg,
             context={
                 "origin": "affect_engine",
                 "is_background": True,
@@ -801,9 +813,10 @@ class AffectEngineV2:
                 "allow_cloud_fallback": False,
                 "max_tokens": 96,
                 "rich_context": False,
+                "messages": messages,
                 "brief": "Return JSON only for affective appraisal.",
             },
-            timeout=6.0,
+            timeout=10.0,
         )
         if response is None:
             lane = gate.get_conversation_status() if hasattr(gate, "get_conversation_status") else {}

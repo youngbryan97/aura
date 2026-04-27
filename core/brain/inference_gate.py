@@ -831,7 +831,12 @@ class InferenceGate:
                     self._mlx_client.warmup(),
                     name="InferenceGate.cortex_recovery",
                 )
-                await asyncio.wait_for(asyncio.shield(self._prewarm_task), timeout=60.0)
+                # 32B fused model is ~37GB across 7 shards. Cold-load on Apple
+                # Silicon routinely takes 90-150s on the first attempt after a
+                # crash; the previous 60s budget guaranteed five back-to-back
+                # timeouts and a 5-minute lockout. Give warmup the room it
+                # actually needs.
+                await asyncio.wait_for(asyncio.shield(self._prewarm_task), timeout=240.0)
                 logger.info("✅ [RECOVERY] Primary 32B cortex restored after disruption.")
                 self._cortex_recovery_attempts = 0
                 self._cortex_recovery_exhausted_at = 0.0

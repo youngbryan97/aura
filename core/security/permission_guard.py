@@ -24,7 +24,10 @@ class PermissionGuard(AuraBaseModule):
         super().__init__("PermissionGuard")
         self._cache: Dict[PermissionType, Dict[str, Any]] = {}
         self._cache_ts: Dict[PermissionType, float] = {}
+        # Granted TCC permissions don't get revoked silently, so we cache for
+        # 5 minutes once active. Denied/deferred entries still re-probe in 15s.
         self._cache_ttl_s: float = 15.0
+        self._cache_ttl_granted_s: float = 300.0
         self._force_refresh_floor_s: float = 20.0
 
     async def check_permission(self, ptype: PermissionType, force: bool = False) -> Dict[str, Any]:
@@ -38,13 +41,28 @@ class PermissionGuard(AuraBaseModule):
         cached_at = float(self._cache_ts.get(ptype, 0.0) or 0.0)
         if cached is not None:
             cache_age = max(0.0, now - cached_at)
+            ttl = (
+                self._cache_ttl_granted_s
+                if cached.get("granted")
+                else self._cache_ttl_s
+            )
             if force:
                 if cache_age < self._force_refresh_floor_s:
                     return cached
-            elif cache_age < self._cache_ttl_s:
+            elif cache_age < ttl:
                 return cached
 
-        self.logger.info("Checking %s permission...", ptype.name)
+        # Env-override path: when the user has granted permission to a parent
+        # process Aura can't see (different terminal host), let them assert it
+        # with AURA_ASSUME_*_PERMISSION=1 so vision/automation aren't blocked
+        # by an inherited TCC identity.
+        env_override = self._env_override(ptype)
+        if env_override is not None:
+            self._cache[ptype] = env_override
+            self._cache_ts[ptype] = now
+            return env_override
+
+        self.logger.debug("Checking %s permission...", ptype.name)
 
         if ptype == PermissionType.SCREEN:
             result = await self._check_screen_permission()
@@ -64,6 +82,25 @@ class PermissionGuard(AuraBaseModule):
         self._cache[ptype] = result
         self._cache_ts[ptype] = now
         return result
+
+    _ENV_OVERRIDE_KEYS: Dict[PermissionType, str] = {
+        PermissionType.SCREEN: "AURA_ASSUME_SCREEN_PERMISSION",
+        PermissionType.ACCESSIBILITY: "AURA_ASSUME_ACCESSIBILITY_PERMISSION",
+        PermissionType.AUTOMATION: "AURA_ASSUME_AUTOMATION_PERMISSION",
+        PermissionType.MIC: "AURA_ASSUME_MIC_PERMISSION",
+        PermissionType.CAMERA: "AURA_ASSUME_CAMERA_PERMISSION",
+    }
+
+    def _env_override(self, ptype: PermissionType) -> Optional[Dict[str, Any]]:
+        """Return a granted result if the user has explicitly asserted the
+        permission via env var. Lets users bypass TCC parent-process
+        inheritance when launching from a non-standard host."""
+        key = self._ENV_OVERRIDE_KEYS.get(ptype)
+        if not key:
+            return None
+        if os.getenv(key, "0") != "1":
+            return None
+        return {"granted": True, "status": "asserted_env", "guidance": ""}
 
     def _screen_preflight_probe(self) -> Optional[Dict[str, Any]]:
         """Use Quartz preflight when available so we don't trigger a capture prompt."""
