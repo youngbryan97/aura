@@ -45,7 +45,7 @@ class ZenithBootloader:
             success = await horcrux.initialize()
             if not success:
                logger.critical("CRITICAL: Horcrux initialization FAILED. Boot aborted.")
-               sys.exit(1)
+               raise RuntimeError("Horcrux initialization FAILED. Boot aborted.")
             
             black_hole = BlackHole()
             ServiceContainer.register_instance("black_hole", black_hole)
@@ -78,7 +78,7 @@ class ZenithBootloader:
             
         except Exception as e:
             logger.critical("ZENITH BOOT FAILURE: %s", e, exc_info=True)
-            sys.exit(1)
+            raise RuntimeError(f"ZENITH BOOT FAILURE: {e}")
 
 
 if __name__ == "__main__":

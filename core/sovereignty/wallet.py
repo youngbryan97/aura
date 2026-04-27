@@ -34,6 +34,7 @@ Migration runbook (used by ``core/sovereignty/migration.py``):
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -63,7 +64,7 @@ class SpendCap:
 def _load_cap() -> SpendCap:
     if not _CAP_PATH.exists():
         cap = SpendCap()
-        _CAP_PATH.write_text(json.dumps(asdict(cap), indent=2), encoding="utf-8")
+        atomic_write_text(_CAP_PATH, json.dumps(asdict(cap), indent=2), encoding="utf-8")
         return cap
     try:
         d = json.loads(_CAP_PATH.read_text(encoding="utf-8"))
@@ -73,7 +74,7 @@ def _load_cap() -> SpendCap:
 
 
 def _save_cap(cap: SpendCap) -> None:
-    _CAP_PATH.write_text(json.dumps(asdict(cap), indent=2), encoding="utf-8")
+    atomic_write_text(_CAP_PATH, json.dumps(asdict(cap), indent=2), encoding="utf-8")
 
 
 @dataclass

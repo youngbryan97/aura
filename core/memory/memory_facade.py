@@ -1,6 +1,7 @@
 """Refactored MemoryFacade — the central entry point for all long-term memory operations.
 Ensures episodic and semantic sub-systems work in harmony.
 """
+from core.utils.task_tracker import get_task_tracker
 import logging
 import asyncio
 import inspect
@@ -847,7 +848,7 @@ class MemoryFacade:
         if self.episodic:
             try:
                 # Use create_task for non-blocking log
-                asyncio.create_task(self.episodic.log_event_async(event))
+                get_task_tracker().create_task(self.episodic.log_event_async(event))
                 return True
             except Exception as e:
                 logger.debug("Sync log_event failed: %s", e)

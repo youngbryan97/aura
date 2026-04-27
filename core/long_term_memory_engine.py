@@ -197,11 +197,14 @@ class LongTermMemoryEngine:
 
 # Singleton
 _memory_instance = None
-_instance_lock = asyncio.Lock()
+_instance_lock = None
 
 async def get_long_term_memory_engine():
     """ISSUE 12: Thread-safe singleton for engine access."""
     global _memory_instance
+    global _instance_lock
+    if _instance_lock is None:
+        _instance_lock = asyncio.Lock()
     async with _instance_lock:
         if _memory_instance is None:
             _memory_instance = LongTermMemoryEngine()

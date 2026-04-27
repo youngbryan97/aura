@@ -14,6 +14,7 @@ The mesh feeds a 64-dimensional *projection* back into the existing LiquidSubstr
 so the original 64-neuron core becomes the executive summary of a much larger field.
 """
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -371,7 +372,7 @@ class NeuralMesh:
             return
         self._running = True
         self._start_time = time.time()
-        self._task = asyncio.create_task(self._run_loop(), name="NeuralMesh")
+        self._task = get_task_tracker().create_task(self._run_loop(), name="NeuralMesh")
         logger.info("NeuralMesh STARTED (%d Hz)", self.cfg.update_hz)
 
     async def stop(self):

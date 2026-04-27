@@ -221,7 +221,7 @@ class LearningPhase(Phase):
                     belief_engine=ServiceContainer.get("belief_engine", default=None),
                 )
                 force = bool(contract.get("requires_search") or contract.get("tool_evidence_available"))
-                task = asyncio.create_task(
+                task = get_task_tracker().create_task(
                     enricher.enrich_from_conversation(recent_messages, force=force),
                     name="learning_phase.knowledge_enrichment",
                 )

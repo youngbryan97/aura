@@ -1,6 +1,7 @@
 """Autonomous Code Repair System
 Generates, validates, and applies fixes to detected bugs.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import ast
 import difflib
 import json
@@ -666,7 +667,7 @@ class SandboxTester:
             # No, EvaluationHarness passed 'code_patch' which is the section.
             # Actually, I'll change the caller to pass modified_content.
             
-            sandbox_file.write_text(code_patch, encoding="utf-8")
+            atomic_write_text(sandbox_file, code_patch, encoding="utf-8")
             
             # Copy siblings for imports
             for sibling in target_abs.parent.glob("*.py"):
@@ -675,7 +676,7 @@ class SandboxTester:
 
             # 2. Write Probe
             probe_path = temp_path / "weakness_probe.py"
-            probe_path.write_text(probe_code, encoding="utf-8")
+            atomic_write_text(probe_path, probe_code, encoding="utf-8")
             
             # 3. Run Probe
             try:

@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import json
@@ -43,7 +44,7 @@ class SwarmProtocol:
                     self._server = None
                     self.offline_only = True
         self.host = bind_host
-        self._mood_broadcast_task = asyncio.create_task(self._broadcast_loop())
+        self._mood_broadcast_task = get_task_tracker().create_task(self._broadcast_loop())
         if self.offline_only:
             logger.warning("🕸️ Mycelial Swarm running in offline-only mode; socket binding unavailable.")
         logger.info(f"🕸️ Mycelial Swarm active on %s:%d (Node: {self.node_id})", self.host, self.port)

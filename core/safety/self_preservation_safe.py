@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -79,7 +80,7 @@ class SafeBackupSystem:
 
         # Write manifest
         manifest_path = backup_dir / "manifest.json"
-        manifest_path.write_text(json.dumps(results, indent=2))
+        atomic_write_text(manifest_path, json.dumps(results, indent=2))
 
         self._last_backup = time.time()
         logger.info("Backup created: %s (%d items)", backup_dir.name, len(results["backed_up"]))

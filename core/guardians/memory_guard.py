@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import psutil
 import logging
@@ -21,7 +22,7 @@ class MemoryGuard:
         if self._running or self._task:
             return
         self._running = True
-        self._task = asyncio.create_task(self._watch_loop())
+        self._task = get_task_tracker().create_task(self._watch_loop())
         logger.info("🛡️ MemoryGuard active (Threshold: %s%%)", self.threshold_percent)
 
     async def stop(self):

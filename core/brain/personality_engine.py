@@ -1,6 +1,7 @@
 """Emotional State System - Aura's Personality Engine
 Creates fluctuating emotional states that drive spontaneous behavior
 """
+from core.runtime.atomic_writer import atomic_write_text
 import logging
 import random
 import sys
@@ -230,7 +231,7 @@ class PersonalityEngine:
             if getattr(self, '_new_key_generated', False) or config.env == "dev":
                 try:
                     self.seal_file.parent.mkdir(parents=True, exist_ok=True)
-                    self.seal_file.write_text(signature)
+                    atomic_write_text(self.seal_file, signature)
                     logger.info("Identity seal initialized: %s...", signature[:16])
                     return True
                 except Exception: return False
@@ -248,7 +249,7 @@ class PersonalityEngine:
             # we allow auto-resealing to prevent boot hangs, while logging the event.
             if config.env == "dev":
                 logger.warning("🧠 Identity seal mismatch in DEV. Auto-resealing for version: %s", getattr(self.soul, 'version', 'unknown'))
-                self.seal_file.write_text(signature)
+                atomic_write_text(self.seal_file, signature)
                 return True
                 
             return False

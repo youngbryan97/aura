@@ -54,7 +54,7 @@ def create_tracked_task(
                 task = tracker.track(awaitable, name=name)
 
         if task is None:
-            task = asyncio.create_task(awaitable, name=name)
+            task = get_task_tracker().create_task(awaitable, name=name)
             if tracker is not None:
                 try:
                     if hasattr(tracker, "observe"):

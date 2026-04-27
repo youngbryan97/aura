@@ -13,6 +13,7 @@ Endpoints:
     POST   /api/settings/auth/fresh — register a fresh user authorization
                                     (used by Conscience for destructive ops)
 """
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import json
@@ -121,7 +122,7 @@ class SettingsStore:
 
     def _save(self) -> None:
         tmp = _SETTINGS_PATH.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        atomic_write_text(tmp, json.dumps(self._data, indent=2), encoding="utf-8")
         os.replace(tmp, _SETTINGS_PATH)
 
     # ── public ───────────────────────────────────────────────────────

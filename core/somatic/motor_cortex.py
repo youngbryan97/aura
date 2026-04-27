@@ -22,6 +22,7 @@ Design invariants:
   4. All actions require a valid CapabilityToken from the Will.
   5. Every completed action emits a MotorReceipt for audit + awareness.
 """
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -425,7 +426,7 @@ class MotorCortex:
         self._issue_default_tokens()
 
         self._running = True
-        self._task = asyncio.create_task(self._run_loop(), name="motor_cortex_loop")
+        self._task = get_task_tracker().create_task(self._run_loop(), name="motor_cortex_loop")
         logger.info("MotorCortex ONLINE -- 50ms reflex loop active")
 
     async def stop(self) -> None:

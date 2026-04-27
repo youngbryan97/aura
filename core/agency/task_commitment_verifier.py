@@ -35,6 +35,8 @@ How it works
 """
 from __future__ import annotations
 
+from core.utils.task_tracker import get_task_tracker
+
 import asyncio
 import json
 import logging
@@ -555,7 +557,7 @@ class TaskCommitmentVerifier:
             source="commitment_verifier_inline",
             quick_win=True,
         )
-        execution_task = asyncio.create_task(
+        execution_task = get_task_tracker().create_task(
             task_engine.execute(
                 goal=objective,
                 context={
@@ -620,7 +622,7 @@ class TaskCommitmentVerifier:
             self._background_tasks[task_id] = execution_task
             execution_task.add_done_callback(
                 lambda fut, _task_id=task_id, _objective=objective, _commitment_id=commitment_id:
-                asyncio.create_task(
+                get_task_tracker().create_task(
                     self._finalize_background_task(
                         task_id=_task_id,
                         objective=_objective,
@@ -707,7 +709,7 @@ class TaskCommitmentVerifier:
             commitment_id=commitment_id,
             quick_win=False,
         )
-        execution_task = asyncio.create_task(
+        execution_task = get_task_tracker().create_task(
             task_engine.execute(
                 goal=objective,
                 context={
@@ -730,7 +732,7 @@ class TaskCommitmentVerifier:
         self._background_tasks[task_id] = execution_task
         execution_task.add_done_callback(
             lambda fut, _task_id=task_id, _objective=objective, _commitment_id=commitment_id:
-            asyncio.create_task(
+            get_task_tracker().create_task(
                 self._finalize_background_task(
                     task_id=_task_id,
                     objective=_objective,

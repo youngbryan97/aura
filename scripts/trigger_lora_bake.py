@@ -26,7 +26,7 @@ async def main():
         print(f"📊 Samples: {result['samples']}")
     else:
         print(f"❌ Failed: {result['error']}")
-        sys.exit(1)
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())

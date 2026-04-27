@@ -8,10 +8,13 @@ logger = logging.getLogger("Aura.Resilience.Factory")
 
 # A global registry to hold one breaker per service_name.
 _breakers: Dict[str, CircuitBreaker] = {}
-_factory_lock = asyncio.Lock()
+_factory_lock = None
 
 async def get_breaker(service_name: str, failure_threshold: int = 3, recovery_timeout: int = 60) -> CircuitBreaker:
     """Factory function to get or create a circuit breaker for a service."""
+    global _factory_lock
+    if _factory_lock is None:
+        _factory_lock = asyncio.Lock()
     async with _factory_lock:
         if service_name not in _breakers:
             logger.info(f"🌿 Establishing new resilience root for '{service_name}'.")

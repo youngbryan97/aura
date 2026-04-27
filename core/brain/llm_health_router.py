@@ -1703,7 +1703,7 @@ class HealthAwareLLMRouter:
                             and not kwargs.get("is_background", False)
                         ):
                             get_task_tracker().track_task(
-                                asyncio.create_task(
+                                get_task_tracker().create_task(
                                     self._restore_primary_after_deep_handoff(),
                                     name="llm_router.restore_primary_after_deep_handoff",
                                 )

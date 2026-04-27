@@ -3,6 +3,7 @@
 Extracted from server.py — Chat, session management, conversation lane,
 and related API endpoints.
 """
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -4043,7 +4044,7 @@ async def api_chat(
                 diagnostic_target = extract_background_diagnostic_target(body.message)
                 if diagnostic_target:
                     # Use a local bounded task — we don't have _spawn_server_bounded_task here
-                    asyncio.ensure_future(
+                    get_task_tracker().track(
                         run_background_file_diagnostic(diagnostic_target, orch)
                     )
                     return await _finalize_fastpath(
@@ -4333,7 +4334,7 @@ async def api_chat(
             logger.debug("REST: Awaiting constitutional processing from Sovereign Kernel...")
             try:
                 kernel_timeout = _remaining_foreground_budget()
-                kernel_task = asyncio.create_task(
+                kernel_task = get_task_tracker().create_task(
                     ki.process(effective_user_message, origin="api", priority=True),
                     name="Aura.Server.Chat.kernel_foreground",
                 )
@@ -4426,7 +4427,7 @@ async def api_chat(
                 )
             else:
                 from core.tasks import dispatch_user_input
-                asyncio.ensure_future(
+                get_task_tracker().track(
                     asyncio.to_thread(dispatch_user_input, effective_user_message)
                 )
                 reply_text = "Message dispatched (Kernel and Orchestrator offline)."

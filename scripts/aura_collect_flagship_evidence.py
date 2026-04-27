@@ -9,6 +9,7 @@ This does not claim metaphysical proof. It creates a concrete artifact with:
 - recent log evidence when logs are present
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import argparse
@@ -94,7 +95,7 @@ def collect(root: Path, out_dir: Path) -> dict[str, Any]:
         }
 
     json_path = out_dir / "flagship_evidence.json"
-    json_path.write_text(json.dumps(evidence, indent=2, sort_keys=True, default=repr), encoding="utf-8")
+    atomic_write_text(json_path, json.dumps(evidence, indent=2, sort_keys=True, default=repr), encoding="utf-8")
 
     md_lines = [
         "# Aura Flagship Evidence Bundle",
@@ -113,7 +114,7 @@ def collect(root: Path, out_dir: Path) -> dict[str, Any]:
         md_lines.append(f"- {k}: {rc}")
     md_lines.append("")
     md_lines.append("See `flagship_evidence.json` for complete stdout/stderr/log tails.")
-    (out_dir / "flagship_evidence.md").write_text("\n".join(md_lines), encoding="utf-8")
+    atomic_write_text((out_dir / "flagship_evidence.md"), "\n".join(md_lines), encoding="utf-8")
 
     return evidence
 

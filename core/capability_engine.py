@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import importlib
 import inspect
@@ -1798,7 +1799,7 @@ class CapabilityEngine(AuraBaseModule):
             
             # 6. Outcome Recording (Asynchronous)
             if self.temporal:
-                t = asyncio.create_task(self._record_temporal(skill_name, params, ctx, result))
+                t = get_task_tracker().create_task(self._record_temporal(skill_name, params, ctx, result))
                 t.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
             
             return result

@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import json
@@ -101,13 +102,13 @@ def write_report_bundle(summary: ForecastRunSummary, output_dir: Path) -> Dict[s
     risk_path = output_dir / "risk_ledger.json"
     remediation_path = output_dir / "remediation_backlog.json"
 
-    markdown_path.write_text(render_markdown(summary), encoding="utf-8")
-    summary_path.write_text(json.dumps(summary.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
-    risk_path.write_text(
+    atomic_write_text(markdown_path, render_markdown(summary), encoding="utf-8")
+    atomic_write_text(summary_path, json.dumps(summary.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    atomic_write_text(risk_path, 
         json.dumps([risk for risk in summary.to_dict()["risk_ledger"]], indent=2, sort_keys=True),
         encoding="utf-8",
     )
-    remediation_path.write_text(
+    atomic_write_text(remediation_path, 
         json.dumps(summary.to_dict()["remediation_backlog"], indent=2, sort_keys=True),
         encoding="utf-8",
     )

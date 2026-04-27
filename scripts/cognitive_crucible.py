@@ -24,6 +24,7 @@ Results:
     `~/.aura/live-source/training/crucible_results.jsonl` so the user can
     review them post-hoc without re-running the slow scenarios.
 """
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import asyncio
@@ -220,7 +221,7 @@ async def run_crucible():
     )
 
     # Truncate old results so this run is self-contained.
-    RESULTS_PATH.write_text("")
+    atomic_write_text(RESULTS_PATH, "")
     summary_lines: List[str] = ["# Aura Cognitive Crucible — Results\n"]
 
     for scenario in SCENARIOS:
@@ -280,7 +281,7 @@ async def run_crucible():
             + (f"- **Final answer:**\n\n> {(trace.final_answer or '').strip()[:1200]}\n" if trace is not None else "- **Crashed** — see JSONL for details.\n")
         )
 
-    SUMMARY_PATH.write_text("\n".join(summary_lines))
+    atomic_write_text(SUMMARY_PATH, "\n".join(summary_lines))
     logger.info("")
     logger.info("Summary written to: %s", SUMMARY_PATH)
 

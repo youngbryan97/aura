@@ -33,6 +33,7 @@ every code change.
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -135,14 +136,14 @@ class SafePipeline:
         # 2. SANDBOX_PATCH
         sandbox = Path(tempfile.mkdtemp(prefix="aura-selfmod-"))
         sandbox_file = sandbox / Path(file_path).name
-        sandbox_file.write_text(after_source, encoding="utf-8")
+        atomic_write_text(sandbox_file, after_source, encoding="utf-8")
         proposal.stages_completed.append(Stage.SANDBOX_PATCH.value)
         _record(proposal, "sandbox_patched", {"sandbox": str(sandbox)})
 
         try:
             # 3. GENERATED_TESTS
             test_path = sandbox / "test_self_mod_patch.py"
-            test_path.write_text(self._generate_tests(file_path, before_source, after_source), encoding="utf-8")
+            atomic_write_text(test_path, self._generate_tests(file_path, before_source, after_source), encoding="utf-8")
             proposal.stages_completed.append(Stage.GENERATED_TESTS.value)
             _record(proposal, "tests_generated")
 
@@ -218,7 +219,7 @@ class SafePipeline:
 
             # 9. STAGED_DEPLOY — write to the real path and start monitor
             target = Path(file_path)
-            target.write_text(after_source, encoding="utf-8")
+            atomic_write_text(target, after_source, encoding="utf-8")
             proposal.stages_completed.append(Stage.STAGED_DEPLOY.value)
             _record(proposal, "staged_deployed")
 
@@ -308,7 +309,7 @@ class SafePipeline:
 
         if regression:
             try:
-                target.write_text(before_source, encoding="utf-8")
+                atomic_write_text(target, before_source, encoding="utf-8")
                 _record(proposal, "rolled_back", {"reason": "regression_after_deploy"})
             except Exception as exc:
                 _record(proposal, "rollback_failed", {"error": str(exc)})

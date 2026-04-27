@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import hashlib
 import logging
 import numpy as np
@@ -81,7 +82,7 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
             affect_engine = getattr(orchestrator, 'affect_engine', None)
             if affect_engine and hasattr(affect_engine, 'modify'):
                 import asyncio
-                asyncio.create_task(
+                get_task_tracker().create_task(
                     affect_engine.modify(
                         dv=sub_affect["valence"] * 0.01,
                         da=sub_affect["arousal"] * 0.01,

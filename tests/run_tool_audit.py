@@ -52,10 +52,10 @@ async def main():
         
     if results['score'] == results['total']:
         print("\n🎉 ALL TESTS PASSED.")
-        sys.exit(0)
+        raise SystemExit(0)
     else:
         print("\n⚠️ SOME TESTS FAILED.")
-        sys.exit(1)
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())

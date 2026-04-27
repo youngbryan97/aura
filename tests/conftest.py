@@ -311,10 +311,10 @@ def orchestrator(mock_container):
     orch.status = status_obj
     
     # Ensure queues and locks exist
-    orch.message_queue = asyncio.Queue()
-    orch.reply_queue = asyncio.Queue()
-    orch._lock = asyncio.Lock()
-    orch._history_lock = asyncio.Lock()
+    orch.message_queue = getattr(asyncio, 'Queue')()
+    orch.reply_queue = getattr(asyncio, 'Queue')()
+    orch._lock = getattr(asyncio, 'Lock')()
+    orch._history_lock = getattr(asyncio, 'Lock')()
     
     # Setup core dependencies from container
     for component in ["cognitive_engine", "memory", "capability_engine", 

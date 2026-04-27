@@ -11,6 +11,7 @@ This is the essence of Epistemic Humility: the ability to recognize when you
 are wrong and autonomously adjust your own operating parameters to compensate.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 from collections import Counter
 import json
@@ -57,7 +58,7 @@ class EpistemicHumility:
     async def start(self):
         if self.running: return
         self.running = True
-        self._task = asyncio.create_task(self._critic_loop(), name="EpistemicHumility.critic_loop")
+        self._task = get_task_tracker().create_task(self._critic_loop(), name="EpistemicHumility.critic_loop")
         logger.info("🙇 Epistemic Humility ONLINE — ready to learn from mistakes.")
 
     async def stop(self):

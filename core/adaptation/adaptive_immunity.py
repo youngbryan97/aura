@@ -17,6 +17,7 @@ autopoiesis engine. Everything sensitive remains governance-gated.
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import copy
@@ -2107,7 +2108,7 @@ class AdaptiveImmuneSystem:
             },
         }
         try:
-            self._state_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            atomic_write_text(self._state_path, json.dumps(payload, indent=2), encoding="utf-8")
         except Exception as exc:
             logger.debug("Adaptive immune state save skipped: %s", exc)
 

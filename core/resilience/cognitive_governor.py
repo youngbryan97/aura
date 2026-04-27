@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import Callable, Any
@@ -53,7 +54,7 @@ class CognitiveGovernor:
             self.circuit_state = "OPEN"
             logger.critical("Cognitive Governor tripped! Entering cool-down phase.")
             # Trigger Aura's background reflection or sleep cycle here instead of crashing
-            asyncio.create_task(self._cooldown_recovery())
+            get_task_tracker().create_task(self._cooldown_recovery())
 
     def _record_success(self):
         self.error_count = max(0, self.error_count - 1)

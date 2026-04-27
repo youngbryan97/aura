@@ -15,24 +15,35 @@ class ResourceLock:
     """Global resource coordination."""
 
     def __init__(self):
-        # Browser lock: SET = idle (tasks can run), CLEARED = browser active (tasks wait)
-        self._browser_idle = asyncio.Event()
-        self._browser_idle.set()  # Start as idle
-
-        # GPU lock: for heavy compute operations
-        self._gpu_semaphore = asyncio.Semaphore(1)
-
+        self._loop = None
+        self._browser_idle = None
+        self._gpu_semaphore = None
         self._browser_sessions = 0
         self._total_browser_sessions = 0
+
+    def _ensure_primitives(self):
+        """Lazily create async primitives for the current event loop."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        if self._loop is not loop:
+            self._loop = loop
+            self._browser_idle = asyncio.Event()
+            self._browser_idle.set()
+            self._gpu_semaphore = asyncio.Semaphore(1)
 
     @asynccontextmanager
     async def browser_session(self):
         """Context manager for browser operations.
         Clears the idle flag so heavy background tasks pause.
         """
+        self._ensure_primitives()
         self._browser_sessions += 1
         self._total_browser_sessions += 1
-        self._browser_idle.clear()
+        if self._browser_idle:
+            self._browser_idle.clear()
         logger.debug("🌐 Browser session started (%d active)", self._browser_sessions)
         try:
             yield
@@ -40,7 +51,8 @@ class ResourceLock:
             self._browser_sessions -= 1
             if self._browser_sessions <= 0:
                 self._browser_sessions = 0
-                self._browser_idle.set()
+                if self._browser_idle:
+                    self._browser_idle.set()
                 logger.debug("🌐 Browser session ended — background tasks resumed")
 
     async def wait_for_browser_idle(self, timeout: Optional[float] = 30.0):
@@ -49,7 +61,8 @@ class ResourceLock:
         Call this before starting heavy metabolic tasks.
         Returns True if idle, False if timed out.
         """
-        if self._browser_idle.is_set():
+        self._ensure_primitives()
+        if not self._browser_idle or self._browser_idle.is_set():
             return True
 
         logger.debug("⏳ Waiting for browser to finish before heavy task...")
@@ -63,17 +76,22 @@ class ResourceLock:
     @asynccontextmanager
     async def gpu_session(self):
         """Mutex for GPU-heavy operations (one at a time)."""
-        await self._gpu_semaphore.acquire()
+        self._ensure_primitives()
+        if self._gpu_semaphore:
+            await self._gpu_semaphore.acquire()
         try:
             yield
         finally:
-            self._gpu_semaphore.release()
+            if self._gpu_semaphore:
+                self._gpu_semaphore.release()
 
     @property
     def browser_active(self) -> bool:
-        return not self._browser_idle.is_set()
+        self._ensure_primitives()
+        return not self._browser_idle.is_set() if self._browser_idle else False
 
     def get_stats(self) -> dict:
+        self._ensure_primitives()
         return {
             "browser_active": self.browser_active,
             "active_browser_sessions": self._browser_sessions,

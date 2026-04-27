@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -113,7 +114,7 @@ class ResearchCycle:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._daemon(), name="aura.research_cycle")
+        self._task = get_task_tracker().create_task(self._daemon(), name="aura.research_cycle")
         logger.info("ResearchCycle daemon started.")
 
     async def stop(self) -> None:
@@ -642,7 +643,7 @@ class ResearchCycle:
             dreamer = ServiceContainer.get("dreamer_v2", default=None)
             if dreamer and hasattr(dreamer, "engage_sleep_cycle"):
                 logger.info("ResearchCycle: triggering dreaming pass after %d cycles.", self._cycle_count)
-                asyncio.create_task(
+                get_task_tracker().create_task(
                     dreamer.engage_sleep_cycle(),
                     name=f"aura.dream_cycle_{self._cycle_count}",
                 )

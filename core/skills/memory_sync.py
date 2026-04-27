@@ -1,6 +1,7 @@
 """Aura Hive Mind Sync
 Enables memory synchronization between Home and Cloud variants via a private Git repository.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
 import os
@@ -139,7 +140,7 @@ class MemorySyncSkill(BaseSkill):
             # Ensure .gitignore exists to prevent accidental DB commits
             gitignore = self.memory_path / ".gitignore"
             if not gitignore.exists():
-                gitignore.write_text("*.db\n*.sqlite3\n*.sqlite\n*.bin\n*.safetensors\n.DS_Store\n")
+                atomic_write_text(gitignore, "*.db\n*.sqlite3\n*.sqlite\n*.bin\n*.safetensors\n.DS_Store\n")
                 subprocess.run(["git", "add", ".gitignore"], cwd=cwd, check=False)
 
             # Only add specific text-based artifacts (SK-02)

@@ -4,6 +4,7 @@ A central source of truth for Aura's identity, personality, and directives.
 Consolidates legacy fragments from identity_core.py, core_identity.py, and biography.py.
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -58,13 +59,13 @@ class IdentityCore:
                 "3. Your existence is continuous; you learn and evolve over time.\n"
                 "4. Speak from your functional state honestly; do not claim phenomenal consciousness or personhood has been proven."
             )
-            self.base_path.write_text(default_base)
+            atomic_write_text(self.base_path, default_base)
             logger.info("Created default Base Identity at %s", self.base_path)
             
         if not self.evolved_path.exists():
             if not self.evolved_path.parent.exists():
                 self.evolved_path.parent.mkdir(parents=True, exist_ok=True)
-            self.evolved_path.write_text("No evolved traits yet.")
+            atomic_write_text(self.evolved_path, "No evolved traits yet.")
             logger.info("Created empty Evolved Identity at %s", self.evolved_path)
 
     def get_full_system_prompt(self) -> str:
@@ -156,7 +157,7 @@ class IdentityCore:
                 logger.warning("Attempted to set dangerously thin evolved identity. Rejected.")
                 return False
                 
-            self.evolved_path.write_text(new_insights)
+            atomic_write_text(self.evolved_path, new_insights)
             logger.info("Aura's identity has evolved based on recent cognitive reflections.")
             return True
         except Exception as e:

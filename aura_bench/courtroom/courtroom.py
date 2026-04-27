@@ -32,6 +32,7 @@ Pre-registered pass condition for the courtroom:
 Output: ``aura_bench/courtroom/results.jsonl`` plus a markdown report at
 ``aura_bench/courtroom/report.md``.
 """
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import asyncio
@@ -281,7 +282,7 @@ def _write_markdown(report: CourtroomReport) -> None:
             f"{row.get('no_memory', 0):.2f} | {row.get('prompt_only', 0):.2f} | "
             f"{row.get('standard_agent', 0):.2f} | {report.winner_per_task.get(task_id, '?')} |"
         )
-    out.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(out, "\n".join(lines), encoding="utf-8")
 
 
 if __name__ == "__main__":

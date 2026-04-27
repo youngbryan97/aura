@@ -82,7 +82,7 @@ class BootSensoryMixin:
             from core.utils.task_tracker import get_task_tracker
 
             get_task_tracker().track(
-                asyncio.create_task(self.reasoning_queue.start()), name="reasoning_queue"
+                self.reasoning_queue.start(), name="reasoning_queue"
             )
             logger.info("🧠 Background Reasoning Queue Started")
 
@@ -103,7 +103,8 @@ class BootSensoryMixin:
             except Exception as e:
                 logger.error("🛑 Voice Engine background init failed: %s", e)
 
-        asyncio.create_task(_init_voice())
+        from core.utils.task_tracker import get_task_tracker
+        get_task_tracker().track(_init_voice(), name="init_voice")
 
         from core.brain.multimodal_orchestrator import MultimodalOrchestrator
 

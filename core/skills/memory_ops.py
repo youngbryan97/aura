@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import logging
 import os
 import json
@@ -53,7 +54,7 @@ class MemoryOpsSkill(BaseSkill):
         for block in self.core_blocks:
             path = self.mem_fs_dir / f"{block}.txt"
             if not path.exists():
-                path.write_text(f"// Core Memory Block: {block}\n", encoding="utf-8")
+                atomic_write_text(path, f"// Core Memory Block: {block}\n", encoding="utf-8")
 
     async def execute(self, params: Any, context: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(params, dict):

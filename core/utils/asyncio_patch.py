@@ -1,7 +1,7 @@
 """Global asyncio task-supervision patch for Aura.
 
 Aura has a strong runtime-hygiene/TaskTracker story, but a large historical
-codebase inevitably contains direct ``asyncio.create_task(...)`` calls. This
+codebase inevitably contains direct ``get_task_tracker().create_task(...)`` calls. This
 module makes those calls safer by routing them through ``TaskTracker`` when it
 is available. The patch is idempotent, re-entrancy guarded, and fail-open during
 earliest boot so it cannot prevent Aura from starting.

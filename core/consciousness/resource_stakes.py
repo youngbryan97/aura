@@ -21,6 +21,7 @@ Integration:
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -100,7 +101,7 @@ class ResourceStakesEngine:
     def _save_state(self):
         """Persist resource state to disk."""
         try:
-            self._state_path.write_text(json.dumps({
+            atomic_write_text(self._state_path, json.dumps({
                 "compute_budget": round(self._state.compute_budget, 4),
                 "memory_budget": round(self._state.memory_budget, 4),
                 "background_allowance": round(self._state.background_allowance, 4),

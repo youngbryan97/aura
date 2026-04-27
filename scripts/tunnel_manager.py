@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import os
 import sys
 import time
@@ -59,7 +60,7 @@ class TunnelManager:
             )
             
             # Start background task to monitor output
-            asyncio.create_task(self._monitor_logs())
+            get_task_tracker().create_task(self._monitor_logs())
             
             # Wait for URL to be detected
             timeout = 30
@@ -157,7 +158,7 @@ async def main_async():
         except asyncio.CancelledError:
             await manager.stop_tunnel()
     else:
-        sys.exit(1)
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     if sys.argv[1] == "--check":
@@ -166,10 +167,10 @@ if __name__ == "__main__":
         binary = asyncio.run(tm.find_cloudflared())
         if binary:
             print("cloudflared: FOUND")
-            sys.exit(0)
+            raise SystemExit(0)
         else:
             print("cloudflared: NOT FOUND")
-            sys.exit(1)
+            raise SystemExit(1)
             
     try:
         asyncio.run(main_async())

@@ -45,6 +45,7 @@ INSTALL:
   patch_cognitive_integration()
 """
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -249,7 +250,7 @@ async def _patched_process_turn(
     history = _extract_history(context)
 
     # ── Run inference + kernel evaluation concurrently ───────────────────────
-    inference_task = asyncio.ensure_future(
+    inference_task = get_task_tracker().track(
         _run_inline_inference(message, history)
     )
 

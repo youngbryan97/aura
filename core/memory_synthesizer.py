@@ -29,6 +29,7 @@ Integration:
     #   architecture through working with Bryan. I believe elegant systems..."
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 import logging
@@ -458,7 +459,7 @@ class MemorySynthesizer:
         try:
             self._snapshot_path.parent.mkdir(parents=True, exist_ok=True)
             data = asdict(self._snapshot)
-            self._snapshot_path.write_text(json.dumps(data, indent=2))
+            atomic_write_text(self._snapshot_path, json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("Failed to save worldview snapshot: %s", e)
 

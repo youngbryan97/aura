@@ -481,8 +481,8 @@ class ResponseProcessingMixin:
                     clean_msg = "SAFEMODE_ENGAGE"
 
                 # Fire the reflex asynchronously since we are in a sync generator
-                import asyncio
-                asyncio.create_task(self.reflex_engine.process_emergency_interrupt(clean_msg, context="text_chat"))
+                from core.utils.task_tracker import get_task_tracker
+                get_task_tracker().track(self.reflex_engine.process_emergency_interrupt(clean_msg, context="text_chat"), name="process_emergency_interrupt")
 
                 if clean_msg == "SAFEMODE_ENGAGE":
                     return "Safemode engaged. All autonomous cognitive pathways suspended."

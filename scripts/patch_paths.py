@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import os
 import re
 from pathlib import Path
@@ -50,7 +51,7 @@ for rel_path in files_to_patch:
             lines.insert(last_import + 1, import_stmt)
             content = "\n".join(lines) + "\n"
         
-        file_path.write_text(content)
+        atomic_write_text(file_path, content)
         print(f"Patched {rel_path}")
 
 print("Patching complete.")

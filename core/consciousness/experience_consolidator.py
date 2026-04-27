@@ -27,6 +27,8 @@ Files:
   ~/.aura/data/consolidation_log.jsonl — consolidation history
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -83,7 +85,7 @@ class ExperienceConsolidator:
 
     async def start(self):
         self._running = True
-        self._task = asyncio.create_task(self._consolidation_loop())
+        self._task = get_task_tracker().create_task(self._consolidation_loop())
         logger.info("ExperienceConsolidator: background loop started.")
 
     async def stop(self):
@@ -426,7 +428,7 @@ Return valid JSON only:
             if not self._narrative:
                 return
             data = asdict(self._narrative)
-            NARRATIVE_PATH.write_text(json.dumps(data, indent=2))
+            atomic_write_text(NARRATIVE_PATH, json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("Narrative save failed: %s", e)
 
@@ -486,7 +488,7 @@ Return valid JSON only:
                 if CONSOL_LOG_PATH.stat().st_size > 5 * 1024 * 1024:
                     lines = CONSOL_LOG_PATH.read_text().splitlines()
                     # Keep last 500 entries
-                    CONSOL_LOG_PATH.write_text("\n".join(lines[-500:]) + "\n")
+                    atomic_write_text(CONSOL_LOG_PATH, "\n".join(lines[-500:]) + "\n")
             except Exception as _exc:
                 logger.debug("Suppressed Exception: %s", _exc)
         except Exception as _exc:

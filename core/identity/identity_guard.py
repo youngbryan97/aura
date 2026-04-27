@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import logging
 import re
 import time
@@ -100,7 +101,7 @@ class PersonaEnforcementGate:
         try:
             mycelium = ServiceContainer.get("mycelial_network", default=None)
             if mycelium:
-                task = asyncio.create_task(mycelium.emit_reflex(
+                task = get_task_tracker().create_task(mycelium.emit_reflex(
                     "NEURAL_OOC", 
                     {"reason": reason, "snippet": snippet, "timestamp": time.time()}
                 ))

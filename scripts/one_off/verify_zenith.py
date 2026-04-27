@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import sys
 import os
@@ -60,7 +61,7 @@ async def test_zenith_fixes():
         opt = get_safe_optimizer()
         # Mock a small file
         test_data = Path("/tmp/lora_test.txt")
-        test_data.write_text("dummy dataset content")
+        atomic_write_text(test_data, "dummy dataset content")
         await opt.optimize_lora(str(test_data), "base_model")
         print("✅ Safe optimizer executed without crash.")
     except Exception as e:

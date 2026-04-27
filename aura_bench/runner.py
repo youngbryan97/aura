@@ -24,6 +24,7 @@ Usage:
 
     asyncio.run(run_all())
 """
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import asyncio
@@ -179,7 +180,7 @@ def write_report(results: List[BenchResult]) -> Path:
         if r.notes:
             lines.append(f"- notes: {r.notes}")
         lines.append("")
-    out.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(out, "\n".join(lines), encoding="utf-8")
     return out
 
 

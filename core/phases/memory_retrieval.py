@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import Any, Optional
@@ -229,7 +230,7 @@ class MemoryRetrievalPhase(BasePhase):
                     logger.debug("💥 Memory retrieval triggered affective hit: val_shift=%.2f, arousal_shift=%.2f",
                                  val_shift, arousal_shift)
                     
-                    asyncio.create_task(
+                    get_task_tracker().create_task(
                         affect_engine.modify(dv=val_shift, da=arousal_shift, de=0.0, source="memory_retrieval")
                     )
             except Exception as e:

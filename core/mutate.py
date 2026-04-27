@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import ast
 import asyncio
 import logging
@@ -55,7 +56,7 @@ async def apply_mutation(target_path: str, new_code: str) -> bool:
 
     try:
         # 3. Write candidate
-        path.write_text(new_code, encoding="utf-8")
+        atomic_write_text(path, new_code, encoding="utf-8")
         logger.info("Wrote candidate mutation to %s", path)
 
         # 4. Tests

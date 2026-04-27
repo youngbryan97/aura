@@ -8,6 +8,7 @@ Enables Aura to:
 4. Select appropriate reasoning strategies
 5. Evaluate her own performance
 """
+from core.utils.task_tracker import get_task_tracker
 import json
 import logging
 import random
@@ -313,7 +314,7 @@ class MetaCognitionEngine:
 
     async def start(self):
         self.running = True
-        self._task = asyncio.create_task(self._audit_loop())
+        self._task = get_task_tracker().create_task(self._audit_loop())
         logger.info("🧠 Meta-Cognition: System Audit & Reasoning Monitor active.")
 
     async def stop(self):

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -87,7 +88,7 @@ class SelfModel:
                     "snapshots": {k: asdict(v) for k, v in self.snapshots.items()},
                     "pending_updates": list(self.pending_updates),
                 }
-                DATA_FILE.write_text(json.dumps(data, indent=2))
+                atomic_write_text(DATA_FILE, json.dumps(data, indent=2))
             except Exception as e:
                 logger.error("Failed to persist self model: %s", e)
 

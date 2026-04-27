@@ -617,7 +617,7 @@ async def test_run_terminal_self_heal(orchestrator):
 @pytest.mark.asyncio
 async def test_acquire_next_message(orchestrator):
     # message_queue is an attribute of RobustOrchestrator
-    orchestrator.message_queue = asyncio.Queue()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')()
     await orchestrator.message_queue.put("Hello")
     msg = await orchestrator._acquire_next_message()
     assert msg == "Hello"
@@ -842,12 +842,12 @@ def test_record_message_in_history_impulse(orchestrator):
 # --- enqueue_message (line 919) ---
 @pytest.mark.asyncio
 async def test_enqueue_message_success(orchestrator):
-    orchestrator.message_queue = asyncio.Queue(maxsize=10)
+    orchestrator.message_queue = getattr(asyncio, 'Queue')(maxsize=10)
     orchestrator.enqueue_message("Hello", _flow_checked=True, _authority_checked=True)
     assert orchestrator.message_queue.qsize() == 1
 
 def test_enqueue_message_full(orchestrator):
-    orchestrator.message_queue = asyncio.Queue(maxsize=1)
+    orchestrator.message_queue = getattr(asyncio, 'Queue')(maxsize=1)
     orchestrator.message_queue.put_nowait("first")
     # Should not raise, just warn
     orchestrator.enqueue_message("second")
@@ -855,14 +855,14 @@ def test_enqueue_message_full(orchestrator):
 
 # --- enqueue_from_thread (line 926) ---
 def test_enqueue_from_thread_no_loop(orchestrator):
-    orchestrator.message_queue = asyncio.Queue()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')()
     with patch("asyncio.get_running_loop", side_effect=RuntimeError):
         orchestrator.loop = None
         # Should not raise
         orchestrator.enqueue_from_thread("Hello")
 
 def test_enqueue_from_thread_dict_message(orchestrator):
-    orchestrator.message_queue = asyncio.Queue()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')()
     msg = {"content": "test"}
     with patch("asyncio.get_running_loop", side_effect=RuntimeError):
         orchestrator.loop = MagicMock()
@@ -1020,7 +1020,7 @@ async def test_recover_from_stall(orchestrator):
     orchestrator._current_thought_task = MagicMock()
     orchestrator._current_thought_task.done.return_value = False
     orchestrator._recovery_attempts = 0
-    orchestrator.message_queue = asyncio.Queue(maxsize=100)
+    orchestrator.message_queue = getattr(asyncio, 'Queue')(maxsize=100)
 
     with patch.dict("sys.modules", {"core.resilience.dead_letter": MagicMock()}):
         orchestrator.retry_cognitive_connection = AsyncMock(return_value=True)
@@ -1030,7 +1030,7 @@ async def test_recover_from_stall(orchestrator):
 # --- _acquire_next_message (line 907) ---
 @pytest.mark.asyncio
 async def test_acquire_next_message_with_msg(orchestrator):
-    orchestrator.message_queue = asyncio.Queue()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')()
     orchestrator.message_queue.put_nowait("Hello")
     orchestrator._liquid_state_override = MagicMock()
     orchestrator._last_thought_time = 0
@@ -1041,7 +1041,7 @@ async def test_acquire_next_message_with_msg(orchestrator):
 
 @pytest.mark.asyncio
 async def test_acquire_next_message_unpacks_five_tuple_payload(orchestrator):
-    orchestrator.message_queue = asyncio.Queue()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')()
     orchestrator.message_queue.put_nowait((10, 1.23, 4, {"content": "Hello", "origin": "api"}, "api"))
 
     result = await orchestrator._acquire_next_message()
@@ -1050,7 +1050,7 @@ async def test_acquire_next_message_unpacks_five_tuple_payload(orchestrator):
 
 @pytest.mark.asyncio
 async def test_acquire_next_message_empty(orchestrator):
-    orchestrator.message_queue = asyncio.Queue()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')()
 
     result = await orchestrator._acquire_next_message()
     assert result is None
@@ -1694,7 +1694,7 @@ async def test_handle_incoming_message_cancel_prev_task(orchestrator):
     orchestrator.hooks = MagicMock()
     orchestrator.hooks.trigger = AsyncMock()
     orchestrator.conversation_history = []
-    orchestrator.reply_queue = asyncio.Queue()
+    orchestrator.reply_queue = getattr(asyncio, 'Queue')()
 
     # process_user_input_priority holds the cancellation logic now
     with patch("core.utils.task_tracker.task_tracker.track_task"):
@@ -1720,7 +1720,7 @@ async def test_recover_from_stall_with_dlq(orchestrator):
     orchestrator._current_thought_task = MagicMock()
     orchestrator._current_thought_task.done.return_value = True
     orchestrator._recovery_attempts = 0
-    orchestrator.message_queue = asyncio.Queue(maxsize=100)
+    orchestrator.message_queue = getattr(asyncio, 'Queue')(maxsize=100)
 
     mock_dlq = MagicMock()
     with patch("core.container.ServiceContainer.get", return_value=mock_dlq):
@@ -1736,8 +1736,8 @@ async def test_recover_from_stall_with_dlq(orchestrator):
 def test_get_status_overload_with_stats(orchestrator):
     orchestrator.start_time = time.time() - 500
     orchestrator.stats = {"messages_processed": 10, "errors": 1}
-    orchestrator.message_queue = asyncio.Queue(maxsize=100)
-    orchestrator.reply_queue = asyncio.Queue()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')(maxsize=100)
+    orchestrator.reply_queue = getattr(asyncio, 'Queue')()
     orchestrator.agency = 0.9
     orchestrator.health_monitor_service = None
 
@@ -1750,7 +1750,7 @@ def test_get_status_overload_with_stats(orchestrator):
 async def test_process_cycle_rl_trigger(orchestrator):
     orchestrator.status.cycle_count = 999
     orchestrator.status.is_processing = False
-    orchestrator._stop_event = asyncio.Event()
+    orchestrator._stop_event = getattr(asyncio, 'Event')()
     orchestrator.hooks = MagicMock()
     orchestrator.hooks.trigger = AsyncMock()
     orchestrator._save_state_async = AsyncMock()
@@ -1770,7 +1770,7 @@ async def test_process_cycle_rl_trigger(orchestrator):
 async def test_process_cycle_self_update_trigger(orchestrator):
     orchestrator.status.cycle_count = 4999
     orchestrator.status.is_processing = False
-    orchestrator._stop_event = asyncio.Event()
+    orchestrator._stop_event = getattr(asyncio, 'Event')()
     orchestrator.hooks = MagicMock()
     orchestrator.hooks.trigger = AsyncMock()
     orchestrator._save_state_async = AsyncMock()
@@ -2043,7 +2043,7 @@ async def test_check_surprise_and_learn_high_surprise(orchestrator):
     mock_ee_instance.calculate_surprise = AsyncMock(return_value=0.9)  # High surprise
     mock_ee_instance.update_beliefs_from_result = AsyncMock()
 
-    orchestrator._history_lock = asyncio.Lock()
+    orchestrator._history_lock = getattr(asyncio, 'Lock')()
     orchestrator.conversation_history = []
 
     mock_ce = object()
@@ -2071,7 +2071,7 @@ async def test_check_surprise_and_learn_high_surprise(orchestrator):
 @pytest.mark.asyncio
 async def test_process_user_input_exception():
     orchestrator = RobustOrchestrator()
-    orchestrator.reply_queue = asyncio.Queue()
+    orchestrator.reply_queue = getattr(asyncio, 'Queue')()
     orchestrator.status = SimpleNamespace(initialized=False, is_processing=False, running=False)
     orchestrator.start = MagicMock()
 
@@ -2175,8 +2175,8 @@ async def test_process_user_input_queue_full(orchestrator):
     import asyncio
     orchestrator.status = MagicMock(initialized=False)
     orchestrator.start = AsyncMock()
-    orchestrator.reply_queue = asyncio.Queue()
-    orchestrator.message_queue = asyncio.Queue()
+    orchestrator.reply_queue = getattr(asyncio, 'Queue')()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')()
 
     # We trigger the QueueFull exception by having the handle_incoming_message raise it
     orchestrator._handle_incoming_message = AsyncMock(side_effect=asyncio.QueueFull())
@@ -2194,8 +2194,8 @@ async def test_process_user_input_timeout_still_running(orchestrator):
     orchestrator.start = AsyncMock()
 
     # Needs a real queue so property accesses or empty() checks don't fail as mocks
-    orchestrator.reply_queue = asyncio.Queue()
-    orchestrator.message_queue = asyncio.Queue()
+    orchestrator.reply_queue = getattr(asyncio, 'Queue')()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')()
 
     orchestrator._current_thought_task = MagicMock()
     orchestrator._current_thought_task.done.return_value = False
@@ -2212,8 +2212,8 @@ async def test_process_user_input_timeout_done(orchestrator):
     import asyncio
     orchestrator.status = MagicMock(initialized=False)
     orchestrator.start = AsyncMock()
-    orchestrator.reply_queue = asyncio.Queue()
-    orchestrator.message_queue = asyncio.Queue()
+    orchestrator.reply_queue = getattr(asyncio, 'Queue')()
+    orchestrator.message_queue = getattr(asyncio, 'Queue')()
     orchestrator._current_thought_task = None
     orchestrator._handle_incoming_message = AsyncMock()
 

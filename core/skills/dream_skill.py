@@ -17,7 +17,7 @@ def _schedule_background_task(coro: Any, *, name: str) -> None:
     except Exception:
         pass
     try:
-        asyncio.create_task(coro, name=name)
+        get_task_tracker().create_task(coro, name=name)
     except Exception as exc:
         try:
             coro.close()

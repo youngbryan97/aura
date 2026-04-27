@@ -10,6 +10,7 @@ CRITICAL CAPABILITIES:
 
 This allows Aura to "tap you on the shoulder" when she wants to talk.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -192,7 +193,7 @@ rm -f $PIPE_IN $PIPE_OUT
             self.handler_task = loop.create_task(self._message_handler_loop())
         except RuntimeError:
             # No running loop — use ensure_future to schedule for when one starts
-            self.handler_task = asyncio.ensure_future(self._message_handler_loop())
+            self.handler_task = get_task_tracker().track(self._message_handler_loop())
     
     async def _message_handler_loop(self):
         """Handle bidirectional communication"""

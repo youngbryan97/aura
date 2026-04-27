@@ -27,6 +27,7 @@ Design invariants:
   4. Privacy-aware: patterns are statistical, not verbatim user messages.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -826,7 +827,7 @@ class PrecognitiveEngine:
         try:
             self._data_path.parent.mkdir(parents=True, exist_ok=True)
             data = self._db.to_dict()
-            self._data_path.write_text(json.dumps(data, indent=2, default=str))
+            atomic_write_text(self._data_path, json.dumps(data, indent=2, default=str))
             self._last_save = time.time()
             self._db.last_saved = self._last_save
             logger.debug("Saved precognitive patterns to %s", self._data_path)

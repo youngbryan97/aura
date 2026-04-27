@@ -11,6 +11,7 @@ perfect".
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import os
@@ -284,7 +285,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.out:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(report.to_json(), encoding="utf-8")
+        atomic_write_text(out, report.to_json(), encoding="utf-8")
     if args.json:
         print(report.to_json())
     else:

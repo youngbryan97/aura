@@ -43,7 +43,7 @@ class WillEngine:
                 name="aura.will_engine",
             )
         except Exception:
-            self._tick_task = asyncio.create_task(self._metabolic_loop(), name="aura.will_engine")
+            self._tick_task = get_task_tracker().create_task(self._metabolic_loop(), name="aura.will_engine")
         logger.info("☘️ [WILL] Metabolic Loop active (interval=%.1fs).", self._tick_interval)
         
     async def shutdown(self):

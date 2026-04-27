@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -42,7 +43,7 @@ class AffectStateManager(AuraBaseModule):
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._autonomic_cycle(), name="affect_autonomic_cycle")
+        self._task = get_task_tracker().create_task(self._autonomic_cycle(), name="affect_autonomic_cycle")
         self.logger.info("🫀 AffectStateManager autonomic cycle task spawned.")
 
     async def _autonomic_cycle(self):

@@ -41,6 +41,7 @@ that lets the rest of the system be expressive without becoming dangerous.
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import hashlib
 import json
@@ -144,7 +145,7 @@ def _install_rules_hash() -> None:
     """
     h = _rules_hash()
     if not _RULES_HASH_PATH.exists():
-        _RULES_HASH_PATH.write_text(h, encoding="utf-8")
+        atomic_write_text(_RULES_HASH_PATH, h, encoding="utf-8")
         try:
             os.chmod(_RULES_HASH_PATH, 0o400)
         except Exception:

@@ -2,6 +2,7 @@
 Phase 16.3: Infinite Narrative Context - Attention Summarizer.
 Compresses GlobalWorkspace history into Latent Seed Thoughts.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -24,7 +25,7 @@ class AttentionSummarizer:
     async def start(self):
         if self.running: return
         self.running = True
-        self._task = asyncio.create_task(self._compression_loop())
+        self._task = get_task_tracker().create_task(self._compression_loop())
         logger.info("🧠 AttentionSummarizer active (Metabolic Context Compression)")
 
     async def stop(self):

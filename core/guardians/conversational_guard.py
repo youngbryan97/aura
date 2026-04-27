@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import List, Dict
@@ -21,7 +22,7 @@ class ConversationalMemoryGuard:
         if len(self.working_memory) > self.max_cloud_turns:
             logger.info("🧠 ConversationalMemoryGuard: Context limit reached. Triggering background compression.")
             # Don't block the conversation to summarize. Send it to the background.
-            asyncio.create_task(self._compress_oldest_memories(cognitive_engine))
+            get_task_tracker().create_task(self._compress_oldest_memories(cognitive_engine))
 
     async def _compress_oldest_memories(self, cognitive_engine):
         """Takes the oldest N turns, summarizes them, and updates the compressed context."""

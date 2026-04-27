@@ -27,6 +27,7 @@ half-written dossier.
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -308,7 +309,7 @@ class RelationshipStore:
             self._cache[d.relationship_id] = d
             path = self._path(d.relationship_id)
             tmp = path.with_suffix(".json.tmp")
-            tmp.write_text(json.dumps(d.to_dict(), indent=2, default=str), encoding="utf-8")
+            atomic_write_text(tmp, json.dumps(d.to_dict(), indent=2, default=str), encoding="utf-8")
             os.replace(tmp, path)
 
     @staticmethod

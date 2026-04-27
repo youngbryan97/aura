@@ -415,7 +415,7 @@ def test_enqueue_message_blocks_unapproved_background_injection(orchestrator, mo
     ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
     ServiceContainer.lock_registration()
 
-    orchestrator.message_queue = asyncio.Queue(maxsize=10)
+    orchestrator.message_queue = getattr(asyncio, 'Queue')(maxsize=10)
 
     monkeypatch.setattr(
         "core.constitution.get_constitutional_core",
@@ -471,8 +471,8 @@ async def test_output_gate_reroutes_unauthorized_autonomous_primary_output(servi
 @pytest.mark.asyncio
 async def test_output_gate_tracks_renderer_tasks_without_leaking(service_container):
     output_gate_module._background_tasks.clear()
-    started = asyncio.Event()
-    release = asyncio.Event()
+    started = getattr(asyncio, 'Event')()
+    release = getattr(asyncio, 'Event')()
 
     async def _render(_content, _metadata):
         started.set()

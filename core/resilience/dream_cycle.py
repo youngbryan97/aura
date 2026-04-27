@@ -5,6 +5,8 @@ Background process that periodically scans the Dead Letter Queue (DLQ)
 and attempts to re-ingest failed thoughts or impulses into the core loop.
 """
 
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -24,7 +26,7 @@ class DreamCycle:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._cycle_loop(interval))
+        self._task = get_task_tracker().create_task(self._cycle_loop(interval))
         logger.info("💤 Dream Cycle active: Re-ingesting dead-letter thoughts every %ds.", interval)
 
     def stop(self):
@@ -62,7 +64,7 @@ class DreamCycle:
                 with open(self.dlq_path) as f:
                     lines = f.readlines()
                 # Clear file after reading to avoid infinite loops.
-                self.dlq_path.write_text("")
+                atomic_write_text(self.dlq_path, "")
                 return lines
 
             lines = await asyncio.to_thread(_read_and_clear)

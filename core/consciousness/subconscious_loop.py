@@ -39,7 +39,7 @@ class SubconsciousLoop:
                 name="aura.subconscious_loop",
             )
         except Exception:
-            self._task = asyncio.create_task(self._run_loop(), name="aura.subconscious_loop")
+            self._task = get_task_tracker().create_task(self._run_loop(), name="aura.subconscious_loop")
         logger.info("🧠 Subconscious Loop activated")
 
     async def stop(self):

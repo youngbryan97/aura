@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 import asyncio
 import inspect
@@ -192,7 +193,7 @@ class GlobalWorkspace:
                         # Establish a 'tension' state via mycelium
                         h = mycelium.get_hypha("consciousness", "workspace")
                         if h: h.strength = 10.0 # Thicken the visual noise
-                        asyncio.create_task(mycelium.emit_reflex("NEURAL_FLOOD", {"source": candidate.source}))
+                        get_task_tracker().create_task(mycelium.emit_reflex("NEURAL_FLOOD", {"source": candidate.source}))
                 except Exception as _e:
                     logger.debug('Ignored Exception in global_workspace.py: %s', _e)
                 return False

@@ -32,6 +32,7 @@ Design invariants:
     - Governance-gated: every repair goes through the Unified Will.
     - Escalation path: repeated failures surface to the human operator.
 """
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -319,7 +320,7 @@ class AutopoiesisEngine:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._run_loop(), name="autopoiesis-loop")
+        self._task = get_task_tracker().create_task(self._run_loop(), name="autopoiesis-loop")
         logger.info("Autopoiesis background loop STARTED")
 
     async def stop(self) -> None:
@@ -1086,8 +1087,6 @@ class AutopoiesisEngine:
 # ---------------------------------------------------------------------------
 
 _engine_instance: AutopoiesisEngine | None = None
-_singleton_lock = asyncio.Lock()
-
 
 def get_autopoiesis_engine() -> AutopoiesisEngine:
     """Return the singleton AutopoiesisEngine instance.

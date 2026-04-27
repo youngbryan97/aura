@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 import logging
 import time
@@ -86,7 +87,7 @@ class AffectUpdatePhase(Phase):
             try:
                 # Fire and forget update
                 import asyncio
-                asyncio.create_task(ls.update(valence=affect.valence, arousal=affect.arousal))
+                get_task_tracker().create_task(ls.update(valence=affect.valence, arousal=affect.arousal))
             except Exception as e:
                 logger.debug("Failed to push VAD to substrate: %s", e)
         

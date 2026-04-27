@@ -641,7 +641,8 @@ class BootResilienceMixin:
                         msg = f"[RECOVERY] Resuming interrupted thought: {drift/3600:.1f} hours. Resuming."
                         try:
                             if hasattr(self, "emit_spontaneous_message"):
-                                asyncio.create_task(
+                                from core.utils.task_tracker import fire_and_track
+                                fire_and_track(
                                     self.emit_spontaneous_message(
                                         msg,
                                         modality="chat",
@@ -656,7 +657,8 @@ class BootResilienceMixin:
                                     )
                                 )
                             elif getattr(self, "output_gate", None):
-                                asyncio.create_task(
+                                from core.utils.task_tracker import fire_and_track
+                                fire_and_track(
                                     self.output_gate.emit(
                                         msg,
                                         origin="recovery",

@@ -9,6 +9,7 @@ ZENITH Protocol compliance:
   - Zero raw disk writes in the hot path.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import sqlite3
 import logging
@@ -51,7 +52,7 @@ class CognitiveVault:
         """Initializes the database schema and starts the write worker."""
         await asyncio.to_thread(self._initialize_schema)
         self._running = True
-        self._worker_task = asyncio.create_task(self._write_worker(), name="CognitiveVault.Worker")
+        self._worker_task = get_task_tracker().create_task(self._write_worker(), name="CognitiveVault.Worker")
         logger.info("CognitiveVault ONLINE. Unified write pipeline active.")
 
     async def on_stop_async(self):

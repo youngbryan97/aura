@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import json
 import logging
 import time
@@ -91,7 +92,7 @@ class MetaLearningEngine:
             try:
                 # We fire and forget this async task so it doesn't block the critical path
                 pipe = get_finetune_pipe()
-                asyncio.create_task(
+                get_task_tracker().create_task(
                     pipe.register_success(
                         task_description=task,
                         context=strategy_note or "Standard execution context.",

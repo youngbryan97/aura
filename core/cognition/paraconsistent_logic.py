@@ -25,6 +25,7 @@ Persistence: belief graph saved to ~/.aura/data/belief_graph.json
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import enum
 import json
@@ -674,7 +675,7 @@ class ParaconsistentEngine:
                 "paradoxes": {pid: p.to_dict() for pid, p in self._paradoxes.items()},
                 "saved_at": time.time(),
             }
-            self._graph_path.write_text(json.dumps(data, indent=2, default=str))
+            atomic_write_text(self._graph_path, json.dumps(data, indent=2, default=str))
             logger.debug("Belief graph saved (%d beliefs, %d paradoxes)",
                          len(self._beliefs), len(self._paradoxes))
         except Exception as e:

@@ -53,14 +53,14 @@ async def test_telemetry_emission():
             print("\n✨ SCHEMA VERIFICATION PASSED")
         else:
             print("\n❌ SCHEMA VERIFICATION FAILED")
-            sys.exit(1)
+            raise SystemExit(1)
                 
     except asyncio.TimeoutError:
         print("❌ Timeout: No telemetry pulse received.")
-        sys.exit(1)
+        raise SystemExit(1)
     except Exception as e:
         print(f"❌ Error during verification: {e}")
-        sys.exit(1)
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     asyncio.run(test_telemetry_emission())

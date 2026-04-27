@@ -14,6 +14,7 @@ This system is the primary driver of 'Dialectical Growth' — finding truth
 through the tension of opposites.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -48,7 +49,7 @@ class BeliefChallenger:
         self._api       = ServiceContainer.get("api_adapter",           default=None)
 
         self.running = True
-        self._challenge_task = asyncio.create_task(self._challenge_loop(), name="BeliefChallenger")
+        self._challenge_task = get_task_tracker().create_task(self._challenge_loop(), name="BeliefChallenger")
         
         try:
             from core.event_bus import get_event_bus

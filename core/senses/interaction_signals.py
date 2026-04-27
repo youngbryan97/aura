@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -120,9 +121,9 @@ class InteractionSignalsEngine:
             if self._started:
                 return
             self._tasks = [
-                asyncio.create_task(self._typing_consumer(), name="interaction_signals.typing"),
-                asyncio.create_task(self._voice_consumer(), name="interaction_signals.voice"),
-                asyncio.create_task(self._vision_consumer(), name="interaction_signals.vision"),
+                get_task_tracker().create_task(self._typing_consumer(), name="interaction_signals.typing"),
+                get_task_tracker().create_task(self._voice_consumer(), name="interaction_signals.voice"),
+                get_task_tracker().create_task(self._vision_consumer(), name="interaction_signals.vision"),
             ]
             self._started = True
 

@@ -34,7 +34,7 @@ class DatabaseCoordinator:
                 name="aura.database_coordinator",
             )
         except Exception:
-            self._worker_task = asyncio.create_task(self._process_writes(), name="aura.database_coordinator")
+            self._worker_task = get_task_tracker().create_task(self._process_writes(), name="aura.database_coordinator")
         logger.info("🗄️ DatabaseCoordinator worker started.")
 
     async def stop(self):

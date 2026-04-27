@@ -3,6 +3,7 @@ Grok-Level Mixture-of-Experts Dynamic Router for Aura
 Real-time model selection with learning, confidence override, and self-awareness.
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
 import time
@@ -77,7 +78,7 @@ class DynamicRouter:
     def _save_history(self):
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
-            self.db_path.write_text(json.dumps(self.performance_history, indent=2))
+            atomic_write_text(self.db_path, json.dumps(self.performance_history, indent=2))
         except Exception as e:
             logger.error(f"Router history save failed: {e}")
 

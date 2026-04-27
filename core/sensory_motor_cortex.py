@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import os
@@ -60,8 +61,8 @@ class SensoryMotorCortex:
         
         # Issue 45: Store task references for clean shutdown
         self._tasks = []
-        self._tasks.append(asyncio.create_task(self._visual_cortex_loop()))
-        self._tasks.append(asyncio.create_task(self._volition_heartbeat_loop()))
+        self._tasks.append(get_task_tracker().create_task(self._visual_cortex_loop()))
+        self._tasks.append(get_task_tracker().create_task(self._volition_heartbeat_loop()))
 
     async def stop(self):
         self.is_active = False

@@ -188,9 +188,7 @@ class MindTick:
         get_watchdog().register_component("mind_tick", timeout=30.0)
         
         self._running = True
-        self._task = get_task_tracker().track_task(
-            asyncio.create_task(self._run_loop(), name="mind_tick.run_loop")
-        )
+        self._task = get_task_tracker().track_task(self._run_loop(), name="mind_tick.run_loop")
         logger.info("💓 MindTick: Cognitive rhythm started.")
 
     async def stop(self):
@@ -381,7 +379,7 @@ class MindTick:
                     reasoning_pause = self._background_reasoning_pause_reason(state)
                     if not reasoning_pause and time.time() - self._last_trajectory_time > 60.0: # Every minute
                         get_task_tracker().track_task(
-                            asyncio.create_task(
+                            get_task_tracker().create_task(
                                 self.trajectory_predictor.predict_path(
                                     state.cognition.current_objective or "General Processing",
                                     state,
@@ -777,7 +775,7 @@ class MindTick:
                             # Run as fire-and-forget task so we don't block the tick
                             # Ensure background flag is passed
                             get_task_tracker().track_task(
-                                asyncio.create_task(
+                                get_task_tracker().create_task(
                                     memory_coord.consolidate_working_memory(current_state, is_background=True),
                                     name="mind_tick.consolidate_working_memory",
                                 )

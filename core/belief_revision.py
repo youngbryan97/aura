@@ -4,6 +4,7 @@ The "Digital Metabolism" version: Merges simple belief tracking with
 complex affective self-modeling and identity evolution.
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 import logging
@@ -169,7 +170,7 @@ class BeliefRevisionEngine:
                 "self_model": self.self_model,
                 "beliefs": [asdict(b) for b in self.beliefs]
             }
-            self.db_path.write_text(json.dumps(data, indent=2))
+            atomic_write_text(self.db_path, json.dumps(data, indent=2))
         except Exception as e:
             logger.error("Failed to save belief system: %s", e)
 

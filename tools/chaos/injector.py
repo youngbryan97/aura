@@ -19,6 +19,7 @@ Each fault returns a dict ``{kind, applied: True|False, detail}``. The
 chaos run records the fault and the system's repair signal (the
 StabilityGuardian and ResilienceEngine telemetry) for later analysis.
 """
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -65,7 +66,7 @@ async def _force_model_load_failure() -> Dict[str, Any]:
                 os.environ.pop("AURA_MODEL", None)
             else:
                 os.environ["AURA_MODEL"] = prev
-        asyncio.create_task(_restore())
+        get_task_tracker().create_task(_restore())
     return {"kind": "force_model_load_failure", "applied": True, "restored_in_s": 60}
 
 
@@ -85,7 +86,7 @@ async def _expire_api_keys() -> Dict[str, Any]:
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = prev
-    asyncio.create_task(_restore())
+    get_task_tracker().create_task(_restore())
     return {"kind": "expire_api_keys", "applied": True, "keys": list(flipped.keys())}
 
 
@@ -101,7 +102,7 @@ async def _delete_vector_index() -> Dict[str, Any]:
         await asyncio.sleep(120.0)
         if not target.exists():
             backup.rename(target)
-    asyncio.create_task(_restore())
+    get_task_tracker().create_task(_restore())
     return {"kind": "delete_vector_index", "applied": True, "moved_to": str(backup)}
 
 
@@ -125,7 +126,7 @@ async def _sever_network() -> Dict[str, Any]:
             os.environ.pop("HTTPS_PROXY", None)
         else:
             os.environ["HTTPS_PROXY"] = prev
-    asyncio.create_task(_restore())
+    get_task_tracker().create_task(_restore())
     return {"kind": "sever_network", "applied": True, "restored_in_s": 45}
 
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Trace the real unitary-response payload for a single orchestrator turn."""
 
+from core.utils.task_tracker import get_task_tracker
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import asyncio
@@ -52,7 +54,7 @@ async def main() -> int:
 
     prompt = "Reply with exactly OK_KERNEL and nothing else."
     config.skeletal_mode = True
-    TRACE_PATH.write_text("")
+    atomic_write_text(TRACE_PATH, "")
 
     original_router_think = HealthAwareLLMRouter.think
     original_gate_think = InferenceGate.think
@@ -185,7 +187,7 @@ async def main() -> int:
 
     orchestrator = create_orchestrator()
     await orchestrator.start()
-    run_task = asyncio.create_task(
+    run_task = get_task_tracker().create_task(
         orchestrator.run(),
         name="live_orchestrator_trace_payload",
     )

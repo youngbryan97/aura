@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -773,7 +774,7 @@ class StreamOfBeing:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(
+        self._task = get_task_tracker().create_task(
             self._existence_loop(), name="StreamOfBeing.existence"
         )
         logger.info("🌊 StreamOfBeing ONLINE — Aura is becoming")

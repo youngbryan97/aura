@@ -30,6 +30,7 @@ Twitter: TWITTER_BEARER_TOKEN, TWITTER_API_KEY, TWITTER_API_SECRET,
 Reddit:  REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME,
          REDDIT_PASSWORD, REDDIT_USER_AGENT
 """
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 import asyncio
 import json
@@ -752,11 +753,11 @@ class SocialMediaEngine:
                 "last_post_time": self._last_post_time,
                 "saved_at": time.time(),
             }
-            self.PERSIST_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            atomic_write_text(self.PERSIST_PATH, json.dumps(payload, indent=2), encoding="utf-8")
 
             self.INTERACTION_LOG.parent.mkdir(parents=True, exist_ok=True)
             log_raw = [asdict(i) for i in self._interaction_log[-600:]]
-            self.INTERACTION_LOG.write_text(json.dumps(log_raw, indent=2), encoding="utf-8")
+            atomic_write_text(self.INTERACTION_LOG, json.dumps(log_raw, indent=2), encoding="utf-8")
         except Exception as exc:
             logger.warning("SocialMediaEngine: state save failed — %s", exc)
 

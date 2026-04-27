@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import concurrent.futures as cfutures
 import contextlib
@@ -372,7 +374,7 @@ def _load_probe_cache_from_disk() -> tuple[Optional[bool], str, float]:
 def _store_probe_cache_to_disk(ok: bool, detail: str) -> None:
     try:
         _MLX_RUNTIME_PROBE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _MLX_RUNTIME_PROBE_CACHE_PATH.write_text(
+        atomic_write_text(_MLX_RUNTIME_PROBE_CACHE_PATH, 
             json.dumps(
                 {
                     "ok": bool(ok),
@@ -1002,7 +1004,7 @@ class MLXLocalClient:
                 pass
             _cancel_task_threadsafe(task)
 
-        self._listener_task = asyncio.create_task(self._response_listener_loop())
+        self._listener_task = get_task_tracker().create_task(self._response_listener_loop())
 
     def note_lane_failed(self, reason: str) -> None:
         self._warmup_in_flight = False

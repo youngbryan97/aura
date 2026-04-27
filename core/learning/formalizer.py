@@ -7,6 +7,7 @@ This runs as a background task triggered after sovereign_browser fetches
 page content, extracting structured facts and relationships without
 blocking the user-facing response.
 """
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -137,7 +138,7 @@ class KnowledgeFormalizer:
         """Formalize raw content into knowledge graph entries.
 
         This is the main entry point, designed to be called via
-        asyncio.create_task() from the response pipeline.
+        get_task_tracker().create_task() from the response pipeline.
 
         Returns:
             Summary dict with counts of facts and relationships committed.

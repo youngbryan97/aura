@@ -4,10 +4,12 @@
 # Default mode is report-only. It finds raw asyncio.create_task /
 # asyncio.ensure_future calls in production files. With --apply, it only
 # rewrites the very narrow and safe pattern:
-#   asyncio.ensure_future(record_organ_formation_episode(...))
+#   get_task_tracker().track(record_organ_formation_episode(...))
 # into fire_and_forget(...), because this exact pattern is known to be
 # non-critical episodic telemetry.
 
+from core.utils.task_tracker import get_task_tracker
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import argparse
@@ -92,7 +94,7 @@ def apply_known_fixes(root: Path, findings: list[Finding]) -> int:
             continue
         path = root / f.path
         src = path.read_text(encoding="utf-8")
-        old = "asyncio.ensure_future(record_organ_formation_episode(organ.to_dict()))"
+        old = "get_task_tracker().track(record_organ_formation_episode(organ.to_dict()))"
         new = (
             "from core.runtime.task_ownership import fire_and_forget\n"
             "                        fire_and_forget(\n"
@@ -104,8 +106,8 @@ def apply_known_fixes(root: Path, findings: list[Finding]) -> int:
         if old in src:
             backup = path.with_suffix(path.suffix + ".bak_taskcodemod")
             if not backup.exists():
-                backup.write_text(src, encoding="utf-8")
-            path.write_text(src.replace(old, new, 1), encoding="utf-8")
+                atomic_write_text(backup, src, encoding="utf-8")
+            atomic_write_text(path, src.replace(old, new, 1), encoding="utf-8")
             changed += 1
     return changed
 

@@ -24,6 +24,7 @@ Integration:
   • Desynchronization → fragmentation signal → executive attention redirect
 """
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -128,7 +129,7 @@ class OscillatoryBinding:
             return
         self._running = True
         self._start_time = time.time()
-        self._task = asyncio.create_task(self._run_loop(), name="OscillatoryBinding")
+        self._task = get_task_tracker().create_task(self._run_loop(), name="OscillatoryBinding")
         logger.info("OscillatoryBinding STARTED")
 
     async def stop(self):

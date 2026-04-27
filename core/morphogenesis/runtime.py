@@ -73,7 +73,7 @@ class MorphogeneticRuntime:
                 name="morphogenesis.runtime",
             )
         except Exception:
-            self._task = asyncio.create_task(self._run_loop(), name="morphogenesis.runtime")
+            self._task = get_task_tracker().create_task(self._run_loop(), name="morphogenesis.runtime")
         logger.info("MorphogeneticRuntime started.")
 
     async def stop(self) -> None:

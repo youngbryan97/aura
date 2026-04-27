@@ -28,6 +28,7 @@ Behavior under pressure:
 The guard publishes per-window samples to the dashboard's "Performance"
 tab and to ``~/.aura/data/performance/samples.jsonl``.
 """
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -178,7 +179,7 @@ class PerformanceGuard:
                 self._persist({"kind": "report", "when": time.time(), **self.report()})
                 await asyncio.sleep(interval)
 
-        self._task = asyncio.create_task(_loop(), name="PerformanceGuard")
+        self._task = get_task_tracker().create_task(_loop(), name="PerformanceGuard")
 
     async def stop(self) -> None:
         self._running = False

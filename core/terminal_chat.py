@@ -27,6 +27,7 @@ Deactivation:
   - No activity for IDLE_TIMEOUT_SECS and no pending messages
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import collections
 import logging
@@ -153,7 +154,7 @@ class TerminalFallbackChat:
 
         if self._active:
             # Already in terminal mode — flush now
-            asyncio.ensure_future(self._flush_pending())
+            get_task_tracker().track(self._flush_pending())
         return True
 
     async def activate(self, orchestrator=None, force: bool = False) -> bool:
@@ -171,7 +172,7 @@ class TerminalFallbackChat:
         self._active = True
         self._orch = orchestrator
         self._last_activity_at = time.time()
-        self._chat_task = asyncio.create_task(
+        self._chat_task = get_task_tracker().create_task(
             self._chat_loop(), name="TerminalFallback.chat"
         )
         logger.warning("📟 TerminalFallback ACTIVE — communicating via terminal stdin/stdout.")
@@ -439,7 +440,7 @@ class TerminalWatchdog:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._watch_loop(), name="TerminalWatchdog")
+        self._task = get_task_tracker().create_task(self._watch_loop(), name="TerminalWatchdog")
         logger.info("📟 TerminalWatchdog monitoring UI presence.")
 
     async def stop(self):

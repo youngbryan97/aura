@@ -1,6 +1,7 @@
 """core/curiosity_engine.py - Autonomous Learning and Exploration
 Aura can explore, learn, and satisfy her curiosity in the background.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import random
@@ -86,7 +87,7 @@ class CuriosityEngine:
 
     async def start(self):
         self._stop_event.clear()
-        self._background_tasks.append(asyncio.create_task(self._worker()))
+        self._background_tasks.append(get_task_tracker().create_task(self._worker()))
 
     async def stop(self):
         self._stop_event.set()

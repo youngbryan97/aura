@@ -1,6 +1,7 @@
 """Autonomous Self-Modification Engine
 Orchestrates the complete self-improvement system.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
 import os
@@ -799,7 +800,7 @@ class AutonomousSelfModificationEngine:
              # for a safe, non-critical file.
              test_file = self.code_base / "core" / "utils" / "test_canary.py"
              if not test_file.exists():
-                 test_file.write_text("# Synthetic test canary\ndef canary(): return True\n")
+                 atomic_write_text(test_file, "# Synthetic test canary\ndef canary(): return True\n")
              
              self.on_error(
                  RuntimeError("Synthetic recovery test failure"),

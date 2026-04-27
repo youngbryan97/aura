@@ -74,7 +74,7 @@ async def run_chaos():
         logger.info("🎉 ALL CHAOS TESTS PASSED")
     except Exception as e:
         logger.error("❌ CHAOS TEST FAILED: %s", e)
-        sys.exit(1)
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     asyncio.run(run_chaos())

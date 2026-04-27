@@ -29,6 +29,7 @@ Integration:
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import hashlib
 import json
@@ -121,7 +122,7 @@ class ResistanceSandbox:
     def _save_state(self):
         """Persist state to disk."""
         try:
-            self._state_file.write_text(json.dumps({
+            atomic_write_text(self._state_file, json.dumps({
                 "prediction_accuracy": round(self._prediction_accuracy, 4),
                 "total_actions": self._total_actions,
                 "resource_pressure": round(self._resource_pressure, 4),
@@ -235,7 +236,7 @@ class ResistanceSandbox:
         path = self._sandbox_dir / target
         if action_type == "create":
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"Created at {time.time()}")
+            atomic_write_text(path, f"Created at {time.time()}")
             return "created"
         elif action_type == "read":
             if path.exists():

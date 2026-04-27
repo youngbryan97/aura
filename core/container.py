@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import contextvars
 import functools
@@ -664,7 +665,7 @@ class ServiceContainer:
         }
         seal_path = cls._seal_path()
         seal_path.parent.mkdir(parents=True, exist_ok=True)
-        seal_path.write_text(json.dumps(payload, sort_keys=True, indent=2))
+        atomic_write_text(seal_path, json.dumps(payload, sort_keys=True, indent=2))
         cls._last_seal_hash = digest
         return payload
 

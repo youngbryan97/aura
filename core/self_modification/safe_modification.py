@@ -4,6 +4,7 @@ Version control integration with automatic rollback on failure.
 v5.2: Added path allowlisting, risk gating, backup integrity verification,
       and event bus integration for modification proposals.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import hashlib
 import json
 import logging
@@ -929,7 +930,7 @@ class SafeSelfModification:
             sepsis_data["banned_files"] = banned
             sepsis_data["last_sepsis_event"] = time.time()
             
-            sepsis_file.write_text(json.dumps(sepsis_data, indent=2))
+            atomic_write_text(sepsis_file, json.dumps(sepsis_data, indent=2))
             logger.error("💀 FILE %s MARKED AS SEPSIS (Cause: Boot Failure)", file_path)
         except Exception as e:
             logger.error("Failed to mark sepsis: %s", e)

@@ -34,6 +34,7 @@ Recognition in conversation:
   Anomalous patterns = SUSPICIOUS.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import hashlib
 import hmac
@@ -386,7 +387,7 @@ class UserRecognizer:
                 data = json.loads(PROFILE_PATH.read_text())
             data["owner_passphrase_hash"] = hashed.hex()
             data["owner_salt"] = salt.hex()
-            PROFILE_PATH.write_text(json.dumps(data, indent=2))
+            atomic_write_text(PROFILE_PATH, json.dumps(data, indent=2))
             logger.info("UserRecognizer: credentials saved to creator profile.")
         except Exception as e:
             logger.error("Credential save failed: %s", e)
@@ -402,7 +403,7 @@ class UserRecognizer:
     def _save_fingerprint(self):
         try:
             FINGERPRINT_PATH.parent.mkdir(parents=True, exist_ok=True)
-            FINGERPRINT_PATH.write_text(json.dumps(self._fingerprint, indent=2))
+            atomic_write_text(FINGERPRINT_PATH, json.dumps(self._fingerprint, indent=2))
         except Exception as _exc:
             logger.debug("Suppressed Exception: %s", _exc)
 

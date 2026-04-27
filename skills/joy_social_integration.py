@@ -36,6 +36,7 @@ For testing without live credentials:
     await coordinator.run_hobby_session()
     await coordinator.post_to_social("mock")
 """
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 import asyncio
 import logging
@@ -142,7 +143,7 @@ class JoySocialCoordinator:
                     logger.error("JoySocial background tick error: %s", exc, exc_info=True)
                 await asyncio.sleep(interval)
 
-        self._tick_task = asyncio.ensure_future(_loop())
+        self._tick_task = get_task_tracker().track(_loop())
         logger.info("🌟 JoySocialCoordinator background tick started (%.0fs interval)", interval)
 
     def stop_background_tick(self) -> None:

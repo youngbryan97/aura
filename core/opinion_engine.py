@@ -20,6 +20,7 @@ Architecture:
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -313,7 +314,7 @@ Sound like yourself. Be direct. You can note if your thinking has evolved."""
 
         try:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
-            self._db_path.write_text(
+            atomic_write_text(self._db_path, 
                 json.dumps([asdict(o) for o in self._opinions.values()], indent=2)
             )
         except Exception as e:

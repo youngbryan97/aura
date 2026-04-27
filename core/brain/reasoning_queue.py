@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -62,7 +63,7 @@ class BackgroundReasoningQueue:
         # Phase 11.3: Update StateRegistry
         try:
             from core.state_registry import get_registry
-            asyncio.create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
+            get_task_tracker().create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
         except Exception as _e:
             logger.debug('Ignored Exception in reasoning_queue.py: %s', _e)
             
@@ -73,7 +74,7 @@ class BackgroundReasoningQueue:
         if self._running:
             return
         self._running = True
-        self._worker_task = asyncio.create_task(self._run())
+        self._worker_task = get_task_tracker().create_task(self._run())
         logger.info("Background Reasoning Queue started.")
     
     async def _run(self):
@@ -113,7 +114,7 @@ class BackgroundReasoningQueue:
                     # Phase 11.3: Update StateRegistry
                     try:
                         from core.state_registry import get_registry
-                        asyncio.create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
+                        get_task_tracker().create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
                     except Exception as _e:
                         logger.debug('Ignored Exception in reasoning_queue.py: %s', _e)
                     
@@ -143,7 +144,7 @@ class BackgroundReasoningQueue:
         # Update StateRegistry with new size
         try:
             from core.state_registry import get_registry
-            asyncio.create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
+            get_task_tracker().create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
         except Exception as _e:
             logger.debug('Ignored Exception in reasoning_queue.py: %s', _e)
             

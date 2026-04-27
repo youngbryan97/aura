@@ -19,6 +19,7 @@ Usage:
   print(me.identity.name, me.affect.dominant_emotion)
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import copy
@@ -832,7 +833,7 @@ class CanonicalSelfEngine:
             "coherence_threats": s.coherence_threats,
             "deltas": [d.to_dict() for d in self._deltas[-20:]],
         }
-        _PERSIST_PATH.write_text(json.dumps(data, indent=2, default=str))
+        atomic_write_text(_PERSIST_PATH, json.dumps(data, indent=2, default=str))
         logger.debug("CanonicalSelf persisted to disk (v%d).", s.version)
 
     def _load(self):

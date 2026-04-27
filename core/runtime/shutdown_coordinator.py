@@ -17,6 +17,7 @@ visible in tests and conformance harnesses, while still completing the
 remaining phases.
 """
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -127,7 +128,7 @@ class ShutdownCoordinator:
                 coros: List[asyncio.Future] = []
                 for record in handlers:
                     coros.append(
-                        asyncio.ensure_future(self._invoke(record))
+                        get_task_tracker().track(self._invoke(record))
                     )
                 effective_timeout = timeout_per_phase or max(
                     (h.timeout for h in handlers), default=15.0

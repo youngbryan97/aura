@@ -20,6 +20,8 @@ High-confidence wrong beliefs are the most dangerous — this system finds them.
 Output: EpistemicProfile fed to InquiryEngine every cycle.
 """
 
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -115,7 +117,7 @@ class EpistemicTracker:
         self._memory_synth = ServiceContainer.get("memory_synthesizer", default=None)
 
         self.running = True
-        self._update_task = asyncio.create_task(
+        self._update_task = get_task_tracker().create_task(
             self._update_loop(), name="EpistemicTracker"
         )
 
@@ -479,7 +481,7 @@ class EpistemicTracker:
                 "gaps":  [asdict(g) for g in self._gaps],
                 "resolved": self._resolved_gaps[-200:],
             }
-            self._db_path.write_text(json.dumps(data, indent=2))
+            atomic_write_text(self._db_path, json.dumps(data, indent=2))
         except Exception as e:
             capture_and_log(e, {"context": "EpistemicTracker.save"})
             logger.debug("EpistemicTracker save failed: %s", e)

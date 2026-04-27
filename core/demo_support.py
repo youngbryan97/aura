@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import ast
 import asyncio
@@ -136,7 +137,7 @@ def _load_last_activity() -> Optional[Dict[str, Any]]:
 
 def _save_last_activity(payload: Dict[str, Any]) -> None:
     path = _demo_state_path()
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _resolve_target_path(target: str, repo_root: Optional[Path] = None) -> Optional[Path]:

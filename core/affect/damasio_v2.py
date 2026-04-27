@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -176,7 +177,7 @@ class AffectEngineV2:
                     logger.debug("Suppressed Exception: %s", _exc)
             return None
 
-        task = asyncio.create_task(coro, name=name)
+        task = get_task_tracker().create_task(coro, name=name)
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         return task

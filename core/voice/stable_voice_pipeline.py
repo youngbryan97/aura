@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 from core.utils.exceptions import capture_and_log
 
@@ -346,7 +347,7 @@ class StableVoicePipeline:
                 
                 try:
                     # Start the cognitive process via bridge
-                    bridge_task = asyncio.create_task(self._bridge.process_voice_input(utterance))
+                    bridge_task = get_task_tracker().create_task(self._bridge.process_voice_input(utterance))
                     
                     while not bridge_task.done():
                         try:
@@ -408,7 +409,7 @@ class StableVoicePipeline:
         logger.info("Speaking: %r...", text[:60])
 
         try:
-            task = asyncio.create_task(
+            task = get_task_tracker().create_task(
                 self._tts_speak(text), name="tts_speak"
             )
             self._current_tts_task = task

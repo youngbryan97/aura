@@ -225,7 +225,7 @@ class SovereignNetworkSkill(BaseSkill):
                 if tracker is not None:
                     tasks.append(tracker.create_task(probe(host), name=task_name))
                 else:
-                    tasks.append(asyncio.create_task(probe(host), name=task_name))
+                    tasks.append(get_task_tracker().create_task(probe(host), name=task_name))
             try:
                 batch_results = await asyncio.gather(*tasks)
             except asyncio.CancelledError:

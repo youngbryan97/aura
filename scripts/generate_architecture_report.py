@@ -6,6 +6,7 @@ documentation and file tree, summarizes key architecture areas, and optionally
 prints a PDF through a locally installed Chrome/Chromium binary.
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import argparse
@@ -569,7 +570,7 @@ def render_html() -> str:
 
 
 def write_html(output_path: Path) -> None:
-    output_path.write_text(render_html(), encoding="utf-8")
+    atomic_write_text(output_path, render_html(), encoding="utf-8")
 
 
 def export_pdf(html_path: Path, pdf_path: Path) -> None:

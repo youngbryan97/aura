@@ -61,10 +61,10 @@ async def verify():
     
     if success:
         print("\n✅ SYSTEM STABILIZATION CONFIRMED.")
-        sys.exit(0)
+        raise SystemExit(0)
     else:
         print("\n❌ SYSTEM STABILIZATION FAILED. Remaining issues found.")
-        sys.exit(1)
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     asyncio.run(verify())

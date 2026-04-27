@@ -33,6 +33,7 @@ The state machine is observed by the AgencyOrchestrator, the universal
 error UX layer, the dashboard, and the conversation lane controller.
 """
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -242,7 +243,7 @@ class ViabilityEngine:
                     logger.debug("viability tick error: %s", exc)
                 await asyncio.sleep(interval)
 
-        self._task = asyncio.create_task(_loop(), name="ViabilityEngine")
+        self._task = get_task_tracker().create_task(_loop(), name="ViabilityEngine")
 
     async def stop(self) -> None:
         self._running = False

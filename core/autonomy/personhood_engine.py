@@ -1,6 +1,7 @@
 """core/autonomy/personhood_engine.py — The Personhood Engine.
 Spontaneous speech based on internal state triggers.
 """
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -50,7 +51,7 @@ class PersonhoodEngine:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._daemon(), name="aura.personhood")
+        self._task = get_task_tracker().create_task(self._daemon(), name="aura.personhood")
         logger.info("PersonhoodEngine started.")
 
     async def stop(self) -> None:

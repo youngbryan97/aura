@@ -26,6 +26,7 @@ Human Agency Aspects Modeled:
   - Embodied presence (camera/mic awareness)
 """
 
+from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 from core.agency.canvas_manager import CanvasManager
 from core.agency.tool_orchestrator import ToolOrchestrator
@@ -75,7 +76,7 @@ class SovereignSwarm:
         
         # Phase 11.3: Push to Unified Registry (Synchronization)
         try:
-            asyncio.create_task(get_registry().update(active_shards=len(self.active_shards)))
+            get_task_tracker().create_task(get_registry().update(active_shards=len(self.active_shards)))
         except Exception as e:
             from core.utils.exceptions import capture_and_log
             capture_and_log(e, {"context": "AgencyCore.spawn_shard"})
@@ -86,7 +87,7 @@ class SovereignSwarm:
         # The shard wrapper handles the actual thinking via cognitive engine
         raw_uuid = uuid.uuid4().hex
         shard_id = f"shard_{raw_uuid[:8]}"  # Ensuring explicit string type for slicing
-        task = asyncio.create_task(self._shard_wrapper(goal, context, shard_id=shard_id))
+        task = get_task_tracker().create_task(self._shard_wrapper(goal, context, shard_id=shard_id))
         # Issue ATE-012: Task storage naming for easier tracking
         safe_goal = str(goal)[:50]
         task.set_name(f"ShardJob:{safe_goal}")
@@ -219,7 +220,7 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
             # 4. Abstraction Engine: Learning First Principles
             # If the shard involved complex reasoning or tool use, extract the generalized logic
             if tool_name or len(output_text.split()) > 80:
-                asyncio.create_task(
+                get_task_tracker().create_task(
                     self.orch.agency_core.abstraction_engine.abstract_from_success(
                         context=goal,
                         successful_resolution=output_text
@@ -231,7 +232,7 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                 try:
                     from core.adaptation.dialectics import get_crucible
                     crucible = get_crucible()
-                    asyncio.create_task(crucible.run_crucible(concept=output_text, context=goal))
+                    get_task_tracker().create_task(crucible.run_crucible(concept=output_text, context=goal))
                 except Exception as e:
                     identity = ServiceContainer.get("identity", default=None)
                     if identity:
@@ -387,9 +388,9 @@ class AgencyCore:
         if self.meta_cognition:
             self.meta_cognition.start()
             
-        asyncio.create_task(self.self_play_engine.trigger_cycle(self.last_interaction_timestamp))
+        get_task_tracker().create_task(self.self_play_engine.trigger_cycle(self.last_interaction_timestamp))
         # Start background spatial empathy listener
-        asyncio.create_task(self._setup_spatial_empathy_watcher())
+        get_task_tracker().create_task(self._setup_spatial_empathy_watcher())
         logger.info("🧠 AgencyCore background pathways activated.")
 
     async def _setup_spatial_empathy_watcher(self):
@@ -614,7 +615,7 @@ class AgencyCore:
             
             # Phase 11.3: Sync to UnifiedStateRegistry
             try:
-                asyncio.create_task(get_registry().update(
+                get_task_tracker().create_task(get_registry().update(
                     engagement_mode=self.state.engagement_mode.value,
                     initiative_energy=self.state.initiative_energy,
                     curiosity_pressure=self.state.curiosity_pressure,
@@ -623,7 +624,7 @@ class AgencyCore:
                 capture_and_log(e, {"context": "AgencyCore.InnerMonologueThink"})
                 
             # Trigger Continuous Self-Play (Phase 13.4)
-            asyncio.create_task(
+            get_task_tracker().create_task(
                 self.self_play_engine.trigger_cycle(self.state.last_user_interaction)
             )
             
@@ -662,7 +663,7 @@ class AgencyCore:
             n_obs = len(obs)
             recent_events.extend([obs[i] for i in range(max(0, n_obs - 3), n_obs)])
             
-            asyncio.create_task(self.phenomenology.reflect(pad, recent_events))
+            get_task_tracker().create_task(self.phenomenology.reflect(pad, recent_events))
         except Exception as e:
             logger.debug("Failed to trigger phenomenology pulse: %s", e)
 
@@ -1869,7 +1870,7 @@ class AgencyCore:
                     since_last_canvas = now - getattr(self, "_last_canvas_update", 0)
                     if since_last_canvas > 300: # 5 mins
                         self._last_canvas_update = now
-                        asyncio.create_task(
+                        get_task_tracker().create_task(
                             self.canvas_manager.autonomous_update(
                                 project_name="DOME_Lore_Bible",
                                 topic="Emergent Narrative & Arcs",

@@ -19,6 +19,7 @@ The synthesizer does NOT write arbitrary code. It:
   - Persists to disk for survival across restarts
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -249,7 +250,7 @@ class SkillSynthesizer:
                     for s in self._synthesized
                 ],
             }
-            PERSIST_PATH.write_text(json.dumps(data, indent=2))
+            atomic_write_text(PERSIST_PATH, json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("SkillSynthesizer save failed: %s", e)
 

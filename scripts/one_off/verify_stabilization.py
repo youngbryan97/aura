@@ -72,7 +72,7 @@ async def main():
         print("\n🏆 STABILIZATION VERIFIED: All systems nominal.")
     except Exception as e:
         logger.error(f"❌ Verification Failed: {e}", exc_info=True)
-        sys.exit(1)
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())

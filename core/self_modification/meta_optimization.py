@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import time
 import logging
@@ -69,7 +70,7 @@ class MetaOptimizationLoop:
                     exc = t.exception()
                     if exc:
                         logger.error("Performance degradation handler failed: %s", exc)
-                task = asyncio.create_task(self.orchestrator.handle_performance_degradation(proposal_id, delta_latency))
+                task = get_task_tracker().create_task(self.orchestrator.handle_performance_degradation(proposal_id, delta_latency))
                 task.add_done_callback(_task_err_cb)
         else:
             logger.info("✅ Modification %s passed validation (%s).", proposal_id, status)

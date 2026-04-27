@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 import asyncio
 import json
@@ -229,7 +230,7 @@ class TrueEvolutionPhase(Phase):
                 except Exception as e:
                     logger.warning("Evolution: Background exploration failed: %s", e)
 
-            asyncio.create_task(_background_explore())
+            get_task_tracker().create_task(_background_explore())
         
         # 3. Self-code mutation (Autonomous ASI Seed)
         if getattr(state.identity, 'evolution_score', 0.0) > 0.70:

@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import logging
 import time
 import asyncio
@@ -96,10 +97,10 @@ class OmniTool:
             self._daemons[name]["end_time"] = time.time()
             logger.info("✨ [DAEMON] EXTINGUISHED: %s", name)
 
-        asyncio.create_task(_run_sim())
+        get_task_tracker().create_task(_run_sim())
         
         if self._event_bus:
-            asyncio.create_task(self._event_bus.publish("core/cybernetics/daemon_spawned", metadata))
+            get_task_tracker().create_task(self._event_bus.publish("core/cybernetics/daemon_spawned", metadata))
             
         return {"status": "spawned", "daemon": metadata}
 

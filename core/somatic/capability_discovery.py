@@ -21,6 +21,7 @@ Design:
     - Registered in ServiceContainer as ``capability_discovery``.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import os
@@ -106,7 +107,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._scan_loop(), name="capability_discovery")
+        self._task = get_task_tracker().create_task(self._scan_loop(), name="capability_discovery")
         logger.info("Capability Discovery Daemon started.")
 
     async def stop(self) -> None:

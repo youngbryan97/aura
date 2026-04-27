@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import logging
 import asyncio
 import time
@@ -57,7 +58,7 @@ class ICELayer:
                 # Refactored to Queue-based processing for Aura EventBus
                 self._audit_queue = await self._event_bus.subscribe("core/brain/empathy_audit")
                 self._violation_queue = await self._event_bus.subscribe("core/security/executive_violation")
-                asyncio.create_task(self._process_events())
+                get_task_tracker().create_task(self._process_events())
         except ImportError:
             self._event_bus = None
 
@@ -174,7 +175,7 @@ class ICELayer:
         }
         
         if self._event_bus:
-            asyncio.create_task(self._event_bus.publish("core/cybernetics/anomaly_classified", res))
+            get_task_tracker().create_task(self._event_bus.publish("core/cybernetics/anomaly_classified", res))
             
         return res
 

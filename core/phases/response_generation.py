@@ -1,4 +1,5 @@
 """Response Generation Phase for Aura's Cognitive Pipeline."""
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -390,14 +391,14 @@ class ResponseGenerationPhase(BasePhase):
             # Detect when Aura's response references an established shared-ground entry
             # and record the callback so salience scores accumulate over time.
             if cleaned_response:
-                asyncio.create_task(
+                get_task_tracker().create_task(
                     record_shared_ground_callbacks(cleaned_response)
                 )
 
             # ── Conversational Intelligence Updates (fire-and-forget) ──
             # Update all person-specific models from this exchange.
             if cleaned_response and objective:
-                asyncio.create_task(
+                get_task_tracker().create_task(
                     update_conversational_intelligence(
                         str(objective), str(cleaned_response), state
                     )

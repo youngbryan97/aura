@@ -4,6 +4,7 @@ Asynchronous First Principles Extractor.
 Analyzes specific, successful problem resolutions and distills them into 
 universal, generalized rules for zero-shot application in novel domains.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
 import json
@@ -27,7 +28,7 @@ class AbstractionEngine:
         
         # Initialize the file if it doesn't exist
         if not self.storage_path.exists():
-            self.storage_path.write_text("[]")
+            atomic_write_text(self.storage_path, "[]")
 
     async def abstract_from_success(self, context: str, successful_resolution: str) -> str:
         """

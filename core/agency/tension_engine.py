@@ -10,6 +10,7 @@ maintains a registry of active tensions sorted by severity.
 Persists to disk so tensions survive restarts.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -111,7 +112,7 @@ class TensionEngine:
         try:
             self._persist_path.parent.mkdir(parents=True, exist_ok=True)
             payload = [t.to_dict() for t in self._tensions.values()]
-            self._persist_path.write_text(json.dumps(payload, indent=2))
+            atomic_write_text(self._persist_path, json.dumps(payload, indent=2))
         except Exception as exc:
             logger.error("TensionEngine failed to persist tensions: %s", exc)
 

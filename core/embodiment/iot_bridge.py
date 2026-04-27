@@ -29,6 +29,7 @@ event into the prediction-error stream tagged with provenance so it never
 gets confused with internal state.
 """
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -279,8 +280,8 @@ class IoTBridge:
                     logger.debug("iot bridge tick failed: %s", exc)
                 await asyncio.sleep(interval)
 
-        self._task = asyncio.create_task(_loop(), name="IoTBridge")
-        asyncio.create_task(self.observe_loop(), name="IoTBridgeObserve")
+        self._task = get_task_tracker().create_task(_loop(), name="IoTBridge")
+        get_task_tracker().create_task(self.observe_loop(), name="IoTBridgeObserve")
 
     async def stop(self) -> None:
         self._running = False

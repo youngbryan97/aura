@@ -4,6 +4,7 @@ verify_robustness.py
 Stress-tests Aura's new architectural sensors by intentionally
 introducing code smells and verifying detection.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import os
 import sys
 from pathlib import Path
@@ -31,7 +32,7 @@ class DeadlockDemo:
                 print("Acquired twice - DEADLOCK")
 """
     temp_file = PROJECT_ROOT / "temp_deadlock_test.py"
-    temp_file.write_text(deadlock_code)
+    atomic_write_text(temp_file, deadlock_code)
     
     print("🔍 Testing Deadlock Detection...")
     results = analyzer.analyze_file(temp_file)
@@ -55,7 +56,7 @@ async def stalling_loop():
         print("Still stalling...")
 """
     temp_file_2 = PROJECT_ROOT / "temp_stall_test.py"
-    temp_file_2.write_text(stall_code)
+    atomic_write_text(temp_file_2, stall_code)
     
     print("\n🔍 Testing Async Stall Detection...")
     results_2 = analyzer.analyze_file(temp_file_2)
@@ -75,7 +76,7 @@ def leak_resources():
     # No close, no with!
 """
     temp_file_3 = PROJECT_ROOT / "temp_leak_test.py"
-    temp_file_3.write_text(leak_code)
+    atomic_write_text(temp_file_3, leak_code)
     
     print("\n🔍 Testing Resource Leak Detection...")
     results_3 = analyzer.analyze_file(temp_file_3)

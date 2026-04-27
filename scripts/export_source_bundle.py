@@ -9,6 +9,7 @@ screen recordings, model weights, large binary assets, and any redacted
 personal-content paths. Keeps: Python core, infrastructure (scripts, CI,
 docker, configs), HTML/CSS/JS interface, markdown docs, shell, Makefile.
 """
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import argparse
@@ -154,7 +155,7 @@ def _write_parts(files: List[Path], root: Path, downloads: Path) -> List[Path]:
         if not current_parts:
             return
         path = downloads / f"aura_source_part_{part_index}.txt"
-        path.write_text("".join(current_parts), encoding="utf-8")
+        atomic_write_text(path, "".join(current_parts), encoding="utf-8")
         parts.append(path)
         part_index += 1
         current_parts = []

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Manual harness for a single skeletal orchestrator user turn."""
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -36,7 +37,7 @@ async def main() -> int:
 
     orchestrator = create_orchestrator()
     await orchestrator.start()
-    run_task = asyncio.create_task(orchestrator.run(), name="live_orchestrator_first_turn")
+    run_task = get_task_tracker().create_task(orchestrator.run(), name="live_orchestrator_first_turn")
     try:
         result = await orchestrator._process_message(prompt)
         gate = ServiceContainer.get("inference_gate", default=None)

@@ -8,6 +8,7 @@ configurable soak period.
 This goes beyond SandboxTester (which only validates syntax + imports) by
 running the full modified system for N seconds to catch runtime failures.
 """
+from core.runtime.atomic_writer import atomic_write_text
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -155,7 +156,7 @@ class ShadowRuntime:
 
                 # 3. Apply mutation in shadow
                 shadow_file.parent.mkdir(parents=True, exist_ok=True)
-                shadow_file.write_text(patched_code, encoding="utf-8")
+                atomic_write_text(shadow_file, patched_code, encoding="utf-8")
                 logger.info("🔮 Mutation applied to shadow: %s", file_path)
 
                 # 4. Run validation
@@ -263,7 +264,7 @@ print(f"SHADOW_OK: AST parsed, {{len(tree.body)}} top-level nodes")
     ) -> dict:
         """Run a Python script in a subprocess."""
         script_path = cwd / "_shadow_boot.py"
-        script_path.write_text(script, encoding="utf-8")
+        atomic_write_text(script_path, script, encoding="utf-8")
 
         try:
             proc = await asyncio.create_subprocess_exec(

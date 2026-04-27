@@ -37,6 +37,7 @@ itself — that's `core/embodiment/iot_bridge.py` — it provides the gate.
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -111,7 +112,7 @@ class PermissionStore:
     def _save(self) -> None:
         with self._lock:
             tmp = _PERMS_PATH.with_suffix(".json.tmp")
-            tmp.write_text(json.dumps({c: asdict(p) for c, p in self._cache.items()}, indent=2), encoding="utf-8")
+            atomic_write_text(tmp, json.dumps({c: asdict(p) for c, p in self._cache.items()}, indent=2), encoding="utf-8")
             os.replace(tmp, _PERMS_PATH)
 
     def grant(self, channel: Channel, *, notes: str = "", expires_in_s: Optional[float] = None, fresh_auth_required: bool = False) -> Permission:
@@ -265,7 +266,7 @@ async def _file_workspace_handler(payload: Dict[str, Any], *, capability_token: 
         if not str(target).startswith(str(_WORKSPACE_DIR.resolve())):
             raise PermissionError("workspace_path_escape")
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(body, encoding="utf-8")
+        atomic_write_text(target, body, encoding="utf-8")
         return {"path": rel, "bytes": len(body)}
     raise ValueError(f"unknown_op:{op}")
 

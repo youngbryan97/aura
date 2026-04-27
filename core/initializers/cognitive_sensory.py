@@ -3,6 +3,7 @@
 Registers sensory subsystems (vision, hearing, continuous perception)
 into the service container for use by the cognitive pipeline.
 """
+from core.utils.task_tracker import get_task_tracker
 import logging
 
 logger = logging.getLogger("Aura.Init.CognitiveSensory")
@@ -68,7 +69,7 @@ def init_cognitive_sensory_layer(container):
         graph = get_code_graph()
         container.register_instance("code_graph", graph, required=False)
         # Build incrementally in background (don't block boot)
-        asyncio.create_task(_build_code_graph_background(graph))
+        get_task_tracker().create_task(_build_code_graph_background(graph))
         logger.info("Code graph registered (building in background).")
     except Exception as e:
         logger.debug("Code graph init deferred: %s", e)

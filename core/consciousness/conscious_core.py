@@ -5,6 +5,7 @@ Connects Liquid Substrate (Existence), Global Workspace (Awareness), and Predict
 Implements 'Attractor Volition' - autonomous will emerges from substrate dynamics.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -101,7 +102,7 @@ class ConsciousnessCore:
                 self.monitor_task = loop.create_task(self._volition_loop())
             except RuntimeError:
                 # Fallback if start() is called outside a loop
-                self.monitor_task = asyncio.create_task(self._volition_loop())
+                self.monitor_task = get_task_tracker().create_task(self._volition_loop())
         
     def stop(self):
         """Sleep"""
@@ -183,7 +184,7 @@ class ConsciousnessCore:
         """Hook called when user speaks"""
         # Spike arousal and valence (Attention)
         stimulus = np.random.randn(64) * 0.5 # Simplified embedding
-        asyncio.create_task(self.substrate.inject_stimulus(stimulus))
+        get_task_tracker().create_task(self.substrate.inject_stimulus(stimulus))
         
     def get_state(self) -> Dict[str, Any]:
         """API Payload for Qualia Explorer"""

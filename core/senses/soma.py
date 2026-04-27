@@ -4,6 +4,7 @@ Soma (Body) — Unified Sensory Registry and Proprioception Layer.
 Aggregates hardware metrics, network latency, and sensory imprints 
 into a cohesive self-perception of physical state.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import psutil
@@ -45,7 +46,7 @@ class Soma:
         if self.running:
             return
         self.running = True
-        self._loop_task = asyncio.create_task(self._somatic_loop())
+        self._loop_task = get_task_tracker().create_task(self._somatic_loop())
         logger.info("🧘 Soma activated: Proprioception online.")
 
     async def stop(self):

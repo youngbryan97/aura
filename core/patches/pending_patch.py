@@ -36,3 +36,9 @@ def new_function():
 def new_function():
     return 'new'
 '''
+
+# [APPLIED] Fix for core/temp_fix_test.py at Sun Apr 26 17:30:29 2026
+'''
+def new_function():
+    return 'new'
+'''

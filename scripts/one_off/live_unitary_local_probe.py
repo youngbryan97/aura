@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Capture the real UnitaryResponse Cortex payload and replay it directly."""
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -37,7 +38,7 @@ async def main() -> int:
 
     orchestrator = create_orchestrator()
     await orchestrator.start()
-    run_task = asyncio.create_task(
+    run_task = get_task_tracker().create_task(
         orchestrator.run(),
         name="live_unitary_local_probe",
     )

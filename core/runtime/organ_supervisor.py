@@ -28,6 +28,7 @@ open its socket, accept requests, and dispatch to the local handler;
 each organ ships its own stub (e.g. ``core/brain/llm/mlx_controller.py``).
 """
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -114,7 +115,7 @@ class OrganSupervisor:
         for record in self._organs.values():
             await self._start_organ(record)
         self._running = True
-        self._watchdog_task = asyncio.create_task(self._watchdog(), name="OrganSupervisorWatchdog")
+        self._watchdog_task = get_task_tracker().create_task(self._watchdog(), name="OrganSupervisorWatchdog")
 
     async def stop_all(self) -> None:
         self._running = False

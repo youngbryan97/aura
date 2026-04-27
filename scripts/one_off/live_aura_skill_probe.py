@@ -6,6 +6,8 @@ authorize, execute, and complete representative tasks through her runtime
 entrypoints instead of us doing them externally and calling it good.
 """
 
+from core.utils.task_tracker import get_task_tracker
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import asyncio
@@ -334,7 +336,7 @@ async def main() -> int:
     skills: list[dict[str, Any]] = []
 
     await orchestrator.start()
-    run_task = asyncio.create_task(orchestrator.run(), name="live_aura_skill_probe")
+    run_task = get_task_tracker().create_task(orchestrator.run(), name="live_aura_skill_probe")
 
     try:
         capability_engine = await _wait_for_service("capability_engine", timeout=90.0)
@@ -520,7 +522,7 @@ async def main() -> int:
         }
         proof["overall_ok"] = all(proof["checks"].values())
 
-        ARTIFACT_PATH.write_text(json.dumps(_json_safe(proof), indent=2), encoding="utf-8")
+        atomic_write_text(ARTIFACT_PATH, json.dumps(_json_safe(proof), indent=2), encoding="utf-8")
         print(json.dumps(_json_safe(proof["checks"]), indent=2))
         print(f"artifact={ARTIFACT_PATH}")
 

@@ -29,6 +29,7 @@ Invariants:
     4. A branch without a WillReceipt is invalid and will not run
 """
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -279,7 +280,7 @@ class BranchManager:
             self._foreground_id = branch_id
 
         # Launch the async task
-        branch._task = asyncio.create_task(
+        branch._task = get_task_tracker().create_task(
             self._run_branch(branch, work_fn),
             name=f"branch:{name}",
         )

@@ -6,6 +6,7 @@ persistence, emotional depth, and temporal continuity.
 Based on Liquid Time-Constant Networks (LTCs) and global workspace theory.
 """
 
+from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 import asyncio
 import json
@@ -182,7 +183,7 @@ class LiquidSubstrate:
             
         try:
             loop = asyncio.get_running_loop()
-            self.thread = asyncio.create_task(self._run_loop(), name="LiquidConsciousness")
+            self.thread = get_task_tracker().create_task(self._run_loop(), name="LiquidConsciousness")
             logger.info("Liquid Substrate STARTED (Unified Cycle)")
         except RuntimeError:
             logger.error("Failed to start Liquid Substrate: No running asyncio loop.")

@@ -6,6 +6,7 @@ JSON+Markdown report that helps demonstrate whether Aura's cell/tissue/organ
 runtime is actually operating over time.
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 from __future__ import annotations
 
 import argparse
@@ -118,7 +119,7 @@ def build_report(root: Path, out_dir: Path) -> dict[str, Any]:
     }
 
     json_path = out_dir / "morphogenesis_longitudinal_report.json"
-    json_path.write_text(json.dumps(report, indent=2, sort_keys=True, default=repr), encoding="utf-8")
+    atomic_write_text(json_path, json.dumps(report, indent=2, sort_keys=True, default=repr), encoding="utf-8")
 
     md = ["# Aura Morphogenesis Longitudinal Report", "", f"Created: {time.ctime(report['created_at'])}", ""]
     md.append("## Registry snapshots")
@@ -134,7 +135,7 @@ def build_report(root: Path, out_dir: Path) -> dict[str, Any]:
         md.append(f"- {k}: {v}")
     md.append("")
     md.append("A strong public demo should show non-zero runtime starts/hooks, cell activity, organ formation, and no repeated tick failures.")
-    (out_dir / "morphogenesis_longitudinal_report.md").write_text("\n".join(md), encoding="utf-8")
+    atomic_write_text((out_dir / "morphogenesis_longitudinal_report.md"), "\n".join(md), encoding="utf-8")
 
     return report
 

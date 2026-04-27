@@ -25,6 +25,7 @@ Initiative integration: during boredom, may autonomously create art.
 """
 
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -740,7 +741,7 @@ class AestheticEngine:
             self._journal_path.parent.mkdir(parents=True, exist_ok=True)
             # Keep only the most recent entries
             trimmed = self._journal[-_MAX_JOURNAL_ENTRIES:]
-            self._journal_path.write_text(
+            atomic_write_text(self._journal_path, 
                 json.dumps(trimmed, indent=2, default=str)
             )
             logger.debug("Aesthetic journal saved (%d entries)", len(trimmed))

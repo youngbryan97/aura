@@ -36,9 +36,17 @@ def install_strict_task_owner(loop: Optional[asyncio.AbstractEventLoop] = None) 
     previous = loop.get_task_factory()
 
     def _factory(factory_loop, coro, context=None):
+        def _create(l, c, ctx):
+            if previous is not None:
+                try:
+                    return previous(l, c, context=ctx)
+                except TypeError:
+                    return previous(l, c)
+            return asyncio.Task(c, loop=l, context=ctx)
+
         if _SKIP_FACTORY_TRACK.get():
             # Tracker-managed task — allowed.
-            return asyncio.Task(coro, loop=factory_loop, context=context)
+            return _create(factory_loop, coro, context)
         # Unowned creation: record a violation.
         violation = {
             "coro": getattr(coro, "__qualname__", repr(coro)),
@@ -63,7 +71,7 @@ def install_strict_task_owner(loop: Optional[asyncio.AbstractEventLoop] = None) 
                 f"AURA_STRICT_RUNTIME: unowned asyncio.create_task: {violation['coro']}"
             )
         # Non-strict: still create the task so callers do not crash.
-        return asyncio.Task(coro, loop=factory_loop, context=context)
+        return _create(factory_loop, coro, context)
 
     loop.set_task_factory(_factory)
     loop._aura_previous_factory = previous  # type: ignore[attr-defined]

@@ -21,6 +21,7 @@ Repair actions:
     re-instantiate via ServiceContainer
   * record an action receipt + a phenomenal envelope (severity = 0.5)
 """
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -86,7 +87,7 @@ class SelfHealing:
                 await self._tick()
                 await asyncio.sleep(interval)
 
-        self._task = asyncio.create_task(_loop(), name="SelfHealing")
+        self._task = get_task_tracker().create_task(_loop(), name="SelfHealing")
 
     async def stop(self) -> None:
         self._running = False

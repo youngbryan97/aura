@@ -42,7 +42,8 @@ class ContextStreamingMixin:
             u_name = user_identity.get('name', 'Stranger')
             cold_memory_result = self.memory.get_cold_memory_context(f"{u_name}: {message}", limit=5)
             if inspect.isawaitable(cold_memory_result):
-                tasks.append(asyncio.create_task(cold_memory_result))
+                from core.utils.task_tracker import get_task_tracker
+                tasks.append(get_task_tracker().track(cold_memory_result, name="cold_memory_result"))
             else:
                 tasks.append(asyncio.sleep(0, result=cold_memory_result or ""))
         else:

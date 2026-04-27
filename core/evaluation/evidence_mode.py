@@ -11,6 +11,7 @@ service) to activate. The normal runtime stays forgiving; only the evidence
 path is strict.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import os
@@ -97,7 +98,7 @@ class EvidenceMode:
     def dump(self, path: str | Path) -> None:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(self.snapshot(), indent=2, sort_keys=True) + "\n")
+        atomic_write_text(p, json.dumps(self.snapshot(), indent=2, sort_keys=True) + "\n")
 
 
 _singleton: Optional[EvidenceMode] = None

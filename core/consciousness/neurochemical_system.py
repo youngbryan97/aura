@@ -42,6 +42,7 @@ The system runs at 2 Hz and pushes modulatory state into the NeuralMesh and
 other consciousness subsystems every tick.
 """
 
+from core.utils.task_tracker import get_task_tracker
 from __future__ import annotations
 
 import asyncio
@@ -301,7 +302,7 @@ class NeurochemicalSystem:
             return
         self._running = True
         self._start_time = time.time()
-        self._task = asyncio.create_task(self._run_loop(), name="Neurochemical")
+        self._task = get_task_tracker().create_task(self._run_loop(), name="Neurochemical")
         logger.info("NeurochemicalSystem STARTED (%.0f Hz)", self._UPDATE_HZ)
 
     async def stop(self):

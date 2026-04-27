@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import psutil
 import logging
@@ -19,7 +20,7 @@ class ResourceGuardian:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._monitor_loop())
+        self._task = get_task_tracker().create_task(self._monitor_loop())
         logger.info("🛡️ ResourceGuardian starting (High-Water: %s%%)", self.high_water * 100)
 
     async def stop(self):

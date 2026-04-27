@@ -11,6 +11,7 @@ theory (Laukkonen, Friston & Chandaria 2025), and the Free Energy Principle:
   [C] PhiWitness:         measures resulting causal integration via transfer entropy
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -140,7 +141,7 @@ class OutputReceptor:
             from core.container import ServiceContainer
             substrate = ServiceContainer.get("conscious_substrate", default=None)
             if substrate:
-                asyncio.create_task(
+                get_task_tracker().create_task(
                     substrate.inject_stimulus(delta, weight=OUTPUT_FEEDBACK_WEIGHT)
                 )
                 with self._lock:
@@ -493,7 +494,7 @@ class ClosedCausalLoop:
         if self._loop_state.is_running:
             return
         self._loop_state.is_running = True
-        self._task = asyncio.create_task(
+        self._task = get_task_tracker().create_task(
             self._prediction_loop(), name="ClosedCausalLoop.prediction"
         )
 
@@ -539,7 +540,7 @@ class ClosedCausalLoop:
             self._phi_core_task is None or self._phi_core_task.done()
         ):
             self._last_phi_core_schedule_at = time.time()
-            self._phi_core_task = asyncio.create_task(
+            self._phi_core_task = get_task_tracker().create_task(
                 asyncio.to_thread(phi_core.compute_phi),
                 name="ClosedCausalLoop.phi_core_refresh",
             )
@@ -555,7 +556,7 @@ class ClosedCausalLoop:
             self._hphi_task is None or self._hphi_task.done()
         ):
             self._last_hphi_schedule_at = time.time()
-            self._hphi_task = asyncio.create_task(
+            self._hphi_task = get_task_tracker().create_task(
                 asyncio.to_thread(hphi.compute),
                 name="ClosedCausalLoop.hphi_refresh",
             )

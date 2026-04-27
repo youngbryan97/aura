@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import logging
 import time
 import asyncio
@@ -108,11 +109,11 @@ class Tricorder:
                 # Zenith 2.0 Fix: subscribe() returns a queue, doesn't take a callback
                 self._violation_queue = await self._event_bus.subscribe("core/security/executive_violation")
                 # Start a background task to process the queue
-                asyncio.create_task(self._process_violations())
+                get_task_tracker().create_task(self._process_violations())
                 
                 # Subscribe to empathy updates - also returns a queue
                 self._empathy_queue = await self._event_bus.subscribe("core/brain/empathy_audit")
-                asyncio.create_task(self._process_empathy())
+                get_task_tracker().create_task(self._process_empathy())
         except ImportError:
             self._event_bus = None
         logger.info("📡 [TRICORDER] Multi-modal Diagnostic Sensor ONLINE.")
@@ -204,7 +205,7 @@ class Tricorder:
         
         if self._event_bus:
             # publish is async, so we wrap it in a task if we are in a sync method or want fire-and-forget
-            asyncio.create_task(self._event_bus.publish("core/cybernetics/casie_analysis", result))
+            get_task_tracker().create_task(self._event_bus.publish("core/cybernetics/casie_analysis", result))
             
         return result
 
@@ -249,7 +250,7 @@ class Tricorder:
         # Publish to Mycelial network
         if self._event_bus:
             # publish is async
-            asyncio.create_task(self._event_bus.publish("core/cybernetics/tricorder_scan", report))
+            get_task_tracker().create_task(self._event_bus.publish("core/cybernetics/tricorder_scan", report))
 
         return report
 

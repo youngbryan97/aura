@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -23,7 +24,7 @@ class CellularSubstrate:
         
     async def initialize(self):
         self._is_active = True
-        self._substrate_task = asyncio.create_task(self._substrate_loop())
+        self._substrate_task = get_task_tracker().create_task(self._substrate_loop())
         logger.info("♾️ [CELLULAR] Substrate loop active (%.1fHz).", 1/self._commit_interval)
         
     async def shutdown(self):

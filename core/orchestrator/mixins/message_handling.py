@@ -565,7 +565,8 @@ class MessageHandlingMixin:
             try:
                 cme = ServiceContainer.get("conversational_momentum_engine", default=None)
                 if cme:
-                    asyncio.ensure_future(cme.on_new_user_message(message))
+                    from core.utils.task_tracker import get_task_tracker
+                    get_task_tracker().track(cme.on_new_user_message(message), name="on_new_user_message")
             except Exception as _exc:
                 logger.debug("Suppressed Exception: %s", _exc)
 

@@ -8,6 +8,7 @@ try:
 except ImportError:
     def capture_and_log(e, ctx=None):
         logging.getLogger("Aura.IntegrityMonitor").error(f"Integrity Error: {e} | Context: {ctx}")
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import os
@@ -74,7 +75,7 @@ class SystemIntegrityMonitor:
     async def start(self):
         """Start periodic integrity checks."""
         self._running = True
-        self._task = asyncio.create_task(self._monitor_loop())
+        self._task = get_task_tracker().create_task(self._monitor_loop())
         logger.info("🔍 System Integrity Monitor started (interval=%ds)", self._interval)
 
     async def stop(self):

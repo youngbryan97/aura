@@ -555,7 +555,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 logger.info("📖 Peer Mode: Private narrative archive activated")
             if hasattr(self, 'probe_manager') and self.probe_manager:
                 from core.utils.task_tracker import get_task_tracker
-                get_task_tracker().track_task(asyncio.create_task(self.probe_manager.auto_cleanup_loop()))
+                get_task_tracker().track_task(self.probe_manager.auto_cleanup_loop())
             # Loading Continuity Record
             try:
                 from core.continuity import get_continuity
@@ -888,7 +888,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             
             # Start Aegis Sentinel (Phase XXIII)
             from core.utils.task_tracker import get_task_tracker
-            get_task_tracker().track_task(asyncio.create_task(self._aegis_sentinel()))
+            get_task_tracker().track_task(self._aegis_sentinel())
             
             # Start Proactive Communication (v4.3)
             if hasattr(self, 'proactive_comm') and self.proactive_comm:
@@ -927,7 +927,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                                     self.process_user_input_priority(text, origin="voice"), loop
                                 )
                             else:
-                                asyncio.ensure_future(self.process_user_input_priority(text, origin="voice"), loop=loop)
+                                get_task_tracker().track(self.process_user_input_priority(text, origin="voice"), loop=loop)
                         except Exception as e:
                             logger.error("Failed to schedule voice input: %s", e)
                     
@@ -944,7 +944,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
 
             # Start Inter-process Event Listeners
             from core.utils.task_tracker import get_task_tracker
-            get_task_tracker().track_task(asyncio.create_task(self._setup_event_listeners()))
+            get_task_tracker().track_task(self._setup_event_listeners())
 
             # Start Cognitive Integration Layer
             if hasattr(self, 'cognition') and self.cognition:
@@ -1329,7 +1329,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             return
         
         try:
-            task = asyncio.create_task(coro, name=name)
+            task = get_task_tracker().create_task(coro, name=name)
         except RuntimeError:
             _dispose_awaitable(coro)
             return None
@@ -1425,7 +1425,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     await asyncio.sleep(2.0)
                     await self._handle_incoming_message(last_msg, origin=origin)
                 
-                asyncio.create_task(_delayed_retry())
+                get_task_tracker().create_task(_delayed_retry())
 
             # 5. Escalation: Full system restart if recovery fails repeatedly
             if self._recovery_attempts >= 3:
@@ -1655,7 +1655,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
 
             # 4. Long-term Consolidation (Persistent Highlights)
             if self.status.cycle_count % 50 == 0 and len(self.conversation_history) > 10 and self.memory_manager:
-                get_task_tracker().track_task(asyncio.create_task(self._consolidate_long_term_memory()))
+                get_task_tracker().track_task(self._consolidate_long_term_memory())
 
             # 5. Digital Metabolism (Strategic Forgetting)
             if self.status.cycle_count % 100 == 0:
@@ -1667,16 +1667,16 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                         coro = comp.run_maintenance()
                         if isawaitable(coro):
                             from core.utils.task_tracker import get_task_tracker
-                            get_task_tracker().track_task(asyncio.create_task(coro))
+                            get_task_tracker().track_task(coro)
                 
                 if hasattr(self, 'memory') and self.memory:
                     # Prune low salience memories older than 14 days
                     try:
                         from core.utils.task_tracker import get_task_tracker
                         if asyncio.iscoroutinefunction(self.memory.prune_low_salience):
-                            get_task_tracker().track_task(asyncio.create_task(self.memory.prune_low_salience(threshold_days=14)))
+                            get_task_tracker().track_task(self.memory.prune_low_salience(threshold_days=14))
                         else:
-                            get_task_tracker().track_task(asyncio.create_task(
+                            get_task_tracker().track_task(get_task_tracker().create_task(
                                 run_io_bound(self.memory.prune_low_salience, threshold_days=14)
                             ))
                     except Exception as e:
@@ -1729,7 +1729,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                         )
                         return
 
-                    self._current_thought_task = get_task_tracker().track_task(asyncio.create_task(
+                    self._current_thought_task = get_task_tracker().track_task(get_task_tracker().create_task(
                         self.process_user_input_priority(error_goal['objective'], origin="terminal_monitor")
                     ))
         except Exception as e:
@@ -2047,7 +2047,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     logger.info("📥 Processing event-driven input (%s): %s", origin, message[:50])
                     # Standardized input processing
                     from core.utils.task_tracker import get_task_tracker
-                    get_task_tracker().track_task(asyncio.create_task(self.process_user_input_priority(message, origin=origin)))
+                    get_task_tracker().track_task(self.process_user_input_priority(message, origin=origin))
                 else:
                     logger.debug("Auto-suggestion source check handled.")
             except asyncio.CancelledError:

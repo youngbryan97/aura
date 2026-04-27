@@ -3,6 +3,7 @@
 Monitoring system health, technical debt, and recursive stability.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import logging
 import time
 from typing import List, Dict, Any, Optional
@@ -66,7 +67,7 @@ class SystemStateMonitor:
         self.health_history.append(state)
         
         # Sync final stability back to registry
-        t = asyncio.create_task(get_registry().update(coherence=stability))
+        t = get_task_tracker().create_task(get_registry().update(coherence=stability))
         t.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
         
         if stability < 0.6:

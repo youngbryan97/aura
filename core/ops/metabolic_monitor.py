@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import logging
 import os
 import time
@@ -199,7 +200,7 @@ class PersistentComputeCostTracker:
         """Save current erg count to disk."""
         try:
             self.state_path.parent.mkdir(parents=True, exist_ok=True)
-            self.state_path.write_text(json.dumps({
+            atomic_write_text(self.state_path, json.dumps({
                 "total_ergs": self.total_ergs,
                 "last_updated": time.time()
             }))

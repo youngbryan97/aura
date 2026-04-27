@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -58,7 +59,7 @@ class EmpathyProber:
         
         # 3. Publish to Mycelial network (EventBus)
         if self._event_bus:
-            asyncio.create_task(self._event_bus.publish("core/brain/empathy_audit", {
+            get_task_tracker().create_task(self._event_bus.publish("core/brain/empathy_audit", {
                 "status": status,
                 "drift": avg_drift,
                 "needs_correction": needs_correction,

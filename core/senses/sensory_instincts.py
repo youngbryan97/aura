@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import logging
 import time
 import asyncio
@@ -18,7 +19,7 @@ class SensoryInstincts:
         if self.running:
             return
         self.running = True
-        self._task = asyncio.create_task(self._monitoring_loop())
+        self._task = get_task_tracker().create_task(self._monitoring_loop())
         logger.info("⚡ Sensory Instincts (Gut Reactions) online")
 
     async def stop(self):

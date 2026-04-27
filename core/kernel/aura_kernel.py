@@ -282,7 +282,7 @@ class AuraKernel:
 
             task = get_task_tracker().create_task(coro, name=name)
         except Exception:
-            task = asyncio.create_task(coro, name=name)
+            task = get_task_tracker().create_task(coro, name=name)
             try:
                 task._aura_supervised = True
                 task._aura_task_tracker = "AuraKernel"
@@ -660,7 +660,7 @@ class AuraKernel:
             try:
                 if mc._running and (mc._task is None or mc._task.done()):
                     logger.warning("[RUBICON] Motor cortex loop died -- restarting")
-                    mc._task = asyncio.create_task(mc._run_loop(), name="motor_cortex_loop")
+                    mc._task = get_task_tracker().create_task(mc._run_loop(), name="motor_cortex_loop")
             except Exception as exc:
                 logger.debug("[RUBICON] Motor cortex watchdog error: %s", exc)
 
@@ -780,7 +780,7 @@ class AuraKernel:
                 # so phases will complete or fail on their own without kernel-level
                 # cancellation.
                 try:
-                    phase_task = asyncio.create_task(
+                    phase_task = get_task_tracker().create_task(
                         wrap_phase(
                             phase_name,
                             phase.execute,
