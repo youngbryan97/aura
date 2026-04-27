@@ -1508,44 +1508,64 @@ class MLXLocalClient:
             if fut is None:
                 raise RuntimeError("MLX worker init future missing during startup")
             handshake_timeout = float(init_timeout or self._handshake_timeout())
-            try:
-                res = await _await_shared_future(fut, timeout=handshake_timeout)
-                if res.get("status") == "ok":
-                    self._init_done = True
-                    self._last_heartbeat = time.time()
-                    self._last_ready_at = self._last_heartbeat
-                    self._mark_progress()
-                    self._set_lane_state("ready")
-                    if target_path in (primary_path, deep_path):
-                        _GLOBAL_LAST_HEAVY_MODEL = target_path
-                        _GLOBAL_LAST_SWAP_TIME = time.time()
-                    logger.info("✅ [MLX] Worker ready: %s", os.path.basename(self.model_path))
-                else:
-                    self._set_lane_state("failed", res.get("message", "Init failed"))
-                    raise RuntimeError(res.get("message", "Init failed"))
-            except asyncio.TimeoutError:
-                if soft_timeout and self._process and self._process.is_alive():
-                    logger.warning(
-                        "⏳ [MLX] Init handshake exceeded request budget (%.1fs) for %s. Keeping worker alive to continue warming.",
-                        handshake_timeout,
-                        os.path.basename(self.model_path),
-                    )
-                    self._set_lane_state("recovering", "init_budget_timeout")
-                    self._record_degraded_event(
-                        "init_budget_timeout",
-                        detail=f"{os.path.basename(self.model_path)}:{handshake_timeout:.1f}s",
-                        severity="warning",
-                        foreground_request=foreground_request,
-                    )
+            
+            # [STABILITY v54] One-shot retry for worker handshake to handle 
+            # transient JIT/Metal compilation or memory alignment glitches.
+            for handshake_attempt in range(2):
+                try:
+                    res = await _await_shared_future(fut, timeout=handshake_timeout)
+                    if res.get("status") == "ok":
+                        self._init_done = True
+                        self._last_heartbeat = time.time()
+                        self._last_ready_at = self._last_heartbeat
+                        self._mark_progress()
+                        self._set_lane_state("ready")
+                        if target_path in (primary_path, deep_path):
+                            _GLOBAL_LAST_HEAVY_MODEL = target_path
+                            _GLOBAL_LAST_SWAP_TIME = time.time()
+                        logger.info("✅ [MLX] Worker ready: %s", os.path.basename(self.model_path))
+                        return True
+                    else:
+                        msg = res.get("message", "Init failed")
+                        if handshake_attempt == 0:
+                            logger.warning("🔄 [MLX] Worker init failed: %s. Retrying spawn...", msg)
+                            # Reboot and try again once
+                            await self.reboot_worker(reason="init_failed_retry", mark_failed=False)
+                            # Update fut for the new spawn
+                            fut = self._init_future
+                            if not fut: break
+                            continue
+                        self._set_lane_state("failed", msg)
+                        raise RuntimeError(msg)
+                except asyncio.TimeoutError:
+                    if handshake_attempt == 0:
+                        logger.warning("⏳ [MLX] Init timeout on attempt 1. Retrying spawn...")
+                        await self.reboot_worker(reason="init_timeout_retry", mark_failed=False)
+                        fut = self._init_future
+                        if not fut: break
+                        continue
+                    if soft_timeout and self._process and self._process.is_alive():
+                        logger.warning(
+                            "⏳ [MLX] Init handshake exceeded request budget (%.1fs) for %s. Keeping worker alive to continue warming.",
+                            handshake_timeout,
+                            os.path.basename(self.model_path),
+                        )
+                        self._set_lane_state("recovering", "init_budget_timeout")
+                        self._record_degraded_event(
+                            "init_budget_timeout",
+                            detail=f"{os.path.basename(self.model_path)}:{handshake_timeout:.1f}s",
+                            severity="warning",
+                            foreground_request=foreground_request,
+                        )
+                        raise
+                    logger.error("🛑 [MLX] Init handshake TIMED OUT. Force killing process.")
+                    self._set_lane_state("failed", "init_timeout")
+                    if self._process:
+                        await asyncio.get_running_loop().run_in_executor(None, self._kill_and_join_blocking, self._process)
+                        self._process = None
+                    self._init_future = None
                     raise
-                logger.error("🛑 [MLX] Init handshake TIMED OUT. Force killing process.")
-                self._set_lane_state("failed", "init_timeout")
-                if self._process:
-                    await asyncio.get_running_loop().run_in_executor(None, self._kill_and_join_blocking, self._process)
-                    self._process = None
-                self._init_future = None
-                raise
-            return True
+            return False
         return self._process is not None and self._process.is_alive() and self._init_done
 
     def _drain_queue(self):

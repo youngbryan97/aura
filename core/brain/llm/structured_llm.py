@@ -36,14 +36,18 @@ class StructuredLLM:
                 f"GHOST EXAMPLE (Follow this structure exactly):\n{ghost_example}"
             )
 
+        escalated = False
         for attempt in range(self.max_retries):
             logger.info("🤖 StructuredLLM: Attempt %d/%d for %s", 
                         attempt + 1, self.max_retries, self.model_class.__name__)
             
             try:
-                # On retry, keep structured/background work on the light local tier
-                # so internal shards do not thrash the 72B or burn cloud quota during recovery.
-                force_tier = "tertiary" if attempt >= 1 else None
+                # [STABILITY v54] On technical failure, escalate to SECONDARY (Cloud/Deep).
+                # Otherwise, stay on TERTIARY (Light local) for background work to save quota.
+                if escalated:
+                    force_tier = "secondary"
+                else:
+                    force_tier = "tertiary" if attempt >= 1 else None
 
                 metadata = None
                 if hasattr(self._llm_router, "generate_with_metadata"):
@@ -53,7 +57,7 @@ class StructuredLLM:
                         prefer_tier=force_tier,
                         schema=schema,
                         origin="structured_llm",
-                        is_background=True,
+                        is_background=not escalated, # Allow cloud usage if escalated
                     )
                     response_text = str((metadata or {}).get("text") or "")
                 else:
@@ -63,7 +67,7 @@ class StructuredLLM:
                         prefer_tier=force_tier,
                         schema=schema,
                         origin="structured_llm",
-                        is_background=True,
+                        is_background=not escalated,
                     )
 
                 error_code = str((metadata or {}).get("error") or "")
@@ -90,9 +94,11 @@ class StructuredLLM:
                         logger.debug("Suppressed Exception: %s", _exc)
                     logger.warning("⚠️ StructuredLLM: LLM Technical Failure (%s) on attempt %d", 
                                    error_code or response_text or "empty", attempt + 1)
-                    # Force cloud on the next attempt if it was a technical failure
-                    if attempt == 0:
+                    
+                    # [STABILITY v54] Set escalation flag for next attempt
+                    if attempt < self.max_retries - 1:
                         logger.info("⚡ StructuredLLM: Technical failure detected — escalating to SECONDARY tier for next attempt.")
+                        escalated = True
                     continue
 
                 # 2. Extract JSON (handle markers like ```json)

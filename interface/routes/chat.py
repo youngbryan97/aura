@@ -71,6 +71,7 @@ _conversation_log_lock = _get_convo_lock()
 _session_memory_pins: list[dict] = []
 _MAX_CONVERSATION_LOG_EXCHANGES = 500
 def _get_fg_lock(): return _locks.setdefault("fg", asyncio.Lock())
+_foreground_chat_lock = _get_fg_lock()
 _FOREGROUND_CHAT_BUSY_WAIT_S = 2.0
 
 

@@ -211,11 +211,11 @@ class InferenceGate:
             else:
                 max_pressure = _threshold(
                     "AURA_FOREGROUND_PRIMARY_MAX_PRESSURE_PCT",
-                    "88" if total_gb >= 60.0 else "84",
+                    "92" if total_gb >= 60.0 else "84",
                 )
                 min_available_gb = _threshold(
                     "AURA_FOREGROUND_PRIMARY_MIN_AVAILABLE_GB",
-                    "12" if total_gb >= 60.0 else "8",
+                    "8" if total_gb >= 60.0 else "8",
                 )
             return {
                 "tier": tier,
@@ -1043,8 +1043,13 @@ class InferenceGate:
             startup_guard_secs = float(os.environ.get("AURA_SAFE_BOOT_BACKGROUND_GUARD_SECS", "180"))
             startup_age = time.monotonic() - self._created_at
             if startup_age < startup_guard_secs:
-                if lane_state in {"cold", "spawning", "handshaking", "warming", "recovering", "failed"}:
-                    return "cortex_startup_quiet"
+                # [STABILITY v54] Only defer if we are truly tight on memory.
+                # On high-RAM machines, 180s is too long to block background work
+                # if the 32B model is already loaded and stable.
+                vm = psutil.virtual_memory()
+                if vm.percent > 85.0:
+                    if lane_state in {"cold", "spawning", "handshaking", "warming", "recovering", "failed"}:
+                        return "cortex_startup_quiet"
             if self._background_memory_pressure_active():
                 if lane_state in {"cold", "spawning", "handshaking", "warming", "recovering", "failed"}:
                     return "memory_pressure"
