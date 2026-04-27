@@ -8,6 +8,13 @@ Replaces: aura_launcher.py, aura_desktop.py, run_aura.py, run_aura_loop.py, and 
 
 import argparse
 import asyncio
+
+# Install global task supervision before subsystems spawn background tasks.
+try:
+    import core.utils.asyncio_patch  # noqa: F401
+except Exception:
+    pass
+
 import logging
 import os
 import shutil

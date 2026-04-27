@@ -1078,12 +1078,12 @@ class ExecutiveCore:
 # ── Singleton ────────────────────────────────────────────────────────────────
 
 _instance: Optional[ExecutiveCore] = None
-_lock = asyncio.Lock()
+_lock = None
 
 
 def get_executive_core() -> ExecutiveCore:
     """Get or create the global ExecutiveCore."""
-    global _instance
+    global _instance, _lock
     if _instance is None:
         _instance = ExecutiveCore()
         try:

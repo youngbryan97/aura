@@ -210,7 +210,12 @@ class MorphogeneticRuntime:
                     # morphogenesis drives long-term behavioural development.
                     try:
                         from core.morphogenesis.hooks import record_organ_formation_episode
-                        asyncio.ensure_future(record_organ_formation_episode(organ.to_dict()))
+                        from core.runtime.task_ownership import fire_and_forget
+                        fire_and_forget(
+                            record_organ_formation_episode(organ.to_dict()),
+                            name="morphogenesis.organ_episode",
+                            bounded=True,
+                        )
                     except Exception:
                         pass
 

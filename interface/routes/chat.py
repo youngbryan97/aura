@@ -64,10 +64,11 @@ MAX_CHAT_MESSAGE_BYTES = 64 * 1024  # 64KB
 # ── Session & Conversation Log ────────────────────────────────
 
 _conversation_log: list[dict] = []  # In-memory session log for current runtime
-_conversation_log_lock = asyncio.Lock()
+_locks = {}
+def _get_convo_lock(): return _locks.setdefault("convo", asyncio.Lock())
 _session_memory_pins: list[dict] = []
 _MAX_CONVERSATION_LOG_EXCHANGES = 500
-_foreground_chat_lock = asyncio.Lock()
+def _get_fg_lock(): return _locks.setdefault("fg", asyncio.Lock())
 _FOREGROUND_CHAT_BUSY_WAIT_S = 2.0
 
 
@@ -87,7 +88,7 @@ def _trim_conversation_log_locked() -> None:
 async def _begin_logged_exchange(user_msg: str) -> str:
     """Create an in-flight exchange record and return its identifier."""
     exchange_id = _new_exchange_id()
-    async with _conversation_log_lock:
+    async with _get_convo_lock():
         _conversation_log.append(
             {
                 "id": exchange_id,
@@ -112,7 +113,7 @@ async def _complete_logged_exchange(
     final_response = aura_response or "…"
     recorded_user = str(user_msg or "")
 
-    async with _conversation_log_lock:
+    async with _get_convo_lock():
         target: Optional[dict] = None
         if exchange_id:
             for entry in reversed(_conversation_log):
@@ -251,7 +252,7 @@ async def _store_session_memory_pin(content: str, source: str) -> None:
     pinned = str(content or "").strip()
     if not pinned:
         return
-    async with _conversation_log_lock:
+    async with _get_convo_lock():
         _session_memory_pins.append(
             {
                 "content": pinned[:240],
@@ -264,7 +265,7 @@ async def _store_session_memory_pin(content: str, source: str) -> None:
 
 
 async def _recall_session_memory_pin() -> Optional[Dict[str, str]]:
-    async with _conversation_log_lock:
+    async with _get_convo_lock():
         if not _session_memory_pins:
             return None
         latest = _session_memory_pins[-1]
@@ -367,7 +368,7 @@ def _read_repo_probe_reply(user_message: str) -> Optional[Dict[str, str]]:
 # ── Idempotency ───────────────────────────────────────────────
 
 _idempotency_cache: collections.OrderedDict = collections.OrderedDict()
-_idempotency_lock = asyncio.Lock()
+def _get_idemp_lock(): return _locks.setdefault("idemp", asyncio.Lock())
 
 # ── Stale Response Detection ─────────────────────────────────
 # Track the last N responses to detect when the cortex is stuck returning the
@@ -598,7 +599,7 @@ def _extract_topic_tokens(text: str) -> set[str]:
 async def _gather_recent_user_messages_for_relevance(current_user_message: str, *, limit: int = 4) -> list[str]:
     recent: list[str] = []
     current = str(current_user_message or "").strip()
-    async with _conversation_log_lock:
+    async with _get_convo_lock():
         for entry in reversed(_conversation_log):
             user_text = str(entry.get("user") or "").strip()
             if not user_text or user_text == current:
@@ -1417,7 +1418,7 @@ def _protected_foreground_reason(lane: Optional[Dict[str, Any]]) -> str:
 
 
 async def _build_protected_foreground_history(*, limit_pairs: int = 4) -> List[Dict[str, str]]:
-    async with _conversation_log_lock:
+    async with _get_convo_lock():
         completed = [
             entry
             for entry in _conversation_log
@@ -3619,7 +3620,7 @@ async def api_sessions(request: Request, _: None = Depends(_require_internal)):
             except Exception as e:
                 logger.debug("Could not load persisted conversations: %s", e)
 
-        async with _conversation_log_lock:
+        async with _get_convo_lock():
             current = list(_conversation_log)
 
         return JSONResponse({
@@ -3673,7 +3674,7 @@ async def api_chat_regenerate(
     _restore_owner_session_from_request(request)
     foreground_timeout = _foreground_timeout_for_lane(_collect_conversation_lane_status())
     try:
-        async with _conversation_log_lock:
+        async with _get_convo_lock():
             if not _conversation_log:
                 return JSONResponse({"error": "no_history", "message": "No conversation to regenerate."}, status_code=400)
             last_exchange = next(
@@ -3708,7 +3709,7 @@ async def api_chat_regenerate(
 
         response_data = {"response": reply_text or "…", "regenerated": True}
 
-        async with _conversation_log_lock:
+        async with _get_convo_lock():
             if _conversation_log:
                 _conversation_log[-1]["aura"] = reply_text or "…"
                 _conversation_log[-1]["regenerated"] = True
@@ -3725,7 +3726,7 @@ async def api_chat_regenerate(
 async def api_export_conversation(request: Request, _: None = Depends(_require_internal)):
     """Export the current conversation session as downloadable JSON.
     Flagship products support data export."""
-    async with _conversation_log_lock:
+    async with _get_convo_lock():
         export_data = {
             "exported_at": datetime.now(tz=timezone.utc).isoformat(),
             "version": version_string("full"),
@@ -3743,7 +3744,7 @@ async def api_export_conversation(request: Request, _: None = Depends(_require_i
 async def api_export(request: Request, _: None = Depends(_require_internal)):
     """Full data export — conversation history plus memory snapshots.
     Alias consumed by the dashboard export button."""
-    async with _conversation_log_lock:
+    async with _get_convo_lock():
         messages = list(_conversation_log)
 
     ep_memories: list = []
@@ -3892,7 +3893,7 @@ async def api_chat(
         # Idempotency check
         idem_key = request.headers.get("X-Idempotency-Key")
         if idem_key:
-            async with _idempotency_lock:
+            async with _get_idemp_lock():
                 if idem_key in _idempotency_cache:
                     return JSONResponse(_idempotency_cache[idem_key])
 
@@ -3957,7 +3958,7 @@ async def api_chat(
             else:
                 await _log_exchange(body.message, reply_text or "…")
             if idem_key:
-                async with _idempotency_lock:
+                async with _get_idemp_lock():
                     _idempotency_cache[idem_key] = response_data
                     if len(_idempotency_cache) > 1000:
                         _idempotency_cache.popitem(last=False)
@@ -4523,7 +4524,7 @@ async def api_chat(
 
         # Cache idempotent response
         if idem_key:
-            async with _idempotency_lock:
+            async with _get_idemp_lock():
                 _idempotency_cache[idem_key] = response_data
                 if len(_idempotency_cache) > 1000:
                     _idempotency_cache.popitem(last=False)

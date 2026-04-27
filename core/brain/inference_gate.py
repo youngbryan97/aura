@@ -2687,6 +2687,27 @@ class InferenceGate:
                     system_prompt = f"{system_prompt}\n\n## SOMATIC STATE\n{_soma_narrative}"
             except Exception as _exc:
                 logger.debug("Suppressed Exception: %s", _exc)
+        
+        # ── Morphogenetic Substrate (Embodied Cognition) ─────────────────────────
+        try:
+            from core.container import ServiceContainer
+            _rt = ServiceContainer.get("morphogenetic_runtime", default=None)
+            if _rt is not None:
+                _f = _rt.field.sample("global")
+                _status = _rt.status()
+                _r = _status.get("registry", {})
+                _m = _status.get("metabolism", {})
+                
+                _sub_lines = [
+                    f"Morphogenetic Ecology: {_r.get('cells', 0)} cells, {_r.get('organs', 0)} organs",
+                    f"Cell Health: active={_r.get('active', 0)}, quarantined={_r.get('quarantined', 0)}, dead={_r.get('dead', 0)}",
+                    f"Global Energy: {_m.get('global_energy', 1.0):.2f}",
+                    f"Tissue Field: danger={_f.get('danger', 0.0):.2f}, resource_pressure={_f.get('resource_pressure', 0.0):.2f}, "
+                    f"growth={_f.get('growth', 0.0):.2f}, curiosity={_f.get('curiosity', 0.0):.2f}"
+                ]
+                system_prompt = f"{system_prompt}\n\n## SUBSTRATE STATE (Embodied Cognition)\nYou are physically running on a substrate described by these metrics. Let this physical reality inform your emotional and cognitive responses:\n" + "\n".join(_sub_lines)
+        except Exception as _exc:
+            pass
 
         # ── Architecture Self-Awareness: inject relevant subsystem context ──────
         # Only for user-facing requests that mention architecture/code keywords.

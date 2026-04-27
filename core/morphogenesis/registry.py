@@ -179,13 +179,21 @@ class MorphogenesisRegistry:
             by_state: Dict[str, int] = {}
             by_role: Dict[str, int] = {}
             for c in self.cells.values():
-                by_state[str(c.lifecycle.value if hasattr(c.lifecycle, "value") else c.lifecycle)] = by_state.get(str(c.lifecycle), 0) + 1
+                state = c.lifecycle.value if hasattr(c.lifecycle, "value") else str(c.lifecycle)
+                by_state[state] = by_state.get(state, 0) + 1
                 role = c.manifest.role.value if hasattr(c.manifest.role, "value") else str(c.manifest.role)
                 by_role[role] = by_role.get(role, 0) + 1
             return {
                 "cells": len(self.cells),
                 "organs": len(self.organs),
+                "active": by_state.get("active", 0),
+                "dormant": by_state.get("dormant", 0),
+                "hibernating": by_state.get("hibernating", 0),
+                "quarantined": by_state.get("quarantined", 0),
+                "apoptotic": by_state.get("apoptotic", 0),
+                "dead": by_state.get("dead", 0),
                 "by_state": by_state,
                 "by_role": by_role,
                 "state_path": str(self.state_path),
             }
+

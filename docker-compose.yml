@@ -29,6 +29,7 @@ services:
       - ./logs:/app/logs
     environment:
       - AURA_ENV=production
+      - AURA_INTERNAL_ONLY=1
       - REDIS_URL=redis://redis-broker:6379/0
       - AURA_HOST=0.0.0.0
       - AURA_PORT=8000

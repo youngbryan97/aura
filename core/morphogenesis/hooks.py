@@ -82,8 +82,9 @@ def _morphogenesis_health_check():
         # Check cell ecology health
         registry_status = status.get("registry", {})
         cell_count = registry_status.get("cells", 0)
-        quarantined = registry_status.get("quarantined", 0)
-        dead = registry_status.get("dead", 0)
+        by_state = registry_status.get("by_state", {}) or {}
+        quarantined = registry_status.get("quarantined", by_state.get("quarantined", 0))
+        dead = registry_status.get("dead", by_state.get("dead", 0))
 
         # Check metabolism health
         metabolism = status.get("metabolism", {})

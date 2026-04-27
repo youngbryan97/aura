@@ -1,7 +1,7 @@
 # Aura Luna Sandbox - Dockerfile
 # Provides a secure, network-isolated environment for code execution.
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Security: Run as non-privileged user
 RUN groupadd -r aura && useradd -r -g aura aura

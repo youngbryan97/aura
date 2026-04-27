@@ -107,7 +107,19 @@ class TerminalMonitor:
     def _save_blacklist(self):
         try:
             BLACKLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
-            BLACKLIST_PATH.write_text(json.dumps(list(self._blacklist)))
+            payload = sorted(str(item) for item in self._blacklist)
+            try:
+                from core.runtime.atomic_writer import atomic_write_json
+                atomic_write_json(
+                    BLACKLIST_PATH,
+                    payload,
+                    schema_version=1,
+                    schema_name="terminal_error_blacklist",
+                )
+            except Exception:
+                tmp = BLACKLIST_PATH.with_suffix(BLACKLIST_PATH.suffix + ".tmp")
+                tmp.write_text(json.dumps(payload), encoding="utf-8")
+                tmp.replace(BLACKLIST_PATH)
         except Exception as e:
             logger.error(f"Failed to save blacklist: {e}")
 
