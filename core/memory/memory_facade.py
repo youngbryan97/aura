@@ -484,6 +484,17 @@ class MemoryFacade:
         metadata = metadata or {}
 
         async def _commit_interaction_effects() -> Optional[Any]:
+            if os.environ.get("AURA_STRICT_RUNTIME") == "1":
+                from core.memory.memory_write_gateway import get_memory_write_gateway
+                from core.runtime.gateways import MemoryWriteRequest
+                try:
+                    gw = get_memory_write_gateway()
+                    payload = {"context": context, "action": action, "outcome": outcome, "success": success, "emotional_valence": emotional_valence, "importance": importance, **(metadata or {})}
+                    await gw.write(MemoryWriteRequest(content=f"Interaction: {context} -> {action} -> {outcome}", metadata=payload, cause="memory_facade.commit_interaction"))
+                    return "gateway-receipt"
+                except PermissionError as e:
+                    raise RuntimeError(f"Strict Runtime: memory write blocked: {e}") from e
+
             # 1. Record as Episode
             episode_id = None
             if self.episodic:
@@ -752,6 +763,18 @@ class MemoryFacade:
                 return False
 
         async def _perform_add_memory() -> bool:
+            if os.environ.get("AURA_STRICT_RUNTIME") == "1":
+                from core.memory.memory_write_gateway import get_memory_write_gateway
+                from core.runtime.gateways import MemoryWriteRequest
+                try:
+                    gw = get_memory_write_gateway()
+                    await gw.write(MemoryWriteRequest(content=text, metadata=payload, cause="memory_facade.add_memory"))
+                    self._last_add_memory_status = {"ok": True, "reason": "stored_via_gateway"}
+                    return True
+                except PermissionError as e:
+                    self._last_add_memory_status = {"ok": False, "reason": f"gateway_error:{type(e).__name__}"}
+                    raise RuntimeError(f"Strict Runtime: memory write blocked: {e}") from e
+
             if self.vector and hasattr(self.vector, "add_memory"):
                 try:
                     raw_result = await asyncio.to_thread(self.vector.add_memory, text, payload)

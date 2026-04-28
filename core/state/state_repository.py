@@ -289,6 +289,19 @@ class StateRepository:
         Strangler Fig: Transition to a new state.
         Now enqueues a mutation command for atomic processing.
         """
+        if os.environ.get("AURA_STRICT_RUNTIME") == "1":
+            from core.state.state_gateway import get_state_gateway
+            from core.runtime.gateways import StateMutationRequest
+            gw = get_state_gateway()
+            try:
+                await gw.mutate(StateMutationRequest(
+                    key="aura_state_commit",
+                    new_value={"version": getattr(new_state, "version", 0)},
+                    cause=cause
+                ))
+            except PermissionError as exc:
+                raise RuntimeError(f"Strict Runtime: Direct state mutation blocked: {exc}") from exc
+
         trace_id = trace_id or f"trace_{int(time.time() * 1000)}"
         if self.is_vault_owner:
             await self._enqueue_owner_commit({
