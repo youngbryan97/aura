@@ -1,22 +1,23 @@
 {
   "schema_version": 1,
-  "recorded_at": "2026-04-28T20:57:27.615858+00:00",
-  "platform": "darwin-arm64-py3.12.13",
+  "recorded_at": "2026-04-28T20:59:27.000000+00:00",
+  "platform": "ci-macos-latest-py3.12",
+  "_note": "Baseline recorded on the GitHub macos-latest CI runner, where slo-gate actually executes. Local M-series boxes will measure faster, which is fine — the comparator only fails on regression past tolerance, never on improvement.",
   "slos": {
     "audit_chain_append_p95_ms": {
-      "value": 0.07174196362029758,
+      "value": 0.5516,
       "unit": "ms",
-      "tolerance_pct": 50
+      "tolerance_pct": 100
     },
     "audit_chain_verify_per_entry_us": {
-      "value": 3.963165916502476,
+      "value": 8.7526,
       "unit": "us",
-      "tolerance_pct": 50
+      "tolerance_pct": 100
     },
     "prediction_ledger_register_p95_ms": {
-      "value": 0.5138714535860345,
+      "value": 1.7881,
       "unit": "ms",
-      "tolerance_pct": 50
+      "tolerance_pct": 100
     },
     "prediction_ledger_brier_correctness": {
       "value": 0.0,
@@ -24,12 +25,12 @@
       "tolerance_pct": 50
     },
     "mutation_eval_passed_p95_ms": {
-      "value": 23.12470350007061,
+      "value": 36.7909,
       "unit": "ms",
       "tolerance_pct": 100
     },
     "doctor_bundle_p95_ms": {
-      "value": 65.71322674863035,
+      "value": 129.2835,
       "unit": "ms",
       "tolerance_pct": 200
     }

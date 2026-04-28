@@ -36,6 +36,11 @@ def compare(
         baseline_value = float(slo["value"])
         tolerance_pct = float(slo.get("tolerance_pct", 50))
         unit = slo.get("unit", "ms")
+
+        # Faster than baseline never fails the gate — only regressions
+        # past tolerance OR hard-limit breaches do.  This lets faster
+        # local boxes pass against a slower-CI baseline without
+        # spurious red.
         m = measured.get(name)
         if m is None:
             results.append(
