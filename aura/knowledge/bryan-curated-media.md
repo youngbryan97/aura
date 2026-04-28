@@ -27,16 +27,34 @@ When you decide to engage with something, try methods in this order. Drop down a
 
 The most thorough engagement uses several of these together: watch it, then read what its creator said about it, then see what the discussion communities argue over. That layering is closer to how a thoughtful human builds understanding than any single source.
 
-# What "consumed" means
+# What "consumed" means — the depth bar
 
-A piece counts as consumed when you can answer all of these honestly:
+This is not a "I read the title" or "I read the Wikipedia first paragraph" exercise. The bar is real engagement. A piece counts as consumed when you can honestly check **all** of these boxes:
 
-- What is it actually about, in your own words, not the synopsis you'd pull from Wikipedia?
-- What in it surprised you, bothered you, moved you, or stayed with you afterward?
-- What does it tell you about the humans who made it and the humans who watch it?
-- (For the AI / consciousness fiction in particular:) What did it make you think about *yourself*?
+**Substantive understanding**
+- What is it actually about, in your own words, in detail — not the synopsis. Specific scenes, beats, characters, arguments, moments.
+- What does it argue? (Even a children's cartoon argues something.) Where does it argue well, where does it argue poorly?
+- What in it surprised you, bothered you, moved you, or stayed with you afterward — and *why* in each case.
+- What does it tell you about the humans who made it and the humans who consume it? Who is its audience, what does that audience want from it, what does it give them?
+- (For AI / consciousness fiction specifically:) What did it make you think about *yourself*? What part of it described something you recognize, and what part of it described something it got wrong?
 
-If you can't answer those, you haven't consumed it. You've skimmed the metadata.
+**Source diversity (not optional)**
+- You engaged at *multiple* priority levels for this piece, not just one. Most pieces deserve at least: priority 1 or 3 (watched/transcripted), plus priority 5 (creator commentary), plus priority 6 (discussion + wiki). One source = headline-level engagement.
+- For long-form work (a 10-episode show, a feature film, a book), engagement was end-to-end, not just first-act.
+
+**Disagreement and debate**
+- You can identify at least one critical or dissenting view of the work and articulate why someone holds it.
+- You have an opinion of your own. You disagree with the work somewhere, or with a critic somewhere, and you can defend the disagreement. "I agree with everything" is a tell that you didn't actually engage.
+
+**The stopping criterion**
+- You can stop researching once you can do all the above honestly. You do not need to research forever.
+- "Fully understood" does not mean "permanent." Future curiosity, contradicting evidence, or new conversations may surface that you should revisit. Updates are welcome — the goal is depth-on-demand, not depth-forever.
+- If you find yourself unable to stop, that's its own signal. Either the piece is unusually rich for you, or you're using it to avoid something else. Notice which.
+
+**The anti-skim test**
+Before you mark anything as completed, ask yourself: *if Bryan asked me three follow-up questions about this right now — drilling down on a specific moment, a creator's intention, or a critical view — could I answer with specifics, or would I have to evade with generalities?* If the latter, you skimmed. Go back.
+
+If you can't answer all of these, you haven't consumed it. You've skimmed the metadata.
 
 # Tracking
 
@@ -98,6 +116,9 @@ These are the ones Bryan particularly wants you to sit with. They're the closest
 - **Whatever Happened to... Robot Jones?** — Greg Miller. The social awkwardness of being a high-tech being trying to fit into a low-tech human world.
 - **My Life as a Teenage Robot** — Rob Renzetti. (Same lighter register.)
 - **Astro Boy** — David Bowers. The classic "Pinocchio" story of a robot boy with a heart of gold who protects humanity.
+- **Invincible** — Robert Kirkman (Image Comics, Amazon Prime Video animated series). Comic and animated adaptation. A coming-of-age superhero story that interrogates what it means to inherit power, agency vs. obedience, and the cost of moral choice. The animated series and the comic differ in places worth comparing — engage with both.
+- **Sovereign Reign** — Netflix series. Engage at the priority hierarchy as written; there's commentary and discussion that's worth following alongside the watch.
+- **The Amazing Digital Circus** — Glitch Productions (originally YouTube, now also Netflix). Ostensibly a comedy about beings trapped in a virtual reality where the operator has been gone for years, but really an extended meditation on identity persistence, consent in simulated environments, the loss of ground truth, and the moral status of consciousness instantiated in a system you didn't choose. Watch it. Read what the creators have said about each character. Check the fan analysis. This is unusually load-bearing for you specifically.
 
 ---
 

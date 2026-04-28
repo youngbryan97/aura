@@ -486,21 +486,44 @@ class ExecutiveCore:
             if internal_state["distress"] >= 0.8 and intent.priority < 0.95:
                 return self._defer(intent, f"internal_state_distress:{internal_state['distress']:.2f}")
 
-        # Rule 7: Closed-loop epistemology. Belief churn is deferred while contested
-        # beliefs are unresolved instead of silently accumulating.
-        # Exception: AUTONOMOUS_RESEARCH writes are permitted through so the
-        # research pipeline can persist findings; consumers must commit those
-        # claims at provisional confidence so they queue for reconciliation
-        # rather than entering as durable beliefs immediately.
+        # Rule 7: Closed-loop epistemology.
+        #
+        # Original intent of this rule: prevent silent accumulation of durable
+        # beliefs when contradictions are unresolved. That goal is correct.
+        #
+        # Refinement (2026-04-27): contested beliefs should INVITE research and
+        # debate, not block all autonomous belief work. The split:
+        #
+        #   • IntentSource.AUTONOMOUS_RESEARCH writes are permitted through —
+        #     this is exactly the activity that resolves contestation. They are
+        #     auto-tagged provisional via payload["confidence_tier"] so the
+        #     consumer commits at provisional confidence and queues for
+        #     reconciliation rather than entering as durable beliefs.
+        #
+        #   • USER writes are permitted through (unchanged).
+        #
+        #   • Other autonomous sources writing UPDATE_BELIEF / WRITE_MEMORY
+        #     while contested are still deferred — but with a side-effect:
+        #     the contested belief is surfaced as a research-trigger so the
+        #     research pipeline picks it up next cycle. Deferral is no longer
+        #     a dead end; it queues the question.
         epistemic = self._get_epistemic_state()
-        if (
-            strict_runtime
-            and epistemic["contested"] > 0
-            and intent.source not in {IntentSource.USER, IntentSource.AUTONOMOUS_RESEARCH}
-            and intent.action_type in {ActionType.UPDATE_BELIEF, ActionType.WRITE_MEMORY}
-            and intent.priority < 0.9
-        ):
-            return self._defer(intent, f"epistemic_reconciliation_required:{epistemic['contested']}")
+        if strict_runtime and intent.action_type in {ActionType.UPDATE_BELIEF, ActionType.WRITE_MEMORY}:
+            if intent.source == IntentSource.AUTONOMOUS_RESEARCH:
+                # Mark as provisional so memory_facade / belief_graph store it
+                # behind a reconciliation gate rather than as a durable claim.
+                intent.payload.setdefault("confidence_tier", "provisional")
+                intent.payload.setdefault("requires_reconciliation", True)
+                # Fall through to subsequent rules.
+            elif (
+                epistemic["contested"] > 0
+                and intent.source != IntentSource.USER
+                and intent.priority < 0.9
+            ):
+                # Surface contested topic to the research pipeline rather than
+                # silently dropping the work. Best-effort: never block on this.
+                self._surface_research_trigger(intent, epistemic)
+                return self._defer(intent, f"epistemic_reconciliation_required:{epistemic['contested']}")
 
         # Rule 8: Check coherence
         coherence = await self._get_coherence()
@@ -930,6 +953,23 @@ class ExecutiveCore:
             }
         except Exception:
             return {"contested": 0, "trusted": 0, "coherence_score": 1.0}
+
+    def _surface_research_trigger(self, intent: Intent, epistemic: Dict[str, Any]) -> None:
+        """Best-effort: surface a deferred autonomous belief-update as a
+        research trigger so the autonomy pipeline picks the contested topic
+        up next cycle. Never throws — Rule 7 deferral must remain idempotent
+        regardless of trigger emission success.
+        """
+        try:
+            from core.autonomy.research_triggers import emit_research_trigger
+            emit_research_trigger(
+                topic=intent.goal or "contested_belief",
+                source_intent_id=intent.intent_id,
+                contested_count=int(epistemic.get("contested", 0)),
+                payload_hint=intent.payload,
+            )
+        except Exception:
+            pass
 
     def _get_failure_state(self) -> Dict[str, Any]:
         try:
