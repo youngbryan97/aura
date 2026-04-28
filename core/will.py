@@ -58,6 +58,51 @@ class ActionDomain(str, Enum):
     EXPLORATION = "exploration"         # novelty-seeking action
     STABILIZATION = "stabilization"     # rest / recovery action
     REFLECTION = "reflection"           # internal reflection / metacognition
+    SEMANTIC_WEIGHT_UPDATE = "semantic_weight_update"  # plastic adapter update
+
+
+# Modules whose weights may be updated under SEMANTIC_WEIGHT_UPDATE.  This
+# list is the *positive* policy: every other target is denied by default.
+ALLOWED_PLASTIC_MODULES = frozenset(
+    {
+        "grounding_plastic_adapter",
+        "memory_reranker_adapter",
+        "context_attention_adapter",
+        "perception_adapter",
+    }
+)
+
+
+# Hard deny-list — even if a target is added by mistake, these strings
+# anywhere in the module name fail the policy check.  Catches accidental
+# attempts to mutate the base LLM, the Will itself, or the security layer.
+DENIED_PLASTIC_SUBSTRINGS = (
+    "base_llm",
+    "model.safetensors",
+    "core.will",
+    "authority_gateway",
+    "memory_authority",
+    "state_authority",
+    "security",
+)
+
+
+def is_plastic_target_allowed(module_name: str) -> bool:
+    """Return True iff ``module_name`` is in the allow-list AND
+    contains none of the deny-list substrings.
+
+    Used by the grounding loop and any future plastic-adapter caller to
+    confirm a SEMANTIC_WEIGHT_UPDATE target before applying a Hebbian
+    update.  Defence in depth: the local SemanticWeightGovernor blocks
+    on signal magnitude / vitality; this function blocks on *target*.
+    """
+    name = str(module_name or "").strip()
+    if not name:
+        return False
+    lower = name.lower()
+    if any(s in lower for s in DENIED_PLASTIC_SUBSTRINGS):
+        return False
+    return name in ALLOWED_PLASTIC_MODULES
 
 
 class WillOutcome(str, Enum):

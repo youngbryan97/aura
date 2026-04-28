@@ -135,6 +135,30 @@ class ComputerUseReceipt(_ReceiptBase):
     verifier_result: bool = False
 
 
+@dataclass
+class SemanticWeightUpdateReceipt(_ReceiptBase):
+    """Forensic record of a plastic-adapter weight update.
+
+    Emitted by the grounding loop after a prediction is confirmed and
+    the governor has authorised the resulting Hebbian update.  Fields
+    record exactly which module was modified, why, and how much, so an
+    auditor can reconstruct every weight change without inspecting the
+    live arrays.
+    """
+
+    kind: str = "semantic_weight_update"
+    module: str = ""
+    prediction_id: Optional[str] = None
+    concept_id: Optional[str] = None
+    evidence_id: Optional[str] = None
+    reward: float = 0.0
+    modulation: float = 0.0
+    delta_norm: float = 0.0
+    hebb_norm: float = 0.0
+    allowed: bool = False
+    governance_receipt_id: Optional[str] = None
+
+
 # Mapping kind -> dataclass for the store.
 _RECEIPT_CLASSES = {
     "turn": TurnReceipt,
@@ -147,6 +171,7 @@ _RECEIPT_CLASSES = {
     "autonomy": AutonomyReceipt,
     "self_repair": SelfRepairReceipt,
     "computer_use": ComputerUseReceipt,
+    "semantic_weight_update": SemanticWeightUpdateReceipt,
 }
 
 
@@ -161,6 +186,7 @@ AnyReceipt = Union[
     AutonomyReceipt,
     SelfRepairReceipt,
     ComputerUseReceipt,
+    SemanticWeightUpdateReceipt,
 ]
 
 

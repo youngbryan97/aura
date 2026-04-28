@@ -45,13 +45,6 @@ explicit about it rather than burying it.
 
 **Stubbed today (placeholder code, not production):**
 
-- `core/brain/llm/continuous_substrate.py` is a 100-line stub. The "always-on
-  inner monologue" runs on a hardcoded list of five sentences, paced at 1 Hz,
-  and `get_state_summary()` returns fixed values
-  (`{"valence": 0.0, "arousal": 0.3, "dominance": 0.0, "phi": 0.1}`). Anything
-  that reads from this is reading from the stub. The real substrate ODE is on
-  the roadmap; replacing this is the prerequisite for almost every "live
-  dynamics" claim becoming defensible.
 - The CAA steering vectors used at runtime are **bootstrap approximations**,
   not fully extracted contrastive activations. The injection mechanism in
   `core/consciousness/affective_steering.py` is real, but the vectors it
@@ -59,6 +52,12 @@ explicit about it rather than burying it.
 
 **Real today (production implementations, code is what it claims to be):**
 
+- `core/brain/llm/continuous_substrate.py` is a 64-neuron Liquid Time-Constant
+  ODE running at ~20 Hz. CPU-only numpy with explicit-Euler integration plus
+  stochastic perturbation; `get_state_summary()` derives valence/arousal/
+  dominance/phi from fixed projections of the 64-D state vector, so readouts
+  reflect actual dynamics. The previous 100-line monologue stub is gone; the
+  ODE replaces it (see header comment at the top of the file).
 - `core/consciousness/phi_core.py` (1,837 lines) implements real IIT-style
   integration math: binarization, empirical TPM, KL-divergence φ, exclusion
   postulate, polynomial-time spectral partitioning, with an exhaustive
@@ -96,11 +95,13 @@ explicit about it rather than burying it.
   task) is needed to close this.
 
 **Test attestation:** the test count headlines in [TESTING.md](TESTING.md)
-should be read with this stub-vs-real classification in mind. Tests that
-exercise `continuous_substrate` are testing the stub. Tests against
-`phi_core`, `affective_steering`, the memory stack, and the decisive runner
-are testing real code. We are working on per-test traceability so each
-assertion in the suite can be classified at a glance.
+should be read with this stub-vs-real classification in mind. Tests against
+`phi_core`, `affective_steering`, `continuous_substrate`, the memory stack,
+and the decisive runner are testing real code. The CAA steering vectors
+remain bootstrap approximations until the production 32B extraction lands;
+tests that depend on those vectors should be read with that caveat. We are
+working on per-test traceability so each assertion in the suite can be
+classified at a glance.
 
 ---
 

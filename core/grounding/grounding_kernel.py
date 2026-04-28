@@ -4,6 +4,11 @@ Version 1 supports text via a deterministic hash-token feature
 encoder.  Vision/audio encoders (CLIP, image classifiers) drop in by
 adding new modality branches; the encoder contract returns a
 fixed-dimensional feature vector regardless of input type.
+
+Strict mode (``strict_modalities=True``) refuses any modality whose
+encoder is still a placeholder.  Production deployments should run
+strict so a vision/audio request never silently degrades to the text
+hash encoder; tests and exploratory work can stay non-strict.
 """
 from __future__ import annotations
 
@@ -14,6 +19,14 @@ from typing import Any
 import numpy as np
 
 from core.grounding.types import GroundingMethod, PerceptualEvidence, new_id
+
+
+# Modalities for which a real (non-placeholder) encoder is wired.
+SUPPORTED_MODALITIES = frozenset({"text"})
+
+
+class UnsupportedModalityError(RuntimeError):
+    """Raised when strict mode encounters a modality with no real encoder."""
 
 
 def hash_features(text: str, dim: int = 128) -> list:
@@ -37,8 +50,9 @@ class GroundingObservation:
 
 
 class GroundingKernel:
-    def __init__(self, feature_dim: int = 128):
+    def __init__(self, feature_dim: int = 128, *, strict_modalities: bool = False):
         self.feature_dim = int(feature_dim)
+        self.strict_modalities = bool(strict_modalities)
 
     def default_text_method(self) -> GroundingMethod:
         return GroundingMethod(
@@ -53,6 +67,12 @@ class GroundingKernel:
         if observation.modality == "text":
             features = hash_features(str(observation.raw), self.feature_dim)
         else:
+            if self.strict_modalities:
+                raise UnsupportedModalityError(
+                    f"strict mode: no real encoder for modality "
+                    f"{observation.modality!r}; supported: "
+                    f"{sorted(SUPPORTED_MODALITIES)}"
+                )
             # Placeholder: real implementations override per modality.
             features = hash_features(str(observation.raw), self.feature_dim)
         return PerceptualEvidence(

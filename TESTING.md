@@ -14,17 +14,17 @@ than burying it.
 | `core/consciousness/stdp_learning.py` | **real but closed-loop** | trajectory-divergence test (shows plasticity, not yet useful learning — see ARCHITECTURE.md §7 closed-loop caveat) |
 | Memory stack (episodic, semantic, vector, knowledge graph, WAL) | **real** | memory continuity tests, decisive evidence runner |
 | Decision/Will/Identity gate | **real** | hardened discriminative suite, identity-gate behaviour tests |
-| `core/brain/llm/continuous_substrate.py` (always-on monologue) | **STUB** — 100 lines, hardcoded outputs | any test reading `get_state_summary()` or the monologue buffer is reading stub outputs |
-| Substrate-driven affect telemetry feeding into latent_bridge | **stub-fed at runtime** (real bridge code, stub source) | telemetry-coupling tests partially exercise the stub source |
+| `core/brain/llm/continuous_substrate.py` (always-on substrate ODE) | **real** — 64-neuron LTC ODE, ~20 Hz, CPU-only numpy with explicit-Euler integration; readouts derive from the 64-D state vector via fixed projections | tests reading `get_state_summary()` exercise real dynamics |
+| Substrate-driven affect telemetry feeding into latent_bridge | **real** | telemetry-coupling tests now exercise live substrate output |
 
-**What this means for the test count:** the 225-test headline includes tests
-spanning real and stubbed subsystems. The decisive evidence protocol (§
-"Current decisive evidence protocol" below) was deliberately designed to
-narrow to non-inflatable, prompt-leakage-controlled, statistically rigorous
-checks — those are the tests that should be cited as evidence of the real
-system. Tests that read `continuous_substrate.get_state_summary()` are not
-evidence of the real substrate; they are evidence the wiring around the stub
-is consistent.
+**What this means for the test count:** the test headline includes tests
+spanning real subsystems. The decisive evidence protocol (§ "Current
+decisive evidence protocol" below) was deliberately designed to narrow to
+non-inflatable, prompt-leakage-controlled, statistically rigorous checks —
+those are the tests that should be cited as evidence of the real system.
+The CAA bootstrap-vectors caveat still applies to A/B steering tests: the
+injection mechanism is real, the vectors are bootstrap quality until the
+32B extraction lands.
 
 **What's coming:** per-test traceability. We will classify each test in the
 suite by which subsystems it exercises and produce a derived "attested test

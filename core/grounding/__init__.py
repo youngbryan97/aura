@@ -15,7 +15,12 @@ from core.grounding.types import (
     new_id,
 )
 from core.grounding.semiotic_network import SemioticNetwork
-from core.grounding.grounding_kernel import GroundingKernel, GroundingObservation
+from core.grounding.grounding_kernel import (
+    GroundingKernel,
+    GroundingObservation,
+    SUPPORTED_MODALITIES,
+    UnsupportedModalityError,
+)
 from core.grounding.grounding_service import GroundingService
 
 __all__ = [
@@ -27,6 +32,8 @@ __all__ = [
     "GroundingService",
     "PerceptualEvidence",
     "SemioticNetwork",
+    "SUPPORTED_MODALITIES",
     "SymbolLink",
+    "UnsupportedModalityError",
     "new_id",
 ]
