@@ -1,7 +1,11 @@
 # Runbook: Tool Timeout Storm
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `receipts.json[recent.tool_execution]` shows a spike in `status=timeout` within a short window.
+- `metrics.json[system].cpu_percent` and `event_loop_lag_ms` rising together.
+- `tasks.json` lists many tool tasks with `done=false` whose names share the same prefix.
+- `logs/` contains repeated `subprocess.TimeoutExpired` or `await wait_for` cancellations.
+- Hint of a thundering herd: multiple tools targeting the same resource are queued.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

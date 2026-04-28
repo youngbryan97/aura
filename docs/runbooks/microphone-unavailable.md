@@ -1,7 +1,11 @@
 # Runbook: Microphone Unavailable
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `models.json[sensors][microphone].status` is `unavailable` or `permission_denied`.
+- `logs/` contains `PortAudio`, `ALSA`, or `coreaudio` errors.
+- `health.json[services]` shows the audio capture pipeline degraded.
+- macOS only: microphone permission was revoked from System Settings → Privacy → Microphone, and the Aura process is no longer listed.
+- Recent `receipts.json[recent.tool_execution]` for audio tools returns `output_digest=""`.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

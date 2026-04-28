@@ -1,7 +1,11 @@
 # Runbook: Model Fails To Load
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `models.json[model_loader].status` is `failed` or `loading` indefinitely.
+- `aura doctor` reports `mlx_available=false` (when MLX is the active backend).
+- `logs/` shows safetensors `OSError`, `OOM`, or `expected dtype` errors during load.
+- `metrics.json[system].process_rss_mb` rises during load and then plateaus at a value below the model's expected footprint (load aborted).
+- `receipts.json[recent.turn]` empty or `failed_effects` contains `model_unavailable`.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

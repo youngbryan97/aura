@@ -1,7 +1,11 @@
 # Runbook: Movie Mode Broken
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `receipts.json[recent.computer_use]` shows `verifier_result=false` for screen-driven actions.
+- `models.json[screen_vision].status` is degraded or `failed`.
+- `logs/` contains frame-capture errors (`screencapture`, `CGDisplay`, or `Quartz` complaints).
+- `health.json[services]` shows the perception pipeline degraded but the orchestrator is otherwise healthy.
+- `tasks.json` lists movie-mode loops that complete instantly (no frames captured).
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

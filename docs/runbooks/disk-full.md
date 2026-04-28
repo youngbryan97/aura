@@ -1,7 +1,11 @@
 # Runbook: Disk Full
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `aura doctor` reports `data_dir_writable=false` or `atomic_writer_round_trip=false`.
+- `metrics.json[system]` (or `df -h`) shows the data dir partition above 95% used.
+- `logs.json[available]` is `false`, or new log writes silently truncate.
+- `receipts.json[counts]` stops growing while `tasks.json` continues to log new turns.
+- `audit_chain/info.json[verify]` may report `body missing` for the most recent receipts (failed atomic writes).
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

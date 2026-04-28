@@ -1,7 +1,11 @@
 # Runbook: Checkpoint Restore Failed
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `aura restore --snapshot <path>` exits non-zero.
+- `audit_chain/info.json[verify].ok` is `false` with `content_hash mismatch` reasons.
+- `receipts.json[recent.self_repair]` shows entries with `rolled_back=true` shortly before the restore attempt.
+- `health.json[services][state_vault].status` is `degraded` or `unavailable`.
+- `logs/` shows `read_json_envelope: schema_version` mismatches against the snapshot file.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

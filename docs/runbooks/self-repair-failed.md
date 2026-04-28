@@ -1,7 +1,11 @@
 # Runbook: Self Repair Failed
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `receipts.json[recent.self_repair]` shows entries whose `rungs_passed` list is shorter than expected (e.g. compile_fail or assertion_fail in the typed mutation evaluator).
+- `~/.aura/data/mutation_quarantine/` has new entries: each contains `source.py`, `result.json` with `outcome != passed`, plus `stdout.log` and `stderr.log`.
+- `audit_chain/info.json[verify]` may show a self_repair receipt with `rolled_back=true` immediately after a failed mutation.
+- `logs/` contains `MutationOutcome.timeout` or `MutationOutcome.runtime_exception` traces.
+- The same target file is being repeatedly proposed for repair and quarantined.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

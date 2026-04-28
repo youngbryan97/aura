@@ -1,7 +1,11 @@
 # Runbook: Browser Actor Leaked
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `metrics.json[system].threads` and open file count climb monotonically without traffic.
+- `models.json[phantom_browser].status` (or equivalent) shows `running` long after the last computer-use turn.
+- `tasks.json` lists browser-related tasks with `done=false` whose names persist across multiple bundle captures.
+- `ps aux | grep -E 'chromium|playwright|chrome'` shows orphan children whose parent PID is the orchestrator.
+- `receipts.json[recent.computer_use]` has stopped advancing, but the actor is still consuming RSS.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

@@ -1,7 +1,11 @@
 # Runbook: Aura Will Not Boot
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `aura doctor` (without `--bundle`) returns `ok=false` with one or more failed pre-boot checks (`python_version`, `data_dir_writable`, `sqlite_available`, `atomic_writer_round_trip`).
+- `~/.aura/locks/orchestrator.lock` exists and points to a PID that is no longer running.
+- No `health.json` is produced; `aura doctor --bundle` exits with the bundle still containing collector `_error.txt` files for `health` and `gateway`.
+- `logs/` contains a fatal traceback near the top of the most recent log.
+- The orchestrator process is absent from `ps aux | grep aura_main`.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

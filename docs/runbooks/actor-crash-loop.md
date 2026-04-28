@@ -1,7 +1,11 @@
 # Runbook: Actor Crash Loop
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `tasks.json` shows the actor task entering `done -> not done` cycles within seconds.
+- `receipts.json[recent.self_repair]` shows multiple `SelfRepairReceipt` entries within the same minute, often with `rolled_back=true`.
+- `metrics.json[system].process_rss_mb` grows linearly between restarts (zombie state not freed).
+- `logs/` contains repeating tracebacks with the same top frame.
+- `health.json[services][<actor_name>].status` flips between `ready` and `unavailable`.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

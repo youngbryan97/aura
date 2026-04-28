@@ -1,7 +1,11 @@
 # Runbook: Aura Stuck Before Ready
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `health.json[aura_status]` stays at `initializing` longer than the boot SLO.
+- `gateway.json[registered]` lists multiple services with `ready=false` after the boot deadline.
+- `receipts.json[recent.turn]` is empty (no turns processed since boot).
+- `logs/` shows boot-phase markers but no `READY` line.
+- `tasks.json[count]` includes long-running boot bootstraps that never resolve.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

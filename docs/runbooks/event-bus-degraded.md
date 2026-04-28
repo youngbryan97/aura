@@ -1,7 +1,11 @@
 # Runbook: Event Bus Degraded
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `gateway.json[registered]` shows `event_bus.ready=false` or its readiness flapping.
+- `logs/` shows `redis disconnected`, `pubsub closed`, or `delivery failed` messages.
+- Tool execution receipts (`receipts.json[recent.tool_execution]`) appear without the matching governance receipts that should precede them.
+- `metrics.json` may show event_loop_lag rising as workers retry delivery.
+- A drop in `receipts.json[counts][turn]` despite continued user interaction.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 

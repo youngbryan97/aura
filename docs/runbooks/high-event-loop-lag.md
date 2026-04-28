@@ -1,7 +1,11 @@
 # Runbook: High Event Loop Lag
 
 ## Symptoms
-- TODO: list visible signals (logs, metrics, UX) for this scenario
+- `metrics.json[system].cpu_percent` saturated; `event_loop_lag_ms` p99 above the SLO ceiling (see docs/SLO.md).
+- `tasks.json[count]` larger than baseline with many tasks `done=false`.
+- `health.json[services]` shows multiple services degraded simultaneously.
+- `logs/` contains `task tracker shutdown timeout` or `await took > N seconds` warnings.
+- UX latency: response start delayed beyond p95 even on simple turns.
 
 ## Diagnosis
 - Confirm AURA_STRICT_RUNTIME mode (env: AURA_STRICT_RUNTIME)
@@ -23,7 +27,7 @@
 - If self-repair patch caused regression, run `validate_patch` on the prior known-good source
 
 ## Verification
-- aura doctor (when CLI ships)
+- `aura doctor --bundle` and inspect `bundle_manifest.json` plus the fields named in Symptoms above
 - Conformance suite: `python -m pytest tests/test_server_runtime_hardening.py -q -k "conformance"`
 - Atomic-write proof: `python -m pytest tests/test_server_runtime_hardening.py -q -k "atomic_writer"`
 
