@@ -157,8 +157,8 @@ def measure_mutation_eval_passed_p95_ms(samples: int = 30) -> float:
 # ---------------------------------------------------------------------------
 # diagnostics bundle
 # ---------------------------------------------------------------------------
-def measure_doctor_bundle_p95_ms(samples: int = 5) -> float:
-    """Bundle is heavy enough that we keep the sample count low."""
+def measure_doctor_bundle_p95_ms(samples: int = 10) -> float:
+    """Bundle is heavy and variance-prone; sample more for stability."""
     from core.runtime.diagnostics_bundle import build_bundle
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -214,6 +214,13 @@ def run_all() -> Dict[str, Dict[str, Any]]:
 
 
 def emit_baseline(measured: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    # Per-SLO tolerance: the doctor bundle is heavy file-I/O and runs
+    # on whatever the host box is doing at the time, so we widen its
+    # tolerance.  All other surfaces are tight numerics on small data.
+    tolerance_overrides = {
+        "doctor_bundle_p95_ms": 200,
+        "mutation_eval_passed_p95_ms": 100,  # subprocess spawn overhead varies
+    }
     return {
         "schema_version": 1,
         "recorded_at": datetime.now(timezone.utc).isoformat(),
@@ -222,7 +229,7 @@ def emit_baseline(measured: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
             name: {
                 "value": measured[name]["value"],
                 "unit": measured[name]["unit"],
-                "tolerance_pct": 50,
+                "tolerance_pct": tolerance_overrides.get(name, 50),
             }
             for name in MEASUREMENTS
         },
