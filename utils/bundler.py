@@ -123,7 +123,7 @@ def write_bundle(
             print(f"  {f.relative_to(root)}")
         return len(files)
 
-    output.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(output.parent, cause='write_bundle'))
     sep = "=" * 80
 
     with output.open("w", encoding="utf-8", errors="replace") as fh:

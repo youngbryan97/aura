@@ -50,7 +50,7 @@ async def test_harness():
         
     finally:
         if target_path.exists():
-            target_path.unlink()
+            get_task_tracker().create_task(get_storage_gateway().delete(target_path, cause='test_harness'))
 
 if __name__ == "__main__":
     asyncio.run(test_harness())

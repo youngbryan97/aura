@@ -12,7 +12,7 @@ def _store(tmp_dir: Path):
     # Override the storage directory for the test by monkeypatching.
     import core.social.relationship_model as rm
     rm._REL_DIR = tmp_dir
-    rm._REL_DIR.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(rm._REL_DIR, cause='_store'))
     rm._STORE = None
     return rm.get_store()
 

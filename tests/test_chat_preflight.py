@@ -40,7 +40,7 @@ def _temp_path(suffix: str = ".jsonl") -> Path:
     os.close(fd)
     p = Path(path)
     if p.exists():
-        p.unlink()
+        get_task_tracker().create_task(get_storage_gateway().delete(p, cause='_temp_path'))
     return p
 
 
@@ -109,7 +109,7 @@ class TestPendingQueue(unittest.TestCase):
 
     def tearDown(self):
         if self.path.exists():
-            self.path.unlink()
+            get_task_tracker().create_task(get_storage_gateway().delete(self.path, cause='TestPendingQueue.tearDown'))
 
     def test_enqueue_and_unanswered_check(self):
         enqueue("session-1", "What is the meaning of life?", reason="timeout", path=self.path)

@@ -12,11 +12,11 @@ from core.opinion_engine import OpinionEngine
 class TestV30Opinions(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.db_path = Path("/tmp/test_opinions.json")
-        self.db_path.unlink(missing_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().delete(self.db_path, cause='TestV30Opinions.setUp'))
         self.engine = OpinionEngine(db_path=self.db_path)
 
     def tearDown(self):
-        self.db_path.unlink(missing_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().delete(self.db_path, cause='TestV30Opinions.tearDown'))
 
     async def test_opinion_normalization_and_query(self):
         # Manually inject an opinion

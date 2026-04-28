@@ -5,7 +5,7 @@ from core.brain.llm.model_registry import resolve_personality_adapter
 
 def test_mlx_personality_adapter_requires_compatible_model(monkeypatch, tmp_path):
     adapter_dir = tmp_path / "aura-personality"
-    adapter_dir.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(adapter_dir, cause='test_mlx_personality_adapter_requires_compatible_model'))
     (adapter_dir / "adapters.safetensors").write_text("stub")
     (adapter_dir / "adapter_config.json").write_text(
         json.dumps({"model": "models/Qwen2.5-32B-Instruct-8bit"})

@@ -135,10 +135,11 @@ class PlasticityMonitor:
         m, n = mat.shape
         if m == 0 or n == 0:
             return None
-        if max(m, n) > MAX_MATRIX_DIM:
-            logger.debug("plasticity: refusing SVD on %dx%d matrix (cap=%d)",
-                         m, n, MAX_MATRIX_DIM)
-            return None
+        if max(m, n) > 100:
+            logger.debug("plasticity: truncating SVD on %dx%d matrix to 100x100 to prevent blocking", m, n)
+            mat = mat[:100, :100]
+        
+        singulars = np.linalg.svd(mat, compute_uv=False)
 
         # SVD — robust path
         try:

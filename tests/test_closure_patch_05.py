@@ -24,7 +24,7 @@ def test_persistence_audit_finds_write_text(tmp_path: Path):
     spec.loader.exec_module(mod)
 
     prod = tmp_path / "core" / "state.py"
-    prod.parent.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(prod.parent, cause='test_persistence_audit_finds_write_text'))
     prod.write_text('from pathlib import Path\nPath("x.json").write_text("{}")\n', encoding="utf-8")
 
     findings = mod.scan(tmp_path)
@@ -42,7 +42,7 @@ def test_evidence_collector_writes_bundle(tmp_path: Path):
     spec.loader.exec_module(mod)
 
     root = tmp_path / "repo"
-    root.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(root, cause='test_evidence_collector_writes_bundle'))
     (root / "core" / "runtime").mkdir(parents=True)
     out = tmp_path / "evidence"
 

@@ -118,7 +118,7 @@ class IdentityChronicle:
             except Exception:
                 db_path = Path.home() / ".aura" / "identity_chronicle.db"
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.db_path.parent, cause='IdentityChronicle.__init__'))
         self._init_schema()
 
     def _connect(self) -> sqlite3.Connection:

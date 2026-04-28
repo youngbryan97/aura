@@ -16,9 +16,9 @@ class SafeSelfOptimizer:
     """
     def __init__(self, lora_dir: str = "data/adaptation/loras"):
         self.lora_dir = Path(lora_dir)
-        self.lora_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.lora_dir, cause='SafeSelfOptimizer.__init__'))
         self.backup_dir = self.lora_dir / "backups"
-        self.backup_dir.mkdir(exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.backup_dir, cause='SafeSelfOptimizer.__init__'))
         self._is_training = False
 
     async def optimize_lora(self, dataset_path: str, base_model: str):

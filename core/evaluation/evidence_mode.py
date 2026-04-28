@@ -97,7 +97,7 @@ class EvidenceMode:
 
     def dump(self, path: str | Path) -> None:
         p = Path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(p.parent, cause='EvidenceMode.dump'))
         atomic_write_text(p, json.dumps(self.snapshot(), indent=2, sort_keys=True) + "\n")
 
 

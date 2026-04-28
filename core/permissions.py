@@ -58,11 +58,11 @@ class PermissionManager:
     def grant(self, capability: str, value: bool = True) -> None:
         """Grant a capability."""
         if capability == "modify_files":
-            self.state.can_modify_files = value
+            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='can_modify_files', new_value=value, cause='PermissionManager.grant')))
         elif capability == "execute_commands":
-            self.state.can_execute_commands = value
+            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='can_execute_commands', new_value=value, cause='PermissionManager.grant')))
         elif capability == "open_files":
-            self.state.can_open_files = value
+            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='can_open_files', new_value=value, cause='PermissionManager.grant')))
         
         logger.info("Permission Granted: %s=%s", capability, value)
 

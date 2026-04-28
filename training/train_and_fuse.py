@@ -100,7 +100,7 @@ def fuse_adapter(*, base_model: Path, tag: str) -> Path:
         else f"Aura-{size_tag}-{timestamp}"
     )
     fused_path = FUSED_BASE_DIR / fused_name
-    fused_path.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(fused_path.parent, cause='fuse_adapter'))
 
     print(f"\nFusing → {fused_path}")
     rc = _run(
@@ -146,7 +146,7 @@ def publish_manifest(fused_path: Path, *, tag: str, base_model: Path) -> None:
     The manifest now includes the base-model size so downstream RAM-aware
     routing (model_registry, inference_gate) can branch on it without
     re-parsing the directory name."""
-    FUSED_BASE_DIR.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(FUSED_BASE_DIR, cause='publish_manifest'))
     manifest = {
         "active_model_path": str(fused_path),
         "fused_at": int(time.time()),

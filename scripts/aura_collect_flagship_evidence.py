@@ -53,7 +53,7 @@ def find_logs(root: Path) -> list[Path]:
 
 
 def collect(root: Path, out_dir: Path) -> dict[str, Any]:
-    out_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(out_dir, cause='collect'))
 
     evidence: dict[str, Any] = {
         "schema": "aura.flagship.evidence.v1",

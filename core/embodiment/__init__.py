@@ -101,8 +101,8 @@ class EmbodimentSystem:
             cooling = 0.1 * dt
             recharge = 0.05 * dt
             
-            self.state.heat = max(20.0, self.state.heat + heat_gen - cooling)
-            self.state.energy = max(0.0, min(100.0, self.state.energy - energy_burn + recharge))
+            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='heat', new_value=max(20.0, self.state.heat + heat_gen - cooling), cause='EmbodimentSystem.update')))
+            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='energy', new_value=max(0.0, min(100.0, self.state.energy - energy_burn + recharge)), cause='EmbodimentSystem.update')))
             
             if self.state.heat > 90.0: self.state.integrity -= 0.1 * dt
             if self.state.energy < 5.0: self.state.integrity -= 0.05 * dt

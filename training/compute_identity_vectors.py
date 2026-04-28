@@ -151,7 +151,7 @@ def _text_to_features(text: str) -> np.ndarray:
 
 
 def main():
-    VECTORS_DIR.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(VECTORS_DIR, cause='main'))
 
     direction = compute_synthetic_vectors()
 

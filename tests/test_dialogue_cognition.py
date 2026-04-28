@@ -117,7 +117,7 @@ def test_dialogue_cognition_source_blueprints_exist_without_corpora(tmp_path):
 async def test_dialogue_cognition_can_ingest_transcript_directory(tmp_path):
     engine = DialogueCognitionEngine(storage_path=tmp_path / "dialogue.json")
     corpus = tmp_path / "corpus"
-    corpus.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(corpus, cause='test_dialogue_cognition_can_ingest_transcript_directory'))
     (corpus / "one.txt").write_text("Aura: That callback still lands.\nBryan: yeah, keep the banter but answer first\n", encoding="utf-8")
     (corpus / "two.txt").write_text("Aura: You sound tired.\nBryan: honestly I've been exhausted lately\n", encoding="utf-8")
 
@@ -159,7 +159,7 @@ async def test_dialogue_cognition_handles_branch_resumption_and_declarative_cont
 async def test_dialogue_cognition_source_corpus_deepens_blueprint(tmp_path):
     engine = DialogueCognitionEngine(storage_path=tmp_path / "dialogue.json")
     corpus = tmp_path / "sypha"
-    corpus.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(corpus, cause='test_dialogue_cognition_source_corpus_deepens_blueprint'))
     (corpus / "scene.txt").write_text(
         "Sypha Belnades: No, wait, answer the point first.\n"
         "Speaker: Fine, but the bit still lands.\n"

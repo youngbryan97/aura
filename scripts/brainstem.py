@@ -34,7 +34,7 @@ MIND_SCRIPT = str(PROJECT_ROOT / "aura_main.py")
 HEARTBEAT_FILE = Path("/tmp/aura_heartbeat.pulse")
 HEARTBEAT_TIMEOUT = 60 # seconds (Extended slightly for heavy M1 Pro boot)
 LOG_DIR = PROJECT_ROOT / "logs"
-LOG_DIR.mkdir(exist_ok=True)
+get_task_tracker().create_task(get_storage_gateway().create_dir(LOG_DIR, cause=''))
 COGNITIVE_LOG_FILE = LOG_DIR / "aura_cognitive.log"
 BRAINSTEM_LOG_FILE = LOG_DIR / "aura_brainstem.log"
 
@@ -76,7 +76,7 @@ def main():
     # Ensure heartbeat file is clean on start
     if HEARTBEAT_FILE.exists():
         try:
-            HEARTBEAT_FILE.unlink()
+            get_task_tracker().create_task(get_storage_gateway().delete(HEARTBEAT_FILE, cause='main'))
         except Exception:
             pass
         
@@ -120,7 +120,7 @@ def main():
                     mind_process.kill()
                 
                 try:
-                    HEARTBEAT_FILE.unlink()
+                    get_task_tracker().create_task(get_storage_gateway().delete(HEARTBEAT_FILE, cause='main'))
                 except Exception:
                     pass
                     

@@ -39,7 +39,7 @@ def _message_chars(messages: object) -> int | None:
 
 def _append_trace(event: str, payload: dict) -> None:
     record = {"event": event, **payload}
-    TRACE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(TRACE_PATH.parent, cause='_append_trace'))
     with TRACE_PATH.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, default=str) + "\n")
 

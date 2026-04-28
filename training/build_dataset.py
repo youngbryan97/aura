@@ -77,7 +77,7 @@ def main():
     val = all_examples[split:]
 
     # Write JSONL
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(OUTPUT_DIR, cause='main'))
 
     train_path = OUTPUT_DIR / "train.jsonl"
     val_path = OUTPUT_DIR / "val.jsonl"

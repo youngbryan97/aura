@@ -47,7 +47,7 @@ def emit_research_trigger(
 ) -> None:
     """Append a trigger to the persistent queue. Best-effort; swallows IO errors."""
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(path.parent, cause='emit_research_trigger'))
         record = {
             "topic": topic,
             "source_intent_id": source_intent_id,

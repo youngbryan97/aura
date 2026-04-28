@@ -44,7 +44,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 RESULTS_DIR = ROOT / "training"
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+get_task_tracker().create_task(get_storage_gateway().create_dir(RESULTS_DIR, cause=''))
 RESULTS_PATH = RESULTS_DIR / "crucible_results.jsonl"
 SUMMARY_PATH = RESULTS_DIR / "crucible_summary.md"
 

@@ -193,7 +193,7 @@ class IdentityLedger:
 
     def __init__(self, *, root: Optional[Path] = None):
         self.root = Path(root) if root else (Path.home() / ".aura" / "identity")
-        self.root.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.root, cause='IdentityLedger.__init__'))
         self.commitments = CommitmentTracker()
         self.preferences = PreferenceHistory()
         self.versioning = SelfModelVersioning()

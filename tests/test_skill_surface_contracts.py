@@ -243,7 +243,7 @@ async def test_registered_skills_support_safe_execute_contract(
 async def test_self_evolution_generates_fallback_proposal_without_brain(monkeypatch, tmp_path: Path):
     _disable_governance(monkeypatch)
     evolution_dir = tmp_path / "evolution"
-    evolution_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(evolution_dir, cause='test_self_evolution_generates_fallback_proposal_without_brain'))
     monkeypatch.setattr(
         SelfEvolutionSkill,
         "_evolution_dir",
@@ -600,7 +600,7 @@ async def test_toggle_senses_uses_subprocess_runner_without_local_sandbox(monkey
     _disable_governance(monkeypatch)
 
     sense_dir = tmp_path / "senses"
-    sense_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(sense_dir, cause='test_toggle_senses_uses_subprocess_runner_without_local_sandbox'))
     (sense_dir / "vision_service.py").write_text(
         "import time\n"
         "time.sleep(60)\n",

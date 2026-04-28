@@ -39,7 +39,7 @@ class KnowledgeBaseSkill(BaseSkill):
             self.store_dir = self.workspace_knowledge
         else:
             self.store_dir = self.global_knowledge
-            self.store_dir.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(self.store_dir, cause='KnowledgeBaseSkill.__init__'))
 
     def _slugify(self, text: str) -> str:
         return re.sub(r'[^a-z0-9]+', '_', text.lower()).strip('_')

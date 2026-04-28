@@ -372,7 +372,7 @@ class HobbyEngine:
 
     def _save_state(self) -> None:
         try:
-            self.PERSIST_PATH.parent.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(self.PERSIST_PATH.parent, cause='HobbyEngine._save_state'))
             payload = {
                 "profiles": {n: asdict(p) for n, p in self._profiles.items()},
                 "saved_at": time.time(),
@@ -581,7 +581,7 @@ class HobbyEngine:
 
     def _save_entertainment_log(self) -> None:
         try:
-            self.ENTERTAINMENT_LOG.parent.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(self.ENTERTAINMENT_LOG.parent, cause='HobbyEngine._save_entertainment_log'))
             raw = [asdict(i) for i in self._entertainment_queue[-100:]]
             atomic_write_text(self.ENTERTAINMENT_LOG, json.dumps(raw, indent=2), encoding="utf-8")
         except Exception as exc:

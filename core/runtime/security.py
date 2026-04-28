@@ -122,5 +122,5 @@ class SandboxPolicy:
 
 def default_workspace_policy(root: Optional[Path] = None) -> SandboxPolicy:
     workspace = (root or Path.home() / ".aura" / "workspace").expanduser().resolve()
-    workspace.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(workspace, cause='default_workspace_policy'))
     return SandboxPolicy(workspace_root=workspace)

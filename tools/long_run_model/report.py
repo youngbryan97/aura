@@ -96,7 +96,7 @@ def render_markdown(summary: ForecastRunSummary) -> str:
 
 
 def write_report_bundle(summary: ForecastRunSummary, output_dir: Path) -> Dict[str, str]:
-    output_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(output_dir, cause='write_report_bundle'))
     markdown_path = output_dir / "forecast_report.md"
     summary_path = output_dir / "forecast_summary.json"
     risk_path = output_dir / "risk_ledger.json"

@@ -99,7 +99,7 @@ class LymphaticReaper:
                     if time.time() - f.stat().st_mtime > 86400:
                         if f.is_file():
                             reclaimed += f.stat().st_size
-                            f.unlink()
+                            get_task_tracker().create_task(get_storage_gateway().delete(f, cause='LymphaticReaper._filesystem_sweep'))
                         elif f.is_dir():
                             shutil.rmtree(f)
                 except Exception as e:

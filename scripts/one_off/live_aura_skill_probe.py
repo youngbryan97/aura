@@ -316,15 +316,15 @@ async def main() -> int:
     os.environ.pop("AURA_SKIP_LLM", None)
     os.environ.pop("AURA_TEST_HARNESS", None)
 
-    AGENCY_TEST_DIR.mkdir(parents=True, exist_ok=True)
-    ARTIFACT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(AGENCY_TEST_DIR, cause='main'))
+    get_task_tracker().create_task(get_storage_gateway().create_dir(ARTIFACT_PATH.parent, cause='main'))
 
     if TERMINAL_PROOF_PATH.exists():
-        TERMINAL_PROOF_PATH.unlink()
+        get_task_tracker().create_task(get_storage_gateway().delete(TERMINAL_PROOF_PATH, cause='main'))
     if SNAKE_PATH.exists():
-        SNAKE_PATH.unlink()
+        get_task_tracker().create_task(get_storage_gateway().delete(SNAKE_PATH, cause='main'))
 
-    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(MANIFEST_DIR, cause='main'))
     manifest_before = {path.resolve() for path in MANIFEST_DIR.iterdir() if path.is_file()}
 
     config.skeletal_mode = False

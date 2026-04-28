@@ -38,7 +38,7 @@ def test_file_upload_endpoint():
     
     # Cleanup
     if saved_path.exists():
-        saved_path.unlink()
+        get_task_tracker().create_task(get_storage_gateway().delete(saved_path, cause='test_file_upload_endpoint'))
         
     print("✓ Upload endpoint functional")
 

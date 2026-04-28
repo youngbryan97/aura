@@ -48,7 +48,7 @@ def setup_services():
     
     # Cleanup
     try:
-        os.unlink(_tmp_db.name)
+        get_task_tracker().create_task(get_storage_gateway().delete(os, cause='setup_services'))
     except Exception:
         pass
 

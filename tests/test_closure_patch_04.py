@@ -14,7 +14,7 @@ def _load_installer():
 def test_patch04_registry_lifecycle_counters(tmp_path: Path):
     mod = _load_installer()
     registry = tmp_path / "core" / "morphogenesis" / "registry.py"
-    registry.parent.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(registry.parent, cause='test_patch04_registry_lifecycle_counters'))
     registry.write_text(
         'def status(self):\n'
         '    with self._lock:\n'
@@ -39,7 +39,7 @@ def test_patch04_registry_lifecycle_counters(tmp_path: Path):
 def test_patch04_runtime_uses_fire_and_forget(tmp_path: Path):
     mod = _load_installer()
     runtime = tmp_path / "core" / "morphogenesis" / "runtime.py"
-    runtime.parent.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(runtime.parent, cause='test_patch04_runtime_uses_fire_and_forget'))
     runtime.write_text(
         "                    try:\n"
         "                        from core.morphogenesis.hooks import record_organ_formation_episode\n"
@@ -58,7 +58,7 @@ def test_patch04_runtime_uses_fire_and_forget(tmp_path: Path):
 def test_patch04_terminal_monitor_atomic_blacklist(tmp_path: Path):
     mod = _load_installer()
     terminal = tmp_path / "core" / "terminal_monitor.py"
-    terminal.parent.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(terminal.parent, cause='test_patch04_terminal_monitor_atomic_blacklist'))
     terminal.write_text(
         "    def _save_blacklist(self):\n"
         "        try:\n"
@@ -83,7 +83,7 @@ def test_task_codemod_reports_raw_task(tmp_path: Path):
     spec.loader.exec_module(mod)
 
     src = tmp_path / "core" / "x.py"
-    src.parent.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(src.parent, cause='test_task_codemod_reports_raw_task'))
     src.write_text("import asyncio\nasyncio.create_task(foo())\n", encoding="utf-8")
 
     findings = mod.scan(tmp_path)

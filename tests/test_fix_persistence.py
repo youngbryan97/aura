@@ -29,7 +29,7 @@ class TestFixPersistence(unittest.IsolatedAsyncioTestCase):
 
     def tearDown(self):
         if self.test_file.exists():
-            self.test_file.unlink()
+            get_task_tracker().create_task(get_storage_gateway().delete(self.test_file, cause='TestFixPersistence.tearDown'))
 
     async def test_permanent_fix_application(self):
         # Create a mock fix proposal

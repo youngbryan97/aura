@@ -22,7 +22,7 @@ class TestTypeSafeRepair(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             sandbox = Path(tmpdir)
             test_file = sandbox / fix.target_file
-            test_file.parent.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(test_file.parent, cause='TestTypeSafeRepair.test_pyright_guard_rejection'))
             test_file.write_text(fix.fixed_code)
             
             # Run tests in sandbox

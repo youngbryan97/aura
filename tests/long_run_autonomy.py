@@ -117,7 +117,7 @@ def run_long_run(
     tmp_root: Path | None = None,
 ) -> LongRunReport:
     tmp_root = Path(tmp_root or Path("tests") / "long_run_autonomy_state")
-    tmp_root.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(tmp_root, cause='run_long_run'))
 
     # Reset singletons so each run is clean.
     reset_adaptive_mood()

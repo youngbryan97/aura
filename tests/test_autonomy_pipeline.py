@@ -104,7 +104,7 @@ def _temp_path(suffix: str = ".jsonl") -> Path:
     os.close(fd)
     p = Path(path)
     if p.exists():
-        p.unlink()
+        get_task_tracker().create_task(get_storage_gateway().delete(p, cause='_temp_path'))
     return p
 
 
@@ -139,7 +139,7 @@ class TestResearchTriggers(unittest.TestCase):
             self.assertEqual(triggers[0].contested_count, 3)
         finally:
             if path.exists():
-                path.unlink()
+                get_task_tracker().create_task(get_storage_gateway().delete(path, cause='TestResearchTriggers.test_emit_and_drain'))
 
     def test_mark_consumed_filters_out(self):
         path = _temp_path(".jsonl")
@@ -153,7 +153,7 @@ class TestResearchTriggers(unittest.TestCase):
             self.assertEqual(remaining[0].source_intent_id, "i2")
         finally:
             if path.exists():
-                path.unlink()
+                get_task_tracker().create_task(get_storage_gateway().delete(path, cause='TestResearchTriggers.test_mark_consumed_filters_out'))
 
     def test_drain_missing_file_returns_empty(self):
         triggers = research_triggers.drain_pending_triggers(path=Path("/nonexistent/file.jsonl"))
@@ -237,7 +237,7 @@ class TestCuratedMediaLoader(unittest.TestCase):
             self.assertEqual(items[1].title, "Title Two")
             self.assertEqual(items[1].url, "https://example.com/two")
         finally:
-            tmp_path.unlink()
+            get_task_tracker().create_task(get_storage_gateway().delete(tmp_path, cause='TestCuratedMediaLoader.test_parse_minimal_doc'))
 
     def test_skips_malformed_bullets(self):
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
@@ -248,7 +248,7 @@ class TestCuratedMediaLoader(unittest.TestCase):
             self.assertEqual(len(items), 1)
             self.assertEqual(items[0].title, "OK Title")
         finally:
-            tmp.unlink()
+            get_task_tracker().create_task(get_storage_gateway().delete(tmp, cause='TestCuratedMediaLoader.test_skips_malformed_bullets'))
 
 
 # ── content_progress_tracker ─────────────────────────────────────────────
@@ -279,7 +279,7 @@ class TestProgressTracker(unittest.TestCase):
             self.assertEqual(loaded.entries[0].title, "Sample")
         finally:
             if path.exists():
-                path.unlink()
+                get_task_tracker().create_task(get_storage_gateway().delete(path, cause='TestProgressTracker.test_save_and_load_roundtrip'))
 
     def test_atomic_save(self):
         path = _temp_path(".json")
@@ -295,7 +295,7 @@ class TestProgressTracker(unittest.TestCase):
             self.assertFalse(tmp.exists())
         finally:
             if path.exists():
-                path.unlink()
+                get_task_tracker().create_task(get_storage_gateway().delete(path, cause='TestProgressTracker.test_atomic_save'))
 
     def test_days_since_empty_returns_none(self):
         log = ProgressLog()
@@ -532,7 +532,7 @@ class TestMemoryPersister(unittest.TestCase):
     def tearDown(self):
         for p in (self.queue_path, self.dedup_path):
             if p.exists():
-                p.unlink()
+                get_task_tracker().create_task(get_storage_gateway().delete(p, cause='TestMemoryPersister.tearDown'))
 
     def test_commit_engagement_routes_through_autonomous_research(self):
         exec_mock = _MockExecutive(approve=True)

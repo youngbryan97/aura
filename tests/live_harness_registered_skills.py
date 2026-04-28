@@ -163,9 +163,9 @@ async def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="aura_skill_harness_") as temp_dir:
         temp_path = Path(temp_dir)
-        temp_path.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(temp_path, cause='main'))
         workspace_temp = PROJECT_ROOT / ".tmp_skill_harness"
-        workspace_temp.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(workspace_temp, cause='main'))
 
         engine = CapabilityEngine()
         engine.reload_skills()
@@ -554,9 +554,9 @@ async def main() -> int:
         print(f"FAILURES: {len(failures)}")
 
         if manifest_path and manifest_path.exists():
-            manifest_path.unlink()
+            get_task_tracker().create_task(get_storage_gateway().delete(manifest_path, cause='main'))
         if workspace_temp.exists():
-            shutil.rmtree(workspace_temp, ignore_errors=True)
+            get_task_tracker().create_task(get_storage_gateway().delete_tree(workspace_temp, ignore_errors=True, cause='main'))
         await delegator.stop()
         if previous_memory_repo is None:
             os.environ.pop("AURA_MEMORY_REPO", None)

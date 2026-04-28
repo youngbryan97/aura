@@ -110,7 +110,7 @@ async def main() -> int:
     profile = _PROFILES[args.profile]
     run_id = f"longevity-{args.profile}-{uuid.uuid4().hex[:8]}"
     run_dir = Path.home() / ".aura" / "data" / "longevity" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(run_dir, cause='main'))
     logger.info("longevity run_id=%s profile=%s dir=%s duration_s=%s", run_id, args.profile, run_dir, profile["duration_s"])
 
     started = time.time()

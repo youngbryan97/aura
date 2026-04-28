@@ -12,7 +12,7 @@ class TrainSelfSkill(_CoreTrainSelfSkill):
         super().__init__()
         if workspace_root and workspace_root != ".":
             self.dataset_path = Path(workspace_root) / "data" / "training" / "dataset.jsonl"
-            self.dataset_path.parent.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(self.dataset_path.parent, cause='TrainSelfSkill.__init__'))
 
 
 __all__ = ["TrainSelfSkill"]

@@ -141,10 +141,10 @@ def _collect(root: Path) -> List[Path]:
 
 
 def _write_parts(files: List[Path], root: Path, downloads: Path) -> List[Path]:
-    downloads.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(downloads, cause='_write_parts'))
     # Remove old parts so stale content never lingers
     for old in downloads.glob("aura_source_part_*.txt"):
-        old.unlink()
+        get_task_tracker().create_task(get_storage_gateway().delete(old, cause='_write_parts'))
     parts: List[Path] = []
     current_parts: List[str] = []
     current_size = 0
@@ -184,15 +184,15 @@ def _write_parts(files: List[Path], root: Path, downloads: Path) -> List[Path]:
 def _copy_folder(files: List[Path], root: Path, downloads: Path, limit: int = MAX_FOLDER_FILES) -> Path:
     dest = downloads / "aura_source_copy"
     if dest.exists():
-        shutil.rmtree(dest)
-    dest.mkdir(parents=True)
+        get_task_tracker().create_task(get_storage_gateway().delete_tree(dest, cause='_copy_folder'))
+    get_task_tracker().create_task(get_storage_gateway().create_dir(dest, cause='_copy_folder'))
     written = 0
     for path in files:
         if written >= limit:
             break
         rel = path.relative_to(root)
         target = dest / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(target.parent, cause='_copy_folder'))
         try:
             shutil.copy2(path, target)
             written += 1

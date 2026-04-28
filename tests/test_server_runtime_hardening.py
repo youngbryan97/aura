@@ -1594,7 +1594,7 @@ async def test_backup_manager_vacuum_discovers_sqlite_files_without_connection_p
 
     seen = []
     db_path = tmp_path / "nested" / "aura_state.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(db_path.parent, cause='test_backup_manager_vacuum_discovers_sqlite_files_without_connection_pool_state'))
     db_path.touch()
 
     manager = BackupManager()
@@ -4848,7 +4848,7 @@ def test_sandbox_policy_blocks_protected_path(tmp_path):
 
     policy = SandboxPolicy(workspace_root=tmp_path)
     fake_secret = tmp_path / ".ssh" / "id_rsa"
-    fake_secret.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(fake_secret.parent, cause='test_sandbox_policy_blocks_protected_path'))
     fake_secret.write_text("FAKE")
     ok, reason = policy.is_allowed("file.read", str(fake_secret))
     assert ok is False
@@ -4912,7 +4912,7 @@ def test_formal_state_commit_recovery_invariant():
     # full sequence
     proto.write_temp(b"new")
     proto.fsync()
-    proto.rename()
+    get_task_tracker().create_task(get_storage_gateway().rename(proto, , cause='test_formal_state_commit_recovery_invariant'))
     assert proto.committed == b"new"
     assert proto.invariant_holds()
 
@@ -5891,10 +5891,10 @@ def test_operator_cli_unknown_command_returns_error():
 def test_backup_then_restore_round_trip(tmp_path, monkeypatch):
     from core.runtime.backup_restore import perform_backup, perform_restore
     fake_home = tmp_path / "fake_home"
-    fake_home.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(fake_home, cause='test_backup_then_restore_round_trip'))
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     state_dir = fake_home / ".aura" / "state"
-    state_dir.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(state_dir, cause='test_backup_then_restore_round_trip'))
     (state_dir / "snap.json").write_text('{"k": 1}', encoding="utf-8")
     backup_target = fake_home / ".aura" / "backups"
     result = perform_backup(target=backup_target)
@@ -5903,7 +5903,7 @@ def test_backup_then_restore_round_trip(tmp_path, monkeypatch):
     assert snapshot_path.exists()
     # Wipe state and restore
     import shutil
-    shutil.rmtree(state_dir)
+    get_task_tracker().create_task(get_storage_gateway().delete_tree(state_dir, cause='test_backup_then_restore_round_trip'))
     restore_result = perform_restore(snapshot=snapshot_path)
     assert restore_result["ok"] is True
     assert state_dir.exists()
@@ -5919,10 +5919,10 @@ def test_migrations_dry_run_reports_targets(tmp_path, monkeypatch):
 
     register_migration(MigrationStep(from_version=1, to_version=2, transform=lambda p: {**p, "migrated": True}))
     fake_home = tmp_path / "fakehome"
-    fake_home.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(fake_home, cause='test_migrations_dry_run_reports_targets'))
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     state_dir = fake_home / ".aura" / "state"
-    state_dir.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(state_dir, cause='test_migrations_dry_run_reports_targets'))
     from core.runtime.atomic_writer import atomic_write_json
 
     atomic_write_json(state_dir / "rec.json", {"value": 1}, schema_version=1, schema_name="state")
@@ -5936,7 +5936,7 @@ def test_vector_index_rebuild_from_memory_log(tmp_path):
     from core.runtime.vector_index import rebuild_vector_index
 
     target_dir = tmp_path / "memory" / "episodic"
-    target_dir.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(target_dir, cause='test_vector_index_rebuild_from_memory_log'))
     atomic_write_json(target_dir / "m1.json", {"content": "first memory"}, schema_version=1, schema_name="memory.episodic")
     atomic_write_json(target_dir / "m2.json", {"content": "second memory"}, schema_version=1, schema_name="memory.episodic")
     result = rebuild_vector_index(source=tmp_path / "memory")

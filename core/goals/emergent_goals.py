@@ -92,7 +92,7 @@ class EmergentGoalEngine:
             except Exception:
                 db_path = Path.home() / ".aura" / "emergent_goals.sqlite3"
         self._db_path = Path(db_path)
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self._db_path.parent, cause='EmergentGoalEngine.__init__'))
         self._init_db()
         self._load()
 

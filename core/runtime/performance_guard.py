@@ -46,7 +46,7 @@ logger = logging.getLogger("Aura.PerformanceGuard")
 
 
 _PERF_DIR = Path.home() / ".aura" / "data" / "performance"
-_PERF_DIR.mkdir(parents=True, exist_ok=True)
+get_task_tracker().create_task(get_storage_gateway().create_dir(_PERF_DIR, cause=''))
 _SAMPLES_PATH = _PERF_DIR / "samples.jsonl"
 
 

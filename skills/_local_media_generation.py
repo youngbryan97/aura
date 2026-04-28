@@ -34,7 +34,7 @@ class LocalMediaGenerationSkill(BaseSkill):
         # self.model_id = "stabilityai/stable-diffusion-xl-base-1.0" # Better but heavier
         
         self.output_dir = Path(config.paths.data_dir) / "generated_images"
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.output_dir, cause='LocalMediaGenerationSkill.__init__'))
         
     def _load_model(self):
         """Lazy load the model to save RAM until needed."""

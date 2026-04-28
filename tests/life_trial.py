@@ -47,7 +47,7 @@ class TrialConfig:
 
 
 def _write_daily_markdown(day_index: int, summary: Dict[str, Any]) -> Path:
-    TRIAL_DIR.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(TRIAL_DIR, cause='_write_daily_markdown'))
     path = TRIAL_DIR / f"day_{day_index:02d}_summary.md"
     lines = [
         f"# Day {day_index} Summary",
@@ -72,7 +72,7 @@ def _write_daily_markdown(day_index: int, summary: Dict[str, Any]) -> Path:
 
 
 def run_trial(config: TrialConfig) -> Dict[str, Any]:
-    TRIAL_DIR.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(TRIAL_DIR, cause='run_trial'))
 
     # Fresh state per trial so days are independent snapshots.
     life_trace = LifeTraceLedger(db_path=TRIAL_DIR / "life_trace.sqlite3")

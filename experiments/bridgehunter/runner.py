@@ -160,7 +160,7 @@ def main():
 
     # Save results
     results_dir = Path(__file__).parent / "results"
-    results_dir.mkdir(exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(results_dir, cause='main'))
     results_path = results_dir / f"{config.study_name}_best.txt"
     with open(results_path, "w") as f:
         f.write(f"Best Trial #{best.number}\n")

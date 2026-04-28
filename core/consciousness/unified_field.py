@@ -443,8 +443,16 @@ class UnifiedField:
         H_centered = H - H.mean(axis=0)
 
         try:
-            # SVD-based PCA (efficient for this size)
-            U, S, Vt = np.linalg.svd(H_centered, full_matrices=False)
+            # Enforce budget: use svds for top-k modes instead of full SVD
+            from scipy.sparse.linalg import svds
+            # svds needs k < min(shape), k is the number of singular values
+            target_k = min(k, min(H_centered.shape) - 1)
+            target_k = max(1, target_k)
+            U, S, Vt = svds(H_centered, k=target_k)
+            # svds returns values in ascending order, reverse them
+            S = S[::-1]
+            Vt = Vt[::-1]
+            U = U[:, ::-1]
             total_var = np.sum(S ** 2) + 1e-8
 
             modes = []

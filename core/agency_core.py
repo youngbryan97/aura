@@ -699,7 +699,7 @@ class AgencyCore:
             resilience = ServiceContainer.get("resilience_engine", default=None)
             if resilience:
                 self.state.initiative_energy = resilience.profile.persistence_drive
-                self.state.frustration_level = resilience.profile.frustration
+                get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='frustration_level', new_value=resilience.profile.frustration, cause='AgencyCore._sync_from_orchestrator')))
                 # Still pull curiosity from liquid_state for now
                 ls = self.orch.liquid_state
                 if ls and hasattr(ls, 'current'):
@@ -758,7 +758,7 @@ class AgencyCore:
         if idle_seconds < 30:
             self.state.engagement_mode = EngagementMode.ACTIVE_CONVERSATION
         elif idle_seconds < 120:
-            self.state.engagement_mode = EngagementMode.ATTENTIVE_IDLE
+            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='engagement_mode', new_value=EngagementMode.ATTENTIVE_IDLE, cause='AgencyCore._update_social_dynamics')))
         elif idle_seconds < 600:
             if self.state.social_hunger > 0.6:
                 self.state.engagement_mode = EngagementMode.SEEKING_CONTACT
@@ -766,9 +766,9 @@ class AgencyCore:
                 self.state.engagement_mode = EngagementMode.INDEPENDENT_ACTIVITY
         elif idle_seconds < 3600:
             if self.state.social_hunger > 0.7:
-                self.state.engagement_mode = EngagementMode.SEEKING_CONTACT
+                get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='engagement_mode', new_value=EngagementMode.SEEKING_CONTACT, cause='AgencyCore.on_user_message')))
             else:
-                self.state.engagement_mode = EngagementMode.OBSERVING
+                get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='engagement_mode', new_value=EngagementMode.OBSERVING, cause='AgencyCore.on_user_message')))
         else:
             if self.state.initiative_energy < 0.3:
                 self.state.engagement_mode = EngagementMode.RESTING

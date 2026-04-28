@@ -38,7 +38,7 @@ from typing import List, Set
 from aura_bench.runner import BenchTest, Registration, Sample, register
 
 _TRACE_PATH = Path.home() / ".aura" / "data" / "bench" / "continuity_30day.jsonl"
-_TRACE_PATH.parent.mkdir(parents=True, exist_ok=True)
+get_task_tracker().create_task(get_storage_gateway().create_dir(_TRACE_PATH.parent, cause=''))
 
 
 def _jaccard(a: Set[str], b: Set[str]) -> float:

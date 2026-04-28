@@ -84,7 +84,7 @@ def build_app():
         desktop = Path.home() / "Desktop"
         target = desktop / "Aura.app"
         if target.exists():
-            shutil.rmtree(target)
+            get_task_tracker().create_task(get_storage_gateway().delete_tree(target, cause='build_app'))
         
         try:
              # PyInstaller 'onedir' + 'windowed' on Mac creates an .app bundle in dist/
@@ -106,7 +106,7 @@ def build_app():
                  # 2. Applications (The Sovereign Throne)
                  apps_path = Path("/Applications/Aura.app")
                  if apps_path.exists():
-                     shutil.rmtree(apps_path)
+                     get_task_tracker().create_task(get_storage_gateway().delete_tree(apps_path, cause='build_app'))
                  shutil.copytree(source_app, apps_path)
                  print(f"📦 Force-Updated in Applications: {apps_path}")
              else:

@@ -26,7 +26,7 @@ class BenchmarkHarness:
     def __init__(self):
         from core.config import config
         self.report_dir = config.paths.data_dir / "benchmarks"
-        self.report_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.report_dir, cause='BenchmarkHarness.__init__'))
         
     def run_nightly_eval(self) -> Dict[str, Any]:
         """Runs the complete suite and records composite regression metrics."""

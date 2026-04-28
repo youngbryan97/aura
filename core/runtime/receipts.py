@@ -176,7 +176,7 @@ class ReceiptStore:
 
     def __init__(self, root: Optional[Path] = None):
         self.root = Path(root) if root is not None else (Path.home() / ".aura" / "receipts")
-        self.root.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.root, cause='ReceiptStore.__init__'))
         self._lock = threading.RLock()
         self._index: Dict[str, AnyReceipt] = {}
 

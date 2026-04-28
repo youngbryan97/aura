@@ -584,14 +584,14 @@ def build_all(seed: int = 42) -> List[Dict[str, Any]]:
 
 
 def write_jsonl(examples: List[Dict[str, Any]], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(path.parent, cause='write_jsonl'))
     with path.open("w", encoding="utf-8") as f:
         for ex in examples:
             f.write(json.dumps(ex, ensure_ascii=False) + "\n")
 
 
 def append_jsonl(examples: List[Dict[str, Any]], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(path.parent, cause='append_jsonl'))
     if path.exists():
         backup = path.with_suffix(path.suffix + ".pre-round2.bak")
         if not backup.exists():

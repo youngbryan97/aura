@@ -158,7 +158,7 @@ class SecureSandbox:
         # Create isolated workspace
         if workdir:
             self.workdir = Path(workdir).resolve()
-            self.workdir.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(self.workdir, cause='SecureSandbox.__init__'))
             self._cleanup_workdir = False
         else:
             self.workdir = Path(tempfile.mkdtemp(prefix="sandbox_")).resolve()
@@ -299,7 +299,7 @@ class SecureSandbox:
         """Clean up the sandbox workdir if we created it."""
         if self._cleanup_workdir and self.workdir.exists():
             try:
-                shutil.rmtree(self.workdir)
+                get_task_tracker().create_task(get_storage_gateway().delete_tree(self.workdir, cause='SecureSandbox.cleanup'))
                 logger.debug("Sandbox workdir cleaned: %s", self.workdir)
             except Exception as e:
                 logger.warning("Failed to clean sandbox workdir: %s", e)

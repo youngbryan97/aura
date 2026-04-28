@@ -260,7 +260,7 @@ def run_torture() -> Dict[str, Any]:
         try:
             for p in tmp.glob("**/*"):
                 if p.is_file():
-                    p.unlink()
+                    get_task_tracker().create_task(get_storage_gateway().delete(p, cause='run_torture'))
             tmp.rmdir()
         except Exception:
             pass

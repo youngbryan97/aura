@@ -80,7 +80,7 @@ def main() -> int:
     if not args.no_record:
         completed_at = time.time()
         output_path = Path(args.output) if args.output else DEFAULT_SESSION_DIR / f"deep-mind-probes-{int(completed_at)}.json"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(output_path.parent, cause='main'))
         session_payload = {
             "phase": "complete" if passed == len(results) else "failed",
             "result": {

@@ -51,7 +51,7 @@ def test_seqlock():
         from multiprocessing import shared_memory
         old_shm = shared_memory.SharedMemory(name=shm_name)
         old_shm.close()
-        old_shm.unlink()
+        get_task_tracker().create_task(get_storage_gateway().delete(old_shm, cause='test_seqlock'))
     except (FileNotFoundError, Exception):
         pass
 

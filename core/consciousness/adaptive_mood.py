@@ -99,7 +99,7 @@ class AdaptiveMoodCoefficients:
 
         if db_path is not None:
             self._db_path = Path(db_path)
-            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(self._db_path.parent, cause='AdaptiveMoodCoefficients.__init__'))
             self._init_db()
             self._load()
         else:

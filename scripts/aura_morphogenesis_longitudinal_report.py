@@ -102,7 +102,7 @@ def analyze_logs(root: Path) -> dict[str, Any]:
 
 
 def build_report(root: Path, out_dir: Path) -> dict[str, Any]:
-    out_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(out_dir, cause='build_report'))
     state_paths = _candidate_state_paths(root)
     registry_reports = []
     for p in state_paths:

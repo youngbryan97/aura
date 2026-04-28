@@ -163,7 +163,7 @@ def generate_txt_files(files):
 
 def copy_files(files):
     if os.path.exists(COPY_OUT_DIR):
-        shutil.rmtree(COPY_OUT_DIR)
+        get_task_tracker().create_task(get_storage_gateway().delete_tree(COPY_OUT_DIR, cause='copy_files'))
     os.makedirs(COPY_OUT_DIR, exist_ok=True)
     
     copied = 0
@@ -175,7 +175,7 @@ def copy_files(files):
             if f.is_file():
                 rel_path = f.relative_to(SOURCE_DIR)
                 dest = Path(COPY_OUT_DIR) / rel_path
-                dest.parent.mkdir(parents=True, exist_ok=True)
+                get_task_tracker().create_task(get_storage_gateway().create_dir(dest.parent, cause='copy_files'))
                 shutil.copy2(f, dest)
                 copied += 1
         except Exception:

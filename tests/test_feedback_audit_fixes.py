@@ -83,7 +83,7 @@ def test_integrity_guardian_verify_all_suppresses_git_active_paths(monkeypatch, 
 
     monkeypatch.setattr(ig_mod, "_BASE_DIR", tmp_path)
     core_dir = tmp_path / "core"
-    core_dir.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(core_dir, cause='test_integrity_guardian_verify_all_suppresses_git_active_paths'))
     edited = core_dir / "capability_engine.py"
     stable = core_dir / "health.py"
     edited.write_text("print('edited')\n", encoding="utf-8")

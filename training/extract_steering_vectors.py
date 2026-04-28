@@ -307,7 +307,7 @@ def extract_steering_vectors(
         sys.exit(1)
 
     out_dir = output_dir or VECTORS_DIR
-    out_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(out_dir, cause='extract_steering_vectors'))
 
     # -- Load model ----------------------------------------------------------
     logger.info("Loading model: %s", model_path)

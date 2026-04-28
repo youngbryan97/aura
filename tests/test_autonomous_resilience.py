@@ -46,7 +46,7 @@ class _ContainerStub:
 
 def test_static_fault_auditor_detects_zero_division_and_async_blocking(tmp_path):
     source = tmp_path / "core" / "demo_async.py"
-    source.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(source.parent, cause='test_static_fault_auditor_detects_zero_division_and_async_blocking'))
     source.write_text(
         "import time\n\n"
         "def ratio(total):\n"
@@ -115,7 +115,7 @@ class _SelfModifierStub:
 
 def test_verifier_guided_patch_pipeline_uses_self_modifier(tmp_path):
     target = tmp_path / "core" / "module.py"
-    target.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(target.parent, cause='test_verifier_guided_patch_pipeline_uses_self_modifier'))
     target.write_text("value = 1\n", encoding="utf-8")
 
     modifier = _SelfModifierStub()

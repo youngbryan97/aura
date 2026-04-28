@@ -26,7 +26,7 @@ def test_normalize_runtime_model_name_respects_backend(backend, expected):
 
 def test_get_model_path_maps_q4_alias_to_existing_mlx_model_dir(monkeypatch, tmp_path):
     model_dir = tmp_path / "models" / "Qwen2.5-72B-Instruct-4bit"
-    model_dir.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(model_dir, cause='test_get_model_path_maps_q4_alias_to_existing_mlx_model_dir'))
 
     monkeypatch.setattr(model_registry, "BASE_DIR", tmp_path)
     monkeypatch.setattr(model_registry, "LOCAL_BACKEND", "mlx")

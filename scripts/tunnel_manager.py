@@ -23,7 +23,7 @@ class TunnelManager:
         self.public_url: Optional[str] = None
         self.stop_event = threading.Event()
         self.log_file = Path("logs/tunnel.log")
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.log_file.parent, cause='TunnelManager.__init__'))
 
     async def find_cloudflared(self) -> Optional[str]:
         """Check if cloudflared is installed (Async)."""
@@ -94,7 +94,7 @@ class TunnelManager:
             return
 
         # Ensure directory exists for logging
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.log_file.parent, cause='TunnelManager._monitor_logs'))
         
         async with asyncio.Lock(): # Simple guard for log file access if needed
             with open(self.log_file, "a") as log:
@@ -145,7 +145,7 @@ class TunnelManager:
             
         if data_path.exists():
             try:
-                data_path.unlink()
+                get_task_tracker().create_task(get_storage_gateway().delete(data_path, cause='TunnelManager.stop_tunnel'))
             except Exception:
                 pass
 

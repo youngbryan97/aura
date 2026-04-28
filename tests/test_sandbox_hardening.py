@@ -147,7 +147,7 @@ class TestShadowASTHealerGovernance:
             content = temp_path.read_text()
             assert "original content" in content
         finally:
-            temp_path.unlink(missing_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().delete(temp_path, cause='TestShadowASTHealerGovernance.test_healer_rejects_write_when_governance_denies'))
 
     def test_healer_only_modifies_within_codebase_root(self):
         """The healer must refuse to modify files outside the codebase root."""
@@ -163,7 +163,7 @@ class TestShadowASTHealerGovernance:
             )
             assert result is False, "Healer must refuse to modify files outside codebase root"
         finally:
-            outside_path.unlink(missing_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().delete(outside_path, cause='TestShadowASTHealerGovernance.test_healer_only_modifies_within_codebase_root'))
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -215,7 +215,7 @@ class TestSnapshotThawGovernance:
         manager = SnapshotManager(orchestrator=MagicMock())
 
         # Create a minimal valid snapshot
-        manager.snapshot_file.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(manager.snapshot_file.parent, cause='TestSnapshotThawGovernance.test_thaw_logs_governance_check'))
         snapshot = {
             "version": SnapshotManager.VERSION,
             "timestamp": time.time(),
@@ -235,7 +235,7 @@ class TestSnapshotThawGovernance:
         from core.resilience.snapshot_manager import SnapshotManager
 
         manager = SnapshotManager(orchestrator=MagicMock())
-        manager.snapshot_file.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(manager.snapshot_file.parent, cause='TestSnapshotThawGovernance.test_snapshot_version_mismatch_rejected'))
         snapshot = {"version": "0.0", "timestamp": time.time(), "subsystems": {}}
         manager.snapshot_file.write_text(json.dumps(snapshot))
 

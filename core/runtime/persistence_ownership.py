@@ -39,7 +39,7 @@ def atomic_write_text_owned(
     Use for non-JSON durable state. For JSON, prefer atomic_write_json_owned.
     """
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(path.parent, cause='atomic_write_text_owned'))
 
     # Prefer canonical writer if it supports text; many Aura versions only
     # expose JSON, so fallback remains important.
@@ -62,7 +62,7 @@ def atomic_write_text_owned(
     finally:
         try:
             if tmp.exists():
-                tmp.unlink()
+                get_task_tracker().create_task(get_storage_gateway().delete(tmp, cause='atomic_write_text_owned'))
         except Exception:
             pass  # no-op: intentional
 
@@ -78,7 +78,7 @@ def atomic_write_json_owned(
 ) -> None:
     """Durably write JSON with Aura's AtomicWriter when available."""
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(path.parent, cause='atomic_write_json_owned'))
 
     try:
         from core.runtime.atomic_writer import atomic_write_json

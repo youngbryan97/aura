@@ -32,7 +32,7 @@ class PersonalityKernel:
             return self.key_file.read_bytes()
         key = os.urandom(32)
         try:
-            self.key_file.parent.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(self.key_file.parent, cause='PersonalityKernel._load_or_generate_key'))
             self.key_file.write_bytes(key)
             os.chmod(self.key_file, 0o600)
         except Exception as e:

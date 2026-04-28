@@ -35,7 +35,7 @@ async def _reset_runtime_boundary():
 
     try:
         shm.close()
-        shm.unlink()
+        get_task_tracker().create_task(get_storage_gateway().delete(shm, cause='_reset_runtime_boundary'))
     except FileNotFoundError:
         pass
     except Exception as shm_err:

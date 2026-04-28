@@ -110,7 +110,7 @@ class TensionEngine:
                 record_degradation('tension_engine', exc)
                 logger.warning("TensionEngine failed to load persisted tensions: %s", exc)
         else:
-            self._persist_path.parent.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(self._persist_path.parent, cause='TensionEngine._save'))
 
     def _save(self) -> None:
         try:

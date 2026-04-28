@@ -109,7 +109,7 @@ def plot_metrics(metrics: dict, output_path: str = None):
         logger.info("Plot saved to %s", output_path)
     else:
         results_dir = Path(__file__).parent / "results"
-        results_dir.mkdir(exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(results_dir, cause='plot_metrics'))
         out = str(results_dir / "metric_trajectories.png")
         plt.savefig(out, dpi=150, bbox_inches="tight")
         logger.info("Plot saved to %s", out)

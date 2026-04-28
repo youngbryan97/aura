@@ -238,7 +238,12 @@ class LeniaKernel:
         Higher complexity means the kernel encodes more spatial structure
         and therefore costs more entropy to maintain.  Range: ~0 to 64.
         """
-        sv = np.linalg.svd(self._weights, compute_uv=False)
+        # Enforce dimension budget to prevent blocking SVD
+        if self._weights.shape[0] > 100 or self._weights.shape[1] > 100:
+            mat = self._weights[:100, :100]
+        else:
+            mat = self._weights
+        sv = np.linalg.svd(mat, compute_uv=False)
         # Effective rank = exp(Shannon entropy of normalised singular values)
         sv = sv / (sv.sum() + _EPSILON)
         sv = sv[sv > _EPSILON]

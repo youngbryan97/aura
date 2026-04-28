@@ -52,7 +52,7 @@ def setup_logging(
     file_handler = None
     for candidate in (Path(log_dir), Path(tempfile.gettempdir()) / "aura-logs"):
         try:
-            candidate.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(candidate, cause='setup_logging'))
             file_handler = logging.handlers.RotatingFileHandler(
                 candidate / "aura_json.log",
                 maxBytes=max_bytes,

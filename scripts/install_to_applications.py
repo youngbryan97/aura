@@ -43,11 +43,11 @@ def install(target_path=TARGET_APP_PATH):
     # 2. Clean existing (for light wrappers only)
     if target_path.exists():
         print(f"  Removing existing light wrapper at {target_path}...")
-        shutil.rmtree(target_path)
+        get_task_tracker().create_task(get_storage_gateway().delete_tree(target_path, cause='install'))
         
     # 3. Create structure
-    macos_dir.mkdir(parents=True, exist_ok=True)
-    resources_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(macos_dir, cause='install'))
+    get_task_tracker().create_task(get_storage_gateway().create_dir(resources_dir, cause='install'))
     
     # 3. Create Shell Script Wrapper
     wrapper_path = macos_dir / "Aura"

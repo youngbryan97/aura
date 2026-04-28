@@ -26,7 +26,7 @@ class AtomicStateManager:
 
     async def initialize(self):
         """Create tables if they don't exist."""
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.db_path.parent, cause='AtomicStateManager.initialize'))
         db = await self._get_conn()
         await db.execute("PRAGMA journal_mode=WAL")
         await db.execute("""

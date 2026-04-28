@@ -57,7 +57,7 @@ def test_morphogenesis_report_writes_files(tmp_path: Path):
 
     root = tmp_path / "repo"
     state_dir = root / "data" / "morphogenesis"
-    state_dir.mkdir(parents=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(state_dir, cause='test_morphogenesis_report_writes_files'))
     (state_dir / "morphogenesis_state.json").write_text(
         json.dumps({"payload": {"cells": {}, "organs": {}}}),
         encoding="utf-8",

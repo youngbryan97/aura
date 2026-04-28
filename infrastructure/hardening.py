@@ -222,7 +222,7 @@ class StateManager:
             except (ImportError, AttributeError):
                 self.checkpoint_dir = Path("data/checkpoints")
 
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.checkpoint_dir, cause='StateManager.__init__'))
         
         self.state: Dict[str, Any] = {}
         self.checkpoint_interval = 300  # 5 minutes
@@ -259,7 +259,7 @@ class StateManager:
             checkpoints = sorted(list(self.checkpoint_dir.glob("checkpoint_*.json")))
             if len(checkpoints) > 10:
                 for old_checkpoint in checkpoints[:-10]:
-                    old_checkpoint.unlink()
+                    get_task_tracker().create_task(get_storage_gateway().delete(old_checkpoint, cause='StateManager.checkpoint'))
             
             self.last_checkpoint = time.time()
             logger.info("State checkpoint saved: %s", checkpoint_file.name)

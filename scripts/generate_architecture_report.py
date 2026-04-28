@@ -593,7 +593,7 @@ def export_pdf(html_path: Path, pdf_path: Path) -> None:
 def main() -> int:
     args = parse_args()
     output_dir: Path = args.output_dir.expanduser().resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(output_dir, cause='main'))
 
     html_path = output_dir / f"{args.basename}.html"
     pdf_path = output_dir / f"{args.basename}.pdf"

@@ -49,8 +49,8 @@ class FHNOscillator:
         v, w = self.state.v, self.state.w
         dv = v - (v ** 3) / 3.0 - w + i_ext
         dw = self.eps * (v + self.a - self.b * w)
-        self.state.v = v + self.dv_clip(dv) * self.dt
-        self.state.w = w + dw * self.dt
+        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='v', new_value=v + self.dv_clip(dv) * self.dt, cause='FHNOscillator.step')))
+        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='w', new_value=w + dw * self.dt, cause='FHNOscillator.step')))
         self.state.t = time.time()
         return self.state
 

@@ -96,12 +96,12 @@ async def _delete_vector_index() -> Dict[str, Any]:
     backup = Path.home() / ".aura" / "data" / f"vector_index.injected.{int(time.time())}"
     if not target.exists():
         return {"kind": "delete_vector_index", "applied": False, "reason": "no_target"}
-    target.rename(backup)
+    get_task_tracker().create_task(get_storage_gateway().rename(target, backup, cause='_delete_vector_index'))
 
     async def _restore():
         await asyncio.sleep(120.0)
         if not target.exists():
-            backup.rename(target)
+            get_task_tracker().create_task(get_storage_gateway().rename(backup, target, cause='_delete_vector_index._restore'))
     get_task_tracker().create_task(_restore())
     return {"kind": "delete_vector_index", "applied": True, "moved_to": str(backup)}
 

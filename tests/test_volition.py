@@ -38,7 +38,7 @@ def engine(mock_orchestrator):
         # Mock the config paths to prevent AttributeError during __init__
         mock_config.paths = MagicMock()
         mock_config.paths.brain_dir = Path("/tmp/mock_brain")
-        mock_config.paths.brain_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(mock_config.paths.brain_dir, cause='engine'))
         # Ensure it behaves like a Path object for .exists() etc.
         mock_config.paths.data_dir = Path("/tmp/mock_data")
         return VolitionEngine(mock_orchestrator)

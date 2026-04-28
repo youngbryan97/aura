@@ -65,7 +65,7 @@ def atomic_write_bytes(path: PathLike, payload: bytes) -> None:
     """Atomically replace `path` with `payload`."""
     target = Path(path)
     parent = target.parent
-    parent.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(parent, cause='atomic_write_bytes'))
 
     fd, tmp_path_str = tempfile.mkstemp(prefix=DEFAULT_TEMP_PREFIX, dir=str(parent))
     tmp_path = Path(tmp_path_str)
@@ -79,7 +79,7 @@ def atomic_write_bytes(path: PathLike, payload: bytes) -> None:
     except Exception:
         try:
             if tmp_path.exists():
-                tmp_path.unlink()
+                get_task_tracker().create_task(get_storage_gateway().delete(tmp_path, cause='atomic_write_bytes'))
         except OSError:
             pass  # no-op: intentional
         raise
@@ -129,7 +129,7 @@ def cleanup_partial_writes(directory: PathLike) -> int:
     for child in parent.iterdir():
         if child.name.startswith(DEFAULT_TEMP_PREFIX):
             try:
-                child.unlink()
+                get_task_tracker().create_task(get_storage_gateway().delete(child, cause='cleanup_partial_writes'))
                 removed += 1
             except OSError:
                 continue

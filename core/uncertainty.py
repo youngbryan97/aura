@@ -301,7 +301,7 @@ class CalibrationTracker:
     
     def __init__(self, db_path: str = "data/uncertainty/calibration.db"):
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.db_path.parent, cause='CalibrationTracker.__init__'))
         self._init_db()
     
     def _init_db(self):

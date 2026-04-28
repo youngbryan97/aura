@@ -23,22 +23,22 @@ BACKUP_INCLUDED_DIRS: List[str] = [
 
 
 def perform_backup(*, target: Path) -> Dict[str, Any]:
-    target.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(target, cause='perform_backup'))
     snapshot_dir = target / f"snapshot_{int(time.time())}"
-    snapshot_dir.mkdir(parents=True, exist_ok=False)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(snapshot_dir, cause='perform_backup'))
     home = Path.home()
     included: List[str] = []
     for rel in BACKUP_INCLUDED_DIRS:
         src = home / rel
         if src.exists():
             dst = snapshot_dir / rel.replace(".aura/", "")
-            dst.parent.mkdir(parents=True, exist_ok=True)
+            get_task_tracker().create_task(get_storage_gateway().create_dir(dst.parent, cause='perform_backup'))
             shutil.copytree(src, dst, dirs_exist_ok=True)
             included.append(rel)
     archive = snapshot_dir.with_suffix(".tar.gz")
     with tarfile.open(archive, "w:gz") as tf:
         tf.add(snapshot_dir, arcname=snapshot_dir.name)
-    shutil.rmtree(snapshot_dir)
+    get_task_tracker().create_task(get_storage_gateway().delete_tree(snapshot_dir, cause='perform_backup'))
     return {
         "command": "backup",
         "ok": True,
@@ -53,8 +53,8 @@ def perform_restore(*, snapshot: Path) -> Dict[str, Any]:
     home = Path.home()
     extract_dir = home / ".aura" / "_restore_tmp"
     if extract_dir.exists():
-        shutil.rmtree(extract_dir)
-    extract_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().delete_tree(extract_dir, cause='perform_restore'))
+    get_task_tracker().create_task(get_storage_gateway().create_dir(extract_dir, cause='perform_restore'))
     with tarfile.open(snapshot, "r:gz") as tf:
         try:
             tf.extractall(extract_dir, filter="data")  # Python 3.12+
@@ -67,8 +67,8 @@ def perform_restore(*, snapshot: Path) -> Dict[str, Any]:
     for sub in inner.iterdir():
         live = home / ".aura" / sub.name
         if live.exists():
-            shutil.rmtree(live)
+            get_task_tracker().create_task(get_storage_gateway().delete_tree(live, cause='perform_restore'))
         shutil.copytree(sub, live)
         restored.append(str(live))
-    shutil.rmtree(extract_dir)
+    get_task_tracker().create_task(get_storage_gateway().delete_tree(extract_dir, cause='perform_restore'))
     return {"command": "restore", "ok": True, "restored": restored}

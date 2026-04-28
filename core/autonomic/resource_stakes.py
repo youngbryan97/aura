@@ -87,7 +87,7 @@ class ResourceStakesLedger:
         initial: ViabilityState | None = None,
     ) -> None:
         self.db_path = Path(db_path or "data/resource_stakes.sqlite3")
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.db_path.parent, cause='ResourceStakesLedger.__init__'))
         self._init_db()
         if initial is not None and self._load_state() is None:
             self._save_state(initial)

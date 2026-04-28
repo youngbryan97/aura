@@ -74,7 +74,7 @@ class WorkflowStore:
 
     def __init__(self, root: Optional[Path] = None):
         self.root = Path(root) if root else (Path.home() / ".aura" / "workflows")
-        self.root.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.root, cause='WorkflowStore.__init__'))
 
     def save(self, checkpoint: WorkflowCheckpoint) -> None:
         path = self.root / f"{checkpoint.workflow_id}.json"

@@ -24,7 +24,7 @@ class StateObservatory:
         self.registry = registry
         self.history = deque(maxlen=max_history)
         self.log_dir = log_dir or Path.home() / ".aura" / "research"
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(self.log_dir, cause='StateObservatory.__init__'))
         self.current_log_file = self.log_dir / "state_metrics.jsonl"
         
         logger.info("🔭 State Observatory initialized. Logging to %s", self.current_log_file)

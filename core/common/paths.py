@@ -27,30 +27,30 @@ def aura_root() -> Path:
 def aura_data_dir() -> Path:
     """Returns the data directory, creating it if it doesn't exist."""
     p = aura_root() / "data"
-    p.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(p, cause='aura_data_dir'))
     return p
 
 def aura_logs_dir() -> Path:
     """Returns the logs directory, creating it if it doesn't exist."""
     p = aura_root() / "logs"
-    p.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(p, cause='aura_logs_dir'))
     return p
 
 def aura_backups_dir() -> Path:
     """Returns the backups directory, creating it if it doesn't exist."""
     p = aura_root() / "backups"
-    p.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(p, cause='aura_backups_dir'))
     return p
 
 def aura_error_logs_dir() -> Path:
     """Returns the error logs directory, creating it if it doesn't exist."""
     p = aura_data_dir() / "error_logs"
-    p.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(p, cause='aura_error_logs_dir'))
     return p
 
 def aura_vault_dir() -> Path:
     p = aura_root() / "vault"
-    p.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(p, cause='aura_vault_dir'))
     return p
 
 # v1.0.1: Moved to end of file to prevent circular import issues during early boot

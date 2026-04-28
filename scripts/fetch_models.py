@@ -50,7 +50,7 @@ def _repair_sharded_layout(target: Path, pattern: str) -> list[Path]:
         if shard_match:
             shard_one = target.parent / f"{target.stem}-00001-of-{shard_match.group(2)}.gguf"
             if not shard_one.exists():
-                target.rename(shard_one)
+                get_task_tracker().create_task(get_storage_gateway().rename(target, shard_one, cause='_repair_sharded_layout'))
             matches = sorted(target.parent.glob(pattern))
     return matches
 
@@ -86,7 +86,7 @@ def _fetch_mlx_models() -> None:
     from huggingface_hub import snapshot_download
 
     base_dir = Path(__file__).resolve().parent.parent / "models"
-    base_dir.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(base_dir, cause='_fetch_mlx_models'))
 
     print("🧠 Aura Model Fetcher — MLX artifact mode")
     print("=" * 45)
@@ -110,7 +110,7 @@ def _fetch_mlx_models() -> None:
 def _fetch_gguf_models() -> None:
     from huggingface_hub import snapshot_download
 
-    GGUF_DIR.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(GGUF_DIR, cause='_fetch_gguf_models'))
 
     print("🧠 Aura Model Fetcher — Managed local runtime (GGUF mode)")
     print("=" * 58)

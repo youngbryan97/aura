@@ -390,7 +390,7 @@ def test_integrity_guard_uses_project_root_not_cwd_substring(monkeypatch, tmp_pa
     (real_root / "core" / "container.py").write_text("# container\n", encoding="utf-8")
 
     fake_cwd = tmp_path / "workspace-core-shadow"
-    fake_cwd.mkdir(parents=True, exist_ok=True)
+    get_task_tracker().create_task(get_storage_gateway().create_dir(fake_cwd, cause='test_integrity_guard_uses_project_root_not_cwd_substring'))
     monkeypatch.chdir(fake_cwd)
     monkeypatch.setenv("AURA_ROOT", str(real_root))
 

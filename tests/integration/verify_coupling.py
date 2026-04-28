@@ -33,7 +33,7 @@ async def test_coupling():
     from core.config import config
     telemetry_path = config.paths.data_dir / "telemetry" / "causal_behavior.jsonl"
     if telemetry_path.exists():
-        telemetry_path.unlink()
+        get_task_tracker().create_task(get_storage_gateway().delete(telemetry_path, cause='test_coupling'))
 
     core.start()
     

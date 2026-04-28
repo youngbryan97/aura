@@ -61,12 +61,12 @@ class Soma:
         while self.running:
             try:
                 # 1. Update Hardware Metrics
-                self.state.cpu_percent = psutil.cpu_percent()
+                get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='cpu_percent', new_value=psutil.cpu_percent(), cause='Soma._somatic_loop')))
                 self.state.ram_percent = psutil.virtual_memory().percent
                 
                 battery = psutil.sensors_battery()
                 if battery:
-                    self.state.battery_percent = battery.percent
+                    get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='battery_percent', new_value=battery.percent, cause='Soma._somatic_loop')))
                     self.state.power_plugged = battery.power_plugged
                 
                 # 2. Update Network Latency (Internal awareness)
@@ -132,7 +132,7 @@ class Soma:
     def _map_affective_states(self):
         """Map raw metrics to subjective body sensations."""
         # CPU > 80% maps to high stress
-        self.state.stress_level = min(1.0, self.state.cpu_percent / 90.0)
+        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='stress_level', new_value=min(1.0, self.state.cpu_percent / 90.0), cause='Soma._map_affective_states')))
         
         # High latency or disconnection maps to isolation
         self.state.isolation_level = min(1.0, self.state.network_latency / 0.8)

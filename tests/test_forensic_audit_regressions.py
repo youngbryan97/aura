@@ -72,10 +72,10 @@ def test_project_store_transaction_rolls_back_on_error(tmp_path):
 
 def test_metabolism_dir_size_returns_total_for_success_path(tmp_path):
     target = tmp_path / "cache"
-    target.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(target, cause='test_metabolism_dir_size_returns_total_for_success_path'))
     (target / "a.bin").write_bytes(b"a" * 3)
     nested = target / "nested"
-    nested.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(nested, cause='test_metabolism_dir_size_returns_total_for_success_path'))
     (nested / "b.bin").write_bytes(b"b" * 5)
 
     assert MetabolismEngine._dir_size(target) == 8
@@ -422,9 +422,9 @@ def test_file_operation_no_longer_allows_desktop_agency_test_escape(tmp_path):
     from core.skills.file_operation import FileOperationSkill
 
     workspace = tmp_path / "workspace"
-    workspace.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(workspace, cause='test_file_operation_no_longer_allows_desktop_agency_test_escape'))
     outside = tmp_path / "agency_test" / "proof.txt"
-    outside.parent.mkdir()
+    get_task_tracker().create_task(get_storage_gateway().create_dir(outside.parent, cause='test_file_operation_no_longer_allows_desktop_agency_test_escape'))
 
     skill = FileOperationSkill()
     skill.root_dir = os.path.realpath(str(workspace))

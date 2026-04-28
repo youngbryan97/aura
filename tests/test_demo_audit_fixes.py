@@ -45,7 +45,7 @@ def test_unified_action_log_rehydrates_from_disk(tmp_path):
     paths_cls._runtime_home_cache = tmp_path
     try:
         data_dir = tmp_path / "data"
-        data_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(data_dir, cause='test_unified_action_log_rehydrates_from_disk'))
         log_path = data_dir / "unified_action_log.jsonl"
         log_path.write_text(
             '\n'.join([
@@ -135,9 +135,9 @@ def test_volition_connection_respects_agency_bus_block(tmp_path, monkeypatch):
     with patch("core.volition.config") as mock_config:
         mock_config.paths = MagicMock()
         mock_config.paths.brain_dir = tmp_path / "brain"
-        mock_config.paths.brain_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(mock_config.paths.brain_dir, cause='test_volition_connection_respects_agency_bus_block'))
         mock_config.paths.data_dir = tmp_path / "data"
-        mock_config.paths.data_dir.mkdir(parents=True, exist_ok=True)
+        get_task_tracker().create_task(get_storage_gateway().create_dir(mock_config.paths.data_dir, cause='test_volition_connection_respects_agency_bus_block'))
 
         engine = VolitionEngine(orchestrator)
 
