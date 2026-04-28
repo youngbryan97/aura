@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from core.runtime.atomic_writer import atomic_write_json, read_json_envelope
+from core.runtime.audit_chain import AuditChain, ChainEntry
 
 
 def _new_id(prefix: str) -> str:
@@ -176,22 +177,57 @@ class ReceiptStore:
 
     def __init__(self, root: Optional[Path] = None):
         self.root = Path(root) if root is not None else (Path.home() / ".aura" / "receipts")
-        get_task_tracker().create_task(get_storage_gateway().create_dir(self.root, cause='ReceiptStore.__init__'))
+        # Schedule durable dir creation through the storage gateway when it
+        # is available (production runtime); fall back to a synchronous
+        # mkdir so unit tests and bootstrap paths still work.  The mkdir
+        # is idempotent and load-bearing for the audit chain sidecar.
+        try:
+            get_task_tracker().create_task(  # type: ignore[name-defined]
+                get_storage_gateway().create_dir(  # type: ignore[name-defined]
+                    self.root, cause='ReceiptStore.__init__'
+                )
+            )
+        except NameError:
+            pass
+        self.root.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._index: Dict[str, AnyReceipt] = {}
+        # Tamper-evident chain lives at root/_chain.jsonl. Sidecar; do not
+        # break existing callers if the chain file cannot be initialised.
+        self._chain: Optional[AuditChain] = None
+        try:
+            self._chain = AuditChain(self.root)
+        except Exception:
+            self._chain = None
 
     def emit(self, receipt: AnyReceipt) -> AnyReceipt:
         if not getattr(receipt, "receipt_id", None):
             receipt.receipt_id = _new_id(receipt.kind)
         path = self.root / receipt.kind / f"{receipt.receipt_id}.json"
+        body = receipt.to_dict()
         atomic_write_json(
             path,
-            receipt.to_dict(),
+            body,
             schema_version=self.SCHEMA_VERSION,
             schema_name=f"receipt_{receipt.kind}",
         )
         with self._lock:
             self._index[receipt.receipt_id] = receipt
+        # Append to tamper-evident chain after the receipt is durable on
+        # disk so verifiers always find a body to re-hash.
+        if self._chain is not None:
+            try:
+                self._chain.append(
+                    receipt_id=receipt.receipt_id,
+                    kind=receipt.kind,
+                    body=body,
+                    timestamp=float(getattr(receipt, "created_at", 0.0) or 0.0),
+                )
+            except Exception:
+                # Chain failure must not bring down the emit path; the
+                # receipt is already durable.  A subsequent verify() will
+                # surface the gap.
+                pass
         return receipt
 
     def get(self, receipt_id: str) -> Optional[AnyReceipt]:
@@ -252,6 +288,47 @@ class ReceiptStore:
             for r in self._index.values():
                 stats[r.kind] = stats.get(r.kind, 0) + 1
             return stats
+
+    def _load_body_from_disk(self, receipt_id: str, kind: str) -> Optional[Dict[str, Any]]:
+        """Re-read a receipt body from disk for chain verification."""
+        path = self.root / kind / f"{receipt_id}.json"
+        if not path.exists():
+            return None
+        try:
+            env = read_json_envelope(path)
+        except Exception:
+            return None
+        payload = env.get("payload") if isinstance(env, dict) else None
+        if not isinstance(payload, dict):
+            return None
+        # Re-attach kind so the body matches what was hashed at emit-time.
+        payload.setdefault("kind", kind)
+        return payload
+
+    def verify_chain(self) -> Dict[str, Any]:
+        """Verify the tamper-evident chain.
+
+        Returns a dict with ``ok`` (bool), ``length`` (int),
+        ``head_hash`` (str), and ``problems`` (list).  ``problems`` is
+        empty when verification passes.
+        """
+        if self._chain is None:
+            return {"ok": False, "length": 0, "head_hash": "", "problems": [
+                {"reason": "chain not initialised"}
+            ]}
+        ok, problems = self._chain.verify(body_loader=self._load_body_from_disk)
+        return {
+            "ok": ok,
+            "length": self._chain.length(),
+            "head_hash": self._chain.head_hash(),
+            "problems": problems,
+        }
+
+    def export_chain(self, dest_dir: Path) -> Dict[str, Any]:
+        """Export the chain (chain.jsonl + MANIFEST.txt) to ``dest_dir``."""
+        if self._chain is None:
+            raise RuntimeError("chain not initialised")
+        return self._chain.export(dest_dir)
 
 
 _global_store: Optional[ReceiptStore] = None

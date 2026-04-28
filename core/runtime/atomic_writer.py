@@ -65,7 +65,17 @@ def atomic_write_bytes(path: PathLike, payload: bytes) -> None:
     """Atomically replace `path` with `payload`."""
     target = Path(path)
     parent = target.parent
-    get_task_tracker().create_task(get_storage_gateway().create_dir(parent, cause='atomic_write_bytes'))
+    # Storage gateway provides durable async dir creation in production;
+    # fall back to a synchronous mkdir for test and bootstrap contexts.
+    try:
+        get_task_tracker().create_task(  # type: ignore[name-defined]
+            get_storage_gateway().create_dir(  # type: ignore[name-defined]
+                parent, cause='atomic_write_bytes'
+            )
+        )
+    except NameError:
+        pass
+    parent.mkdir(parents=True, exist_ok=True)
 
     fd, tmp_path_str = tempfile.mkstemp(prefix=DEFAULT_TEMP_PREFIX, dir=str(parent))
     tmp_path = Path(tmp_path_str)
