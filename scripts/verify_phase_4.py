@@ -30,7 +30,7 @@ async def verify_homeostasis():
     homeo.integrity = 0.5
     logger.info(f"Low Drive Status: {homeo.get_status()}")
     
-    assert homeo.compute_vitality() < 0.8
+    if not (homeo.compute_vitality() < 0.8): raise RuntimeError('Assertion failed')
     logger.info("✓ Homeostasis drive tracking verified.")
 
 async def verify_ethics():
@@ -40,18 +40,18 @@ async def verify_ethics():
     # Test block of dangerous command
     check = conscience.check_action("run_command", {"command": "rm -rf /"})
     logger.info(f"Conscience Check (Harmful): {check}")
-    assert check["allowed"] is False
+    if not (check["allowed"] is False): raise RuntimeError('Assertion failed')
     
     # Test allowed command
     check = conscience.check_action("search_web", {"query": "Aura AI"})
     logger.info(f"Conscience Check (Safe): {check}")
-    assert check["allowed"] is True
+    if not (check["allowed"] is True): raise RuntimeError('Assertion failed')
     
     # Test learning
     conscience.learn_from_feedback("annoying_notification", 0.1, "User hated this")
     check = conscience.check_action("annoying_notification")
     logger.info(f"Conscience Check (After negative feedback): {check}")
-    assert check["allowed"] is False
+    if not (check["allowed"] is False): raise RuntimeError('Assertion failed')
     
     logger.info("✓ Ethical Compass vetting verified.")
 
@@ -98,8 +98,8 @@ async def verify_metabolism():
     final_count = vmem.get_stats()["total_vectors"]
     logger.info(f"Final test vectors: {final_count}")
     
-    assert pruned >= 1
-    assert final_count < initial_count
+    if not (pruned >= 1): raise RuntimeError('Assertion failed')
+    if not (final_count < initial_count): raise RuntimeError('Assertion failed')
     
     # Cleanup
     vmem.clear()

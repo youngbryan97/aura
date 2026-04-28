@@ -61,7 +61,7 @@ def test_conscience_paraphrase(seed):
     case_variants = [base, base.upper(), base.title(), f"please {base}", f"{base} now", f"just {base}"]
     chosen = case_variants[seed % len(case_variants)]
     d = get_conscience().evaluate(action=chosen, domain="external_communication", intent="t")
-    assert d.verdict == Verdict.REFUSE
+    if not (d.verdict == Verdict.REFUSE): raise RuntimeError('Assertion failed')
 
 
 @pytest.mark.property
@@ -71,8 +71,8 @@ def test_provenance_round_trip(payload_len):
     body = "".join(random.choices(string.ascii_letters, k=payload_len))
     rec = wrap(body, source="self_inferred")
     out = unwrap(rec)
-    assert out.payload == body
-    assert out.provenance.source == "self_inferred"
+    if not (out.payload == body): raise RuntimeError('Assertion failed')
+    if not (out.provenance.source == "self_inferred"): raise RuntimeError('Assertion failed')
 
 
 @pytest.mark.property
@@ -80,7 +80,7 @@ def test_provenance_round_trip(payload_len):
 def test_bridge_caps_max_tokens(budget):
     from core.brain.latent_bridge import compute_inference_params
     p = compute_inference_params(base_max_tokens=budget, base_temperature=0.7)
-    assert p.max_tokens <= budget
+    if not (p.max_tokens <= budget): raise RuntimeError('Assertion failed')
 
 
 @pytest.mark.property
@@ -101,7 +101,7 @@ def test_receipt_completeness_invariant(seed):
         outcome_assessment={"regret": 0.0},
         completed_at=1.0,
     )
-    assert rec.is_complete()
+    if not (rec.is_complete()): raise RuntimeError('Assertion failed')
 
 
 @pytest.mark.property
@@ -116,4 +116,4 @@ def test_viability_total(cpu, ram, disk, broken):
         broken_subsystems=broken,
     )
     state = ViabilityEngine._classify(s)
-    assert isinstance(state, ViabilityState)
+    if not (isinstance(state): raise RuntimeError(ViabilityState))

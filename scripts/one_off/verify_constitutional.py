@@ -29,8 +29,8 @@ async def verify():
     print(f"last_action_source: {ctx.last_action_source}")
     print(f"last_veto_reasons: {ctx.last_veto_reasons}")
     
-    assert ctx.last_kernel_cycle_id is not None, "Cycle ID was not stamped!"
-    assert ctx.kernel_decision_count > 0, "Decision count did not increment!"
+    if not (ctx.last_kernel_cycle_id is not None): raise RuntimeError("Cycle ID was not stamped!")
+    if not (ctx.kernel_decision_count > 0): raise RuntimeError("Decision count did not increment!")
     print("\n✅ Constitutional closure metadata is populating correctly!")
     
     try:

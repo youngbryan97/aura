@@ -65,7 +65,7 @@ async def _run_validation():
         else:
             print("\n❌ VALIDATION FAILED.")
 
-        assert success, "Startup validator reported critical failures."
+        if not (success): raise RuntimeError("Startup validator reported critical failures.")
     finally:
         bus._use_redis = False
         try:

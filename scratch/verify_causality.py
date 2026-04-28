@@ -28,18 +28,18 @@ async def test_acg():
     acg.record_outcome(action, context, outcome, success)
     
     # 2. Check persistence
-    assert os.path.exists(test_path), "ACG failed to save to disk"
+    if not (os.path.exists(test_path)): raise RuntimeError("ACG failed to save to disk")
     with open(test_path, 'r') as f:
         data = json.load(f)
-        assert len(data) == 1, "Incorrect number of links saved"
-        assert data[0]["action"] == "write_file"
+        if not (len(data) == 1): raise RuntimeError("Incorrect number of links saved")
+        if not (data[0]["action"] == "write_file"): raise RuntimeError('Assertion failed')
     
     print("✓ ACG Recording & Persistence: PASS")
     
     # 3. Query consequences
     matches = acg.query_consequences("write_file", {"TargetFile": "/tmp/test.txt"})
-    assert len(matches) == 1, "Failed to retrieve matched action"
-    assert matches[0]["outcome"]["ok"] == True
+    if not (len(matches) == 1): raise RuntimeError("Failed to retrieve matched action")
+    if not (matches[0]["outcome"]["ok"] == True): raise RuntimeError('Assertion failed')
     
     print("✓ ACG Query & Retrieval: PASS")
     
@@ -48,7 +48,7 @@ async def test_acg():
     # Since my overlap logic is lenient (matches/common > 0.5), and there is only 1 common key here...
     # If keys are same but values different, it should be a miss.
     # Actually _params_overlap simple check: matches is 0, len(common) is 1. 0/1 is 0. <= 0.5. Miss.
-    assert len(misses) == 0, "ACG matched action despite param mismatch"
+    if not (len(misses) == 0): raise RuntimeError("ACG matched action despite param mismatch")
     
     print("✓ ACG Parameter Filtering: PASS")
     

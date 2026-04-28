@@ -4912,7 +4912,7 @@ def test_formal_state_commit_recovery_invariant():
     # full sequence
     proto.write_temp(b"new")
     proto.fsync()
-    get_task_tracker().create_task(get_storage_gateway().rename(proto, , cause='test_formal_state_commit_recovery_invariant'))
+    proto.rename()
     assert proto.committed == b"new"
     assert proto.invariant_holds()
 

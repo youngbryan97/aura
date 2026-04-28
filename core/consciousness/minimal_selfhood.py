@@ -87,7 +87,7 @@ ACTION_CATEGORIES: Tuple[str, ...] = (
     "pause",            # deliberate non-action (directed stillness)
 )
 
-assert len(ACTION_CATEGORIES) == BIAS_DIM, "ACTION_CATEGORIES must match BIAS_DIM"
+if not (len(ACTION_CATEGORIES) == BIAS_DIM): raise RuntimeError("ACTION_CATEGORIES must match BIAS_DIM")
 
 
 class Mode(str, Enum):
@@ -111,7 +111,7 @@ DEFICIT_KEYS: Tuple[str, ...] = (
     "agency",          # 1 - agency_score
 )
 
-assert len(DEFICIT_KEYS) == 8
+if not (len(DEFICIT_KEYS) == 8): raise RuntimeError('Assertion failed')
 
 
 # ── Data classes ───────────────────────────────────────────────────────────────

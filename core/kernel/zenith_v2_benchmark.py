@@ -37,7 +37,7 @@ async def test_state_derivation_overhead():
     
     duration = (end - start) * 1000
     print(f"✅ derive_async took {duration:.2f}ms (Offloaded to thread)")
-    assert new_state.version == state.version + 1
+    if not (new_state.version == state.version + 1): raise RuntimeError('Assertion failed')
     assert new_state.transition_origin == "benchmark"
 
 async def test_event_loop_lag():

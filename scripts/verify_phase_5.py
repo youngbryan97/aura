@@ -25,7 +25,7 @@ async def verify_tom():
     tom.update_projection("User is asking about coffee", "HAPPY")
     ctx = tom.get_context_for_brain()
     logger.info(f"ToM Context: {ctx}")
-    assert "HAPPY" in ctx
+    if not ("HAPPY" in ctx): raise RuntimeError('Assertion failed')
     logger.info("✓ MindModel projection verified.")
 
 async def verify_social_memory():
@@ -33,7 +33,7 @@ async def verify_social_memory():
     social = SocialMemory()
     social.record_milestone("First Phase 5 Integration", 0.8)
     logger.info(f"Social Context: {social.get_social_context()}")
-    assert social.relationship_depth > 0
+    if not (social.relationship_depth > 0): raise RuntimeError('Assertion failed')
     logger.info("✓ SocialMemory relationship tracking verified.")
 
 async def verify_swarm():
@@ -53,7 +53,7 @@ async def verify_swarm():
     
     agent_id = await delegator.delegate("Testing", "Check the system health")
     logger.info(f"Delegated task to {agent_id}")
-    assert agent_id.startswith("agent-")
+    if not (agent_id.startswith("agent-")): raise RuntimeError('Assertion failed')
     
     # Wait for completion
     await asyncio.sleep(2)
@@ -73,13 +73,13 @@ async def verify_empathy_alignment():
     # 1. Normal state
     check = alignment.check_action("run_command", {"command": "ls"})
     logger.info(f"Neutral Mood Check: {check['allowed']}")
-    assert check["allowed"] is True
+    if not (check["allowed"] is True): raise RuntimeError('Assertion failed')
     
     # 2. Frustrated state
     tom.update_projection("Ugh, why isn't this working??", "FRUSTRATED")
     check = alignment.check_action("run_command", {"command": "ls"})
     logger.info(f"Frustrated Mood Check: {check['allowed']} - Reason: {check.get('reason')}")
-    assert check["allowed"] is False
+    if not (check["allowed"] is False): raise RuntimeError('Assertion failed')
     
     logger.info("✓ Empathy Gate vetting verified.")
 
