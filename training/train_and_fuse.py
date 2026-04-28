@@ -61,13 +61,28 @@ def build_dataset() -> None:
         sys.exit(f"Dataset build failed (exit {rc}).")
 
 
-def train_lora() -> None:
+def train_lora(*, base_model: Path) -> None:
     finetune = TRAINING_DIR / "finetune_lora.py"
     if not finetune.exists():
         sys.exit(f"finetune_lora.py not found at {finetune}.")
-    rc = _run([sys.executable, str(finetune)])
-    if rc != 0:
-        sys.exit(f"LoRA fine-tune failed (exit {rc}).")
+    # Pass base_model through env so finetune_lora's find_base_model() picks
+    # the right size — same script supports 32B, 72B, 14B, 7B, etc.
+    env = os.environ.copy()
+    env["AURA_LORA_BASE_MODEL"] = str(base_model)
+    print(f"\n$ {sys.executable} {finetune}  (AURA_LORA_BASE_MODEL={base_model})", flush=True)
+    result = subprocess.run([sys.executable, str(finetune)], env=env)
+    if result.returncode != 0:
+        sys.exit(f"LoRA fine-tune failed (exit {result.returncode}).")
+
+
+def _model_size_tag(base_model: Path) -> str:
+    """Derive a short size tag from the base-model directory name ('32B',
+    '72B', '14B', '7B'). Falls back to 'model' when no size token matches."""
+    name = base_model.name.lower()
+    for size in ("72b", "32b", "14b", "8b", "7b", "3b", "1.5b", "0.5b"):
+        if size in name:
+            return size.upper().replace(".", "_")
+    return "model"
 
 
 def fuse_adapter(*, base_model: Path, tag: str) -> Path:
@@ -79,7 +94,11 @@ def fuse_adapter(*, base_model: Path, tag: str) -> Path:
         )
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    fused_name = f"Aura-32B-{tag}-{timestamp}" if tag else f"Aura-32B-{timestamp}"
+    size_tag = _model_size_tag(base_model)
+    fused_name = (
+        f"Aura-{size_tag}-{tag}-{timestamp}" if tag
+        else f"Aura-{size_tag}-{timestamp}"
+    )
     fused_path = FUSED_BASE_DIR / fused_name
     fused_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -121,14 +140,20 @@ def verify_load(fused_path: Path) -> None:
         sys.exit(f"Verification load failed (exit {rc}).")
 
 
-def publish_manifest(fused_path: Path, *, tag: str) -> None:
-    """Atomically write active.json so Aura's next boot uses the new model."""
+def publish_manifest(fused_path: Path, *, tag: str, base_model: Path) -> None:
+    """Atomically write active.json so Aura's next boot uses the new model.
+
+    The manifest now includes the base-model size so downstream RAM-aware
+    routing (model_registry, inference_gate) can branch on it without
+    re-parsing the directory name."""
     FUSED_BASE_DIR.mkdir(parents=True, exist_ok=True)
     manifest = {
         "active_model_path": str(fused_path),
         "fused_at": int(time.time()),
         "tag": tag or "",
-        "schema_version": 1,
+        "size": _model_size_tag(base_model),
+        "base_model": str(base_model),
+        "schema_version": 2,
     }
     tmp = ACTIVE_MANIFEST.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(manifest, indent=2, sort_keys=True))
@@ -169,10 +194,10 @@ def main() -> None:
     if not args.skip_dataset:
         build_dataset()
     if not args.skip_train:
-        train_lora()
+        train_lora(base_model=base_model)
     fused_path = fuse_adapter(base_model=base_model, tag=args.tag)
     verify_load(fused_path)
-    publish_manifest(fused_path, tag=args.tag)
+    publish_manifest(fused_path, tag=args.tag, base_model=base_model)
 
 
 if __name__ == "__main__":
