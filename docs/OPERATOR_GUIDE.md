@@ -36,6 +36,11 @@ make run          # foreground launch
 - Dashboard: open `http://localhost:<port>/api/dashboard/snapshot` for a
   raw JSON view of every live subsystem.
 
+## Platform posture
+The deliberate platform decisions — RBAC, SSO, tenant isolation, DR,
+plugin signing — are declared in [`docs/PLATFORM_POSTURE.md`](PLATFORM_POSTURE.md)
+along with what enforces each one in code.
+
 ## Service-level objectives
 The contract operators can hold Aura to lives in [`docs/SLO.md`](SLO.md).
 Numbers are measured by `python -m slo.measure` and gated in CI
