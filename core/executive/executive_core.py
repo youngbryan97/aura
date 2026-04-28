@@ -67,6 +67,13 @@ class IntentSource(str, Enum):
     MAINTENANCE = "maintenance"
     SOCIAL = "social"
     AUTONOMOUS = "autonomous"
+    # Self-initiated research outputs (curated content consumption, knowledge-gap
+    # closure). Distinguished from generic AUTONOMOUS so Rule 7 epistemic
+    # reconciliation can let provisional research writes through instead of
+    # deferring them indefinitely. Consumers should commit research-derived
+    # claims with provisional confidence; durable promotion happens via the
+    # normal reconciliation pathway. See scoping/cortex-break-diagnosis.md.
+    AUTONOMOUS_RESEARCH = "autonomous_research"
     SYSTEM = "system"
     BACKGROUND = "background"
 
@@ -481,11 +488,15 @@ class ExecutiveCore:
 
         # Rule 7: Closed-loop epistemology. Belief churn is deferred while contested
         # beliefs are unresolved instead of silently accumulating.
+        # Exception: AUTONOMOUS_RESEARCH writes are permitted through so the
+        # research pipeline can persist findings; consumers must commit those
+        # claims at provisional confidence so they queue for reconciliation
+        # rather than entering as durable beliefs immediately.
         epistemic = self._get_epistemic_state()
         if (
             strict_runtime
             and epistemic["contested"] > 0
-            and intent.source != IntentSource.USER
+            and intent.source not in {IntentSource.USER, IntentSource.AUTONOMOUS_RESEARCH}
             and intent.action_type in {ActionType.UPDATE_BELIEF, ActionType.WRITE_MEMORY}
             and intent.priority < 0.9
         ):

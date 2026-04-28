@@ -1,6 +1,7 @@
 {
     "adapter_path": "/Users/bryan/.aura/live-source/training/adapters/aura-personality",
     "batch_size": 1,
+    "clear_cache_threshold": 0,
     "config": "/Users/bryan/.aura/live-source/training/adapters/aura-personality/lora_config.yaml",
     "data": "/Users/bryan/.aura/live-source/training/data",
     "fine_tune_type": "lora",
@@ -16,7 +17,7 @@
     "lr_schedule": null,
     "mask_prompt": false,
     "max_seq_length": 4096,
-    "model": "/Users/bryan/.cache/huggingface/hub/models--mlx-community--Qwen2.5-32B-Instruct-4bit/snapshots/2938092373e5f97b95538884112085364c2da315",
+    "model": "/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-8bit",
     "num_layers": -1,
     "optimizer": "adam",
     "optimizer_config": {

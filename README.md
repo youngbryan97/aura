@@ -4,7 +4,7 @@ A research-grade personal AI that runs entirely on one Mac. It has opinions, a m
 that actually affects how it answers, a memory that survives restarts, and a sleep
 cycle where it replays the day and edits itself. No cloud API required.
 
-[![License: Source Available](https://img.shields.io/badge/License-Source_Available-red.svg)](LICENSE)
+[![License: All Rights Reserved (Read-Only)](https://img.shields.io/badge/License-All_Rights_Reserved_(Read--Only)-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg)
 
@@ -34,6 +34,73 @@ The current engineering claims are narrower and testable:
   not a 100-500 ms heartbeat tier, unless measured latency logs prove otherwise;
 - resource stakes now persist and constrain action envelopes, but this remains
   an operational metabolism analog, not biological metabolism.
+
+---
+
+## What's stubbed and what's real
+
+This section exists because a fair reading of the code requires knowing which
+parts are production implementations and which are placeholders. We are
+explicit about it rather than burying it.
+
+**Stubbed today (placeholder code, not production):**
+
+- `core/brain/llm/continuous_substrate.py` is a 100-line stub. The "always-on
+  inner monologue" runs on a hardcoded list of five sentences, paced at 1 Hz,
+  and `get_state_summary()` returns fixed values
+  (`{"valence": 0.0, "arousal": 0.3, "dominance": 0.0, "phi": 0.1}`). Anything
+  that reads from this is reading from the stub. The real substrate ODE is on
+  the roadmap; replacing this is the prerequisite for almost every "live
+  dynamics" claim becoming defensible.
+- The CAA steering vectors used at runtime are **bootstrap approximations**,
+  not fully extracted contrastive activations. The injection mechanism in
+  `core/consciousness/affective_steering.py` is real, but the vectors it
+  injects need full extraction work.
+
+**Real today (production implementations, code is what it claims to be):**
+
+- `core/consciousness/phi_core.py` (1,837 lines) implements real IIT-style
+  integration math: binarization, empirical TPM, KL-divergence φ, exclusion
+  postulate, polynomial-time spectral partitioning, with an exhaustive
+  8-bipartition validation baseline.
+- `core/consciousness/hierarchical_phi.py` implements the 32-node hierarchical
+  φ with K=8 overlapping subsystems and Bayesian-smoothed estimation.
+- `core/consciousness/affective_steering.py` (1,336 lines) is a real CAA
+  injection pipeline that hooks MLX transformer blocks and modifies the
+  residual stream at generation time.
+- The full memory architecture (episodic, semantic, vector, knowledge graph,
+  WAL, three-layer atoms), the goal/will/decision-authority stack, and the
+  cognitive WAL are all real production code.
+
+**Important caveats on the real parts:**
+
+- φ is computed over **cognitive-affective state nodes and sampled mesh
+  neurons**, not at the level of intrinsic mechanisms that strict IIT 4.0
+  prescribes. The φ values are mathematically meaningful as integration
+  measures over the system's own state-space; they are not a claim of
+  integrated information in the strict Tononi/Albantakis/Haun sense.
+- The published A/B steering result was generated on Qwen 2.5 1.5B-4bit "for
+  speed." The production system is 32B/8bit. Activation geometry is known to
+  vary qualitatively with scale (Bricken et al., Elhage et al.). **Replicating
+  the A/B test on the production 32B model with a PCA visualization of the
+  steering vectors is the next scheduled work item** and should be considered
+  the credible artifact, not the 1.5B result.
+- The STDP W-matrix updates from prediction error computed on the system's own
+  outputs. This is a closed loop and could in principle stabilize on whatever
+  pattern the system happens to be generating rather than learning anything
+  about an external signal. The trajectory-divergence result (0.299 L2 after
+  50 STDP steps) shows the matrix is changing and that the change affects
+  dynamics; it does not yet show the change is in a useful direction by any
+  external criterion. An external-validation experiment (W matrix trained
+  with vs. without environmental input, compared on a held-out prediction
+  task) is needed to close this.
+
+**Test attestation:** the test count headlines in [TESTING.md](TESTING.md)
+should be read with this stub-vs-real classification in mind. Tests that
+exercise `continuous_substrate` are testing the stub. Tests against
+`phi_core`, `affective_steering`, the memory stack, and the decisive runner
+are testing real code. We are working on per-test traceability so each
+assertion in the suite can be classified at a glance.
 
 ---
 
@@ -661,5 +728,13 @@ begin.
 
 ## License
 
-**Source Available.** You can read the code, run it, learn from it. You can't
-redistribute it or ship it as your own. See [LICENSE](LICENSE).
+**All Rights Reserved (Read-Only).** This code is published for review and
+educational reading only. You may read it, learn from it, and run it locally.
+You may **not** copy, redistribute, modify, create derivative works, or use it
+for commercial purposes. This is not an OSI-approved open-source or
+source-available license — it is intentionally restrictive while still allowing
+public review. See [LICENSE](LICENSE) for the exact terms.
+
+If you want to cite this work academically, see [CITATION.cff](CITATION.cff).
+Citation does not confer reuse rights under this license; please contact the
+author for licensing inquiries that go beyond reading.

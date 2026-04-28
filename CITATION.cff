@@ -28,4 +28,13 @@ keywords:
   - theory-arbitration
   - apple-silicon
   - local-llm
-license: "Source Available"
+license: "LicenseRef-AuraReadOnly"
+license-url: "https://github.com/your-repo/aura/blob/main/LICENSE"
+notes: >-
+  The Aura license is a custom read-only license — see LICENSE in the source
+  tree. Citation does not confer copying, redistribution, modification, or
+  derivative-work rights. Replication of published results in academic work
+  requires obtaining a separate license from the author. Two parts of the
+  citable system are presently stubbed or bootstrap-quality (continuous
+  substrate dynamics; CAA steering vectors); see the README's "What's stubbed
+  and what's real" section before citing specific quantitative claims.

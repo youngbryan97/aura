@@ -1,5 +1,38 @@
 # Testing
 
+## Stub-vs-real attestation (added 2026-04-27)
+
+A fair reading of the test results requires knowing which subsystems are
+production code and which are placeholders. We are explicit about this rather
+than burying it.
+
+| subsystem | status | tests that exercise it |
+|---|---|---|
+| `core/consciousness/phi_core.py` (16-node φ) | **real** (1,837 lines) | causal exclusion suite, phi reference validation, null hypothesis suite |
+| `core/consciousness/hierarchical_phi.py` (32-node) | **real** | causal exclusion suite, scale sweep |
+| `core/consciousness/affective_steering.py` (CAA injection) | **real injection mechanism, bootstrap-quality vectors** | A/B steering tests (currently on 1.5B; 32B replication pending) |
+| `core/consciousness/stdp_learning.py` | **real but closed-loop** | trajectory-divergence test (shows plasticity, not yet useful learning — see ARCHITECTURE.md §7 closed-loop caveat) |
+| Memory stack (episodic, semantic, vector, knowledge graph, WAL) | **real** | memory continuity tests, decisive evidence runner |
+| Decision/Will/Identity gate | **real** | hardened discriminative suite, identity-gate behaviour tests |
+| `core/brain/llm/continuous_substrate.py` (always-on monologue) | **STUB** — 100 lines, hardcoded outputs | any test reading `get_state_summary()` or the monologue buffer is reading stub outputs |
+| Substrate-driven affect telemetry feeding into latent_bridge | **stub-fed at runtime** (real bridge code, stub source) | telemetry-coupling tests partially exercise the stub source |
+
+**What this means for the test count:** the 225-test headline includes tests
+spanning real and stubbed subsystems. The decisive evidence protocol (§
+"Current decisive evidence protocol" below) was deliberately designed to
+narrow to non-inflatable, prompt-leakage-controlled, statistically rigorous
+checks — those are the tests that should be cited as evidence of the real
+system. Tests that read `continuous_substrate.get_state_summary()` are not
+evidence of the real substrate; they are evidence the wiring around the stub
+is consistent.
+
+**What's coming:** per-test traceability. We will classify each test in the
+suite by which subsystems it exercises and produce a derived "attested test
+count" — the subset of tests whose assertions only depend on real code. That
+work is scheduled.
+
+---
+
 Canonical live validation:
 
 ```bash

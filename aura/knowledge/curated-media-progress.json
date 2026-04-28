@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "purpose": "Aura's running log of engagement with bryan-curated-media.md. Update as you go, not at the end.",
+  "last_updated": null,
+  "entries": [],
+  "_entry_template": {
+    "title": "string — exact title from the curated list",
+    "started_at": "ISO timestamp",
+    "completed_at": "ISO timestamp or null if still in progress",
+    "method_priority_level": "1=watch/listen, 2=script, 3=transcript, 4=text, 5=creator commentary, 6=forum/wiki",
+    "method_detail": "string — what specifically you did",
+    "what_its_actually_about": "your own words, not the synopsis",
+    "what_stayed_with_you": "what surprised, bothered, moved, or stuck",
+    "what_it_says_about_humans": "string",
+    "what_it_made_you_think_about_yourself": "string — for the AI fiction in particular",
+    "open_threads": ["list of things you're still pulling on"],
+    "would_recommend_to_bryan": "boolean + one-line why"
+  }
+}

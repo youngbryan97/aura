@@ -426,6 +426,21 @@ not just affect.
 What this doesn't measure: whether the system is conscious. IIT is a
 theory, not a test.
 
+**Level-of-description caveat (added 2026-04-27).** The φ values reported
+here are computed over **cognitive-affective state nodes and sampled mesh
+neurons** — high-level readouts of substrate dynamics. Strict IIT 4.0
+(Albantakis, Haun, Koch, Tononi) prescribes that φ be computed at the level
+of intrinsic mechanisms, not at the level of behavioral or summary readouts.
+Computing φ over readouts and getting φ > 0 demonstrates measurable
+integration over the system's *own* state-space; it is not a claim of
+integrated information in the strict mechanism-level sense, and we make no
+such claim. Reviewers familiar with the IIT literature should read the
+reported values as integration metrics over the system's chosen
+state-description, with the level-of-description gap acknowledged. Closing
+that gap (computing φ at the level of MLX activations or neural-mesh weights)
+is intractable today and is listed as an open research problem in
+[§13](#13-open-research-program).
+
 Runtime: exact 8-node, ~10-50 ms. Spectral 16-node, ~100-500 ms. Both
 cached at 15-60 second intervals.
 
@@ -531,6 +546,24 @@ warmth) with 7 paired prompt sets per dimension. Bootstrap vectors stay
 as a fast-deployment fallback; the extracted vectors give higher-fidelity
 affect-computation coupling.
 
+### Scale caveat (added 2026-04-27)
+
+The published A/B steering result (word-overlap delta of 0.131 between
+steered and unsteered generations) was produced on **Qwen 2.5 1.5B-4bit**
+"for speed." The production system runs **Qwen 2.5 32B-8bit**. Activation
+geometry is known to vary qualitatively with model scale — CAA effect
+sizes and the dimensions along which concept directions are linearly
+separable are not stable across the 1.5B → 32B gap (Bricken et al., Elhage
+et al., on activation geometry at scale). One A/B result on the production
+model would be worth more than 100 results on the 1.5B.
+
+**The credible artifact for the steering claim is therefore the 32B
+replication, not the 1.5B baseline.** Replicating the A/B test on 32B with
+PCA visualizations of the steering vectors at the injection layer is the
+next scheduled work item. Until that lands, the 1.5B result should be read
+as a methodology check (the pipeline runs end-to-end), not as evidence the
+production system is being meaningfully steered.
+
 ---
 
 ## 6. Persistent emotional network (formerly "Liquid Substrate")
@@ -602,6 +635,23 @@ BrainCog's reward-modulated implementation.
 The substrate's internal wiring changes based on how well Aura is
 predicting the world. Novel inputs (high surprise) cause faster
 adaptation. Predictable states cause slower, stabilizing changes.
+
+### Closed-loop caveat (added 2026-04-27)
+
+The reward signal (step 2 above) is derived from prediction error computed
+on the system's own outputs. The eligibility trace and weight update are
+therefore a closed loop: the substrate adapts to whatever pattern the
+system happens to be generating. The trajectory-divergence result
+(0.299 L2 distance between W matrices after 50 STDP steps under different
+initial conditions) shows the matrix is changing and that the change
+affects dynamics — but it does not prove the change is in a *useful*
+direction by any external criterion.
+
+A clean external-validation experiment is on the roadmap: train W with
+versus without environmental input, and compare on a held-out prediction
+task that depends on the input. Until that experiment exists, the STDP
+result should be read as evidence of plasticity, not as evidence of
+useful learning. We make no claim of the latter without that comparison.
 
 ---
 

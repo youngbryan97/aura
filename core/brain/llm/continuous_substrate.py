@@ -2,9 +2,26 @@
 ────────────────────────────────────────
 Aura v5.0: Continuous Latent Streaming (Substrate Pacing Inversion).
 
-This component runs a smaller, quantized model in a continuous loop to generate
-an 'Inner Monologue'. It paces itself at ~1 token per second, writing to an
-active buffer that the primary cognitive cycle can 'peek' into.
+This component is INTENDED to run a smaller, quantized model in a continuous
+loop to generate an 'Inner Monologue', pacing itself at ~1 token per second,
+writing to an active buffer that the primary cognitive cycle can 'peek' into.
+
+============================================================================
+                          STUB IMPLEMENTATION
+============================================================================
+The current code is a PLACEHOLDER. It does not run a real model. The
+``_monologue_loop`` cycles through a hardcoded list of five sentences and
+``get_state_summary`` returns fixed values. Any subsystem that reads from
+this module is consuming stubbed data, not live substrate dynamics.
+
+Replacing this with a real ODE-driven substrate (Liquid Time-Constant
+network, real coupling to neurochemicals/oscillatory binding/somatic gate)
+is a roadmap item and a prerequisite for downstream "live dynamics" claims.
+See ``scoping/substrate-as-source-proposal.md`` for the staged plan.
+
+This stub status is also noted in the project README under "What's stubbed
+and what's real."
+============================================================================
 """
 
 from core.utils.task_tracker import get_task_tracker
