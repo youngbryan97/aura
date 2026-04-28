@@ -39,7 +39,13 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Type
 logger = logging.getLogger("Aura.Bench")
 
 _BENCH_DIR = Path.home() / ".aura" / "data" / "bench"
-get_task_tracker().create_task(get_storage_gateway().create_dir(_BENCH_DIR, cause=''))
+try:
+    get_task_tracker().create_task(  # type: ignore[name-defined]
+        get_storage_gateway().create_dir(_BENCH_DIR, cause='')  # type: ignore[name-defined]
+    )
+except NameError:
+    pass
+_BENCH_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass
