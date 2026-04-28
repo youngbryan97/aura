@@ -14,26 +14,36 @@ learning loop:
 
     confirm_prediction(prediction_id, applies)
         resolve the prediction in the F2 ledger, derive the semantic
-        reward, ask the SemanticWeightGovernor whether plasticity is
-        allowed, run the plastic adapter update, and emit a
-        SemanticWeightUpdateReceipt with full provenance.
+        reward, ask the runtime Will (when wired) and the local
+        SemanticWeightGovernor whether plasticity is allowed, run the
+        plastic adapter update, and emit a SemanticWeightUpdateReceipt
+        with full provenance.
 
 When a plastic adapter is wired in, prediction features pass through
 ``adapter.adapt_features`` *before* similarity scoring, so confirmed
 positive feedback measurably improves future prediction confidence on
 related held-out examples.  This is the closed loop:
 
-    prediction -> confirmation -> reward -> governor -> adapter update
-        -> different features next prediction -> different similarity score.
+    prediction -> confirmation -> reward -> Will -> governor ->
+    adapter update -> different features next prediction ->
+    different similarity score.
+
+Authorization is layered: the runtime Will (an injected callable) is
+the strongest gate — when present and it refuses, no update happens
+regardless of governor / target policy.  The local
+SemanticWeightGovernor is the next layer (vitality / reward
+magnitude).  ``is_plastic_target_allowed`` from core.will is the
+defence-in-depth target check.  All three must approve.
 
 Without an adapter+governor pair the service still works in
 "observe-only" mode: predictions land in the ledger and lessons are
-recorded, but no weight update happens.  Tests exercise both modes.
+recorded, but no weight update happens.  Tests exercise every
+combination.
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.grounding.grounding_kernel import GroundingKernel, GroundingObservation
 from core.grounding.semiotic_network import SemioticNetwork
@@ -50,6 +60,16 @@ from core.runtime.receipts import (
 )
 
 
+# Will-decision contract: callers inject a function with this shape.
+# Returning ``{"outcome": "proceed", ...}`` allows; any other outcome
+# (refuse, defer, constrain) blocks the plastic update.  Real Aura
+# wires this to UnifiedWill.decide(); tests pass in stubs.
+WillDecideCallable = Callable[
+    [str, str, float],  # (domain_str, module_name, reward)
+    Dict[str, Any],     # {"outcome": str, "reason": str, ...}
+]
+
+
 class GroundingService:
     PLASTIC_MODULE_NAME = "grounding_plastic_adapter"
 
@@ -61,6 +81,7 @@ class GroundingService:
         ledger: Optional[PredictionLedger] = None,
         plastic_adapter: Optional[GroundingPlasticAdapter] = None,
         governor: Optional[SemanticWeightGovernor] = None,
+        will_decide_fn: Optional[WillDecideCallable] = None,
         emit_receipts: bool = True,
     ):
         data_dir = Path(data_dir)
@@ -70,6 +91,7 @@ class GroundingService:
         self.ledger = ledger or PredictionLedger(data_dir / "grounding_predictions.db")
         self.plastic_adapter = plastic_adapter
         self.governor = governor
+        self.will_decide_fn = will_decide_fn
         self.emit_receipts = bool(emit_receipts)
         # Pending predictions: prediction_id -> context needed to apply a
         # plastic update on confirmation.
@@ -253,6 +275,25 @@ class GroundingService:
         confidence = float(ctx.get("predicted_confidence", 0.5))
         reward = (1.0 if correct else -1.0) * max(0.1, confidence)
 
+        # ---- 1. runtime Will gate (when wired) -----------------
+        will_outcome = "proceed"
+        will_reason = ""
+        will_receipt_id: Optional[str] = None
+        if self.will_decide_fn is not None:
+            try:
+                will_decision = self.will_decide_fn(
+                    "semantic_weight_update", self.PLASTIC_MODULE_NAME, reward
+                )
+                will_outcome = str(will_decision.get("outcome", "proceed")).lower()
+                will_reason = str(will_decision.get("reason", ""))
+                will_receipt_id = will_decision.get("receipt_id")
+            except Exception as e:
+                # Fail-closed: if the Will errors we treat the update
+                # as refused rather than silently bypassing it.
+                will_outcome = "refuse"
+                will_reason = f"will_decide_raised:{type(e).__name__}"
+
+        # ---- 2. local SemanticWeightGovernor ---------------------
         decision = self.governor.decide(
             module_name=self.PLASTIC_MODULE_NAME,
             reward=reward,
@@ -262,8 +303,7 @@ class GroundingService:
             free_energy=free_energy,
         )
 
-        # Defence in depth: even if the local governor allowed, refuse
-        # any update whose target is not in the Will-side allow-list.
+        # ---- 3. defence-in-depth target allow-list ---------------
         try:
             from core.will import is_plastic_target_allowed
 
@@ -271,18 +311,30 @@ class GroundingService:
         except Exception:
             target_allowed = True  # be lenient if Will isn't importable
 
+        will_proceed = will_outcome == "proceed"
+        update_allowed = will_proceed and decision.allowed and target_allowed
+
         update_info: Optional[Dict[str, Any]] = None
-        if decision.allowed and target_allowed:
+        if update_allowed:
             update_info = self.plastic_adapter.update_from_reward(
                 reward=reward, modulation=decision.modulation
             )
 
+        # Pick a single human-readable reason — the most specific one
+        # that *blocked* the update wins; otherwise "applied".
+        if not will_proceed:
+            reason_text = f"will_{will_outcome}:{will_reason or 'no_reason'}"
+        elif not decision.allowed:
+            reason_text = decision.reason
+        elif not target_allowed:
+            reason_text = "target_denied_by_will_policy"
+        else:
+            reason_text = "applied"
+
         out["weight_update"] = update_info
-        out["weight_update_reason"] = (
-            decision.reason if not decision.allowed else (
-                "target_denied_by_will_policy" if not target_allowed else "applied"
-            )
-        )
+        out["weight_update_reason"] = reason_text
+        out["will_outcome"] = will_outcome
+        out["will_receipt_id"] = will_receipt_id
 
         if self.emit_receipts:
             try:
@@ -300,7 +352,8 @@ class GroundingService:
                             (update_info or {}).get("delta_norm", 0.0)
                         ),
                         hebb_norm=float((update_info or {}).get("hebb_norm", 0.0)),
-                        allowed=bool(decision.allowed and target_allowed),
+                        allowed=bool(update_allowed),
+                        governance_receipt_id=will_receipt_id,
                     )
                 )
             except Exception:
