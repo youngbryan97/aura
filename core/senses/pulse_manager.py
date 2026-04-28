@@ -151,7 +151,7 @@ class PulseManager:
                     autonomic = ServiceContainer.get("autonomic_core", None)
                     if autonomic:
                         # AutonomicCore manages its own heartbeat, but we can log health here
-                        pass
+                        pass  # no-op: intentional
                 except Exception:
                     import logging
                     logger.debug("Exception caught during execution", exc_info=True)
@@ -267,7 +267,7 @@ class PulseManager:
                     urgency=0.9
                 )
         elif "success" in description.lower() or "complete" in description.lower():
-            pass
+            pass  # no-op: intentional
 
     async def trigger_immediate_vision_pulse(self, context: str):
         """Phase 18.1: Force an immediate sensory check due to peer attention spike."""

@@ -85,7 +85,7 @@ class ContinuousCognitionLoop:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
         logger.info("ContinuousCognitionLoop OFFLINE")
 
     async def _run(self) -> None:
@@ -122,7 +122,7 @@ class ContinuousCognitionLoop:
                 if ws:
                     ws.update()
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         # 2. Drive pressure evolution (every step)
         try:
@@ -133,7 +133,7 @@ class ContinuousCognitionLoop:
                 for budget in drive.budgets.values():
                     budget.tick()
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # 3. Neurochemical metabolism (every 2nd step = ~1s)
         if self._tick_count % 2 == 0:
@@ -142,7 +142,7 @@ class ContinuousCognitionLoop:
                 if nchem and hasattr(nchem, "tick"):
                     nchem.tick(dt=0.5)
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         # 4. Affect drift toward baseline (every 4th step = ~2s)
         if self._tick_count % 4 == 0:
@@ -151,7 +151,7 @@ class ContinuousCognitionLoop:
                 if affect and hasattr(affect, "drift_toward_baseline"):
                     affect.drift_toward_baseline(dt=2.0)
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         # 5. Initiative seeding from drive pressure (every 30th step = ~15s)
         if self._tick_count % 30 == 0:
@@ -231,7 +231,7 @@ class ContinuousCognitionLoop:
             # Check for time-of-day transitions
             # (WorldState.update() handles this, we just note it)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ------------------------------------------------------------------
     # Service resolution (cached, lazy)
@@ -248,7 +248,7 @@ class ContinuousCognitionLoop:
                 from core.world_state import get_world_state
                 self._world_state = get_world_state()
             except Exception:
-                pass
+                pass  # no-op: intentional
         return self._world_state
 
     def _get_liquid_substrate(self):
@@ -273,7 +273,7 @@ class ContinuousCognitionLoop:
                 from core.initiative_synthesis import get_initiative_synthesizer
                 self._synthesizer = get_initiative_synthesizer()
             except Exception:
-                pass
+                pass  # no-op: intentional
         return self._synthesizer
 
     # ------------------------------------------------------------------

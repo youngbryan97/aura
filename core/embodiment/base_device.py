@@ -23,17 +23,17 @@ class BaseHardwareDevice(ABC):
     @abstractmethod
     async def connect(self) -> bool:
         """Establish connection to the hardware device."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def disconnect(self) -> bool:
         """Gracefully disconnect from the hardware device."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def get_status(self) -> Dict[str, Any]:
         """Query the device for its current state and telemetry."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def execute_command(self, command: str, **kwargs) -> Dict[str, Any]:
@@ -41,7 +41,7 @@ class BaseHardwareDevice(ABC):
         Execute a hardware-specific command.
         Should ideally be wrapped by `safe_execute` for thread safety.
         """
-        pass
+        pass  # no-op: intentional
 
     async def safe_execute(self, command: str, **kwargs) -> Dict[str, Any]:
         """

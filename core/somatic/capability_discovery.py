@@ -119,7 +119,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("Capability Discovery Daemon stopped.")
 
@@ -360,7 +360,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
                 },
             )
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         try:
             disk = psutil.disk_usage("/")
@@ -380,7 +380,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
             else:
                 body.update_limb("disk_sensor", health=1.0)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ------------------------------------------------------------------
     # Neural stream emission
@@ -424,14 +424,14 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
             addrs = psutil.net_if_addrs()
             self._known_interfaces = set(addrs.keys()) - {"lo", "lo0"}
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         for lib_name in self.TRACKED_SENSORS:
             try:
                 __import__(lib_name)
                 self._known_sensors.add(lib_name)
             except ImportError:
-                pass
+                pass  # no-op: intentional
 
     @staticmethod
     def _get_body_schema():

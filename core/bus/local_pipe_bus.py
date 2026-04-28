@@ -187,7 +187,7 @@ class LocalPipeBus:
                 await asyncio.wait_for(self._dispatcher_task, timeout=1.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 logger.debug("Suppressed bare exception")
-                pass
+                pass  # no-op: intentional
             except Exception as e:
                 record_degradation('local_pipe_bus', e)
                 logger.error("📡 LocalPipeBus: Dispatcher stop error: %s", e)
@@ -291,7 +291,7 @@ class LocalPipeBus:
             # Fast-fail check if connection is completely broken at the OS level
             try:
                 # We can't poll writing, but we can check if it's explicitly broken if there's a quick way
-                pass
+                pass  # no-op: intentional
             except Exception as _e:
                 record_degradation('local_pipe_bus', _e)
                 logger.debug('Ignored Exception in local_pipe_bus.py: %s', _e)

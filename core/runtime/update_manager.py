@@ -135,7 +135,7 @@ class UpdateManager:
         try:
             os.chmod(self._key_path, 0o600)
         except Exception:
-            pass
+            pass  # no-op: intentional
         return raw
 
     def _verify_signature(self, archive: Path, signature: Path) -> bool:
@@ -257,9 +257,9 @@ class UpdateManager:
                 try:
                     os.fsync(fh.fileno())
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception:
-            pass
+            pass  # no-op: intentional
 
 
 _MANAGER: Optional[UpdateManager] = None

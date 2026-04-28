@@ -91,7 +91,7 @@ def _safe_close_queue(q: Optional[mp.Queue]) -> None:
         q.close()
         q.join_thread()
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 def _new_shared_future() -> SharedFuture:
@@ -301,7 +301,7 @@ def _bridge_asyncio_future_to_concurrent(future: asyncio.Future) -> cfutures.Fut
             try:
                 proxy.set_exception(exc)
             except Exception:
-                pass
+                pass  # no-op: intentional
 
     if future.done():
         _relay(future)
@@ -1036,7 +1036,7 @@ class MLXLocalClient:
                             if stuck_future is not None:
                                 _cancel_shared_future(stuck_future)
                         except Exception:
-                            pass
+                            pass  # no-op: intentional
                         self._deferred_reboot_reason = "foreground_preemption_wedged_holder"
                 return False
 
@@ -1075,7 +1075,7 @@ class MLXLocalClient:
                 if not task.get_loop().is_closed():
                     return
             except Exception:
-                pass
+                pass  # no-op: intentional
             _cancel_task_threadsafe(task)
 
         self._listener_task = get_task_tracker().create_task(self._response_listener_loop())
@@ -1166,7 +1166,7 @@ class MLXLocalClient:
                             proc.kill()
                             proc.wait(timeout=3.0)
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    pass
+                    pass  # no-op: intentional
         except Exception as orphan_exc:
             record_degradation('mlx_client', orphan_exc)
             logger.debug("Orphan reclamation scan failed (non-fatal): %s", orphan_exc)
@@ -2004,7 +2004,7 @@ class MLXLocalClient:
                 import gc
                 gc.collect()
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         acquired = await self._acquire_request_lock(
             owner_label=owner_label,

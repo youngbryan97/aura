@@ -173,7 +173,7 @@ class StructuralMutator:
                     try:
                         setter(enabled)
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                 self._module_state[target] = enabled
                 post = {"enabled": enabled}
             elif kind == "parameter_band":
@@ -183,7 +183,7 @@ class StructuralMutator:
                     try:
                         setter(value)
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                 minv, maxv, _ = self._parameter_bands.get(target, (value, value, value))
                 self._parameter_bands[target] = (minv, maxv, value)
                 post = {"value": value}

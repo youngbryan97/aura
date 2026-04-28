@@ -952,7 +952,7 @@ class TaskCommitmentVerifier:
                     error="cancelled",
                 )
             except Exception:
-                pass
+                pass  # no-op: intentional
             if commitment_id:
                 try:
                     from core.agency.commitment_engine import get_commitment_engine

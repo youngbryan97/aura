@@ -44,7 +44,7 @@ class HardenedReflexCore:
         logger.warning("Reflex: Halting non-essential LLM generation for thermal safety.")
         if self.orchestrator:
             # Direct intervention in the orchestrator task list
-            pass
+            pass  # no-op: intentional
 
     async def _isolate_network(self, meta):
         logger.critical("Reflex: Cutting off external socket connections due to breach signal.")

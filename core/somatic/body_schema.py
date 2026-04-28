@@ -303,7 +303,7 @@ class BodySchema(AuraBaseModule):
             interfaces = psutil.net_if_addrs()
             net_available = len(interfaces) > 0
         except Exception:
-            pass
+            pass  # no-op: intentional
         self._register_limb(Limb(
             name="network",
             limb_type=LimbType.ACTUATOR,

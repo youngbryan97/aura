@@ -150,7 +150,7 @@ class AutonomousResearchOrchestrator:
             try:
                 await asyncio.wait_for(self._task, timeout=5.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
+                pass  # no-op: intentional
 
     # ── Internal loop ─────────────────────────────────────────────────────
 
@@ -325,7 +325,7 @@ class AutonomousResearchOrchestrator:
                 try:
                     self._on_complete(result)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
 
         return result
 
@@ -418,10 +418,10 @@ class AutonomousResearchOrchestrator:
     def _save_session(self, path: Path, payload: Dict[str, Any]) -> None:
         try:
             tmp = path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+            atomic_write_text(tmp, json.dumps(payload, indent=2, default=str), encoding="utf-8")
             os.replace(tmp, path)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
 
 def _iso(ts: Optional[float]) -> str:

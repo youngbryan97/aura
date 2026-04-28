@@ -328,7 +328,7 @@ class CanonicalSelfEngine:
                 if scar_block:
                     lines.append(scar_block)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Value evolution drift
         try:
@@ -338,7 +338,7 @@ class CanonicalSelfEngine:
                 if drift:
                     lines.append(f"Value evolution: {drift}")
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return "\n".join(lines)
 

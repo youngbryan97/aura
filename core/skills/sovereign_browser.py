@@ -79,12 +79,12 @@ class SovereignBrowserSkill(BaseSkill):
                 if browser.browser:
                     await browser.browser.close()
             except Exception:
-                pass
+                pass  # no-op: intentional
             try:
                 if browser.playwright:
                     await browser.playwright.stop()
             except Exception:
-                pass
+                pass  # no-op: intentional
             browser.is_active = False
             browser.page = None
             browser.context = None
@@ -356,7 +356,7 @@ class SovereignBrowserSkill(BaseSkill):
             if browser.page:
                 final_url = browser.page.url
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return {
             "ok": True,
@@ -434,4 +434,4 @@ class SovereignBrowserSkill(BaseSkill):
 
     async def on_stop_async(self):
         """No-op: browsers are now ephemeral per-invocation."""
-        pass
+        pass  # no-op: intentional

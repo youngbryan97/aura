@@ -224,7 +224,7 @@ class InitiativeArbiter:
                 base = max(base, float(explicit))
             except (TypeError, ValueError):
                 logger.debug("Suppressed bare exception")
-                pass
+                pass  # no-op: intentional
 
         return min(1.0, base)
 

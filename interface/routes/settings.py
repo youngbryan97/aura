@@ -149,7 +149,7 @@ class SettingsStore:
             try:
                 cb(key, previous, coerced)
             except Exception:
-                pass
+                pass  # no-op: intentional
         return coerced
 
     def reset_section(self, section: str) -> Dict[str, Any]:

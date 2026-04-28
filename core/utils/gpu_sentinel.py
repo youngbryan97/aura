@@ -83,7 +83,7 @@ class GPUSentinel:
         except RuntimeError:
             # Already released or not held by us?
             # In health monitoring cases, we might force release.
-            pass
+            pass  # no-op: intentional
         finally:
             self._holder_thread = None
             self._holder_task = None

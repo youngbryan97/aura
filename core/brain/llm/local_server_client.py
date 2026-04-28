@@ -539,7 +539,7 @@ class LocalServerClient:
                     data = resp.read().decode()
                     return '"ok"' in data or '"status":"ok"' in data.replace(" ", "")
         except Exception:
-            pass
+            pass  # no-op: intentional
         return False
 
     async def _client(self) -> httpx.AsyncClient:
@@ -844,7 +844,7 @@ class LocalServerClient:
             vm = psutil.virtual_memory()
             ram_pressure_critical = vm.percent >= 85 or (vm.available / float(1024 ** 3)) < 8
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         for client in _SERVER_CLIENTS.values():
             if client is self or client._external_only:
@@ -1051,7 +1051,7 @@ class LocalServerClient:
                 kwargs["stop_sequences"] = stops
         except Exception as _bexc:
             record_degradation('local_server_client', _bexc)
-            pass
+            pass  # no-op: intentional
 
         if messages and isinstance(messages, list):
             payload_messages = [

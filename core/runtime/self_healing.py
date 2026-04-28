@@ -98,7 +98,7 @@ class SelfHealing:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
 
     async def _tick(self) -> None:
@@ -137,9 +137,9 @@ class SelfHealing:
                 try:
                     os.fsync(fh.fileno())
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception:
-            pass
+            pass  # no-op: intentional
 
 
 _HEALER: Optional[SelfHealing] = None

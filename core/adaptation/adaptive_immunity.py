@@ -2049,7 +2049,7 @@ class AdaptiveImmuneSystem:
                     vitality = float(homeostasis.compute_vitality())
                 metabolism = float(getattr(homeostasis, "metabolism", metabolism))
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         alife_dynamics = self._get_service("alife_dynamics")
         if alife_dynamics is not None:
@@ -2301,7 +2301,7 @@ class AdaptiveImmuneSystem:
                 if health > 0.0:
                     return float(max(0.0, min(1.0, 1.0 - health)))
             except Exception:
-                pass
+                pass  # no-op: intentional
         return 0.0
 
     def _ensure_graph_links(self, subsystem: str) -> None:

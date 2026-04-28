@@ -210,7 +210,7 @@ class EnhancedWebSearchSkill(BaseSkill):
 
     async def on_stop_async(self):
         """Compatibility stub for legacy lifecycle hooks."""
-        pass
+        pass  # no-op: intentional
 
 
 class _StubBrowser:

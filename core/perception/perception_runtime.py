@@ -149,7 +149,7 @@ SensorCallable = Callable[[CapabilityToken], Awaitable[None]]
 
 
 class CapabilityDenied(RuntimeError):
-    pass
+    pass  # no-op: intentional
 
 
 class PerceptionRuntime:

@@ -196,7 +196,7 @@ class EmbodiedInteroception:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("EmbodiedInteroception STOPPED")
 
@@ -215,7 +215,7 @@ class EmbodiedInteroception:
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
         except asyncio.CancelledError:
-            pass
+            pass  # no-op: intentional
 
     # ── Hardware sampling ────────────────────────────────────────────────
 

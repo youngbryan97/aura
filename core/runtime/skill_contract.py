@@ -67,7 +67,7 @@ class SkillExecutionResult:
 
 
 class VerifierMissing(RuntimeError):
-    pass
+    pass  # no-op: intentional
 
 
 # ---------------------------------------------------------------------------

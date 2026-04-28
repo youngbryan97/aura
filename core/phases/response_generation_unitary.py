@@ -439,7 +439,7 @@ class UnitaryResponsePhase(Phase):
                 if nc_cues:
                     parts.append(f"NEUROCHEMICAL TONE (don't narrate): {', '.join(nc_cues)}")
         except Exception:
-            pass
+            pass  # no-op: intentional
         try:
             phi_core = ServiceContainer.get("phi_core", default=None)
             if phi_core and phi_core._last_result:
@@ -449,7 +449,7 @@ class UnitaryResponsePhase(Phase):
                 elif phi_val > 0:
                     parts.append(f"PHI: {phi_val:.3f} (moderate — keep it grounded)")
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         if needs_continuity_context and narrative:
             parts.append(f"Narrative anchor: {narrative}")
@@ -576,7 +576,7 @@ class UnitaryResponsePhase(Phase):
             if claim:
                 return claim
         except Exception:
-            pass
+            pass  # no-op: intentional
         return self._normalize_text(state.cognition.phenomenal_state or "I am present and aware.", limit)
 
     def _build_integrated_coherence_frame(self, state: AuraState, *, compact: bool = False) -> str:
@@ -1021,7 +1021,7 @@ class UnitaryResponsePhase(Phase):
 
             shaped = cure_personality_leak(shaped)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         try:
             personality = ServiceContainer.get("personality_engine", default=None)

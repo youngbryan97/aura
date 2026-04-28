@@ -866,7 +866,7 @@ class HomeostaticRL:
             try:
                 tmp_path.unlink(missing_ok=True)
             except OSError:
-                pass
+                pass  # no-op: intentional
 
     def _load_state(self) -> None:
         """Restore state from disk if a save file exists."""

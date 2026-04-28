@@ -135,7 +135,7 @@ class EpistemicTracker:
         except Exception as e:
             record_degradation('epistemic_tracker', e)
             capture_and_log(e, {"context": "EpistemicTracker.start.event_bus"})
-            pass
+            pass  # no-op: intentional
 
         logger.info("✅ EpistemicTracker ONLINE — meta-cognition active.")
 

@@ -440,7 +440,7 @@ class ValueAutopoiesis:
                 try:
                     Path(tmp_path).unlink(missing_ok=True)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as exc:
             record_degradation('value_autopoiesis', exc)
             logger.debug("Autopoiesis state save failed: %s", exc)
@@ -479,7 +479,7 @@ class ValueAutopoiesis:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe(topic, data)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ── Public API ──────────────────────────────────────────────────────
 

@@ -78,7 +78,7 @@ class LocalAgentClient(RobustOllamaClient):
                 vad = affect.get_current_vad()
                 telemetry_header += f"[INTERNAL STATE: Valence={vad.get('valence', 0):.2f}, Arousal={vad.get('arousal', 0):.2f}]\n"
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # 2. Build the Turn Input
         is_impulse = context.get("is_impulse", False) if context else False

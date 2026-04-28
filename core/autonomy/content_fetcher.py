@@ -498,7 +498,7 @@ class ContentFetcher:
                 if entry.is_file():
                     total += entry.stat().st_size
         except Exception:
-            pass
+            pass  # no-op: intentional
         return total
 
     def _enforce_cache_budget(self) -> None:
@@ -518,7 +518,7 @@ class ContentFetcher:
                 shutil.rmtree(path, ignore_errors=True)
                 total -= size
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def _cache_key(self, method: str, target: str, args: Dict[str, Any]) -> str:
         h = hashlib.sha256()
@@ -558,10 +558,10 @@ class ContentFetcher:
         try:
             CACHE_INDEX.parent.mkdir(parents=True, exist_ok=True)
             tmp = CACHE_INDEX.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self._index), encoding="utf-8")
+            atomic_write_text(tmp, json.dumps(self._index), encoding="utf-8")
             os.replace(tmp, CACHE_INDEX)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
 
 # ── Subprocess helper ────────────────────────────────────────────────────
@@ -580,7 +580,7 @@ async def _run_subprocess(cmd: List[str], timeout: int) -> Tuple[bool, str, str]
             try:
                 proc.kill()
             except Exception:
-                pass
+                pass  # no-op: intentional
             return False, "", "timeout"
         ok = proc.returncode == 0
         return ok, stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace")

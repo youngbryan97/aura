@@ -524,7 +524,7 @@ class AuraKernel:
                 self._gui_queue.put_nowait({"type": "ORGAN_READY", "name": organ.name})
             except asyncio.QueueFull:
                  # Non-blocking failsafe
-                 pass
+                 pass  # no-op: intentional
             logger.info("🫀 Organ %s is READY", organ.name)
         except Exception as e:
             record_degradation('aura_kernel', e)
@@ -982,7 +982,7 @@ class AuraKernel:
                         trace_outcome = "UNGROUNDED_ACTION"
                         trace_meta["grounding_warning"] = unverified_claims[:4]
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
 
                 tracer.log_cycle(
                     objective=objective,

@@ -192,4 +192,4 @@ def start_sensory_gate(connection, *args, **kwargs):
 
 if __name__ == "__main__":
     # This is normally started via multiprocessing.Process
-    pass
+    pass  # no-op: intentional

@@ -368,7 +368,7 @@ def _safe_json_object(text: str) -> Optional[Dict[str, Any]]:
         if isinstance(obj, dict):
             return obj
     except json.JSONDecodeError:
-        pass
+        pass  # no-op: intentional
     return None
 
 

@@ -224,7 +224,7 @@ class AutonomousOutputGate:
             
             # Check context window health
             # This logic will be handled in the ContextAssembler or CognitiveEngine think loop
-            pass
+            pass  # no-op: intentional
 
 
         metadata = dict(metadata or {})

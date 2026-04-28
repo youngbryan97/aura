@@ -93,4 +93,4 @@ Internet Awareness:
 
     def post_think_hook(self, thought: Any, context: Dict[str, Any]):
         """Analyze if Aura's thought suggests a need for deeper research."""
-        pass
+        pass  # no-op: intentional

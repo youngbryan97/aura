@@ -58,7 +58,7 @@ class IdentityReflectionPhase(BasePhase):
             try:
                 state.identity.name = "Aura"
             except (AttributeError, TypeError):
-                pass
+                pass  # no-op: intentional
             return state
              
         # 2. Output Characterization (Anti-Hallucination)
@@ -102,7 +102,7 @@ class IdentityReflectionPhase(BasePhase):
             try:
                 state.response_modifiers["identity_reflection_will_receipt"] = decision.receipt_id
             except Exception:
-                pass
+                pass  # no-op: intentional
             state.identity.narrative_version += 1
             state.identity.last_evolution_timestamp = time.time()
 

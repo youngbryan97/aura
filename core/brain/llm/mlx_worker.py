@@ -363,7 +363,7 @@ class _PromptCacheLRU:
             try:
                 self._lru.remove((model_key, tuple(tokens)))
             except ValueError:
-                pass
+                pass  # no-op: intentional
             return cache_entry
 
         cache_entry.count -= 1
@@ -413,7 +413,7 @@ class _PromptCacheLRU:
             try:
                 self._lru.remove(cache_key)
             except ValueError:
-                pass
+                pass  # no-op: intentional
         else:
             current["cache"] = _PromptCacheEntry(prompt_cache, 1)
 
@@ -661,7 +661,7 @@ def _mlx_worker_loop(
                         if "repetition_penalty" in _sparams:
                             sampler_kwargs["repetition_penalty"] = repetition_penalty
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                     kwargs["sampler"] = make_sampler(**sampler_kwargs)
 
                 # [v11.0 HARDENING] Logits Processors (JSON Enforcement)
@@ -862,7 +862,7 @@ def _mlx_worker_loop(
                             if prompt_cache_lru is not None:
                                 prompt_cache_lru.clear()
                         except Exception:
-                            pass
+                            pass  # no-op: intentional
                         if mx and device != "cpu":
                             _clear_mlx_cache(mx)
                     
@@ -907,7 +907,7 @@ def _mlx_worker_loop(
                         if "repetition_penalty" in _sparams2:
                             sampler_kwargs["repetition_penalty"] = repetition_penalty
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                     kwargs["sampler"] = make_sampler(**sampler_kwargs)
 
                 stop_sequences = ["<|im_end|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
@@ -1022,7 +1022,7 @@ def _mlx_worker_loop(
                     if prompt_cache_lru is not None:
                         prompt_cache_lru.clear()
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                 ipc_writer.put({"status": "ok"})
                 
         except Exception as e:

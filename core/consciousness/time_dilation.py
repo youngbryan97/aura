@@ -257,7 +257,7 @@ class TimeDilationEngine:
                 signals.prediction_error = fe.current.surprise
                 signals.fe_distressed = fe.is_distressed()
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Drive Engine
         try:
@@ -272,7 +272,7 @@ class TimeDilationEngine:
                 signals.drive_urgency = max(0.0, 1.0 - min_level)
                 signals.boredom_level = drive.boredom_level
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # World State
         try:
@@ -283,7 +283,7 @@ class TimeDilationEngine:
                 signals.thermal_pressure = ws.thermal_pressure
                 signals.memory_pressure = ws.memory_percent
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Embodiment / body integrity
         try:
@@ -295,7 +295,7 @@ class TimeDilationEngine:
                 if hasattr(mods, "overall_vitality") and mods.overall_vitality < 0.3:
                     signals.critical_maintenance = True
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return signals
 

@@ -286,7 +286,7 @@ class MindTick:
                     from core.world_state import get_world_state
                     get_world_state().update()
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
 
                 # ── LLM HEALTH: Proactive recovery for ALL tiers every 10 ticks ──
                 if self._tick_count % 10 == 0:
@@ -300,7 +300,7 @@ class MindTick:
                         elif gate and hasattr(gate, "_ensure_cortex_recovery"):
                             await gate._ensure_cortex_recovery()
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
 
                 # ── BINDING ENGINE: Run coherence tick before phases ──
                 _coherence_report = None
@@ -702,7 +702,7 @@ class MindTick:
                     from core.consciousness.resource_stakes import get_resource_stakes
                     get_resource_stakes().tick()
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
 
                 # 6. Synchronize Persistence Metrics
                 # Save all circuit breaker states into the state object before commit
@@ -824,7 +824,7 @@ class MindTick:
                                 try:
                                     current_state.response_modifiers["dream_consolidation_will_receipt"] = decision.receipt_id
                                 except Exception:
-                                    pass
+                                    pass  # no-op: intentional
                                 # Run as fire-and-forget task so we don't block the tick
                                 # Ensure background flag is passed
                                 get_task_tracker().track_task(

@@ -200,9 +200,9 @@ class HomeostaticCoupling:
                 elif fe and fe.smoothed_fe > 0.85:
                     # Dampen to prevent manic state from sustained high surprise
                     # (handled by existing homeostatic coupling — no extra action needed)
-                    pass
+                    pass  # no-op: intentional
             except Exception:
-                pass
+                pass  # no-op: intentional
 
             return mods
 

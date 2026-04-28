@@ -148,7 +148,7 @@ async def get_inner_state() -> JSONResponse:
             try:
                 result["coherence"]["phi_contribution"] = round(field.get_phi_contribution(), 4)
             except Exception:
-                pass
+                pass  # no-op: intentional
         else:
             result["coherence"] = {"status": "not_booted"}
 

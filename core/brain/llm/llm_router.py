@@ -440,7 +440,7 @@ class StaticReflexClient:
 
 class StaticReflexRouter(StaticReflexClient):
     """Alias for StaticReflexClient to satisfy victory bundle requirements."""
-    pass
+    pass  # no-op: intentional
 
 class IntelligentLLMRouter:
     """Intelligent LLM router with automatic failover.

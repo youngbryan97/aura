@@ -99,7 +99,7 @@ class ProgressLog:
             "last_updated": self.last_updated,
             "entries": [asdict(e) for e in self.entries],
         }
-        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        atomic_write_text(tmp, json.dumps(payload, indent=2), encoding="utf-8")
         os.replace(tmp, path)
 
 

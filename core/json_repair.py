@@ -24,7 +24,7 @@ def robust_json_parse(raw_output: str) -> Dict[str, Any]:
                 return json.loads(clean_json)
             except json.JSONDecodeError:
                 # If balanced extraction fails, fallback to heuristic repair
-                pass
+                pass  # no-op: intentional
         
         # 2. Try to find the outermost square brackets (Arrays)
         match_arr = re.search(r'(\[.*\])', raw_output, re.DOTALL)

@@ -57,7 +57,7 @@ class SenseController:
         self._processes: Dict[str, subprocess.Popen] = {}
         # Load from disk and clean up zombies
         for sense in ["vision", "hearing", "vocal"]:
-            pass
+            pass  # no-op: intentional
 
 def _is_pid_alive(pid: int) -> bool:
     """Check if a PID is still running."""

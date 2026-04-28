@@ -27,7 +27,7 @@ class HealthMonitor:
                 logger.critical("Circuit breaker tripped: %d consecutive errors.", self.consecutive_errors)
                 self.healthy = False
                 # Circuit breaker tripped. System continues in Safe Mode.
-                pass
+                pass  # no-op: intentional
         
         return self.healthy
 

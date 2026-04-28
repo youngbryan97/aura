@@ -53,7 +53,7 @@ class EnvironmentSkill(BaseSkill):
             try:
                 # Add Public IP (External Request)
                 # Keep it safe/fast, optional
-                pass
+                pass  # no-op: intentional
             except Exception as _e:  # Non-critical, fallback handled
                 logging.debug('Ignored Exception in environment_info.py: %s', _e)
 

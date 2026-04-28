@@ -285,6 +285,6 @@ def get_permission_guard() -> PermissionGuard:
         if ServiceContainer is not None:
             ServiceContainer.register_instance("permission_guard", _SHARED_PERMISSION_GUARD, required=False)
     except Exception:
-        pass
+        pass  # no-op: intentional
 
     return _SHARED_PERMISSION_GUARD

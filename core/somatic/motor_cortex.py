@@ -190,7 +190,7 @@ async def _reflex_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
                 temp_c = temps[first_key][0].current
                 thermal_pressure = max(0.0, min(1.0, (temp_c - 60) / 40))
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         throttle_action = None
         if thermal_pressure > 0.8 or cpu > 95:
@@ -207,7 +207,7 @@ async def _reflex_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
                 )
                 throttle_action = "thermal_throttle_requested"
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         return {
             "success": True,
@@ -443,7 +443,7 @@ class MotorCortex:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("MotorCortex stopped -- %d total actions executed", self._total_actions)
 
@@ -586,7 +586,7 @@ class MotorCortex:
                 "timestamp": receipt.timestamp,
             })
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def _emit_affect_feedback(self, receipt: MotorReceipt) -> None:
         """Push failure feedback into the affect system (cortisol bump)."""
@@ -603,7 +603,7 @@ class MotorCortex:
                     "salience": 0.4,
                 })
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     @staticmethod
     def _make_receipt_id(ts: float, action: ReflexAction) -> str:

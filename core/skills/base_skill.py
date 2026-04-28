@@ -151,7 +151,7 @@ class BaseSkill(ABC):
             Result dict. Must include 'ok' (bool). May include 'summary',
             'error', 'content', or any skill-specific keys.
         """
-        pass
+        pass  # no-op: intentional
 
     async def safe_execute(self, params: Any, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Execute with governance, timeout, error handling, and standardized results.
@@ -214,7 +214,7 @@ class BaseSkill(ABC):
         breaker = _get_or_create_breaker(self.name)
         if not hasattr(breaker, "allow_request"):
             # Fallback if breaker API changes
-            pass
+            pass  # no-op: intentional
         elif not breaker.allow_request():
             self._total_failures += 1
             return self._error_result(

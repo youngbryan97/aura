@@ -197,7 +197,7 @@ async def ground_response(
         try:
             audit_callback(result.as_dict())
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     return result
 

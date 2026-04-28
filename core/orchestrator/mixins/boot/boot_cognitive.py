@@ -72,7 +72,7 @@ class BootCognitiveMixin:
                 logger.warning("⚠️  APIAdapter not found in ServiceContainer.")
 
             # Unified services are now handled in _async_init_subsystems
-            pass
+            pass  # no-op: intentional
         except Exception as e:
             record_degradation('boot_cognitive', e)
             logger.error("Cognitive core wiring failed: %s", e, exc_info=True)
@@ -457,7 +457,7 @@ class BootCognitiveMixin:
         ServiceContainer.register_instance("mind_model", MindModel())
 
         # QualiaSynthesizer is now registered above during phenomenological initialization.
-        pass
+        pass  # no-op: intentional
 
         from core.consciousness.homeostasis import HomeostasisEngine
 

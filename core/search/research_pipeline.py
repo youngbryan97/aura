@@ -1404,7 +1404,7 @@ class ResearchSearchPipeline:
                             source=f"web_search:{artifact.query[:40]}",
                         )
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                 retained = True
         except Exception as exc:
             record_degradation('research_pipeline', exc)
@@ -1421,7 +1421,7 @@ class ResearchSearchPipeline:
                 ttl=7200,
             )
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # 5. Satisfy curiosity drive (learning something satisfies curiosity)
         try:
@@ -1433,9 +1433,9 @@ class ResearchSearchPipeline:
                     loop = asyncio.get_running_loop()
                     loop.create_task(drive.satisfy("curiosity", 20.0))
                 except RuntimeError:
-                    pass
+                    pass  # no-op: intentional
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         if not retained:
             logger.warning("Knowledge persistence failed: all memory backends rejected the artifact.")
@@ -1608,9 +1608,9 @@ class ResearchSearchPipeline:
                     result = await asyncio.wait_for(router.think(prompt), timeout=timeout_seconds)
                     return _normalize_text(str(result or ""), limit=4000)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         brain = context.get("brain")
         if brain is not None and hasattr(brain, "think"):

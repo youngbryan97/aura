@@ -422,7 +422,7 @@ class AVProductionSystem:
     """
     
     def __init__(self):
-        pass
+        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
     
     async def create_image(self, description: str, style: str = "realistic") -> Dict[str, Any]:
         """Generate image via local Stable Diffusion or brain inference."""

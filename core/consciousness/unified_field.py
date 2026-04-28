@@ -220,7 +220,7 @@ class UnifiedField:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("UnifiedField STOPPED (ticks=%d)", self._tick_count)
 
@@ -237,7 +237,7 @@ class UnifiedField:
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
         except asyncio.CancelledError:
-            pass
+            pass  # no-op: intentional
 
     # ── Core tick ────────────────────────────────────────────────────────
 
@@ -290,7 +290,7 @@ class UnifiedField:
                 phase_mod = cfg.gamma_coupling * gamma_amp * np.sin(gamma_phase)
                 activity += phase_mod * np.sign(self.F)  # phase-locked modulation
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         noise = self._rng.standard_normal(cfg.dim).astype(np.float32) * cfg.noise_sigma
 

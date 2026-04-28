@@ -730,7 +730,7 @@ class StateRepository:
             try:
                 await self._fetch_state_from_vault()
             except Exception:
-                pass
+                pass  # no-op: intentional
             if self._current is not None:
                 self._repair_count += 1
                 actions.append("rehydrated_proxy")

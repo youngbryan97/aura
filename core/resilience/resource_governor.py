@@ -515,7 +515,7 @@ class ResourceGovernor:
                         )
                 except (asyncio.CancelledError, asyncio.InvalidStateError):
                     logger.debug("Suppressed bare exception")
-                    pass
+                    pass  # no-op: intentional
                 to_remove.append(task)
 
         for task in to_remove:

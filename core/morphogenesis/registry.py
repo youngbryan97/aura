@@ -47,7 +47,7 @@ def _atomic_write_json(path: Path, payload: Dict[str, Any], *, schema_name: str)
             if Path(tmp).exists():
                 Path(tmp).unlink()
         except Exception:
-            pass
+            pass  # no-op: intentional
 
 
 def _emit_state_receipt(path: Path, *, cause: str, key: str = "morphogenesis.registry") -> None:

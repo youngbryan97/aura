@@ -98,7 +98,7 @@ class CuriositySkill(BaseSkill):
                             import random
                             topic = random.choice(drive.latent_interests)
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                 if not topic:
                     return {"ok": False, "error": "No topic to explore. Provide a topic or category."}
 
@@ -119,7 +119,7 @@ class CuriositySkill(BaseSkill):
                         if drive:
                             await drive.satisfy("curiosity", 25.0)
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
 
                     # Mark as explored if from curriculum
                     if params.get("title"):

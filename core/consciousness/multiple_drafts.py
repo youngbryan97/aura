@@ -159,7 +159,7 @@ class MultipleDraftsEngine:
             from core.container import ServiceContainer
             self._mesh_ref = ServiceContainer.get("neural_mesh", default=None)
         except Exception:
-            pass
+            pass  # no-op: intentional
         return self._mesh_ref
 
     # ── Input submission ─────────────────────────────────────────────

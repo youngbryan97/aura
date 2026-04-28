@@ -493,7 +493,7 @@ class AutonomousSelfModification:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe(topic, receipt.to_dict())
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ── Public API ──────────────────────────────────────────────────────
 

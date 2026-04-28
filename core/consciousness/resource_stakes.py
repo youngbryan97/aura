@@ -167,7 +167,7 @@ class ResourceStakesEngine:
             if nchem and hasattr(nchem, "apply_event"):
                 nchem.apply_event("prediction_success", intensity=0.2)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def _signal_stress(self, source: str, severity: float):
         """Signal neurochemical stress on failure."""
@@ -177,7 +177,7 @@ class ResourceStakesEngine:
             if nchem and hasattr(nchem, "apply_event"):
                 nchem.apply_event("resource_threat", intensity=severity * 0.3)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def get_compute_budget(self) -> float:
         """Current compute budget (0-1). Used by mind_tick to gate background work."""

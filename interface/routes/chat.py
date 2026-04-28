@@ -692,7 +692,7 @@ def _is_referential_followup_request(user_message: str) -> bool:
         if looks_like_deep_mind_probe(user_message):
             return False
     except Exception:
-        pass
+        pass  # no-op: intentional
     if any(marker in text for marker in _REFERENTIAL_FOLLOWUP_MARKERS):
         return True
     tokens = set(re.findall(r"\b\w+\b", text))
@@ -1136,7 +1136,7 @@ def _check_response_consistency(reply_text: str, user_message: str) -> tuple[boo
                 if (mentions_web and web_skills & available) or (mentions_desktop and desktop_skills & available):
                     return False, "false_inability_claim"
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # 2. Check for self-contradiction against active commitments
     try:
@@ -1153,7 +1153,7 @@ def _check_response_consistency(reply_text: str, user_message: str) -> tuple[boo
                     if matching >= 3 and any(neg in text_lower for neg in ("i don't", "i haven't", "i didn't", "i can't")):
                         return False, "commitment_contradiction"
     except Exception:
-        pass
+        pass  # no-op: intentional
 
     return True, ""
 
@@ -1380,7 +1380,7 @@ def _conversation_lane_user_message(
             elif _mood in {"curious", "playful", "amused"}:
                 _mood_prefix = "Hmm — "
     except Exception:
-        pass
+        pass  # no-op: intentional
 
     if status_override == "warming_timeout":
         return f"{_mood_prefix}my thinking engine started warming up but didn't quite get there in time. Give me another moment."
@@ -2596,7 +2596,7 @@ def _build_self_diagnostic_reply(user_message: str) -> str:
         try:
             parts.append(f"field coherence is {float(field_coherence):.3f}")
         except Exception:
-            pass
+            pass  # no-op: intentional
     if node_count is not None and edge_count is not None:
         parts.append(f"mycelial graph is {node_count} pathways / {edge_count} live links")
     if issues:
@@ -2645,7 +2645,7 @@ def _build_social_presence_reply(user_message: str) -> str:
             else:
                 parts.append("Curiosity is quiet but present.")
     except Exception:
-        pass
+        pass  # no-op: intentional
     return _apply_aura_voice_shaping(" ".join(parts))
 
 
@@ -3258,7 +3258,7 @@ def _build_live_conversation_repair(prefix: str, *, fallback: str) -> str:
         try:
             details.append(f"Free energy is {float(free_energy):.3f}.")
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     detail_text = " ".join(details).strip() or fallback
     return f"{prefix} {detail_text}".strip()
@@ -3683,7 +3683,7 @@ def _build_grounded_introspection_reply(
                     f"uptime {bs['uptime_s']}s."
                 )
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return "\n".join(parts) if parts else "I could not read my governance state."
 
@@ -4345,7 +4345,7 @@ async def api_chat(
                             try:
                                 gate._schedule_background_cortex_prewarm(delay=1.0)
                             except Exception:
-                                pass
+                                pass  # no-op: intentional
                         return await _finalize_fastpath(
                             _warmup_bypass_reply,
                             status="protected_foreground",
@@ -4367,7 +4367,7 @@ async def api_chat(
                                 try:
                                     gate._schedule_background_cortex_prewarm(delay=2.0)
                                 except Exception:
-                                    pass
+                                    pass  # no-op: intentional
                             return await _finalize_fastpath(
                                 _failure_bypass_reply,
                                 status="protected_foreground",
@@ -4382,7 +4382,7 @@ async def api_chat(
                 if gate and hasattr(gate, "_schedule_background_cortex_prewarm"):
                     gate._schedule_background_cortex_prewarm(delay=2.0)
             except Exception:
-                pass
+                pass  # no-op: intentional
             return JSONResponse(
                 {
                     "response": _conversation_lane_user_message(lane),
@@ -4493,7 +4493,7 @@ async def api_chat(
                         receipt_id=_gi_receipt_id,
                     )
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                 return await _finalize_fastpath(grounded_introspection, status=_gi_status)
 
         if _is_identity_request(body.message):

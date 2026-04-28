@@ -19,7 +19,7 @@ logger = logging.getLogger("aura.model_manager")
 
 
 class ModelLoadError(Exception):
-    pass
+    pass  # no-op: intentional
 
 
 class ModelManager:

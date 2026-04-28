@@ -384,7 +384,7 @@ class NeuralMesh:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("NeuralMesh STOPPED (ticks=%d)", self._tick_count)
 
@@ -403,7 +403,7 @@ class NeuralMesh:
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
         except asyncio.CancelledError:
-            pass
+            pass  # no-op: intentional
         finally:
             self._running = False
 

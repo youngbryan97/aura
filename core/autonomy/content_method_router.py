@@ -201,7 +201,7 @@ class MethodRouter:
         # Streaming-platform content (Netflix etc.) — can't directly download
         elif url and _host_of(url) in (_NETFLIX_HOSTS + _AMAZON_VIDEO_HOSTS):
             # Drop down — note that direct watch isn't available
-            pass
+            pass  # no-op: intentional
         # Title-only entries (no URL): try a curated-search approach
         elif title and not url:
             out.append(FetchAttempt(

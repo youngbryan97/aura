@@ -335,7 +335,7 @@ class NeurochemicalSystem:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("NeurochemicalSystem STOPPED")
 
@@ -353,7 +353,7 @@ class NeurochemicalSystem:
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
         except asyncio.CancelledError:
-            pass
+            pass  # no-op: intentional
 
     # ── Core tick ────────────────────────────────────────────────────────
 
@@ -459,7 +459,7 @@ class NeurochemicalSystem:
             if drive and hasattr(drive, "relieve_boredom"):
                 drive.relieve_boredom("tool_success")
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def on_frustration(self, amount: float = 0.3):
         """Frustration event."""
@@ -487,7 +487,7 @@ class NeurochemicalSystem:
                 if drive and hasattr(drive, "relieve_boredom"):
                     drive.relieve_boredom("novelty")
             except Exception:
-                pass
+                pass  # no-op: intentional
 
     def on_flow_state(self):
         """Entering or sustaining flow."""

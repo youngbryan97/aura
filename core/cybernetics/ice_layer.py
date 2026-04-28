@@ -36,7 +36,7 @@ class ICELayer:
                 from core.container import ServiceContainer
                 self._anomaly_detector = ServiceContainer.get("anomaly_detector", default=None)
             except Exception:
-                pass
+                pass  # no-op: intentional
             if self._anomaly_detector is None:
                 try:
                     from core.cognitive.anomaly_detector import AnomalyDetector
@@ -46,9 +46,9 @@ class ICELayer:
                         from core.container import ServiceContainer
                         ServiceContainer.register("anomaly_detector", self._anomaly_detector)
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                 except ImportError:
-                    pass
+                    pass  # no-op: intentional
         return self._anomaly_detector
 
     async def load(self):

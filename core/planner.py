@@ -933,4 +933,4 @@ Return ONLY the JSON object, no additional text."""
 class PlanningError(Exception):
     """Planning-related exception."""
 
-    pass
+    pass  # no-op: intentional

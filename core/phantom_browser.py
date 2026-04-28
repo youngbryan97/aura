@@ -233,12 +233,12 @@ class PhantomBrowser:
             try:
                 await old_page.close()
             except Exception:
-                pass
+                pass  # no-op: intentional
         if old_context:
             try:
                 await old_context.close()
             except Exception:
-                pass
+                pass  # no-op: intentional
         logger.info("✓ User Agent rotated to: %s...", ua[:30])
 
     async def is_blocked(self) -> bool:
@@ -509,7 +509,7 @@ class PhantomBrowser:
                 try:
                     await asyncio.wait_for(self.page.close(), timeout=3.0)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as e:
             record_degradation('phantom_browser', e)
             logger.debug("Page close error: %s", e)
@@ -518,7 +518,7 @@ class PhantomBrowser:
                 try:
                     await asyncio.wait_for(self.context.close(), timeout=5.0)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as e:
             record_degradation('phantom_browser', e)
             logger.debug("Context close error: %s", e)
@@ -527,7 +527,7 @@ class PhantomBrowser:
                 try:
                     await asyncio.wait_for(self.browser.close(), timeout=5.0)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as e:
             record_degradation('phantom_browser', e)
             logger.debug("Browser close error: %s", e)
@@ -536,7 +536,7 @@ class PhantomBrowser:
                 try:
                     await asyncio.wait_for(self.playwright.stop(), timeout=5.0)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as e:
             record_degradation('phantom_browser', e)
             logger.debug("Playwright stop error: %s", e)

@@ -8,7 +8,7 @@ class State:
 
 class CircuitBreaker(_CB):
     """Legacy wrapper for canonical CircuitBreaker."""
-    pass
+    pass  # no-op: intentional
 
 class CircuitManager:
     """Registry for circuit breakers (Legacy)."""

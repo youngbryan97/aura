@@ -61,7 +61,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
     ServiceContainer.register_instance("composer_node", ComposerNode())
 
     # 3. Consciousness & Resilience (Handled by Modular Providers)
-    pass
+    pass  # no-op: intentional
     
     from core.guardians.memory_guard import MemoryGuard
     memory_guard = MemoryGuard()

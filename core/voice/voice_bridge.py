@@ -63,7 +63,7 @@ class VoiceConversationBridge:
         if not voice_engine:
             logger.debug("VoiceBridge: No voice presence engine found. Dropping stream.")
             async for _ in stream:
-                pass
+                pass  # no-op: intentional
             return
 
         buffer: str = ""

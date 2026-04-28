@@ -61,7 +61,7 @@ class MemoryCoordinator:
     async def setup(self):
         """Initialize memory components."""
         logger.info("Initializing MemoryCoordinator...")
-        pass
+        pass  # no-op: intentional
 
     async def get_hot_memory(self, limit: int = 5) -> Dict[str, Any]:
         """Fetches 'hot' (short-term) memory context."""

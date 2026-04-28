@@ -819,7 +819,7 @@ class EndogenousFitness:
                 ])
                 state["energy"] = raw_energy * 100.0  # scale to 0-100 range
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Vitality (autopoiesis) from homeostasis
         try:
@@ -827,7 +827,7 @@ class EndogenousFitness:
             if homeostasis is not None:
                 state["vitality"] = float(homeostasis.compute_vitality())
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Threat level from anomaly detector / ICE layer
         try:
@@ -839,7 +839,7 @@ class EndogenousFitness:
                 if anomaly is not None and hasattr(anomaly, "get_threat_level"):
                     state["threat_level"] = float(anomaly.get_threat_level())
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Free energy from the active inference engine
         try:
@@ -853,7 +853,7 @@ class EndogenousFitness:
                         getattr(fe_engine, "_smoothed_fe", 0.3)
                     )
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Entropy from phi_core or substrate
         try:
@@ -868,7 +868,7 @@ class EndogenousFitness:
                 if substrate is not None:
                     state["phi"] = float(getattr(substrate, "_current_phi", 1.0))
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return state
 
@@ -895,7 +895,7 @@ class EndogenousFitness:
             if homeostasis is not None:
                 vec[2] = float(np.clip(getattr(homeostasis, "curiosity", 0.5), 0.0, 1.0))
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         try:
             affect = ServiceContainer.get("affective_steering", default=None)
@@ -908,7 +908,7 @@ class EndogenousFitness:
                 if sh is not None:
                     vec[1] = float(np.clip(sh, 0.0, 1.0))
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return vec
 

@@ -60,7 +60,7 @@ class MultimodalOrchestrator:
         if tasks:
             # We don't block the UI on long-running tasks like image gen or full speech,
             # but we trigger them together.
-            pass
+            pass  # no-op: intentional
 
     async def _pulse_expression(self, content: str, metadata: Optional[Dict[str, Any]]):
         """Analyze content for visual expression markers."""

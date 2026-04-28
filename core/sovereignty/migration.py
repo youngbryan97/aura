@@ -321,7 +321,7 @@ class MigrationOrchestrator:
                 try:
                     os.fsync(fh.fileno())
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as exc:
             record_degradation('migration', exc)
             logger.warning("migration ledger append failed: %s", exc)

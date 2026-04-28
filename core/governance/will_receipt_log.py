@@ -55,7 +55,7 @@ def append(entry: WillReceiptEntry) -> None:
             try:
                 os.fsync(fh.fileno())
             except Exception:
-                pass
+                pass  # no-op: intentional
     except Exception as exc:
         record_degradation('will_receipt_log', exc)
         logger.warning("will receipt append failed: %s", exc)

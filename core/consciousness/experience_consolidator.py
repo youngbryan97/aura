@@ -254,7 +254,7 @@ class ExperienceConsolidator:
         try:
             from core.consciousness.metacognition import MetaCognitionEngine
             # Can't easily get the global engine here; skip gracefully
-            pass
+            pass  # no-op: intentional
         except Exception as _exc:
             record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
@@ -262,7 +262,7 @@ class ExperienceConsolidator:
         # 5. OmniReflector reflections
         try:
             from core.consciousness.metacognition import MetaCognitionEngine
-            pass
+            pass  # no-op: intentional
         except Exception as _exc:
             record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)

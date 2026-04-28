@@ -247,7 +247,7 @@ class ProjectLedger:
                 try:
                     os.fsync(fh.fileno())
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
 
     def _load(self) -> None:
         if not self.path.exists():

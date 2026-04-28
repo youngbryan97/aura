@@ -402,7 +402,7 @@ class GUIChatWindow:
                         chat_display.config(state=tk.DISABLED)
                         chat_display.see(tk.END)
                 except queue.Empty:
-                    pass
+                    pass  # no-op: intentional
                 except Exception as e:
                     record_degradation('external_chat', e)
                     logger.debug("GUI outgoing pump failed: %s", e, exc_info=True)
@@ -470,7 +470,7 @@ class GUIChatWindow:
                 # Need to run in main thread if possible, or trigger event
                 # Tkinter isn't thread safe for destroy from other threads usually
                 # But for now basic implementation
-                pass 
+                pass  # no-op: intentional
             except Exception as exc:
                 record_degradation('external_chat', exc)
                 logger.debug("Suppressed: %s", exc)

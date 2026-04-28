@@ -68,7 +68,7 @@ class ConversationReflector:
         # Update NarrativeThread with the "vibe" of the conversation
         if self._narrative:
             # We can't easily derive 'vibe' without LLM here, so we skip or use simple logic
-            pass
+            pass  # no-op: intentional
 
     def get_status(self) -> Dict[str, Any]:
         return {"last_reflection": self._last_reflection}

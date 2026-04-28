@@ -188,7 +188,7 @@ class IncomingLogicMixin:
                 from core.world_state import get_world_state
                 get_world_state().on_user_message(message=safe_msg if isinstance(safe_msg, str) else "")
             except Exception:
-                pass
+                pass  # no-op: intentional
 
             # DriveEngine: Satisfy social drive on user contact + relieve boredom
             try:
@@ -198,7 +198,7 @@ class IncomingLogicMixin:
                     if hasattr(drive, "relieve_boredom"):
                         drive.relieve_boredom("user_interaction")
             except Exception:
-                pass
+                pass  # no-op: intentional
 
             # NeurochemicalSystem: user interaction triggers novelty + social
             try:
@@ -207,7 +207,7 @@ class IncomingLogicMixin:
                     ncs.on_social_connection(0.2)
                     ncs.on_novelty(0.15)
             except Exception:
-                pass
+                pass  # no-op: intentional
 
             # Zenith Hardening: Reset boredom and learning cooldowns
             if hasattr(self, 'volition') and self.volition:
@@ -266,7 +266,7 @@ class IncomingLogicMixin:
                 if autonomic and hasattr(autonomic, '_reset_idle_swap'):
                     autonomic._reset_idle_swap()
             except Exception:
-                pass
+                pass  # no-op: intentional
             # Standardize: Always append to conversation history early for traceability
             if not hasattr(self, 'conversation_history'):
                 self.conversation_history = []
@@ -307,7 +307,7 @@ class IncomingLogicMixin:
                                 {"error": repr(_will_exc), "source": "vector_memory"},
                             )
                         except Exception:
-                            pass
+                            pass  # no-op: intentional
                         logger.warning(
                             "Governance unavailable for memory_write — denying action (fail-closed): %s",
                             _will_exc,
@@ -365,7 +365,7 @@ class IncomingLogicMixin:
                         {"error": repr(_will_exc), "source": "cognitive_background"},
                     )
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                 logger.warning(
                     "Governance unavailable for state_mutation — denying internal update (fail-closed): %s",
                     _will_exc,
@@ -440,7 +440,7 @@ class IncomingLogicMixin:
                         try:
                             await asyncio.wait_for(asyncio.shield(task), timeout=grace_wait_s)
                         except (TimeoutError, asyncio.CancelledError, asyncio.exceptions.TimeoutError):
-                            pass
+                            pass  # no-op: intentional
 
                     if task.done():
                         try:

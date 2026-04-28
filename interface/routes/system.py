@@ -178,12 +178,12 @@ def _json_safe(value: Any) -> Any:
         try:
             return _json_safe(value.item())
         except Exception:
-            pass
+            pass  # no-op: intentional
     if hasattr(value, "tolist") and not isinstance(value, (str, bytes, bytearray)):
         try:
             return _json_safe(value.tolist())
         except Exception:
-            pass
+            pass  # no-op: intentional
     try:
         coerced = float(value)
     except (TypeError, ValueError):

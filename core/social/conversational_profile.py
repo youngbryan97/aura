@@ -688,11 +688,11 @@ class ConversationalProfiler:
 
     def on_start(self) -> None:
         """Called by ServiceContainer on initialization."""
-        pass
+        pass  # no-op: intentional
 
     async def on_start_async(self) -> None:
         """Async lifecycle hook."""
-        pass
+        pass  # no-op: intentional
 
 
 # ---------------------------------------------------------------------------

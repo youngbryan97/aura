@@ -68,7 +68,7 @@ class LurkerSkill(BaseSkill):
                     try:
                         await browser.close()
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                 
                 if not headlines:
                     return {"ok": False, "error": "No headlines found."}

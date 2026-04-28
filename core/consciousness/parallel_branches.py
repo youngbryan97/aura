@@ -516,7 +516,7 @@ class BranchManager:
             try:
                 await asyncio.wait_for(asyncio.shield(branch._task), timeout=2.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
+                pass  # no-op: intentional
         branch.state = BranchState.FAILED
         self._publish_event("branch.cancelled", {
             "branch_id": branch.branch_id,
@@ -583,7 +583,7 @@ class BranchManager:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe(topic, data)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ------------------------------------------------------------------
     # Public API: yield point for branch work functions

@@ -745,7 +745,7 @@ class UnifiedWill:
                 "timestamp": decision.timestamp,
             })
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     @staticmethod
     def _make_receipt_id(ts: float, source: str, content: str) -> str:

@@ -141,18 +141,18 @@ def _read_substrate() -> Dict[str, Any]:
         if homeo is not None and hasattr(homeo, "snapshot"):
             out["homeo"] = homeo.snapshot() or {}
     except Exception:
-        pass
+        pass  # no-op: intentional
     try:
         import psutil
         out["cpu_pct"] = psutil.cpu_percent(interval=None)
         out["ram_pct"] = psutil.virtual_memory().percent
     except Exception:
-        pass
+        pass  # no-op: intentional
     try:
         from core.organism.viability import get_viability
         out["viability"] = get_viability().state.value
     except Exception:
-        pass
+        pass  # no-op: intentional
     return out
 
 
@@ -298,7 +298,7 @@ class IoTBridge:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
 
 

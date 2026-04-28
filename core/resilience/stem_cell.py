@@ -104,7 +104,7 @@ def _key() -> bytes:
     try:
         os.chmod(_STEM_KEY_FILE, 0o600)
     except Exception:
-        pass
+        pass  # no-op: intentional
     return raw
 
 

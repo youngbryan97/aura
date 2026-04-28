@@ -58,7 +58,7 @@ class TurnReceipt:
 
 
 class TurnTransactionError(RuntimeError):
-    pass
+    pass  # no-op: intentional
 
 
 class TurnTransaction:

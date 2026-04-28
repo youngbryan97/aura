@@ -25,7 +25,7 @@ class ComputerInterface(ABC):
 
     @abstractmethod
     async def __aenter__(self) -> ComputerInterface:
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def __aexit__(
@@ -34,59 +34,59 @@ class ComputerInterface(ABC):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def screenshot(self) -> bytes:
         """Capture a screenshot and return as bytes."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def click_at(self, x: int, y: int) -> None:
         """Click at the specified coordinates."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def type_text(self, text: str) -> None:
         """Type text at the current cursor position."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def type_text_at(self, x: int, y: int, text: str) -> None:
         """Click and type text."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def key(self, key_combination: str) -> None:
         """Press a keyboard key or combination."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def scroll(self, dx: int, dy: int) -> None:
         """Scroll the current view."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def scroll_at(self, x: int, y: int, dx: int, dy: int) -> None:
         """Scroll at a specific coordinate."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def drag(self, start_x: int, start_y: int, end_x: int, end_y: int) -> None:
         """Drag from start to end coordinate."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def navigate(self, url: str) -> None:
         """Navigate to URL (if browser backend)."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def get_url(self) -> str:
         """Get the current URL (if browser backend)."""
-        pass
+        pass  # no-op: intentional
 
     @abstractmethod
     async def get_html(self) -> str:
         """Get the current DOM HTML (if browser backend)."""
-        pass
+        pass  # no-op: intentional

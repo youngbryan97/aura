@@ -23,7 +23,7 @@ def _fsync_parent(path: Path) -> None:
         finally:
             os.close(fd)
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 def atomic_write_text_owned(
@@ -48,7 +48,7 @@ def atomic_write_text_owned(
         atomic_write_text(path, text, schema_version=schema_version, schema_name=schema_name)
         return
     except Exception:
-        pass
+        pass  # no-op: intentional
 
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
     tmp = Path(tmp_name)
@@ -64,7 +64,7 @@ def atomic_write_text_owned(
             if tmp.exists():
                 tmp.unlink()
         except Exception:
-            pass
+            pass  # no-op: intentional
 
 
 def atomic_write_json_owned(
@@ -90,7 +90,7 @@ def atomic_write_json_owned(
         )
         return
     except Exception:
-        pass
+        pass  # no-op: intentional
 
     envelope = {
         "schema_name": schema_name,

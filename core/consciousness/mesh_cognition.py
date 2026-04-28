@@ -159,7 +159,7 @@ class MeshCognition:
                     if val is not None:
                         signals[key] = float(val)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Substrate
         try:
@@ -173,7 +173,7 @@ class MeshCognition:
                     except Exception:
                         continue
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Resource stakes
         try:
@@ -189,7 +189,7 @@ class MeshCognition:
                 signals["stakes_blocked"] = float(0.0 if envelope.allowed else 1.0)
                 signals["stakes_effort"] = float({"repair_only": 0.0, "low": 0.33, "normal": 0.66, "high": 1.0}.get(envelope.effort, 0.5))
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Global workspace winner (if available)
         try:
@@ -201,7 +201,7 @@ class MeshCognition:
                 if winner is not None:
                     signals["gwt_priority"] = float(getattr(winner, "priority", 0.0) or 0.0)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return signals
 

@@ -35,7 +35,7 @@ FORBIDDEN_MODULES = frozenset({
 
 
 class SecurityViolation(Exception):
-    pass
+    pass  # no-op: intentional
 
 
 class ASTGuard(ast.NodeVisitor):

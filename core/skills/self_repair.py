@@ -132,7 +132,7 @@ class SelfRepairSkill(BaseSkill):
                     success=True,
                 )
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # 7. Record in WorldState
         try:
@@ -144,7 +144,7 @@ class SelfRepairSkill(BaseSkill):
                 ttl=3600,
             )
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return {
             "ok": True,

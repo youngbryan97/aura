@@ -167,7 +167,7 @@ def _collect_integration() -> Dict[str, Any]:
                     continue
                 out[attr] = v
     except Exception:
-        pass
+        pass  # no-op: intentional
     try:
         hp = ServiceContainer.get("hierarchical_phi", default=None)
         if hp is not None and hasattr(hp, "last_result"):
@@ -176,7 +176,7 @@ def _collect_integration() -> Dict[str, Any]:
                 out["hierarchical_max_complex"] = getattr(r, "max_complex_name", None)
                 out["hierarchical_max_phi"] = getattr(r, "max_phi", None)
     except Exception:
-        pass
+        pass  # no-op: intentional
     try:
         gw = ServiceContainer.get("global_workspace", default=None)
         if gw is not None and hasattr(gw, "last_winner"):
@@ -184,7 +184,7 @@ def _collect_integration() -> Dict[str, Any]:
             out["gw_winner_source"] = getattr(w, "source", None)
             out["gw_winner_priority"] = getattr(w, "priority", None)
     except Exception:
-        pass
+        pass  # no-op: intentional
     return out
 
 

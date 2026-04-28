@@ -68,7 +68,7 @@ class SelfEvolutionSkill(BaseSkill):
             if brain:
                 return brain
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         try:
             from core.brain.cognitive_engine import cognitive_engine

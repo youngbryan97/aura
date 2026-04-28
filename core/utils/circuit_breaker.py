@@ -2,7 +2,7 @@
 from core.resilience.circuit_breaker import CircuitBreaker as _CB
 
 class CircuitOpen(Exception):
-    pass
+    pass  # no-op: intentional
 
 class CircuitBreaker(_CB):
     """Legacy wrapper for canonical CircuitBreaker."""

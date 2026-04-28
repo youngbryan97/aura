@@ -104,7 +104,7 @@ def _record(p: PipelineProposal, event: str, payload: Optional[Dict[str, Any]] =
             try:
                 os.fsync(fh.fileno())
             except Exception:
-                pass
+                pass  # no-op: intentional
     except Exception as exc:
         record_degradation('safe_pipeline', exc)
         logger.warning("self-mod pipeline ledger append failed: %s", exc)
@@ -236,7 +236,7 @@ class SafePipeline:
             try:
                 shutil.rmtree(sandbox, ignore_errors=True)
             except Exception:
-                pass
+                pass  # no-op: intentional
 
     # ─── helpers ────────────────────────────────────────────────────────
 
@@ -311,7 +311,7 @@ class SafePipeline:
                         regression = True
                         break
             except Exception:
-                pass
+                pass  # no-op: intentional
             await asyncio.sleep(2.0)
 
         if regression:

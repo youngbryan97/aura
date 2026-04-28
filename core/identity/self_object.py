@@ -325,7 +325,7 @@ class SelfObject:
                 if isinstance(d, dict):
                     return {k: float(v) for k, v in d.items() if isinstance(v, (int, float))}
         except Exception:
-            pass
+            pass  # no-op: intentional
         return {}
 
     @staticmethod
@@ -337,7 +337,7 @@ class SelfObject:
                 if isinstance(d, dict):
                     return {k: float(v) for k, v in d.items() if isinstance(v, (int, float))}
         except Exception:
-            pass
+            pass  # no-op: intentional
         return {}
 
     @staticmethod
@@ -356,7 +356,7 @@ class SelfObject:
                 lst = engine.active() or []
                 return [g if isinstance(g, dict) else {"name": str(g)} for g in lst[:8]]
         except Exception:
-            pass
+            pass  # no-op: intentional
         return []
 
     @staticmethod
@@ -399,7 +399,7 @@ class SelfObject:
             if bg and hasattr(bg, "recent_revisions"):
                 return list(bg.recent_revisions(limit=8) or [])
         except Exception:
-            pass
+            pass  # no-op: intentional
         return []
 
     @staticmethod
@@ -409,7 +409,7 @@ class SelfObject:
             if mem and hasattr(mem, "recent_consolidations"):
                 return list(mem.recent_consolidations(limit=8) or [])
         except Exception:
-            pass
+            pass  # no-op: intentional
         return []
 
     @staticmethod
@@ -419,7 +419,7 @@ class SelfObject:
             if sm and hasattr(sm, "recent_proposals"):
                 return list(sm.recent_proposals(limit=8) or [])
         except Exception:
-            pass
+            pass  # no-op: intentional
         return []
 
     @staticmethod
@@ -430,7 +430,7 @@ class SelfObject:
             if kgm and hasattr(kgm, "open_questions"):
                 return list(kgm.open_questions(limit=8) or [])
         except Exception:
-            pass
+            pass  # no-op: intentional
         return []
 
     @staticmethod
@@ -441,7 +441,7 @@ class SelfObject:
             if mem and hasattr(mem, "stale_memories"):
                 return list(mem.stale_memories(limit=5) or [])
         except Exception:
-            pass
+            pass  # no-op: intentional
         return []
 
 

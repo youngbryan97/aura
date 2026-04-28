@@ -819,7 +819,7 @@ class HierarchicalPhi:
         try:
             self._executor.shutdown(wait=False, cancel_futures=True)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
 
 # ── Singleton-style accessor ──────────────────────────────────────────────────

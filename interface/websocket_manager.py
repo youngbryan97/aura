@@ -23,7 +23,7 @@ try:
     from websockets.exceptions import ConnectionClosed
 except ImportError:
     class ConnectionClosed(Exception):   # type: ignore[no-redef]
-        pass
+        pass  # no-op: intentional
 
 from fastapi import WebSocketDisconnect
 
@@ -242,7 +242,7 @@ class WebSocketManager:
                     logger.error("Error in WS pump loop: %s", e)
                     break
         except (WebSocketDisconnect, ConnectionClosed):
-            pass
+            pass  # no-op: intentional
         except Exception as e:
             record_degradation('websocket_manager', e)
             logger.error("Error pumping messages to client: %s", e)
@@ -283,7 +283,7 @@ class WebSocketManager:
                     await self.disconnect(websocket)
                     break
         except asyncio.CancelledError:
-            pass
+            pass  # no-op: intentional
 
     async def broadcast(self, message: dict):
         """Send a JSON-serializable dict to all clients via their queues."""

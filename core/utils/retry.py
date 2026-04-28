@@ -122,7 +122,7 @@ async def retry_with_backoff(
                 try:
                     on_retry(attempt + 1, e, delay)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
 
             logger.info(
                 "Retry %d/%d in %.1fs: %s",

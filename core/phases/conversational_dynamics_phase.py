@@ -187,7 +187,7 @@ class ConversationalDynamicsPhase(Phase):
                     if affect_engine:
                         hot_engine.apply_feedback(affect_engine)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                 hot_block = hot_engine.get_context_block()
                 if hot_block:
                     new_state.response_modifiers["higher_order_thought"] = hot_block
@@ -340,7 +340,7 @@ class ConversationalDynamicsPhase(Phase):
                             trust_level=float(profile_data.get("trust", 0.5)),
                         )
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                 # Compute intersubjective frame from current qualia state
                 try:
                     qs = ServiceContainer.get("qualia_synthesizer", default=None)
@@ -355,7 +355,7 @@ class ConversationalDynamicsPhase(Phase):
                         if isub_block:
                             new_state.response_modifiers["intersubjectivity"] = isub_block
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
             except Exception as exc:
                 record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: intersubjectivity skipped: %s", exc)

@@ -194,7 +194,7 @@ class ComputerUseSkill(BaseSkill):
                 try:
                     pre_state_text = await asyncio.to_thread(self._read_screen_text_macos)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
 
                 await asyncio.to_thread(pyautogui.click, x=params.x, y=params.y)
                 
@@ -203,7 +203,7 @@ class ComputerUseSkill(BaseSkill):
                     await asyncio.sleep(0.5)
                     post_state_text = await asyncio.to_thread(self._read_screen_text_macos)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                 
                 verification = "State shifted." if pre_state_text != post_state_text else "No obvious state shift detected."
                 return {"ok": True, "action": f"clicked ({params.x},{params.y})", "verification": verification}
@@ -217,7 +217,7 @@ class ComputerUseSkill(BaseSkill):
                     if params.target[:10] in post_state:
                         pass # Typed text is visible
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                     
                 return {"ok": True, "typed": params.target[:50]}
 

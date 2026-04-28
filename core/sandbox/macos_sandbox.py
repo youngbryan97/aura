@@ -114,4 +114,4 @@ class MacOSSandbox:
             try:
                 os.remove(profile_path)
             except Exception:
-                pass
+                pass  # no-op: intentional

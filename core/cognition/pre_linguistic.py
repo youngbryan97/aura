@@ -426,7 +426,7 @@ class PreLinguisticEngine:
                 "latency_ms": round(latency_ms, 3),
             })
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         logger.debug(
             "PreLinguistic: %s via %s (%s) -- %.1fms",

@@ -378,14 +378,14 @@ class CodeGraph:
                 try:
                     ann = f": {ast.unparse(arg.annotation)}"
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
             args.append(f"{arg.arg}{ann}")
         ret = ""
         if node.returns:
             try:
                 ret = f" -> {ast.unparse(node.returns)}"
             except Exception:
-                pass
+                pass  # no-op: intentional
         return f"({', '.join(args)}){ret}"
 
     @staticmethod

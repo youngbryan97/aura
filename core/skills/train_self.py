@@ -174,7 +174,7 @@ class TrainSelfSkill(BaseSkill):
                 f.write("\n".join(new_knowledge))
                 
             # 4. Clear buffer
-            Path(self.dataset_path).write_text("")
+            atomic_write_text(Path(self.dataset_path), "")
             
             return {
                 "ok": True,

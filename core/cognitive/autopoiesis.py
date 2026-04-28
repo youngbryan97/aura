@@ -338,7 +338,7 @@ class AutopoiesisEngine:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("Autopoiesis background loop STOPPED")
 

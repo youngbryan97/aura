@@ -85,7 +85,7 @@ class StreamingCoordinator:
             try:
                 q.put_nowait(ev)
             except Exception:
-                pass
+                pass  # no-op: intentional
         return ev
 
     async def close(self, turn_id: str) -> None:

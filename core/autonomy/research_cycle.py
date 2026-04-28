@@ -128,7 +128,7 @@ class ResearchCycle:
                 await self._task
             except (asyncio.CancelledError, Exception):
                 logger.debug("Suppressed bare exception")
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("ResearchCycle daemon stopped.")
 

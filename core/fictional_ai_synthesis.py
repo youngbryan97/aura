@@ -73,7 +73,7 @@ logger = logging.getLogger("Aura.FictionalSynthesis")
 class FictionalEngine:
     """Shim for legacy/orphaned references to FictionalEngine."""
     def __init__(self, *args, **kwargs):
-        pass
+        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENGINE 1: JARVIS — ProactiveAnticipationEngine

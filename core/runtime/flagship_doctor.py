@@ -112,7 +112,7 @@ def _log_candidates(root: Path) -> list[Path]:
             try:
                 candidates.extend(sorted(base.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)[:10])
             except Exception:
-                pass
+                pass  # no-op: intentional
     return candidates
 
 

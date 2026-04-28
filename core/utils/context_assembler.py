@@ -104,7 +104,7 @@ class ContextAssembler:
                 if mem:
                     # Summary of relevant memories based on objective
                     # (This is usually done in the cognitive cycle, but we can provide a hook)
-                    pass
+                    pass  # no-op: intentional
             except Exception as e:
                 record_degradation('context_assembler', e)
                 logger.debug("Failed to gather memory: %s", e)

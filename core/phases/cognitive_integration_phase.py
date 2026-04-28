@@ -473,7 +473,7 @@ class CognitiveIntegrationPhase(Phase):
                 if neurochems and hasattr(neurochems, "set_ei_target"):
                     neurochems.set_ei_target(ei_ratio)
             except Exception:
-                pass
+                pass  # no-op: intentional
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
             logger.debug("Criticality regulation skipped: %s", exc)

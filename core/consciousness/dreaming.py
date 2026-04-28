@@ -160,7 +160,7 @@ class DreamingProcess:
         for word, freq in top_words:
             if freq < 2 and len(patterns) >= 3:
                 # Include at least a few single-occurrence novel patterns
-                pass
+                pass  # no-op: intentional
             # Determine domain for this word
             word_domain = "general"
             for domain, keywords in domain_keywords.items():

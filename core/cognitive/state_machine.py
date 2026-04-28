@@ -67,7 +67,7 @@ class StateMachine:
 
     class _GenericStreamPreamble(RuntimeError):
         """Raised when a streamed reply starts in generic assistant mode."""
-        pass
+        pass  # no-op: intentional
 
     def _gather_cognitive_context(self, user_input: str) -> str:
         """v48: Query cognitive subsystems to modulate LLM output.

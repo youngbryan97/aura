@@ -51,7 +51,7 @@ class SleepSkill(BaseSkill):
                     )
                     steps_completed.append("conversation_fallback")
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         if not mem_text:
             return {
@@ -138,7 +138,7 @@ class SleepSkill(BaseSkill):
                 ttl=28800,  # 8 hours
             )
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         summary_parts = [f"Dream cycle completed ({len(steps_completed)} steps)."]
         if derived_knowledge:

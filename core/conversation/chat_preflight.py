@@ -193,7 +193,7 @@ def _ensure_dir(path: Path) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 def _read_all(path: Path = PENDING_QUEUE_PATH) -> List[Dict[str, Any]]:

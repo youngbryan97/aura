@@ -355,7 +355,7 @@ class FeedbackProcessor:
                 "timestamp": feedback.timestamp,
             })
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     @staticmethod
     def _make_id(ts: float, action_name: str) -> str:

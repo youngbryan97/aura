@@ -286,7 +286,7 @@ class NucleusManager(LLMProvider):
                 else:
                     mx.clear_cache()
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         temp = kwargs.get("temp", kwargs.get("temperature"))
         

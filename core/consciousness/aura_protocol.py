@@ -253,7 +253,7 @@ class AuraProtocolServer:
             try:
                 await writer.wait_closed()
             except Exception:
-                pass
+                pass  # no-op: intentional
 
     async def _process_message(self, payload: bytes) -> None:
         """Validate and dispatch a received message."""
@@ -410,7 +410,7 @@ class AuraProtocolClient:
             try:
                 await self._writer.wait_closed()
             except Exception:
-                pass
+                pass  # no-op: intentional
         self._connected = False
         self._reader = None
         self._writer = None
@@ -543,7 +543,7 @@ def build_message_from_state(
             status = will.get_status()
             identity_name = status.get("identity_name", identity_name)
     except Exception:
-        pass
+        pass  # no-op: intentional
 
     return AuraMessage(
         intent=intent,

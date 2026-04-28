@@ -252,7 +252,7 @@ class AestheticEngine:
                 self._valence = v
                 self._arousal = a
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Neurochemical system
         try:
@@ -320,7 +320,7 @@ class AestheticEngine:
             if qs:
                 self._pri = getattr(qs, "pri", 0.5)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ── Zone helpers ─────────────────────────────────────────────────────
 

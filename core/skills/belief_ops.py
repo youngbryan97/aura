@@ -152,7 +152,7 @@ class AddBeliefSkill(BaseSkill):
             from core.thought_stream import get_emitter
             get_emitter().emit("Belief Updated", summary, level="info", category="WorldModel")
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return {
             "ok": True,

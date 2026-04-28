@@ -58,7 +58,7 @@ def estimate_tokens(text: str) -> int:
         try:
             return len(_T_ENCODING.encode(text, disallowed_special=()))
         except Exception:
-            pass
+            pass  # no-op: intentional
     return max(1, len(text) // 4)
 
 

@@ -278,7 +278,7 @@ class AffectiveCircumplex:
             if ncs is not None:
                 return ncs
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         try:
             from core.consciousness.neurochemical_system import (

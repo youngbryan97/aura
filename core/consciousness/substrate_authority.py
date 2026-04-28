@@ -400,7 +400,7 @@ class SubstrateAuthority:
             elif decision == AuthorizationDecision.CONSTRAIN:
                 self._neurochemical_ref.chemicals["norepinephrine"].surge(0.05)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ── Audit ────────────────────────────────────────────────────────
 
@@ -424,7 +424,7 @@ class SubstrateAuthority:
                 reason=verdict.reason,
             )
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def get_status(self) -> Dict:
         return {

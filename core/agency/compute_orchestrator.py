@@ -193,7 +193,7 @@ class ComputeOrchestrator:
                     temp = max(all_temps) if all_temps else None
             except (AttributeError, NotImplementedError):
                 logger.debug("Suppressed bare exception")
-                pass
+                pass  # no-op: intentional
 
             return float(cpu), float(ram), temp
         except Exception:

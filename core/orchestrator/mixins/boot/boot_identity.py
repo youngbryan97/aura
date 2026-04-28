@@ -170,7 +170,7 @@ class BootIdentityMixin:
 
             # 5. Moral Agency & Personality (The 'Soul')
             # integrate_complete_moral_and_sensory_systems is now handled in _integrate_systems only
-            pass
+            pass  # no-op: intentional
 
             logger.info("✓ Core Architecture ACTIVE")
 

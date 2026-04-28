@@ -185,7 +185,7 @@ class CuriosityScheduler:
             try:
                 research_triggers.mark_consumed(decision.triggered_by)
             except Exception:
-                pass
+                pass  # no-op: intentional
         logger.info(
             "scheduler: item=%r outcome=%s score=%.3f reason=%r",
             decision.item.title, outcome, decision.score, decision.reason,

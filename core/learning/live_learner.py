@@ -258,7 +258,7 @@ class LiveLearner:
                 await asyncio.wait_for(self._training_task, timeout=5.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 logger.debug("Suppressed bare exception")
-                pass
+                pass  # no-op: intentional
         logger.info("Learner stopped.")
 
     # ── Public interface ──────────────────────────────────────────────────────

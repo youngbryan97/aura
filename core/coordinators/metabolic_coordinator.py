@@ -420,7 +420,7 @@ class MetabolicCoordinator:
                 from core.morphogenesis.hooks import should_suppress_autonomous_initiative
                 _morph_suppress = should_suppress_autonomous_initiative()
             except Exception:
-                pass
+                pass  # no-op: intentional
             if self._consume_energy(0.1) and not _morph_suppress:
                 await self.trigger_autonomous_thought(bool(message))
             
@@ -454,7 +454,7 @@ class MetabolicCoordinator:
                 from core.morphogenesis.hooks import observe_orchestrator_exception
                 observe_orchestrator_exception(subsystem="metabolic_coordinator", exc=e)
             except Exception:
-                pass
+                pass  # no-op: intentional
             return False
 
     # ------------------------------------------------------------------

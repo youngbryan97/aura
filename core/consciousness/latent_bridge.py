@@ -156,7 +156,7 @@ class LatentReadoutHook:
 
         # Use dynamic subclassing (same pattern as AffectiveSteering)
         class ReadoutBlock(current_class):
-            pass
+            pass  # no-op: intentional
 
         setattr(ReadoutBlock, target_name, readout_wrapper)
         block.__class__ = ReadoutBlock

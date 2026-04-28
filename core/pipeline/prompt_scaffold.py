@@ -57,7 +57,7 @@ Begin your structured reasoning:"""
 Respond concisely and directly."""
 
     def __init__(self):
-        pass
+        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
 
     def build_structured_prompt(
         self,

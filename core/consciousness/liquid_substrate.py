@@ -879,7 +879,7 @@ class LiquidSubstrate:
             if battery and not battery.power_plugged:
                 multiplier = max(multiplier, 4.0 if battery.percent < 20 else 2.0)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         try:
             from core.container import ServiceContainer

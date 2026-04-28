@@ -128,7 +128,7 @@ os.environ["AURA_INTERNAL_ONLY"] = "1"
 _stub = types.ModuleType("core.managers.health_monitor")
 class _GhostHealthMonitor:
     def __init__(self, *args, **kwargs):
-        pass
+        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
 _stub.HealthMonitor = _GhostHealthMonitor
 sys.modules["core.managers.health_monitor"] = _stub
 

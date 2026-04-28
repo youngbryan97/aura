@@ -477,7 +477,7 @@ class GeminiAdapter:
         
         if contents:
             # Already built via messages
-            pass
+            pass  # no-op: intentional
         else:
             # Final guard: filter out any parts with empty/None text
             parts = [p for p in parts] if isinstance(parts, list) else []
@@ -624,7 +624,7 @@ class GeminiAdapter:
 
     async def unload_models(self):
         """No-op for API models — nothing to unload."""
-        pass
+        pass  # no-op: intentional
     
     async def generate_stream(self, prompt: str, system_prompt: str = None, **kwargs):
         """Alias for generate_text_stream_async — matches the interface expected by LLMRouter.think_stream."""

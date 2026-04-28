@@ -409,7 +409,7 @@ class ExecutiveClosureEngine:
                 field_coherence = quality.get("coherence", 0.6)
                 field_valence = quality.get("valence", 0.0)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         try:
             ncs = ServiceContainer.get("neurochemical_system", default=None)
@@ -419,7 +419,7 @@ class ExecutiveClosureEngine:
                 chem_motivation = mood.get("motivation", 0.5)
                 chem_sociality = mood.get("sociality", 0.4)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         try:
             intero = ServiceContainer.get("embodied_interoception", default=None)
@@ -428,7 +428,7 @@ class ExecutiveClosureEngine:
                 body_budget = bb.get("budget", 0.0)
                 body_energy = bb.get("energy_reserves", 0.5)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # Stability pressure: now includes field incoherence + chemical stress +
         # body energy deficit — the substrate IS the stability signal.
@@ -809,7 +809,7 @@ class ExecutiveClosureEngine:
             if mods.get("task_completed") or mods.get("response_completed_task"):
                 return True
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         try:
             verifier = ServiceContainer.get("task_commitment_verifier", default=None)
@@ -819,7 +819,7 @@ class ExecutiveClosureEngine:
                     # Don't instantly release; allow the response phase to finish.
                     return self._commitment.age_s(time.time()) > self._commitment.min_hold_s
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return False
 

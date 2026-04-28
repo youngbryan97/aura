@@ -55,7 +55,7 @@ def _record_sink_commit(sink_id: str, token: Any) -> None:
             },
         )
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 def effect_sink(

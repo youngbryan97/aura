@@ -112,7 +112,7 @@ class ContinuousSubstrate:
             try:
                 await asyncio.wait_for(self._task, timeout=2.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
+                pass  # no-op: intentional
         logger.info("🧠 [SUBSTRATE] ODE substrate halted (real-mode).")
 
     def inject_input(self, vector: np.ndarray) -> None:

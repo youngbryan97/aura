@@ -171,7 +171,7 @@ class TelemetryEmitter:
             try:
                 listener(event)
             except Exception:
-                pass
+                pass  # no-op: intentional
 
     def add_listener(self, listener: Callable[[TelemetryEvent], Any]) -> None:
         self._listeners.append(listener)

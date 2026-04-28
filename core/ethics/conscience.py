@@ -151,7 +151,7 @@ def _install_rules_hash() -> None:
         try:
             os.chmod(_RULES_HASH_PATH, 0o400)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
 
 _install_rules_hash()
@@ -289,7 +289,7 @@ class Conscience:
                 try:
                     os.fsync(fh.fileno())
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as exc:
             record_degradation('conscience', exc)
             logger.warning("conscience violation log write failed: %s", exc)

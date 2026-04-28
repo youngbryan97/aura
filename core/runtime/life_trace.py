@@ -139,7 +139,7 @@ class LifeTraceLedger:
     ) -> LifeTraceEvent:
         if event_type not in EVENT_TYPES:
             # Allow new types but keep the set visible to reviewers
-            pass
+            pass  # no-op: intentional
         ts = time.time()
         payload = {
             "event_type": event_type,

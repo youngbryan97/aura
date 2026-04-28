@@ -146,7 +146,7 @@ class OntologicalPlayEngine:
             from core.consciousness.predictive_coding import predict_consistency
             consistency = float(predict_consistency(a, b))
         except Exception:
-            pass
+            pass  # no-op: intentional
         return PlayCombination(
             seed_a=a,
             seed_b=b,

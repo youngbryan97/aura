@@ -141,7 +141,7 @@ class OscillatoryBinding:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("OscillatoryBinding STOPPED")
 
@@ -171,7 +171,7 @@ class OscillatoryBinding:
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, internal_interval - elapsed))
         except asyncio.CancelledError:
-            pass
+            pass  # no-op: intentional
 
     # ── Oscillator dynamics ──────────────────────────────────────────────
 

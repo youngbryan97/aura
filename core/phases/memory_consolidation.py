@@ -61,7 +61,7 @@ class MemoryConsolidationPhase(BasePhase):
                         force_consolidation = True  # High surprise = memorable event
                         logger.debug("💾 Force consolidation: high surprise (%.2f)", fe.current.surprise)
             except Exception:
-                pass
+                pass  # no-op: intentional
         
         if len(new_state.cognition.working_memory) < 1:
             return new_state

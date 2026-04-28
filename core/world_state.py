@@ -159,7 +159,7 @@ class WorldState:
             except (AttributeError, Exception):
                 self.thermal_pressure = 0.0
         except ImportError:
-            pass
+            pass  # no-op: intentional
         except Exception as e:
             record_degradation('world_state', e)
             logger.debug("WorldState telemetry failed: %s", e)

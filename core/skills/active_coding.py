@@ -30,7 +30,7 @@ def get_sandbox():
             try:
                 _sandbox.stop()
             except Exception:
-                pass
+                pass  # no-op: intentional
         _sandbox = LocalSandbox(_sandbox_work_dir())
         _sandbox.start()
     return _sandbox

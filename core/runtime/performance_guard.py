@@ -96,7 +96,7 @@ class PerformanceGuard:
             if total_gb >= 96:
                 self.budgets.concurrent_heavy_lanes = 4
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ── samples ───────────────────────────────────────────────────────
 
@@ -128,7 +128,7 @@ class PerformanceGuard:
                 try:
                     cb(target)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
             logger.info("⏱ motion throttle %s (streak=%d)", "ON" if target else "OFF", self._streak)
 
     def on_motion_change(self, cb) -> None:
@@ -163,7 +163,7 @@ class PerformanceGuard:
             with open(_SAMPLES_PATH, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(row, default=str) + "\n")
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ── background watcher ───────────────────────────────────────────
 
@@ -188,7 +188,7 @@ class PerformanceGuard:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
 
 

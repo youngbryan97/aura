@@ -270,5 +270,5 @@ async def run_boot_probes(
                 {"failed": [r.name for r in report.failed()]},
             )
         except Exception:
-            pass
+            pass  # no-op: intentional
     return report

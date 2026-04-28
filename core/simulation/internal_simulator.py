@@ -40,7 +40,7 @@ class InternalSimulator:
         try:
             hypothetical.state_id = f"sim_{hypothetical.state_id[:8]}"
         except (AttributeError, TypeError):
-            pass
+            pass  # no-op: intentional
 
         if variation:
             try:
@@ -53,12 +53,12 @@ class InternalSimulator:
                             0.0, hypothetical.motivation.budgets["energy"]["level"] - val
                         )
             except (AttributeError, KeyError, TypeError):
-                pass
+                pass  # no-op: intentional
 
         try:
             hypothetical.version += 1
         except (AttributeError, TypeError):
-            pass
+            pass  # no-op: intentional
 
         return hypothetical
 
@@ -83,7 +83,7 @@ class InternalSimulator:
             valence = predicted_state.affect.valence
             score += valence * 0.3
         except (AttributeError, TypeError):
-            pass
+            pass  # no-op: intentional
 
         # 2. Energy
         try:
@@ -97,7 +97,7 @@ class InternalSimulator:
             cortisol = predicted_state.affect.physiology.get("cortisol", 0.0) / 50.0
             score -= cortisol * 0.15
         except (AttributeError, TypeError):
-            pass
+            pass  # no-op: intentional
 
         # 4. Identity alignment
         try:
@@ -118,7 +118,7 @@ class InternalSimulator:
             world_score = self._check_world_state_fit(action_content, action_source)
             score += world_score * 0.1
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return round(score, 4)
 

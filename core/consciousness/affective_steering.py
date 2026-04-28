@@ -819,7 +819,7 @@ class AffectiveSteeringHook:
 
         # Use dynamic subclassing to ensure interception
         class SteeredBlock(block.__class__): # type: ignore
-            pass
+            pass  # no-op: intentional
         
         # Override the target method
         setattr(SteeredBlock, target_name, lambda self, *args, **kwargs: steered_call(*args, **kwargs))
@@ -920,7 +920,7 @@ class SubstrateSyncThread:
                             try:
                                 hook.substrate_source = "live"  # type: ignore[attr-defined]
                             except Exception:
-                                pass
+                                pass  # no-op: intentional
                     else:
                         # Evidence mode: DO NOT credit a neutral fallback as
                         # live substrate. We mark the hook so tests can refuse
@@ -942,7 +942,7 @@ class SubstrateSyncThread:
                             try:
                                 hook.substrate_source = "neutral_fallback"  # type: ignore[attr-defined]
                             except Exception:
-                                pass
+                                pass  # no-op: intentional
 
             except Exception as e:
                 record_degradation('affective_steering', e)

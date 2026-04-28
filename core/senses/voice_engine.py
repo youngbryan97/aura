@@ -1190,7 +1190,7 @@ class SovereignVoiceEngine:
         self._is_feeding = False
         if hasattr(self, "_stt_thread") and self._stt_thread.is_alive():
             # Thread will exit on next loop iteration due to _is_feeding=False
-            pass
+            pass  # no-op: intentional
 
         while not self._audio_buffer.empty():
             try:

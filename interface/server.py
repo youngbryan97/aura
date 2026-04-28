@@ -163,7 +163,7 @@ class _QueueHandler(logging.Handler):
                     try:
                         publish_coro.close()
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                     raise
 
         except Exception:
@@ -834,7 +834,7 @@ async def websocket_endpoint(ws: WebSocket):
                                             }))
                                             return
                                 except Exception:
-                                    pass
+                                    pass  # no-op: intentional
                                 await ws_ref.send_text(json.dumps({
                                     "type": "aura_message",
                                     "content": "I was thinking but my cortex took too long. Try again — I should be warmer now.",

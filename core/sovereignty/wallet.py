@@ -265,7 +265,7 @@ class Wallet:
                 try:
                     os.fsync(fh.fileno())
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as exc:
             record_degradation('wallet', exc)
             logger.warning("wallet ledger append failed: %s", exc)

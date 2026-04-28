@@ -45,7 +45,7 @@ def _fsync_file(fd: int) -> None:
         os.fsync(fd)
     except (AttributeError, OSError):
         # Best-effort on platforms where fsync is unavailable.
-        pass
+        pass  # no-op: intentional
 
 
 def _fsync_dir(directory: Path) -> None:
@@ -81,7 +81,7 @@ def atomic_write_bytes(path: PathLike, payload: bytes) -> None:
             if tmp_path.exists():
                 tmp_path.unlink()
         except OSError:
-            pass
+            pass  # no-op: intentional
         raise
 
 

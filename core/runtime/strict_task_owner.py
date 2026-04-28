@@ -58,7 +58,7 @@ def install_strict_task_owner(loop: Optional[asyncio.AbstractEventLoop] = None) 
 
             record_degraded_event("strict_runtime.unowned_task", violation)
         except Exception:
-            pass
+            pass  # no-op: intentional
         if os.environ.get("AURA_STRICT_RUNTIME") == "1":
             # Cancel the coroutine to avoid silent leakage; raise so the
             # caller sees a clean failure.
@@ -66,7 +66,7 @@ def install_strict_task_owner(loop: Optional[asyncio.AbstractEventLoop] = None) 
                 try:
                     coro.close()
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
             raise RuntimeError(
                 f"AURA_STRICT_RUNTIME: unowned asyncio.create_task: {violation['coro']}"
             )

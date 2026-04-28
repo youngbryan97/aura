@@ -58,7 +58,7 @@ class ContextAssembler:
             if bool(mods.get("black_box_steering") or mods.get("no_state_prompt_leakage")):
                 return True
         except Exception:
-            pass
+            pass  # no-op: intentional
         return os.environ.get("AURA_BLACK_BOX_STEERING", "").strip().lower() in {
             "1", "true", "yes", "on"
         }
@@ -468,7 +468,7 @@ class ContextAssembler:
                         f"but alternative readings are available."
                     )
             except (ValueError, TypeError):
-                pass
+                pass  # no-op: intentional
         personhood_context = "\n\n".join(personhood_blocks) + "\n\n" if personhood_blocks else ""
 
         # 4. Somatic & World Context (Simplified if casual or under context pressure)

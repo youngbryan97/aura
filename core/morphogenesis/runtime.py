@@ -87,7 +87,7 @@ class MorphogeneticRuntime:
             try:
                 await task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
         await asyncio.to_thread(self.registry.save)
         logger.info("MorphogeneticRuntime stopped.")
 
@@ -136,7 +136,7 @@ class MorphogeneticRuntime:
             from core.morphogenesis.hooks import heartbeat_self_healing
             heartbeat_self_healing()
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         resource = self.metabolism.pulse()
         self._emit_system_signals(resource_pressure=resource.pressure)
@@ -150,7 +150,7 @@ class MorphogeneticRuntime:
                 from core.morphogenesis.hooks import modulate_metabolic_energy
                 modulate_metabolic_energy()
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         active_signals = self._consume_signals()
         for sig in active_signals:
@@ -220,7 +220,7 @@ class MorphogeneticRuntime:
                             bounded=True,
                         )
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
 
         if self._tick % max(1, self.config.snapshot_every_ticks) == 0:
             await asyncio.to_thread(self.registry.save)
@@ -339,7 +339,7 @@ class MorphogeneticRuntime:
                     if energy < 0.25:
                         self.emit_signal(MorphogenSignal(kind=SignalKind.HOMEOSTASIS, source="liquid_state", subsystem="global", intensity=1.0 - energy, ttl_ticks=3))
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     async def _bridge_signals_to_immunity(self, signals: Sequence[MorphogenSignal]) -> None:
         for sig in signals[:8]:

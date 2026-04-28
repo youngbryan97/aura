@@ -19,29 +19,29 @@ class Sandbox(ABC):
     @abstractmethod
     def start(self) -> None:
         """Initialize the environment (e.g. create venv, start container)."""
-        pass
+        pass  # no-op: intentional
         
     @abstractmethod
     def stop(self) -> None:
         """Teardown the environment."""
-        pass
+        pass  # no-op: intentional
         
     @abstractmethod
     async def run_code(self, code: str, timeout: int = 30) -> ExecutionResult:
         """Execute a Python script in the sandbox (Async)."""
-        pass
+        pass  # no-op: intentional
         
     @abstractmethod
     async def run_command(self, command: str, timeout: int = 30) -> ExecutionResult:
         """Execute a shell command in the sandbox (Async)."""
-        pass
+        pass  # no-op: intentional
         
     @abstractmethod
     def read_file(self, path: str) -> str:
         """Read a file from the sandbox."""
-        pass
+        pass  # no-op: intentional
         
     @abstractmethod
     def write_file(self, path: str, content: str) -> None:
         """Write a file to the sandbox."""
-        pass
+        pass  # no-op: intentional

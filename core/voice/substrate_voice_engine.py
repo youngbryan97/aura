@@ -554,7 +554,7 @@ def _extract_conversation_context(state: Any) -> Dict[str, Any]:
         if dyn_state.partner_frame and dyn_state.partner_frame != "neutral":
             ctx["partner_frame"] = dyn_state.partner_frame
     except Exception:
-        pass
+        pass  # no-op: intentional
 
     return ctx
 
@@ -576,6 +576,6 @@ def get_substrate_voice_engine() -> SubstrateVoiceEngine:
             from core.container import ServiceContainer
             ServiceContainer.register("substrate_voice_engine", _instance)
         except Exception:
-            pass
+            pass  # no-op: intentional
         logger.info("🗣️ [SubstrateVoiceEngine] Initialized — substrate controls the voice.")
     return _instance

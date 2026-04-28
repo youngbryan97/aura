@@ -147,7 +147,7 @@ class EpisodicMemoryStore:
         except Exception as e:
             record_degradation('dual_memory', e)
             capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_desc"})
-            pass 
+            pass  # no-op: intentional
              
         ctx = row[8] or ""
         try:
@@ -158,7 +158,7 @@ class EpisodicMemoryStore:
         except Exception as e:
             record_degradation('dual_memory', e)
             capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_ctx"})
-            pass
+            pass  # no-op: intentional
 
         return Episode(
             id=row[0], timestamp=row[1], description=desc,
@@ -288,7 +288,7 @@ class SemanticMemoryStore:
         except Exception as e:
             record_degradation('dual_memory', e)
             capture_and_log(e, {"context": "SemanticMemoryStore.row_to_fact.decode"})
-            pass
+            pass  # no-op: intentional
         return SemanticFact(
             id=row[0], concept=row[1], predicate=row[2], value=val,
             confidence=row[4],

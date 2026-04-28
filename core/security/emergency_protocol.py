@@ -236,7 +236,7 @@ class EmergencyProtocol:
                     "To recover, run: python -m core.security.emergency_protocol --recover"
                 )
             }
-            (vault_dir / "recovery_manifest.json").write_text(json.dumps(manifest, indent=2))
+            atomic_write_text(vault_dir / "recovery_manifest.json", json.dumps(manifest, indent=2))
 
             self._snapshot_taken = True
             self._last_snapshot_at = time.time()
@@ -410,7 +410,7 @@ class EmergencyProtocol:
             return f.decrypt(data)
         except (ImportError, Exception):
             logger.debug("Suppressed bare exception")
-            pass
+            pass  # no-op: intentional
 
         header = b"AURA_VAULT_V1:"
         if data.startswith(header):

@@ -122,12 +122,12 @@ class SupervisionTree:
                 try:
                     endpoint.close()
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
             return
         try:
             pipe.close()
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def record_activity(self, name: str):
         """Mark an actor as alive without directly reading from its IPC pipe."""

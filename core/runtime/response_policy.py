@@ -89,4 +89,4 @@ def clear_background_generation(state: Any, objective: Any) -> None:
                 except RuntimeError:
                     pass  # no event loop — skip
         except Exception:
-            pass
+            pass  # no-op: intentional

@@ -294,7 +294,7 @@ async def run_deep_research(
             try:
                 on_phase(phase, state)
             except Exception:
-                pass
+                pass  # no-op: intentional
 
     # Phase 1: Generate queries
     _notify(ResearchPhase.QUERY_GEN)

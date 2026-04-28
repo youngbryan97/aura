@@ -267,7 +267,7 @@ class ConsciousnessBridge:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
 
         # Stop in reverse order
         for component, name in [
@@ -310,7 +310,7 @@ class ConsciousnessBridge:
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
         except asyncio.CancelledError:
-            pass
+            pass  # no-op: intentional
 
     def _integration_tick(self):
         """One integration step — cross-wires all subsystems."""
@@ -653,7 +653,7 @@ class ConsciousnessBridge:
                         if surprise > 0.3:
                             ncs.on_prediction_error(surprise)
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                     return result
 
                 predictor.tick = enhanced_tick

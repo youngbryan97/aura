@@ -62,7 +62,7 @@ class ASTGuard:
             if isinstance(node, ast.Attribute):
                 if node.attr.startswith('__') and not node.attr.endswith('__'):
                     # Prevent access to private attributes usually
-                    pass
+                    pass  # no-op: intentional
                 if node.attr in self.BANNED_NAMES or node.attr in (
                     "__code__", "__globals__", "__closure__", "__dict__",
                     "__class__", "__subclasses__", "__mro__"
@@ -75,7 +75,7 @@ class ASTGuard:
                 if isinstance(node.func, ast.Name):
                     if node.func.id in self.BANNED_NAMES:
                         # Already caught by Name check, but good to be explicit
-                        pass
+                        pass  # no-op: intentional
                 
                 # Check for ServiceContainer.get("mycelial_network", default=None)
                 if isinstance(node.func, ast.Attribute) and node.func.attr == "get":

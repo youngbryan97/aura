@@ -247,7 +247,7 @@ class ImmunityHyphae:
             errors: list[str] = [] # Ensure errors list is correctly typed
             if self.registry.match_and_repair(error_str):
                 # Repaired!
-                pass
+                pass  # no-op: intentional
             original_excepthook(exc_type, exc_value, exc_traceback)
             
         sys.excepthook = immune_excepthook

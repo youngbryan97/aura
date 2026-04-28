@@ -209,7 +209,7 @@ def record_degradation(
         except Exception:
             # If receipt emission itself fails, at least the in-memory
             # record and log are already captured.
-            pass
+            pass  # no-op: intentional
 
     return record
 

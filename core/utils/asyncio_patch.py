@@ -11,7 +11,7 @@ Install as early as possible in ``aura_main.py``::
     try:
         import core.utils.asyncio_patch  # noqa: F401
     except Exception:
-        pass
+        pass  # no-op: intentional
 """
 from __future__ import annotations
 from core.runtime.errors import record_degradation
@@ -39,7 +39,7 @@ def _call_original(coro: Any, *, name: Optional[str] = None, context: Any = None
         if context is not None:
             return _ORIGINAL_CREATE_TASK(coro, name=name, context=context)  # type: ignore[misc]
     except TypeError:
-        pass
+        pass  # no-op: intentional
     if name is not None:
         return _ORIGINAL_CREATE_TASK(coro, name=name)  # type: ignore[misc]
     return _ORIGINAL_CREATE_TASK(coro)  # type: ignore[misc]

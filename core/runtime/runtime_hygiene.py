@@ -544,7 +544,7 @@ class RuntimeHygieneManager:
                 try:
                     active_registered_pids.add(int(record.pid))
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
             if record.kind == "subprocess":
                 active_subprocesses += 1
             elif record.kind == "multiprocessing":

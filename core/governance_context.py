@@ -74,7 +74,7 @@ class GovernanceToken:
 
 class GovernanceViolation(RuntimeError):
     """Raised when code attempts to execute without governance."""
-    pass
+    pass  # no-op: intentional
 
 
 def governance_runtime_active() -> bool:
@@ -313,7 +313,7 @@ def _record_violation(operation: str) -> None:
             "timestamp": time.time(),
         })
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 def get_violations(n: int = 20) -> list:

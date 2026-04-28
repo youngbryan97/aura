@@ -36,7 +36,7 @@ try:
             resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
 except Exception as e:
     # Resource limits may fail on some platforms, continue with best effort
-    pass
+    pass  # no-op: intentional
 
 # Strip dangerous builtins to prevent arbitrary execution or network egress
 import builtins

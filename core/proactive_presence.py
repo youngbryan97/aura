@@ -131,7 +131,7 @@ class ProactivePresence:
             from core.voice.substrate_voice_engine import get_substrate_voice_engine
             get_substrate_voice_engine().on_user_spoke()
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def mark_user_spoke_with_message(self, message: str):
         """Call with message content to detect away signals and update state.
@@ -234,7 +234,7 @@ class ProactivePresence:
         # Auto-clear after 8 hours in case they forgot to say they're back.
         if self._user_away:
             if queued and allow_during_away:
-                pass
+                pass  # no-op: intentional
             elif now - self._user_away_since > 28800:
                 self._user_away = False
                 logger.info("[ProactivePresence] Away mode auto-cleared after 8 hours.")

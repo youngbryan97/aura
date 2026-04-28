@@ -198,7 +198,7 @@ class CommunityLayer:
                     dossier = store.get_or_create(msg.sender, name=msg.sender)
                     store.record_interaction_affect(dossier.relationship_id, {"platform": tname, "channel": msg.channel})
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                 return msg
             except Exception as exc:
                 record_degradation('community', exc)
@@ -214,9 +214,9 @@ class CommunityLayer:
                 try:
                     os.fsync(fh.fileno())
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception:
-            pass
+            pass  # no-op: intentional
 
 
 _LAYER: Optional[CommunityLayer] = None

@@ -36,23 +36,23 @@ class AuraError(Exception):
 
 class CognitiveError(AuraError):
     """Errors occurring during thought, belief revision, or context assembly."""
-    pass
+    pass  # no-op: intentional
 
 class AgencyError(AuraError):
     """Errors occurring during tool execution or skill management."""
-    pass
+    pass  # no-op: intentional
 
 class PersistenceError(AuraError):
     """Errors occurring during state saving or database operations."""
-    pass
+    pass  # no-op: intentional
 
 class SecurityError(AuraError):
     """Errors occurring during safety checks or identity guarding."""
-    pass
+    pass  # no-op: intentional
 
 class InfrastructureError(AuraError):
     """Errors occurring in hardware interfaces, audio, or network."""
-    pass
+    pass  # no-op: intentional
 
 def capture_and_log(error_or_func=None, context=None):
     """

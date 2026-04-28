@@ -393,5 +393,5 @@ class SelfModel:
                     int(getattr(canonical, "version", 0) or 0),
                 )
             except (TypeError, ValueError):
-                pass
+                pass  # no-op: intentional
         return status

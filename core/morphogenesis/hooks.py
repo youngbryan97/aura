@@ -185,7 +185,7 @@ def heartbeat_self_healing() -> None:
         from core.runtime.self_healing import get_healer
         get_healer().heartbeat("morphogenesis_runtime")
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +331,7 @@ def observe_orchestrator_exception(
                 danger=0.65,
             )
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 def emit_task_signal(
@@ -358,7 +358,7 @@ def emit_task_signal(
             ttl_ticks=6,
         ))
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 # ---------------------------------------------------------------------------

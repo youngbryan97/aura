@@ -234,7 +234,7 @@ class KnowledgeFormalizer:
                             )
                             result["relationships_created"] += 1
                         except Exception:
-                            pass
+                            pass  # no-op: intentional
                 await asyncio.sleep(0)
 
             self._total_facts_committed += result["facts_committed"]

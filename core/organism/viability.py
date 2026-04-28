@@ -256,7 +256,7 @@ class ViabilityEngine:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
 
     # -------- introspection -----------------------------------------------
@@ -300,7 +300,7 @@ def _sample_from_container() -> ViabilitySample:
         except Exception:
             disk = 0.0
     except Exception:
-        pass
+        pass  # no-op: intentional
     try:
         from core.container import ServiceContainer
         guardian = ServiceContainer.get("stability_guardian", default=None)
@@ -316,7 +316,7 @@ def _sample_from_container() -> ViabilitySample:
         if belief_graph is not None and hasattr(belief_graph, "incoherent_count"):
             incoherent = int(belief_graph.incoherent_count() or 0)
     except Exception:
-        pass
+        pass  # no-op: intentional
     return ViabilitySample(
         cpu_pct=cpu,
         ram_pct=ram,

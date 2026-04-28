@@ -980,7 +980,7 @@ class ExecutiveCore:
                 payload_hint=intent.payload,
             )
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def _get_failure_state(self) -> Dict[str, Any]:
         try:

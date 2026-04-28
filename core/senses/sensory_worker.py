@@ -98,4 +98,4 @@ def sensory_worker_loop(request_queue, response_queue):
 
 if __name__ == "__main__":
     # This worker is intended to be started via mp.Process from the client
-    pass
+    pass  # no-op: intentional

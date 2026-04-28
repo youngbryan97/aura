@@ -73,7 +73,7 @@ class PersonalityBridge:
                 
                 # Apply Gaze Bias (Neck ball joint)
                 # virtual_body.data.qpos control...
-                pass
+                pass  # no-op: intentional
                 
             return mods
         except Exception as e:

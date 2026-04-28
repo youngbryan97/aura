@@ -597,7 +597,7 @@ class AgencyCore:
                             f"effort={effort:.2f}",
                         )
                     except Exception:
-                        pass
+                        pass  # no-op: intentional
                     return None
             # AC-003: Gating via AgencyBus (Unified Output Cooldown)
             bus = AgencyBus.get()
@@ -619,7 +619,7 @@ class AgencyCore:
             try:
                 self._viability_emit_window.append(now)
             except Exception:
-                pass
+                pass  # no-op: intentional
             
             # Phase 11.3: Sync to UnifiedStateRegistry
             try:

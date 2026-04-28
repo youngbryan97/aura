@@ -10,7 +10,7 @@ logger = logging.getLogger("Kernel.ActorBus")
 
 class BusDegraded(Exception):
     """Raised when the bus health probe fails or congestion is too high."""
-    pass
+    pass  # no-op: intentional
 
 class ActorBus:
     """Unified Actor Bus abstraction with health gating and congestion control.

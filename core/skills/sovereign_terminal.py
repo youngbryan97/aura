@@ -127,9 +127,9 @@ class SovereignTerminalSkill(BaseSkill):
                         lower_line = line.lower()
                         if any(p in lower_line for p in interactive_prompts):
                             # If the terminal hasn't flushed a newline and is stalled waiting
-                            pass 
+                            pass  # no-op: intentional
                 except ValueError:
-                    pass
+                    pass  # no-op: intentional
             
             try:
                 await asyncio.wait_for(

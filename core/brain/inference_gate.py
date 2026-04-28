@@ -265,13 +265,13 @@ class InferenceGate:
 
             clients.update(dict(_SERVER_CLIENTS))
         except Exception:
-            pass
+            pass  # no-op: intentional
         try:
             from core.brain.llm.mlx_client import _CLIENTS
 
             clients.update(dict(_CLIENTS))
         except Exception:
-            pass
+            pass  # no-op: intentional
         return clients
 
     async def _enforce_foreground_admission(
@@ -460,7 +460,7 @@ class InferenceGate:
                 if exc:
                     logger.warning("🔍 [WATCHDOG] Stale failed prewarm task found: %s. Clearing.", exc)
             except (asyncio.CancelledError, asyncio.InvalidStateError):
-                pass
+                pass  # no-op: intentional
             self._prewarm_task = None  # Allow fresh warmup on next request
 
         # 4. Log cortex health for observability
@@ -1216,7 +1216,7 @@ class InferenceGate:
                 # Cold/recovering cortex keeps full 150s ceiling to allow
                 # inline recovery without premature fallback.
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         return base
 
@@ -2497,7 +2497,7 @@ class InferenceGate:
                     )
                     requested_tier = "tertiary"
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         # ── Proactive cortex recovery (laptop sleep / MLX worker death) ───
         if not is_background:
@@ -2580,7 +2580,7 @@ class InferenceGate:
                         )
                         requested_tier = "tertiary"
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
 
             if requested_tier != "secondary" and self._background_memory_pressure_active():
                 await self._shed_background_workers_for_memory_pressure()
@@ -2726,7 +2726,7 @@ class InferenceGate:
             if token_mult < 0.95:
                 max_tokens = max(384, int(max_tokens * token_mult))
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         # ── Operational Resource Stakes: persistent viability constrains action ──
         # This newer ledger is stricter than the legacy multiplier above: it can
@@ -3300,13 +3300,13 @@ class InferenceGate:
                             try:
                                 self._mlx_client._req_q.close()
                             except Exception:
-                                pass
+                                pass  # no-op: intentional
                             self._mlx_client._req_q = _mp.Queue(maxsize=10)
                         if hasattr(self._mlx_client, '_res_q'):
                             try:
                                 self._mlx_client._res_q.close()
                             except Exception:
-                                pass
+                                pass  # no-op: intentional
                             self._mlx_client._res_q = _mp.Queue(maxsize=10)
                         self._mlx_client._process = None
                         self._mlx_client._init_done = False
@@ -3333,7 +3333,7 @@ class InferenceGate:
                         breaker.reset_timeout = min(breaker.reset_timeout, 15.0)
                         logger.info("Reset UnitaryResponsePhase circuit to HALF_OPEN for recovery")
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                 return self._user_facing_recovery_response(prompt)
             return None
 

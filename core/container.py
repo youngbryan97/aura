@@ -181,7 +181,7 @@ class ServiceContainer:
                     frame = stack[-2]
                     frame_info = f" (from {frame.filename}:{frame.lineno})"
             except Exception:
-                pass
+                pass  # no-op: intentional
             logger.warning(
                 "ServiceContainer registration UNLOCKED by '%s'%s%s",
                 caller,

@@ -53,7 +53,7 @@ try:
              print(f"ghost_update:ping_ok")
         
         sys.stdout.flush()
-        time.sleep(60) # Scan every minute
+        await asyncio.sleep(60) # Scan every minute
 except Exception as e:
     print(f"ghost_error:{{e}}")
 """

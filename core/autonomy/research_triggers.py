@@ -60,7 +60,7 @@ def emit_research_trigger(
             f.write(json.dumps(record) + "\n")
         _maybe_truncate_ring(path)
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 def drain_pending_triggers(
@@ -129,10 +129,10 @@ def mark_consumed(
                 rec["consumed_at"] = now
             new_lines.append(json.dumps(rec))
         tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text("\n".join(new_lines) + ("\n" if new_lines else ""), encoding="utf-8")
+        atomic_write_text(tmp, "\n".join(new_lines) + ("\n" if new_lines else ""), encoding="utf-8")
         os.replace(tmp, path)
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 def _maybe_truncate_ring(path: Path) -> None:
@@ -143,7 +143,7 @@ def _maybe_truncate_ring(path: Path) -> None:
         if len(lines) > RING_LIMIT:
             keep = lines[-RING_LIMIT:]
             tmp = path.with_suffix(path.suffix + ".tmp")
-            tmp.write_text("".join(keep), encoding="utf-8")
+            atomic_write_text(tmp, "".join(keep), encoding="utf-8")
             os.replace(tmp, path)
     except Exception:
-        pass
+        pass  # no-op: intentional

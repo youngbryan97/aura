@@ -603,7 +603,7 @@ class RuntimeWatchdogAuditor:
         except RuntimeError:
             unsupervised = 0
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         stats["unsupervised_active"] = unsupervised
         return stats
@@ -821,7 +821,7 @@ class VerifierGuidedRepairPipeline:
                 try:
                     raw_path = raw_path.resolve()
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
                 try:
                     rel = raw_path.relative_to(self.base_dir)
                     candidates.append((str(rel), line_number))
@@ -840,7 +840,7 @@ class VerifierGuidedRepairPipeline:
                     candidate = candidate.resolve().relative_to(self.base_dir)
                 candidates.insert(0, (str(candidate), int(context["line_number"])))
             except Exception:
-                pass
+                pass  # no-op: intentional
 
         if not candidates:
             return None

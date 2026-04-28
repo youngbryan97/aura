@@ -161,7 +161,7 @@ class SubstrateEvolution:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._task = None
         logger.info("SubstrateEvolution STOPPED (generations=%d)", self._generation)
 
@@ -181,7 +181,7 @@ class SubstrateEvolution:
                     record_degradation('substrate_evolution', e)
                     logger.error("Evolution generation error: %s", e, exc_info=True)
         except asyncio.CancelledError:
-            pass
+            pass  # no-op: intentional
 
     async def _run_generation(self):
         """Execute one full evolutionary generation."""

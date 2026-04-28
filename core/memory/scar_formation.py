@@ -324,7 +324,7 @@ class ScarFormationSystem:
                 try:
                     Path(tmp_path).unlink(missing_ok=True)
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as exc:
             record_degradation('scar_formation', exc)
             logger.debug("Scar persistence failed: %s", exc)
@@ -361,7 +361,7 @@ class ScarFormationSystem:
                 "description": scar.description[:200],
             })
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     # ── Status ──────────────────────────────────────────────────────────
 

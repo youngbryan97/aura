@@ -113,8 +113,7 @@ class StateCommitProtocol:
         self._temp = payload
 
     def fsync(self) -> None:
-        # noop in the model; real impl flushes to disk
-        pass
+        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
 
     def rename(self) -> None:
         if self._temp is not None:

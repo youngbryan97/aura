@@ -231,7 +231,7 @@ def compute_inference_params(
             extra_stops = ["\n\n##", "\n---\n"]
             rationale.append(f"early-stop appended (viability={v.value})")
     except Exception:
-        pass
+        pass  # no-op: intentional
 
     # ─── activation steering offsets ──────────────────────────────────
     # Map (valence, arousal, dominant emotion) into per-layer residual

@@ -1314,7 +1314,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         """Standard interface for scheduled substrate tasks (Legacy).
         Note: Use core.scheduler for new periodic tasks.
         """
-        pass
+        pass  # no-op: intentional
 
         pass # _emit_telemetry_pulse removed (now in StatusManagerMixin)
 
@@ -1597,7 +1597,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 try:
                     priority = int(payload.pop("priority"))
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         elif origin is None:
             normalized_origin = "internal"
         elif not isinstance(origin, str):
@@ -2018,7 +2018,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     loop.create_task(bus.publish("telemetry_update", data))
                 except RuntimeError:
                     # Generic fallback if no loop is running
-                    pass
+                    pass  # no-op: intentional
             
             # Legacy thought stream fallback
             from ..thought_stream import get_emitter

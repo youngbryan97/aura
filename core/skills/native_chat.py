@@ -24,7 +24,7 @@ def _schedule_background_task(coro: Any, *, name: str) -> None:
         get_task_tracker().create_task(coro, name=name)
         return
     except Exception:
-        pass
+        pass  # no-op: intentional
     try:
         get_task_tracker().create_task(coro, name=name)
     except Exception as exc:
@@ -32,7 +32,7 @@ def _schedule_background_task(coro: Any, *, name: str) -> None:
         try:
             coro.close()
         except Exception:
-            pass
+            pass  # no-op: intentional
         logger.debug("NativeChat background task %s could not be scheduled: %s", name, exc)
 
 class NativeChatSkill(BaseSkill):

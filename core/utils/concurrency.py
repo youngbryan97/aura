@@ -172,7 +172,7 @@ class RobustLock:
                 self._lock.release()
         except RuntimeError:
             # release() on an unlocked lock — harmless
-            pass
+            pass  # no-op: intentional
         except Exception as _exc:
             record_degradation('concurrency', _exc)
             logger.debug("Suppressed Exception: %s", _exc)

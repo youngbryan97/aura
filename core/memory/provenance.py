@@ -104,7 +104,7 @@ def _read_confidence_from_substrate() -> float:
             free_energy = float(getattr(cur, "free_energy", 0.5) or 0.5)
             return max(0.05, min(0.99, 1.0 - free_energy))
     except Exception:
-        pass
+        pass  # no-op: intentional
     return 0.7
 
 

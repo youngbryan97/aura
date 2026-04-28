@@ -224,9 +224,9 @@ class MemoryPersister:
 
         try:
             self._queue_path.parent.mkdir(parents=True, exist_ok=True)
-            self._queue_path.write_text("\n".join(remaining) + ("\n" if remaining else ""), encoding="utf-8")
+            atomic_write_text(self._queue_path, "\n".join(remaining) + ("\n" if remaining else ""), encoding="utf-8")
         except Exception:
-            pass
+            pass  # no-op: intentional
         return successful
 
     # ── Per-tier commit ───────────────────────────────────────────────────
@@ -378,7 +378,7 @@ class MemoryPersister:
                     "queued_at": time.time(),
                 }) + "\n")
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def _load_dedup(self) -> Dict[str, float]:
         if not self._dedup_path.exists():
@@ -393,9 +393,9 @@ class MemoryPersister:
     def _save_dedup(self) -> None:
         try:
             self._dedup_path.parent.mkdir(parents=True, exist_ok=True)
-            self._dedup_path.write_text(json.dumps(self._dedup), encoding="utf-8")
+            atomic_write_text(self._dedup_path, json.dumps(self._dedup), encoding="utf-8")
         except Exception:
-            pass
+            pass  # no-op: intentional
 
     def _is_duplicate(self, key: str) -> bool:
         ts = self._dedup.get(key)

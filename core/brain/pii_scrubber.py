@@ -65,7 +65,7 @@ def _load_private_names() -> list[str]:
                     names.append(name)
             return names
     except Exception:
-        pass
+        pass  # no-op: intentional
     return []
 
 

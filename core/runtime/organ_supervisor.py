@@ -102,7 +102,7 @@ class OrganSupervisor:
             try:
                 sock.unlink()
             except Exception:
-                pass
+                pass  # no-op: intentional
         record = OrganRecord(
             name=name,
             cmd=list(cmd),
@@ -126,7 +126,7 @@ class OrganSupervisor:
             try:
                 await self._watchdog_task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             self._watchdog_task = None
         for record in self._organs.values():
             record.stop_requested = True
@@ -209,7 +209,7 @@ class OrganSupervisor:
             try:
                 await writer.wait_closed()
             except Exception:
-                pass
+                pass  # no-op: intentional
             return json.loads(data.decode("utf-8"))
         return await asyncio.wait_for(_do(), timeout=timeout)
 

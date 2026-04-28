@@ -183,7 +183,7 @@ class CognitiveIntegrationLayer:
         """Synchronous setup phase."""
         logger.info("🧠 CognitiveIntegrationLayer: Synchronous setup beginning...")
         # Placeholder for any sync initialization
-        pass
+        pass  # no-op: intentional
 
     async def initialize(self) -> bool:
         """Asynchronous initialization of components."""
@@ -351,7 +351,7 @@ class CognitiveIntegrationLayer:
             try:
                 await inference_task
             except asyncio.CancelledError:
-                pass
+                pass  # no-op: intentional
             logger.debug("Inline inference still running; continuing without blocking.")
         except Exception as exc:
             record_degradation('cognitive_integration_layer', exc)

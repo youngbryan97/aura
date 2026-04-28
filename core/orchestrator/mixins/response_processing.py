@@ -29,7 +29,7 @@ def _bg_task_exception_handler(task):
             if exc:
                 logger.warning("Background task failed: %s", exc)
     except Exception:
-        pass
+        pass  # no-op: intentional
 
 
 class ResponseProcessingMixin:
@@ -61,7 +61,7 @@ class ResponseProcessingMixin:
                 apply_intent_to_context(message, intent_ctx)
                 grounding_ctx.update(intent_ctx)
             except Exception:
-                pass
+                pass  # no-op: intentional
 
             existing_receipts = receipts_from_context({
                 "skill_receipts": [{"skill": s} for s in (successful_tools or [])]
@@ -87,7 +87,7 @@ class ResponseProcessingMixin:
                         result={"ok": False, "reason": "unverified_action_claim"},
                     )
                 except Exception:
-                    pass
+                    pass  # no-op: intentional
         except Exception as _ground_err:
             record_degradation('response_processing', _ground_err)
             logger.debug("Action grounding skipped: %s", _ground_err)
@@ -698,7 +698,7 @@ class ResponseProcessingMixin:
             get_audit().record_effect("response", "fast_path_response",
                                       response[:80], receipt_id=_fp_receipt_id)
         except Exception:
-            pass
+            pass  # no-op: intentional
 
         role = getattr(self, "AI_ROLE", "assistant")
         if isinstance(self.conversation_history, list):

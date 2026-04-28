@@ -207,7 +207,7 @@ class CognitiveHeartbeat:
         mind_model = self._mind_model
         if mind_model:
             # Sync pulse for self-reflection/metabolism
-            pass
+            pass  # no-op: intentional
 
         state = await self._gather_state()
 

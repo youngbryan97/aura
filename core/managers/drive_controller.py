@@ -43,7 +43,7 @@ class DriveController:
         
         # v18.0: Metabolic Maintenance
         # Phase 5: Metabolic Maintenance handled by AutonomicCore heartbeat
-        pass
+        pass  # no-op: intentional
 
         idle_time = time.time() - self.orchestrator._last_thought_time
         
