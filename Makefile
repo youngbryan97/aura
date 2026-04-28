@@ -1,4 +1,4 @@
-.PHONY: lint test typecheck compile quality smoke setup run demo-autonomy report bench courtroom baselines longevity chaos governance-lint clean-bench
+.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity chaos governance-lint clean-bench
 
 PYTHON ?= python
 RUFF_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_assembler.py core/brain/llm/context_limit.py core/cognitive_integration_layer.py core/safe_mode.py core/coordinators/metabolic_coordinator.py core/evolution/persona_evolver.py core/orchestrator/mixins/autonomy.py core/orchestrator/mixins/context_streaming.py core/orchestrator/mixins/learning_evolution.py core/resilience/dream_cycle.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_consciousness_patch_retirement.py
@@ -12,8 +12,14 @@ SMOKE_TEST_TARGETS ?= tests/test_response_contract.py tests/test_chat_format.py 
 setup:
 	@echo "🔧 Setup: creating virtualenv (.venv) and installing requirements"
 	@if [ ! -d .venv ]; then $(PYTHON) -m venv .venv; fi
-	@. .venv/bin/activate; pip install -U pip wheel; pip install -r requirements/runtime.txt 2>/dev/null || pip install -r requirements.txt 2>/dev/null || true
+	@. .venv/bin/activate; pip install -U pip wheel; pip install -r requirements/core.txt 2>/dev/null || pip install -r requirements.txt 2>/dev/null || true
+	@. .venv/bin/activate; if [ -f requirements/dev.txt ]; then pip install -r requirements/dev.txt; else pip install -e ".[dev]"; fi
 	@echo "✅ Setup complete"
+
+setup-dev:
+	@echo "🔧 Installing Aura development quality tools..."
+	@. .venv/bin/activate; if [ -f requirements/dev.txt ]; then pip install -r requirements/dev.txt; else pip install -e ".[dev]"; fi
+	@echo "✅ Development tools installed"
 
 run:
 	@echo "▶️  Launching Aura (foreground)..."

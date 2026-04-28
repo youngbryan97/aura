@@ -2,19 +2,80 @@
 Executes Python code and shell commands in an isolated temporary directory
 using subprocess with timeouts and resource limits.
 """
-from core.runtime.atomic_writer import atomic_write_text
+import asyncio
 import logging
 import os
+import shlex
 import subprocess
-import asyncio
+import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Optional
+
+from core.runtime.atomic_writer import atomic_write_text
 
 from .sandbox import ExecutionResult, Sandbox
 
 logger = logging.getLogger("Aura.LocalSandbox")
+
+_SHELL_CONTROL_TOKENS = frozenset({
+    ";",
+    "&",
+    "&&",
+    "|",
+    "||",
+    ">",
+    ">>",
+    "<",
+    "<<",
+    "2>",
+    "2>>",
+})
+_SENSITIVE_ENV_MARKERS = (
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "PASSWD",
+    "KEY",
+    "CREDENTIAL",
+    "AUTH",
+)
+_ALLOWED_COMMANDS = frozenset({
+    "python",
+    "python3",
+    "python3.12",
+    "pip",
+    "pip3",
+    "pytest",
+    "git",
+})
+
+
+def _sandbox_env() -> dict[str, str]:
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not any(marker in key.upper() for marker in _SENSITIVE_ENV_MARKERS)
+    }
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    return env
+
+
+def _parse_command(command: str) -> list[str]:
+    try:
+        parts = shlex.split(command)
+    except ValueError as exc:
+        raise ValueError(f"Invalid command syntax: {exc}") from exc
+    if not parts:
+        raise ValueError("Empty command")
+    if any(part in _SHELL_CONTROL_TOKENS for part in parts):
+        raise PermissionError("Shell control operators are not allowed in LocalSandbox")
+    if any("\x00" in part or "\n" in part or "\r" in part for part in parts):
+        raise PermissionError("Control characters are not allowed in LocalSandbox commands")
+    binary = Path(parts[0]).name
+    if binary not in _ALLOWED_COMMANDS:
+        raise PermissionError(f"Command '{binary}' is not allowed in LocalSandbox")
+    return parts
 
 
 class LocalSandbox(Sandbox):
@@ -22,9 +83,9 @@ class LocalSandbox(Sandbox):
     Provides isolation via a clean temp folder (not a true OS sandbox).
     """
 
-    def __init__(self, work_dir: Optional[str] = None):
+    def __init__(self, work_dir: str | None = None):
         self._work_dir = work_dir
-        self._temp_dir: Optional[tempfile.TemporaryDirectory] = None
+        self._temp_dir: tempfile.TemporaryDirectory | None = None
         self._active = False
         self._code_history = []  # Emulates Jupyter statefulness
 
@@ -60,7 +121,7 @@ class LocalSandbox(Sandbox):
         self._code_history.clear()
         logger.info("LocalSandbox stopped.")
 
-    async def run_code(self, code: str, timeout: int = 30) -> ExecutionResult:
+    async def run_code(self, code: str, timeout: int = 30) -> ExecutionResult:  # noqa: ASYNC109
         """Execute a Python script in the sandbox (Async Offload)."""
         script_path = self.work_path / "_aura_run.py"
         atomic_write_text(script_path, code, encoding="utf-8")
@@ -69,12 +130,12 @@ class LocalSandbox(Sandbox):
         try:
             result = await asyncio.to_thread(
                 subprocess.run,
-                ["python3", script_path.name],
+                [sys.executable, script_path.name],
                 capture_output=True,
                 text=True,
                 timeout=timeout,
                 cwd=str(self.work_path),
-                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                env=_sandbox_env(),
             )
             duration = time.monotonic() - start
             return ExecutionResult(
@@ -97,7 +158,9 @@ class LocalSandbox(Sandbox):
                 stdout="", stderr=str(e), exit_code=-1, duration=duration
             )
 
-    async def run_stateful_code(self, code: str, timeout: int = 30) -> ExecutionResult:
+    async def run_stateful_code(  # noqa: ASYNC109
+        self, code: str, timeout: int = 30  # noqa: ASYNC109
+    ) -> ExecutionResult:
         """Executes code persistently, retaining variables and imports if successful.
         If the execution fails, the state is rolled back.
         """
@@ -112,18 +175,19 @@ class LocalSandbox(Sandbox):
         
         return result
 
-    async def run_command(self, command: str, timeout: int = 30) -> ExecutionResult:
-        """Execute a shell command in the sandbox (Async Offload)."""
+    async def run_command(self, command: str, timeout: int = 30) -> ExecutionResult:  # noqa: ASYNC109
+        """Execute an allowlisted command in the sandbox without a shell."""
         start = time.monotonic()
         try:
+            argv = _parse_command(command)
             result = await asyncio.to_thread(
                 subprocess.run,
-                command,
-                shell=True,
+                argv,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
                 cwd=str(self.work_path),
+                env=_sandbox_env(),
             )
             duration = time.monotonic() - start
             return ExecutionResult(
@@ -139,6 +203,11 @@ class LocalSandbox(Sandbox):
                 stderr=f"Command timed out after {timeout}s",
                 exit_code=-1,
                 duration=duration,
+            )
+        except (PermissionError, ValueError) as e:
+            duration = time.monotonic() - start
+            return ExecutionResult(
+                stdout="", stderr=str(e), exit_code=126, duration=duration
             )
         except Exception as e:
             duration = time.monotonic() - start

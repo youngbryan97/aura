@@ -12,11 +12,11 @@ import math
 import os
 import sys
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, cast
+from datetime import UTC, datetime
+from typing import Any, cast
 
 import psutil
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 try:
@@ -30,8 +30,7 @@ from core.health.boot_status import build_boot_health_snapshot
 from core.runtime_tools import get_runtime_state
 from core.scheduler import scheduler
 from core.version import VERSION, version_string
-
-from interface.auth import _require_internal, _check_rate_limit, _restore_owner_session_from_request
+from interface.auth import _require_internal, _restore_owner_session_from_request
 from interface.websocket_manager import broadcast_bus, ws_manager
 
 logger = logging.getLogger("Aura.Server.System")
@@ -39,7 +38,7 @@ logger = logging.getLogger("Aura.Server.System")
 router = APIRouter()
 
 _DESKTOP_ACCESS_CACHE_TTL_S = float(os.getenv("AURA_DESKTOP_ACCESS_CACHE_TTL_S", "30") or 30.0)
-_desktop_access_cache: Dict[str, Any] = {
+_desktop_access_cache: dict[str, Any] = {
     "captured_at": 0.0,
     "payload": None,
 }
@@ -47,7 +46,7 @@ _desktop_access_cache: Dict[str, Any] = {
 
 # ── Collector Helpers ─────────────────────────────────────────
 
-def _collect_recent_degraded_events(limit: int = 12) -> List[Dict[str, Any]]:
+def _collect_recent_degraded_events(limit: int = 12) -> list[dict[str, Any]]:
     try:
         from core.health.degraded_events import get_recent_degraded_events
 
@@ -57,24 +56,24 @@ def _collect_recent_degraded_events(limit: int = 12) -> List[Dict[str, Any]]:
         return []
 
 
-def _collect_conversation_lane_status() -> Dict[str, Any]:
+def _collect_conversation_lane_status() -> dict[str, Any]:
     """Import and delegate to the canonical implementation in chat routes."""
     from interface.routes.chat import _collect_conversation_lane_status as _impl
     return _impl()
 
 
-def _conversation_lane_is_standby(lane: Optional[Dict[str, Any]]) -> bool:
+def _conversation_lane_is_standby(lane: dict[str, Any] | None) -> bool:
     from interface.routes.chat import _conversation_lane_is_standby as _impl
     return _impl(lane)
 
 
-def _conversation_lane_user_message(lane: Dict[str, Any], **kwargs) -> str:
+def _conversation_lane_user_message(lane: dict[str, Any], **kwargs) -> str:
     from interface.routes.chat import _conversation_lane_user_message as _impl
     return _impl(lane, **kwargs)
 
 
-def _collect_stability_details() -> Dict[str, Any]:
-    details: Dict[str, Any] = {
+def _collect_stability_details() -> dict[str, Any]:
+    details: dict[str, Any] = {
         "status": "unknown",
         "healthy": True,
         "active_issues": [],
@@ -187,13 +186,13 @@ def _json_safe(value: Any) -> Any:
 
 
 def _collect_liquid_state_payload(
-    ls_data: Dict[str, Any],
+    ls_data: dict[str, Any],
     *,
-    runtime_state: Dict[str, Any],
-    homeostasis_data: Dict[str, Any],
-) -> Dict[str, Any]:
+    runtime_state: dict[str, Any],
+    homeostasis_data: dict[str, Any],
+) -> dict[str, Any]:
     runtime_affect = runtime_state.get("affect", {}) if isinstance(runtime_state.get("affect"), dict) else {}
-    payload: Dict[str, Any] = {}
+    payload: dict[str, Any] = {}
 
     def _pick_metric(key: str, *, runtime_fallback: Any = None) -> float | None:
         primary = _normalize_percentish(ls_data.get(key))
@@ -241,8 +240,8 @@ def _collect_liquid_state_payload(
     return payload
 
 
-async def _collect_soma_payload() -> Dict[str, Any]:
-    def _system_fallback() -> Dict[str, Any]:
+async def _collect_soma_payload() -> dict[str, Any]:
+    def _system_fallback() -> dict[str, Any]:
         try:
             cpu_pct = float(psutil.cpu_percent(interval=None) or 0.0) / 100.0
             ram = psutil.virtual_memory()
@@ -299,7 +298,7 @@ async def _collect_soma_payload() -> Dict[str, Any]:
     return _system_fallback()
 
 
-def _collect_tool_catalog() -> List[Dict[str, Any]]:
+def _collect_tool_catalog() -> list[dict[str, Any]]:
     engine = ServiceContainer.get("capability_engine", default=None)
     if engine and hasattr(engine, "get_tool_catalog"):
         try:
@@ -309,7 +308,7 @@ def _collect_tool_catalog() -> List[Dict[str, Any]]:
     return []
 
 
-def _collect_commitment_summary() -> Dict[str, Any]:
+def _collect_commitment_summary() -> dict[str, Any]:
     try:
         from core.agency.commitment_engine import get_commitment_engine
 
@@ -334,7 +333,7 @@ def _collect_commitment_summary() -> Dict[str, Any]:
         return {"active_count": 0, "reliability_score": 1.0, "active": []}
 
 
-def _collect_voice_summary() -> Dict[str, Any]:
+def _collect_voice_summary() -> dict[str, Any]:
     from interface.routes.privacy import get_voice_engine_fn
     _voice_engine_fn = get_voice_engine_fn()
     voice_available = bool(_voice_engine_fn)
@@ -365,7 +364,7 @@ def _collect_voice_summary() -> Dict[str, Any]:
     return summary
 
 
-async def _collect_desktop_access_summary() -> Dict[str, Any]:
+async def _collect_desktop_access_summary() -> dict[str, Any]:
     cached_payload = _desktop_access_cache.get("payload")
     cached_at = float(_desktop_access_cache.get("captured_at", 0.0) or 0.0)
     if (
@@ -374,7 +373,7 @@ async def _collect_desktop_access_summary() -> Dict[str, Any]:
     ):
         return cached_payload
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "screen_recording": {"granted": False, "status": "unknown", "guidance": ""},
         "accessibility": {"granted": False, "status": "unknown", "guidance": ""},
         "automation": {"granted": False, "status": "unknown", "guidance": ""},
@@ -417,7 +416,7 @@ async def _collect_desktop_access_summary() -> Dict[str, Any]:
         if payload["menu_clock_ready"]:
             from core.skills.computer_use import ComputerUseSkill
 
-            def _probe_menu_clock() -> Dict[str, Any]:
+            def _probe_menu_clock() -> dict[str, Any]:
                 skill = ComputerUseSkill()
                 try:
                     text = skill._read_menu_clock_macos()
@@ -458,9 +457,9 @@ async def _collect_desktop_access_summary() -> Dict[str, Any]:
     return payload
 
 
-def _collect_runtime_capabilities(conversation_lane: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _collect_runtime_capabilities(conversation_lane: dict[str, Any] | None = None) -> dict[str, Any]:
     lane = conversation_lane if isinstance(conversation_lane, dict) else _collect_conversation_lane_status()
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "local_backend": "unknown",
         "local_runtime": "offline",
         "conversation_model": str(lane.get("desired_model", "") or ""),
@@ -503,12 +502,12 @@ def _collect_runtime_capabilities(conversation_lane: Optional[Dict[str, Any]] = 
 
 def _derive_ui_status_flags(
     *,
-    state_summary: Dict[str, Any],
-    executive_status: Dict[str, Any],
-    boot_snapshot: Dict[str, Any],
-    tool_catalog: List[Dict[str, Any]],
-) -> List[str]:
-    flags: List[str] = []
+    state_summary: dict[str, Any],
+    executive_status: dict[str, Any],
+    boot_snapshot: dict[str, Any],
+    tool_catalog: list[dict[str, Any]],
+) -> list[str]:
+    flags: list[str] = []
     if not bool(boot_snapshot.get("ready", False)):
         flags.append("booting")
     if bool(state_summary.get("thermal_guard")):
@@ -535,7 +534,6 @@ def _derive_ui_status_flags(
 @router.get("/telemetry/stream")
 async def telemetry_stream(request: Request):
     """Server-Sent Events stream for HUD telemetry."""
-    from interface.auth import _require_internal
     _require_internal(request)
 
     async def event_generator():
@@ -577,7 +575,6 @@ async def telemetry_stream(request: Request):
 @router.get("/metrics", tags=["metrics"])
 async def metrics(request: Request):
     """System metrics for monitoring."""
-    from interface.auth import _require_internal
     _require_internal(request)
     try:
         orch = ServiceContainer.get("orchestrator", default=None)
@@ -599,7 +596,6 @@ async def metrics(request: Request):
 @router.get("/gemini-usage")
 async def gemini_usage(request: Request):
     """Return daily Gemini API usage stats."""
-    from interface.auth import _require_internal
     _require_internal(request)
     try:
         from core.brain.llm.gemini_adapter import DailyRateLimiter
@@ -607,7 +603,7 @@ async def gemini_usage(request: Request):
         if orch and hasattr(orch, 'cognitive_engine'):
             brain = getattr(orch.cognitive_engine, 'brain', None) or getattr(orch.cognitive_engine, '_brain', None)
             if brain and hasattr(brain, 'llm_router'):
-                for name, adapter in brain.llm_router.adapters.items():
+                for _name, adapter in brain.llm_router.adapters.items():
                     if hasattr(adapter, 'rate_limiter'):
                         return JSONResponse(adapter.rate_limiter.get_usage())
         from core.config import config
@@ -742,7 +738,7 @@ async def api_health(request: Request):
     homeostasis = ServiceContainer.get("homeostasis", default=None)
     homeo_data = homeostasis.get_health() if homeostasis else {}
     liquid_state_payload = _collect_liquid_state_payload(
-        cast(Dict[str, Any], ls_data if isinstance(ls_data, dict) else {}),
+        cast(dict[str, Any], ls_data if isinstance(ls_data, dict) else {}),
         runtime_state=runtime_payload if isinstance(runtime_payload, dict) else {},
         homeostasis_data=homeo_data if isinstance(homeo_data, dict) else {},
     )
@@ -790,14 +786,14 @@ async def api_health(request: Request):
         logger.debug("Interaction signal status collection failed: %s", e)
 
     # ── Resilience Status ──
-    resilience_data: Dict[str, Any] = {"circuit_breakers": {}, "snapshot": "unknown", "llm_tier": "unknown"}
+    resilience_data: dict[str, Any] = {"circuit_breakers": {}, "snapshot": "unknown", "llm_tier": "unknown"}
     try:
         voice = ServiceContainer.get("voice_pipeline", default=None)
         if voice:
             for attr_name in ("_stt_breaker", "_tts_breaker"):
                 breaker = getattr(voice, attr_name, None)
                 if breaker and hasattr(breaker, "state"):
-                    cast(Dict[str, Any], resilience_data["circuit_breakers"])[breaker.name] = breaker.state.value
+                    cast(dict[str, Any], resilience_data["circuit_breakers"])[breaker.name] = breaker.state.value
 
         cog = ServiceContainer.get("cognitive_engine", default=None)
         if cog:
@@ -805,7 +801,7 @@ async def api_health(request: Request):
                 obj = getattr(cog, attr_name, None)
                 if obj and hasattr(obj, "state") and hasattr(obj, "name") and hasattr(obj.state, "value"):
                     if "breaker" in attr_name.lower():
-                        cast(Dict[str, Any], resilience_data["circuit_breakers"])[obj.name] = obj.state.value
+                        cast(dict[str, Any], resilience_data["circuit_breakers"])[obj.name] = obj.state.value
 
         snap_mgr = ServiceContainer.get("snapshot_manager", default=None)
         if snap_mgr and hasattr(snap_mgr, "snapshot_file"):
@@ -845,7 +841,7 @@ async def api_health(request: Request):
         logger.debug("Resilience status collection failed: %s", e)
 
     # ── Qualia Status ──
-    qualia_data: Dict[str, Any] = {"pri": 0.0, "q_norm": 0.0, "dominant_dim": "none", "in_attractor": False, "_stale": True}
+    qualia_data: dict[str, Any] = {"pri": 0.0, "q_norm": 0.0, "dominant_dim": "none", "in_attractor": False, "_stale": True}
     try:
         qualia = ServiceContainer.get("qualia_synthesizer", default=None)
         if not qualia and orch:
@@ -861,7 +857,7 @@ async def api_health(request: Request):
         logger.debug("Qualia status collection failed: %s", e)
 
     # ── Mycelial Network Status ──
-    mycelial_data: Dict[str, Any] = {"nodes": 0, "edges": 0, "health": "offline"}
+    mycelial_data: dict[str, Any] = {"nodes": 0, "edges": 0, "health": "offline"}
     try:
         mycelium = ServiceContainer.get("mycelial_network", default=None)
         if mycelium:
@@ -873,7 +869,7 @@ async def api_health(request: Request):
         logger.debug("Mycelial network status collection failed: %s", e)
 
     # ── PNEUMA Engine Status ──
-    pneuma_data: Dict[str, Any] = {"temperature": 0.7, "arousal": 0.0, "stability": 0.0,
+    pneuma_data: dict[str, Any] = {"temperature": 0.7, "arousal": 0.0, "stability": 0.0,
                    "attractor_count": 0, "efe_score": 0.0, "online": False, "_stale": True}
     try:
         from core.pneuma.pneuma import get_pneuma
@@ -894,7 +890,7 @@ async def api_health(request: Request):
         logger.debug("PNEUMA status collection failed: %s", e)
 
     # ── MHAF Field Status ──
-    mhaf_data: Dict[str, Any] = {"phi": 0.0, "nodes": 0, "edges": 0, "free_energy": 0.0,
+    mhaf_data: dict[str, Any] = {"phi": 0.0, "nodes": 0, "edges": 0, "free_energy": 0.0,
                  "lexicon_size": 0, "online": False, "_stale": True}
     try:
         from core.consciousness.mhaf_field import get_mhaf
@@ -930,7 +926,7 @@ async def api_health(request: Request):
             closed_loop = ServiceContainer.get("closed_causal_loop", default=None)
             if closed_loop is not None and hasattr(closed_loop, "get_status"):
                 closed_loop_phi = float(
-                    (((closed_loop.get_status() or {}).get("phi") or {}).get("estimate") or 0.0)
+                    ((closed_loop.get_status() or {}).get("phi") or {}).get("estimate") or 0.0
                 )
                 if closed_loop_phi > 0.0:
                     mhaf_data["phi"] = round(closed_loop_phi, 4)
@@ -946,7 +942,7 @@ async def api_health(request: Request):
         logger.debug("Neologism lexicon count failed: %s", e)
 
     # ── Security Status ──
-    security_data: Dict[str, Any] = {
+    security_data: dict[str, Any] = {
         "trust_level": "unknown", "threat_score": 0.0,
         "integrity_ok": True, "passphrase_set": False, "_stale": True,
     }
@@ -982,7 +978,7 @@ async def api_health(request: Request):
         logger.debug("Suppressed Exception: %s", _exc)
 
     # ── Circadian State ──
-    circadian_data: Dict[str, Any] = {}
+    circadian_data: dict[str, Any] = {}
     try:
         from core.senses.circadian import get_circadian
         ce = get_circadian()
@@ -998,7 +994,7 @@ async def api_health(request: Request):
         logger.debug("Circadian status collection failed: %s", e)
 
     # ── Substrate Learning ──
-    substrate_data: Dict[str, Any] = {}
+    substrate_data: dict[str, Any] = {}
     try:
         from core.consciousness.crsm_lora_bridge import get_crsm_lora_bridge
         substrate_data["lora_bridge"] = get_crsm_lora_bridge().get_status()
@@ -1011,7 +1007,7 @@ async def api_health(request: Request):
         logger.debug("Consolidator status failed: %s", e)
 
     # ── Morphogenesis Status ──
-    morphogenesis_data: Dict[str, Any] = {"online": False, "cells": 0, "organs": 0, "_stale": True}
+    morphogenesis_data: dict[str, Any] = {"online": False, "cells": 0, "organs": 0, "_stale": True}
     try:
         morpho_rt = ServiceContainer.get("morphogenetic_runtime", default=None)
         if morpho_rt is not None and hasattr(morpho_rt, "status"):
@@ -1030,7 +1026,7 @@ async def api_health(request: Request):
         logger.debug("Morphogenesis status collection failed: %s", e)
 
     # ── Terminal Fallback Status ──
-    terminal_data: Dict[str, Any] = {"active": False, "pending": 0, "watchdog": False}
+    terminal_data: dict[str, Any] = {"active": False, "pending": 0, "watchdog": False}
     try:
         from core.terminal_chat import get_terminal_fallback, get_terminal_watchdog
         tf = get_terminal_fallback()
@@ -1118,7 +1114,7 @@ async def api_health(request: Request):
             "runtime":        rt,
             "scheduler":      scheduler.get_health(),
             "boot":           boot_snapshot,
-            "timestamp":      datetime.now(tz=timezone.utc).isoformat(),
+            "timestamp":      datetime.now(tz=UTC).isoformat(),
         }
     except Exception as e:
         logger.error("Final health payload assembly failed: %s", e)
@@ -1130,7 +1126,7 @@ async def api_health(request: Request):
             "cycle_count": 0,
             "cpu_usage": 0,
             "ram_usage": 0,
-            "timestamp": datetime.now(tz=timezone.utc).isoformat()
+            "timestamp": datetime.now(tz=UTC).isoformat()
         }
 
     return JSONResponse(_json_safe(payload))
@@ -1202,16 +1198,22 @@ async def api_ui_bootstrap(request: Request = None):
     async with _conversation_log_lock:
         recent_conversation = list(_conversation_log)[-40:]
 
-    from pathlib import Path
-    STATIC_DIR = config.paths.project_root / "interface" / "static"
-    SHELL_DIST_DIR = STATIC_DIR / "shell" / "dist"
-    LEGACY_UI_INDEX = STATIC_DIR / "index.html"
+    static_dir = config.paths.project_root / "interface" / "static"
+    shell_dist_dir = static_dir / "shell" / "dist"
+    legacy_ui_index = static_dir / "index.html"
 
     legacy_ui_status = {
-        "shell": "legacy_shell" if LEGACY_UI_INDEX.exists() else "react_shell",
-        "legacy_fallback_available": LEGACY_UI_INDEX.exists(),
-        "experimental_shell_available": (SHELL_DIST_DIR / "index.html").exists(),
+        "shell": "legacy_shell" if legacy_ui_index.exists() else "react_shell",
+        "legacy_fallback_available": legacy_ui_index.exists(),
+        "experimental_shell_available": (shell_dist_dir / "index.html").exists(),
+        "experimental_shell_enabled": os.environ.get("AURA_ENABLE_REACT_SHELL", "").strip().lower()
+        in {"1", "true", "yes", "on"},
     }
+    legacy_ui_status["canonical_shell"] = (
+        "legacy_shell"
+        if legacy_ui_index.exists() and not legacy_ui_status["experimental_shell_enabled"]
+        else "react_shell"
+    )
     shell_status_helper = globals().get("_collect_legacy_shell_status")
     if callable(shell_status_helper):
         try:
@@ -1258,9 +1260,11 @@ async def api_ui_bootstrap(request: Request = None):
             "recent_degraded_events": _collect_recent_degraded_events(),
         },
         "ui": {
-            "shell": legacy_ui_status.get("shell", "legacy_shell" if LEGACY_UI_INDEX.exists() else "react_shell"),
-            "legacy_fallback_available": bool(legacy_ui_status.get("legacy_fallback_available", LEGACY_UI_INDEX.exists())),
-            "experimental_shell_available": bool(legacy_ui_status.get("experimental_shell_available", (SHELL_DIST_DIR / "index.html").exists())),
+            "shell": legacy_ui_status.get("shell", "legacy_shell" if legacy_ui_index.exists() else "react_shell"),
+            "legacy_fallback_available": bool(legacy_ui_status.get("legacy_fallback_available", legacy_ui_index.exists())),
+            "experimental_shell_available": bool(legacy_ui_status.get("experimental_shell_available", (shell_dist_dir / "index.html").exists())),
+            "experimental_shell_enabled": bool(legacy_ui_status.get("experimental_shell_enabled", False)),
+            "canonical_shell": legacy_ui_status.get("canonical_shell", legacy_ui_status.get("shell", "legacy_shell")),
             "status_flags": _derive_ui_status_flags(
                 state_summary=state_summary,
                 executive_status=executive_status,
@@ -1268,7 +1272,7 @@ async def api_ui_bootstrap(request: Request = None):
                 tool_catalog=tool_catalog,
             ),
         },
-        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "timestamp": datetime.now(tz=UTC).isoformat(),
     }
     return JSONResponse(payload)
 
@@ -1309,7 +1313,6 @@ async def api_hot_reload(request: Request):
     The kernel, ServiceContainer, event loop, loaded models, and
     conversation history are preserved.
     """
-    from interface.auth import _require_internal
     _require_internal(request)
 
     from core.ops.hot_reload import get_hot_reloader
@@ -1342,7 +1345,6 @@ async def api_hot_reload(request: Request):
 @router.get("/system/hot-reload/status", tags=["system"])
 async def api_hot_reload_status(request: Request):
     """Return the current state of the hot-reload engine."""
-    from interface.auth import _require_internal
     _require_internal(request)
 
     from core.ops.hot_reload import get_hot_reloader
@@ -1354,10 +1356,9 @@ async def api_hot_reload_status(request: Request):
 @router.get("/system/hot-reload/scopes", tags=["system"])
 async def api_hot_reload_scopes(request: Request):
     """List all available reload scopes and their module prefixes."""
-    from interface.auth import _require_internal
     _require_internal(request)
 
-    from core.ops.hot_reload import RELOAD_SCOPES, PROTECTED_MODULES, PROTECTED_PREFIXES
+    from core.ops.hot_reload import PROTECTED_MODULES, PROTECTED_PREFIXES, RELOAD_SCOPES
 
     return JSONResponse({
         "scopes": {

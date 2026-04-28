@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -78,3 +77,13 @@ def test_server_keeps_legacy_shell_as_default_route():
     assert 'ui = LEGACY_UI_INDEX if LEGACY_UI_INDEX.exists() else (SHELL_DIST_DIR / "index.html")' in server
     assert 'fallback = LEGACY_UI_INDEX if LEGACY_UI_INDEX.exists() else (SHELL_DIST_DIR / "index.html")' in server
     assert '"shell": "legacy_shell" if LEGACY_UI_INDEX.exists() else "react_shell"' in server
+
+
+def test_react_shell_is_opt_in_so_original_hud_stays_canonical():
+    server = (PROJECT_ROOT / "interface" / "server.py").read_text(encoding="utf-8")
+    system = (PROJECT_ROOT / "interface" / "routes" / "system.py").read_text(encoding="utf-8")
+
+    assert "AURA_ENABLE_REACT_SHELL" in server
+    assert "if LEGACY_UI_INDEX.exists() and not _react_shell_enabled():" in server
+    assert '"canonical_shell": "legacy_shell"' in server
+    assert "experimental_shell_enabled" in system

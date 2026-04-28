@@ -4162,3 +4162,386 @@ body.ui-degraded .state-summary-box,
 body.ui-degraded .phenomenal-box {
     border-color: rgba(255, 170, 0, 0.14);
 }
+
+/* ══════════════════════════════════════════════════════════
+   OG FLAGSHIP POLISH V2 — same Aura style, tighter execution
+   ══════════════════════════════════════════════════════════ */
+:root {
+    --header-height: 64px;
+    --mobile-header-height: 56px;
+    --mobile-nav-height: calc(65px + env(safe-area-inset-bottom));
+}
+
+html,
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+header,
+main,
+.chat-panel,
+.sidebar,
+.input-bar,
+.tab-bar,
+.neural-toolbar,
+.thought-card,
+.sys-box,
+.msg {
+    min-width: 0;
+}
+
+header {
+    gap: clamp(10px, 1.1vw, 18px);
+    padding-inline: clamp(14px, 1.6vw, 24px);
+}
+
+.brand {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.brand-title,
+.brand-ver,
+.brand-status-text,
+.hdr-btn,
+.hud-stat,
+.tab-btn,
+.m-nav-lbl {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.brand-title,
+.brand-ver,
+.brand-status,
+.hdr-btn,
+.tab-btn,
+.m-nav-lbl {
+    white-space: nowrap;
+}
+
+@media (min-width: 1101px) {
+    .brand {
+        flex: 0 0 auto;
+        overflow: visible;
+    }
+
+    .brand-title,
+    .brand-ver,
+    .brand-status-text,
+    .hud-stat {
+        overflow: visible;
+        text-overflow: clip;
+    }
+}
+
+.hud-stats {
+    flex: 1 1 auto;
+}
+
+.hud-stats-inner,
+.hdr-actions,
+.stats-ribbon,
+.tab-bar {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;
+}
+
+.hud-stats-inner,
+.hdr-actions {
+    scrollbar-width: none;
+}
+
+.hud-stats-inner::-webkit-scrollbar,
+.hdr-actions::-webkit-scrollbar {
+    display: none;
+}
+
+.hdr-actions {
+    max-width: min(48vw, 700px);
+    min-width: 0;
+    overflow-x: auto;
+    padding-block: 7px;
+}
+
+.hdr-btn,
+.neural-toggle-btn,
+.thought-copy-btn,
+.metric-guide-close,
+.input-btn,
+.m-nav-btn {
+    min-height: 32px;
+    touch-action: manipulation;
+}
+
+.thought-copy-btn {
+    min-height: 28px;
+    padding-inline: 12px;
+}
+
+.neural-toggle-btn {
+    min-height: 28px;
+}
+
+.chat-panel {
+    flex: 7 1 0;
+}
+
+.sidebar {
+    flex: 3 1 330px;
+}
+
+#chat-input {
+    min-width: 0;
+    max-width: 100%;
+    resize: none;
+}
+
+.input-actions {
+    flex: 0 0 auto;
+}
+
+.sys-box,
+.msg,
+.thought-body,
+.skill-desc,
+.metric-guide-live,
+.metric-guide-block p {
+    overflow-wrap: anywhere;
+}
+
+.aurora-bg,
+.cosmos {
+    contain: layout paint;
+}
+
+.aurora-layer,
+.voice-orb,
+.voice-orb::after,
+.splash-orb,
+.splash-orb-ring,
+.bar-fill,
+.gauge-fill {
+    will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.001ms !important;
+    }
+}
+
+@media (max-width: 1100px) {
+    :root {
+        --header-height: var(--mobile-header-height);
+    }
+
+    header {
+        height: var(--mobile-header-height);
+        min-height: var(--mobile-header-height);
+        gap: 8px;
+        padding-inline: 12px;
+    }
+
+    .brand {
+        flex: 1 1 auto;
+        gap: 9px;
+        overflow: hidden;
+    }
+
+    .brand-icon {
+        flex: 0 0 30px;
+        width: 30px;
+        height: 30px;
+    }
+
+    .brand-title {
+        font-size: clamp(0.86rem, 2.8vw, 1.05rem);
+        max-width: 18ch;
+    }
+
+    .brand-ver {
+        max-width: 11ch;
+        margin-left: 2px;
+    }
+
+    .brand-status {
+        flex: 0 0 auto;
+        margin-left: 2px;
+        padding: 5px 8px;
+    }
+
+    .brand-status-text {
+        max-width: 14ch;
+    }
+
+    .hdr-actions {
+        flex: 0 1 auto;
+        max-width: min(42vw, 360px);
+        gap: 5px;
+    }
+
+    .hdr-btn {
+        min-width: auto;
+        min-height: 34px;
+        padding-inline: 10px;
+    }
+
+    #btn-apk,
+    #btn-brain,
+    #btn-src,
+    #btn-update,
+    #btn-soul,
+    #btn-term,
+    #btn-mem-map {
+        display: none;
+    }
+
+    main {
+        height: calc(100dvh - var(--mobile-header-height) - var(--mobile-nav-height));
+        padding: 10px;
+        gap: 0;
+    }
+
+    .chat-panel,
+    .chat-panel.mobile-active,
+    .sidebar,
+    .sidebar.mobile-active {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        min-height: 0;
+    }
+
+    .chat-panel.mobile-active {
+        border-radius: 16px;
+    }
+
+    #messages {
+        min-height: 0;
+        padding: 16px;
+    }
+
+    .sys-box {
+        width: 100%;
+        margin: 10px auto;
+        padding: 16px 18px;
+    }
+
+    .input-area {
+        padding: 10px 14px 14px;
+    }
+
+    .input-bar {
+        gap: 8px;
+        padding: 8px 10px;
+    }
+
+    .input-hint {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 720px) {
+    .brand-ver,
+    #btn-cam {
+        display: none !important;
+    }
+
+    .brand-status {
+        padding-inline: 7px;
+    }
+
+    .brand-status-text {
+        display: none;
+    }
+
+    .hdr-actions {
+        max-width: 32vw;
+    }
+
+    .privacy-btn::before {
+        display: none;
+    }
+
+    .input-hint {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    header {
+        padding-inline: 10px;
+    }
+
+    .brand-title {
+        max-width: 12ch;
+    }
+
+    .hdr-actions {
+        max-width: 30vw;
+    }
+
+    .hdr-btn:not(#btn-mute):not(#btn-reboot) {
+        display: none !important;
+    }
+
+    #btn-mute {
+        width: 42px;
+        min-width: 42px;
+        padding-inline: 0;
+        justify-content: center;
+        color: transparent !important;
+        position: relative;
+    }
+
+    #btn-mute::after {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--success);
+        box-shadow: 0 0 12px var(--success);
+    }
+
+    #btn-mute.disabled::after {
+        background: var(--error);
+        box-shadow: 0 0 12px rgba(255, 62, 94, 0.72);
+    }
+
+    #btn-reboot {
+        width: 38px;
+        min-width: 38px;
+        padding-inline: 0;
+        justify-content: center;
+    }
+
+    main {
+        padding: 8px;
+    }
+
+    .chat-panel.mobile-active {
+        border-radius: 14px;
+    }
+
+    #messages {
+        padding: 12px;
+    }
+
+    .input-area {
+        padding: 8px 10px 12px;
+    }
+
+    .input-btn {
+        padding-inline: 13px;
+    }
+}

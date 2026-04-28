@@ -27,6 +27,16 @@ dependencies = [
     "pyttsx3>=2.90",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-mock>=3.14.0",
+    "pre-commit>=3.8.0",
+    "ruff>=0.5.0",
+    "mypy>=1.11.2",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3.0",

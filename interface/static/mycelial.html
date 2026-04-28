@@ -8,8 +8,22 @@
     <script src="https://unpkg.com/3d-force-graph@1.76.0/dist/3d-force-graph.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@800&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; background-color: #030005; overflow: hidden; font-family: 'Space Mono', monospace; }
-        #graph { width: 100vw; height: 100vh; }
+        body {
+            margin: 0;
+            background-color: #030005;
+            overflow: hidden;
+            font-family: 'Space Mono', monospace;
+            color: rgba(255, 255, 255, 0.86);
+        }
+
+        #graph {
+            width: 100vw;
+            height: 100vh;
+            background:
+                radial-gradient(circle at 48% 44%, rgba(138, 43, 226, 0.12), transparent 34%),
+                radial-gradient(circle at 76% 72%, rgba(0, 229, 255, 0.08), transparent 28%),
+                #030005;
+        }
         
         .overlay {
             position: fixed;
@@ -74,6 +88,37 @@
         .stat-label { color: rgba(255, 255, 255, 0.4); letter-spacing: 1px; }
         .stat-value { color: #00e5ff; font-weight: bold; text-shadow: 0 0 10px rgba(0, 229, 255, 0.5); }
 
+        .graph-controls {
+            position: fixed;
+            right: 30px;
+            top: 30px;
+            z-index: 12;
+            display: grid;
+            gap: 8px;
+        }
+
+        .graph-control {
+            width: 42px;
+            height: 42px;
+            border: 1px solid rgba(0, 229, 255, 0.24);
+            border-radius: 12px;
+            background:
+                linear-gradient(180deg, rgba(18, 12, 34, 0.92), rgba(8, 5, 17, 0.78));
+            color: rgba(255, 255, 255, 0.86);
+            font: 700 18px 'Space Mono', monospace;
+            cursor: pointer;
+            box-shadow: 0 0 24px rgba(0, 0, 0, 0.56), inset 0 0 0 1px rgba(255,255,255,0.03);
+            -webkit-backdrop-filter: blur(18px);
+            backdrop-filter: blur(18px);
+            transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+        }
+
+        .graph-control:hover {
+            border-color: rgba(180, 77, 255, 0.56);
+            box-shadow: 0 0 26px rgba(138, 43, 226, 0.28);
+            transform: translateY(-1px);
+        }
+
         .loading {
             position: fixed;
             top: 50%;
@@ -100,6 +145,82 @@
             background:
                 radial-gradient(circle at center, rgba(138,43,226,0.18), transparent 45%),
                 linear-gradient(135deg, rgba(0,229,255,0.06), transparent 40%, rgba(255,0,255,0.06));
+        }
+
+        .hover-card {
+            position: fixed;
+            z-index: 14;
+            width: min(320px, calc(100vw - 36px));
+            pointer-events: none;
+            background:
+                linear-gradient(180deg, rgba(14, 8, 28, 0.96), rgba(5, 3, 14, 0.9));
+            border: 1px solid rgba(0, 229, 255, 0.24);
+            border-left: 3px solid var(--node-color, #8a2be2);
+            border-radius: 14px;
+            padding: 14px 15px 15px;
+            color: rgba(255,255,255,0.88);
+            box-shadow: 0 22px 60px rgba(0,0,0,0.82), 0 0 28px rgba(138,43,226,0.12);
+            -webkit-backdrop-filter: blur(18px) saturate(130%);
+            backdrop-filter: blur(18px) saturate(130%);
+            opacity: 0;
+            transform: translate3d(12px, 12px, 0) scale(0.98);
+            transition: opacity 120ms ease, transform 120ms ease;
+        }
+
+        .hover-card.visible {
+            opacity: 1;
+            transform: translate3d(12px, 12px, 0) scale(1);
+        }
+
+        .hover-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+            font: 800 13px 'Syne', sans-serif;
+            letter-spacing: 0.02em;
+        }
+
+        .hover-type {
+            flex: 0 0 auto;
+            border-radius: 999px;
+            padding: 3px 8px;
+            background: color-mix(in srgb, var(--node-color, #8a2be2) 38%, transparent);
+            color: #fff;
+            font: 700 9px 'Space Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .hover-desc {
+            margin: 0 0 12px;
+            color: rgba(255,255,255,0.68);
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        .hover-meta {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            font-size: 10px;
+        }
+
+        .hover-meta span {
+            display: block;
+            color: rgba(255,255,255,0.36);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .hover-meta strong {
+            display: block;
+            margin-top: 3px;
+            color: #00e5ff;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         @keyframes pulse {
@@ -196,11 +317,42 @@
         <div class="stat-row"><span class="stat-label">LATENCY</span><span id="stat-latency" class="stat-value">0ms</span></div>
     </div>
 
+    <div class="graph-controls" aria-label="Soul map controls">
+        <button class="graph-control" id="soul-zoom-in" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+        <button class="graph-control" id="soul-zoom-out" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+        <button class="graph-control" id="soul-fit" type="button" title="Fit graph" aria-label="Fit graph">⤢</button>
+    </div>
+
+    <div id="node-hover-card" class="hover-card" aria-hidden="true"></div>
+
     <div id="graph"></div>
 
     <script>
         const elem = document.getElementById('graph');
+        const hoverCard = document.getElementById('node-hover-card');
         let Graph = null;
+        let latestGraphMetrics = { nodeCount: 0, linkCount: 0, maxDegree: 1, maxCentrality: 1 };
+        let pointerPosition = { x: window.innerWidth * 0.62, y: window.innerHeight * 0.42 };
+        const haloTextureCache = new Map();
+
+        const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;',
+            }[ch]));
+        }
+
+        window.addEventListener('pointermove', event => {
+            pointerPosition = { x: event.clientX, y: event.clientY };
+            if (hoverCard.classList.contains('visible')) {
+                placeHoverCard();
+            }
+        }, { passive: true });
 
         function formatPercentish(value) {
             const numeric = Number(value);
@@ -212,6 +364,190 @@
         function setText(id, value) {
             const el = document.getElementById(id);
             if (el) el.textContent = value;
+        }
+
+        function endpointId(endpoint) {
+            return endpoint && typeof endpoint === 'object' ? endpoint.id : endpoint;
+        }
+
+        function nodeRadius(node, metrics = latestGraphMetrics) {
+            const degree = Math.max(0, Number(node.degree ?? node.__degree ?? 0));
+            const centrality = Math.max(0, Number(node.centrality || 0));
+            const degreeNorm = Math.log1p(degree) / Math.log1p(Math.max(1, metrics.maxDegree || 1));
+            const centralityNorm = Math.log1p(centrality) / Math.log1p(Math.max(1, metrics.maxCentrality || 1));
+            const confidence = clamp(Number(node.confidence ?? 0.7), 0.2, 1);
+            const maxRadius = metrics.nodeCount > 240 ? 8.5 : metrics.nodeCount > 120 ? 10.5 : 13.5;
+            const typeBoost = node.is_critical ? 1.8 : node.type === 'consciousness' ? 0.9 : 0;
+            return Number(clamp(1.85 + degreeNorm * 7.6 + centralityNorm * 2.1 + confidence * 1.3 + typeBoost, 1.9, maxRadius).toFixed(2));
+        }
+
+        function normalizeGraphPayload(payload) {
+            const nodes = Array.isArray(payload.nodes) ? payload.nodes.map(node => ({ ...node })) : [];
+            const links = (payload.links || payload.edges || []).map(link => ({
+                ...link,
+                source: endpointId(link.source || link.from),
+                target: endpointId(link.target || link.to),
+            })).filter(link => link.source && link.target);
+
+            const degree = new Map();
+            for (const link of links) {
+                degree.set(link.source, (degree.get(link.source) || 0) + 1);
+                degree.set(link.target, (degree.get(link.target) || 0) + 1);
+            }
+
+            const maxDegree = Math.max(1, ...nodes.map(node => degree.get(node.id) || 0));
+            const maxCentrality = Math.max(1, ...nodes.map(node => Number(node.centrality || 0)));
+            latestGraphMetrics = { nodeCount: nodes.length, linkCount: links.length, maxDegree, maxCentrality };
+            const labelThreshold = nodes.length > 180 ? Math.max(3, Math.ceil(maxDegree * 0.42)) : nodes.length > 70 ? Math.max(2, Math.ceil(maxDegree * 0.3)) : 1;
+
+            for (const node of nodes) {
+                node.degree = degree.get(node.id) || 0;
+                node.__radius = nodeRadius(node, latestGraphMetrics);
+                node.__showLabel = node.degree >= labelThreshold || node.is_critical || node.type === 'consciousness';
+            }
+
+            for (const link of links) {
+                const srcDegree = degree.get(link.source) || 0;
+                const tgtDegree = degree.get(link.target) || 0;
+                link.__degreeWeight = Math.max(srcDegree, tgtDegree);
+            }
+
+            return { nodes, links };
+        }
+
+        function placeHoverCard() {
+            const margin = 18;
+            const rect = hoverCard.getBoundingClientRect();
+            let left = pointerPosition.x + 14;
+            let top = pointerPosition.y + 14;
+            if (left + rect.width + margin > window.innerWidth) {
+                left = pointerPosition.x - rect.width - 18;
+            }
+            if (top + rect.height + margin > window.innerHeight) {
+                top = pointerPosition.y - rect.height - 18;
+            }
+            hoverCard.style.left = `${clamp(left, margin, window.innerWidth - rect.width - margin)}px`;
+            hoverCard.style.top = `${clamp(top, margin, window.innerHeight - rect.height - margin)}px`;
+        }
+
+        function showHoverCard(node) {
+            if (!node) {
+                hoverCard.classList.remove('visible');
+                hoverCard.setAttribute('aria-hidden', 'true');
+                document.body.style.cursor = '';
+                return;
+            }
+            const color = node.color || '#8a2be2';
+            hoverCard.style.setProperty('--node-color', color);
+            hoverCard.innerHTML = `
+                <div class="hover-title">
+                    <span>${escapeHtml(node.label || node.id || 'Subsystem')}</span>
+                    <span class="hover-type">${escapeHtml(node.type || 'core')}</span>
+                </div>
+                <p class="hover-desc">${escapeHtml(node.description || 'No neural profile available for this node.')}</p>
+                <div class="hover-meta">
+                    <div><span>Degree</span><strong>${escapeHtml(node.degree ?? 0)}</strong></div>
+                    <div><span>Centrality</span><strong>${escapeHtml(node.centrality ?? 0)}</strong></div>
+                    <div><span>Confidence</span><strong>${Math.round(clamp(Number(node.confidence ?? 0), 0, 1) * 100)}%</strong></div>
+                </div>`;
+            hoverCard.classList.add('visible');
+            hoverCard.setAttribute('aria-hidden', 'false');
+            document.body.style.cursor = 'crosshair';
+            requestAnimationFrame(placeHoverCard);
+        }
+
+        function makeHaloTexture(color) {
+            if (haloTextureCache.has(color)) return haloTextureCache.get(color);
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(64, 64, 4, 64, 64, 58);
+            gradient.addColorStop(0, color);
+            gradient.addColorStop(0.32, color);
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 128, 128);
+            const texture = new THREE.CanvasTexture(canvas);
+            haloTextureCache.set(color, texture);
+            return texture;
+        }
+
+        function makeTextSprite(text, color, radius) {
+            const safeText = String(text || '').slice(0, 28);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.font = '700 34px Space Mono, monospace';
+            const metrics = ctx.measureText(safeText);
+            canvas.width = Math.ceil(metrics.width + 34);
+            canvas.height = 58;
+            ctx.font = '700 34px Space Mono, monospace';
+            ctx.textBaseline = 'middle';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = 'rgba(0,0,0,0.88)';
+            ctx.lineWidth = 7;
+            ctx.strokeText(safeText, 16, 29);
+            ctx.fillStyle = 'rgba(248, 246, 255, 0.92)';
+            ctx.fillText(safeText, 16, 29);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.minFilter = THREE.LinearFilter;
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                opacity: 0.78,
+                depthWrite: false,
+                color: color || '#ffffff',
+            });
+            const sprite = new THREE.Sprite(material);
+            const width = clamp(canvas.width / 4.8, 42, 184);
+            sprite.scale.set(width, width * (canvas.height / canvas.width), 1);
+            sprite.position.set(radius * 1.2, radius * 1.42, 0);
+            sprite.material.depthTest = false;
+            return sprite;
+        }
+
+        function overviewDistance() {
+            const n = latestGraphMetrics.nodeCount || 1;
+            const e = latestGraphMetrics.linkCount || 1;
+            return clamp(520 + Math.sqrt(n) * 58 + Math.sqrt(e) * 18, 760, 3600);
+        }
+
+        function moveCameraByScale(scale, ms = 420) {
+            if (!Graph) return;
+            const camera = Graph.camera();
+            const pos = camera.position;
+            Graph.cameraPosition(
+                { x: pos.x * scale, y: pos.y * scale, z: pos.z * scale },
+                { x: 0, y: 0, z: 0 },
+                ms
+            );
+        }
+
+        function frameSoulMap(ms = 1600) {
+            if (!Graph) return;
+            const padding = window.innerWidth < 720 ? 70 : 170;
+            const fitMs = ms ? Math.min(650, ms) : 0;
+            Graph.zoomToFit(fitMs, padding);
+
+            window.setTimeout(() => {
+                const target = Graph.controls()?.target || { x: 0, y: 0, z: 0 };
+                const camera = Graph.camera();
+                const dx = camera.position.x - target.x;
+                const dy = camera.position.y - target.y;
+                const dz = camera.position.z - target.z;
+                const currentDistance = Math.max(1, Math.hypot(dx, dy, dz));
+                const preferredDistance = overviewDistance();
+                const scale = Math.max(1.28, Math.min(2.1, preferredDistance / currentDistance));
+                Graph.cameraPosition(
+                    {
+                        x: target.x + dx * scale,
+                        y: target.y + dy * scale,
+                        z: target.z + dz * scale,
+                    },
+                    { x: target.x, y: target.y, z: target.z },
+                    ms
+                );
+            }, fitMs + 40);
         }
 
         function updateOverlayFromHealth(health) {
@@ -235,98 +571,102 @@
             const graph = ForceGraph3D()(elem)
                 .backgroundColor('#030005')
                 .nodeLabel(node => {
-                const confPercent = Math.round((node.confidence || 0) * 100);
-                const color = node.color || '#8a2be2';
-                return `
-                <div class="node-card" style="border-top-color: ${color}">
-                    <div class="node-card-header">
-                        <span>${node.label || 'Subsystem'}</span>
-                        <span class="node-type-tag" style="background: ${color}">${node.type || 'core'}</span>
-                    </div>
-                    <div class="node-desc">${node.description || 'No neural profile available for this node.'}</div>
-                    <div class="node-meta-row">
-                        <span class="node-meta-label">ID</span>
-                        <span class="node-meta-value" style="color: #fff; opacity: 0.5">${node.id}</span>
-                    </div>
-                    <div class="node-meta-row">
-                        <span class="node-meta-label">CENTRALITY</span>
-                        <span class="node-meta-value">${node.centrality || 0}</span>
-                    </div>
-                    <div class="node-meta-row">
-                        <span class="node-meta-label">HITS</span>
-                        <span class="node-meta-value">${node.hits || 0}</span>
-                    </div>
-                    <div class="node-meta-row">
-                        <span class="node-meta-label">CONFIDENCE</span>
-                        <span class="node-meta-value">${confPercent}%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${confPercent}%; background: ${color}"></div>
-                    </div>
-                </div>`;
+                    const confPercent = Math.round(clamp(Number(node.confidence || 0), 0, 1) * 100);
+                    return `${escapeHtml(node.label || node.id)} • ${escapeHtml(node.type || 'core')} • degree ${escapeHtml(node.degree || 0)} • ${confPercent}%`;
                 })
                 .nodeColor(node => node.color || '#4a4a4a')
-                .nodeRelSize(4)
-                .nodeVal(node => {
-                let base = (node.confidence || 0.5) * 6;
-                if (node.centrality) base += (node.centrality * 1.5);
-                if (node.is_critical) base *= 2.5; 
-                return base;
-                })
-                .nodeResolution(32)
+                .nodeRelSize(1)
+                .nodeVal(node => node.__radius || nodeRadius(node))
+                .nodeResolution(16)
                 .nodeThreeObject(node => {
-                const color = node.color || '#8a2be2';
-                let size = (node.confidence || 0.5) * 6;
-                if (node.centrality) size += (node.centrality * 1.5);
-                if (node.is_critical) size *= 2.5;
+                    const color = node.color || '#8a2be2';
+                    const radius = node.__radius || nodeRadius(node);
+                    const group = new THREE.Group();
 
-                const geometry = new THREE.SphereGeometry(size, 32, 32);
-                const material = new THREE.MeshPhongMaterial({ 
-                    color: color,
-                    emissive: color,
-                    emissiveIntensity: node.is_critical ? 0.8 : 0.4,
-                    transparent: true,
-                    opacity: 0.9
-                });
-                const sphere = new THREE.Mesh(geometry, material);
+                    const geometry = new THREE.SphereGeometry(radius, 18, 14);
+                    const material = new THREE.MeshPhongMaterial({
+                        color,
+                        emissive: color,
+                        emissiveIntensity: node.is_critical ? 0.56 : 0.34,
+                        shininess: 62,
+                        transparent: true,
+                        opacity: 0.92,
+                    });
+                    const sphere = new THREE.Mesh(geometry, material);
+                    group.add(sphere);
 
-                // Richer Glowing Aura
-                const glowSize = node.is_critical ? 3.0 : 1.8;
-                const glowGeometry = new THREE.SphereGeometry(size * glowSize, 32, 32);
-                const glowMaterial = new THREE.MeshBasicMaterial({ 
-                    color: color, 
-                    transparent: true, 
-                    opacity: node.is_critical ? 0.2 : 0.1,
-                    blending: THREE.AdditiveBlending,
-                    side: THREE.BackSide
-                });
-                const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-                sphere.add(glow);
+                    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+                        map: makeHaloTexture(color),
+                        transparent: true,
+                        opacity: node.is_critical ? 0.18 : 0.11,
+                        depthWrite: false,
+                        blending: THREE.AdditiveBlending,
+                    }));
+                    const haloScale = radius * (node.is_critical ? 3.0 : 2.35);
+                    halo.scale.set(haloScale, haloScale, 1);
+                    group.add(halo);
 
-                return sphere;
+                    if (node.__showLabel) {
+                        group.add(makeTextSprite(node.label || node.id, color, radius));
+                    }
+
+                    return group;
                 })
-                // Edges: Use data-driven colors and thickness
-                .linkColor(link => link.color || 'rgba(0, 229, 255, 0.4)') 
-                .linkWidth(link => (link.strength || 1.0) * 1.5) 
-                .linkDirectionalParticles(2)
-                .linkDirectionalParticleSpeed(0.003)
-                .linkDirectionalParticleWidth(2.0)
-                .linkDirectionalParticleColor(() => '#ff00ff')
+                .linkColor(link => link.color || 'rgba(132, 98, 255, 0.46)')
+                .linkOpacity(0.82)
+                .linkWidth(link => clamp(Number(link.width || 1) * 0.72, 0.58, 2.6))
+                .linkResolution(6)
+                .linkDirectionalParticles(link => (Number(link.__degreeWeight || 0) >= latestGraphMetrics.maxDegree * 0.5 ? 1 : 0))
+                .linkDirectionalParticleSpeed(0.002)
+                .linkDirectionalParticleWidth(link => clamp(Number(link.width || 1) * 0.72, 0.75, 1.8))
+                .linkDirectionalParticleColor(link => link.color || '#ff4fa3')
+                .onNodeHover(node => showHoverCard(node))
                 .onNodeClick(node => {
-                const distance = 60;
-                const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
-                graph.cameraPosition(
-                    { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
-                    node, 
-                    2000 
-                );
-            });
+                    const radius = node.__radius || nodeRadius(node);
+                    const distance = clamp(radius * 12 + 90, 135, 320);
+                    const length = Math.hypot(node.x || 1, node.y || 1, node.z || 1);
+                    const distRatio = 1 + distance / Math.max(1, length);
+                    graph.cameraPosition(
+                        {
+                            x: (node.x || 0) * distRatio,
+                            y: (node.y || 0) * distRatio,
+                            z: (node.z || 0) * distRatio + distance * 0.2,
+                        },
+                        node,
+                        1200
+                    );
+                });
 
-            // Add soft ambient light for the Phong material
-            const ambientLight = new THREE.AmbientLight(0x404040, 2);
+            const controls = graph.controls();
+            controls.enableZoom = true;
+            controls.minDistance = 65;
+            controls.maxDistance = 5200;
+            controls.zoomSpeed = 0.72;
+            controls.rotateSpeed = 0.72;
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+
+            const camera = graph.camera();
+            camera.fov = 42;
+            camera.near = 1;
+            camera.far = 9000;
+            camera.updateProjectionMatrix();
+
+            const charge = graph.d3Force('charge');
+            if (charge) charge.strength(-118).distanceMax(720);
+            const linkForce = graph.d3Force('link');
+            if (linkForce) {
+                linkForce.distance(link => Number(link.distance || 78)).strength(0.32);
+            }
+
+            const ambientLight = new THREE.AmbientLight(0x9f8aff, 1.35);
             graph.scene().add(ambientLight);
-            const pointLight = new THREE.PointLight(0xffffff, 1);
+            const pointLight = new THREE.PointLight(0x8fefff, 1.1);
+            pointLight.position.set(220, 180, 360);
             graph.scene().add(pointLight);
+            const magentaLight = new THREE.PointLight(0xff4fa3, 0.72);
+            magentaLight.position.set(-260, -120, 240);
+            graph.scene().add(magentaLight);
             return graph;
         }
 
@@ -364,10 +704,10 @@
                 } else {
                     console.warn('SOUL_MAP_HEALTH_FETCH_FAILED', healthResult.reason);
                 }
-                const linksData = data.links || data.edges || [];
+                const normalized = normalizeGraphPayload(data);
 
-                document.getElementById('stat-nodes').textContent = (data.nodes || []).length;
-                document.getElementById('stat-edges').textContent = linksData.length;
+                document.getElementById('stat-nodes').textContent = normalized.nodes.length;
+                document.getElementById('stat-edges').textContent = normalized.links.length;
                 document.getElementById('stat-pathways').textContent = data.pathway_count || 0;
                 document.getElementById('stat-cohesion').textContent = (data.system_cohesion || data.cohesion || 0).toFixed(2);
                 document.getElementById('stat-latency').textContent = (Date.now() - start) + 'ms';
@@ -376,22 +716,18 @@
                     setText('hud-ram', `${Number(data.ram_usage).toFixed(1)}%`);
                 }
                 
-                if (data.nodes && data.nodes.length > 0) {
+                if (normalized.nodes.length > 0) {
                     if (Graph) {
                         const currentData = Graph.graphData();
                         const isFirstLoad = !currentData.nodes.length;
 
                         Graph.graphData({
-                            nodes: data.nodes,
-                            links: linksData.map(e => ({
-                                ...e,
-                                source: e.source || e.from,
-                                target: e.target || e.to
-                            }))
+                            nodes: normalized.nodes,
+                            links: normalized.links
                         });
 
                         if (isFirstLoad) {
-                            setTimeout(() => { Graph.zoomToFit(1500, 200); }, 800);
+                            setTimeout(() => frameSoulMap(1800), 900);
                         }
                     }
                     document.getElementById('loading').style.display = 'none';
@@ -409,10 +745,15 @@
         initData();
         setInterval(initData, 20000);
 
+        document.getElementById('soul-zoom-in')?.addEventListener('click', () => moveCameraByScale(0.72));
+        document.getElementById('soul-zoom-out')?.addEventListener('click', () => moveCameraByScale(1.38));
+        document.getElementById('soul-fit')?.addEventListener('click', () => frameSoulMap(900));
+
         window.addEventListener('resize', () => {
             if (Graph) {
                 Graph.width(window.innerWidth);
                 Graph.height(window.innerHeight);
+                frameSoulMap(0);
             }
         });
     </script>

@@ -2353,8 +2353,18 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
     // Timestamp element (shows on hover)
     const tsStr = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    if (isAura && text.length > 5 && !isHtml) {
-        const words = text.split(' ');
+    const prefersReducedMotion = window.matchMedia
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const words = text.split(' ');
+    const canTypewriterRender = (
+        isAura
+        && text.length > 5
+        && !isHtml
+        && !prefersReducedMotion
+        && words.length <= 180
+    );
+
+    if (canTypewriterRender) {
         let currentWordRaw = '';
         let i = 0;
 
@@ -2367,8 +2377,9 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
             const elapsed = timestamp - lastTypeTime;
 
             if (elapsed >= msPerWord) {
-                currentWordRaw += (i === 0 ? '' : ' ') + words[i];
-                i++;
+                const nextLimit = Math.min(words.length, i + (words.length > 80 ? 3 : 1));
+                currentWordRaw += (i === 0 ? '' : ' ') + words.slice(i, nextLimit).join(' ');
+                i = nextLimit;
                 lastTypeTime = timestamp;
 
                 const badgeHtml = (metadata.reflex ? `<span class="aura-badge reflex">Reflex</span>` : (metadata.autonomic ? `<span class="aura-badge autonomic">Autonomic</span>` : ''));

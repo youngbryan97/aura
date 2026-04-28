@@ -7,18 +7,17 @@ Strategic projects, Action log.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import sqlite3
-import time
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from core.config import config
 from core.container import ServiceContainer
 
-from interface.auth import _check_rate_limit, _require_internal, _restore_owner_session_from_request, _verify_token
+from interface.auth import _require_internal, _restore_owner_session_from_request, _verify_token
 
 logger = logging.getLogger("Aura.Server.Subsystems")
 
@@ -302,6 +301,7 @@ async def api_mycelial_graph():
         topo = mycelium.get_network_topology()
         nodes_map: Dict[str, Any] = {}
         links: List[Dict[str, Any]] = []
+        synthetic_links: List[Dict[str, Any]] = []
 
         all_endpoints: set = set()
         for name, h_data in topo.get("hyphae", {}).items():
@@ -312,12 +312,68 @@ async def api_mycelial_graph():
         for mk in mycelium.mapped_files:
             all_endpoints.add(mk)
 
+        if len(all_endpoints) < 120:
+            project_root = config.paths.project_root
+            module_roots = (
+                "core",
+                "interface",
+                "skills",
+                "aura",
+                "llm",
+                "senses",
+                "autonomy_engine",
+                "cloud",
+                "infrastructure",
+                "integration",
+                "memory",
+                "orchestrator",
+                "proof_kernel",
+                "research",
+                "security",
+                "storage",
+                "training",
+                "utils",
+                "tests",
+                "tools",
+                "scripts",
+            )
+            seen_modules: set[str] = set()
+
+            for root_name in module_roots:
+                root = project_root / root_name
+                if not root.exists():
+                    continue
+                all_endpoints.add(root_name)
+                for path in sorted(root.rglob("*.py")):
+                    rel = path.relative_to(project_root).with_suffix("")
+                    if any(part.startswith(".") or part == "__pycache__" for part in rel.parts):
+                        continue
+                    if path.name.startswith("test_"):
+                        continue
+                    parts = rel.parts[:-1] if rel.name == "__init__" else rel.parts
+                    if not parts:
+                        continue
+                    module_id = ".".join(parts)
+                    if module_id in seen_modules:
+                        continue
+                    seen_modules.add(module_id)
+                    all_endpoints.add(module_id)
+                    parent = ".".join(module_id.split(".")[:-1]) or root_name
+                    all_endpoints.add(parent)
+                    if parent != module_id:
+                        synthetic_links.append({"source": parent, "target": module_id})
+                    if "." in parent:
+                        grandparent = ".".join(parent.split(".")[:-1]) or root_name
+                        all_endpoints.add(grandparent)
+                        synthetic_links.append({"source": grandparent, "target": parent})
+
         critical_set = set(topo.get("critical_modules", []))
         for ep in all_endpoints:
             short_name = ep.split(".")[-1] if "." in ep else ep
             is_critical = ep in critical_set
             is_consciousness = any(cn in ep.lower() for cn in CONSCIOUSNESS_SET)
             is_skill = "skills" in ep.lower() or "skill" in ep.lower()
+            is_interface = ep.startswith("interface")
             centrality = mycelium._centrality.get(ep, 0)
 
             if is_critical:
@@ -326,6 +382,8 @@ async def api_mycelial_graph():
                 color, ntype, size = "#00e5ff", "consciousness", 5
             elif is_skill:
                 color, ntype, size = "#00ffa3", "skill", 3
+            elif is_interface:
+                color, ntype, size = "#ff4fa3", "interface", 2.8 + min(centrality * 0.25, 3)
             else:
                 color, ntype, size = "#8a2be2", "core", 2 + min(centrality * 0.3, 4)
 
@@ -336,7 +394,9 @@ async def api_mycelial_graph():
                 elif is_consciousness:
                     description = f"High-order Consciousness Module: {short_name}. Essential for phenomenal awareness."
                 elif is_critical:
-                    description = f"Core Subsystem. Critical infrastructure component."
+                    description = "Core Subsystem. Critical infrastructure component."
+                elif is_interface:
+                    description = f"Interface Surface Hypha. Renders or serves {short_name}."
                 else:
                     description = f"System Substrate Hypha. Modulating {short_name} pathways."
 
@@ -366,14 +426,32 @@ async def api_mycelial_graph():
             is_physical = h_data.get("is_physical", False)
             strength = h_data.get("strength", 1.0)
             if is_physical:
-                color = f"rgba(0,180,255,{min(0.3 + strength * 0.08, 0.8):.2f})"
-                width, particles, distance = 2.0 + min(strength * 0.4, 4.0), 1, 60
+                color = f"rgba(0,180,255,{min(0.5 + strength * 0.08, 0.9):.2f})"
+                width, particles, distance = 2.8 + min(strength * 0.45, 4.2), 1, 70
             else:
-                color = f"rgba(0,229,255,{min(0.3 + strength * 0.05, 0.8):.2f})"
-                width, particles = 2.2 + min(strength * 0.4, 3.5), 2 if strength > 2 else 1
-                distance = 40
+                color = f"rgba(145,92,255,{min(0.52 + strength * 0.05, 0.88):.2f})"
+                width, particles = 2.4 + min(strength * 0.45, 3.8), 2 if strength > 2 else 1
+                distance = 58
             links.append({"source": src, "target": tgt, "color": color,
                           "width": round(float(width), 2), "particles": particles, "distance": distance})
+
+        synthetic_seen: set[tuple[str, str]] = set()
+        for link in synthetic_links:
+            src, tgt = link["source"], link["target"]
+            if src not in nodes_map or tgt not in nodes_map or src == tgt:
+                continue
+            key = (src, tgt)
+            if key in synthetic_seen:
+                continue
+            synthetic_seen.add(key)
+            links.append({
+                "source": src,
+                "target": tgt,
+                "color": "rgba(132,98,255,0.62)",
+                "width": 1.35,
+                "particles": 0,
+                "distance": 64,
+            })
 
         for pw_id, pw_data in topo.get("pathways", {}).items():
             pw_node_id = f"pw:{pw_id}"

@@ -11,7 +11,7 @@ to current state — instead of trying to keep patching a broken organ.
 The golden snapshot is taken once, at boot, after the build hash and the
 schema version line up. It is stored at:
 
-    ~/.aura/data/stem_cells/{organ}_{schema_version}.pickle.signed
+    ~/.aura/data/stem_cells/{organ}_{schema_version}.signed
 
 …with a HMAC signature using a key the runtime derives from the on-disk
 ``stem_cells.key`` file (created on first boot, mode 0600). Any tampered
@@ -30,25 +30,67 @@ That keeps autobiographical continuity intact across organ resets.
 """
 from __future__ import annotations
 
-
 import hashlib
 import hmac
 import json
 import logging
 import os
 import pickle
+import re
 import secrets
 import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
+
+from core.runtime.atomic_writer import atomic_write_bytes
 
 logger = logging.getLogger("Aura.StemCell")
 
 
 _STEM_DIR = Path.home() / ".aura" / "data" / "stem_cells"
 _STEM_KEY_FILE = _STEM_DIR / "stem_cells.key"
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_.-]{1,96}$")
+_MAX_HEADER_BYTES = 64 * 1024
+
+
+def _validate_identifier(value: str, *, field_name: str) -> str:
+    if not isinstance(value, str) or not _IDENTIFIER_RE.fullmatch(value):
+        raise ValueError(f"invalid stem cell {field_name}: {value!r}")
+    return value
+
+
+def _json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, bytes):
+        return {"type": "bytes", "hex": value.hex()}
+    if is_dataclass(value):
+        return _json_safe(asdict(value))
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(v) for v in value]
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        return _json_safe(model_dump())
+    if hasattr(value, "__dict__"):
+        return {
+            str(k): _json_safe(v)
+            for k, v in vars(value).items()
+            if not str(k).startswith("_")
+        }
+    return str(value)
+
+
+def _json_serialize(value: Any) -> bytes:
+    return json.dumps(_json_safe(value), sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _json_deserialize(data: bytes) -> Any:
+    return json.loads(data.decode("utf-8"))
 
 
 def _key() -> bytes:
@@ -87,9 +129,9 @@ class StemCellRegistry:
     def __init__(self) -> None:
         _STEM_DIR.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self._serializers: Dict[str, Callable[[Any], bytes]] = {}
-        self._deserializers: Dict[str, Callable[[bytes], Any]] = {}
-        self._instantiators: Dict[str, Callable[[Any], Any]] = {}
+        self._serializers: dict[str, Callable[[Any], bytes]] = {}
+        self._deserializers: dict[str, Callable[[bytes], Any]] = {}
+        self._instantiators: dict[str, Callable[[Any], Any]] = {}
 
     # -------- registration --------
 
@@ -97,20 +139,28 @@ class StemCellRegistry:
         self,
         organ: str,
         *,
-        serialize: Optional[Callable[[Any], bytes]] = None,
-        deserialize: Optional[Callable[[bytes], Any]] = None,
-        instantiate: Optional[Callable[[Any], Any]] = None,
+        serialize: Callable[[Any], bytes] | None = None,
+        deserialize: Callable[[bytes], Any] | None = None,
+        instantiate: Callable[[Any], Any] | None = None,
+        allow_pickle: bool = False,
     ) -> None:
-        self._serializers[organ] = serialize or (lambda obj: pickle.dumps(obj))
-        self._deserializers[organ] = deserialize or (lambda data: pickle.loads(data))
+        organ = _validate_identifier(organ, field_name="organ")
+        if allow_pickle and serialize is None and deserialize is None:
+            logger.warning("pickle stem-cell serialization explicitly enabled for organ=%s", organ)
+            serialize = pickle.dumps
+            deserialize = pickle.loads
+        self._serializers[organ] = serialize or _json_serialize
+        self._deserializers[organ] = deserialize or _json_deserialize
         if instantiate is not None:
             self._instantiators[organ] = instantiate
 
     # -------- capture --------
 
     def capture(self, organ: str, instance: Any, *, schema_version: str = "1") -> StemCellRecord:
+        organ = _validate_identifier(organ, field_name="organ")
+        schema_version = _validate_identifier(schema_version, field_name="schema_version")
         with self._lock:
-            ser = self._serializers.get(organ) or (lambda obj: pickle.dumps(obj))
+            ser = self._serializers.get(organ) or _json_serialize
             payload = ser(instance)
             sig = _sign(payload)
             record = StemCellRecord(
@@ -126,7 +176,8 @@ class StemCellRegistry:
 
     # -------- restore --------
 
-    def latest(self, organ: str) -> Optional[StemCellRecord]:
+    def latest(self, organ: str) -> StemCellRecord | None:
+        organ = _validate_identifier(organ, field_name="organ")
         with self._lock:
             candidates = sorted(_STEM_DIR.glob(f"{organ}_*.signed"), reverse=True)
             for path in candidates:
@@ -138,7 +189,10 @@ class StemCellRegistry:
                 logger.warning("🧬 stem cell signature mismatch on %s — skipping", path.name)
             return None
 
-    def revert(self, organ: str, *, schema_version: Optional[str] = None) -> Any:
+    def revert(self, organ: str, *, schema_version: str | None = None) -> Any:
+        organ = _validate_identifier(organ, field_name="organ")
+        if schema_version is not None:
+            schema_version = _validate_identifier(schema_version, field_name="schema_version")
         rec = self.latest(organ)
         if rec is None:
             raise FileNotFoundError(f"no valid stem cell for organ={organ}")
@@ -147,7 +201,7 @@ class StemCellRegistry:
                 "🧬 stem cell schema mismatch organ=%s have=%s want=%s",
                 organ, rec.schema_version, schema_version,
             )
-        des = self._deserializers.get(organ) or (lambda data: pickle.loads(data))
+        des = self._deserializers.get(organ) or _json_deserialize
         instance = des(rec.payload)
         instantiator = self._instantiators.get(organ)
         if instantiator is not None:
@@ -159,32 +213,36 @@ class StemCellRegistry:
 
     @staticmethod
     def _path(record: StemCellRecord) -> Path:
-        return _STEM_DIR / f"{record.organ}_{record.schema_version}_{int(record.captured_at)}.signed"
+        organ = _validate_identifier(record.organ, field_name="organ")
+        schema_version = _validate_identifier(record.schema_version, field_name="schema_version")
+        return _STEM_DIR / f"{organ}_{schema_version}_{int(record.captured_at)}.signed"
 
     @classmethod
     def _write(cls, record: StemCellRecord) -> None:
         path = cls._path(record)
-        with open(path, "wb") as fh:
-            header = json.dumps({
-                "organ": record.organ,
-                "schema_version": record.schema_version,
-                "captured_at": record.captured_at,
-                "signature_hex": record.signature.hex(),
-            }).encode("utf-8")
-            fh.write(len(header).to_bytes(4, "big"))
-            fh.write(header)
-            fh.write(record.payload)
+        header = json.dumps({
+            "organ": record.organ,
+            "schema_version": record.schema_version,
+            "captured_at": record.captured_at,
+            "signature_hex": record.signature.hex(),
+        }).encode("utf-8")
+        payload = len(header).to_bytes(4, "big") + header + record.payload
+        atomic_write_bytes(path, payload)
 
     @staticmethod
-    def _read(path: Path) -> Optional[StemCellRecord]:
+    def _read(path: Path) -> StemCellRecord | None:
         try:
             with open(path, "rb") as fh:
                 header_len = int.from_bytes(fh.read(4), "big")
+                if header_len <= 0 or header_len > _MAX_HEADER_BYTES:
+                    raise ValueError(f"invalid stem cell header length: {header_len}")
                 header = json.loads(fh.read(header_len).decode("utf-8"))
                 payload = fh.read()
             return StemCellRecord(
-                organ=header["organ"],
-                schema_version=header["schema_version"],
+                organ=_validate_identifier(header["organ"], field_name="organ"),
+                schema_version=_validate_identifier(
+                    header["schema_version"], field_name="schema_version"
+                ),
                 captured_at=float(header["captured_at"]),
                 payload=payload,
                 signature=bytes.fromhex(header["signature_hex"]),
@@ -194,7 +252,7 @@ class StemCellRegistry:
             return None
 
 
-_REGISTRY: Optional[StemCellRegistry] = None
+_REGISTRY: StemCellRegistry | None = None
 
 
 def get_registry() -> StemCellRegistry:

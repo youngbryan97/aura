@@ -12,8 +12,10 @@ in interface/event_bridge.py. This file retains only:
   - SPA catch-all
   - Entry-point
 """
+# ruff: noqa: E402
+# This module bootstraps logging, middleware, and route registration in phases;
+# several imports intentionally stay next to the phase they wire.
 from __future__ import annotations
-
 
 # ── stdlib ────────────────────────────────────────────────────
 import asyncio
@@ -23,11 +25,10 @@ import json
 import logging
 import os
 import sys
-import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 import psutil
 
@@ -40,12 +41,9 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-try:
-    from websockets.exceptions import ConnectionClosed
-except ImportError:
-    class ConnectionClosed(Exception): pass
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
+
 try:
     from fastapi.responses import ORJSONResponse
 except Exception:
@@ -60,19 +58,18 @@ except ImportError:
 
 # ── Internal — logging first (no other internal imports before this) ──
 from core.config import config
-from core.orchestrator import create_orchestrator
 from core.container import ServiceContainer
 from core.event_bus import get_event_bus
 
 bus = get_event_bus()
 from core.logging_config import setup_logging
+
 logger = setup_logging("Aura.Server")
 
 from core.health.boot_status import build_boot_health_snapshot
 from core.runtime_tools import get_runtime_state
 from core.utils.task_tracker import TaskTracker
 from core.version import VERSION, version_string
-from core.scheduler import scheduler
 
 PROJECT_ROOT = config.paths.project_root
 _server_task_tracker = TaskTracker(name="AuraServer", max_concurrent=128)
@@ -102,20 +99,23 @@ _voice_engine_fn  = None
 
 # ── WebSocket broadcast infrastructure (extracted to interface/websocket_manager.py) ──
 from interface.websocket_manager import (
-    MessageBroadcastBus,
-    WebSocketManager,
-    _normalize_ui_event,
+    MessageBroadcastBus as MessageBroadcastBus,
+)
+from interface.websocket_manager import (
+    WebSocketManager as WebSocketManager,
+)
+from interface.websocket_manager import (
     broadcast_bus,
-    ws_manager,
     log_queue,
+    ws_manager,
 )
 
 # Wire task spawner into ws_manager now that _spawn_server_task is defined
 ws_manager.set_task_spawner(lambda coro, name: _spawn_server_task(coro, name=name))
 
 
-main_loop: Optional[asyncio.AbstractEventLoop] = None
-_event_bridge_task: Optional[asyncio.Task] = None
+main_loop: asyncio.AbstractEventLoop | None = None
+_event_bridge_task: asyncio.Task | None = None
 
 
 class _QueueHandler(logging.Handler):
@@ -164,7 +164,7 @@ class _QueueHandler(logging.Handler):
                         pass
                     raise
 
-        except Exception as e:
+        except Exception:
             print(f"CRITICAL LOG FALLBACK: {record.levelname} - {record.getMessage()}", file=sys.stderr)
         finally:
             self._recursion_guard.reset(token)
@@ -177,12 +177,11 @@ logging.getLogger().addHandler(_qh)
 
 
 # ── Event bridge functions (extracted to interface/event_bridge.py) ──
-from interface.event_bridge import mycelial_ui_callback, broadcast_telemetry, run_event_bridge
+from interface.auth import _restore_owner_session_from_request, validate_runtime_security_request
+from interface.event_bridge import mycelial_ui_callback, run_event_bridge
 
 # ── Shared helpers ──
 from interface.helpers import _notify_user_spoke
-from interface.auth import _restore_owner_session_from_request, validate_runtime_security_request
-
 
 # ── Lifespan ──────────────────────────────────────────────────
 
@@ -371,7 +370,7 @@ NO_CACHE_HEADERS = {
 }
 
 
-def _cache_policy_for_path(path: str) -> Dict[str, str] | None:
+def _cache_policy_for_path(path: str) -> dict[str, str] | None:
     normalized = str(path or "")
     live_shell_paths = {
         "/",
@@ -418,6 +417,18 @@ app.add_middleware(
 STATIC_DIR = config.paths.project_root / "interface" / "static"
 SHELL_DIST_DIR = STATIC_DIR / "shell" / "dist"
 LEGACY_UI_INDEX = STATIC_DIR / "index.html"
+
+
+def _react_shell_enabled() -> bool:
+    """Keep the original Aura HUD as the canonical shell unless explicitly opted in."""
+    return os.environ.get("AURA_ENABLE_REACT_SHELL", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -436,7 +447,8 @@ async def request_id_middleware(request: Request, call_next):
 
 # ── Magnum Opus: Global Exception Handler ─────────────────────
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -454,7 +466,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         exc_info=True,
     )
     try:
-        from core.resilience.phenomenal_error_map import build_envelope, PhenomenalRaise
+        from core.resilience.phenomenal_error_map import PhenomenalRaise, build_envelope
         if isinstance(exc, PhenomenalRaise):
             envelope = exc.envelope
         else:
@@ -466,7 +478,7 @@ async def global_exception_handler(request: Request, exc: Exception):
                 "envelope": envelope.to_dict(),
                 "user_message": envelope.user_message,
                 "request_id": request_id,
-                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                "timestamp": datetime.now(tz=UTC).isoformat(),
             },
         )
     except Exception as inner:
@@ -480,7 +492,7 @@ async def global_exception_handler(request: Request, exc: Exception):
                 "error": "internal_error",
                 "message": "An unexpected error occurred. Aura's cognitive systems are recovering.",
                 "request_id": request_id,
-                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                "timestamp": datetime.now(tz=UTC).isoformat(),
             },
         )
 
@@ -488,20 +500,20 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ── Route Registration ────────────────────────────────────────
 # Extracted route modules
 from core.health.system_health import router as system_health_router
+from core.session.checkpointing import CheckpointService
 from interface import memory_ui
 from interface.routes import chat as chat_routes
-from interface.routes import system as system_routes
-from interface.routes import subsystems as subsystem_routes
-from interface.routes import memory as memory_routes
-from interface.routes import interaction_signals as interaction_signal_routes
-from interface.routes import privacy as privacy_routes
-from interface.routes import rpc as rpc_routes
-from interface.routes import inner_state as inner_state_routes
 from interface.routes import dashboard as dashboard_routes
-from interface.routes import settings as settings_routes
+from interface.routes import inner_state as inner_state_routes
+from interface.routes import interaction_signals as interaction_signal_routes
+from interface.routes import memory as memory_routes
 from interface.routes import multimodal as multimodal_routes
 from interface.routes import performance as performance_routes
-from core.session.checkpointing import CheckpointService
+from interface.routes import privacy as privacy_routes
+from interface.routes import rpc as rpc_routes
+from interface.routes import settings as settings_routes
+from interface.routes import subsystems as subsystem_routes
+from interface.routes import system as system_routes
 
 checkpoint_service = CheckpointService()
 
@@ -524,20 +536,20 @@ app.include_router(performance_routes.router, prefix="/api", tags=["performance"
 _system_collect_liquid_state_payload = system_routes._collect_liquid_state_payload
 
 
-def _collect_conversation_lane_status() -> Dict[str, Any]:
+def _collect_conversation_lane_status() -> dict[str, Any]:
     return chat_routes._collect_conversation_lane_status()
 
 
-def _conversation_lane_is_standby(lane: Optional[Dict[str, Any]]) -> bool:
+def _conversation_lane_is_standby(lane: dict[str, Any] | None) -> bool:
     return chat_routes._conversation_lane_is_standby(lane)
 
 
 def _collect_liquid_state_payload(
-    ls_data: Dict[str, Any],
+    ls_data: dict[str, Any],
     *,
-    runtime_state: Dict[str, Any],
-    homeostasis_data: Dict[str, Any],
-) -> Dict[str, Any]:
+    runtime_state: dict[str, Any],
+    homeostasis_data: dict[str, Any],
+) -> dict[str, Any]:
     return _system_collect_liquid_state_payload(
         ls_data,
         runtime_state=runtime_state,
@@ -556,21 +568,24 @@ def _sync_legacy_system_exports() -> None:
     system_routes.psutil = psutil
 
 
-def _collect_stability_details() -> Dict[str, Any]:
+def _collect_stability_details() -> dict[str, Any]:
     _sync_legacy_system_exports()
     return system_routes._collect_stability_details()
 
 
-def _collect_runtime_capabilities(conversation_lane: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _collect_runtime_capabilities(conversation_lane: dict[str, Any] | None = None) -> dict[str, Any]:
     _sync_legacy_system_exports()
     return system_routes._collect_runtime_capabilities(conversation_lane)
 
 
-def _collect_legacy_shell_status() -> Dict[str, Any]:
+def _collect_legacy_shell_status() -> dict[str, Any]:
+    react_shell_enabled = _react_shell_enabled()
     return {
         "shell": "legacy_shell" if LEGACY_UI_INDEX.exists() else "react_shell",
         "legacy_fallback_available": LEGACY_UI_INDEX.exists(),
         "experimental_shell_available": (SHELL_DIST_DIR / "index.html").exists(),
+        "experimental_shell_enabled": react_shell_enabled,
+        "canonical_shell": "legacy_shell" if LEGACY_UI_INDEX.exists() and not react_shell_enabled else "react_shell",
     }
 
 
@@ -622,15 +637,13 @@ async def _ws_broadcaster() -> None:
                 elif not isinstance(msg, dict):
                     msg = {"type": "message", "content": str(msg)}
 
-                msg_type = msg.get("type", "")
-
                 try:
                     await asyncio.wait_for(ws_manager.broadcast(msg), timeout=15.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("WS Broadcaster timeout - serious delivery lag detected")
 
                 q.task_done()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue  # Pulsing
             except asyncio.CancelledError:
                 break
@@ -644,6 +657,7 @@ async def _ws_broadcaster() -> None:
 # ── Routes — UI ───────────────────────────────────────────────
 
 from interface.auth import _require_internal
+
 
 @app.get("/", include_in_schema=False)
 async def serve_ui(request: Request):
@@ -713,8 +727,6 @@ async def websocket_endpoint(ws: WebSocket):
     auth_timeout = 5.0
 
     try:
-        orch = ServiceContainer.get("orchestrator", default=None)
-
         if not authenticated:
             try:
                 raw = await asyncio.wait_for(ws.receive_text(), timeout=auth_timeout)
@@ -726,7 +738,7 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({"type": "error", "message": "Unauthorized"}))
                     await ws.close(code=4001, reason="Unauthorized")
                     return
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 await ws.close(code=4001, reason="Auth Timeout")
                 return
             except json.JSONDecodeError:
@@ -784,7 +796,7 @@ async def websocket_endpoint(ws: WebSocket):
                                         "type": "aura_message",
                                         "content": "I lost my thread for a second. Say that again?",
                                     }))
-                            except asyncio.TimeoutError:
+                            except TimeoutError:
                                 logger.error("WS: KernelInterface.process() timed out after 180s")
                                 # [STABILITY v53] Try fast brainstem fallback before giving up
                                 try:
@@ -874,6 +886,8 @@ async def spa_catchall(path: str, request: Request):
         return FileResponse(str(dist_dir / "index.html"), headers=NO_CACHE_HEADERS)
 
     if path == "shell" or path.startswith("shell/"):
+        if LEGACY_UI_INDEX.exists() and not _react_shell_enabled():
+            return FileResponse(str(LEGACY_UI_INDEX), headers=NO_CACHE_HEADERS)
         dist_dir = SHELL_DIST_DIR
         if path == "shell":
             return FileResponse(str(dist_dir / "index.html"), headers=NO_CACHE_HEADERS)
