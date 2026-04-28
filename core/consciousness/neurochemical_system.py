@@ -248,7 +248,12 @@ class NeurochemicalSystem:
                 subtypes=None,  # AMPA vs NMDA distinction deferred (both excitatory)
             ),
             "gaba": Chemical(
-                "gaba", level=0.5, baseline=0.5, uptake_rate=0.05,
+                "gaba", level=0.5, baseline=0.5, uptake_rate=0.10,
+                # uptake_rate raised 0.05 → 0.10 (2026-04-28): with the
+                # baseline-return term in tick(), uptake_rate sets the
+                # homeostatic recovery speed. 0.05 was too slow to recover
+                # from boot-time threat cascades before SubstrateAuthority
+                # latched into the gaba_collapse state.
                 proximity_weight=1.3,  # mostly on soma/axon hillock — fewer synapses but stronger influence
                 subtypes={
                     "gaba_a": ReceptorSubtype("GABA-A", effect_sign=-1.0, weight=0.7,
@@ -417,11 +422,25 @@ class NeurochemicalSystem:
         self.chemicals["endorphin"].surge(strength * 0.1)
 
     def on_threat(self, severity: float = 0.5):
-        """Threat or danger signal."""
+        """Threat or danger signal.
+
+        Depletion factors are capped low because boot-time conditions can
+        produce multiple simultaneous threat signals (RAM pressure, thermal,
+        memory load all firing as substrate-marker triggers in
+        embodied_interoception). With the previous ``severity * 0.3`` GABA
+        depletion, three concurrent threats on boot dropped GABA's tonic
+        from 0.5 → 0.05, crossing the SubstrateAuthority's 0.10 collapse
+        threshold and locking out STATE_MUTATION + INITIATIVE for the
+        rest of the session. The homeostatic return term in ``Chemical.tick``
+        recovers from these dips, but only at uptake_rate per second; on
+        boot the dips were faster than the recovery. Fixed 2026-04-28 by
+        capping per-call deplete to 0.08 (≈ one threshold-crossing budget)
+        and reducing the multiplier to 0.05 of severity.
+        """
         self.chemicals["cortisol"].surge(severity * 0.6)
         self.chemicals["norepinephrine"].surge(severity * 0.5)
-        self.chemicals["dopamine"].deplete(severity * 0.2)
-        self.chemicals["gaba"].deplete(severity * 0.3)
+        self.chemicals["dopamine"].deplete(min(0.08, severity * 0.05))
+        self.chemicals["gaba"].deplete(min(0.08, severity * 0.05))
 
     def on_success(self):
         """Task completed successfully -- also relieves boredom."""

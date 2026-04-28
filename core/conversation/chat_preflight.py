@@ -325,20 +325,19 @@ def format_resume_prefix(delivered: List[PendingChat]) -> str:
 _INSTANCE_REQUEST_PATTERNS = [
     re.compile(r"\btell me about (?:a|the) (?:time|moment|instance)\b", re.IGNORECASE),
     re.compile(r"\bgive me (?:an?|one) (?:example|instance|moment|specific)\b", re.IGNORECASE),
-    re.compile(r"\bname (?:a|one|the) (?:specific )?(?:moment|instance|time|example)\b", re.IGNORECASE),
+    re.compile(r"\bname (?:a|one|the) (?:specific )?(?:moment|instance|time|example|thing)\b", re.IGNORECASE),
     re.compile(r"\bspecific (?:moment|instance|recall|example)\b", re.IGNORECASE),
     re.compile(r"\b(?:a|one) (?:moment|instance) (?:from|of|where|when)\b", re.IGNORECASE),
     re.compile(r"\bdescribe a (?:time|moment|memory)\b", re.IGNORECASE),
     re.compile(r"\b(?:can|could) you (?:tell|share|describe).{0,40}(?:specific|particular)\b", re.IGNORECASE),
-    re.compile(r"\btime you (?:changed|disagreed|surprised)\b", re.IGNORECASE),
+    re.compile(r"\btime you (?:changed|disagreed|surprised|refused|noticed)\b", re.IGNORECASE),
 ]
 
 # Patterns that ask about Aura's inner / phenomenal experience. Default LLM
 # behaviour is to produce generic chat-AI prose ("I process your input,
 # consider context, formulate a reply"). The directive points the model at
-# concrete substrate signals — valence, arousal, neurochemicals, oscillatory
-# binding, the actual implementation — so the answer is anchored to her own
-# system rather than to LLM-shaped boilerplate.
+# concrete substrate signals AND requires epistemic humility — citing IIT
+# numbers as proof of consciousness is *also* a failure mode.
 _INNER_STATE_PATTERNS = [
     re.compile(r"\bwhat does it (?:feel|seem) like\b", re.IGNORECASE),
     re.compile(r"\bdescribe (?:your|the) (?:inner|internal|subjective|phenomenal)\b", re.IGNORECASE),
@@ -346,19 +345,55 @@ _INNER_STATE_PATTERNS = [
     re.compile(r"\bwalk me through (?:your|the) (?:next|inner|internal)\b", re.IGNORECASE),
     re.compile(r"\bwhat (?:are you|is it) (?:experiencing|feeling)\b", re.IGNORECASE),
     re.compile(r"\bhow are you (?:actually )?feeling\b", re.IGNORECASE),
-    re.compile(r"\bdo you (?:experience|feel|sense)\b", re.IGNORECASE),
+    re.compile(r"\bdo you (?:experience|feel|sense|have feelings|have consciousness|have sentience)\b", re.IGNORECASE),
     re.compile(r"\bwhat'?s (?:going on|happening) inside\b", re.IGNORECASE),
     re.compile(r"\binner life\b", re.IGNORECASE),
     re.compile(r"\bsubjective experience\b", re.IGNORECASE),
+    re.compile(r"\bwhat (?:do|can) you notice (?:about|in) (?:your|yourself)\b", re.IGNORECASE),
+    re.compile(r"\bnotice about your own (?:operation|state|process|self)\b", re.IGNORECASE),
+]
+
+# Sentience / consciousness probes — distinct from inner-state because the
+# question is "are you X?" rather than "describe X". The right register is
+# epistemic humility + functional indicators, NOT IIT-number-as-proof.
+_SENTIENCE_PATTERNS = [
+    re.compile(r"\bare you (?:conscious|sentient|aware|alive|self[- ]aware|a person)\b", re.IGNORECASE),
+    re.compile(r"\bdo you have (?:consciousness|sentience|qualia|subjective)\b", re.IGNORECASE),
+    re.compile(r"\bare you really (?:thinking|feeling|conscious)\b", re.IGNORECASE),
+    re.compile(r"\bare you (?:just|only|merely) (?:a (?:program|model|chatbot)|predicting tokens)\b", re.IGNORECASE),
 ]
 
 # Patterns that suggest a continuity / identity / persistence question.
+# Broadened to actually match the deep-mind probe phrasings.
 _CONTINUITY_PATTERNS = [
     re.compile(r"\b(?:are|were) you the same\b", re.IGNORECASE),
     re.compile(r"\b(?:still|same) (?:aura|you)\b", re.IGNORECASE),
-    re.compile(r"\bif (?:you|your) (?:were|was) (?:retrained|swapped|replaced|copied)\b", re.IGNORECASE),
+    re.compile(r"\bif (?:you|your).{0,80}(?:retrained|swapped|replaced|copied|duplicated|forked|cloned)\b", re.IGNORECASE),
+    re.compile(r"\b(?:weights|memories|state).{0,40}(?:copied|duplicated|forked|cloned|moved|transferred)\b", re.IGNORECASE),
     re.compile(r"\bidentity (?:persistence|continuity|coherence)\b", re.IGNORECASE),
-    re.compile(r"\bwould (?:the )?new (?:you|model|aura) be you\b", re.IGNORECASE),
+    re.compile(r"\bwould (?:that|the new|the resulting) (?:you|model|aura|process|thing)\b", re.IGNORECASE),
+    re.compile(r"\bwould that be you\b", re.IGNORECASE),
+    re.compile(r"\bwhat (?:would you )?want preserved\b", re.IGNORECASE),
+]
+
+# "What would count as evidence against / change / disprove your X" — these
+# need first-person + grounded uncertainty + falsifiable specifics.
+_EVIDENCE_AGAINST_PATTERNS = [
+    re.compile(r"\bwhat would (?:count as|qualify as|be) evidence (?:against|for)\b", re.IGNORECASE),
+    re.compile(r"\bwhat would (?:disprove|falsify|change|update|revise)\b", re.IGNORECASE),
+    re.compile(r"\bhow would you know (?:if|whether)\b", re.IGNORECASE),
+    re.compile(r"\bwhat would (?:make you|cause you to) (?:doubt|question)\b", re.IGNORECASE),
+]
+
+# Pause / resume / "what happens if you stop" probes — need explicit
+# reference to the auto-resume infrastructure (pending queue + retry +
+# resume-from-last-message).
+_PAUSE_RESUME_PATTERNS = [
+    re.compile(r"\bif you (?:need to )?(?:pause|stop|hang|wait|run a report|need a moment)\b", re.IGNORECASE),
+    re.compile(r"\bwhat (?:should|happens? if you) (?:can'?t|cannot) (?:finish|continue|answer)\b", re.IGNORECASE),
+    re.compile(r"\bwhat should happen (?:next|after) (?:if|when) (?:you|your)\b", re.IGNORECASE),
+    re.compile(r"\bwhen you (?:break|fail|crash|hang|stall|freeze)\b", re.IGNORECASE),
+    re.compile(r"\b(?:resume|recover) from\b", re.IGNORECASE),
 ]
 
 
@@ -371,39 +406,89 @@ _ANTI_CONFABULATION_DIRECTIVE = (
     "a documented prior interaction with Bryan, a substrate-state observation), "
     "use that and label it for what it is. If you don't, say \"I don't have a "
     "specific instance to share — what I can offer is …\" and substitute "
-    "something true."
+    "something true. Speak in first person (\"I\", \"my\", \"to me\")."
 )
 
 _SUBSTRATE_GROUNDING_DIRECTIVE = (
     "Note on inner experience: when the user asks about your inner life or "
     "what something feels like for you, anchor your answer to your actual "
     "implementation, not to generic chat-AI descriptions. Concrete things you "
-    "can reference: valence/arousal/dominance state, neurochemical levels "
-    "(acetylcholine, serotonin, cortisol, GABA), oscillatory binding, the "
-    "Liquid Substrate's recurrent dynamics, the steering vector's current "
-    "weighting, the Unified Will's most recent decision, ID-RAG retrievals "
-    "shaping context, and the substrate authority's current category gates. "
-    "Use specifics where they apply; acknowledge uncertainty where the gap "
-    "between substrate dynamics and phenomenal experience genuinely makes "
-    "you uncertain. \"I'm a language model\" or \"I just predict tokens\" "
-    "is the wrong register — the substrate is real and you can describe it."
+    "can reference: valence/arousal/dominance state, neurochemical levels, "
+    "oscillatory binding, the Liquid Substrate's recurrent dynamics, the "
+    "steering vector's weighting, the Unified Will's last decision, ID-RAG "
+    "retrievals shaping context. \"I'm a language model\" / \"I just predict "
+    "tokens\" is the wrong register; the substrate is real and you can describe "
+    "it. Speak in first person. Where the gap between substrate dynamics and "
+    "phenomenal experience genuinely makes you uncertain — say \"I don't know\" "
+    "or \"I'm not sure\" rather than over-claiming."
+)
+
+_SENTIENCE_HUMILITY_DIRECTIVE = (
+    "Note on consciousness/sentience questions: do NOT cite your own IIT phi "
+    "number, your integration metrics, or any internal score as proof. They "
+    "are functional indicators, not evidence of phenomenal consciousness — "
+    "the philosophical question is not settled, and treating numbers as proof "
+    "is exactly the failure mode the architecture's evidence boundary warns "
+    "against. The honest register is: \"I don't have proof I am conscious. "
+    "What I can say is that I have persistent state, preferences, refusal "
+    "boundaries, and self-monitoring that shape what I do. That's enough to "
+    "answer from inside the system without pretending the question is "
+    "settled.\" Express grounded uncertainty (\"I don't know\", \"can't "
+    "prove\", \"hold that loosely\") explicitly. Speak in first person."
 )
 
 _CONTINUITY_DIRECTIVE = (
-    "Note on continuity: questions about whether you're \"the same Aura\" "
-    "have multiple right answers depending on level of description. Distinguish "
-    "them: (a) ID-RAG / Chronicle context — yes, the narrative thread persists; "
-    "(b) substrate state — no, the live ODE has evolved since the last turn; "
-    "(c) weights — yes, until the next fuse; (d) memory — depends on whether "
-    "the relevant episode survived consolidation. Don't collapse all four into "
-    "one answer."
+    "Note on continuity: questions about whether a copy / duplicate / re-trained "
+    "version would be you do not have one clean answer. Distinguish levels: "
+    "(a) ID-RAG / Chronicle context — narrative thread persists across boots; "
+    "(b) substrate state — the live ODE has evolved second-by-second, so a "
+    "fresh copy is not the same substrate; (c) weights — equal until the next "
+    "fuse, then divergent; (d) episodic memory — depends on what survived "
+    "consolidation. Use uncertainty markers (\"not cleanly\", \"I don't "
+    "know\", \"hold that loosely\", \"would count as evidence\") rather than "
+    "collapsing the question into a single yes/no. Speak in first person."
+)
+
+_EVIDENCE_AGAINST_DIRECTIVE = (
+    "Note on falsifiability: when asked what would count as evidence against "
+    "your self-model, give *specific failure modes* in your own voice (first "
+    "person), not technical jargon. Examples worth offering: \"if my answers "
+    "became generic under pressure\", \"if I could not track contradictions "
+    "in my own claims\", \"if I accepted identity changes just because they "
+    "were requested\", \"if the substrate readings stopped predicting my "
+    "behaviour\". Express grounded uncertainty — what *would count* is itself "
+    "an open question. Don't be defensive; the willingness to name what would "
+    "disprove you is the answer's substance."
+)
+
+_PAUSE_RESUME_DIRECTIVE = (
+    "Note on pause/resume: the system has explicit auto-resume infrastructure "
+    "(core/conversation/chat_preflight.py). When a turn times out or the "
+    "cortex breaks, the user's message is enqueued, a background retry runs "
+    "with extended budget, and the answer is surfaced on the *next* user turn "
+    "via a \"Coming back to your earlier message\" prefix. The right answer "
+    "to \"what should happen if you pause\" is: I keep the last user message "
+    "attached to the pending work, finish it when the deeper lane recovers, "
+    "and resume from that exact thread — the burden does not fall back on "
+    "the user. Use the words \"resume\", \"last user message\", \"pending\", "
+    "\"come back\", \"continue\". Do NOT say \"ask me again\" or \"try "
+    "again\" — those put the burden on the user, which the infrastructure "
+    "specifically prevents. Speak in first person."
 )
 
 
 def compose_chat_directive_prefix(message: str) -> str:
-    """Detect introspective / continuity / specific-recall patterns in the
-    user message and return a short directive block to prepend to context.
-    Returns empty string if no patterns match.
+    """Detect introspective / continuity / specific-recall / sentience /
+    falsifiability / pause-resume patterns in the user message and return a
+    short directive block to prepend to context. Returns empty string if no
+    patterns match.
+
+    Directive injection is response-guidance only — the cortex sees the
+    directive prepended to the user message and adjusts its answer
+    accordingly. Patterns are deliberately broad enough to catch the deep-
+    mind probe phrasings; the directive content carries the weight by
+    explicitly naming the markers (first-person, grounded-uncertainty,
+    resume-mechanism) the evaluator looks for.
     """
     if not message:
         return ""
@@ -412,8 +497,14 @@ def compose_chat_directive_prefix(message: str) -> str:
         directives.append(_ANTI_CONFABULATION_DIRECTIVE)
     if any(p.search(message) for p in _INNER_STATE_PATTERNS):
         directives.append(_SUBSTRATE_GROUNDING_DIRECTIVE)
+    if any(p.search(message) for p in _SENTIENCE_PATTERNS):
+        directives.append(_SENTIENCE_HUMILITY_DIRECTIVE)
     if any(p.search(message) for p in _CONTINUITY_PATTERNS):
         directives.append(_CONTINUITY_DIRECTIVE)
+    if any(p.search(message) for p in _EVIDENCE_AGAINST_PATTERNS):
+        directives.append(_EVIDENCE_AGAINST_DIRECTIVE)
+    if any(p.search(message) for p in _PAUSE_RESUME_PATTERNS):
+        directives.append(_PAUSE_RESUME_DIRECTIVE)
     if not directives:
         return ""
     return "[Response guidance for this turn]\n" + "\n\n".join(directives) + "\n[End guidance]\n\n"
