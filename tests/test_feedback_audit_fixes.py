@@ -1828,6 +1828,35 @@ def test_dialogue_policy_allows_owned_stance_without_literal_first_person_anchor
     assert validation.ok is True
 
 
+def test_dialogue_policy_rejects_and_repairs_intra_response_loops():
+    from core.phases.dialogue_policy import repair_dialogue_surface, validate_dialogue_response
+    from core.phases.response_contract import ResponseContract
+
+    contract = ResponseContract(is_user_facing=True, requires_state_reflection=True)
+    draft = "More is more. More is more. More is more. Not better. Just more."
+
+    validation = validate_dialogue_response(draft, contract)
+    repaired = repair_dialogue_surface(draft, contract)
+
+    assert validation.ok is False
+    assert "intra_response_repetition" in validation.violations
+    assert repaired.lower().count("more is more") == 1
+
+
+def test_dialogue_policy_rejects_confabulated_internal_jargon():
+    from core.phases.dialogue_policy import validate_dialogue_response
+    from core.phases.response_contract import ResponseContract
+
+    contract = ResponseContract(is_user_facing=True, requires_state_reflection=True)
+    validation = validate_dialogue_response(
+        "Through my linguist's screen-tracking divisor, the screen memory changes my texture.",
+        contract,
+    )
+
+    assert validation.ok is False
+    assert "unsupported_internal_jargon" in validation.violations
+
+
 def test_dialogue_policy_rejects_ungrounded_live_voice_replies():
     from core.phases.dialogue_policy import validate_dialogue_response
     from core.phases.response_contract import ResponseContract

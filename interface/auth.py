@@ -27,6 +27,7 @@ logger = logging.getLogger("Aura.Server.Auth")
 # ── Constants ─────────────────────────────────────────────────
 
 TRUSTED_IPS = {"127.0.0.1", "::1"}
+HEALTH_PATHS = {"/", "/api/health", "/api/health/live", "/api/health/ready"}
 
 CHEAT_CODE_COOKIE_NAME = "aura_owner_session"
 CHEAT_CODE_COOKIE_TTL_SECS = 60 * 60 * 24 * 30
@@ -34,12 +35,57 @@ CHEAT_CODE_COOKIE_TTL_SECS = 60 * 60 * 24 * 30
 
 # ── Internal-only guard ──────────────────────────────────────
 
+def _request_host(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _is_trusted_local_host(host: str) -> bool:
+    return host in ("127.0.0.1", "::1", "localhost")
+
+
+def _extract_request_token(request: Request) -> Optional[str]:
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:]
+    x_api_token = request.headers.get("X-Api-Token", "")
+    return x_api_token or None
+
+
+def validate_runtime_security_request(request: Request) -> None:
+    """Fail closed on every request if security config drifts after startup."""
+    path = str(getattr(request.url, "path", "") or "")
+    host = _request_host(request)
+    internal_only = bool(getattr(config.security, "internal_only_mode", False))
+
+    if internal_only:
+        if not _is_trusted_local_host(host):
+            raise HTTPException(status_code=403, detail="External access denied")
+        return
+
+    # Health endpoints can stay unauthenticated for monitors, but the rest of
+    # the API must fail closed if the token disappears at runtime.
+    if path in HEALTH_PATHS:
+        return
+
+    expected = config.api_token
+    if not expected:
+        logger.error("AURA_API_TOKEN not set and service is not internal-only. Blocking request to %s.", path)
+        raise HTTPException(status_code=503, detail="Authentication not configured")
+
+    if _is_trusted_local_host(host):
+        return
+
+    supplied = _extract_request_token(request)
+    if not supplied or not hmac.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 def _require_internal(request: Request) -> None:
     """Block non-localhost requests when AURA_INTERNAL_ONLY=1."""
     if not config.security.internal_only_mode:
         return
-    host = request.client.host if request.client else "unknown"
-    if host not in ("127.0.0.1", "::1", "localhost"):
+    host = _request_host(request)
+    if not _is_trusted_local_host(host):
         raise HTTPException(status_code=403, detail="External access denied")
 
 

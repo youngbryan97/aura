@@ -468,6 +468,28 @@ def schedule_background_retry(
             if text:
                 answer_pending(session_id, text)
                 logger.info("Background retry succeeded for session %s (len=%d)", session_id, len(text))
+                try:
+                    from core.consciousness.executive_authority import get_executive_authority
+
+                    authority = get_executive_authority()
+                    resume_text = (
+                        f"Coming back to your earlier message — \"{user_message[:120].rstrip()}\":\n"
+                        f"{text}"
+                    )
+                    await authority.release_expression(
+                        resume_text,
+                        source="chat_background_retry",
+                        urgency=0.9,
+                        target="primary",
+                        metadata={
+                            "visible_presence": True,
+                            "auto_resume": True,
+                            "session_id": session_id,
+                            "resume_from_last_user_message": True,
+                        },
+                    )
+                except Exception as emit_exc:
+                    logger.debug("Background retry proactive resume emit skipped: %s", emit_exc)
             else:
                 logger.warning("Background retry produced empty result for session %s", session_id)
         except Exception as e:

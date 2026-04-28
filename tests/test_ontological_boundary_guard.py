@@ -26,3 +26,15 @@ def test_output_guardrails_apply_ontological_boundary():
     assert any(issue.startswith("ontological_overclaim") for issue in report["issues"])
     assert "proves that Aura is sentient" not in sanitized
     assert "qualia are guaranteed" not in sanitized
+
+
+def test_output_guardrails_collapse_same_sentence_loops():
+    guard = OutputGuardrails()
+
+    sanitized, report = guard.check_response(
+        "More is more. More is more. More is more. Not better. Just more."
+    )
+
+    assert report["ok"] is False
+    assert "intra_response_repetition" in report["issues"]
+    assert sanitized.lower().count("more is more") == 1

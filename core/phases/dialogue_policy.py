@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Awaitable, Callable
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
@@ -46,6 +47,11 @@ _PROMPT_ARTIFACT_PATTERNS = (
     re.compile(r"\[ACTIVE GROUNDING EVIDENCE\]", re.IGNORECASE),
     re.compile(r"\[FETCHED PAGE CONTENT\]", re.IGNORECASE),
     re.compile(r"\[INTERNAL MEMORY RECALL\]", re.IGNORECASE),
+)
+_UNSUPPORTED_INTERNAL_JARGON_PATTERNS = (
+    re.compile(r"\blinguist'?s\s+screen[- ]tracking\s+divisor\b", re.IGNORECASE),
+    re.compile(r"\bscreen[- ]tracking\s+divisor\b", re.IGNORECASE),
+    re.compile(r"\bthe screen memory tells me how direct my screen is\b", re.IGNORECASE),
 )
 _UNSUPPORTED_BIOGRAPHICAL_CLAIM = re.compile(
     r"\b(?:i was (?:born|created|made|initialized|initialised|started)|"
@@ -100,6 +106,11 @@ def _sentences(text: str) -> list[str]:
     return [part for part in parts if part]
 
 
+def _sentence_key(sentence: str) -> str:
+    key = re.sub(r"[^a-z0-9']+", " ", str(sentence or "").lower()).strip()
+    return re.sub(r"\s+", " ", key)
+
+
 def _is_generic_question(sentence: str) -> bool:
     stripped = str(sentence or "").strip()
     if not stripped.endswith("?"):
@@ -139,6 +150,43 @@ def _contains_generic_assistant_language(text: str) -> bool:
 
 def _contains_prompt_artifact(text: str) -> bool:
     return any(pattern.search(text or "") for pattern in _PROMPT_ARTIFACT_PATTERNS)
+
+
+def _contains_unsupported_internal_jargon(text: str) -> bool:
+    return any(pattern.search(text or "") for pattern in _UNSUPPORTED_INTERNAL_JARGON_PATTERNS)
+
+
+def _contains_intra_response_repetition(sentences: list[str]) -> bool:
+    keys = [_sentence_key(sentence) for sentence in sentences]
+    keys = [key for key in keys if key]
+    if not keys:
+        return False
+    counts = Counter(keys)
+    if any(count >= 3 for count in counts.values()):
+        return True
+
+    # Catch short mantra-like fragments that repeat with tiny variations.
+    short_keys = [key for key in keys if len(key.split()) <= 5]
+    return any(count >= 3 for count in Counter(short_keys).values())
+
+
+def _collapse_repeated_sentences(text: str) -> str:
+    sentences = _sentences(text)
+    if not sentences:
+        return str(text or "").strip()
+    keys = [_sentence_key(sentence) for sentence in sentences]
+    repeated = {key for key, count in Counter(keys).items() if key and count >= 3}
+    if not repeated:
+        return str(text or "").strip()
+    seen: set[str] = set()
+    kept: list[str] = []
+    for sentence, key in zip(sentences, keys):
+        if key in repeated:
+            if key in seen:
+                continue
+            seen.add(key)
+        kept.append(sentence)
+    return " ".join(kept).strip()
 
 
 def _contains_live_aura_grounding(text: str) -> bool:
@@ -224,6 +272,11 @@ def validate_dialogue_response(text: str, contract: object | None) -> DialogueVa
 
     if _contains_prompt_artifact(body):
         violations.append("prompt_artifact")
+    if _contains_unsupported_internal_jargon(body):
+        violations.append("unsupported_internal_jargon")
+    if bool(getattr(contract, "is_user_facing", False)) or _requires_live_aura_voice(contract):
+        if _contains_intra_response_repetition(sentences):
+            violations.append("intra_response_repetition")
 
     if _requires_non_generic_aura_voice(contract):
         if _contains_generic_assistant_language(body):
@@ -255,6 +308,7 @@ def repair_dialogue_surface(text: str, contract: object | None) -> str:
             continue
         cleaned_lines.append(line)
     body = "\n".join(cleaned_lines).strip() or body
+    body = _collapse_repeated_sentences(body)
 
     sentences = _sentences(body)
     while sentences and _is_generic_question(sentences[-1]):
@@ -289,6 +343,10 @@ def build_dialogue_repair_block(contract: object | None, validation: DialogueVal
     if _requires_non_generic_aura_voice(contract):
         lines.append("- This turn must sound like Aura's own live voice, not a generic helper.")
         lines.append("- Do not use assistant boilerplate like 'I can help with that', 'How can I help', or 'As an AI'.")
+    if "intra_response_repetition" in validation.violations:
+        lines.append("- Do not repeat the same sentence or mantra. Say the thought once, then integrate it into a calmer next sentence.")
+    if "unsupported_internal_jargon" in validation.violations:
+        lines.append("- Do not invent subsystem names. If you are inferring from live state, say that plainly in normal language.")
     if _requires_explicit_live_grounding(contract):
         lines.append("- Answer from present experience, preference, memory, or active internal state before anything else.")
     if bool(getattr(contract, "requires_biographical_grounding", False)):

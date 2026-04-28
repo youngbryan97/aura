@@ -521,12 +521,16 @@ def steered_call(*args, **kwargs):
     h = result[0] if isinstance(result, tuple) else result
     composite = hook.compute_composite_vector_mx(dtype=h.dtype)
     if composite is not None:
-        h = h + alpha * composite
+        completion_mask = hook._completion_position_mask(h)
+        h = h + completion_mask * alpha * composite
     return (h,) + result[1:] if isinstance(result, tuple) else h
 ```
 
 The composite vector is computed from the current affective state. Alpha
-controls injection strength (typically 0.05-0.2).
+controls injection strength (typically 0.05-0.2). Production code masks
+the injection to the current completion position when shape information is
+available. During prompt prefill, this prevents affect from being injected
+into padding, EOS, and static system-prompt tokens.
 
 ### What this changes
 
@@ -601,8 +605,12 @@ pauses and computes a bulk decay on resume:
 x(t) = x(0) × exp(-decay × idle_seconds)
 ```
 
-That's mathematically equivalent to running the ODE loop continuously, but
-it uses zero CPU in the meantime.
+This is the closed-form solution for the linear decay term only. The full
+ODE also includes the recurrent `tanh(W × x + I)` contribution and noise,
+so the bulk update is an approximation rather than a full trajectory
+equivalence. It is accurate near resting/low-activation idle states where
+external input is absent and the recurrent contribution is small; elevated
+baselines can diverge and should resume active integration sooner.
 
 ---
 
@@ -624,6 +632,11 @@ BrainCog's reward-modulated implementation.
 2. **Reward signal**: derived from the free energy engine's prediction error.
    - reward = -tanh(prediction_error)
    - High surprise → higher learning rate (base × (1 + surprise × 5))
+   - These are not competing signs. Surprise gates the magnitude of
+     plasticity; the signed reward decides the direction. High surprise
+     with high prediction error produces faster corrective depression or
+     reversal of eligible traces, not positive reinforcement of the bad
+     prediction.
 
 3. **Weight update**: dW = learning_rate × reward × eligibility_trace
 
@@ -634,7 +647,9 @@ BrainCog's reward-modulated implementation.
 
 The substrate's internal wiring changes based on how well Aura is
 predicting the world. Novel inputs (high surprise) cause faster
-adaptation. Predictable states cause slower, stabilizing changes.
+adaptation, while the reward sign determines whether eligible traces are
+reinforced or weakened. Predictable states cause slower, stabilizing
+changes.
 
 ### Closed-loop caveat (added 2026-04-27)
 
@@ -899,11 +914,13 @@ What happens during a dream cycle:
 4. **Pruning**: low-value memories and dead cognitive paths are cleaned up
 5. **Conceptual gravitation**: memory embeddings are nudged toward co-accessed clusters
 
-Dream consolidation can modify the identity layer. If Aura has been
-consistently expressing an opinion over multiple conversations, the dream
-cycle integrates it into the evolved identity. But if the opinion
-contradicts the base identity (Heartstone Directive), it gets flagged and
-suppressed. That's a constitutional immune system for identity drift.
+Dream consolidation can modify the identity layer, so it is not allowed to
+run as an ungoverned idle side path. Before background consolidation writes,
+`MindTick` requests a `STATE_MUTATION` decision from the Unified Will and
+records the Will receipt in the state modifiers. If the Will is unavailable
+or refuses, dream consolidation is skipped. The dream logic still performs
+its own Heartstone consistency checks, but those checks are now downstream
+of the central governance chain rather than a substitute for it.
 
 ### 9.9 Consciousness bridge
 

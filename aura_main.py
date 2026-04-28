@@ -223,10 +223,11 @@ def check_environment():
     config.paths.create_directories()
 
 def kill_port(port: int, pattern: str = "aura"):
-    """Force kill any process on a specific port matching a pattern.
-    
-    [PHASE 51] HARDENING: If port is 8000 or 10003, we kill WHATEVER is on it
-    to ensure Aura is not blocked by stale processes from any source.
+    """Terminate Aura-owned processes on a port.
+
+    Port 10003 is Aura's private supervisor lane and may be force-cleared.
+    Shared development ports such as 8000 stay pattern-limited so unrelated
+    local servers are not silently killed.
     """
     try:
         import psutil
@@ -234,9 +235,15 @@ def kill_port(port: int, pattern: str = "aura"):
         logger.warning("psutil missing - skipping advanced port cleanup.")
         return
 
-    # Critical ports that MUST be freed regardless of pattern
-    critical_ports = {8000, 10003}
-    force_all = port in critical_ports
+    force_all_ports = {10003}
+    shared_ports = {8000}
+    force_all = port in force_all_ports
+    if port in shared_ports:
+        logger.warning(
+            "Port %s is a shared development port; cleanup is limited to processes matching pattern '%s'.",
+            port,
+            pattern,
+        )
 
     for proc in psutil.process_iter(['pid', 'name']):
         try:
@@ -245,15 +252,22 @@ def kill_port(port: int, pattern: str = "aura"):
                     pid = proc.pid
                     name = proc.info.get("name") or ""
                     cmd_str = ""
-                    if not force_all:
-                        try:
-                            cmd_str = " ".join(proc.cmdline() or []).lower()
-                        except (psutil.Error, PermissionError, SystemError, OSError) as exc:
-                            logger.debug("Skipping cmdline inspection for PID %s during port cleanup: %s", pid, exc)
+                    try:
+                        cmd_str = " ".join(proc.cmdline() or []).lower()
+                    except (psutil.Error, PermissionError, SystemError, OSError) as exc:
+                        logger.debug("Skipping cmdline inspection for PID %s during port cleanup: %s", pid, exc)
 
                     should_kill = force_all or (pattern in cmd_str or pattern in name.lower())
                     
                     if should_kill:
+                        if force_all:
+                            logger.warning(
+                                "Force-clearing Aura-private port %s by terminating PID %s (%s): %s",
+                                port,
+                                pid,
+                                name,
+                                cmd_str[:200],
+                            )
                         logger.info("Terminating process %s (%s) on port %s...", pid, name, port)
                         try:
                             proc.terminate()
@@ -261,6 +275,13 @@ def kill_port(port: int, pattern: str = "aura"):
                         except psutil.TimeoutExpired:
                             logger.warning("Process %s resistant to SIGTERM. Sending SIGKILL.", pid)
                             proc.kill()
+                    else:
+                        logger.warning(
+                            "Leaving non-Aura process %s (%s) on shared port %s untouched.",
+                            pid,
+                            name,
+                            port,
+                        )
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, PermissionError, SystemError, OSError):
             pass
 
@@ -921,9 +942,40 @@ async def run_desktop(port: int):
 
     await _main_loop()
 
-async def run_watchdog():
+def _watchdog_child_args(args: Optional[argparse.Namespace] = None) -> List[str]:
+    """Build restart args that preserve the mode the watchdog was asked to supervise."""
+    if args is None:
+        return ["--desktop"]
+
+    child_args: List[str] = []
+    if getattr(args, "gui_window", False):
+        child_args.append("--gui-window")
+    elif getattr(args, "headless", False):
+        child_args.append("--headless")
+    elif getattr(args, "server", False):
+        child_args.append("--server")
+    elif getattr(args, "cli", False):
+        child_args.append("--cli")
+    else:
+        child_args.append("--desktop")
+
+    if getattr(args, "skeletal", False):
+        child_args.append("--skeletal")
+
+    host = str(getattr(args, "host", "") or "").strip()
+    if host:
+        child_args.extend(["--host", host])
+    port = getattr(args, "port", None)
+    if port is not None:
+        child_args.extend(["--port", str(port)])
+    return child_args
+
+
+async def run_watchdog(args: Optional[argparse.Namespace] = None):
     """Stability Watchdog Loop (Async)."""
     logger.info("🛡️ Watchdog supervisor active (supervision-only mode).")
+    child_args = _watchdog_child_args(args)
+    logger.info("🛡️ Watchdog restart command preserves mode args: %s", " ".join(child_args))
 
     # Write watchdog PID so it can be stopped
     lock_file = Path.home() / ".aura" / "locks" / "watchdog.lock"
@@ -940,7 +992,7 @@ async def run_watchdog():
             start_time = time.time()
             
             # Use asyncio.create_subprocess_exec for non-blocking wait
-            proc = await asyncio.create_subprocess_exec(_launcher_python_executable(), __file__, "--cli")
+            proc = await asyncio.create_subprocess_exec(_launcher_python_executable(), __file__, *child_args)
             await proc.wait()
             
             # Perplexity Audit Fix: Detect deterministic config errors (Exit 1)
@@ -1266,7 +1318,7 @@ def main():
             logger.info("🪟 Opening Aura desktop window on port %s...", args.port)
             gui_actor_entry(args.port)
         elif args.watchdog:
-            asyncio.run(run_watchdog())
+            asyncio.run(run_watchdog(args))
         elif args.cli:
             
             asyncio.run(run_console())

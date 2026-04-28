@@ -26,9 +26,10 @@ returns a new hidden state. The residual stream is the accumulating sum:
     logits = lm_head(h_final)
 
 Activation steering (Turner et al. 2023; Zou et al. 2023; Rimsky et al. 2024)
-adds a learned direction vector directly into this stream:
+adds a learned direction vector directly into completion-token positions of
+this stream:
 
-    h_l ← h_l + α · v_affect
+    h_l[completion] ← h_l[completion] + α · v_affect
 
 where v_affect lives in the same space as h_l (d_model dimensions) and encodes
 a specific affective direction. The model never "reads" this — the vector is
@@ -38,7 +39,7 @@ distribution at the level of hidden representations.
 FOR AURA: The LiquidSubstrate's 64-neuron state vector is continuously
 updated at 20Hz. The AffectiveSteeringEngine projects that state into a
 linear combination of affective steering vectors and injects the sum into
-target layers of the model on every token — making the substrate's state
+the current completion position at target layers — making the substrate's state
 physically continuous with every word Aura generates.
 
 The response isn't colored by the substrate. The substrate IS part of the
@@ -633,6 +634,11 @@ class AffectiveSteeringHook:
         α  = DEFAULT_ALPHA (global steering strength)
         wᵢ = weight of dimension i, derived from substrate state
         vᵢ = steering vector for dimension i
+
+    The injection is position-masked. During prompt prefill, only the final
+    token representation is steered; during autoregressive decoding, the
+    current generated token is the final token. This avoids adding affective
+    offsets to padding, EOS, and static system-prompt positions.
     
     This runs on EVERY TOKEN GENERATED. The substrate state is read from
     a shared variable that the SubstrateSyncThread updates at 20Hz.
@@ -663,6 +669,7 @@ class AffectiveSteeringHook:
         # Diagnostic counters
         self._inject_count = 0
         self._last_injection_norm = 0.0
+        self._last_mask_mode = "none"
         
         # [OPTIMIZATION] Cached composite vector to avoid redundant MLX uploads
         self._cached_composite_mx: Any = None
@@ -725,6 +732,27 @@ class AffectiveSteeringHook:
                 return mx.astype(composite, dtype)
             return composite
 
+    def _completion_position_mask(self, h: Any) -> Optional[Any]:
+        """Return a broadcast mask for the completion/current token position."""
+        try:
+            import mlx.core as mx
+
+            shape = tuple(getattr(h, "shape", ()) or ())
+            if len(shape) == 2 and shape[0] > 1:
+                mask_np = np.zeros((shape[0], 1), dtype=np.float32)
+                mask_np[-1, 0] = 1.0
+                self._last_mask_mode = "last_position_2d"
+                return mx.astype(mx.array(mask_np), h.dtype)
+            if len(shape) == 3 and shape[1] > 1:
+                mask_np = np.zeros((shape[0], shape[1], 1), dtype=np.float32)
+                mask_np[:, -1, 0] = 1.0
+                self._last_mask_mode = "last_position_3d"
+                return mx.astype(mx.array(mask_np), h.dtype)
+            self._last_mask_mode = "single_token"
+        except Exception as exc:
+            self._last_mask_mode = f"mask_unavailable:{type(exc).__name__}"
+        return None
+
     def install(self):
         """
         Patch the transformer block's forward pass to inject the steering vector.
@@ -762,8 +790,11 @@ class AffectiveSteeringHook:
                 composite = hook.compute_composite_vector_mx(dtype=h.dtype)
 
                 if composite is not None:
-                    # Broadcast and scale by alpha
-                    h = h + hook._alpha * composite
+                    mask = hook._completion_position_mask(h)
+                    if mask is not None:
+                        h = h + (mask * hook._alpha * composite)
+                    else:
+                        h = h + hook._alpha * composite
 
                     # Diagnostic
                     hook._inject_count += 1
@@ -810,6 +841,7 @@ class AffectiveSteeringHook:
             "active": self._active,
             "inject_count": self._inject_count,
             "last_injection_norm": round(self._last_injection_norm, 4),
+            "last_mask_mode": self._last_mask_mode,
             "substrate_connected": x is not None,
             "substrate_valence": round(float(np.tanh(x[0])), 3) if x is not None else None,
             "substrate_arousal": round(float((x[1] + 1.0) / 2.0), 3) if x is not None else None,

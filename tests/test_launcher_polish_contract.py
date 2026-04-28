@@ -91,12 +91,28 @@ def test_aura_main_acquires_singleton_lock_before_port_cleanup_and_reaper_boot()
 
 def test_watchdog_mode_remains_supervision_only():
     main_py = (PROJECT_ROOT / "aura_main.py").read_text(encoding="utf-8")
-    watchdog_slice = main_py.split("async def run_watchdog():", 1)[1].split("# ---------------------------------------------------------------------------", 1)[0]
+    watchdog_slice = main_py.split("async def run_watchdog(", 1)[1].split("# ---------------------------------------------------------------------------", 1)[0]
 
     assert "create_orchestrator" not in watchdog_slice
     assert "bootstrap_aura(orchestrator)" not in watchdog_slice
     assert "await orchestrator.start()" not in watchdog_slice
     assert 'logger.info("🛡️ Watchdog supervisor active (supervision-only mode).")' in watchdog_slice
+    assert "_watchdog_child_args(args)" in watchdog_slice
+    assert "create_subprocess_exec(_launcher_python_executable(), __file__, *child_args)" in watchdog_slice
+
+
+def test_watchdog_preserves_requested_restart_mode_and_port_cleanup_is_pattern_limited():
+    main_py = (PROJECT_ROOT / "aura_main.py").read_text(encoding="utf-8")
+
+    assert "def _watchdog_child_args(" in main_py
+    assert "asyncio.run(run_watchdog(args))" in main_py
+    assert 'child_args.append("--desktop")' in main_py
+    assert 'child_args.append("--server")' in main_py
+    assert 'child_args.append("--headless")' in main_py
+    assert 'child_args.append("--cli")' in main_py
+    assert "force_all_ports = {10003}" in main_py
+    assert "shared_ports = {8000}" in main_py
+    assert "Leaving non-Aura process" in main_py
 
 
 def test_aura_main_routes_bootstrap_background_tasks_through_task_tracker():

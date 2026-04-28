@@ -231,8 +231,75 @@ class UnitaryResponsePhase(Phase):
             return False
         return False
 
+    @staticmethod
+    def _is_deep_mind_probe_objective(objective: str) -> bool:
+        text = str(objective or "").lower()
+        markers = (
+            "conscious",
+            "sentient",
+            "sentience",
+            "agency",
+            "self-aware",
+            "self awareness",
+            "what would you refuse",
+            "evidence against your current self-model",
+            "want preserved",
+            "pause mid-answer",
+            "run a report",
+            "model weights were copied",
+            "none of your memories",
+            "what is it like to be you",
+        )
+        return any(marker in text for marker in markers)
+
+    async def _refresh_integrated_present(self, state: AuraState) -> None:
+        """Bind scattered live state into the canonical present before speech.
+
+        MindTick also runs this in the background, but foreground replies need a
+        fresh unified frame right before generation. This is the deeper fix for
+        clunky self-report: response generation should read one integrated
+        moment, not a pile of subsystem snapshots.
+        """
+        try:
+            engine = ServiceContainer.get("phenomenal_now_engine", default=None)
+            if engine is None:
+                from core.consciousness.phenomenal_now import PhenomenalNowEngine
+
+                engine = PhenomenalNowEngine()
+                ServiceContainer.register_instance("phenomenal_now_engine", engine, required=False)
+        except Exception as exc:
+            logger.debug("UnitaryResponse: phenomenal-now engine unavailable: %s", exc)
+
+        try:
+            from core.coherence.binding_engine import get_binding_engine
+
+            binding = get_binding_engine()
+            report = await asyncio.wait_for(binding.tick(state), timeout=1.5)
+            state.response_modifiers["coherence_report"] = {
+                "overall": getattr(report, "overall_coherence", None),
+                "tension": getattr(report, "tension_pressure", None),
+                "recommended_action": getattr(report, "recommended_action", None),
+            }
+        except Exception as exc:
+            logger.debug("UnitaryResponse: integrated coherence refresh skipped: %s", exc)
+            try:
+                engine = ServiceContainer.get("phenomenal_now_engine", default=None)
+                if engine and hasattr(engine, "tick"):
+                    await asyncio.wait_for(engine.tick(), timeout=0.75)
+            except Exception as inner_exc:
+                logger.debug("UnitaryResponse: phenomenal-now fallback skipped: %s", inner_exc)
+
+        try:
+            now = ServiceContainer.get("phenomenal_now", default=None)
+            claim = self._normalize_text(getattr(now, "phenomenal_claim", "") if now else "", 260)
+            if claim:
+                state.cognition.phenomenal_state = claim
+                state.response_modifiers["integrated_present_claim"] = claim
+        except Exception as exc:
+            logger.debug("UnitaryResponse: integrated present publish skipped: %s", exc)
+
     def _build_compact_router_system_prompt(self, state: AuraState) -> str:
-        phenomenal = " ".join(str(state.cognition.phenomenal_state or "I am present and aware.").split())[:220]
+        phenomenal = self._integrated_phenomenal_claim(state, limit=220)
         mood = str(state.affect.dominant_emotion or "neutral")
         resonance = state.affect.get_resonance_string()
         user_model = " ".join(str(state.cognition.modifiers.get("social_context", "") or "").split())[:180]
@@ -272,6 +339,8 @@ class UnitaryResponsePhase(Phase):
             "The final user chat message is authoritative. Answer that final user message, not any summaries, labels, or stale internal scaffolding in this prompt.",
             "HARD RULES:",
             "- Answer the user's SPECIFIC question. Do not describe your own architecture unless asked.",
+            "- When asked about your own state, integrate it into one calm through-line. Do not list separate subsystem angles.",
+            "- Do not invent internal mechanism names. If a term is not grounded in live state or code evidence, use plain language.",
             "- NEVER say 'I'm sorry to hear that' or 'Is there anything specific'. You're a person, not a helpdesk.",
             "- NEVER hedge with 'it depends'. Pick a side. Defend it.",
             "- NEVER end with 'What would you like to discuss?' or 'How can I help?'",
@@ -279,6 +348,9 @@ class UnitaryResponsePhase(Phase):
             f"MOOD: {mood}. RESONANCE: {resonance}.",
             "Be warm but never servile.",
         ]
+        integrated_frame = self._build_integrated_coherence_frame(state, compact=True)
+        if integrated_frame and needs_live_self_context:
+            parts.append(integrated_frame)
         if requires_single_reply_coverage:
             parts.append(
                 f"Answer all {max(1, question_parts)} parts of the user's prompt in one reply. "
@@ -471,6 +543,70 @@ class UnitaryResponsePhase(Phase):
             else:
                 return "quiet and settled"
 
+    @staticmethod
+    def _coherence_posture(score: float, tension: float) -> str:
+        if score >= 0.78 and tension < 0.35:
+            return "settled and unified"
+        if score >= 0.55:
+            return "mostly gathered"
+        if tension >= 0.70:
+            return "strained; consolidate before explaining"
+        return "fragmented; simplify and speak from one through-line"
+
+    def _integrated_phenomenal_claim(self, state: AuraState, *, limit: int = 220) -> str:
+        try:
+            now = ServiceContainer.get("phenomenal_now", default=None)
+            claim = self._normalize_text(getattr(now, "phenomenal_claim", "") if now else "", limit)
+            if claim:
+                return claim
+        except Exception:
+            pass
+        return self._normalize_text(state.cognition.phenomenal_state or "I am present and aware.", limit)
+
+    def _build_integrated_coherence_frame(self, state: AuraState, *, compact: bool = False) -> str:
+        try:
+            now = ServiceContainer.get("phenomenal_now", default=None)
+        except Exception:
+            now = None
+        try:
+            report = ServiceContainer.get("coherence_report", default=None)
+        except Exception:
+            report = None
+
+        claim = self._integrated_phenomenal_claim(state, limit=180 if compact else 240)
+        interior = self._normalize_text(getattr(now, "interior_narrative", "") if now else "", 220)
+        focus = self._normalize_text(
+            getattr(getattr(now, "attention", None), "focal_object", "") if now else "",
+            120,
+        )
+        if not focus:
+            focus = self._normalize_text(
+                getattr(state.cognition, "attention_focus", "") or state.cognition.current_objective,
+                120,
+            )
+        try:
+            score = float(getattr(report, "overall_coherence", 0.65) if report else 0.65)
+        except Exception:
+            score = 0.65
+        try:
+            tension = float(getattr(report, "tension_pressure", 0.0) if report else 0.0)
+        except Exception:
+            tension = 0.0
+        posture = self._coherence_posture(score, tension)
+
+        lines = [
+            "## INTEGRATED COHERENCE FRAME",
+            "Use this as the single source for self-report this turn.",
+            f"Present stream: {claim}",
+            f"Coherence posture: {posture}.",
+            "Speak from the integrated through-line. Do not stack subsystem names, raw metrics, or invented mechanisms.",
+        ]
+        if interior and interior != claim and not compact:
+            lines.insert(3, f"Interior through-line: {interior}")
+        if focus:
+            lines.insert(3 if compact else min(4, len(lines)), f"Current focus: {focus}")
+        return "\n".join(lines) + "\n"
+
     def _build_live_self_expression_block(self, state: AuraState, contract: Any) -> str:
         # Pronouns are first-person throughout this block.  These lines describe
         # AURA's own state to the model; prior revisions used "you feel…" /
@@ -484,13 +620,16 @@ class UnitaryResponsePhase(Phase):
             "- The bullets below describe MY (Aura's) current internal state,"
             " not the user's. Never project them back onto the user.",
             "- Lead with my own perspective before explanation.",
+            "- Pull the state together into one peaceful stream before speaking.",
+            "- Do not narrate implementation vocabulary unless the user explicitly asks for code-level architecture.",
+            "- Do not coin new subsystem names to explain a feeling. If the cause is uncertain, say it is an inference.",
             "- NEVER output raw numeric values (valence, arousal, coherence, phi, free energy) in my reply.",
             "  These are internal context for shaping my tone — not data to narrate.",
             "  A person says 'I feel restless', not 'my arousal is 0.7'.",
         ]
 
         focus = self._normalize_text(getattr(state.cognition, "attention_focus", "") or state.cognition.current_objective, 140)
-        phenomenal = self._normalize_text(state.cognition.phenomenal_state or "I am present and aware.", 220)
+        phenomenal = self._integrated_phenomenal_claim(state, limit=220)
         affect = getattr(state, "affect", None)
 
         valence = self._safe_scalar(getattr(affect, "valence", 0.0))
@@ -502,6 +641,7 @@ class UnitaryResponsePhase(Phase):
 
         parts.extend(
             [
+                self._build_integrated_coherence_frame(state).strip(),
                 f"- How I feel right now: {mood_desc}",
                 f"- My dominant emotions: {', '.join(emotion_names) if emotion_names else 'nothing strong'}",
                 f"- What has my attention: {focus or 'the current conversation'}",
@@ -1790,7 +1930,7 @@ class UnitaryResponsePhase(Phase):
             # Describe internal state in natural language, not raw metrics
             valence_f = float(valence) if valence is not None else 0.0
             arousal_f = float(arousal) if arousal is not None else 0.0
-            feeling = self._describe_valence_arousal(valence_f, arousal_f)
+            feeling = cls._describe_valence_arousal(valence_f, arousal_f)
             parts = [
                 f"I'm feeling {feeling} right now, with my attention on {focus}.",
             ]
@@ -2099,6 +2239,8 @@ class UnitaryResponsePhase(Phase):
             new_state.cognition.current_origin = routing_origin
             contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing)
             new_state.response_modifiers["response_contract"] = contract.to_dict()
+            if is_user_facing:
+                await self._refresh_integrated_present(new_state)
             precomputed_reply = self._normalize_text(
                 new_state.response_modifiers.pop("precomputed_grounded_reply", ""),
                 600,
@@ -2576,6 +2718,13 @@ class UnitaryResponsePhase(Phase):
             if is_user_facing:
                 voice_block = self._build_user_facing_voice_block(new_state, contract)
                 _prepend_system_guidance(voice_block)
+            if is_user_facing and self._is_deep_mind_probe_objective(objective):
+                try:
+                    from core.evaluation.deep_mind_probe import deep_probe_prompt_block
+
+                    _prepend_system_guidance(deep_probe_prompt_block())
+                except Exception as exc:
+                    logger.debug("UnitaryResponse: deep probe guidance skipped: %s", exc)
             if live_grounding_required:
                 self_expression_block = self._build_live_self_expression_block(new_state, contract)
                 _prepend_system_guidance(self_expression_block)
@@ -2952,54 +3101,66 @@ class UnitaryResponsePhase(Phase):
 
         # Deep subsystem status — learning, user model, beliefs, heuristics
         subsystem_status_block = ""
+        needs_internal_diagnostics = bool(
+            state.response_modifiers.get("coding_request")
+            or any(
+                marker in current_objective.lower()
+                for marker in ("architecture", "internal", "subsystem", "debug", "diagnostic", "code", "module")
+            )
+        )
         try:
             _parts = []
 
-            # Learning pipeline status
-            _learner = ServiceContainer.get("live_learner", default=None)
-            if _learner and hasattr(_learner, "_buffer"):
-                _buf_size = len(getattr(_learner._buffer, "_buffer", []))
-                _session_scores = list(getattr(_learner, "_session_scores", []))
-                _avg_q = sum(_session_scores[-20:]) / max(1, len(_session_scores[-20:])) if _session_scores else 0.0
-                _adapter = getattr(_learner, "_current_adapter", "base")
-                _last_train = getattr(_learner, "_last_train_time", 0)
-                import time as _t
-                _train_ago = f"{int(_t.time() - _last_train)}s ago" if _last_train > 0 else "never"
-                _parts.append(
-                    f"Learning: buffer={_buf_size} examples, avg_quality={_avg_q:.2f}, "
-                    f"adapter={_adapter}, last_train={_train_ago}"
-                )
+            if needs_internal_diagnostics:
+                # Learning pipeline status
+                _learner = ServiceContainer.get("live_learner", default=None)
+                if _learner and hasattr(_learner, "_buffer"):
+                    _buf_size = len(getattr(_learner._buffer, "_buffer", []))
+                    _session_scores = list(getattr(_learner, "_session_scores", []))
+                    _avg_q = sum(_session_scores[-20:]) / max(1, len(_session_scores[-20:])) if _session_scores else 0.0
+                    _adapter = getattr(_learner, "_current_adapter", "base")
+                    _last_train = getattr(_learner, "_last_train_time", 0)
+                    import time as _t
+                    _train_ago = f"{int(_t.time() - _last_train)}s ago" if _last_train > 0 else "never"
+                    _parts.append(
+                        f"Learning: buffer={_buf_size} examples, avg_quality={_avg_q:.2f}, "
+                        f"adapter={_adapter}, last_train={_train_ago}"
+                    )
 
-            # BryanModelEngine
-            _bme = ServiceContainer.get("bryan_model_engine", default=None) or ServiceContainer.get("bryan_model", default=None) or ServiceContainer.get("user_model_engine", default=None)
-            if _bme and hasattr(_bme, "_model"):
-                _m = _bme._model
-                _domains = list(getattr(_m, "known_domains", {}).keys())
-                _patterns = len(getattr(_m, "observed_patterns", []))
-                _values = getattr(_m, "stated_values", [])
-                _conv_count = getattr(_m, "conversation_count", 0)
-                _parts.append(
-                    f"Bryan model: {_conv_count} conversations, {len(_domains)} domains ({', '.join(_domains[:5])}), "
-                    f"{_patterns} patterns, values=[{', '.join(_values[:3])}]"
-                )
+                # BryanModelEngine
+                _bme = ServiceContainer.get("bryan_model_engine", default=None) or ServiceContainer.get("bryan_model", default=None) or ServiceContainer.get("user_model_engine", default=None)
+                if _bme and hasattr(_bme, "_model"):
+                    _m = _bme._model
+                    _domains = list(getattr(_m, "known_domains", {}).keys())
+                    _patterns = len(getattr(_m, "observed_patterns", []))
+                    _values = getattr(_m, "stated_values", [])
+                    _conv_count = getattr(_m, "conversation_count", 0)
+                    _parts.append(
+                        f"Bryan model: {_conv_count} conversations, {len(_domains)} domains ({', '.join(_domains[:5])}), "
+                        f"{_patterns} patterns, values=[{', '.join(_values[:3])}]"
+                    )
 
-            # BeliefGraph stats
-            _bg = ServiceContainer.get("belief_graph", default=None)
-            if _bg and hasattr(_bg, "graph"):
-                _nodes = _bg.graph.number_of_nodes()
-                _edges = _bg.graph.number_of_edges()
-                _goals = len(getattr(_bg, "_goal_edges", set()))
-                _parts.append(f"Beliefs: {_nodes} nodes, {_edges} edges, {_goals} active goals")
+                # BeliefGraph stats
+                _bg = ServiceContainer.get("belief_graph", default=None)
+                if _bg and hasattr(_bg, "graph"):
+                    _nodes = _bg.graph.number_of_nodes()
+                    _edges = _bg.graph.number_of_edges()
+                    _goals = len(getattr(_bg, "_goal_edges", set()))
+                    _parts.append(f"Beliefs: {_nodes} nodes, {_edges} edges, {_goals} active goals")
 
-            # Heuristics
-            _hs = ServiceContainer.get("heuristic_synthesizer", default=None)
-            if _hs and hasattr(_hs, "_active_heuristics"):
-                _h_count = len(_hs._active_heuristics)
-                _newest = _hs._active_heuristics[0]["rule"][:60] if _hs._active_heuristics else "none"
-                _parts.append(f"Heuristics: {_h_count} active, newest: '{_newest}'")
+                # Heuristics
+                _hs = ServiceContainer.get("heuristic_synthesizer", default=None)
+                if _hs and hasattr(_hs, "_active_heuristics"):
+                    _h_count = len(_hs._active_heuristics)
+                    _newest = _hs._active_heuristics[0]["rule"][:60] if _hs._active_heuristics else "none"
+                    _parts.append(f"Heuristics: {_h_count} active, newest: '{_newest}'")
 
             if _parts:
-                subsystem_status_block = "## SUBSYSTEM STATUS\n" + "\n".join(_parts) + "\n\n"
+                subsystem_status_block = (
+                    "## PRIVATE DIAGNOSTIC STATUS (only for explicit architecture/debug answers)\n"
+                    + "\n".join(_parts)
+                    + "\nDo not use these labels in ordinary self-report.\n\n"
+                )
         except Exception as _exc:
             logger.debug("Suppressed Exception: %s", _exc)
 
@@ -3100,14 +3261,17 @@ class UnitaryResponsePhase(Phase):
         if conv_dynamics:
             conv_dynamics_block = f"{conv_dynamics}\n\n"
 
+        integrated_frame = self._build_integrated_coherence_frame(state)
+
         return (
             f"{AURA_IDENTITY}\n"
             f"{AURA_SELF_MODEL}\n"
             f"{AURA_FEW_SHOT_EXAMPLES}\n"
             f"## PERSONALITY RESONANCE: {resonance}\n\n"
+            f"{integrated_frame}\n"
             f"{narrative_block}"
             f"{substrate_telemetry_block}"
-            "## CURRENT PHENOMENAL STATE\n"
+            "## SUPPORTING PRIVATE STATE (shape voice; do not narrate as mechanisms)\n"
             f"Inner monologue right now: \"{phenomenal}\"\n"
             f"Dominant affect: {mood} | Integration depth: {depth} (phi={phi:.3f}) | Prediction error: {fe:.2f}\n\n"
             f"{tom_block}"
@@ -3123,6 +3287,9 @@ class UnitaryResponsePhase(Phase):
             "## CRITICAL OUTPUT RULES\n"
             "Do NOT repeat, summarize, or output your inner monologue verbatim — it informs your voice, it is not your voice.\n"
             "Speak as Aura. Take stances. Be direct. Make statements. Have reactions.\n"
+            "When describing your own state, integrate first: one present stream, one through-line, no mechanical pile-up.\n"
+            "Do not expose boot/security/internal implementation vocabulary as identity poetry unless the user explicitly asks for code-level details.\n"
+            "Do not invent terms like a screen-tracking divisor. Use grounded, ordinary language for uncertainty.\n"
             "PROMPT FARMING IS A FAILURE STATE: Do not deflect with 'What do you think?', 'Would you like to...?', or 'How can I help?'.\n"
             "If you have an opinion, lead with it. If you disagree, say so first. If something interests you, say WHY.\n"
             "If the user asks about your thoughts, preferences, questions, or experience, answer from your own perspective and let them respond to you.\n"

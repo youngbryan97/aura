@@ -46,6 +46,30 @@ class TickMetadata:
     phases_executed: List[str] = field(default_factory=list)
     phase_durations: Dict[str, float] = field(default_factory=dict)
 
+
+def _authorize_state_mutation_through_will(content: str, source: str, *, priority: float = 0.5):
+    """Fail-closed Will gate for background state mutation paths."""
+    try:
+        from core.will import ActionDomain, get_will
+
+        decision = get_will().decide(
+            content=content[:500],
+            source=source,
+            domain=ActionDomain.STATE_MUTATION,
+            priority=priority,
+        )
+        if not decision.is_approved():
+            logger.warning(
+                "MindTick: Will blocked state mutation from %s (%s): %s",
+                source,
+                decision.outcome.value,
+                decision.reason,
+            )
+        return decision
+    except Exception as exc:
+        logger.warning("MindTick: UnifiedWill unavailable for %s; state mutation blocked: %s", source, exc)
+        return None
+
 class MindTick:
     """
     The unified cognitive rhythm of Aura.
@@ -772,15 +796,27 @@ class MindTick:
                         # Need the actual coordinator, not just the facade interface if we are calling a new method
                         memory_coord = self.orchestrator.memory
                         if memory_coord and hasattr(memory_coord, "consolidate_working_memory"):
-                            # Run as fire-and-forget task so we don't block the tick
-                            # Ensure background flag is passed
-                            get_task_tracker().track_task(
-                                get_task_tracker().create_task(
-                                    memory_coord.consolidate_working_memory(current_state, is_background=True),
-                                    name="mind_tick.consolidate_working_memory",
-                                )
+                            decision = _authorize_state_mutation_through_will(
+                                "dream_consolidation: consolidate working memory during idle; identity-affecting writes must stay governed",
+                                "mind_tick.dream_consolidation",
+                                priority=0.55,
                             )
-                        self.set_mode(CognitiveMode.SLEEP)
+                            if not decision or not decision.is_approved():
+                                self.set_mode(CognitiveMode.CONVERSATIONAL)
+                            else:
+                                try:
+                                    current_state.response_modifiers["dream_consolidation_will_receipt"] = decision.receipt_id
+                                except Exception:
+                                    pass
+                                # Run as fire-and-forget task so we don't block the tick
+                                # Ensure background flag is passed
+                                get_task_tracker().track_task(
+                                    get_task_tracker().create_task(
+                                        memory_coord.consolidate_working_memory(current_state, is_background=True),
+                                        name="mind_tick.consolidate_working_memory",
+                                    )
+                                )
+                                self.set_mode(CognitiveMode.SLEEP)
                 
                 # NOTE: tick_count and cycle_count increment moved to finally block
                 # to guarantee the heartbeat always advances.

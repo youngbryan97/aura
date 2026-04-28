@@ -35,6 +35,9 @@ class OutputGuardrails:
         r"core\.(brain|memory|senses|skills|security)\.\w+",
         # Raw thought-stream artifacts
         r"\[INTERNAL\]|\[DEBUG\]|\[TRACE\]",
+        # Confabulated internal jargon that should be repaired before display
+        r"linguist'?s\s+screen[- ]tracking\s+divisor",
+        r"screen[- ]tracking\s+divisor",
     ]
 
     # Patterns that suggest incomplete/broken responses
@@ -96,10 +99,22 @@ class OutputGuardrails:
                         sanitized_lines.append(line)
                 sanitized = "\n".join(sanitized_lines)
 
+        if not sanitized.strip():
+            report["ok"] = False
+            issues.append("empty_after_sanitization")
+            self._total_blocks += 1
+            return "I need to rephrase that in cleaner, grounded language.", report
+
         # 3. Check response length
         if len(sanitized) > self.MAX_RESPONSE_LENGTH:
             issues.append("truncated")
             sanitized = sanitized[:self.MAX_RESPONSE_LENGTH] + "\n\n*(Response truncated for readability)*"
+
+        # 3a. Collapse obvious same-sentence loops before they reach the user.
+        sanitized_loop = self._collapse_repeated_sentences(sanitized)
+        if sanitized_loop != sanitized:
+            issues.append("intra_response_repetition")
+            sanitized = sanitized_loop
 
         # 3b. Block metaphysical overclaims while preserving functional claims.
         try:
@@ -139,6 +154,36 @@ class OutputGuardrails:
                 logger.warning("🛡️ Output guardrail: stripped metadata leak from response")
 
         return sanitized.strip(), report
+
+    @staticmethod
+    def _collapse_repeated_sentences(text: str) -> str:
+        parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+|\n+", str(text or "").strip()) if p.strip()]
+        if not parts:
+            return str(text or "").strip()
+
+        def _key(sentence: str) -> str:
+            key = re.sub(r"[^a-z0-9']+", " ", sentence.lower()).strip()
+            return re.sub(r"\s+", " ", key)
+
+        counts: Dict[str, int] = {}
+        for part in parts:
+            key = _key(part)
+            if key:
+                counts[key] = counts.get(key, 0) + 1
+        repeated = {key for key, count in counts.items() if count >= 3}
+        if not repeated:
+            return str(text or "").strip()
+
+        seen: set[str] = set()
+        kept: list[str] = []
+        for part in parts:
+            key = _key(part)
+            if key in repeated:
+                if key in seen:
+                    continue
+                seen.add(key)
+            kept.append(part)
+        return " ".join(kept).strip()
 
     def get_stats(self) -> Dict[str, Any]:
         return {

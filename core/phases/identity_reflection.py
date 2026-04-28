@@ -17,6 +17,29 @@ class IdentityReflectionPhase(BasePhase):
     def __init__(self, container: Any):
         self.container = container
 
+    @staticmethod
+    def _authorize_identity_mutation(reason: str) -> Any:
+        """Route identity-layer mutation through UnifiedWill, failing closed."""
+        try:
+            from core.will import ActionDomain, get_will
+
+            decision = get_will().decide(
+                content=f"identity_reflection:{reason}",
+                source="identity_reflection",
+                domain=ActionDomain.STATE_MUTATION,
+                priority=0.7,
+            )
+            if not decision.is_approved():
+                logger.warning(
+                    "IdentityReflection: Will blocked identity mutation (%s): %s",
+                    decision.outcome.value,
+                    decision.reason,
+                )
+            return decision
+        except Exception as exc:
+            logger.warning("IdentityReflection: UnifiedWill unavailable; identity mutation blocked: %s", exc)
+            return None
+
     async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         """
         [CLAUDE AUDIT] Identity Guard / Hard Stop.
@@ -71,6 +94,13 @@ class IdentityReflectionPhase(BasePhase):
         # the primary cortex died. Identity stability is maintained through
         # the identity guard checks above, not through string injection.
         if state.version % 20 == 0:
+            decision = self._authorize_identity_mutation("periodic_narrative_version_increment")
+            if not decision or not decision.is_approved():
+                return state
+            try:
+                state.response_modifiers["identity_reflection_will_receipt"] = decision.receipt_id
+            except Exception:
+                pass
             state.identity.narrative_version += 1
             state.identity.last_evolution_timestamp = time.time()
 

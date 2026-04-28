@@ -168,7 +168,8 @@ def compute_inference_params(
     temp -= 0.20 * (s["acetylcholine"] - 0.5)
     temp -= 0.15 * (s["cortisol"] - 0.3)
     temp += 0.20 * (s["curiosity"] - 0.5)
-    temp = max(0.15, min(1.10, temp))
+    temp_ceiling = 0.92 if foreground else 1.00
+    temp = max(0.15, min(temp_ceiling, temp))
     rationale.append(
         f"temp={temp:.2f} (ach={s['acetylcholine']:.2f}, corts={s['cortisol']:.2f}, curio={s['curiosity']:.2f})"
     )
@@ -178,6 +179,7 @@ def compute_inference_params(
     top_p = 0.95
     top_p -= 0.20 * max(0.0, s["phi"])  # phi can be 0..1+
     top_p -= 0.10 * s["frustration"]
+    top_p -= 0.05 * max(0.0, s["arousal"] - 0.65)
     top_p = max(0.55, min(0.99, top_p))
     rationale.append(f"top_p={top_p:.2f} (phi={s['phi']:.2f}, frust={s['frustration']:.2f})")
 
@@ -200,9 +202,17 @@ def compute_inference_params(
     rationale.append(f"max_tokens={cap} (vitality={s['vitality']:.2f}, cap={cap})")
 
     # ─── repetition penalty ────────────────────────────────────────────
-    rep = 1.05 + 0.20 * s["frustration"]
-    rep = max(1.0, min(1.6, rep))
-    rationale.append(f"rep_penalty={rep:.2f} (frust={s['frustration']:.2f})")
+    loop_pressure = (
+        0.22 * max(0.0, s["arousal"] - 0.60)
+        + 0.18 * max(0.0, s["free_energy"] - 0.55)
+        + 0.14 * max(0.0, temp - 0.80)
+    )
+    rep = 1.10 + 0.20 * s["frustration"] + loop_pressure
+    rep_floor = 1.10 if foreground else 1.06
+    rep = max(rep_floor, min(1.45, rep))
+    rationale.append(
+        f"rep_penalty={rep:.2f} (frust={s['frustration']:.2f}, arousal={s['arousal']:.2f}, fe={s['free_energy']:.2f})"
+    )
 
     # ─── presence penalty ─────────────────────────────────────────────
     pres = 0.0 + 0.30 * s["curiosity"]

@@ -18,6 +18,7 @@ LLM parameter mapping:
   Low valence   → lower max_tokens   (blunter, conserves cognitive resources)
   High valence  → higher max_tokens  (expansive, generous with thought)
   Low valence   → higher rep_penalty (avoids rumination spirals)
+  High arousal  → higher rep_penalty floor (prevents excited mantra loops)
 """
 import logging
 import time
@@ -28,12 +29,12 @@ logger = logging.getLogger("Aura.AffectiveCircumplex")
 # LLM parameter ranges
 _TEMP_MIN      = 0.50   # Very deliberate / exact
 _TEMP_BASE     = 0.72   # Default conversational
-_TEMP_MAX      = 1.05   # Highly associative / creative
+_TEMP_MAX      = 0.95   # Highly associative, capped below loop-prone extremes
 _TOKENS_MIN    = 256    # Terse — depleted / distressed state (64GB can afford more)
 _TOKENS_BASE   = 512    # Default user-facing
 _TOKENS_MAX    = 768    # Expansive — flourishing / curious state
-_REP_MIN       = 1.05   # Normal — low repetition pressure
-_REP_MAX       = 1.25   # High — prevent rumination when distressed
+_REP_MIN       = 1.10   # Normal — keep a stable anti-loop floor
+_REP_MAX       = 1.35   # High — prevent rumination when distressed or activated
 _VALENCE_NEUTRAL = 0.55
 _AROUSAL_NEUTRAL = 0.35
 
@@ -124,6 +125,12 @@ class AffectiveCircumplex:
         # Repetition penalty: inverse of valence (distress → more pressure)
         rep_range = _REP_MAX - _REP_MIN
         rep_penalty = round(_REP_MAX - valence * rep_range, 3)
+        if arousal > 0.65:
+            # High activation is exactly where short identity/affect phrases
+            # can become attractor loops, so keep repetition pressure elevated
+            # even when valence is high.
+            rep_penalty = min(_REP_MAX, rep_penalty + (arousal - 0.65) * 0.20)
+            rep_penalty = round(rep_penalty, 3)
 
         # Neurochemical modulation: dopamine boosts temperature (exploration),
         # serotonin dampens it (patience), cortisol reduces token budget (terse).

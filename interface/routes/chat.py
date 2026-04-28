@@ -4772,7 +4772,7 @@ async def api_chat(
                         _original_user_message[:60], _chat_session_id)
             timeout_reply = (
                 _conversation_lane_user_message(lane, timed_out=True)
-                + " I'll keep working on your question — the answer will arrive in your next turn."
+                + " I'll keep working on your question and resume from this exact message when the answer returns."
             )
         except Exception as _resume_setup_exc:
             logger.debug("Auto-resume setup failed (falling back to static timeout reply): %s",

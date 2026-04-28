@@ -4,10 +4,12 @@ Inspired by BrainCog's Spike-Timing-Dependent Plasticity (STDP) rules.
 Instead of fixed Hebbian learning rates, this modulates synaptic weight
 updates based on prediction error from the active inference loop.
 
-When the free energy engine reports high surprise (prediction error),
-synaptic plasticity increases — the substrate learns faster because
-something unexpected happened. When surprise is low, plasticity
-decreases — the substrate is already well-adapted.
+When the free energy engine reports high surprise, synaptic plasticity
+increases — the substrate updates eligible traces more decisively because
+something unexpected happened. Prediction error supplies the signed
+modulatory reward: high error is negative, so the faster update weakens or
+reverses the traces that helped produce the bad prediction instead of
+reinforcing them.
 
 This creates a genuine reward-modulated learning system: the substrate's
 internal dynamics literally change based on how well it's predicting
@@ -15,7 +17,7 @@ the world.
 
 Algorithm (Reward-modulated STDP, Izhikevich 2007):
   1. Compute eligibility trace: e(t) = e(t-1) * decay + STDP(pre, post)
-  2. Get reward signal: r(t) = -prediction_error (negative = better)
+  2. Get reward signal: r(t) = -tanh(prediction_error)
   3. Weight update: dw = learning_rate * r(t) * e(t)
   4. Apply to substrate connectivity matrix W
 
@@ -112,15 +114,16 @@ class STDPLearningEngine:
         Returns:
             Weight delta matrix (n x n) to apply to substrate connectivity.
         """
-        # Reward signal: negative prediction error (lower error = higher reward)
-        # Normalized to [-1, 1] range
+        # Reward signal: negative prediction error (lower error = less
+        # negative reward). Surprise changes step size below; this signed
+        # reward decides whether eligible traces are reinforced or depressed.
         reward = -np.tanh(prediction_error)
         self._last_reward = float(reward)
         self._last_surprise = float(surprise)
 
-        # Modulate learning rate by surprise
-        # High surprise → faster learning (something new happened)
-        # Low surprise → slower learning (already well-adapted)
+        # Modulate learning rate by surprise. High surprise increases the
+        # magnitude of corrective plasticity; the reward sign above still
+        # decides the direction of the update.
         self._learning_rate = np.clip(
             BASE_LEARNING_RATE * (1.0 + surprise * 5.0),
             MIN_LEARNING_RATE,

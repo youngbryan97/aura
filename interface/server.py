@@ -35,6 +35,7 @@ import psutil
 import uvicorn
 from fastapi import (
     FastAPI,
+    HTTPException,
     Request,
     WebSocket,
     WebSocketDisconnect,
@@ -180,7 +181,7 @@ from interface.event_bridge import mycelial_ui_callback, broadcast_telemetry, ru
 
 # ── Shared helpers ──
 from interface.helpers import _notify_user_spoke
-from interface.auth import _restore_owner_session_from_request
+from interface.auth import _restore_owner_session_from_request, validate_runtime_security_request
 
 
 # ── Lifespan ──────────────────────────────────────────────────
@@ -349,22 +350,10 @@ async def correlation_id_middleware(request: Request, call_next):
 # SEC-02: Defense-in-depth token verification middleware
 @app.middleware("http")
 async def verify_token_middleware(request: Request, call_next):
-    api_token = config.api_token
-    if api_token:
-        auth_header = request.headers.get("Authorization", "")
-        x_api_token = request.headers.get("X-Api-Token", "")
-        if request.url.path not in ("/", "/api/health", "/api/health/live", "/api/health/ready"):
-            token_valid = False
-            if auth_header.startswith("Bearer ") and hmac.compare_digest(auth_header[7:], api_token):
-                token_valid = True
-            elif x_api_token and hmac.compare_digest(x_api_token, api_token):
-                token_valid = True
-            host = request.client.host if request.client else "unknown"
-            if host in ("127.0.0.1", "::1", "localhost"):
-                token_valid = True
-            if not token_valid:
-                from starlette.responses import Response
-                return Response(status_code=401, content="Unauthorized")
+    try:
+        validate_runtime_security_request(request)
+    except HTTPException as exc:
+        return Response(status_code=exc.status_code, content=str(exc.detail))
     return await call_next(request)
 
 # ── Storage & Resource Management ─────────────────────────────
