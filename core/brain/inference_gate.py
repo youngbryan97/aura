@@ -10,6 +10,7 @@ This module is the FAST PATH for user-facing chat. It injects Aura's full
 identity/personality system prompt so responses sound like Aura, not a bare LLM.
 Timeouts are kept tight (45s) for conversational responsiveness.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import gc
@@ -166,6 +167,7 @@ class InferenceGate:
                 )
                 return False
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Boot warmup memory probe failed: %s", exc)
 
         return True
@@ -327,6 +329,7 @@ class InferenceGate:
                 get_fallback_path,
             )
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Hot-spare setup unavailable: %s", exc)
             return False
 
@@ -355,6 +358,7 @@ class InferenceGate:
         try:
             await client.warmup(foreground_request=False)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Hot-spare warmup failed for %s: %s", endpoint_name, exc)
             return False
         return bool(hasattr(client, "is_alive") and client.is_alive())
@@ -380,6 +384,7 @@ class InferenceGate:
                             mark_failed=False,
                         )
             except Exception as exc:
+                record_degradation('inference_gate', exc)
                 logger.debug("Idle runtime recycle skipped: %s", exc)
 
     async def _maintenance_loop(self) -> None:
@@ -406,6 +411,7 @@ class InferenceGate:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                record_degradation('inference_gate', exc)
                 # [STABILITY v53] Upgraded from debug to warning — silent maintenance
                 # failures can cascade into cortex death without visibility.
                 logger.warning("⚠️ InferenceGate maintenance loop error: %s", exc, exc_info=True)
@@ -584,6 +590,7 @@ class InferenceGate:
             try:
                 self._mlx_client.note_lane_recovering(reason)
             except Exception as exc:
+                record_degradation('inference_gate', exc)
                 logger.debug("Failed to mark cortex lane recovering: %s", exc)
         self._extend_startup_quiet_window(8.0)
         try:
@@ -593,6 +600,7 @@ class InferenceGate:
         try:
             self._schedule_background_cortex_prewarm(delay=2.0)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Failed to schedule deferred cortex re-prewarm after timeout: %s", exc)
 
     def _extend_startup_quiet_window(self, seconds: float) -> None:
@@ -608,6 +616,7 @@ class InferenceGate:
             try:
                 orch._extend_foreground_quiet_window(seconds)
             except Exception as exc:
+                record_degradation('inference_gate', exc)
                 logger.debug("Failed to extend foreground quiet window: %s", exc)
 
     def _schedule_background_cortex_prewarm(self, delay: float = 12.0) -> None:
@@ -660,6 +669,7 @@ class InferenceGate:
                         next_delay = min(45.0, max(12.0, next_delay * 1.5))
                         continue
                 except Exception as exc:
+                    record_degradation('inference_gate', exc)
                     logger.debug("Deferred prewarm memory probe failed: %s", exc)
 
                 try:
@@ -668,6 +678,7 @@ class InferenceGate:
                     logger.info("✅ Deferred cortex prewarm completed.")
                     return
                 except Exception as exc:
+                    record_degradation('inference_gate', exc)
                     logger.warning("⚠️ Deferred cortex prewarm failed (attempt=%d): %s", attempt, exc)
                     next_delay = min(45.0, max(12.0, next_delay * 1.5))
 
@@ -704,6 +715,7 @@ class InferenceGate:
         try:
             rearmed = bool(client.refresh_runtime_availability(force_probe=force_probe))
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Failed to re-arm runtime-blocked Cortex lane: %s", exc)
             return False
 
@@ -759,6 +771,7 @@ class InferenceGate:
                 self._mlx_client.note_lane_recovering("foreground_warmup_timeout")
             raise
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             if hasattr(self._mlx_client, "note_lane_failed"):
                 self._mlx_client.note_lane_failed(f"foreground_warmup_failed:{type(exc).__name__}")
             raise RuntimeError("foreground_warmup_failed") from exc
@@ -832,6 +845,7 @@ class InferenceGate:
                 try:
                     await asyncio.to_thread(self._mlx_client._kill_and_join_blocking, self._mlx_client._process)
                 except Exception as _e:
+                    record_degradation('inference_gate', _e)
                     logger.debug('Ignored Exception in inference_gate.py killing process: %s', _e)
 
             try:
@@ -850,6 +864,7 @@ class InferenceGate:
                 self._cortex_recovery_attempts = 0
                 self._cortex_recovery_exhausted_at = 0.0
             except Exception as exc:
+                record_degradation('inference_gate', exc)
                 logger.error("⚠️ [RECOVERY] Primary 32B cortex respawn failed (attempt %d/5): %s", self._cortex_recovery_attempts, exc)
             finally:
                 # [STABILITY v51] ALWAYS clear the flag, even on unexpected exceptions.
@@ -907,6 +922,7 @@ class InferenceGate:
             else:
                 statuses["cortex"] = "not_initialized"
         except Exception as e:
+            record_degradation('inference_gate', e)
             statuses["cortex"] = f"error:{e}"
 
         # Brainstem
@@ -924,6 +940,7 @@ class InferenceGate:
             else:
                 statuses["brainstem"] = "not_initialized"
         except Exception as e:
+            record_degradation('inference_gate', e)
             statuses["brainstem"] = f"error:{e}"
 
         # Reflex (CPU) — always available if model file exists
@@ -1051,6 +1068,7 @@ class InferenceGate:
             if get_local_backend() != "mlx" and lane.get("conversation_ready"):
                 return "cortex_resident"
         except Exception as _exc:
+            record_degradation('inference_gate', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         lane_state = str(lane.get("state", "") or "").strip().lower()
         if not lane.get("conversation_ready") and lane_state == "failed":
@@ -1088,12 +1106,14 @@ class InferenceGate:
 
             client_registry.update(dict(_SERVER_CLIENTS))
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Local-runtime background memory shed unavailable: %s", exc)
         try:
             from core.brain.llm.mlx_client import _CLIENTS
 
             client_registry.update(dict(_CLIENTS))
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("MLX background memory shed unavailable: %s", exc)
         if not client_registry:
             return
@@ -1119,6 +1139,7 @@ class InferenceGate:
                     continue
                 shed_count += 1
             except Exception as exc:
+                record_degradation('inference_gate', exc)
                 logger.debug("Background worker shed failed for %s: %s", client_path, exc)
 
         if shed_count:
@@ -1296,6 +1317,7 @@ class InferenceGate:
         try:
             from core.resilience.resource_arbitrator import get_resource_arbitrator
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.warning("Resource arbitration unavailable, continuing without lock: %s", exc)
             yield
             return
@@ -1329,6 +1351,7 @@ class InferenceGate:
             # Schedule deferred recovery so next request doesn't hit dead cortex
             self._schedule_background_cortex_prewarm(delay=5.0)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.error("⚠️ Failed to restore %s after deep handoff: %s", PRIMARY_ENDPOINT, exc)
             self._schedule_background_cortex_prewarm(delay=5.0)
 
@@ -1437,6 +1460,7 @@ class InferenceGate:
                     self._extend_startup_quiet_window(5.0)
                     logger.info("✅ InferenceGate ONLINE (Cortex fully warmed).")
                 except Exception as warmup_err:
+                    record_degradation('inference_gate', warmup_err)
                     logger.warning("⚠️ Cortex warmup slow/failed: %s. Will retry on first request.", warmup_err)
             elif self._boot_should_schedule_deferred_prewarm():
                 deferred_delay = 45.0 if self._desktop_safe_boot_enabled() else 12.0
@@ -1454,6 +1478,7 @@ class InferenceGate:
             self._initialized = True
             
         except Exception as e:
+            record_degradation('inference_gate', e)
             self._init_error = str(e)
             logger.error("❌ InferenceGate init failed: %s. Cloud fallback will be used.", e)
             self._initialized = True  # Mark as initialized so callers don't block forever
@@ -1493,6 +1518,7 @@ class InferenceGate:
                     except Exception:
                         raise
             except Exception as e:
+                record_degradation('inference_gate', e)
                 logger.debug("🧠 ContextAssembler unavailable (%s), using static identity", e)
                 # Fallback: Use the static identity prompt
                 try:
@@ -1626,6 +1652,7 @@ class InferenceGate:
                 f"- Memory pressure: {float(memory_pressure or 0.0):.1f}%"
             )
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Physiology injection unavailable: %s", exc)
 
         try:
@@ -1635,6 +1662,7 @@ class InferenceGate:
                 if report:
                     segments.append(f"## GROUNDED SELF-REPORT\n{report}")
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Self-report injection unavailable: %s", exc)
 
         try:
@@ -1656,6 +1684,7 @@ class InferenceGate:
                 if sovereign:
                     segments.append(str(sovereign).strip()[:400])
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Personality injection unavailable: %s", exc)
 
         try:
@@ -1669,6 +1698,7 @@ class InferenceGate:
                 if fragment:
                     segments.append(f"## PHENOMENOLOGY\n{str(fragment).strip()[:500]}")
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Phenomenology injection unavailable: %s", exc)
 
         try:
@@ -1679,6 +1709,7 @@ class InferenceGate:
                 if opinion_context:
                     segments.append(f"## HELD POSITIONS\n{str(opinion_context).strip()[:400]}")
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Opinion injection unavailable: %s", exc)
 
         try:
@@ -1692,6 +1723,7 @@ class InferenceGate:
                     if check and getattr(check, "injection", ""):
                         segments.append(f"## SPIRITUAL SPINE\n{check.injection}")
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Spine injection unavailable: %s", exc)
 
         # ── Heartstone Values: evolved drive weights in every prompt ──────────
@@ -1702,6 +1734,7 @@ class InferenceGate:
             if _hsv_block:
                 segments.append(_hsv_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("HeartstoneValues injection unavailable: %s", exc)
 
         # ── Architecture self-awareness ─────────────────────────────────────
@@ -1715,6 +1748,7 @@ class InferenceGate:
                 if overview:
                     segments.append(overview[:800])
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Architecture overview injection unavailable: %s", exc)
 
         # ── PNEUMA (Active Inference) ─────────────────────────────────────────
@@ -1727,6 +1761,7 @@ class InferenceGate:
             # Also push the current prompt as evidence into the belief flow
             _pneuma.on_evidence(prompt[:300], weight=0.2)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("PNEUMA injection unavailable: %s", exc)
 
         # ── MHAF (Mycelial Hypergraph) ────────────────────────────────────────
@@ -1737,6 +1772,7 @@ class InferenceGate:
             if _mhaf_block:
                 segments.append(_mhaf_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("MHAF injection unavailable: %s", exc)
 
         # ── Private Lexicon (Neologism Engine) ───────────────────────────────
@@ -1748,6 +1784,7 @@ class InferenceGate:
             if lex_block:
                 segments.append(lex_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("NeologismEngine injection unavailable: %s", exc)
 
         # ── Continuous Recurrent Self-Model (CRSM) ───────────────────────────
@@ -1771,6 +1808,7 @@ class InferenceGate:
                 _shared_curiosity = float(_lsd.get("curiosity", 50)) / 100.0
                 _shared_energy    = float(_lsd.get("energy",    70)) / 100.0
         except Exception as _exc:
+            record_degradation('inference_gate', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -1787,6 +1825,7 @@ class InferenceGate:
             if _crsm_block:
                 segments.append(_crsm_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("CRSM injection unavailable: %s", exc)
 
         # ── Higher-Order Thought Engine (HOT) ────────────────────────────────
@@ -1804,6 +1843,7 @@ class InferenceGate:
             if _hot_block:
                 segments.append(_hot_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("HOT Engine injection unavailable: %s", exc)
 
         # ── Hedonic Gradient ──────────────────────────────────────────────────
@@ -1817,6 +1857,7 @@ class InferenceGate:
             if _hg_block:
                 segments.append(_hg_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("HedoniGradient injection unavailable: %s", exc)
 
         # ── Hierarchical Goals ────────────────────────────────────────────────
@@ -1827,6 +1868,7 @@ class InferenceGate:
                 if goal_block:
                     segments.append(goal_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("GoalEngine injection unavailable: %s", exc)
 
         # ── Hierarchical Goals ────────────────────────────────────────────────
@@ -1837,6 +1879,7 @@ class InferenceGate:
             if _hp_block:
                 segments.append(_hp_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("HierarchicalPlanner injection unavailable: %s", exc)
 
         # ── Active Commitments ────────────────────────────────────────────────
@@ -1847,6 +1890,7 @@ class InferenceGate:
             if _ce_block:
                 segments.append(_ce_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("CommitmentEngine injection unavailable: %s", exc)
 
         # ── Curiosity Explorer (active learning findings) ─────────────────────
@@ -1857,6 +1901,7 @@ class InferenceGate:
             if _cx_block:
                 segments.append(_cx_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("CuriosityExplorer injection unavailable: %s", exc)
 
         # ── Circadian Rhythm ──────────────────────────────────────────────────
@@ -1868,6 +1913,7 @@ class InferenceGate:
             if _circ_block:
                 segments.append(_circ_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("CircadianEngine injection unavailable: %s", exc)
 
         # ── Identity Narrative (Experience Consolidator) ──────────────────────
@@ -1878,6 +1924,7 @@ class InferenceGate:
             if _ec_block:
                 segments.append(_ec_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("ExperienceConsolidator injection unavailable: %s", exc)
 
         # ── Substrate Learning (CRSM LoRA Bridge) ─────────────────────────────
@@ -1902,6 +1949,7 @@ class InferenceGate:
                 ),
             )
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("CRSMLoraBridge injection unavailable: %s", exc)
 
         # ══════════════════════════════════════════════════════════════════
@@ -1917,6 +1965,7 @@ class InferenceGate:
                 if _block:
                     segments.append(_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Homeostasis injection unavailable: %s", exc)
 
         # ── Free Energy (Active Inference State) ──────────────────────────────
@@ -1927,6 +1976,7 @@ class InferenceGate:
                 if _block:
                     segments.append(_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("FreeEnergy injection unavailable: %s", exc)
 
         # ── Attention Schema (Current Focus + Coherence) ──────────────────────
@@ -1937,6 +1987,7 @@ class InferenceGate:
                 if _block:
                     segments.append(_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("AttentionSchema injection unavailable: %s", exc)
 
         # ── Cognitive Credit (Domain Performance Landscape) ───────────────────
@@ -1947,6 +1998,7 @@ class InferenceGate:
                 if _block:
                     segments.append(_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("CreditAssignment injection unavailable: %s", exc)
 
         # ── Theory of Mind (User Model) ───────────────────────────────────────
@@ -1957,6 +2009,7 @@ class InferenceGate:
                 if _block:
                     segments.append(_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("TheoryOfMind injection unavailable: %s", exc)
 
         # ── World Model (Active Beliefs) ──────────────────────────────────────
@@ -1968,6 +2021,7 @@ class InferenceGate:
                 if _block:
                     segments.append(_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("WorldModel injection unavailable: %s", exc)
 
         # ── Temporal Binding (Autobiographical Continuity) ────────────────────
@@ -1978,6 +2032,7 @@ class InferenceGate:
                 if narrative and len(str(narrative)) > 30:
                     segments.append(f"## TEMPORAL CONTINUITY\n{str(narrative)[:200]}")
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("TemporalBinding injection unavailable: %s", exc)
 
         # ── Predictive Engine (Surprise & Precision) ──────────────────────────
@@ -1988,6 +2043,7 @@ class InferenceGate:
                 if _block:
                     segments.append(_block)
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("PredictiveEngine injection unavailable: %s", exc)
 
         return "\n\n".join(segment for segment in segments if segment)
@@ -2016,6 +2072,7 @@ class InferenceGate:
                 tone = str(emo.get("tone", "balanced") or "balanced")
                 segments.append(f"## LIVE TONE\nMood: {mood}\nTone: {tone}")
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Compact personality injection unavailable: %s", exc)
 
         try:
@@ -2030,6 +2087,7 @@ class InferenceGate:
                     compact_fragment = " ".join(str(fragment).strip().split())
                     segments.append(f"## PHENOMENOLOGY\n{compact_fragment[:180]}")
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Compact phenomenology injection unavailable: %s", exc)
 
         try:
@@ -2040,6 +2098,7 @@ class InferenceGate:
                     compact_goal = " ".join(goal_block.split())
                     segments.append(f"## GOALS\n{compact_goal[:260]}")
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Compact GoalEngine injection unavailable: %s", exc)
 
         try:
@@ -2051,6 +2110,7 @@ class InferenceGate:
                     compact_opinion = " ".join(str(opinion_context).strip().split())
                     segments.append(f"## HELD POSITION\n{compact_opinion[:220]}")
         except Exception as exc:
+            record_degradation('inference_gate', exc)
             logger.debug("Compact opinion injection unavailable: %s", exc)
 
         return "\n\n".join(segment for segment in segments if segment)
@@ -2088,6 +2148,7 @@ class InferenceGate:
                     logger.debug("🧠 Full cognitive message stack built (%d messages)", len(messages))
                     return messages
         except Exception as e:
+            record_degradation('inference_gate', e)
             logger.debug("🧠 ContextAssembler.build_messages() unavailable (%s), using manual build", e)
         
         # Fallback: Manual construction with system_prompt + history
@@ -2405,6 +2466,7 @@ class InferenceGate:
                     if alive:
                         logger.info("✅ [STABILITY] Inline fast-recovery succeeded.")
                 except Exception as inline_exc:
+                    record_degradation('inference_gate', inline_exc)
                     logger.warning("⚠️ [STABILITY] Inline fast-recovery failed: %s", inline_exc)
 
             # If cortex recovery was just triggered or is in progress, give it
@@ -2497,6 +2559,7 @@ class InferenceGate:
                 if _trust_guidance:
                     context["brief"] = (_trust_guidance + "\n\n" + existing_brief).strip()
             except Exception as _te_exc:
+                record_degradation('inference_gate', _te_exc)
                 logger.warning("Trust gate error (passphrase check may have failed): %s", _te_exc)
 
         timeout_val = timeout or self._default_timeout_for_request(
@@ -2544,6 +2607,7 @@ class InferenceGate:
                     requested_tier = "primary"
                     deep_handoff = False
             except Exception as _swap_exc:
+                record_degradation('inference_gate', _swap_exc)
                 logger.debug("Cortex lane probe before secondary admission failed: %s", _swap_exc)
 
         admission_snapshot: Optional[Dict[str, Any]] = None
@@ -2622,6 +2686,7 @@ class InferenceGate:
                         deep_handoff = False
                 context["resource_stakes_envelope"] = envelope.as_dict()
         except Exception as _stakes_exc:
+            record_degradation('inference_gate', _stakes_exc)
             logger.debug("ResourceStakesLedger unavailable: %s", _stakes_exc)
 
         # ── Affective Circumplex: let somatic state modulate generation params ──
@@ -2645,6 +2710,7 @@ class InferenceGate:
                     somatic_temperature, max_tokens,
                 )
             except Exception as _ce:
+                record_degradation('inference_gate', _ce)
                 logger.debug("Circumplex unavailable: %s", _ce)
 
             # ── PNEUMA precision sampler: blend with circumplex temperature ──
@@ -2658,6 +2724,7 @@ class InferenceGate:
                     somatic_temperature = round(0.5 * base + 0.5 * ais_temp, 3)
                     logger.debug("🎯 PNEUMA precision temp blend → %.3f", somatic_temperature)
             except Exception as _ais_e:
+                record_degradation('inference_gate', _ais_e)
                 logger.debug("ActiveInferenceSampler unavailable: %s", _ais_e)
 
             # ── Homeostatic Coupling: Apply cognitive modifiers to generation ──
@@ -2678,6 +2745,7 @@ class InferenceGate:
                         somatic_temperature or 0.0, max_tokens,
                     )
             except Exception as _hc_e:
+                record_degradation('inference_gate', _hc_e)
                 logger.debug("HomeostaticCoupling modifiers unavailable: %s", _hc_e)
 
             # ── Homeostasis Engine: Direct drive-based inference modulation ──
@@ -2700,6 +2768,7 @@ class InferenceGate:
                         _h_mods["caution_level"],
                     )
             except Exception as _he_e:
+                record_degradation('inference_gate', _he_e)
                 logger.debug("Homeostasis inference modifiers unavailable: %s", _he_e)
 
             # ── Morphogenetic Substrate (True Embodied Cognition) ────────────
@@ -2732,6 +2801,7 @@ class InferenceGate:
                     logger.debug("🧬 Morphogenetic Coupling: danger=%.2f curiosity=%.2f pres=%.2f -> temp=%.2f tokens=%d",
                                  _danger, _curiosity, _resource_pressure, somatic_temperature or 0.0, max_tokens)
             except Exception as _m_e:
+                record_degradation('inference_gate', _m_e)
                 logger.debug("Morphogenetic coupling unavailable: %s", _m_e)
 
             # ── Free Energy: Urgency-based tier escalation ──
@@ -2753,6 +2823,7 @@ class InferenceGate:
                             # Don't force tier switch — just extend token budget
                             max_tokens = min(max_tokens + 256, 4096)
             except Exception as _fe_e:
+                record_degradation('inference_gate', _fe_e)
                 logger.debug("FreeEnergy tier nudge unavailable: %s", _fe_e)
 
         if deep_probe_request and not is_background:
@@ -2820,6 +2891,7 @@ class InferenceGate:
                 if _soma_narrative:
                     system_prompt = f"{system_prompt}\n\n## SOMATIC STATE\n{_soma_narrative}"
             except Exception as _exc:
+                record_degradation('inference_gate', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         # ── Architecture Self-Awareness: inject relevant subsystem context ──────
@@ -2838,6 +2910,7 @@ class InferenceGate:
                     if arch_excerpt:
                         system_prompt = f"{system_prompt}\n\n{arch_excerpt}"
             except Exception as _ae:
+                record_degradation('inference_gate', _ae)
                 logger.debug("ArchIndex injection skipped: %s", _ae)
         history = context.get("history", [])
         use_rich_context = bool(context.get("rich_context", self._should_use_rich_context(
@@ -2932,6 +3005,7 @@ class InferenceGate:
                                     timeout=min(90.0, max(35.0, primary_timeout))
                                 )
                             except Exception as warmup_exc:
+                                record_degradation('inference_gate', warmup_exc)
                                 logger.warning(
                                     "🧠 Foreground preflight warmup did not complete cleanly: %s",
                                     warmup_exc,
@@ -2987,6 +3061,7 @@ class InferenceGate:
                             try:
                                 await self.ensure_foreground_ready(timeout=min(60.0, primary_timeout))
                             except Exception as warmup_exc:
+                                record_degradation('inference_gate', warmup_exc)
                                 logger.warning("🧠 Foreground warmup retry did not complete cleanly: %s", warmup_exc)
 
                         logger.warning("🧠 %s returned no text on user-facing request. Retrying once after worker reboot...", local_label)
@@ -3088,6 +3163,7 @@ class InferenceGate:
                 if not is_background and self._origin_is_user_facing(origin) and not allow_cloud_fallback:
                     raise asyncio.TimeoutError(f"{local_label} timed out after {timeout_val:.0f}s")
             except Exception as e:
+                record_degradation('inference_gate', e)
                 logger.warning("🛑 Local inference FAILURE: %s", e)
 
         # 1.5. EMERGENCY REFLEX FALLBACK — tiny 1.5B model on CPU as absolute last local resort.
@@ -3120,6 +3196,7 @@ class InferenceGate:
                             get_task_tracker().create_task(self._ensure_cortex_recovery())
                         return reflex_text
             except Exception as reflex_err:
+                record_degradation('inference_gate', reflex_err)
                 logger.debug("Reflex fallback failed: %s", reflex_err)
 
         # 2. Optional cloud fallback.
@@ -3159,6 +3236,7 @@ class InferenceGate:
                         self._mlx_client._init_done = False
                         logger.info("🧹 [CASCADE CLEANUP] Stuck worker killed, queues replaced.")
                     except Exception as cleanup_exc:
+                        record_degradation('inference_gate', cleanup_exc)
                         logger.debug("Cascade cleanup error (non-fatal): %s", cleanup_exc)
                 # Force cortex recovery in background
                 if not self._cortex_recovery_in_progress:
@@ -3202,6 +3280,7 @@ class InferenceGate:
             except ImportError:
                 logger.debug("PII scrubber not available — sending prompt as-is to cloud")
             except Exception as scrub_exc:
+                record_degradation('inference_gate', scrub_exc)
                 logger.warning("PII scrubbing failed (%s) — sending prompt as-is", scrub_exc)
 
             # Try APIAdapter first (cleaner Gemini integration)
@@ -3221,6 +3300,7 @@ class InferenceGate:
 
                         notify_closed_loop_output(result.strip())
                     except Exception as exc:
+                        record_degradation('inference_gate', exc)
                         logger.debug("Cloud output notification skipped: %s", exc)
                     return result.strip()
             
@@ -3238,9 +3318,11 @@ class InferenceGate:
 
                         notify_closed_loop_output(result.strip())
                     except Exception as exc:
+                        record_degradation('inference_gate', exc)
                         logger.debug("Router output notification skipped: %s", exc)
                     return result.strip()
         except Exception as cloud_err:
+            record_degradation('inference_gate', cloud_err)
             cloud_err_text = str(cloud_err)
             if "429" in cloud_err_text or "quota" in cloud_err_text.lower():
                 self._cloud_backoff_until = time.monotonic() + 60.0
@@ -3268,12 +3350,14 @@ class InferenceGate:
             from core.consciousness.crsm import get_crsm
             get_crsm().post_inference_update(response_text)
         except Exception as _exc:
+            record_degradation('inference_gate', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         try:
             from core.consciousness.hot_engine import get_hot_engine
             hot = get_hot_engine()
             hot.apply_feedback()  # apply any pending reflexive modifications
         except Exception as _exc:
+            record_degradation('inference_gate', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         try:
             from core.consciousness.hedonic_gradient import get_hedonic_gradient
@@ -3297,8 +3381,10 @@ class InferenceGate:
                     hedonic_after=hg.score,
                 )
             except Exception as _exc:
+                record_degradation('inference_gate', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         except Exception as _exc:
+            record_degradation('inference_gate', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # ══════════════════════════════════════════════════════════════════
@@ -3319,6 +3405,7 @@ class InferenceGate:
                     domain="chat",
                 )
         except Exception as _exc:
+            record_degradation('inference_gate', _exc)
             logger.debug("Suppressed Exception in credit feedback: %s", _exc)
 
         # ── Homeostasis: Response success signal ──────────────────────────
@@ -3327,6 +3414,7 @@ class InferenceGate:
             if homeostasis and hasattr(homeostasis, "on_response_success"):
                 homeostasis.on_response_success(response_length=len(response_text))
         except Exception as _exc:
+            record_degradation('inference_gate', _exc)
             logger.debug("Suppressed Exception in homeostasis feedback: %s", _exc)
 
         # ── Theory of Mind: Update user model from response ───────────────
@@ -3338,6 +3426,7 @@ class InferenceGate:
                     response_text=response_text,
                 )
         except Exception as _exc:
+            record_degradation('inference_gate', _exc)
             logger.debug("Suppressed Exception in ToM feedback: %s", _exc)
 
         # ── World Model: Extract beliefs from response ────────────────────
@@ -3347,6 +3436,7 @@ class InferenceGate:
                 if len(response_text) > 100:
                     world_model.extract_beliefs_from_response(response_text)
         except Exception as _exc:
+            record_degradation('inference_gate', _exc)
             logger.debug("Suppressed Exception in world model feedback: %s", _exc)
 
     async def think(self, prompt: str, system_prompt: str = "", **kwargs) -> Optional[str]:

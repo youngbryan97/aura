@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import copy
@@ -128,6 +130,7 @@ class StateRepository:
                     if self._db is not None:
                         await self._db.close()
                 except Exception as _e:
+                    record_degradation('state_repository', _e)
                     logger.debug('Ignored Exception in state_repository.py: %s', _e)
                 self._db = None
 
@@ -205,6 +208,7 @@ class StateRepository:
                         elif shm_mode == "marker":
                             logger.info("✓ [STATE] Genesis overflow marker pushed to SHM.")
                     except Exception as e:
+                        record_degradation('state_repository', e)
                         logger.warning(f"⚠️ [STATE] Initial SHM write failed: {e}")
 
             logger.info("✓ [STATE] Vault Owner Initialized with SHM for writing.")
@@ -231,6 +235,7 @@ class StateRepository:
                     if not self._current:
                          logger.warning("⚠️ [STATE] Proxy attached but SHM is empty (Wait possible)")
                 except Exception as e:
+                    record_degradation('state_repository', e)
                     logger.warning(f"⚠️ [STATE] Failed to attach to SHM, falling back to boot state: {e}")
                     self._shm = None
             if not self._current:
@@ -273,6 +278,7 @@ class StateRepository:
                 self._current = self._deserialize(json.dumps(res["state"]))
                 logger.info("✓ [STATE] Full state fetched from Vault via Bus.")
         except Exception as e:
+            record_degradation('state_repository', e)
             logger.error(f"❌ [STATE] Full fetch failed: {e}")
 
         return self._current
@@ -312,6 +318,7 @@ class StateRepository:
                     )
                     return new_state
                 except Exception as e:
+                    record_degradation('state_repository', e)
                     last_error = e
                     logger.warning("❌ [STATE] Proxy Commit Request FAILED (attempt %d/2): %s", attempt + 1, e)
                     self._transport = None
@@ -391,8 +398,10 @@ class StateRepository:
                         try:
                             self._current = self._deserialize(json.dumps(data))
                         except Exception as e:
+                            record_degradation('state_repository', e)
                             logger.error(f"Failed to auto-sync from SHM: {e}")
             except Exception as e:
+                record_degradation('state_repository', e)
                 logger.warning("⚠️ [STATE] SHM read failed: %s", e)
 
         if not self._current and self.is_vault_owner is False:
@@ -410,6 +419,7 @@ class StateRepository:
             except asyncio.CancelledError as _exc:
                 logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
             except Exception as e:
+                record_degradation('state_repository', e)
                 logger.debug("StateRepository consumer shutdown issue: %s", e)
             finally:
                 self._consumer_task = None
@@ -418,6 +428,7 @@ class StateRepository:
             try:
                 self._shm.close()
             except Exception as e:
+                record_degradation('state_repository', e)
                 logger.debug("StateRepository SHM close issue: %s", e)
             finally:
                 self._shm = None
@@ -426,6 +437,7 @@ class StateRepository:
             try:
                 await self._db.close()
             except Exception as e:
+                record_degradation('state_repository', e)
                 logger.debug("StateRepository DB close issue: %s", e)
             finally:
                 self._db = None
@@ -461,6 +473,7 @@ class StateRepository:
                     logger.info("[STATE] mutation consumer cancelled")
                     break
                 except Exception as e:
+                    record_degradation('state_repository', e)
                     logger.error("🛑 Error in mutation consumer: %s", e)
                     # small backoff to avoid hot-loop on repeated failure
                     await asyncio.sleep(0.1)
@@ -479,6 +492,7 @@ class StateRepository:
                 try:
                     new_state.compact()
                 except Exception as exc:
+                    record_degradation('state_repository', exc)
                     logger.debug("State compaction skipped during commit: %s", exc)
 
             approved, reason, governance_decision = unpack_governance_result(
@@ -498,6 +512,7 @@ class StateRepository:
                 )
                 return
         except Exception as exc:
+            record_degradation('state_repository', exc)
             logger.debug("Constitutional state gate unavailable: %s", exc)
 
         # 1. Serialize OUTSIDE the lock (O(n) walk) - Offload to thread
@@ -521,6 +536,7 @@ class StateRepository:
             if ser_ms > 20:
                 logger.warning("📉 [STATE] Heavy Serialization Detected: %.2fms", ser_ms)
         except Exception as e:
+            record_degradation('state_repository', e)
             logger.error("🛑 [STATE] Serialization failed: %s", e)
             return
 
@@ -570,6 +586,7 @@ class StateRepository:
                     state=new_state,
                 )
         except Exception as exc:
+            record_degradation('state_repository', exc)
             logger.debug("Initiative proposal audit skipped: %s", exc)
 
         # 2. PROCEED OUTSIDE LOCK: publish SHM + DB inline within the single
@@ -585,6 +602,7 @@ class StateRepository:
                         try:
                             await self._sync_to_shm(new_state, serialized_data)
                         except Exception as exc:
+                            record_degradation('state_repository', exc)
                             logger.warning("⚠️ [STATE] SHM propagation failed: %s", exc)
                     await self._commit_to_db(new_state, serialized_data)
             else:
@@ -592,9 +610,11 @@ class StateRepository:
                     try:
                         await self._sync_to_shm(new_state, serialized_data)
                     except Exception as exc:
+                        record_degradation('state_repository', exc)
                         logger.warning("⚠️ [STATE] SHM propagation failed: %s", exc)
                 await self._commit_to_db(new_state, serialized_data)
         except Exception as exc:
+            record_degradation('state_repository', exc)
             logger.error("🛑 [STATE] Vault persistence failed: %s", exc)
         finally:
             self._last_commit_at = time.time()
@@ -826,6 +846,7 @@ class StateRepository:
             try:
                 hot_snapshot_payload = self._serialize_transport_snapshot(state).encode("utf-8")
             except Exception as exc:
+                record_degradation('state_repository', exc)
                 logger.warning("⚠️ [STATE] Failed to build bounded SHM hot snapshot: %s", exc)
 
             if hot_snapshot_payload and len(hot_snapshot_payload) <= shm.payload_capacity:
@@ -889,6 +910,7 @@ class StateRepository:
                 rows = await cursor.fetchall()
             return [self._deserialize(row[0]) for row in rows]
         except Exception as e:
+            record_degradation('state_repository', e)
             logger.error("❌ [STATE] History retrieval failed: %s", e)
             return []
 
@@ -904,6 +926,7 @@ class StateRepository:
             if row:
                 self._current = self._deserialize(row[0])
         except Exception as e:
+            record_degradation('state_repository', e)
             logger.error("❌ [STATE] Failed to load latest: %s", e)
 
     async def _has_been_persisted(self) -> bool:
@@ -914,6 +937,7 @@ class StateRepository:
                 if row:
                     return row[0] > 0
         except Exception as _e:
+            record_degradation('state_repository', _e)
             logger.debug('Ignored Exception in state_repository.py: %s', _e)
         return False
         
@@ -941,6 +965,7 @@ class StateRepository:
                 self._current = stabilized_state
                 logger.info("✅ [STATE] Rollback complete. Restored to version %d", stabilized_state.version)
             except Exception as e:
+                record_degradation('state_repository', e)
                 logger.error("🛑 [STATE] Rollback persistence failed: %s", e)
             
             return self._current
@@ -974,12 +999,14 @@ class StateRepository:
             try:
                 await self._prune_state_log(db)
             except Exception as prune_err:
+                record_degradation('state_repository', prune_err)
                 logger.warning("⚠️ [STATE] State log pruning failed: %s", prune_err)
         if self._commit_counter % self.STATE_LOG_VACUUM_EVERY == 0:
             try:
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(None, self._vacuum_sync)
             except Exception as vacuum_err:
+                record_degradation('state_repository', vacuum_err)
                 logger.warning("⚠️ [STATE] VACUUM failed: %s", vacuum_err)
 
     async def _prune_state_log(self, db: aiosqlite.Connection) -> None:
@@ -1014,6 +1041,7 @@ class StateRepository:
                 excess, total, self.STATE_LOG_MAX_ROWS,
             )
         except Exception as e:
+            record_degradation('state_repository', e)
             logger.error("🛑 [STATE] Prune query failed: %s", e)
 
     def _vacuum_sync(self) -> None:
@@ -1025,6 +1053,7 @@ class StateRepository:
             conn.close()
             logger.info("🧹 [STATE] VACUUM completed on %s.", self.db_path)
         except Exception as e:
+            record_degradation('state_repository', e)
             logger.warning("⚠️ [STATE] VACUUM sync error: %s", e)
 
     def _circular_safe_asdict(self, obj, memo=None, depth=0) -> Any:
@@ -1082,6 +1111,7 @@ class StateRepository:
                     return f"<{type_name} @ depth {depth}>"
                 return str(obj)
         except Exception as e:
+            record_degradation('state_repository', e)
             logger.error("🛑 [STATE] Item serialization error: %s", e)
             return f"<ERROR: {type(obj).__name__}>"
         finally:
@@ -1101,6 +1131,7 @@ class StateRepository:
             d = self._circular_safe_asdict(state)
             return json.dumps(d, ensure_ascii=False)
         except Exception as e:
+            record_degradation('state_repository', e)
             logger.error("🛑 [STATE] Hard serialization failure: %s", e)
             raise
 

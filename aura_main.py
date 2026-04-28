@@ -6,6 +6,7 @@ Standardized, single-entry launcher for CLI, Server, Desktop, and Watchdog modes
 Replaces: aura_launcher.py, aura_desktop.py, run_aura.py, run_aura_loop.py, and reboot.py.
 """
 
+from core.runtime.errors import record_degradation
 import argparse
 import asyncio
 
@@ -193,6 +194,7 @@ def check_environment():
         import core
         logger.info("   • core.__file__: %s", core.__file__)
     except Exception as e:
+        record_degradation('aura_main', e)
         logger.error("   • core import failed: %s", e)
     
     if sys.version_info < (3, 12):
@@ -421,6 +423,7 @@ async def bootstrap_aura(orchestrator: Any):
     try:
         ServiceContainer.register_instance("memory_monitor", mem_monitor, required=False)
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.debug("Memory monitor registration skipped: %s", exc)
     tracker.create_task(mem_monitor.start(), name="memory_monitor.start")
     
@@ -454,6 +457,7 @@ async def bootstrap_aura(orchestrator: Any):
     except ImportError:
         logger.warning("⚠️ JoySocial skills not found — skipping integration.")
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.error("❌ Failed to integrate JoySocial: %s", exc)
 
     # Apply Consciousness, Response, and SafeMode Genesis Patches
@@ -468,6 +472,7 @@ async def bootstrap_aura(orchestrator: Any):
         apply_orchestrator_patches(orchestrator)
         logger.info("🛡️ [GENESIS] Autonomy bridge and stability patches active.")
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.error("❌ Failed to apply gap-closing patches: %s", exc)
 
 
@@ -492,6 +497,7 @@ async def _boot_runtime_orchestrator(
         await start_morphogenesis_runtime()
         logger.info("🧬 Morphogenetic self-organization runtime online.")
     except Exception as morph_exc:
+        record_degradation('aura_main', morph_exc)
         # Never block boot. Morphogenesis is an adaptive layer, not the boot root.
         logger.warning("Morphogenetic runtime startup skipped/degraded: %s", morph_exc)
 
@@ -519,6 +525,7 @@ async def _boot_runtime_orchestrator(
         await get_viability().start(interval=5.0)
         ServiceContainer.register_instance("viability", get_viability(), required=False)
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.warning("viability engine start failed: %s", exc)
 
     try:
@@ -536,6 +543,7 @@ async def _boot_runtime_orchestrator(
         await healer.start(interval=5.0)
         ServiceContainer.register_instance("self_healing", healer, required=False)
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.warning("self-healing watcher start failed: %s", exc)
 
     try:
@@ -549,6 +557,7 @@ async def _boot_runtime_orchestrator(
         bp.update_organ("autonomy", "ready")
         ServiceContainer.register_instance("boot_phases", bp, required=False)
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.debug("boot phases hook skipped: %s", exc)
 
     try:
@@ -556,6 +565,7 @@ async def _boot_runtime_orchestrator(
         await get_guard().start(interval=5.0)
         ServiceContainer.register_instance("performance_guard", get_guard(), required=False)
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.debug("performance guard start skipped: %s", exc)
 
     # Capture stem-cell snapshots for the load-bearing organs so the
@@ -578,6 +588,7 @@ async def _boot_runtime_orchestrator(
         reg.capture("self_object", get_self().snapshot().continuity_hash, schema_version="1")
         ServiceContainer.register_instance("stem_cell_registry", reg, required=False)
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.warning("stem-cell capture at boot failed: %s", exc)
 
     return orchestrator
@@ -607,6 +618,7 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
         if not ServiceContainer.has("task_supervisor"):
             ServiceContainer.register_instance("task_supervisor", tracker, required=False)
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.debug("task_tracker registration skipped: %s", exc)
 
     try:
@@ -616,6 +628,7 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
         if not ServiceContainer.has("shutdown_coordinator"):
             ServiceContainer.register_instance("shutdown_coordinator", coord, required=False)
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.debug("shutdown_coordinator registration skipped: %s", exc)
 
     output_gate = getattr(orchestrator, "output_gate", None)
@@ -624,6 +637,7 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
             if not ServiceContainer.has("output_gate"):
                 ServiceContainer.register_instance("output_gate", output_gate, required=False)
         except Exception as exc:
+            record_degradation('aura_main', exc)
             logger.debug("output_gate registration skipped: %s", exc)
 
     try:
@@ -632,6 +646,7 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
         if not ServiceContainer.has("aura_runtime"):
             ServiceContainer.register_instance("aura_runtime", orchestrator, required=False)
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.debug("orchestrator registration skipped: %s", exc)
 
 
@@ -647,6 +662,7 @@ async def _enforce_boot_probes(ready_label: str) -> None:
     try:
         from core.runtime.boot_probes import run_boot_probes
     except Exception as exc:
+        record_degradation('aura_main', exc)
         logger.debug("boot_probes module unavailable: %s", exc)
         return
     strict_mode = os.environ.get("AURA_STRICT_RUNTIME") == "1"
@@ -659,6 +675,7 @@ async def _enforce_boot_probes(ready_label: str) -> None:
                     r.name, ready_label, r.detail,
                 )
     except Exception as exc:
+        record_degradation('aura_main', exc)
         if strict_mode:
             raise
         logger.warning(
@@ -758,6 +775,7 @@ async def _wait_for_server_http(url: str, timeout: float = 60.0) -> bool:
             if count % 10 == 0:
                  logger.info("📡 API Server not yet listening (Attempt %d)...", count)
         except Exception as e:
+            record_degradation('aura_main', e)
             logger.error("📡 API Health check probe FAILURE: %s", e)
 
         await asyncio.sleep(1.0)
@@ -794,6 +812,7 @@ async def run_desktop(port: int):
             server.run()
             logger.info("📡 API Server thread has exited.")
         except Exception as e:
+            record_degradation('aura_main', e)
             logger.critical("🛑 API THREAD CRITICAL FAILURE: %s", e, exc_info=True)
 
     async def _run_api_server():
@@ -1118,6 +1137,7 @@ def stop_aura():
             except subprocess.TimeoutExpired:
                 logger.warning("launchctl unload timed out.")
             except Exception as e:
+                record_degradation('aura_main', e)
                 logger.warning("launchctl unload failed: %s", e)
             
     if not lock_file.exists():
@@ -1145,6 +1165,7 @@ def stop_aura():
             # If psutil is missing, we fall back to signal 0 check below
             pass
         except Exception as e:
+            record_degradation('aura_main', e)
             logger.debug("PID verification error: %s", e)
 
         print(f"Stopping Aura (PID: {pid})...")
@@ -1178,6 +1199,7 @@ def stop_aura():
             
         print("✅ Aura stopped successfully.")
     except Exception as e:
+        record_degradation('aura_main', e)
         print(f"Failed to stop Aura: {e}")
 
 # ---------------------------------------------------------------------------
@@ -1252,6 +1274,7 @@ def main():
         except ImportError:
             logger.debug("uvloop not installed. Using standard asyncio event loop.")
         except Exception as e:
+            record_degradation('aura_main', e)
             logger.warning("Could not set uvloop policy: %s", e)
     else:
         logger.info(
@@ -1332,6 +1355,7 @@ def main():
     except KeyboardInterrupt:
         logger.info("Shutdown requested by user.")
     except Exception as e:
+        record_degradation('aura_main', e)
         logger.critical("FATAL BOOT ERROR: %s", e, exc_info=True)
         sys.exit(1)
 

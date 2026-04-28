@@ -4,6 +4,8 @@ Extracted from server.py — Health, telemetry, metrics, bootstrap,
 and all collector/diagnostic helpers.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import json
@@ -52,6 +54,7 @@ def _collect_recent_degraded_events(limit: int = 12) -> list[dict[str, Any]]:
 
         return get_recent_degraded_events(limit=limit)
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Recent degraded event collection failed: %s", exc)
         return []
 
@@ -100,6 +103,7 @@ def _collect_stability_details() -> dict[str, Any]:
             details["memory_pct"] = report.get("memory_pct")
             details["cpu_pct"] = report.get("cpu_pct")
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Stability detail collection failed: %s", exc)
 
     try:
@@ -134,6 +138,7 @@ def _collect_stability_details() -> dict[str, Any]:
                 }
             )
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Conversation lane stability detail merge failed: %s", exc)
     if details.get("status") == "unknown":
         details["status"] = "healthy" if bool(details.get("healthy", True)) else "degraded"
@@ -255,6 +260,7 @@ async def _collect_soma_payload() -> dict[str, Any]:
                 "vitality": vitality,
             }
         except Exception as exc:
+            record_degradation('system', exc)
             logger.debug("Soma fallback telemetry failed: %s", exc)
             return {}
 
@@ -266,6 +272,7 @@ async def _collect_soma_payload() -> dict[str, Any]:
         try:
             await asyncio.wait_for(soma.pulse(), timeout=0.25)
         except Exception as exc:
+            record_degradation('system', exc)
             logger.debug("Soma pulse refresh failed: %s", exc)
 
     try:
@@ -294,6 +301,7 @@ async def _collect_soma_payload() -> dict[str, Any]:
                 if any(value > 0.0 for value in payload.values()):
                     return payload
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Soma status collection failed: %s", exc)
     return _system_fallback()
 
@@ -304,6 +312,7 @@ def _collect_tool_catalog() -> list[dict[str, Any]]:
         try:
             return list(engine.get_tool_catalog(include_inactive=True))
         except Exception as exc:
+            record_degradation('system', exc)
             logger.debug("Tool catalog collection failed: %s", exc)
     return []
 
@@ -329,6 +338,7 @@ def _collect_commitment_summary() -> dict[str, Any]:
             ],
         }
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Commitment summary collection failed: %s", exc)
         return {"active_count": 0, "reliability_score": 1.0, "active": []}
 
@@ -360,6 +370,7 @@ def _collect_voice_summary() -> dict[str, Any]:
                 else:
                     summary["state"] = "listening" if getattr(voice, "is_listening", False) else "ready"
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Voice summary collection failed: %s", exc)
     return summary
 
@@ -422,6 +433,7 @@ async def _collect_desktop_access_summary() -> dict[str, Any]:
                     text = skill._read_menu_clock_macos()
                     return {"ready": True, "text": text[:240]}
                 except Exception as exc:
+                    record_degradation('system', exc)
                     return {"ready": False, "error": str(exc)[:240]}
 
             menu_clock_probe = await asyncio.to_thread(_probe_menu_clock)
@@ -451,6 +463,7 @@ async def _collect_desktop_access_summary() -> dict[str, Any]:
             "blocked"
         )
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Desktop access summary collection failed: %s", exc)
     _desktop_access_cache["captured_at"] = time.monotonic()
     _desktop_access_cache["payload"] = payload
@@ -486,6 +499,7 @@ def _collect_runtime_capabilities(conversation_lane: dict[str, Any] | None = Non
             }
         )
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Runtime capability backend lookup failed: %s", exc)
 
     state = str(payload.get("conversation_state", "") or "").lower()
@@ -562,6 +576,7 @@ async def telemetry_stream(request: Request):
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
+                    record_degradation('system', e)
                     logger.debug("SSE generate error: %s", e)
                     await asyncio.sleep(0.1)
                     continue
@@ -589,6 +604,7 @@ async def metrics(request: Request):
             "memory_usage": float(int(psutil.virtual_memory().percent * 10)) / 10.0 if 'psutil' in sys.modules else 0,
         }
     except Exception as e:
+        record_degradation('system', e)
         logger.error("Metrics collection failed: %s", e, exc_info=True)
         return ORJSONResponse({"status": "error", "message": "Metrics collection failed"}, status_code=500)
 
@@ -611,6 +627,7 @@ async def gemini_usage(request: Request):
         limiter = DailyRateLimiter(state_path=state_path)
         return JSONResponse(limiter.get_usage())
     except Exception as e:
+        record_degradation('system', e)
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
@@ -634,6 +651,7 @@ async def api_health(request: Request):
         per_cpu = psutil.cpu_percent(interval=None, percpu=True)
         p_core = per_cpu[0] if len(per_cpu) > 1 else cpu
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Hardware stats collection failed: %s", e)
         cpu, ram, p_core = 0, 0, 0
 
@@ -642,6 +660,7 @@ async def api_health(request: Request):
         try:
             orch_status = orch.get_status()
         except Exception as e:
+            record_degradation('system', e)
             logger.debug("get_status failed: %s", e)
     conversation_lane = _collect_conversation_lane_status()
     boot_snapshot, _ = build_boot_health_snapshot(
@@ -675,6 +694,7 @@ async def api_health(request: Request):
             ls_dict = cast(dict, ls_data)
             ls_dict["vad"] = vad_data
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Liquid state/VAD lookup failed: %s", e)
     curiosity_status = orch_status.get("curiosity_status", {})
 
@@ -685,6 +705,7 @@ async def api_health(request: Request):
             transcendence_data["meta_evolution"] = meta.get_health()
             transcendence_data["meta_evolution"]["active"] = True
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Transcendence status collection failed: %s", e)
 
     # Agency: derive from energy + curiosity + active autonomous thought
@@ -730,6 +751,7 @@ async def api_health(request: Request):
                 mem_stats = mem_mgr.get_stats()
                 cortex["episodes"] = mem_stats.get("episodic_count", 0)
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Cortex supplementary metrics failed: %s", e)
 
     moral = ServiceContainer.get("moral", default=None)
@@ -757,6 +779,7 @@ async def api_health(request: Request):
             if executive_closure and hasattr(executive_closure, "get_status"):
                 executive_closure_data = executive_closure.get_status()
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Executive closure status collection failed: %s", e)
 
     consciousness_evidence = {}
@@ -767,6 +790,7 @@ async def api_health(request: Request):
             if evidence and hasattr(evidence, "snapshot"):
                 consciousness_evidence = evidence.snapshot()
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Consciousness evidence collection failed: %s", e)
 
     executive_authority_data = {}
@@ -775,6 +799,7 @@ async def api_health(request: Request):
         if executive_authority and hasattr(executive_authority, "get_status"):
             executive_authority_data = executive_authority.get_status()
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Executive authority status collection failed: %s", e)
 
     interaction_signals_data = {}
@@ -783,6 +808,7 @@ async def api_health(request: Request):
         if interaction_signals and hasattr(interaction_signals, "get_status"):
             interaction_signals_data = interaction_signals.get_status()
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Interaction signal status collection failed: %s", e)
 
     # ── Resilience Status ──
@@ -838,6 +864,7 @@ async def api_health(request: Request):
 
         resilience_data["hardening_active"] = ServiceContainer.get("stability_guardian", default=None) is not None
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Resilience status collection failed: %s", e)
 
     # ── Qualia Status ──
@@ -854,6 +881,7 @@ async def api_health(request: Request):
             qualia_data["in_attractor"] = getattr(qualia, "_in_attractor", False)
             qualia_data["identity_coherence"] = round(float(getattr(qualia, "identity_drift_score", 1.0)) * 100, 1)
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Qualia status collection failed: %s", e)
 
     # ── Mycelial Network Status ──
@@ -866,6 +894,7 @@ async def api_health(request: Request):
                 mycelial_data["edges"] = len(mycelium.hyphae)
             mycelial_data["health"] = "online"
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Mycelial network status collection failed: %s", e)
 
     # ── PNEUMA Engine Status ──
@@ -887,6 +916,7 @@ async def api_health(request: Request):
             if tm:
                 pneuma_data["attractor_count"] = int(tm.attractor_count)
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("PNEUMA status collection failed: %s", e)
 
     # ── MHAF Field Status ──
@@ -902,6 +932,7 @@ async def api_health(request: Request):
             mhaf_data["edges"] = len(mhaf._edges)
             mhaf_data["free_energy"] = round(float(mhaf._free_energy), 4)
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("MHAF status collection failed: %s", e)
     # Wire real PhiCore IIT 4.0 phi into the MHAF data (replaces the surrogate)
     try:
@@ -920,6 +951,7 @@ async def api_health(request: Request):
                 mhaf_data["phi_mip"] = result.mip_description
                 mhaf_data["phi_samples"] = result.tpm_n_samples
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("PhiCore status collection failed: %s", e)
     if mhaf_data.get("phi", 0.0) <= 0.0:
         try:
@@ -932,6 +964,7 @@ async def api_health(request: Request):
                     mhaf_data["phi"] = round(closed_loop_phi, 4)
                     mhaf_data["phi_source"] = "closed_loop"
         except Exception as e:
+            record_degradation('system', e)
             logger.debug("Closed-loop phi fallback failed: %s", e)
     try:
         from core.consciousness.neologism_engine import get_neologism_engine
@@ -939,6 +972,7 @@ async def api_health(request: Request):
         if neo:
             mhaf_data["lexicon_size"] = len(neo._lexicon)
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Neologism lexicon count failed: %s", e)
 
     # ── Security Status ──
@@ -953,6 +987,7 @@ async def api_health(request: Request):
         security_data["trust_level"] = ts.get("level", "guest")
         security_data["_stale"] = False
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Security status collection failed: %s", e)
     try:
         from core.security.emergency_protocol import get_emergency_protocol
@@ -961,6 +996,7 @@ async def api_health(request: Request):
         security_data["threat_score"] = eps.get("threat_score", 0.0)
         security_data["threat_level"] = eps.get("threat_level", "none")
     except Exception as _exc:
+        record_degradation('system', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
     try:
         from core.security.integrity_guardian import get_integrity_guardian
@@ -970,11 +1006,13 @@ async def api_health(request: Request):
         )
         security_data["integrity_files"] = igs.get("manifest_files", 0)
     except Exception as _exc:
+        record_degradation('system', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
     try:
         from core.security.user_recognizer import get_user_recognizer
         security_data["passphrase_set"] = get_user_recognizer().has_passphrase()
     except Exception as _exc:
+        record_degradation('system', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
 
     # ── Circadian State ──
@@ -991,6 +1029,7 @@ async def api_health(request: Request):
             "cognitive_mode": s.cognitive_mode,
         }
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Circadian status collection failed: %s", e)
 
     # ── Substrate Learning ──
@@ -999,11 +1038,13 @@ async def api_health(request: Request):
         from core.consciousness.crsm_lora_bridge import get_crsm_lora_bridge
         substrate_data["lora_bridge"] = get_crsm_lora_bridge().get_status()
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("LoRA bridge status failed: %s", e)
     try:
         from core.consciousness.experience_consolidator import get_experience_consolidator
         substrate_data["consolidator"] = get_experience_consolidator().get_status()
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Consolidator status failed: %s", e)
 
     # ── Morphogenesis Status ──
@@ -1023,6 +1064,7 @@ async def api_health(request: Request):
                 "_stale": False,
             }
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Morphogenesis status collection failed: %s", e)
 
     # ── Terminal Fallback Status ──
@@ -1035,6 +1077,7 @@ async def api_health(request: Request):
         tw = get_terminal_watchdog()
         terminal_data["watchdog"] = tw._running if tw else False
     except Exception as e:
+        record_degradation('system', e)
         logger.debug("Terminal fallback status collection failed: %s", e)
 
     desktop_access_data = await _collect_desktop_access_summary()
@@ -1117,6 +1160,7 @@ async def api_health(request: Request):
             "timestamp":      datetime.now(tz=UTC).isoformat(),
         }
     except Exception as e:
+        record_degradation('system', e)
         logger.error("Final health payload assembly failed: %s", e)
         payload = {
             "status": "degraded",
@@ -1169,6 +1213,7 @@ async def api_ui_bootstrap(request: Request = None):
         constitutional_status = constitutional_core.get_status()
         state_summary = constitutional_core.snapshot()
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Bootstrap constitutional snapshot failed: %s", exc)
 
     try:
@@ -1176,6 +1221,7 @@ async def api_ui_bootstrap(request: Request = None):
         if executive_authority and hasattr(executive_authority, "get_status"):
             executive_status = executive_authority.get_status()
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Bootstrap executive snapshot failed: %s", exc)
 
     interaction_signals_data = {}
@@ -1184,6 +1230,7 @@ async def api_ui_bootstrap(request: Request = None):
         if interaction_signals and hasattr(interaction_signals, "get_status"):
             interaction_signals_data = interaction_signals.get_status()
     except Exception as exc:
+        record_degradation('system', exc)
         logger.debug("Bootstrap interaction signal snapshot failed: %s", exc)
 
     tool_catalog = _collect_tool_catalog()
@@ -1221,6 +1268,7 @@ async def api_ui_bootstrap(request: Request = None):
             if isinstance(helper_payload, dict):
                 legacy_ui_status.update(helper_payload)
         except Exception as exc:
+            record_degradation('system', exc)
             logger.debug("Bootstrap legacy shell status sync failed: %s", exc)
 
     payload = {
@@ -1335,6 +1383,7 @@ async def api_hot_reload(request: Request):
         status_code = 200 if result.ok else 207  # 207 Multi-Status for partial failure
         return JSONResponse(result.to_dict(), status_code=status_code)
     except Exception as exc:
+        record_degradation('system', exc)
         logger.error("Hot reload failed: %s", exc, exc_info=True)
         return JSONResponse(
             {"ok": False, "error": str(exc)},

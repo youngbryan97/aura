@@ -4,6 +4,8 @@ Extracted from server.py — Chat, session management, conversation lane,
 and related API endpoints.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -145,6 +147,7 @@ async def _complete_logged_exchange(
 
         await record_conversation_experience(recorded_user, final_response)
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Conversation experience recording skipped: %s", exc)
 
 
@@ -176,6 +179,7 @@ async def _emit_chat_output_receipt(
         )
         await asyncio.to_thread(get_receipt_store().emit, receipt)
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Chat output receipt emit skipped: %s", exc)
 
 
@@ -207,6 +211,7 @@ async def _preserve_large_user_paste(user_msg: str) -> None:
         if len(working_memory) > 80:
             del working_memory[: len(working_memory) - 80]
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Large paste preservation skipped: %s", exc)
 
 
@@ -360,6 +365,7 @@ def _read_repo_probe_reply(user_message: str) -> Optional[Dict[str, str]]:
             )
             return {"reply": reply, "status": "repo_probe_line_count"}
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Repo probe read failed: %s", exc)
 
     return {
@@ -1183,6 +1189,7 @@ def _extract_and_register_commitments(reply_text: str, user_message: str) -> Non
             )
             logger.debug("📝 Auto-extracted commitment: %s", description[:80])
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Commitment extraction skipped: %s", exc)
 
 
@@ -1216,6 +1223,7 @@ def _collect_conversation_lane_status() -> Dict[str, Any]:
             if isinstance(gate_lane, dict):
                 lane.update({k: v for k, v in gate_lane.items() if v is not None})
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Conversation lane status collection failed: %s", exc)
 
     try:
@@ -1229,6 +1237,7 @@ def _collect_conversation_lane_status() -> Dict[str, Any]:
             if not bool(lane.get("conversation_ready", False)):
                 lane["last_failure_reason"] = lane.get("last_failure_reason") or report.get("last_user_error", "")
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Conversation lane/router status merge failed: %s", exc)
 
     # Kernel tick staleness — lets the UI detect when the kernel is locked up
@@ -1254,6 +1263,7 @@ def _collect_conversation_lane_status() -> Dict[str, Any]:
                     2,
                 ) if lock_held else 0.0
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Kernel tick age probe failed: %s", exc)
 
     return lane
@@ -1282,6 +1292,7 @@ def _mark_conversation_lane_timeout(reason: str = "foreground_timeout") -> Dict[
         if gate and hasattr(gate, "note_foreground_timeout"):
             gate.note_foreground_timeout(reason)
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Conversation lane timeout mark failed: %s", exc)
 
     lane = _collect_conversation_lane_status()
@@ -1503,6 +1514,7 @@ def _resolve_protected_foreground_snapshot() -> Dict[str, Any]:
             "rolling_summary": _snapshot_field(cognition, "rolling_summary", ""),
         }
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Protected foreground snapshot resolve failed: %s", exc)
         return {}
 
@@ -1649,6 +1661,7 @@ def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
             route_meta=route_meta,
         )
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Protected foreground route analysis failed: %s", exc)
         # [STABILITY v53] Tightened fallback — only truly complex technical
         # markers should trigger 72B. Removed "architecture", "debug" (too common).
@@ -1929,6 +1942,7 @@ def _resolve_live_aura_state() -> Any | None:
         repo = service_access.resolve_state_repository(default=None)
         return getattr(repo, "_current", None) if repo is not None else None
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Live Aura state resolve failed: %s", exc)
         return None
 
@@ -1946,6 +1960,7 @@ def _resolve_live_voice_state(user_message: str = "", *, refresh: bool = True) -
             refresh=bool(refresh and live_state is not None),
         )
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Live voice state resolve failed: %s", exc)
         return {}
 
@@ -2071,6 +2086,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
             frame["needs_self_expression"] = bool(contract.requires_live_aura_voice())
             frame["requires_explicit_live_grounding"] = bool(contract.requires_explicit_live_grounding())
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Aura expression frame contract build failed: %s", exc)
 
     try:
@@ -2091,6 +2107,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
                     if abs(float(value or 0.0)) >= 0.6
                 ][:3]
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Aura expression frame personality read failed: %s", exc)
 
     try:
@@ -2102,6 +2119,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
             frame["arousal"] = affect_status.get("arousal")
             frame["curiosity"] = affect_status.get("curiosity")
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Aura expression frame affect read failed: %s", exc)
 
     try:
@@ -2112,6 +2130,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
             # Sanitize: never let internal housekeeping leak into user-facing frames
             frame["attention_focus"] = _sanitize_attention_focus(raw_focus)
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Aura expression frame closure read failed: %s", exc)
 
     try:
@@ -2123,6 +2142,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
             frame["free_energy"] = getattr(fe_state, "free_energy", None)
             frame["dominant_action"] = str(getattr(fe_state, "dominant_action", "") or "")
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Aura expression frame free-energy read failed: %s", exc)
 
     return frame
@@ -2138,6 +2158,7 @@ def _apply_aura_voice_shaping(text: str) -> str:
 
         shaped = cure_personality_leak(shaped)
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Aura voice shaping leak-cure skipped: %s", exc)
 
     try:
@@ -2148,6 +2169,7 @@ def _apply_aura_voice_shaping(text: str) -> str:
             if hasattr(personality, "apply_lexical_style"):
                 shaped = personality.apply_lexical_style(shaped)
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Aura voice shaping personality pass skipped: %s", exc)
 
     shaped = re.sub(r"\s+", " ", shaped).strip()
@@ -2182,6 +2204,7 @@ def _shape_with_live_substrate(text: str, user_message: str = "") -> str:
             else:
                 shaped = str(result or "").strip() or shaped
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Live substrate shaping skipped: %s", exc)
 
     return re.sub(r"\s+", " ", shaped).strip()
@@ -2339,6 +2362,7 @@ def _build_simple_affect_check_reply(user_message: str) -> str:
         energy = float(voice_state.get("energy", energy) or energy)
         tone = str(voice_state.get("tone") or tone)
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Simple affect reply voice-state read failed: %s", exc)
 
     if energy <= 0.42:
@@ -2457,6 +2481,7 @@ def _build_capability_reply(user_message: str) -> str:
             elif hasattr(capability_engine, "skills"):
                 active_count = len(getattr(capability_engine, "skills") or {})
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Capability count read failed: %s", exc)
 
     parts = [
@@ -2502,6 +2527,7 @@ def _build_self_diagnostic_reply(user_message: str) -> str:
                     if message:
                         issues.append(message[:160])
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Self-diagnostic stability read failed: %s", exc)
 
     ram_pct = None
@@ -2510,6 +2536,7 @@ def _build_self_diagnostic_reply(user_message: str) -> str:
 
         ram_pct = float(psutil.virtual_memory().percent or 0.0)
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Self-diagnostic RAM read failed: %s", exc)
 
     field_coherence = None
@@ -2518,6 +2545,7 @@ def _build_self_diagnostic_reply(user_message: str) -> str:
         if authority and hasattr(authority, "get_status"):
             field_coherence = authority.get_status().get("current_field_coherence")
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Self-diagnostic authority read failed: %s", exc)
 
     node_count = edge_count = None
@@ -2527,6 +2555,7 @@ def _build_self_diagnostic_reply(user_message: str) -> str:
             node_count = len(getattr(mycelium, "pathways", {}) or {})
             edge_count = len(getattr(mycelium, "hyphae", []) or [])
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Self-diagnostic mycelial read failed: %s", exc)
 
     parts = [
@@ -2819,6 +2848,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
 
         logger.warning("User-facing reply failed identity stabilization (%s); generating Aura-voiced fallback.", reason)
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("User-facing reply stabilization skipped: %s", exc)
 
     # ── Aura-voiced natural fallback ─────────────────────────────
@@ -3016,8 +3046,10 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                     _record_recent_response(text, user_message)
                     return text
             except Exception as regen_err:
+                record_degradation('chat', regen_err)
                 logger.debug("Identity re-generation failed: %s", regen_err)
     except Exception as _e:
+        record_degradation('chat', _e)
         logger.debug("Fallback re-generation failed (non-fatal): %s", _e)
 
     # Last-resort: prefer the original LLM response over a hardcoded template,
@@ -3413,6 +3445,7 @@ def _build_grounded_introspection_reply(
         voice_state = _resolve_live_voice_state(user_message, refresh=True)
         voice_snapshot = dict(voice_state.get("substrate_snapshot") or {})
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Grounded introspection live voice snapshot failed: %s", exc)
 
     try:
@@ -3424,6 +3457,7 @@ def _build_grounded_introspection_reply(
         if substrate is not None:
             phi_estimate = float(getattr(substrate, "_current_phi", 0.0))
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Grounded introspection substrate read failed: %s", exc)
 
     try:
@@ -3434,6 +3468,7 @@ def _build_grounded_introspection_reply(
         if fe_engine and hasattr(fe_engine, "get_trend"):
             fe_trend = str(fe_engine.get_trend() or "stable")
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Grounded introspection free-energy read failed: %s", exc)
 
     try:
@@ -3441,6 +3476,7 @@ def _build_grounded_introspection_reply(
         if closure and hasattr(closure, "get_status"):
             closure_status = dict(closure.get_status() or {})
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Grounded introspection executive-closure read failed: %s", exc)
 
     try:
@@ -3448,6 +3484,7 @@ def _build_grounded_introspection_reply(
 
         natural_report = str(SelfReportEngine().generate_state_report() or "").strip()
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("Grounded introspection self-report failed: %s", exc)
 
     # Pull the SelfObject snapshot as the authoritative live-state source.
@@ -3459,6 +3496,7 @@ def _build_grounded_introspection_reply(
         from core.identity.self_object import get_self
         self_snapshot_dict = get_self().snapshot().as_dict()
     except Exception as exc:
+        record_degradation('chat', exc)
         logger.debug("SelfObject snapshot failed: %s", exc)
     if self_snapshot_dict:
         if not closure_status:
@@ -3517,6 +3555,7 @@ def _build_grounded_introspection_reply(
                     "network graph right now."
                 )
         except Exception as exc:
+            record_degradation('chat', exc)
             logger.debug("Grounded mycelial topology read failed: %s", exc)
         return "My mycelial topology is online, but I couldn't read the live graph counts cleanly this instant."
 
@@ -3591,6 +3630,7 @@ def _build_grounded_introspection_reply(
                     "I am responding without mandatory substrate gating."
                 )
         except Exception as exc:
+            record_degradation('chat', exc)
             logger.debug("Authority introspection failed: %s", exc)
             parts.append("I attempted to read my authority state but encountered an error.")
 
@@ -3684,6 +3724,7 @@ async def api_sessions(request: Request, _: None = Depends(_require_internal)):
             try:
                 persisted = await db_coord.get_recent_conversations(limit=50)
             except Exception as e:
+                record_degradation('chat', e)
                 logger.debug("Could not load persisted conversations: %s", e)
 
         async with _get_convo_lock():
@@ -3702,6 +3743,7 @@ async def api_sessions(request: Request, _: None = Depends(_require_internal)):
             "persisted_sessions": persisted,
         })
     except Exception as e:
+        record_degradation('chat', e)
         logger.error("Sessions endpoint error: %s", e)
         return JSONResponse({"current_session": {"exchanges": 0, "messages": []}, "persisted_sessions": []})
 
@@ -3765,6 +3807,7 @@ async def api_chat_regenerate(
             except asyncio.TimeoutError:
                 raise
             except Exception as e:
+                record_degradation('chat', e)
                 logger.error("Kernel regenerate failed natively, falling back: %s", e)
 
         if not reply_text:
@@ -3784,6 +3827,7 @@ async def api_chat_regenerate(
     except asyncio.TimeoutError:
         return JSONResponse({"response": "Regeneration timed out.", "regenerated": False}, status_code=504)
     except Exception as e:
+        record_degradation('chat', e)
         logger.error("Regenerate error: %s", e, exc_info=True)
         return JSONResponse({"error": "regeneration_failed", "message": str(e)}, status_code=500)
 
@@ -3827,6 +3871,7 @@ async def api_export(request: Request, _: None = Depends(_require_internal)):
         if goal_svc and hasattr(goal_svc, "get_active_goals"):
             goals = goal_svc.get_active_goals() or []
     except Exception as _exc:
+        record_degradation('chat', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
 
     export_data = {
@@ -3876,6 +3921,7 @@ async def api_think(
             }
         })
     except Exception as e:
+        record_degradation('chat', e)
         logger.error("Neural bridge failure in /api/think: %s", e)
         return JSONResponse({
             "ok": False,
@@ -3941,6 +3987,7 @@ async def api_chat(
                 logger.info("Chat preflight: delivering %d late-answered message(s) for session %s",
                             len(_delivered), _chat_session_id)
         except Exception as _resume_exc:
+            record_degradation('chat', _resume_exc)
             logger.debug("Resume preflight skipped: %s", _resume_exc)
 
         # 1) File-reference loading
@@ -3952,6 +3999,7 @@ async def api_chat(
                     body.message = f"{_block}\nUser message: {body.message}"
                     logger.info("Chat preflight: loaded %d referenced file(s) into context.", len(_refs))
         except Exception as _file_exc:
+            record_degradation('chat', _file_exc)
             logger.debug("Chat file-reference preflight skipped: %s", _file_exc)
 
         # 2) Directive injection
@@ -3961,8 +4009,10 @@ async def api_chat(
                 body.message = f"{_directive_prefix}{body.message}"
                 logger.info("Chat preflight: injected response directives.")
         except Exception as _dir_exc:
+            record_degradation('chat', _dir_exc)
             logger.debug("Chat directive preflight skipped: %s", _dir_exc)
     except Exception as _preflight_outer:
+        record_degradation('chat', _preflight_outer)
         logger.debug("Chat preflight (outer) skipped: %s", _preflight_outer)
 
     # ── Conscience pre-gate ─────────────────────────────────────
@@ -3997,6 +4047,7 @@ async def api_chat(
                 status_code=200,
             )
     except Exception as _conscience_exc:
+        record_degradation('chat', _conscience_exc)
         logger.debug("conscience pre-gate skipped: %s", _conscience_exc)
 
     _restore_owner_session_from_request(request)
@@ -4025,6 +4076,7 @@ async def api_chat(
                     live_state.cognition.current_mode = 0  # CognitiveMode.REACTIVE
                     live_state.response_modifiers['sys_pressure'] = 'CRITICAL VRAM LIMIT'
         except Exception as e:
+            record_degradation('chat', e)
             logger.debug("Memory check failed: %s", e)
 
         # Idempotency check
@@ -4075,6 +4127,7 @@ async def api_chat(
                     elif "oxytocin" in trigger:
                         ncs.on_social_connection(amount)
         except Exception as _ac_exc:
+            record_degradation('chat', _ac_exc)
             logger.debug("Animal cognition tracking skipped: %s", _ac_exc)
 
         async def _finalize_fastpath(reply_text: str, status: str = "ok"):
@@ -4157,6 +4210,7 @@ async def api_chat(
                     timeout=direct_budget,
                 )
             except Exception as direct_exc:
+                record_degradation('chat', direct_exc)
                 logger.warning("Protected foreground lane failed (%s): %s", reason, direct_exc)
                 return None
 
@@ -4188,6 +4242,7 @@ async def api_chat(
                         status="background_diagnostic_started",
                     )
         except Exception as _bg_exc:
+            record_degradation('chat', _bg_exc)
             logger.debug("Background diagnostic launch skipped: %s", _bg_exc)
 
         protected_foreground_reason = _protected_foreground_reason(lane)
@@ -4243,6 +4298,7 @@ async def api_chat(
                             status="protected_foreground",
                         )
                 except Exception as exc:
+                    record_degradation('chat', exc)
                     failure_reason = str(exc or "foreground_warmup_failed")
                     lane = _mark_conversation_lane_state(
                         failure_reason,
@@ -4428,6 +4484,7 @@ async def api_chat(
                         status="priority_focus",
                     )
         except Exception as exc:
+            record_degradation('chat', exc)
             logger.debug("Demo-support fast paths skipped: %s", exc)
 
         if _is_architecture_self_assessment_request(body.message):
@@ -4515,6 +4572,7 @@ async def api_chat(
                     exc_info=True,
                 )
             except Exception as e:
+                record_degradation('chat', e)
                 logger.error("KernelInterface chat failed natively, falling back to legacy: %s (%s)", type(e).__name__, e, exc_info=True)
 
         if kernel_timed_out:
@@ -4607,6 +4665,7 @@ async def api_chat(
                     live_state.compact(trigger_threshold=20, keep_turns=15)
                     logger.info("🗜️ Proactive compaction completed after degradation streak.")
             except Exception as _streak_exc:
+                record_degradation('chat', _streak_exc)
                 logger.debug("Degradation streak compaction failed: %s", _streak_exc)
 
         # Proactive context compaction — fire-and-forget to prevent working memory bloat
@@ -4619,6 +4678,7 @@ async def api_chat(
                     if compacted:
                         logger.debug("Proactive AuraState.compact() completed (working_memory was %d).", len(wm))
         except Exception as _compact_exc:
+            record_degradation('chat', _compact_exc)
             logger.debug("Proactive compaction skipped: %s", _compact_exc)
 
         # ── Post-Response Infrastructure checks ─────────────────
@@ -4767,6 +4827,7 @@ async def api_chat(
                         if isinstance(result, dict):
                             return str(result.get("content") or result.get("text") or result.get("response") or "").strip()
                 except Exception as _retry_exc:
+                    record_degradation('chat', _retry_exc)
                     logger.debug("Background retry call failed: %s", _retry_exc)
                 return ""
 
@@ -4783,6 +4844,7 @@ async def api_chat(
                 + " I'll keep working on your question and resume from this exact message when the answer returns."
             )
         except Exception as _resume_setup_exc:
+            record_degradation('chat', _resume_setup_exc)
             logger.debug("Auto-resume setup failed (falling back to static timeout reply): %s",
                          _resume_setup_exc)
             timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
@@ -4828,6 +4890,7 @@ async def api_chat(
             status_code=200,  # [STABILITY v53] Changed from 503 to 200
         )
     except Exception as e:
+        record_degradation('chat', e)
         logger.error("Chat error: %s", e, exc_info=True)
         error_reply = "I lost my train of thought for a second. Try me again?"
         if pending_exchange_id:
