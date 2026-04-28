@@ -180,3 +180,32 @@ python -m pytest tests/test_server_runtime_hardening.py -q -k "cognitive_backgro
 # Full regression sweep across all touched suites
 python -m pytest tests/test_server_runtime_hardening.py tests/test_orchestrator_compatibility.py tests/test_runtime_stability_edges.py tests/test_forensic_audit_regressions.py tests/test_launcher_polish_contract.py tests/test_resilient_boot_llm_stage.py tests/test_runtime_polish.py tests/test_time_resilience.py
 ```
+
+## AGI / Enterprise Foundations Slice
+
+The foundations work landed under the AGI/enterprise readiness push.
+All tests are CPU-only and safe to run while LoRA training is using
+the GPU.
+
+```bash
+# Tamper-evident audit chain over receipts
+python -m pytest tests/test_audit_chain.py -q
+
+# Prediction ledger with Brier + ECE scoring
+python -m pytest tests/test_prediction_ledger.py -q
+
+# Formal 11-state task lifecycle + legacy migration
+python -m pytest tests/test_task_lifecycle.py -q
+
+# Typed mutation outcomes with quarantine
+python -m pytest tests/test_mutation_safety.py -q
+
+# aura doctor --bundle: collectors, redaction, tarball
+python -m pytest tests/test_diagnostics_bundle.py -q
+
+# SLO comparator: tolerance + hard-limit semantics
+python -m pytest tests/test_slo_gate.py -q
+
+# Run the SLO gate locally (matches CI behaviour)
+python -m slo.check --baseline slo/baseline.json
+```

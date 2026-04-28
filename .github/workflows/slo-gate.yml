@@ -1,0 +1,33 @@
+name: slo-gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  slo-gate:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install runtime deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
+          python -m pip install pytest numpy psutil
+      - name: Run SLO gate (slo/check.py)
+        run: |
+          python -m slo.check --baseline slo/baseline.json --report slo_report.json
+      - name: Upload SLO report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slo-report
+          path: slo_report.json
+      - name: Run SLO gate self-tests
+        run: |
+          python -m pytest tests/test_slo_gate.py -q

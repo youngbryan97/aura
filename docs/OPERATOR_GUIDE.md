@@ -22,14 +22,49 @@ make run          # foreground launch
 - Restore: `tar xzf aura-backup.tar.gz -C ~/`.
 
 ## Diagnostics
-- `aura doctor`           — runtime self-check
-- `aura conformance`      — schema + integrity sweep
-- `aura verify-state`     — cross-subsystem state coherence
-- `aura verify-memory`    — memory facade integrity
-- `aura rebuild-index`    — vector index rebuild
-- `aura chaos --kind random` — fault injection (chaos engineering)
+- `aura doctor`             — pre-boot self-check (python, sqlite, mlx,
+  data dir, atomic writer round-trip)
+- `aura doctor --bundle [--bundle-path PATH]` — assembles a redacted
+  tarball (health, config, metrics, tasks, models, memory, gateway,
+  receipts, audit chain export, recent logs) for incident triage. The
+  bundle is what every runbook in `docs/runbooks/` references.
+- `aura conformance`        — schema + integrity sweep
+- `aura verify-state`       — cross-subsystem state coherence
+- `aura verify-memory`      — memory facade integrity
+- `aura rebuild-index`      — vector index rebuild
+- `aura chaos`              — fault injection smoke
 - Dashboard: open `http://localhost:<port>/api/dashboard/snapshot` for a
   raw JSON view of every live subsystem.
+
+## Service-level objectives
+The contract operators can hold Aura to lives in [`docs/SLO.md`](SLO.md).
+Numbers are measured by `python -m slo.measure` and gated in CI
+(`.github/workflows/slo-gate.yml`); a regression past tolerance or a
+hard-limit breach fails the release gate.
+
+## Runbooks
+Every documented incident class has a runbook under
+[`docs/runbooks/`](runbooks/) with concrete symptoms tied to fields the
+diagnostics bundle emits, plus diagnosis, mitigation, rollback, and
+verification steps.
+
+## Tamper-evident audit trail
+Every receipt the runtime emits is appended to a hash-chained ledger at
+`~/.aura/receipts/_chain.jsonl`. To verify the chain after an incident:
+`python -c "from core.runtime.receipts import get_receipt_store;
+print(get_receipt_store().verify_chain())"`. The diagnostics bundle
+includes a portable export at `audit_chain/chain.jsonl` plus a
+`MANIFEST.txt` with the head hash and length.
+
+## Self-modification quarantine
+When Aura proposes a code mutation, the typed evaluator in
+`core/self_modification/mutation_safety.py` runs it in a subprocess
+with rlimits and emits one of seven outcomes: `passed`, `compile_fail`,
+`import_fail`, `runtime_exception`, `assertion_fail`, `timeout`, `oom`.
+Any non-`passed` outcome is written to
+`~/.aura/data/mutation_quarantine/<id>/` with the source, optional
+test source, stdout, stderr, and a structured `result.json`. A
+malformed mutation cannot crash the parent process.
 
 ## Reading logs
 - Live tail: `tail -f ~/.aura/data/logs/aura.log`

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-04-28T20:46:18.702986+00:00",
+  "platform": "darwin-arm64-py3.12.13",
+  "slos": {
+    "audit_chain_append_p95_ms": {
+      "value": 0.07400623289868236,
+      "unit": "ms",
+      "tolerance_pct": 50
+    },
+    "audit_chain_verify_per_entry_us": {
+      "value": 4.0803339798003435,
+      "unit": "us",
+      "tolerance_pct": 50
+    },
+    "prediction_ledger_register_p95_ms": {
+      "value": 0.5240443977527318,
+      "unit": "ms",
+      "tolerance_pct": 50
+    },
+    "prediction_ledger_brier_correctness": {
+      "value": 0.0,
+      "unit": "score",
+      "tolerance_pct": 50
+    },
+    "mutation_eval_passed_p95_ms": {
+      "value": 23.361707993899472,
+      "unit": "ms",
+      "tolerance_pct": 50
+    },
+    "doctor_bundle_p95_ms": {
+      "value": 77.3383250227198,
+      "unit": "ms",
+      "tolerance_pct": 50
+    }
+  },
+  "hard_limits": {
+    "doctor_bundle_p95_ms": 5000,
+    "audit_chain_append_p95_ms": 50,
+    "prediction_ledger_brier_correctness": 0.001
+  }
+}
