@@ -45,15 +45,28 @@ Pure numpy.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Deque, Dict, List, Optional
 
 import numpy as np
 
 logger = logging.getLogger("Aura.PlasticityMonitor")
+
+# Bounded pool for heavy linear-algebra work (SVD).  Shared across all
+# PlasticityMonitor instances so total thread count stays predictable.
+_SVD_POOL: ThreadPoolExecutor | None = None
+
+
+def _get_svd_pool() -> ThreadPoolExecutor:
+    global _SVD_POOL
+    if _SVD_POOL is None:
+        _SVD_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="aura-svd")
+    return _SVD_POOL
 
 # ── Tunables ──────────────────────────────────────────────────────────────
 
@@ -190,6 +203,28 @@ class PlasticityMonitor:
         self._ratio_history.clear()
         self._measurement_count = 0
         self._last_warning_at = -1
+
+    # ── Async API — event-loop-safe SVD ───────────────────────────────────
+
+    async def measure_async(self, W: np.ndarray) -> Optional[PlasticityReport]:
+        """Offload SVD to a bounded thread pool so the event loop stays responsive.
+
+        This is the preferred entry point for any caller running inside an
+        asyncio context (substrate ticks, telemetry, heartbeat diagnostics).
+        The synchronous ``measure()`` is preserved for tests and offline use.
+
+        CRITICAL FIX (2026-04-28): SVD is O(N³).  On a 1024×1024 matrix it
+        takes measurable wall-time.  Running it on the event-loop thread
+        blocks all coroutines (socket handling, heartbeat, chat) for the
+        duration.  Using a bounded executor keeps the loop alive while the
+        heavy math runs in a capped worker pool (max 2 threads).
+        """
+        if W is None:
+            return None
+        # Copy the matrix so the worker thread does not race with the caller.
+        W_copy = np.array(W, copy=True)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_get_svd_pool(), self.measure, W_copy)
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────

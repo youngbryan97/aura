@@ -22,6 +22,33 @@ def _clamp01(value: float) -> float:
 
 
 @dataclass
+class ObjectiveCommitment:
+    """Tracks a foreground task commitment to prevent digital ADHD.
+
+    Once the executive closure commits to a user-anchored objective, minor
+    homeostatic fluctuations (CPU noise, mild free-energy, curiosity spikes)
+    should dampen rather than dethrone the task.  Only critical integrity
+    or vitality failures are allowed to interrupt.
+    """
+    objective: str
+    origin: str = ""
+    started_at: float = 0.0
+    last_confirmed_at: float = 0.0
+    min_hold_s: float = 240.0
+    max_hold_s: float = 1200.0
+    completed: bool = False
+    interrupt_reason: str = ""
+
+    def age_s(self, now: float) -> float:
+        return max(0.0, now - self.started_at)
+
+    def active(self, now: float) -> bool:
+        if self.completed:
+            return False
+        return self.age_s(now) <= self.max_hold_s
+
+
+@dataclass
 class ExecutiveClosureSnapshot:
     timestamp: float = 0.0
     dominant_need: str = "stability"
@@ -37,6 +64,12 @@ class ExecutiveClosureSnapshot:
     active_goal_count: int = 0
     pending_initiatives: int = 0
     motivation_pressures: Dict[str, float] = field(default_factory=dict)
+    # Hysteresis tracking
+    committed_objective: str = ""
+    commitment_age_s: float = 0.0
+    hysteresis_active: bool = False
+    interrupt_allowed: bool = False
+    interrupt_reason: str = ""
 
 
 class ExecutiveClosureEngine:
@@ -71,6 +104,12 @@ class ExecutiveClosureEngine:
         self._last_homeostasis_pulse = 0.0
         self._cached_homeostasis_status: Dict[str, float] = {}
         self._self_model_sync_task: Optional[asyncio.Task[Any]] = None
+        # Hysteresis: commitment tracking
+        self._commitment: Optional[ObjectiveCommitment] = None
+        self._MIN_USER_TASK_HOLD_S = 240.0
+        self._MAX_USER_TASK_HOLD_S = 1200.0
+        self._SWITCH_COOLDOWN_S = 45.0
+        self._last_objective_switch = 0.0
 
     async def integrate(self, state: Any) -> Any:
         now = time.time()
@@ -102,6 +141,34 @@ class ExecutiveClosureEngine:
             pressures["social"] = max(float(pressures.get("social", 0.0) or 0.0), engagement * 0.72)
             pressures["stability"] = max(float(pressures.get("stability", 0.0) or 0.0), hesitation * 0.48)
             pressures["curiosity"] = max(float(pressures.get("curiosity", 0.0) or 0.0), engagement * attention * 0.45)
+
+        # ── Executive Hysteresis ──────────────────────────────────────
+        # CRITICAL FIX (2026-04-28): Prevents digital ADHD.  When a
+        # user-anchored task is committed, minor homeostatic noise
+        # (CPU load, mild free-energy, curiosity spikes) is dampened.
+        # Only critical vitality/integrity failures can interrupt.
+        self._refresh_commitment(state, now)
+        commitment = self._active_commitment(now)
+
+        if commitment and self._task_completion_observed(state):
+            commitment.completed = True
+            commitment = None
+
+        interrupt_reason = ""
+        hysteresis_active = False
+
+        if commitment:
+            interrupt_reason = self._critical_interrupt_reason(
+                pressures=pressures,
+                homeostasis_status=homeostasis_status,
+                closed_loop_status=closed_loop_status,
+            )
+            if not interrupt_reason:
+                pressures = self._apply_executive_hysteresis(
+                    pressures, commitment=commitment,
+                )
+                hysteresis_active = True
+
         dominant_need, need_pressure = max(
             pressures.items(),
             key=lambda item: item[1],
@@ -113,6 +180,26 @@ class ExecutiveClosureEngine:
             need_pressure=need_pressure,
             workspace_snapshot=workspace_snapshot,
         )
+
+        # Hysteresis override: keep committed objective stable.
+        if commitment and not interrupt_reason:
+            selected_objective = commitment.objective
+            state.cognition.current_objective = commitment.objective
+            state.cognition.modifiers["executive_hysteresis"] = {
+                "active": True,
+                "committed_objective": commitment.objective,
+                "age_s": round(commitment.age_s(now), 2),
+                "dampened_minor_homeostasis": True,
+            }
+        elif interrupt_reason:
+            state.cognition.modifiers["executive_hysteresis"] = {
+                "active": False,
+                "committed_objective": commitment.objective if commitment else "",
+                "interrupt_allowed": True,
+                "interrupt_reason": interrupt_reason,
+            }
+        else:
+            state.cognition.modifiers.pop("executive_hysteresis", None)
         active_goal_count = self._sync_active_goals(state, selected_objective)
 
         if is_actionable_goal_text(selected_objective) and not getattr(state.cognition, "current_objective", None):
@@ -172,6 +259,12 @@ class ExecutiveClosureEngine:
             "phi_estimate": round(phi_estimate, 4),
             "vitality": round(state.vitality, 4),
             "interaction_signals": interaction_signals,
+            # Hysteresis state
+            "hysteresis_active": hysteresis_active,
+            "committed_objective": commitment.objective if commitment else "",
+            "commitment_age_s": round(commitment.age_s(now), 2) if commitment else 0.0,
+            "interrupt_allowed": bool(interrupt_reason),
+            "interrupt_reason": interrupt_reason,
         }
 
         if not state.cognition.phenomenal_state:
@@ -205,6 +298,11 @@ class ExecutiveClosureEngine:
             active_goal_count=active_goal_count,
             pending_initiatives=len(getattr(state.cognition, "pending_initiatives", []) or []),
             motivation_pressures={k: round(v, 4) for k, v in pressures.items()},
+            committed_objective=commitment.objective if commitment else "",
+            commitment_age_s=round(commitment.age_s(now), 2) if commitment else 0.0,
+            hysteresis_active=hysteresis_active,
+            interrupt_allowed=bool(interrupt_reason),
+            interrupt_reason=interrupt_reason,
         )
 
         self._maybe_sync_self_model(self._last_snapshot, warmup=warmup_mode)
@@ -647,3 +745,120 @@ class ExecutiveClosureEngine:
             self._last_goal_sync = now
         except Exception as exc:
             logger.debug("ExecutiveClosure: goal sync failed: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Executive Hysteresis — commitment tracking helpers
+    # ------------------------------------------------------------------
+
+    def _is_user_task(self, objective: str, origin: str) -> bool:
+        """Return True if the objective is user-anchored foreground work."""
+        if not objective:
+            return False
+        if is_intrinsic_goal_text(objective):
+            return False
+        if _origin_is_user_anchored(origin):
+            return True
+        # Fallback: actionable non-intrinsic work gets a short lease.
+        return is_actionable_goal_text(objective)
+
+    def _refresh_commitment(self, state: Any, now: float) -> None:
+        """Create or refresh the current foreground task commitment."""
+        objective = str(getattr(state.cognition, "current_objective", "") or "").strip()
+        origin = str(getattr(state.cognition, "current_origin", "") or "")
+
+        if not self._is_user_task(objective, origin):
+            return
+
+        if self._commitment and self._commitment.objective == objective:
+            self._commitment.last_confirmed_at = now
+            return
+
+        self._commitment = ObjectiveCommitment(
+            objective=objective,
+            origin=origin,
+            started_at=now,
+            last_confirmed_at=now,
+            min_hold_s=self._MIN_USER_TASK_HOLD_S,
+            max_hold_s=self._MAX_USER_TASK_HOLD_S,
+        )
+        self._last_objective_switch = now
+
+    def _active_commitment(self, now: float) -> Optional[ObjectiveCommitment]:
+        if self._commitment and self._commitment.active(now):
+            return self._commitment
+        return None
+
+    def _task_completion_observed(self, state: Any) -> bool:
+        """Release commitment only on explicit completion signals."""
+        try:
+            mods = getattr(state.cognition, "modifiers", {}) or {}
+            if mods.get("task_completed") or mods.get("response_completed_task"):
+                return True
+        except Exception:
+            pass
+
+        try:
+            verifier = ServiceContainer.get("task_commitment_verifier", default=None)
+            if verifier and hasattr(verifier, "get_all_active"):
+                active = verifier.get_all_active()
+                if not active and self._commitment:
+                    # Don't instantly release; allow the response phase to finish.
+                    return self._commitment.age_s(time.time()) > self._commitment.min_hold_s
+        except Exception:
+            pass
+
+        return False
+
+    def _critical_interrupt_reason(
+        self,
+        *,
+        pressures: Dict[str, float],
+        homeostasis_status: Dict[str, float],
+        closed_loop_status: Dict[str, Any],
+    ) -> str:
+        """Return reason if homeostasis is severe enough to interrupt user work."""
+        vitality = _clamp01(float(homeostasis_status.get("will_to_live", 1.0) or 1.0))
+        integrity = _clamp01(float(homeostasis_status.get("integrity", 1.0) or 1.0))
+        sovereignty = _clamp01(float(homeostasis_status.get("sovereignty", 1.0) or 1.0))
+        free_energy = _clamp01(float(closed_loop_status.get("free_energy", 0.0) or 0.0))
+
+        stability = _clamp01(float(pressures.get("stability", 0.0) or 0.0))
+        integrity_pressure = _clamp01(float(pressures.get("integrity", 0.0) or 0.0))
+
+        if vitality < 0.25:
+            return "critical_vitality"
+        if integrity < 0.35 or sovereignty < 0.35:
+            return "critical_integrity"
+        if integrity_pressure > 0.90:
+            return "integrity_pressure"
+        if stability > 0.95 and free_energy > 0.85:
+            return "runaway_instability"
+
+        return ""
+
+    def _apply_executive_hysteresis(
+        self,
+        pressures: Dict[str, float],
+        *,
+        commitment: ObjectiveCommitment,
+    ) -> Dict[str, float]:
+        """Dampen minor drive fluctuations while committed to foreground work.
+
+        This does NOT ignore homeostasis — it caps non-critical pressures
+        so they modulate behavior (shorter responses, smaller model tier)
+        without dethroning the user's task.
+        """
+        adjusted = dict(pressures)
+
+        # During a user task, stability can still matter, but it should not
+        # dethrone the task for mild CPU/free-energy/body-noise.
+        adjusted["stability"] = min(adjusted.get("stability", 0.0), 0.72)
+        adjusted["curiosity"] = min(adjusted.get("curiosity", 0.0), 0.35)
+        adjusted["social"] = min(adjusted.get("social", 0.0), 0.40)
+        adjusted["growth"] = min(adjusted.get("growth", 0.0), 0.35)
+
+        # Preserve integrity channel more than generic stability.
+        adjusted["integrity"] = pressures.get("integrity", 0.0)
+
+        return adjusted
+

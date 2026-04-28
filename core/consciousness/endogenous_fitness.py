@@ -520,8 +520,11 @@ class EndogenousFitness:
         self._archive_max_size: int = 200
 
         # Running statistics for efficiency bonus calculation
-        self._energy_observations: List[float] = []
-        self._max_energy_observed: float = 100.0  # will be updated dynamically
+        # Stores per-tick average energy consumption from each evaluation.
+        # Used to compute a rolling 90th-percentile baseline so the
+        # efficiency gradient does not collapse after a single outlier.
+        self._energy_avg_observations: List[float] = []
+        self._energy_baseline: float = 100.0  # rolling p90 baseline (same unit as avg_consumed)
 
         logger.info(
             "EndogenousFitness initialized (window=%.0fs, tick=%.1fs, "
@@ -694,9 +697,24 @@ class EndogenousFitness:
         # A genome that keeps the system alive on less energy is more fit,
         # just like a biological organism with lower metabolic rate has
         # an advantage in lean times.
-        if tick_count > 0 and self._max_energy_observed > 0:
+        #
+        # CRITICAL FIX (2026-04-28): The original code used a monotonic
+        # _max_energy_observed (running all-time max of *total* energy)
+        # as the denominator. This permanently flattened the efficiency
+        # gradient after any single high-energy outlier: two genomes with
+        # avg_consumed of 5 vs 10 would score 0.995 vs 0.990 against a
+        # max of 1000 — a gradient of 0.005, invisible to selection.
+        #
+        # Fix: use the rolling 90th-percentile of *per-tick average*
+        # energy consumption as the baseline. Same units, decays with
+        # the population, preserves meaningful gradients.
+        if tick_count > 0:
             avg_consumed = energy_consumed_total / tick_count
-            efficiency_bonus = 1.0 - min(1.0, avg_consumed / self._max_energy_observed)
+        else:
+            avg_consumed = 0.0
+
+        if tick_count > 0 and self._energy_baseline > 0:
+            efficiency_bonus = 1.0 - min(1.0, avg_consumed / max(self._energy_baseline, 1e-6))
         else:
             efficiency_bonus = 0.5  # neutral if no data
 
@@ -724,13 +742,14 @@ class EndogenousFitness:
 
         # Update energy tracking for future evaluations
         with self._lock:
-            if energy_consumed_total > 0:
-                self._energy_observations.append(energy_consumed_total)
-                if len(self._energy_observations) > 100:
-                    self._energy_observations = self._energy_observations[-100:]
-                self._max_energy_observed = max(
-                    self._max_energy_observed,
-                    max(self._energy_observations),
+            if tick_count > 0 and avg_consumed > 0:
+                self._energy_avg_observations.append(avg_consumed)
+                if len(self._energy_avg_observations) > 100:
+                    self._energy_avg_observations = self._energy_avg_observations[-100:]
+                # Rolling 90th-percentile baseline — decays naturally as the
+                # population shifts, so the gradient stays meaningful.
+                self._energy_baseline = float(
+                    np.percentile(self._energy_avg_observations, 90)
                 )
 
             # Archive this genome for speciation analysis
@@ -1282,7 +1301,7 @@ class EndogenousFitness:
                 "behavioral_alpha": round(self._behavioral_genome.alpha, 3),
                 "species_count": species.species_count if species else 1,
                 "silhouette_score": round(species.silhouette_score, 3) if species else 0.0,
-                "max_energy_observed": round(self._max_energy_observed, 1),
+                "energy_baseline_p90": round(self._energy_baseline, 1),
                 "behavioral_preferences": self.get_behavioral_preferences(),
             }
 

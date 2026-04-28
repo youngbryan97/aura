@@ -149,6 +149,16 @@ class SomaticMarkerGate:
                       abs(allostatic) * 0.3)
         confidence = max(0.0, min(1.0, confidence))
 
+        # EXECUTIVE HYSTERESIS (2026-04-28): If a user-anchored task is in
+        # progress, minor somatic complaints should lower confidence/verbosity,
+        # not veto the task.  Critical unavailability still produces avoid.
+        if budget["available"] and allostatic > -0.45:
+            if self._foreground_commitment_active():
+                approach = max(approach, -0.10)
+                # Don't let mild body noise override foreground work.
+                if allostatic > -0.25:
+                    allostatic = max(allostatic, -0.15)
+
         latency = (time.time() - t0) * 1000
 
         verdict = SomaticVerdict(
@@ -343,6 +353,23 @@ class SomaticMarkerGate:
         if any(w in content_lower for w in ["engage", "interact", "social"]):
             return "engage"
         return "default"
+
+    def _foreground_commitment_active(self) -> bool:
+        """Check if executive hysteresis is actively holding a user task.
+
+        Reads the latest state from the service container to avoid
+        tight coupling to the executive closure engine instance.
+        """
+        try:
+            from core.container import ServiceContainer
+            state_repo = ServiceContainer.get("state_repository", default=None)
+            state = state_repo.get_latest() if state_repo and hasattr(state_repo, "get_latest") else None
+            if not state:
+                return False
+            hyst = getattr(state.cognition, "modifiers", {}).get("executive_hysteresis", {}) or {}
+            return bool(hyst.get("active") and hyst.get("committed_objective"))
+        except Exception:
+            return False
 
     # ── Status ───────────────────────────────────────────────────────────
 

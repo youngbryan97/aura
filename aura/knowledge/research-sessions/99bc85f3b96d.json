@@ -1,0 +1,39 @@
+{
+  "phase": "abandoned",
+  "result": {
+    "item_title": "X",
+    "started_at": 1777346808.285883,
+    "completed_at": 1777346808.285883,
+    "decision": {
+      "title": "X",
+      "category": "Fiction",
+      "url": null,
+      "top_priority_level": 4,
+      "score": 0.445,
+      "score_breakdown": {
+        "substrate_match": 0.4,
+        "category_priority": 0.55,
+        "anti_procrastination": 0.6,
+        "recency_penalty": 1.0,
+        "trigger_alignment": 0.0,
+        "in_progress_resume": 0.0,
+        "novelty": 0.4
+      },
+      "reason": "score=0.45; recency_penalty=1.00; anti_procrastination=0.60; category_priority=0.55",
+      "triggered_by": null
+    },
+    "sources_engaged": [],
+    "priority_levels_engaged": [],
+    "depth_passed": false,
+    "depth_score": 0.0,
+    "depth_failures": [],
+    "persist_receipt": null,
+    "inference_failures": 0,
+    "error": "no fetch attempt succeeded",
+    "session_id": "99bc85f3b96d"
+  },
+  "fetch": {
+    "successful_count": 0,
+    "failed_count": 0
+  }
+}

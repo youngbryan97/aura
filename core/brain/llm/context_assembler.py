@@ -951,7 +951,13 @@ class ContextAssembler:
 
     @staticmethod
     def build_somatic_context(state: AuraState) -> str:
-        """Construct body awareness context from SomaState."""
+        """Construct body awareness context from SomaState.
+
+        CONTEXT HYGIENE (2026-04-28): Only surface *abnormal* body states.
+        Normal telemetry should shape sampling/steering, not consume prompt
+        context.  "CPU: 35% (calm)" burns tokens without informing the
+        model of anything actionable.
+        """
         soma = state.soma
         context = ""
         
@@ -965,28 +971,21 @@ class ContextAssembler:
             
             cpu = hw.get("cpu_usage", 0)
             vram = hw.get("vram_usage", 0)
-            if cpu > 80:
+
+            # Only surface abnormal body states.
+            if cpu > 85:
                 body_lines.append(f"CPU: {cpu:.0f}% (under strain)")
-            elif cpu > 50:
-                body_lines.append(f"CPU: {cpu:.0f}% (working)")
-            elif cpu > 0:
-                body_lines.append(f"CPU: {cpu:.0f}% (calm)")
-            
             if vram > 85:
                 body_lines.append(f"Memory: {vram:.0f}% (running hot)")
-            elif vram > 0:
-                body_lines.append(f"Memory: {vram:.0f}%")
             
             thought_ms = lat.get("last_thought_ms", 0)
-            if thought_ms > 5000:
-                body_lines.append(f"Thought Latency: {thought_ms:.0f}ms (sluggish — I feel foggy)")
-            elif thought_ms > 1000:
-                body_lines.append(f"Thought Latency: {thought_ms:.0f}ms (deliberate)")
-            elif thought_ms > 0:
-                body_lines.append(f"Thought Latency: {thought_ms:.0f}ms (sharp)")
+            if thought_ms > 2500:
+                body_lines.append(f"Thought Latency: {thought_ms:.0f}ms (sluggish)")
             
+            # Expression only when it is non-default
             expression = exp.get("current_expression", "neutral")
-            body_lines.append(f"Expression: {expression}")
+            if expression and expression != "neutral":
+                body_lines.append(f"Expression: {expression}")
             
             if body_lines:
                 context = "## BODY AWARENESS (PROPRIOCEPTION)\n" + "\n".join(f"- {line}" for line in body_lines) + "\n\n"
@@ -1077,11 +1076,31 @@ class ContextAssembler:
         if cls._black_box_steering_enabled(state):
             dynamic_system = system_prompt
         else:
-            # We also inject the Affective State summary into the system block
-            # for maximum anchor strength. Black-box steering tests disable
-            # this path so causal effect cannot be explained by hidden text.
-            affect_summary = state.affect.get_rich_summary() if hasattr(state.affect, "get_rich_summary") else state.affect.get_summary() if hasattr(state.affect, "get_summary") else str(state.affect)
-            dynamic_system = f"{system_prompt}\n\n[CURRENT PHENOMENAL STATE]\n{affect_summary}"
+            # CONTEXT HYGIENE (2026-04-28): The old code injected the full
+            # affect rich summary as [CURRENT PHENOMENAL STATE] *after* the
+            # system prompt, escaping the earlier system cap.  Now we only
+            # inject a compact delta summary when it fits within budget.
+            try:
+                from core.brain.llm.context_gate import get_context_gate, estimate_tokens
+                gate = get_context_gate()
+
+                # Build a compact delta block from affect
+                delta_lines = []
+                affect = state.affect
+                if gate.delta.changed("valence", affect.valence, critical=0.65):
+                    delta_lines.append(f"Mood shifted: valence={affect.valence:+.2f}")
+                if gate.delta.changed("arousal", affect.arousal, critical=0.80):
+                    delta_lines.append(f"Arousal shifted: energy={affect.arousal:.2f}")
+                if gate.delta.changed("curiosity", affect.curiosity, critical=0.85):
+                    delta_lines.append(f"Curiosity pressure shifted: {affect.curiosity:.2f}")
+
+                if delta_lines and estimate_tokens(system_prompt) + len(delta_lines) * 8 < 2800:
+                    delta_text = "\n".join(f"- {l}" for l in delta_lines)
+                    dynamic_system = f"{system_prompt}\n\n## INTERNAL STATE DELTAS\n{delta_text}"
+                else:
+                    dynamic_system = system_prompt
+            except Exception:
+                dynamic_system = system_prompt
         
         system_msg = {"role": "system", "content": dynamic_system}
         messages.append(system_msg)
