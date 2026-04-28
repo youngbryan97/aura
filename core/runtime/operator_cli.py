@@ -40,7 +40,15 @@ def register(name: str):
 
 @register("doctor")
 def cmd_doctor(args: argparse.Namespace) -> Dict[str, Any]:
-    """Pre-boot environment audit."""
+    """Pre-boot environment audit, with optional --bundle for a tarball."""
+    if getattr(args, "bundle", False):
+        from core.runtime.diagnostics_bundle import build_bundle
+
+        target = Path(args.bundle_path) if getattr(args, "bundle_path", None) else None
+        info = build_bundle(output_path=target)
+        info["command"] = "doctor"
+        return info
+
     checks: Dict[str, Dict[str, Any]] = {}
 
     checks["python_version"] = {
@@ -225,7 +233,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aura")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("doctor")
+    p_doctor = sub.add_parser("doctor")
+    p_doctor.add_argument(
+        "--bundle",
+        action="store_true",
+        help="Collect a diagnostics tarball (logs, redacted config, health, metrics, "
+        "tasks, models, memory, gateway, receipts, audit chain) for incident triage.",
+    )
+    p_doctor.add_argument(
+        "--bundle-path",
+        dest="bundle_path",
+        default=None,
+        help="Override the default tarball output path.",
+    )
     sub.add_parser("conformance")
     p_backup = sub.add_parser("backup")
     p_backup.add_argument("--target", required=False, default=None)
