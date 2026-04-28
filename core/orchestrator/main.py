@@ -1318,16 +1318,23 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
 
     def _fire_and_forget(self, coro, name: Optional[str] = None):
         """Helper to run an async coroutine in the background without awaiting it."""
+        # Import upfront — placing the import after the first use makes Python
+        # treat `get_task_tracker` as a local and raises UnboundLocalError on
+        # line ``task = get_task_tracker().create_task(...)``. Every
+        # fire-and-forget on boot was failing with "cannot access local
+        # variable 'get_task_tracker'" until this import was hoisted.
+        from core.utils.task_tracker import get_task_tracker
+
         # Zenith-HF1 HARDENING: Only create task for real coroutines
         if not (asyncio.iscoroutine(coro) or inspect.iscoroutine(coro)):
-            
+
             # If it's a coroutine function, it needs to be called
             if inspect.iscoroutinefunction(coro):
                 logger.warning("Passed coroutine function instead of coroutine to fire_and_forget: %s", coro)
                 return None
             logger.warning("Attempted to fire_and_forget a non-coroutine: %s", coro)
             return
-        
+
         try:
             task = get_task_tracker().create_task(coro, name=name)
         except RuntimeError:
@@ -1338,7 +1345,6 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             _dispose_awaitable(coro)
             return None
 
-        from core.utils.task_tracker import get_task_tracker
         task = get_task_tracker().track_task(task)
         task.add_done_callback(_bg_task_exception_handler)
         return task

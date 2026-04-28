@@ -118,8 +118,15 @@ logger = logging.getLogger("Aura.AffectiveSteering")
 # How strongly the substrate influences generation.
 # Too low: no effect. Too high: incoherence. Sweet spot validated empirically:
 # α ∈ [8, 25] for most LLMs (Turner et al. 2023).
-# Aura's substrate is continuous and low-amplitude — we use a conservative 15.
-DEFAULT_ALPHA = 15.0
+# Aura's substrate is continuous and low-amplitude — we use a conservative 8.
+# Reduced 2026-04-27 from 15 → 8: live testing showed user-facing responses
+# mode-collapsing into substrate vocabulary ("the drift — the drift — the
+# drift" repetition; "I'm not sure what the math says" reflexes; injection of
+# internal-state nouns into answers about unrelated topics). With bootstrap-
+# quality vectors (see README "What's stubbed and what's real"), α=15 was
+# overdriving the residual stream. α=8 keeps steering observable without
+# letting it dominate generation against the user's actual question.
+DEFAULT_ALPHA = 8.0
 
 # Fraction of model depth to target (lower bound, upper bound)
 TARGET_LAYER_RANGE = (0.40, 0.65)
@@ -1069,6 +1076,9 @@ class AffectiveSteeringEngine:
     def _discover_model_geometry(self, model) -> Tuple[int, int]:
         """Determine n_layers and d_model from the loaded model."""
         try:
+            # Pre-initialize d_model so the fallback ``return`` on line ~1107
+            # never raises UnboundLocalError when no inner branch assigned it.
+            d_model: Optional[int] = None
             # Flexible layer discovery (handles model.layers and model.model.layers)
             layers = self._discover_model_layers(model)
             if not layers:
