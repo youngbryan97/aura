@@ -171,16 +171,77 @@ class AegisConfig(BaseModel):
     scaling: DynamicScalingConfig = Field(default_factory=DynamicScalingConfig)
 
 class SafeModificationConfig(BaseModel):
-    allowed_paths: list[str] = Field(default_factory=lambda: ["core/", "skills/", "interface/"])
+    # SELF-MODIFICATION POLICY (2026-04-28 hardening pass)
+    #
+    # Philosophy: Aura should be able to modify anything that would
+    # genuinely improve her.  The ultimate endgoal is recursive safe
+    # self-improvement.  But the governance spine — the paths that
+    # control *how* she modifies herself — must be constitutionally
+    # immutable at runtime.  Changes to those go through proposal →
+    # sandbox → human review → restart.
+    #
+    # What she CAN modify at runtime:
+    #   - Her own cognitive modules (core/ minus protected paths)
+    #   - Skills and plugins (generated or hand-written)
+    #   - Interface and API routes
+    #   - Tests (to improve coverage)
+    #   - Patches and proposals (staging area)
+    #   - Scratch work
+    #
+    # What she CANNOT modify at runtime:
+    #   - The governance spine (will, executive, authority gateway)
+    #   - Runtime infrastructure (gateways, executors, conformance)
+    #   - Memory and state gateways (the write authorities)
+    #   - Security modules (guardians, constitution, directives)
+    #   - Configuration itself
+    #   - LLM routing (to prevent self-lobotomy)
+    #   - The self-modification engine itself (recursive safety)
+    allowed_paths: list[str] = Field(default_factory=lambda: [
+        "core/",
+        "skills/",
+        "plugins/",
+        "interface/",
+        "tests/",
+        "patches/proposals/",
+        "scratch/",
+    ])
     protected_paths: list[str] = Field(default_factory=lambda: [
+        # Governance spine — cannot be modified at runtime
+        "core/will.py",
+        "core/executive/authority_gateway.py",
+        "core/executive/executive_core.py",
+        # Runtime infrastructure
+        "core/runtime/gateways.py",
+        "core/runtime/conformance.py",
+        "core/runtime/executors.py",
+        "core/runtime/errors.py",
+        "core/runtime/receipts.py",
+        "core/runtime/atomic_writer.py",
+        "core/runtime/boot_safety.py",
+        "core/runtime/shutdown_coordinator.py",
+        # Memory and state write authorities
+        "core/memory/memory_write_gateway.py",
+        "core/state/state_gateway.py",
+        "core/state/state_repository.py",
+        # Security modules
         "core/security/",
         "core/guardians/",
         "core/prime_directives.py",
         "core/constitution.py",
+        # Configuration
         "core/config.py",
+        # Self-modification engine (recursive safety)
+        "core/self_modification/safe_modification.py",
+        "core/self_modification/safe_pipeline.py",
+        "core/self_modification/boot_validator.py",
+        # LLM routing (prevent self-lobotomy)
+        "core/brain/llm/llm_router.py",
+        "core/brain/llm/model_registry.py",
+        # Entry point
+        "aura_main.py",
     ])
     max_risk_level: int = 6
-    max_lines_changed: int = 100
+    max_lines_changed: int = 200
     backup_max_age_days: int = 7
     auto_commit: bool = True
 
