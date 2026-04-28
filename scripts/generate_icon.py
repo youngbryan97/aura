@@ -88,7 +88,9 @@ for s in [16, 32, 64, 128, 256, 512, 1024]:
         retina = img.resize((s * 2, s * 2), Image.LANCZOS)
         retina.save(os.path.join(iconset_dir, f"icon_{s}x{s}@2x.png"))
 
-os.system(f"iconutil -c icns -o {icns_path} {iconset_dir} 2>&1")
+import subprocess
+subprocess.run(["iconutil", "-c", "icns", "-o", icns_path, iconset_dir],
+               capture_output=True, timeout=30)
 if os.path.exists(icns_path):
     print(f"Saved ICNS: {icns_path}")
 else:

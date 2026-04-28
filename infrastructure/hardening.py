@@ -544,7 +544,7 @@ class ResourceManager:
             if hasattr(resource, 'close'):
                 try:
                     resource.close()
-                except:
+                except Exception:
                     pass
             
             del self.resources[resource_type][key]

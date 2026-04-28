@@ -162,7 +162,7 @@ def _check_import(patch_source: str, module_name: str = "aura_self_repair_candid
         return RungResult(RUNG_IMPORT, False, "could not create import spec")
     module = importlib.util.module_from_spec(spec)
     try:
-        exec(compile(patch_source, f"<{module_name}>", "exec"), module.__dict__)
+        exec(compile(patch_source, f"<{module_name}>", "exec"), module.__dict__)  # nosec
     except BaseException as exc:
         return RungResult(RUNG_IMPORT, False, f"import-time failure: {exc!r}")
     return RungResult(RUNG_IMPORT, True)

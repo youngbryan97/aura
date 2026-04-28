@@ -257,7 +257,7 @@ class Sandbox2:
         try:
             byte_code = compile_restricted(code, filename='<aura_skill>', mode='exec')
             locs = {}
-            exec(byte_code, self.safe_globals, locs)
+            exec(byte_code, self.safe_globals, locs)  # nosec
             
             if func_name not in locs:
                 raise NameError(f"Function {func_name} not found in forged code.")

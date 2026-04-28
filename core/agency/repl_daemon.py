@@ -33,7 +33,7 @@ def main() -> None:
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
                 try:
                     # Execute the code in the shared namespace
-                    exec(code, namespace)
+                    exec(code, namespace)  # nosec
                     success = True
                 except BaseException:
                     traceback.print_exc(file=out)

@@ -94,7 +94,7 @@ def install(target_path=TARGET_APP_PATH):
     print("  Generated Info.plist.")
 
     # 6. Touch the app bundle to refresh Finder
-    os.system(f"touch \"{target_path}\"")
+    target_path.touch()
     
     print(f"\n✅ Aura is now installed in {target_path}!")
 

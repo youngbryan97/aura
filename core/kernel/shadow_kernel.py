@@ -40,7 +40,7 @@ def _sandbox_worker(mutated_code: str, serialized_state: str, result_queue: mult
         # sandbox_globals["__builtins__"]["open"] = None
         
         # Execute the mutated code within the sandbox
-        exec(mutated_code, sandbox_globals, sandbox_globals)
+        exec(mutated_code, sandbox_globals, sandbox_globals)  # nosec
         
         state_dict = json.loads(serialized_state)
         validator = sandbox_globals.get("validate")

@@ -241,7 +241,7 @@
     <div class="status" id="status">Connecting...</div>
 
     <script>
-        const TOKEN = 'YOUR_AURA_API_TOKEN';
+        const TOKEN = sessionStorage.getItem('api_token') || 'DEMO';
         const BASE = window.location.origin;
         let currentMood = '';
 

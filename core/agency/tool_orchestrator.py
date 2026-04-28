@@ -93,13 +93,13 @@ class ToolOrchestrator:
             except asyncio.TimeoutError:
                 if self._repl_process:
                     try: self._repl_process.kill()
-                    except: pass
+                    except (ProcessLookupError, OSError): pass
                 self._repl_process = None
                 return False, "Execution Error: Script timed out (Infinite loop or heavy resource)."
             except Exception as e:
                 if self._repl_process:
                     try: self._repl_process.kill()
-                    except: pass
+                    except (ProcessLookupError, OSError): pass
                 self._repl_process = None
                 return False, f"Daemon protocol error: {e}"
 

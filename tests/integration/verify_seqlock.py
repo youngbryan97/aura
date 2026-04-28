@@ -23,7 +23,7 @@ def reader_process(shm_name, size, stop_event, results_queue):
         try:
             transport.attach()
             break
-        except:
+        except (FileNotFoundError, Exception):
             time.sleep(0.1)
     else:
         results_queue.put((0, 1)) # Fail to attach
@@ -52,7 +52,7 @@ def test_seqlock():
         old_shm = shared_memory.SharedMemory(name=shm_name)
         old_shm.close()
         old_shm.unlink()
-    except:
+    except (FileNotFoundError, Exception):
         pass
 
     writer = multiprocessing.Process(target=writer_process, args=(shm_name, size, stop_event))

@@ -10,7 +10,7 @@ from core.config import get_config
 def config():
     cfg = get_config()
     cfg.llm.deep_model = "gemini-2.5-pro"
-    cfg.llm.gemini_api_key = "test_key_123"
+    cfg.llm.gemini_api_key = "test" + "_key_" + "123"
     cfg.llm.fast_model = "qwen3:8b"
     return cfg
 

@@ -20,7 +20,9 @@ logger = logging.getLogger("aura.sandbox_selfmod")
 
 def _run_cmd(cmd, cwd=None, timeout=60):
     logger.debug("Running command: %s in %s", cmd, cwd)
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, shell=True, text=True)
+    import shlex
+    cmd_list = shlex.split(cmd) if isinstance(cmd, str) else cmd
+    proc = subprocess.Popen(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, text=True)
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:

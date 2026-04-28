@@ -43,7 +43,7 @@ UNIT_FILE=/etc/systemd/system/aura.service
 
 ssh "$REMOTE" sudo tee "$ENV_FILE" > /dev/null <<'ENV'
 # Example Aura env file - edit values and secure this file
-AURA_API_TOKEN="change_this_to_a_strong_secret"
+AURA_API_TOKEN=$(openssl rand -hex 32)
 AURA_CLARITY_THRESHOLD=0.35
 PYTHONPATH=/opt/aura
 ENV
