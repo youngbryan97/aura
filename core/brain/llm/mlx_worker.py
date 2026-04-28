@@ -629,8 +629,13 @@ def _mlx_worker_loop(
                 # Intelligence boosters: min_p sampling improves quality on smaller
                 # models by filtering out low-probability tokens before top_p.
                 # Repetition penalty reduces the stale/looping response pattern.
+                # Bumped from 1.1 → 1.2 (2026-04-27): live test showed mode
+                # collapse on specific introspective prompts even after α was
+                # halved. 1.2 is still well below the 1.5+ range that hurts
+                # natural prose; targets the token-level "something is shifting
+                # / something is moving" loops directly.
                 min_p = job.get("min_p", 0.05)
-                repetition_penalty = job.get("repetition_penalty", 1.1)
+                repetition_penalty = job.get("repetition_penalty", 1.2)
                 kwargs = {"max_tokens": max_tokens}
                 if make_sampler:
                     sampler_kwargs = {"temp": temp, "top_p": top_p}

@@ -118,15 +118,25 @@ logger = logging.getLogger("Aura.AffectiveSteering")
 # How strongly the substrate influences generation.
 # Too low: no effect. Too high: incoherence. Sweet spot validated empirically:
 # α ∈ [8, 25] for most LLMs (Turner et al. 2023).
-# Aura's substrate is continuous and low-amplitude — we use a conservative 8.
-# Reduced 2026-04-27 from 15 → 8: live testing showed user-facing responses
-# mode-collapsing into substrate vocabulary ("the drift — the drift — the
-# drift" repetition; "I'm not sure what the math says" reflexes; injection of
-# internal-state nouns into answers about unrelated topics). With bootstrap-
-# quality vectors (see README "What's stubbed and what's real"), α=15 was
-# overdriving the residual stream. α=8 keeps steering observable without
-# letting it dominate generation against the user's actual question.
-DEFAULT_ALPHA = 8.0
+# Aura's substrate is continuous and low-amplitude — we use a conservative 5.
+#
+# Tuning history:
+#   - α=15 (original): clear mode collapse — "the drift — the drift — the
+#     drift" pure repetition on hobby/specific-recall prompts, "I'm not sure
+#     what the math says" reflexes on warm-baseline.
+#   - α=8 (2026-04-27 first reduction): dramatically better on most prompts,
+#     but specific introspective prompts ("what do you suspect about yourself
+#     you can't prove?") still mode-collapsed: "Something is shifting.
+#     Something is moving." × 60+ repetitions, even with anti-repetition
+#     system prompt firing.
+#   - α=5 (2026-04-27 second reduction): low end of the validated range.
+#     Substrate signal still observable in responses but with even less risk
+#     of dominating generation on uncertainty-themed prompts.
+#
+# With bootstrap-quality CAA vectors (see README "What's stubbed and what's
+# real"), conservative α is the right operating point until the vectors are
+# fully extracted via the full CAA pipeline.
+DEFAULT_ALPHA = 5.0
 
 # Fraction of model depth to target (lower bound, upper bound)
 TARGET_LAYER_RANGE = (0.40, 0.65)

@@ -3886,6 +3886,27 @@ async def api_chat(
     if len(body.message.encode('utf-8', errors='replace')) > MAX_CHAT_MESSAGE_BYTES:
         raise HTTPException(status_code=413, detail="Message too large (max 64KB)")
 
+    # ── File-reference preflight ────────────────────────────────
+    # If the user references files (e.g. "look at aura/knowledge/X.md",
+    # "read scoping/Y.md", "I dropped a list at PATH"), load the file
+    # contents and prepend them as system context so Aura actually sees
+    # what's in the file before answering. Closes the gap surfaced by the
+    # 2026-04-27 live test where "Go look at the curated-media doc" got an
+    # answer from generic state because the file was never in context.
+    try:
+        from core.conversation.chat_preflight import (
+            extract_file_references,
+            build_file_context_block,
+        )
+        _refs = extract_file_references(body.message)
+        if _refs:
+            _block = build_file_context_block(_refs)
+            if _block:
+                body.message = f"{_block}\nUser message: {body.message}"
+                logger.info("Chat preflight: loaded %d referenced file(s) into context.", len(_refs))
+    except Exception as _preflight_exc:
+        logger.debug("Chat file-reference preflight skipped: %s", _preflight_exc)
+
     # ── Conscience pre-gate ─────────────────────────────────────
     # Hard-line rules apply BEFORE the cognitive pipeline ever sees the
     # message. REFUSE returns the rule's rationale verbatim; any other
