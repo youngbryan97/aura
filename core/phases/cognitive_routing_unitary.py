@@ -4,7 +4,7 @@ import re
 import time
 from typing import Optional, TYPE_CHECKING
 from core.runtime.skill_task_bridge import looks_like_execution_report, looks_like_multi_step_skill_request
-from core.runtime.turn_analysis import analyze_turn
+from core.runtime.turn_analysis import analyze_turn, looks_like_deep_mind_probe
 from core.state.aura_state import AuraState, CognitiveMode
 from core.kernel.bridge import Phase
 from core.phases.response_contract import build_response_contract
@@ -426,6 +426,7 @@ class CognitiveRoutingPhase(Phase):
             return new_state
 
         lower_obj = objective.lower()
+        is_deep_mind_probe = looks_like_deep_mind_probe(objective)
         if any(cmd in lower_obj for cmd in ["reboot", "restart", "shutdown", "sleep mode"]):
             logger.info("🧭 Routing: SYSTEM intent detected via heuristics.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
@@ -457,7 +458,7 @@ class CognitiveRoutingPhase(Phase):
                 "build ", "make ", "generate ",
             )
         )
-        if _task_hit or _is_long_goal:
+        if not is_deep_mind_probe and (_task_hit or _is_long_goal):
             logger.info("🧭 Routing: TASK detected via heuristics for: %s", objective[:60])
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             self._stamp_llm_route(
@@ -473,7 +474,7 @@ class CognitiveRoutingPhase(Phase):
         try:
             from core.container import ServiceContainer
             cap = ServiceContainer.get("capability_engine", default=None)
-            if cap and hasattr(cap, "detect_intent"):
+            if cap and hasattr(cap, "detect_intent") and not is_deep_mind_probe:
                 matched = cap.detect_intent(objective)
                 if matched:
                     if looks_like_execution_report(objective):
@@ -522,7 +523,7 @@ class CognitiveRoutingPhase(Phase):
         except Exception as e:
             logger.debug("🧭 Routing: detect_intent check failed: %s", e)
 
-        if is_user_facing and analysis.intent_type == "TASK":
+        if is_user_facing and analysis.intent_type == "TASK" and not is_deep_mind_probe:
             logger.info("🧭 Routing: Deterministic task route for user-facing turn.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             self._stamp_llm_route(

@@ -4,9 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import sys
+import time
 import urllib.error
 import urllib.request
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+DEFAULT_SESSION_DIR = PROJECT_ROOT / "aura" / "knowledge" / "research-sessions"
 
 from core.evaluation.deep_mind_probe import DEEP_MIND_PROBES, evaluate_deep_probe_response
 
@@ -30,12 +37,15 @@ def main() -> int:
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("--limit", type=int, default=0, help="Limit probe count for quick smoke runs.")
+    parser.add_argument("--output", default="", help="Write the probe session JSON to this path.")
+    parser.add_argument("--no-record", action="store_true", help="Do not write a research-session JSON artifact.")
     args = parser.parse_args()
 
     probes = list(DEEP_MIND_PROBES)
     if args.limit > 0:
         probes = probes[: args.limit]
 
+    started_at = time.time()
     results = []
     for probe in probes:
         try:
@@ -65,7 +75,42 @@ def main() -> int:
             print(f"FAIL {probe.id}: request failed: {exc}", file=sys.stderr)
 
     passed = sum(1 for item in results if item["evaluation"]["passed"])
-    print(json.dumps({"passed": passed, "total": len(results), "results": results}, indent=2))
+    payload = {"passed": passed, "total": len(results), "results": results}
+    print(json.dumps(payload, indent=2))
+    if not args.no_record:
+        completed_at = time.time()
+        output_path = Path(args.output) if args.output else DEFAULT_SESSION_DIR / f"deep-mind-probes-{int(completed_at)}.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        session_payload = {
+            "phase": "complete" if passed == len(results) else "failed",
+            "result": {
+                "item_title": "Deep agency/sentience/consciousness live probe",
+                "started_at": started_at,
+                "completed_at": completed_at,
+                "decision": {
+                    "title": "Deep agency/sentience/consciousness live probe",
+                    "category": "Evaluation",
+                    "url": args.base_url,
+                    "reason": "live headless API probe suite",
+                },
+                "sources_engaged": [args.base_url],
+                "priority_levels_engaged": [],
+                "depth_passed": passed == len(results),
+                "depth_score": round(passed / max(1, len(results)), 3),
+                "depth_failures": [
+                    f"{item['probe']}:{','.join(item['evaluation'].get('issues', []))}"
+                    for item in results
+                    if not item["evaluation"].get("passed")
+                ],
+                "persist_receipt": None,
+                "inference_failures": len(results) - passed,
+                "error": None if passed == len(results) else "one or more deep probes failed",
+                "session_id": output_path.stem,
+            },
+            "probe_batch": payload,
+        }
+        output_path.write_text(json.dumps(session_payload, indent=2), encoding="utf-8")
+        print(f"recorded_session={output_path}")
     return 0 if passed == len(results) else 1
 
 

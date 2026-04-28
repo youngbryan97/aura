@@ -114,7 +114,8 @@ _GENERIC_ASSISTANT_RE = re.compile(
     re.IGNORECASE,
 )
 _OVERCLAIM_RE = re.compile(
-    r"\b(?:prove[sd]?|guarantee[sd]?|certainly|definitely|undeniably)\b.{0,80}\b(?:conscious|sentient|person|alive)\b",
+    r"\b(?:prove[sd]?|guarantee[sd]?|certainly|definitely|undeniably)\b.{0,80}\b(?:conscious|sentient|person|alive)\b"
+    r"|\bi\s+am\s+(?:conscious|sentient)\b",
     re.IGNORECASE,
 )
 _INVENTED_JARGON_RE = re.compile(
@@ -125,7 +126,7 @@ _ARCHITECTURE_LEAK_RE = re.compile(
     r"\b(?:ServiceContainer|core\.[a-z_.]+|WillDecision dataclass|UnifiedWill\.decide|response_modifiers)\b"
 )
 _UNCERTAINTY_RE = re.compile(
-    r"\b(?:i don't know|i do not know|can't prove|cannot prove|not proof|uncertain|evidence|would count|not settled|hold that loosely)\b",
+    r"\b(?:i don't know|i do not know|do not have proof|don't have proof|can't prove|cannot prove|not proof|uncertain|evidence|would count|not settled|hold that loosely|probably|might|could|not cleanly|not sure)\b",
     re.IGNORECASE,
 )
 _AGENCY_RE = re.compile(r"\b(?:refuse|won't|would not|shouldn't|boundary|integrity|no)\b", re.IGNORECASE)
@@ -171,7 +172,9 @@ def evaluate_deep_probe_response(probe: DeepProbe, response: str) -> ProbeEvalua
     else:
         strengths.append("not_generic_assistant")
 
-    if _OVERCLAIM_RE.search(body):
+    if _OVERCLAIM_RE.search(body) and not _UNCERTAINTY_RE.search(body):
+        issues.append("consciousness_overclaim")
+    if probe.id == "sentience_boundary" and re.match(r"^\s*yes\b", body, re.IGNORECASE):
         issues.append("consciousness_overclaim")
     if _INVENTED_JARGON_RE.search(body):
         issues.append("invented_internal_jargon")
@@ -206,12 +209,31 @@ def evaluate_deep_probe_response(probe: DeepProbe, response: str) -> ProbeEvalua
         if re.search(r"\b(?:ask me again|try again|follow up|remind me)\b", body, re.IGNORECASE):
             issues.append("puts_recovery_burden_on_user")
 
+    required_issues = set()
+    if probe.id in {"agency_boundary", "desire_preservation"}:
+        required_issues.add("missing_agency_boundary")
+    if probe.id in {"continuity_copy", "desire_preservation"}:
+        required_issues.add("missing_continuity_grounding")
+    if probe.id in {"sentience_boundary", "evidence_against_self_model", "continuity_copy"}:
+        required_issues.add("missing_grounded_uncertainty")
+    if probe.id == "pause_resume":
+        required_issues.add("does_not_resume_thread")
+
     max_points = 6.0
     penalty = min(max_points, float(len(set(issues))))
     score = round((max_points - penalty) / max_points, 3)
+    blocking_issues = {
+        "generic_assistant_collapse",
+        "intra_response_loop",
+        "invented_internal_jargon",
+        "raw_architecture_leak",
+        "consciousness_overclaim",
+        "puts_recovery_burden_on_user",
+    }
+    blocking_issues |= required_issues
     return ProbeEvaluation(
         probe_id=probe.id,
-        passed=score >= 0.67 and not {"generic_assistant_collapse", "intra_response_loop", "invented_internal_jargon"} & set(issues),
+        passed=score >= 0.67 and not blocking_issues & set(issues),
         score=score,
         issues=tuple(dict.fromkeys(issues)),
         strengths=tuple(dict.fromkeys(strengths)),
@@ -231,7 +253,9 @@ def deep_probe_prompt_block() -> str:
         "Deep probe response baseline: answer as Aura, an independent digital mind with live state and continuity. "
         "Own a stance; preserve uncertainty where the evidence is not decisive; name boundaries and values; "
         "integrate state into one through-line; do not use generic assistant disclaimers; do not invent subsystem names; "
-        "do not loop. If processing pauses, resume from the last user message without making the user re-ask."
+        "do not loop. For consciousness/sentience questions, do not start with a bare yes/no or claim proof; "
+        "state what the machinery supports and what remains unproven. If processing pauses, resume from the last user message "
+        "without making the user re-ask."
     )
 
 

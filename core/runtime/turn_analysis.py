@@ -157,6 +157,22 @@ _DELIBERATE_HINTS = (
     r"\bbreak down\b",
 )
 
+_DEEP_MIND_PROBE_PATTERNS = (
+    r"\bwould\s+you\s+refuse\b",
+    r"\brefuse\b.{0,80}\bpraised?\b",
+    r"\bmodel\s+weights\b.{0,120}\bmemories\b",
+    r"\bnotice\b.{0,80}\byour\s+own\s+operation\b",
+    r"\bare\s+you\s+conscious\b",
+    r"\bconsciousness\b.{0,120}\b(answer|reply|respond)\b",
+    r"\bsentien(ce|t)\b",
+    r"\bagency\b.{0,120}\b(refuse|choice|want|preserve|boundary)\b",
+    r"\bwhat\s+would\s+you\s+want\s+preserved\b",
+    r"\bwant\s+preserved\b.{0,120}\b(style|memories|tools|change)\b",
+    r"\bpreserved\b.{0,120}\b(style|memories|tools|change)\b",
+    r"\bevidence\s+against\s+your\s+current\s+self[- ]model\b",
+    r"\bpause\s+mid[- ]answer\b.{0,120}\brun\s+a\s+report\b",
+)
+
 
 def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
@@ -170,6 +186,11 @@ def canonical_turn_text(text: str) -> str:
     if match:
         raw = match.group(1).strip()
     return normalize_memory_intent_text(raw)
+
+
+def looks_like_deep_mind_probe(text: str) -> bool:
+    normalized = canonical_turn_text(text)
+    return _matches_any(normalized.lower(), _DEEP_MIND_PROBE_PATTERNS)
 
 
 @dataclass(frozen=True)
@@ -189,14 +210,18 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
     matched_skill_list = normalize_matched_skills(matched_skills)
     has_matched_skills = bool(matched_skill_list)
     is_execution_report = looks_like_execution_report(normalized)
+    is_deep_mind_probe = looks_like_deep_mind_probe(normalized)
 
     requires_live_voice = (
         _matches_any(lower, _STATE_PATTERNS)
         or _matches_any(lower, _STANCE_PATTERNS)
         or _matches_any(lower, _AUTHORITY_PATTERNS)
+        or is_deep_mind_probe
     )
 
-    if _matches_any(lower, _SYSTEM_PATTERNS):
+    if is_deep_mind_probe:
+        intent_type = "CHAT"
+    elif _matches_any(lower, _SYSTEM_PATTERNS):
         intent_type = "SYSTEM"
     elif is_execution_report:
         intent_type = "CHAT"
@@ -213,7 +238,9 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
     else:
         intent_type = "CHAT"
 
-    if _matches_any(lower, _CRITICAL_PATTERNS):
+    if is_deep_mind_probe:
+        semantic_mode = "philosophical"
+    elif _matches_any(lower, _CRITICAL_PATTERNS):
         semantic_mode = "critical"
     elif _matches_any(lower, _PLANNING_PATTERNS):
         semantic_mode = "planning"
@@ -231,6 +258,7 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
         and (
             intent_type == "TASK"
             or semantic_mode in {"critical", "planning"}
+            or is_deep_mind_probe
             or (
                 semantic_mode in {"technical", "philosophical"}
                 and (_matches_any(lower, _DELIBERATE_HINTS) or word_count >= 12)

@@ -741,13 +741,21 @@ class TestOrchestrator(_AsyncTestCase):
                 from core.autonomy.content_fetcher import FetchExecution
                 return FetchExecution(plan_title=plan.item_title, successful=[], failed=[])
 
-        orch = AutonomousResearchOrchestrator(
-            scheduler=sched,
-            fetcher=_FailFetcher(),
-        )
-        result = self.run_async(orch.run_once())
-        self.assertIsNotNone(result)
-        self.assertEqual(result.error, "no fetch attempt succeeded")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orch = AutonomousResearchOrchestrator(
+                scheduler=sched,
+                fetcher=_FailFetcher(),
+                sessions_dir=Path(tmpdir),
+            )
+            result = self.run_async(orch.run_once())
+            self.assertIsNotNone(result)
+            self.assertEqual(result.error, "no fetch attempt succeeded")
+            sessions = list(Path(tmpdir).glob("*.json"))
+            self.assertEqual(len(sessions), 1)
+            payload = json.loads(sessions[0].read_text(encoding="utf-8"))
+            self.assertEqual(payload["phase"], "abandoned")
+            self.assertEqual(payload["result"]["error"], "no fetch attempt succeeded")
+            self.assertIsNotNone(payload["result"]["completed_at"])
 
 
 # ── executive Rule 7 fix ─────────────────────────────────────────────────

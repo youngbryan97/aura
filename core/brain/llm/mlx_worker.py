@@ -618,7 +618,10 @@ def _mlx_worker_loop(
 
                 temp = job.get("temp", 0.7)
                 top_p = job.get("top_p", 0.9)
-                max_tokens = job.get("max_tokens", 512)
+                try:
+                    max_tokens = max(1, int(job.get("max_tokens", 512) or 512))
+                except Exception:
+                    max_tokens = 512
                 schema = job.get("schema")
                 
                 # [v11.0 HARDENING] Structured Generation Overrides
@@ -872,7 +875,10 @@ def _mlx_worker_loop(
                 prompt = job.get("prompt")
                 temp = job.get("temp", 0.7)
                 top_p = job.get("top_p", 0.9)
-                max_tokens = job.get("max_tokens", 512)
+                try:
+                    max_tokens = max(1, int(job.get("max_tokens", 512) or 512))
+                except Exception:
+                    max_tokens = 512
                 min_p = job.get("min_p", 0.05)
                 repetition_penalty = job.get("repetition_penalty", 1.1)
 

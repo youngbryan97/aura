@@ -276,6 +276,7 @@ def _background_error_is_quiet(error: str) -> bool:
         "client_returned_no_text",
         "background_deferred:memory_pressure",
         "background_deferred:cortex_startup_quiet",
+        "background_deferred:foreground_quiet_window",
         "background_deferred:cortex_resident",
         "background_deferred:cortex_failed",
         "background_deferred:foreground_reserved",
@@ -1257,6 +1258,12 @@ class HealthAwareLLMRouter:
         )
         if implicit_foreground:
             is_bg = False
+        # Make the inferred lane explicit for the runtime client. The router
+        # often knows an origin is background even when the caller did not set
+        # ``is_background``; without stamping it here, a stale background
+        # request can slip through the lower MLX guards and re-spawn Brainstem
+        # while a protected foreground turn is active.
+        kwargs["is_background"] = bool(is_bg)
         prefer_endpoint = normalize_endpoint_name(kwargs.get("prefer_endpoint"))
         deep_handoff = bool(kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff"))
         allow_cloud_fallback = bool(kwargs.get("allow_cloud_fallback", False))
@@ -1270,6 +1277,14 @@ class HealthAwareLLMRouter:
             kwargs["prefer_endpoint"] = prefer_endpoint
 
         if is_bg:
+            if self._foreground_quiet_window_active():
+                return {
+                    "ok": False,
+                    "text": "",
+                    "endpoint": "suppressed",
+                    "tokens": 0,
+                    "error": "background_deferred:foreground_quiet_window",
+                }
             if getattr(self, "high_pressure_mode", False):
                 return {
                     "ok": False,

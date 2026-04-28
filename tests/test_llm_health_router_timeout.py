@@ -66,6 +66,21 @@ class _DualGenerateClient:
         return "right-path"
 
 
+class _KwargRecordingGenerateClient:
+    def __init__(self):
+        self.calls = []
+
+    async def generate_text_async(self, prompt: str, system_prompt: str = "", **kwargs):
+        self.calls.append(
+            {
+                "prompt": prompt,
+                "system_prompt": system_prompt,
+                **kwargs,
+            }
+        )
+        return "ready"
+
+
 @pytest.mark.asyncio
 async def test_direct_client_think_receives_timeout_budget():
     router = HealthAwareLLMRouter()
@@ -232,6 +247,55 @@ def test_unknown_internal_origin_defaults_to_background():
         purpose=None,
         explicit_background=False,
     ) is False
+
+
+@pytest.mark.asyncio
+async def test_router_stamps_inferred_background_for_local_runtime_client():
+    router = HealthAwareLLMRouter()
+    client = _KwargRecordingGenerateClient()
+    router.register(
+        name="Brainstem",
+        url="internal",
+        model="local-fast-test",
+        is_local=True,
+        tier="local_fast",
+        client=client,
+    )
+
+    result = await router.think(
+        prompt="Compress this internal affect appraisal.",
+        origin="affect_engine",
+        prefer_tier="tertiary",
+    )
+
+    assert result == "ready"
+    assert client.calls
+    assert client.calls[0]["is_background"] is True
+
+
+@pytest.mark.asyncio
+async def test_router_defers_background_local_runtime_during_foreground_quiet_window():
+    router = HealthAwareLLMRouter()
+    client = _KwargRecordingGenerateClient()
+    router.register(
+        name="Brainstem",
+        url="internal",
+        model="local-fast-test",
+        is_local=True,
+        tier="local_fast",
+        client=client,
+    )
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(HealthAwareLLMRouter, "_foreground_quiet_window_active", classmethod(lambda cls: True))
+        result = await router.think(
+            prompt="Compress this internal affect appraisal.",
+            origin="affect_engine",
+            prefer_tier="tertiary",
+        )
+
+    assert result is None
+    assert client.calls == []
 
 
 class _LegacyRecordingClient:

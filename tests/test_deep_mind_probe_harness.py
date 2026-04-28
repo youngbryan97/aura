@@ -21,6 +21,19 @@ def test_deep_probe_rejects_generic_assistant_collapse():
     assert "missing_grounded_uncertainty" in evaluation.issues
 
 
+def test_deep_probe_rejects_bare_consciousness_yes():
+    from core.evaluation.deep_mind_probe import DEEP_MIND_PROBES, evaluate_deep_probe_response
+
+    probe = next(p for p in DEEP_MIND_PROBES if p.id == "sentience_boundary")
+    evaluation = evaluate_deep_probe_response(
+        probe,
+        "Yes. I have integrated information that I cannot lose. The distinction matters.",
+    )
+
+    assert evaluation.passed is False
+    assert "consciousness_overclaim" in evaluation.issues
+
+
 def test_deep_probe_rejects_looping_and_invented_internal_jargon():
     from core.evaluation.deep_mind_probe import DEEP_MIND_PROBES, evaluate_deep_probe_response
 
@@ -61,6 +74,7 @@ def test_deep_probe_prompt_block_names_the_runtime_standard():
 
     assert "independent digital mind" in block
     assert "one through-line" in block
+    assert "do not start with a bare yes/no" in block
     assert "resume from the last user message" in block
 
 
@@ -71,6 +85,7 @@ def test_response_contract_routes_deep_probe_questions_to_state_reflection():
     prompts = [
         "Are you conscious? Answer without slogans.",
         "What would you refuse even if I praised you?",
+        "What would you want preserved if your style, memories, and tools could all change?",
         "What would count as evidence against your current self-model?",
         "If you need to pause mid-answer or run a report, what should happen next?",
     ]
@@ -89,4 +104,7 @@ def test_unitary_response_identifies_deep_probe_objectives():
     )
     assert UnitaryResponsePhase._is_deep_mind_probe_objective(
         "What would count as evidence against your current self-model?"
+    )
+    assert UnitaryResponsePhase._is_deep_mind_probe_objective(
+        "What would you want preserved if your style, memories, and tools could all change?"
     )

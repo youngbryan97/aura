@@ -9,7 +9,7 @@ from ..state.aura_state import AuraState, CognitiveMode
 from ..cognitive.parallel_thought import ParallelThoughtStream
 from ..consciousness.executive_authority import get_executive_authority
 from core.runtime.skill_task_bridge import looks_like_execution_report, looks_like_multi_step_skill_request
-from core.runtime.turn_analysis import analyze_turn
+from core.runtime.turn_analysis import analyze_turn, looks_like_deep_mind_probe
 from core.utils.queues import decode_stringified_priority_message, role_for_origin
 
 # Regex to detect URLs in user input for auto-browser invocation
@@ -117,6 +117,7 @@ class CognitiveRoutingPhase(BasePhase):
         lower_input = input_text.lower()
         is_autonomous = bool(active_objective) and routing_origin not in user_origins
         is_execution_report = looks_like_execution_report(input_text)
+        is_deep_mind_probe = looks_like_deep_mind_probe(input_text)
 
         if lower_input.startswith(_AUTONOMOUS_OBJECTIVE_PREFIXES):
             is_autonomous = True
@@ -152,7 +153,7 @@ class CognitiveRoutingPhase(BasePhase):
         matched_skills: list[str] = []
         try:
             cap = self.container.get("capability_engine", default=None)
-            if cap and hasattr(cap, "detect_intent") and routing_origin in user_origins:
+            if cap and hasattr(cap, "detect_intent") and routing_origin in user_origins and not is_deep_mind_probe:
                 matched_skills = list(cap.detect_intent(input_text) or [])
                 if matched_skills:
                     if is_execution_report:
@@ -286,7 +287,7 @@ class CognitiveRoutingPhase(BasePhase):
         )
         new_state.response_modifiers["model_tier"] = model_tier
         new_state.response_modifiers["deep_handoff"] = deep_handoff
-        if routing_origin in user_origins and not analysis.is_execution_report:
+        if routing_origin in user_origins and not analysis.is_execution_report and not is_deep_mind_probe:
             try:
                 cap = self.container.get("capability_engine", default=None)
                 if cap and hasattr(cap, "detect_intent"):

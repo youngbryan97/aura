@@ -212,7 +212,16 @@ class AutonomousResearchOrchestrator:
 
             if not execution.successful:
                 result.error = "no fetch attempt succeeded"
+                result.completed_at = time.time()
                 self._scheduler.record_attempt(decision, outcome="abandoned")
+                self._save_session(session_path, {
+                    "phase": "abandoned",
+                    "result": result.to_dict(),
+                    "fetch": {
+                        "successful_count": len(execution.successful),
+                        "failed_count": len(execution.failed),
+                    },
+                })
                 return result
 
             # 3. Comprehend
@@ -229,7 +238,14 @@ class AutonomousResearchOrchestrator:
 
             if not comprehension.checkpoints:
                 result.error = "comprehension produced no checkpoints"
+                result.completed_at = time.time()
                 self._scheduler.record_attempt(decision, outcome="abandoned")
+                self._save_session(session_path, {"phase": "abandoned", "result": result.to_dict(),
+                                                  "comprehension": {
+                                                      "checkpoints": len(comprehension.checkpoints),
+                                                      "shallow_read_flag": comprehension.shallow_read_flag,
+                                                      "open_threads": len(comprehension.open_threads),
+                                                  }})
                 return result
 
             # 4. Reflect
@@ -296,8 +312,10 @@ class AutonomousResearchOrchestrator:
             raise
         except Exception as e:
             result.error = f"{type(e).__name__}: {e}"
+            result.completed_at = time.time()
             logger.error("engagement crashed for %r: %s\n%s",
                          decision.item.title, e, traceback.format_exc())
+            self._save_session(session_path, {"phase": "error", "result": result.to_dict()})
         finally:
             if self._on_complete:
                 try:

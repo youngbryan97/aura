@@ -196,9 +196,9 @@ def compute_inference_params(
     # Vitality drop literally shortens the output. This is the structural
     # version of "tell the model to be brief when tired".
     vitality_factor = max(0.35, min(1.0, s["vitality"]))
-    cap = int(base_max_tokens * vitality_factor)
+    cap = max(1, int(base_max_tokens * vitality_factor))
     # Fatigue from cortisol clips further
-    cap = int(cap * max(0.55, 1.0 - 0.4 * max(0.0, s["cortisol"] - 0.5)))
+    cap = max(1, int(cap * max(0.55, 1.0 - 0.4 * max(0.0, s["cortisol"] - 0.5))))
     rationale.append(f"max_tokens={cap} (vitality={s['vitality']:.2f}, cap={cap})")
 
     # ─── repetition penalty ────────────────────────────────────────────

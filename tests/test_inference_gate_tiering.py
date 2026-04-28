@@ -453,6 +453,30 @@ def test_compact_prebuilt_messages_respects_runtime_context_budget(monkeypatch):
     assert compact[-1]["content"].endswith("what I just said.")
 
 
+def test_compact_prebuilt_messages_uses_tighter_budget_for_deep_probes(monkeypatch):
+    gate = InferenceGate.__new__(InferenceGate)
+    messages = [
+        {"role": "system", "content": "S" * 20_000},
+        {"role": "user", "content": "old user"},
+        {"role": "assistant", "content": "old assistant"},
+        {
+            "role": "system",
+            "content": "[ACTIVE GROUNDING EVIDENCE]\nThis should not crowd a deep mind probe.",
+        },
+        {"role": "user", "content": "What would you want preserved if everything else changed?"},
+    ]
+
+    monkeypatch.setenv("AURA_CORTEX_CTX", "8192")
+
+    compact = gate._compact_prebuilt_messages(messages, history_limit=2, deep_probe=True)
+    total_chars = sum(len(msg["content"]) for msg in compact)
+
+    assert total_chars <= 9_000
+    assert len(compact[0]["content"]) <= 5_200
+    assert not any("[ACTIVE GROUNDING EVIDENCE]" in msg["content"] for msg in compact)
+    assert [msg["role"] for msg in compact[-2:]] == ["assistant", "user"]
+
+
 @pytest.mark.asyncio
 async def test_user_facing_primary_preserves_prebuilt_messages_for_local_mlx():
     gate = InferenceGate()
@@ -1100,3 +1124,20 @@ def test_background_local_deferral_protects_cold_cortex_during_safe_boot(monkeyp
     )
 
     assert gate._background_local_deferral_reason(origin="system") == "cortex_startup_quiet"
+
+
+def test_background_local_deferral_honors_ready_cortex_foreground_quiet_window(monkeypatch):
+    gate = InferenceGate()
+    monkeypatch.setattr(InferenceGate, "_foreground_user_turn_active", staticmethod(lambda: False))
+    monkeypatch.setattr(InferenceGate, "_foreground_owner_active", staticmethod(lambda: False))
+    monkeypatch.setattr(InferenceGate, "_foreground_quiet_window_active", staticmethod(lambda: True))
+    monkeypatch.setattr(gate, "_should_quiet_background_for_cortex_startup", lambda: False)
+    monkeypatch.setattr(gate, "_background_memory_pressure_active", lambda: False)
+    monkeypatch.setattr(gate, "_foreground_headroom_reserved", lambda *a, **kw: False)
+    monkeypatch.setattr(
+        gate,
+        "get_conversation_status",
+        lambda: {"conversation_ready": True, "state": "ready", "warmup_in_flight": False},
+    )
+
+    assert gate._background_local_deferral_reason(origin="affect_engine") == "foreground_quiet_window"

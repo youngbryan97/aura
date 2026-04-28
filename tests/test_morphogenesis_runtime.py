@@ -496,6 +496,26 @@ async def test_runtime_start_stop_lifecycle():
 
 
 @pytest.mark.asyncio
+async def test_runtime_defers_heavy_tick_during_foreground_quiet_window(tmp_path, monkeypatch):
+    """Foreground conversation quiet windows should pause heavy morphogenesis ticks."""
+    rt = MorphogeneticRuntime(
+        config=MorphogenesisConfig(
+            enabled=True,
+            tick_interval_s=0.01,
+        ),
+        registry=MorphogenesisRegistry(config=MorphogenesisConfig(), root=tmp_path / "morphogenesis"),
+    )
+    rt.tick = AsyncMock()
+    monkeypatch.setattr(MorphogeneticRuntime, "_foreground_quiet_window_active", staticmethod(lambda: True))
+
+    await rt.start()
+    await asyncio.sleep(0.05)
+    await rt.stop()
+
+    rt.tick.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_runtime_disabled_does_not_start():
     """If config.enabled=False, start() should be a no-op."""
     rt = MorphogeneticRuntime(config=MorphogenesisConfig(enabled=False))

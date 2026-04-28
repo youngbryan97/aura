@@ -1035,6 +1035,20 @@ class UnitaryResponsePhase(Phase):
         messages.append({"role": "user", "content": objective})
         return messages
 
+    @staticmethod
+    def _sync_first_system_message(messages: list[dict], system_prompt: str) -> None:
+        """Keep prebuilt messages aligned after late prompt trimming/guidance."""
+        if not isinstance(messages, list):
+            return
+        prompt = str(system_prompt or "").strip()
+        if not prompt:
+            return
+        for msg in messages:
+            if isinstance(msg, dict) and str(msg.get("role", "") or "").strip().lower() == "system":
+                msg["content"] = prompt
+                return
+        messages.insert(0, {"role": "system", "content": prompt})
+
     @classmethod
     def _normalize_text(cls, value: Any, limit: int = 0) -> str:
         raw = str(value or "").strip()
@@ -2239,6 +2253,21 @@ class UnitaryResponsePhase(Phase):
             new_state.cognition.current_origin = routing_origin
             contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing)
             new_state.response_modifiers["response_contract"] = contract.to_dict()
+            is_deep_probe_objective = bool(
+                is_user_facing and self._is_deep_mind_probe_objective(objective)
+            )
+            if is_deep_probe_objective:
+                try:
+                    gate = ServiceContainer.get("inference_gate", default=None)
+                    if gate and hasattr(gate, "_extend_startup_quiet_window"):
+                        gate._extend_startup_quiet_window(180.0)
+                    if gate and hasattr(gate, "_shed_background_workers_for_memory_pressure"):
+                        await gate._shed_background_workers_for_memory_pressure(
+                            force=True,
+                            reason="deep_probe_foreground_start",
+                        )
+                except Exception as quiet_exc:
+                    logger.debug("UnitaryResponse: early deep-probe foreground quiet failed: %s", quiet_exc)
             if is_user_facing:
                 await self._refresh_integrated_present(new_state)
             precomputed_reply = self._normalize_text(
@@ -2645,9 +2674,10 @@ class UnitaryResponsePhase(Phase):
             use_compact_router_payload = bool(
                 not contract.requires_search
                 and not grounding_evidence_active
-                and not live_grounding_required
+                and (is_deep_probe_objective or not live_grounding_required)
                 and (
-                    not is_user_facing
+                    is_deep_probe_objective
+                    or not is_user_facing
                     or contract.reason == "ordinary_dialogue"
                     or contract.requires_memory_grounding
                     or contract.requires_state_reflection
@@ -2666,7 +2696,11 @@ class UnitaryResponsePhase(Phase):
                 )
             elif use_compact_router_payload:
                 system_prompt = self._build_compact_router_system_prompt(new_state)
-                history_limit = 8 if new_state.response_modifiers.get("coding_request") else 6
+                history_limit = (
+                    2 if is_deep_probe_objective
+                    else 8 if new_state.response_modifiers.get("coding_request")
+                    else 6
+                )
                 messages = self._build_router_messages(
                     new_state,
                     objective,
@@ -2718,7 +2752,7 @@ class UnitaryResponsePhase(Phase):
             if is_user_facing:
                 voice_block = self._build_user_facing_voice_block(new_state, contract)
                 _prepend_system_guidance(voice_block)
-            if is_user_facing and self._is_deep_mind_probe_objective(objective):
+            if is_deep_probe_objective:
                 try:
                     from core.evaluation.deep_mind_probe import deep_probe_prompt_block
 
@@ -2775,6 +2809,7 @@ class UnitaryResponsePhase(Phase):
                 # Keep the identity/rules header and trim context blocks
                 system_prompt = system_prompt[:_MAX_PROMPT_CHARS].rstrip()
                 system_prompt += "\n[...context trimmed for token budget...]"
+                self._sync_first_system_message(messages, system_prompt)
 
             # Anti-repetition injection: if recent responses have been stale,
             # inject an explicit instruction to avoid repeating prior patterns.
@@ -2796,6 +2831,7 @@ class UnitaryResponsePhase(Phase):
                         # Re-trim if needed
                         if len(system_prompt) > _MAX_PROMPT_CHARS + 400:
                             system_prompt = system_prompt[:_MAX_PROMPT_CHARS + 400]
+                        self._sync_first_system_message(messages, system_prompt)
                         logger.warning("🚨 Anti-repetition instruction injected into system prompt.")
             except Exception:
                 pass  # anti-repetition is best-effort
@@ -2811,6 +2847,9 @@ class UnitaryResponsePhase(Phase):
                 "origin": routing_origin,
                 "purpose": "reply",
                 "is_background": not is_user_facing,
+                "foreground_request": is_user_facing,
+                "protected_foreground_lane": is_deep_probe_objective,
+                "deep_mind_probe": is_deep_probe_objective,
                 "timeout": request_timeout,
             }
             if use_compact_router_payload:

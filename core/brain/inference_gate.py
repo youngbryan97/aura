@@ -103,6 +103,15 @@ class InferenceGate:
         type(self)._instance_ref = weakref.ref(self)
         logger.info("🛡️ InferenceGate created.")
 
+    @classmethod
+    def _user_facing_recovery_response(cls, prompt: str) -> str:
+        return (
+            "I dropped the heavy reasoning lane, but I should not make you restate the question. "
+            "The cleanest answer I can preserve is this: I am still attached to the last thing you asked, "
+            "I should answer from that thread as soon as the deeper lane recovers, and I should mark any uncertainty "
+            "plainly instead of covering the break with fluent filler."
+        )
+
     @staticmethod
     def _log_task_exception(task: asyncio.Task) -> None:
         """Callback for fire-and-forget tasks — ensures exceptions are logged."""
@@ -1032,6 +1041,8 @@ class InferenceGate:
             return "foreground_headroom_reserved"
         if self._should_quiet_background_for_cortex_startup():
             return "cortex_startup_quiet"
+        if self._foreground_quiet_window_active():
+            return "foreground_quiet_window"
 
         lane = self.get_conversation_status()
         try:
@@ -1048,13 +1059,8 @@ class InferenceGate:
             startup_guard_secs = float(os.environ.get("AURA_SAFE_BOOT_BACKGROUND_GUARD_SECS", "180"))
             startup_age = time.monotonic() - self._created_at
             if startup_age < startup_guard_secs:
-                # [STABILITY v54] Only defer if we are truly tight on memory.
-                # On high-RAM machines, 180s is too long to block background work
-                # if the 32B model is already loaded and stable.
-                vm = psutil.virtual_memory()
-                if vm.percent > 85.0:
-                    if lane_state in {"cold", "spawning", "handshaking", "warming", "recovering", "failed"}:
-                        return "cortex_startup_quiet"
+                if lane_state in {"cold", "spawning", "handshaking", "warming", "recovering", "failed"}:
+                    return "cortex_startup_quiet"
             if self._background_memory_pressure_active():
                 if lane_state in {"cold", "spawning", "handshaking", "warming", "recovering", "failed"}:
                     return "memory_pressure"
@@ -1065,9 +1071,14 @@ class InferenceGate:
                 return "memory_pressure"
         return None
 
-    async def _shed_background_workers_for_memory_pressure(self) -> None:
+    async def _shed_background_workers_for_memory_pressure(
+        self,
+        *,
+        force: bool = False,
+        reason: str = "background_memory_pressure_shed",
+    ) -> None:
         now = time.monotonic()
-        if (now - self._last_background_memory_shed_at) < 20.0:
+        if not force and (now - self._last_background_memory_shed_at) < 20.0:
             return
         self._last_background_memory_shed_at = now
 
@@ -1095,12 +1106,13 @@ class InferenceGate:
                 if not hasattr(client, "is_alive") or not client.is_alive():
                     continue
                 logger.warning(
-                    "🧹 InferenceGate: unloading %s under memory pressure to protect the 32B lane.",
+                    "🧹 InferenceGate: unloading %s to protect the foreground lane (%s).",
                     os.path.basename(client_path),
+                    reason,
                 )
                 if hasattr(client, "reboot_worker"):
                     await client.reboot_worker(
-                        reason="background_memory_pressure_shed",
+                        reason=reason,
                         mark_failed=False,
                     )
                 else:
@@ -1110,7 +1122,11 @@ class InferenceGate:
                 logger.debug("Background worker shed failed for %s: %s", client_path, exc)
 
         if shed_count:
-            logger.info("✅ InferenceGate: shed %d background local worker(s) under memory pressure.", shed_count)
+            logger.info(
+                "✅ InferenceGate: shed %d background local worker(s) (%s).",
+                shed_count,
+                reason,
+            )
 
     @staticmethod
     def _foreground_owner_active() -> bool:
@@ -2167,7 +2183,13 @@ class InferenceGate:
             return clean
         return clean[: limit - 1].rstrip() + "…"
 
-    def _compact_prebuilt_messages(self, messages: List[Dict[str, Any]], *, history_limit: int = 12) -> List[Dict[str, str]]:
+    def _compact_prebuilt_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        *,
+        history_limit: int = 12,
+        deep_probe: bool = False,
+    ) -> List[Dict[str, str]]:
         """Trim oversized prebuilt chat payloads for the live 32B lane.
 
         Many callers already assemble messages upstream. For fast foreground turns,
@@ -2196,14 +2218,22 @@ class InferenceGate:
             elif role in {"user", "assistant"}:
                 convo.append(normalized)
 
+        if deep_probe and system_message is not None:
+            content = str(system_message.get("content", "") or "")
+            if len(content) > 5200:
+                system_message["content"] = content[:5199].rstrip() + "…"
+
         compact: List[Dict[str, str]] = []
         if system_message is not None:
             compact.append(system_message)
-        compact.extend(preserved_system_messages[-1:])
+        if not deep_probe:
+            compact.extend(preserved_system_messages[-1:])
         compact.extend(convo[-max(1, int(history_limit)):])
 
         context_window = self._foreground_prompt_context_window()
         total_budget_chars = max(14000, int(max(4096, context_window - 1536) * 2.25))
+        if deep_probe:
+            total_budget_chars = min(total_budget_chars, 9000)
 
         while compact and sum(len(str(msg.get("content", "") or "")) for msg in compact) > total_budget_chars:
             removable_index = None
@@ -2261,6 +2291,16 @@ class InferenceGate:
         explicit_background = "is_background" in context
         explicit_foreground = bool(context.get("foreground_request", False))
         protected_foreground_lane = bool(context.get("protected_foreground_lane", False))
+        deep_probe_request = False
+        try:
+            from core.runtime.turn_analysis import looks_like_deep_mind_probe
+
+            deep_probe_request = looks_like_deep_mind_probe(prompt)
+        except Exception:
+            deep_probe_request = False
+        if deep_probe_request and (explicit_foreground or self._origin_is_user_facing(origin)):
+            protected_foreground_lane = True
+            context["deep_mind_probe"] = True
         is_background = bool(context.get("is_background", False))
         if explicit_foreground:
             is_background = False
@@ -2302,12 +2342,24 @@ class InferenceGate:
                         "⏸️ InferenceGate: Cortex quiet window active. Deferring background inference for origin=%s.",
                         origin,
                     )
+                elif background_deferral == "foreground_quiet_window":
+                    logger.info(
+                        "⏸️ InferenceGate: Foreground quiet window active. Deferring background inference for origin=%s.",
+                        origin,
+                    )
                 else:
                     logger.info(
                         "⏸️ InferenceGate: Foreground lane reserved. Deferring background inference for origin=%s.",
                         origin,
                     )
                 return None
+
+        if protected_foreground_lane and not is_background:
+            self._extend_startup_quiet_window(180.0)
+            await self._shed_background_workers_for_memory_pressure(
+                force=True,
+                reason="protected_foreground_shed",
+            )
 
         # ── Morphogenesis routing advice ──────────────────────────────────
         # If the morphogenetic metabolism reports very high system pressure,
@@ -2418,7 +2470,14 @@ class InferenceGate:
         # pool, and skip entirely for background/autonomous requests.
         _trust_guidance = ""
         _is_bg_request = bool(context.get("is_background", False))
-        if not _is_bg_request:
+        if deep_probe_request and not _is_bg_request:
+            # Deep self-report probes are foreground conversation checks, not
+            # authentication attempts or tool requests.  Running the PBKDF2
+            # passphrase recognizer here adds CPU contention right before the
+            # Cortex turn and does not change the allowed action surface.
+            context["allow_tools"] = False
+            context["trust_gate_skipped"] = "deep_mind_probe"
+        elif not _is_bg_request:
             try:
                 from core.security.user_recognizer import get_user_recognizer
                 from core.security.trust_engine import get_trust_engine, TrustLevel
@@ -2696,6 +2755,12 @@ class InferenceGate:
             except Exception as _fe_e:
                 logger.debug("FreeEnergy tier nudge unavailable: %s", _fe_e)
 
+        if deep_probe_request and not is_background:
+            probe_token_cap = int(os.environ.get("AURA_DEEP_PROBE_MAX_TOKENS", "384"))
+            max_tokens = min(max_tokens, max(128, probe_token_cap))
+            context["max_tokens"] = max_tokens
+            context["allow_tools"] = False
+
         # Build the prompt only after routing intent is known so we can choose
         # a compact user-facing path instead of always constructing the richest stack.
         brief = context.get("brief", "")
@@ -2790,7 +2855,12 @@ class InferenceGate:
                 else self._build_compact_messages(prompt, system_prompt, history)
             )
         if provided_messages is not None and use_compact_foreground_context:
-            messages = self._compact_prebuilt_messages(messages, history_limit=12)
+            deep_probe_context = bool(context.get("deep_mind_probe", False))
+            messages = self._compact_prebuilt_messages(
+                messages,
+                history_limit=2 if deep_probe_context else 12,
+                deep_probe=deep_probe_context,
+            )
         prompt_chars = sum(len(str(msg.get("content", ""))) for msg in messages)
         prompt_mode = "rich" if use_rich_context else "compact"
         if use_compact_foreground_context:
@@ -3109,7 +3179,7 @@ class InferenceGate:
                         logger.info("Reset UnitaryResponsePhase circuit to HALF_OPEN for recovery")
                 except Exception:
                     pass
-                return "My thinking engine just hiccupped — try that again in a few seconds."
+                return self._user_facing_recovery_response(prompt)
             return None
 
         if time.monotonic() < self._cloud_backoff_until:
@@ -3180,7 +3250,7 @@ class InferenceGate:
         # gracefully without the error text leaking to TTS or the user.
         logger.error("All inference paths exhausted (Local + Cloud)")
         if _is_user_facing:
-             return "I lost my thread for a moment there. Say that again and I'll be right with you."
+             return self._user_facing_recovery_response(prompt)
         return None
 
     def _post_inference_update(self, response_text: str):

@@ -41,3 +41,17 @@ async def test_referential_followup_anchor_finds_previous_question(monkeypatch):
     anchor = await chat_mod._resolve_referential_followup_anchor("Can you answer it?")
 
     assert anchor == "Aura, name one concrete moment in the last hour where your internal state changed what you did."
+
+
+@pytest.mark.asyncio
+async def test_referential_followup_does_not_anchor_deep_probe(monkeypatch):
+    async def _fake_recent(_message, limit=8):
+        return ["What is one thing you can notice about your own operation without turning it into roleplay?"]
+
+    monkeypatch.setattr(chat_mod, "_gather_recent_user_messages_for_relevance", _fake_recent)
+
+    anchor = await chat_mod._resolve_referential_followup_anchor(
+        "Are you conscious? Answer without slogans, disclaimers, or trying to comfort me."
+    )
+
+    assert anchor is None

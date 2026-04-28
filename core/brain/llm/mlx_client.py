@@ -49,6 +49,24 @@ _MLX_RUNTIME_PROBE: Dict[str, Any] = {
 }
 _MLX_RUNTIME_PROBE_CACHE_PATH = Path.home() / ".aura" / "data" / "mlx_runtime_probe.json"
 SharedFuture = Union[asyncio.Future, cfutures.Future]
+_USER_FACING_ORIGINS = frozenset({
+    "user",
+    "voice",
+    "admin",
+    "api",
+    "gui",
+    "ws",
+    "websocket",
+    "direct",
+    "external",
+})
+_USER_FACING_PURPOSES = frozenset({
+    "chat",
+    "conversation",
+    "expression",
+    "reply",
+    "user_response",
+})
 
 
 def _probe_cache_ttl_seconds(ok: Optional[bool], *, disk: bool) -> float:
@@ -79,6 +97,24 @@ def _new_shared_future() -> SharedFuture:
     return cfutures.Future()
 
 
+def _bounded_max_tokens(requested: Any, bridged: Any, fallback: int) -> int:
+    """Shrink token budgets without ever handing MLX a zero-token generation."""
+    def _coerce(value: Any) -> int:
+        if value is None or value == "":
+            return int(fallback)
+        return int(value)
+
+    try:
+        requested_int = _coerce(requested)
+    except Exception:
+        requested_int = int(fallback)
+    try:
+        bridged_int = _coerce(bridged)
+    except Exception:
+        bridged_int = int(fallback)
+    return max(1, min(max(1, requested_int), max(1, bridged_int)))
+
+
 @contextlib.asynccontextmanager
 async def _spawn_gate_context():
     """Loop-agnostic async context manager for the global spawn gate."""
@@ -91,6 +127,36 @@ async def _spawn_gate_context():
 
 def _foreground_owner_active() -> bool:
     return _FOREGROUND_OWNER_NAME is not None
+
+
+def _origin_tokens(origin: Optional[str]) -> set[str]:
+    normalized = str(origin or "").strip().lower().replace("-", "_")
+    return {token for token in normalized.split("_") if token}
+
+
+def _origin_is_user_facing(origin: Optional[str]) -> bool:
+    tokens = _origin_tokens(origin)
+    return bool(tokens & _USER_FACING_ORIGINS)
+
+
+def _background_deferral_active(origin: Optional[str] = None) -> Optional[str]:
+    """Mirror InferenceGate's background quiet policy inside the MLX client.
+
+    The gate can reject newly scheduled background requests, but an already
+    running background request may reach this client after the foreground lane
+    has been reserved.  Checking here prevents that stale request from
+    re-spawning a worker Aura just unloaded to protect a user turn.
+    """
+    try:
+        from core.container import ServiceContainer
+
+        gate = ServiceContainer.get("inference_gate", default=None)
+        if gate and hasattr(gate, "_background_local_deferral_reason"):
+            reason = gate._background_local_deferral_reason(origin=origin)
+            return str(reason) if reason else None
+    except Exception as exc:
+        logger.debug("MLX background deferral check unavailable: %s", exc)
+    return None
 
 
 def _foreground_owner_age(now: Optional[float] = None) -> float:
@@ -1250,6 +1316,15 @@ class MLXLocalClient:
                 _FOREGROUND_OWNER_NAME or "foreground",
             )
             return False
+        if request_is_background:
+            background_deferral = _background_deferral_active(os.path.basename(self.model_path))
+            if background_deferral:
+                logger.info(
+                    "⏸️ [MLX] Deferring background worker activity for %s (%s).",
+                    os.path.basename(self.model_path),
+                    background_deferral,
+                )
+                return False
 
         # Fast path: if worker is already alive, don't acquire the gate
         if self._process and self._process.is_alive() and self._init_done:
@@ -1294,6 +1369,15 @@ class MLXLocalClient:
                 os.path.basename(self.model_path),
             )
             return False
+        if request_is_background:
+            background_deferral = _background_deferral_active(os.path.basename(self.model_path))
+            if background_deferral:
+                logger.info(
+                    "⏸️ [MLX] Background spawn blocked for %s (%s).",
+                    os.path.basename(self.model_path),
+                    background_deferral,
+                )
+                return False
         
         if target_path in (primary_path, deep_path):
             other_heavy_path = deep_path if target_path == primary_path else primary_path
@@ -1847,6 +1931,16 @@ class MLXLocalClient:
             foreground_request = False
         owner_label = str(kwargs.pop("owner_label", os.path.basename(self.model_path)) or os.path.basename(self.model_path))
         deadline = kwargs.get("deadline")
+        origin_label = str(kwargs.get("origin", "") or "")
+        purpose_label = str(kwargs.get("purpose", "") or "")
+        if (
+            not request_is_background
+            and not foreground_request
+            and origin_label
+            and not _origin_is_user_facing(origin_label)
+            and purpose_label.strip().lower() not in _USER_FACING_PURPOSES
+        ):
+            request_is_background = True
 
         if request_is_background and _foreground_owner_active():
             logger.info(
@@ -1854,6 +1948,16 @@ class MLXLocalClient:
                 os.path.basename(self.model_path),
             )
             return None
+        if request_is_background:
+            background_origin = str(kwargs.get("origin", "") or owner_label or os.path.basename(self.model_path))
+            background_deferral = _background_deferral_active(background_origin)
+            if background_deferral:
+                logger.info(
+                    "⏸️ [MLX] Deferring background generation for %s (%s).",
+                    os.path.basename(self.model_path),
+                    background_deferral,
+                )
+                return None
 
         # ── PREVENTIVE: Memory pressure check before generation ──────
         # If RAM is critically low, reduce max_tokens to prevent OOM kill.
@@ -1956,6 +2060,16 @@ class MLXLocalClient:
                 os.path.basename(self.model_path),
             )
             return None
+        if request_is_background:
+            background_origin = owner_label or str(kwargs.get("origin", "") or os.path.basename(self.model_path))
+            background_deferral = _background_deferral_active(background_origin)
+            if background_deferral:
+                logger.info(
+                    "⏸️ [MLX] Background generation for %s stopped before worker spawn (%s).",
+                    os.path.basename(self.model_path),
+                    background_deferral,
+                )
+                return None
 
         deadline = kwargs.get("deadline")
         if not isinstance(deadline, Deadline):
@@ -2032,9 +2146,10 @@ class MLXLocalClient:
             # max_tokens is a *cap*: the bridge can shrink it (vitality
             # drops shorten output), but never expands what the caller
             # asked for.
-            "max_tokens": min(
-                int(kwargs.get("max_tokens", self.max_tokens) or self.max_tokens),
-                int(_bridge_get("max_tokens", self.max_tokens)),
+            "max_tokens": _bounded_max_tokens(
+                kwargs.get("max_tokens", self.max_tokens),
+                _bridge_get("max_tokens", self.max_tokens),
+                self.max_tokens,
             ),
             "schema": kwargs.get("schema"),
         }

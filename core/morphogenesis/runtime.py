@@ -4,6 +4,7 @@ import asyncio
 import logging
 import traceback
 import time
+import contextlib
 from collections import deque
 from pathlib import Path
 from typing import Any, Deque, Dict, Iterable, List, Optional, Sequence
@@ -85,7 +86,7 @@ class MorphogeneticRuntime:
                 await task
             except asyncio.CancelledError:
                 pass
-        self.registry.save()
+        await asyncio.to_thread(self.registry.save)
         logger.info("MorphogeneticRuntime stopped.")
 
     async def on_stop_async(self) -> None:
@@ -220,7 +221,7 @@ class MorphogeneticRuntime:
                         pass
 
         if self._tick % max(1, self.config.snapshot_every_ticks) == 0:
-            self.registry.save()
+            await asyncio.to_thread(self.registry.save)
 
         await self._maybe_record_episode(active_results)
 
@@ -237,6 +238,13 @@ class MorphogeneticRuntime:
     async def _run_loop(self) -> None:
         while not self._stopping.is_set():
             try:
+                if self._foreground_quiet_window_active():
+                    self._last_tick_at = time.time()
+                    with contextlib.suppress(Exception):
+                        from core.morphogenesis.hooks import heartbeat_self_healing
+                        heartbeat_self_healing()
+                    await asyncio.sleep(max(0.5, self.config.tick_interval_s))
+                    continue
                 await self.tick()
                 self._last_tick_error = ""
             except asyncio.CancelledError:
@@ -254,6 +262,19 @@ class MorphogeneticRuntime:
                     )
                 )
             await asyncio.sleep(max(0.05, self.config.tick_interval_s))
+
+    @staticmethod
+    def _foreground_quiet_window_active() -> bool:
+        try:
+            from core.container import ServiceContainer
+
+            orch = ServiceContainer.get("orchestrator", default=None)
+            if not orch:
+                return False
+            quiet_until = float(getattr(orch, "_foreground_user_quiet_until", 0.0) or 0.0)
+            return quiet_until > time.time()
+        except Exception:
+            return False
 
     def _consume_signals(self) -> List[MorphogenSignal]:
         out: List[MorphogenSignal] = []

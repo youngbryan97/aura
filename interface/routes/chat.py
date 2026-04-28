@@ -676,9 +676,17 @@ def _is_referential_followup_request(user_message: str) -> bool:
     text = _normalize_user_message(user_message)
     if not text or len(text) > 120:
         return False
+    try:
+        from core.runtime.turn_analysis import looks_like_deep_mind_probe
+
+        if looks_like_deep_mind_probe(user_message):
+            return False
+    except Exception:
+        pass
     if any(marker in text for marker in _REFERENTIAL_FOLLOWUP_MARKERS):
         return True
-    return ("question" in text or "answer" in text) and any(token in text for token in ("it", "that", "last"))
+    tokens = set(re.findall(r"\b\w+\b", text))
+    return ("question" in tokens or "answer" in tokens) and bool(tokens & {"it", "that", "last"})
 
 
 def _classify_traceability_request(user_message: str) -> tuple[bool, bool, bool]:
