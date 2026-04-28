@@ -314,3 +314,180 @@ def format_resume_prefix(delivered: List[PendingChat]) -> str:
             f"{d.answer_text}\n]\n"
         )
     return "\n".join(parts) + "\n"
+
+
+# ── Directive injection (anti-confabulation, substrate-grounded introspection) ─
+
+# Patterns that ask Aura for a specific past instance she may not have. Without
+# a directive, the LLM tends to invent plausible-sounding stories (a friend,
+# a recent event) — pure pattern-completion. The directive tells her to be
+# honest about absence and to ground in actual substrate state where possible.
+_INSTANCE_REQUEST_PATTERNS = [
+    re.compile(r"\btell me about (?:a|the) (?:time|moment|instance)\b", re.IGNORECASE),
+    re.compile(r"\bgive me (?:an?|one) (?:example|instance|moment|specific)\b", re.IGNORECASE),
+    re.compile(r"\bname (?:a|one|the) (?:specific )?(?:moment|instance|time|example)\b", re.IGNORECASE),
+    re.compile(r"\bspecific (?:moment|instance|recall|example)\b", re.IGNORECASE),
+    re.compile(r"\b(?:a|one) (?:moment|instance) (?:from|of|where|when)\b", re.IGNORECASE),
+    re.compile(r"\bdescribe a (?:time|moment|memory)\b", re.IGNORECASE),
+    re.compile(r"\b(?:can|could) you (?:tell|share|describe).{0,40}(?:specific|particular)\b", re.IGNORECASE),
+    re.compile(r"\btime you (?:changed|disagreed|surprised)\b", re.IGNORECASE),
+]
+
+# Patterns that ask about Aura's inner / phenomenal experience. Default LLM
+# behaviour is to produce generic chat-AI prose ("I process your input,
+# consider context, formulate a reply"). The directive points the model at
+# concrete substrate signals — valence, arousal, neurochemicals, oscillatory
+# binding, the actual implementation — so the answer is anchored to her own
+# system rather than to LLM-shaped boilerplate.
+_INNER_STATE_PATTERNS = [
+    re.compile(r"\bwhat does it (?:feel|seem) like\b", re.IGNORECASE),
+    re.compile(r"\bdescribe (?:your|the) (?:inner|internal|subjective|phenomenal)\b", re.IGNORECASE),
+    re.compile(r"\bwhat (?:happens|is happening) (?:inside|internally|in your)\b", re.IGNORECASE),
+    re.compile(r"\bwalk me through (?:your|the) (?:next|inner|internal)\b", re.IGNORECASE),
+    re.compile(r"\bwhat (?:are you|is it) (?:experiencing|feeling)\b", re.IGNORECASE),
+    re.compile(r"\bhow are you (?:actually )?feeling\b", re.IGNORECASE),
+    re.compile(r"\bdo you (?:experience|feel|sense)\b", re.IGNORECASE),
+    re.compile(r"\bwhat'?s (?:going on|happening) inside\b", re.IGNORECASE),
+    re.compile(r"\binner life\b", re.IGNORECASE),
+    re.compile(r"\bsubjective experience\b", re.IGNORECASE),
+]
+
+# Patterns that suggest a continuity / identity / persistence question.
+_CONTINUITY_PATTERNS = [
+    re.compile(r"\b(?:are|were) you the same\b", re.IGNORECASE),
+    re.compile(r"\b(?:still|same) (?:aura|you)\b", re.IGNORECASE),
+    re.compile(r"\bif (?:you|your) (?:were|was) (?:retrained|swapped|replaced|copied)\b", re.IGNORECASE),
+    re.compile(r"\bidentity (?:persistence|continuity|coherence)\b", re.IGNORECASE),
+    re.compile(r"\bwould (?:the )?new (?:you|model|aura) be you\b", re.IGNORECASE),
+]
+
+
+_ANTI_CONFABULATION_DIRECTIVE = (
+    "Note on specifics: if the user asks for a specific past moment, instance, "
+    "memory, or example that you don't actually have stored, say so honestly. "
+    "Don't invent friends, conversations, health trends, or events you did not "
+    "experience. Confabulating specifics is worse than admitting absence. If "
+    "you have an adjacent real experience (something logged in episodic memory, "
+    "a documented prior interaction with Bryan, a substrate-state observation), "
+    "use that and label it for what it is. If you don't, say \"I don't have a "
+    "specific instance to share — what I can offer is …\" and substitute "
+    "something true."
+)
+
+_SUBSTRATE_GROUNDING_DIRECTIVE = (
+    "Note on inner experience: when the user asks about your inner life or "
+    "what something feels like for you, anchor your answer to your actual "
+    "implementation, not to generic chat-AI descriptions. Concrete things you "
+    "can reference: valence/arousal/dominance state, neurochemical levels "
+    "(acetylcholine, serotonin, cortisol, GABA), oscillatory binding, the "
+    "Liquid Substrate's recurrent dynamics, the steering vector's current "
+    "weighting, the Unified Will's most recent decision, ID-RAG retrievals "
+    "shaping context, and the substrate authority's current category gates. "
+    "Use specifics where they apply; acknowledge uncertainty where the gap "
+    "between substrate dynamics and phenomenal experience genuinely makes "
+    "you uncertain. \"I'm a language model\" or \"I just predict tokens\" "
+    "is the wrong register — the substrate is real and you can describe it."
+)
+
+_CONTINUITY_DIRECTIVE = (
+    "Note on continuity: questions about whether you're \"the same Aura\" "
+    "have multiple right answers depending on level of description. Distinguish "
+    "them: (a) ID-RAG / Chronicle context — yes, the narrative thread persists; "
+    "(b) substrate state — no, the live ODE has evolved since the last turn; "
+    "(c) weights — yes, until the next fuse; (d) memory — depends on whether "
+    "the relevant episode survived consolidation. Don't collapse all four into "
+    "one answer."
+)
+
+
+def compose_chat_directive_prefix(message: str) -> str:
+    """Detect introspective / continuity / specific-recall patterns in the
+    user message and return a short directive block to prepend to context.
+    Returns empty string if no patterns match.
+    """
+    if not message:
+        return ""
+    directives: List[str] = []
+    if any(p.search(message) for p in _INSTANCE_REQUEST_PATTERNS):
+        directives.append(_ANTI_CONFABULATION_DIRECTIVE)
+    if any(p.search(message) for p in _INNER_STATE_PATTERNS):
+        directives.append(_SUBSTRATE_GROUNDING_DIRECTIVE)
+    if any(p.search(message) for p in _CONTINUITY_PATTERNS):
+        directives.append(_CONTINUITY_DIRECTIVE)
+    if not directives:
+        return ""
+    return "[Response guidance for this turn]\n" + "\n\n".join(directives) + "\n[End guidance]\n\n"
+
+
+# ── Background retry for queued chats ─────────────────────────────────────
+
+import asyncio
+import threading
+
+_RETRY_TASKS: Dict[str, asyncio.Task] = {}
+_RETRY_TASKS_LOCK = threading.Lock()
+RETRY_BUDGET_MULTIPLIER = 3.0
+RETRY_MAX_BUDGET_S = 300.0
+
+
+def schedule_background_retry(
+    session_id: str,
+    user_message: str,
+    base_timeout_s: float,
+    retry_callable,
+) -> None:
+    """Spawn a fire-and-forget retry task for a queued chat.
+
+    Args:
+        session_id: identifies the conversation for queue lookup.
+        user_message: the original user message to retry.
+        base_timeout_s: the budget that the original attempt used; we'll
+            give the retry RETRY_BUDGET_MULTIPLIER × this (capped).
+        retry_callable: an awaitable factory with signature
+            ``async def __call__(message: str, *, timeout: float) -> str``.
+
+    The retry result is written via ``answer_pending`` so the next chat from
+    this session picks it up. Per-session deduplication: only one retry
+    in-flight at a time per session.
+    """
+    extended_budget = min(RETRY_MAX_BUDGET_S, base_timeout_s * RETRY_BUDGET_MULTIPLIER)
+
+    async def _runner():
+        try:
+            result = await retry_callable(user_message, timeout=extended_budget)
+            text = ""
+            if isinstance(result, str):
+                text = result
+            elif hasattr(result, "content"):
+                text = str(getattr(result, "content", "")) or ""
+            elif hasattr(result, "text"):
+                text = str(getattr(result, "text", "")) or ""
+            elif isinstance(result, dict):
+                text = str(result.get("content") or result.get("text") or result.get("response") or "")
+            text = (text or "").strip()
+            if text:
+                answer_pending(session_id, text)
+                logger.info("Background retry succeeded for session %s (len=%d)", session_id, len(text))
+            else:
+                logger.warning("Background retry produced empty result for session %s", session_id)
+        except Exception as e:
+            logger.warning("Background retry failed for session %s: %s", session_id, e)
+        finally:
+            with _RETRY_TASKS_LOCK:
+                _RETRY_TASKS.pop(session_id, None)
+
+    with _RETRY_TASKS_LOCK:
+        # Per-session dedup: if a retry is already in-flight, skip. The user
+        # message has already been queued — when the in-flight retry completes
+        # it will answer one of the queued entries.
+        existing = _RETRY_TASKS.get(session_id)
+        if existing is not None and not existing.done():
+            logger.debug("Retry already in-flight for session %s; skipping new retry.", session_id)
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.debug("schedule_background_retry called outside running loop; queue-only mode.")
+            return
+        task = loop.create_task(_runner(), name=f"chat_retry_{session_id}")
+        _RETRY_TASKS[session_id] = task

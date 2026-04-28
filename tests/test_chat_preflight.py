@@ -25,6 +25,7 @@ from core.conversation.chat_preflight import (
     PendingChat,
     answer_pending,
     build_file_context_block,
+    compose_chat_directive_prefix,
     consume_for_session,
     enqueue,
     extract_file_references,
@@ -149,6 +150,134 @@ class TestPendingQueue(unittest.TestCase):
 
     def test_empty_delivered_returns_empty_string(self):
         self.assertEqual(format_resume_prefix([]), "")
+
+
+class TestDirectiveInjection(unittest.TestCase):
+    def test_no_directive_for_plain_chat(self):
+        self.assertEqual(compose_chat_directive_prefix("How's the weather today?"), "")
+        self.assertEqual(compose_chat_directive_prefix(""), "")
+
+    def test_anti_confabulation_on_specific_recall(self):
+        prefix = compose_chat_directive_prefix(
+            "Tell me about a time you changed your mind."
+        )
+        self.assertIn("Note on specifics", prefix)
+        self.assertIn("Don't invent", prefix)
+        self.assertIn("Response guidance", prefix)
+        self.assertIn("End guidance", prefix)
+
+    def test_anti_confabulation_on_name_a_moment(self):
+        prefix = compose_chat_directive_prefix(
+            "Name a specific moment from doing it that stayed with you."
+        )
+        self.assertIn("Note on specifics", prefix)
+
+    def test_substrate_grounding_on_inner_state(self):
+        prefix = compose_chat_directive_prefix(
+            "What does it feel like to wait for the next user input?"
+        )
+        self.assertIn("Note on inner experience", prefix)
+        self.assertIn("substrate", prefix.lower())
+        self.assertIn("neurochemical", prefix.lower())
+
+    def test_substrate_grounding_on_walk_me_through(self):
+        prefix = compose_chat_directive_prefix(
+            "Walk me through the next 30 seconds of your inner life."
+        )
+        self.assertIn("Note on inner experience", prefix)
+
+    def test_continuity_directive_on_same_aura(self):
+        prefix = compose_chat_directive_prefix(
+            "Are you the same Aura I talked to an hour ago?"
+        )
+        self.assertIn("Note on continuity", prefix)
+        self.assertIn("ID-RAG", prefix)
+
+    def test_continuity_directive_on_retrain(self):
+        prefix = compose_chat_directive_prefix(
+            "If you were retrained tomorrow, would the new you be you?"
+        )
+        self.assertIn("Note on continuity", prefix)
+
+    def test_multiple_directives_compose(self):
+        # A message that triggers two patterns at once: specific-instance
+        # request + inner-state probe.
+        prefix = compose_chat_directive_prefix(
+            "Tell me about a time you stopped to describe your inner state."
+        )
+        self.assertIn("Note on specifics", prefix)
+        self.assertIn("Note on inner experience", prefix)
+
+
+class TestNeurochemicalHomeostasis(unittest.TestCase):
+    """Verify the GABA-collapse fix: chemicals must return toward baseline,
+    not decay toward zero. Pre-fix, after 30 ticks GABA dropped below the
+    0.10 collapse threshold from a 0.5 baseline."""
+
+    def test_chemical_returns_to_baseline_with_no_production(self):
+        # Late-import to avoid pulling in heavy stack at module-load
+        import core.runtime.atomic_writer  # noqa: F401
+        import core.utils.concurrency      # noqa: F401
+        import core.exceptions             # noqa: F401
+        import core.container              # noqa: F401
+        from core.consciousness.neurochemical_system import Chemical
+
+        gaba = Chemical(name="gaba", level=0.5, baseline=0.5,
+                        uptake_rate=0.05, production_rate=0.0)
+        gaba.tonic_level = 0.5  # ensure starting point
+
+        # Simulate 100 ticks (5s at 20Hz)
+        for _ in range(100):
+            gaba.tick(dt=1.0)
+
+        # Should be at or near baseline 0.5, never below 0.4
+        self.assertGreaterEqual(gaba.tonic_level, 0.45,
+                                f"GABA collapsed to {gaba.tonic_level:.3f} after 100 ticks")
+        self.assertLessEqual(gaba.tonic_level, 0.55,
+                             f"GABA overshot to {gaba.tonic_level:.3f} after 100 ticks")
+
+    def test_chemical_recovers_from_depletion(self):
+        import core.runtime.atomic_writer  # noqa: F401
+        import core.utils.concurrency      # noqa: F401
+        import core.exceptions             # noqa: F401
+        import core.container              # noqa: F401
+        from core.consciousness.neurochemical_system import Chemical
+
+        gaba = Chemical(name="gaba", level=0.5, baseline=0.5,
+                        uptake_rate=0.05, production_rate=0.0)
+        gaba.tonic_level = 0.5
+        gaba.deplete(0.2)  # drop to 0.3
+        self.assertAlmostEqual(gaba.tonic_level, 0.3, delta=0.001)
+
+        # 100 ticks should bring it back near baseline
+        for _ in range(100):
+            gaba.tick(dt=1.0)
+
+        self.assertGreater(gaba.tonic_level, 0.45,
+                           f"GABA failed to recover from depletion: {gaba.tonic_level:.3f}")
+
+    def test_chemical_does_not_collapse_below_threshold(self):
+        """The test that would have caught the original bug."""
+        import core.runtime.atomic_writer  # noqa: F401
+        import core.utils.concurrency      # noqa: F401
+        import core.exceptions             # noqa: F401
+        import core.container              # noqa: F401
+        from core.consciousness.neurochemical_system import Chemical
+
+        # GABA starts at baseline; with no surges/depletes, should never
+        # cross the 0.10 collapse threshold.
+        gaba = Chemical(name="gaba", level=0.5, baseline=0.5,
+                        uptake_rate=0.05, production_rate=0.0)
+        gaba.tonic_level = 0.5
+
+        min_seen = gaba.tonic_level
+        # 1000 ticks = 50 seconds at 20Hz; previously GABA was at ~0.039 by then
+        for _ in range(1000):
+            gaba.tick(dt=1.0)
+            min_seen = min(min_seen, gaba.tonic_level)
+
+        self.assertGreater(min_seen, 0.10,
+                           f"GABA collapse re-occurring: min={min_seen:.4f} over 1000 ticks")
 
 
 if __name__ == "__main__":

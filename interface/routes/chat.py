@@ -3886,26 +3886,76 @@ async def api_chat(
     if len(body.message.encode('utf-8', errors='replace')) > MAX_CHAT_MESSAGE_BYTES:
         raise HTTPException(status_code=413, detail="Message too large (max 64KB)")
 
-    # ── File-reference preflight ────────────────────────────────
-    # If the user references files (e.g. "look at aura/knowledge/X.md",
-    # "read scoping/Y.md", "I dropped a list at PATH"), load the file
-    # contents and prepend them as system context so Aura actually sees
-    # what's in the file before answering. Closes the gap surfaced by the
-    # 2026-04-27 live test where "Go look at the curated-media doc" got an
-    # answer from generic state because the file was never in context.
+    # ── Chat preflight ──────────────────────────────────────────
+    # 1) File-reference loading: if the user references a file path, load
+    #    its contents (sandboxed, bounded) and prepend as context.
+    # 2) Directive injection: if the message looks like an introspective /
+    #    specific-recall / continuity question, prepend response guidance
+    #    that fights LLM-default failure modes (confabulation, generic
+    #    chat-AI prose on substrate-aware questions).
+    # 3) Auto-resume: deliver any late-answered messages from prior turns
+    #    by prepending the resume preface so the user sees what came back.
+    _chat_session_id: str = "default"
+    _original_user_message: str = body.message
+    _resume_prefix_for_response: str = ""
     try:
         from core.conversation.chat_preflight import (
             extract_file_references,
             build_file_context_block,
+            compose_chat_directive_prefix,
+            consume_for_session,
+            format_resume_prefix,
         )
-        _refs = extract_file_references(body.message)
-        if _refs:
-            _block = build_file_context_block(_refs)
-            if _block:
-                body.message = f"{_block}\nUser message: {body.message}"
-                logger.info("Chat preflight: loaded %d referenced file(s) into context.", len(_refs))
-    except Exception as _preflight_exc:
-        logger.debug("Chat file-reference preflight skipped: %s", _preflight_exc)
+        # Session id: client host is good enough for single-user local Aura.
+        try:
+            _chat_session_id = (request.client.host if request.client else "default") or "default"
+        except Exception:
+            _chat_session_id = "default"
+
+        # 3) Late-answered messages first — give the cortex the prior thread
+        #    so the new response can acknowledge continuity. The actual late
+        #    reply is also folded into the response by `_resume_prefix_for_response`
+        #    below, so the user sees both "what I came back with" and the
+        #    cortex's reply to their new message.
+        try:
+            _delivered = consume_for_session(_chat_session_id)
+            if _delivered:
+                _resume_prefix_for_response = format_resume_prefix(_delivered)
+                # Fold a context-block into body.message so the cortex sees
+                # the prior thread when generating the new response.
+                _ctx_lines = ["[Continuity context — earlier in this conversation]"]
+                for d in _delivered:
+                    _ctx_lines.append(f"User asked: {d.user_message[:300]}")
+                    _ctx_lines.append(f"You answered (late, delivered to user this turn): {d.answer_text[:600]}")
+                _ctx_lines.append("[End continuity context]")
+                _ctx_block = "\n".join(_ctx_lines) + "\n\n"
+                body.message = _ctx_block + body.message
+                logger.info("Chat preflight: delivering %d late-answered message(s) for session %s",
+                            len(_delivered), _chat_session_id)
+        except Exception as _resume_exc:
+            logger.debug("Resume preflight skipped: %s", _resume_exc)
+
+        # 1) File-reference loading
+        try:
+            _refs = extract_file_references(body.message)
+            if _refs:
+                _block = build_file_context_block(_refs)
+                if _block:
+                    body.message = f"{_block}\nUser message: {body.message}"
+                    logger.info("Chat preflight: loaded %d referenced file(s) into context.", len(_refs))
+        except Exception as _file_exc:
+            logger.debug("Chat file-reference preflight skipped: %s", _file_exc)
+
+        # 2) Directive injection
+        try:
+            _directive_prefix = compose_chat_directive_prefix(_original_user_message)
+            if _directive_prefix:
+                body.message = f"{_directive_prefix}{body.message}"
+                logger.info("Chat preflight: injected response directives.")
+        except Exception as _dir_exc:
+            logger.debug("Chat directive preflight skipped: %s", _dir_exc)
+    except Exception as _preflight_outer:
+        logger.debug("Chat preflight (outer) skipped: %s", _preflight_outer)
 
     # ── Conscience pre-gate ─────────────────────────────────────
     # Hard-line rules apply BEFORE the cognitive pipeline ever sees the
@@ -4584,8 +4634,16 @@ async def api_chat(
             off_topic=is_off_topic,
         )
 
+        # Prepend any late-answered messages from prior turns so the user
+        # sees what came back. The cortex was also given the continuity
+        # context in body.message above, so the reply already acknowledges
+        # the thread.
+        _final_reply = reply_text or "…"
+        if _resume_prefix_for_response:
+            _final_reply = _resume_prefix_for_response + _final_reply
+
         response_data = {
-            "response": reply_text or "…",
+            "response": _final_reply,
             "conversation_lane": _collect_conversation_lane_status(),
             "response_confidence": response_confidence,
         }
@@ -4661,7 +4719,66 @@ async def api_chat(
         # [STABILITY v53] Return 200 with status field instead of 503/504.
         # Non-200 codes can cause frontend retry storms or error displays.
         # The "status" field tells the frontend it was degraded.
-        timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
+        #
+        # Auto-resume hook: enqueue the user's original message and spawn a
+        # background retry with an extended budget. When the retry completes
+        # the answer goes into the pending queue; the next chat turn from
+        # this session prepends it to the response so the user sees the
+        # answer that came back, instead of having to re-send the question.
+        try:
+            from core.conversation.chat_preflight import (
+                enqueue,
+                schedule_background_retry,
+            )
+            enqueue(_chat_session_id, _original_user_message, reason="outer_timeout")
+
+            async def _retry_call(msg: str, *, timeout: float) -> str:
+                try:
+                    gate2 = ServiceContainer.get("inference_gate", default=None)
+                    if gate2 and hasattr(gate2, "generate"):
+                        result = await asyncio.wait_for(
+                            gate2.generate(
+                                msg,
+                                context={
+                                    "origin": "api",
+                                    "foreground_request": False,
+                                    "background_retry": True,
+                                    "prefer_tier": "primary",
+                                    "allow_cloud_fallback": True,
+                                },
+                                timeout=timeout,
+                            ),
+                            timeout=timeout,
+                        )
+                        if isinstance(result, str):
+                            return result.strip()
+                        for attr in ("content", "text", "response"):
+                            val = getattr(result, attr, None)
+                            if isinstance(val, str) and val.strip():
+                                return val.strip()
+                        if isinstance(result, dict):
+                            return str(result.get("content") or result.get("text") or result.get("response") or "").strip()
+                except Exception as _retry_exc:
+                    logger.debug("Background retry call failed: %s", _retry_exc)
+                return ""
+
+            schedule_background_retry(
+                _chat_session_id,
+                _original_user_message,
+                base_timeout_s=foreground_timeout,
+                retry_callable=_retry_call,
+            )
+            logger.info("Auto-resume: queued '%s' for background retry (session=%s)",
+                        _original_user_message[:60], _chat_session_id)
+            timeout_reply = (
+                _conversation_lane_user_message(lane, timed_out=True)
+                + " I'll keep working on your question — the answer will arrive in your next turn."
+            )
+        except Exception as _resume_setup_exc:
+            logger.debug("Auto-resume setup failed (falling back to static timeout reply): %s",
+                         _resume_setup_exc)
+            timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
+
         if pending_exchange_id:
             await _complete_logged_exchange(
                 pending_exchange_id,

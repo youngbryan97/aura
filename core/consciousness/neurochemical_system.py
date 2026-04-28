@@ -131,9 +131,25 @@ class Chemical:
         return min(1.0, combined * st.sensitivity * st.weight * self.proximity_weight)
 
     def tick(self, dt: float = 1.0):
-        """One metabolic step."""
-        # Tonic level: slow production and uptake
-        self.tonic_level += (self.production_rate - self.uptake_rate * self.tonic_level) * dt
+        """One metabolic step.
+
+        Tonic dynamics: an Ornstein-Uhlenbeck-style return-to-baseline plus
+        an additive production driver. The previous formula was
+        ``tonic += (production - uptake * tonic) * dt`` with
+        ``production_rate = 0.0`` by default — this was pure exponential
+        decay toward zero, NOT a homeostatic system. GABA reached the
+        collapse threshold (0.10) about 30 ticks after boot (~1.5s at
+        20Hz), which surfaced as
+        ``🛑 SubstrateAuthority BLOCKED: ... — neurochemical_gaba_collapse``
+        suppressing memory writes and initiative across every Aura
+        session. Fixed 2026-04-27 by adding the homeostatic baseline
+        return term so chemicals decay TOWARD baseline rather than zero.
+        """
+        # Tonic level: production + homeostatic return + uptake
+        self.tonic_level += (
+            self.production_rate
+            + self.uptake_rate * (self.baseline - self.tonic_level)
+        ) * dt
         self.tonic_level = max(0.0, min(1.0, self.tonic_level))
         # Phasic burst: decays fast (5x uptake rate)
         self.phasic_burst *= max(0.0, 1.0 - (self.uptake_rate * 5.0 * dt))
