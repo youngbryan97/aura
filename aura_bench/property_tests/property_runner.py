@@ -116,4 +116,5 @@ def test_viability_total(cpu, ram, disk, broken):
         broken_subsystems=broken,
     )
     state = ViabilityEngine._classify(s)
-    if not (isinstance(state): raise RuntimeError(ViabilityState))
+    if not isinstance(state, ViabilityState):
+        raise RuntimeError(f"Viability classifier returned non-state value: {state!r}")

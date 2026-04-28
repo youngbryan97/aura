@@ -56,8 +56,8 @@ Begin your structured reasoning:"""
 
 Respond concisely and directly."""
 
-    def __init__(self):
-        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
+    def __init__(self, default_mode: str = "deep"):
+        self.default_mode = default_mode if default_mode in {"deep", "light"} else "deep"
 
     def build_structured_prompt(
         self,

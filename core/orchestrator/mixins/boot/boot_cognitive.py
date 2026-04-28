@@ -183,6 +183,24 @@ class BootCognitiveMixin:
 
             await ll.start()
             ServiceContainer.register_instance("live_learner", ll)
+            try:
+                from core.config import config
+                from core.learning.recursive_self_improvement import register_recursive_self_improvement_loop
+                from core.self_modification.structural_improver import StructuralImprover
+
+                structural = StructuralImprover(getattr(config.paths, "project_root", config.paths.base_dir))
+                ServiceContainer.register_instance("structural_improver", structural)
+                ServiceContainer.register_instance(
+                    "recursive_self_improvement",
+                    register_recursive_self_improvement_loop(
+                        live_learner=ll,
+                        self_modifier=ServiceContainer.get("self_modification_engine", default=None),
+                        structural_improver=structural,
+                    ),
+                )
+            except Exception as rsi_err:
+                record_degradation('boot_cognitive', rsi_err)
+                logger.debug("Recursive self-improvement loop registration failed: %s", rsi_err)
             logger.info("✓ Live Learner online and buffering")
         except Exception as e:
             record_degradation('boot_cognitive', e)

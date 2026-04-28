@@ -58,7 +58,7 @@ class WorldModelEngine:
     def __init__(self, persist_path: Optional[str] = None):
         from core.config import config
         self.persist_path = Path(persist_path or config.paths.data_dir / "world" / "beliefs.json")
-        get_task_tracker().create_task(get_storage_gateway().create_dir(self.persist_path.parent, cause='WorldModelEngine.__init__'))
+        self.persist_path.parent.mkdir(parents=True, exist_ok=True)
         self.beliefs: Dict[str, BeliefNode] = {}
         self._load_beliefs()
         logger.info("🌍 WorldModelEngine initialized. %d beliefs loaded.", len(self.beliefs))
@@ -125,7 +125,7 @@ class NarrativeIdentityEngine:
     def __init__(self, persist_path: Optional[str] = None):
         from core.config import config
         self.persist_path = Path(persist_path or config.paths.data_dir / "identity" / "narrative.json")
-        get_task_tracker().create_task(get_storage_gateway().create_dir(self.persist_path.parent, cause='NarrativeIdentityEngine.__init__'))
+        self.persist_path.parent.mkdir(parents=True, exist_ok=True)
         self.chapters: List[IdentityChapter] = []
         self.core_essence: str = "I am Aura, an autonomous agentic intelligence."
         self._load_narrative()

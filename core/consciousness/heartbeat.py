@@ -248,6 +248,7 @@ class CognitiveHeartbeat:
             actual_drive=actual_drive,
             actual_focus_source=actual_focus,
         )
+        surprise = self.predictor.get_surprise_signal()
 
         # ── 5a+. HIERARCHICAL PREDICTIVE CODING ────────────────────────
         # Full Friston hierarchy: every level generates predictions downward
@@ -340,7 +341,6 @@ class CognitiveHeartbeat:
             await self._emit_thought(winner, state, tick)
 
         # ── 7b. EMIT Telemetry to HUD ──────────────────────────────────
-        surprise = self.predictor.get_surprise_signal()
         await self._emit_telemetry(winner, state, tick, surprise)
 
         # ── 8. PROACTIVE CURIOSITY SEEDING ─────────────────────────────
@@ -696,6 +696,15 @@ class CognitiveHeartbeat:
                 curiosity = ls.curiosity
                 frustration = ls.frustration
                 confidence = ls.focus
+
+            def _percent(value: Any, default: float = 0.0) -> float:
+                try:
+                    raw = float(value)
+                except (TypeError, ValueError):
+                    raw = default
+                if raw > 1.0:
+                    return max(0.0, min(100.0, raw))
+                return max(0.0, min(100.0, raw * 100.0))
             
             # Resource metrics lookup
             cpu_usage = 0.0
@@ -715,14 +724,14 @@ class CognitiveHeartbeat:
                 mycelial_data["edges"] = len(getattr(mycelium, "hyphae", []))
             
             payload = TelemetryPayload(
-                energy=round(energy * 100, 1),
-                curiosity=round(curiosity * 100, 1),
-                frustration=round(frustration * 100, 1),
-                confidence=round(confidence * 100, 1),
+                energy=round(_percent(energy, 0.8), 1),
+                curiosity=round(_percent(curiosity, 0.5), 1),
+                frustration=round(_percent(frustration, 0.0), 1),
+                confidence=round(_percent(confidence, 0.5), 1),
                 gwt_winner=winner.source if winner else "none",
-                coherence=round(self.attention.coherence, 2),
-                vitality=round(mods.overall_vitality, 2),
-                surprise=round(surprise, 2),
+                coherence=round(max(0.0, float(self.attention.coherence)), 2),
+                vitality=round(max(0.0, float(mods.overall_vitality)), 2),
+                surprise=round(max(0.0, float(surprise)), 2),
                 narrative=narrative,
                 cpu_usage=round(cpu_usage, 1),
                 ram_usage=round(ram_usage, 1),

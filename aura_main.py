@@ -28,6 +28,7 @@ import time
 from pathlib import Path
 from typing import Optional, List, Any, Dict
 import multiprocessing
+from core.utils.task_tracker import get_task_tracker
 
 # Phase 31: Native M1 Pro Resilience Fixes
 # 0. Force 'spawn' on macOS to prevent Cocoa/XPC deadlocks in child actors

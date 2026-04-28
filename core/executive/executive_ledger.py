@@ -15,7 +15,7 @@ class ExecutiveLedger:
 
     def __init__(self, path: str | Path):
         self.path = Path(path)
-        get_task_tracker().create_task(get_storage_gateway().create_dir(self.path.parent, cause='ExecutiveLedger.__init__'))
+        self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def append(self, event: Dict[str, Any]) -> None:
         payload = dict(event)

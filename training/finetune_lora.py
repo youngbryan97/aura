@@ -86,7 +86,7 @@ def backup_existing_adapter():
     if ADAPTER_DIR.exists() and any(ADAPTER_DIR.glob("*.safetensors")):
         print(f"  Backing up existing adapter to {BACKUP_DIR}...")
         if BACKUP_DIR.exists():
-            get_task_tracker().create_task(get_storage_gateway().delete_tree(BACKUP_DIR, cause='backup_existing_adapter'))
+            shutil.rmtree(BACKUP_DIR)
         shutil.copytree(ADAPTER_DIR, BACKUP_DIR)
         print(f"  Backup complete.")
 
@@ -136,7 +136,7 @@ def main():
     # Backup existing adapter
     backup_existing_adapter()
 
-    get_task_tracker().create_task(get_storage_gateway().create_dir(ADAPTER_DIR, cause='main'))
+    ADAPTER_DIR.mkdir(parents=True, exist_ok=True)
 
     # Write training config for reference
     training_config = {

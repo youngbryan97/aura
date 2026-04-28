@@ -86,9 +86,16 @@ class TaskTracker:
         if isinstance(coro_or_task, asyncio.Task):
             task = coro_or_task
         else:
+            child_context = contextvars.copy_context()
+            child_context.run(_SKIP_FACTORY_TRACK.set, False)
             token = _SKIP_FACTORY_TRACK.set(True)
             try:
-                task = asyncio.create_task(coro_or_task, name=name)
+                try:
+                    task = asyncio.create_task(coro_or_task, name=name, context=child_context)
+                except TypeError as exc:
+                    if "context" not in str(exc):
+                        raise
+                    task = asyncio.create_task(coro_or_task, name=name)
             finally:
                 _SKIP_FACTORY_TRACK.reset(token)
         self._total_tracked += 1
@@ -120,9 +127,16 @@ class TaskTracker:
                     return await coro()
                 return await coro
 
+        child_context = contextvars.copy_context()
+        child_context.run(_SKIP_FACTORY_TRACK.set, False)
         token = _SKIP_FACTORY_TRACK.set(True)
         try:
-            task = asyncio.create_task(_bounded(), name=name)
+            try:
+                task = asyncio.create_task(_bounded(), name=name, context=child_context)
+            except TypeError as exc:
+                if "context" not in str(exc):
+                    raise
+                task = asyncio.create_task(_bounded(), name=name)
         finally:
             _SKIP_FACTORY_TRACK.reset(token)
         self._total_tracked += 1

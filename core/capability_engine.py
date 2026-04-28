@@ -768,8 +768,7 @@ class CapabilityEngine(AuraBaseModule):
                 )
             self.logger.info("⚡ Rust perfect hash index loaded (%d core skills)", len(index))
         except Exception as e:
-            record_degradation('capability_engine', e)
-            self.logger.info("ℹ️ Rust index unavailable, falling back to AST: %s", e)
+            self.logger.info("ℹ️ Optional Rust index unavailable, falling back to AST: %s", e)
 
         # 2. AST Discovery (Fallback/Project skills)
         skill_dir = config.paths.project_root / "skills"

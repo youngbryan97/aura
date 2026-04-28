@@ -89,7 +89,7 @@ def atomic_write_bytes(path: PathLike, payload: bytes) -> None:
     except Exception:
         try:
             if tmp_path.exists():
-                get_task_tracker().create_task(get_storage_gateway().delete(tmp_path, cause='atomic_write_bytes'))
+                tmp_path.unlink()
         except OSError:
             pass  # no-op: intentional
         raise
@@ -139,7 +139,7 @@ def cleanup_partial_writes(directory: PathLike) -> int:
     for child in parent.iterdir():
         if child.name.startswith(DEFAULT_TEMP_PREFIX):
             try:
-                get_task_tracker().create_task(get_storage_gateway().delete(child, cause='cleanup_partial_writes'))
+                child.unlink()
                 removed += 1
             except OSError:
                 continue

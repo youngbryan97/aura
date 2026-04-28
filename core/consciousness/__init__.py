@@ -5,6 +5,7 @@ Exports for the consciousness evolutionary layers.
 """
 
 from core.consciousness.integration import (
+    ConsciousnessAugmentor,
     ConsciousnessIntegration,
     get_consciousness_integration,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "AttentionSchema",
     "Quale",
     "get_experiencer",
+    "ConsciousnessAugmentor",
     "ConsciousnessIntegration",
     "get_consciousness_integration",
 ]

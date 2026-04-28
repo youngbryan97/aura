@@ -11,6 +11,7 @@ from typing import Any, Dict
 
 import asyncio
 from core.config import config
+from core.runtime.atomic_writer import atomic_write_text
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Aura.Training")
@@ -174,7 +175,7 @@ class TrainSelfSkill(BaseSkill):
                 f.write("\n".join(new_knowledge))
                 
             # 4. Clear buffer
-            atomic_write_text(Path(self.dataset_path), "")
+            atomic_write_text(Path(self.dataset_path), "", encoding="utf-8")
             
             return {
                 "ok": True,

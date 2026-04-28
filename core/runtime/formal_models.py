@@ -108,21 +108,26 @@ class StateCommitProtocol:
     def __init__(self):
         self.committed: Optional[bytes] = b"old"
         self._temp: Optional[bytes] = None
+        self._temp_fsynced = False
 
     def write_temp(self, payload: bytes) -> None:
         self._temp = payload
+        self._temp_fsynced = False
 
     def fsync(self) -> None:
-        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
+        if self._temp is not None:
+            self._temp_fsynced = True
 
     def rename(self) -> None:
-        if self._temp is not None:
+        if self._temp is not None and self._temp_fsynced:
             self.committed = self._temp
             self._temp = None
+            self._temp_fsynced = False
 
     def crash(self) -> None:
         # crashing at any step must not leave a partial committed value
         self._temp = None
+        self._temp_fsynced = False
 
     def invariant_holds(self) -> bool:
         return self.committed in (b"old", b"new", None) or isinstance(self.committed, bytes)

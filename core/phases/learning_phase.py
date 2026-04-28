@@ -120,7 +120,7 @@ class LearningPhase(Phase):
                 response=response, 
                 follow_up=follow_up, 
                 confusion=confusion,
-                affect=affect_data # Sync emotional context
+                affect=affect_data,  # Sync emotional context
             )
             if score:
                 if not hasattr(state, "response_modifiers") or state.response_modifiers is None:

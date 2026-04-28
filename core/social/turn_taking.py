@@ -55,24 +55,24 @@ class TurnTakingEngine:
     # --- inputs ----------------------------------------------------------
 
     def set_mode(self, mode: ConversationMode) -> None:
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='mode', new_value=mode, cause='TurnTakingEngine.set_mode')))
+        self.state.mode = mode
 
     def user_started_speaking(self) -> None:
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='user_speaking', new_value=True, cause='TurnTakingEngine.user_started_speaking')))
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='last_user_speech_at', new_value=self._clock(), cause='TurnTakingEngine.user_started_speaking')))
+        self.state.user_speaking = True
+        self.state.last_user_speech_at = self._clock()
 
     def user_stopped_speaking(self) -> None:
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='user_speaking', new_value=False, cause='TurnTakingEngine.user_stopped_speaking')))
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='last_user_speech_at', new_value=self._clock(), cause='TurnTakingEngine.user_stopped_speaking')))
+        self.state.user_speaking = False
+        self.state.last_user_speech_at = self._clock()
 
     def aura_emitted(self) -> None:
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='last_aura_speech_at', new_value=self._clock(), cause='TurnTakingEngine.aura_emitted')))
+        self.state.last_aura_speech_at = self._clock()
 
     def update_scene_energy(self, energy: float) -> None:
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='scene_energy', new_value=max(0.0, min(1.0, energy)), cause='TurnTakingEngine.update_scene_energy')))
+        self.state.scene_energy = max(0.0, min(1.0, energy))
 
     def request_repair(self) -> None:
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='pending_repair', new_value=True, cause='TurnTakingEngine.request_repair')))
+        self.state.pending_repair = True
 
     # --- decision --------------------------------------------------------
 
@@ -93,6 +93,6 @@ class TurnTakingEngine:
 
     def consume_repair(self) -> bool:
         if self.state.pending_repair:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='pending_repair', new_value=False, cause='TurnTakingEngine.consume_repair')))
+            self.state.pending_repair = False
             return True
         return False

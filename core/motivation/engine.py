@@ -333,6 +333,27 @@ class MotivationEngine:
                 b.level = max(0.0, b.level - amount)
                 logger.debug("💔 Damaged %s (-%.1f)", drive, amount)
 
+    def get_drive_vector(self) -> Dict[str, float]:
+        """Return normalized budget levels for synchronous cognition loops."""
+        now = time.time()
+        vector: Dict[str, float] = {}
+        for name, b in self.budgets.items():
+            dt = min(300.0, max(0.0, now - b.last_tick))
+            current = max(0.0, min(b.capacity, b.level - (b.decay_rate_per_sec * dt)))
+            vector[name] = round(current / b.capacity, 4) if b.capacity > 0 else 0.0
+        return vector
+
+    def get_dominant_motivation(self) -> str:
+        """Return the most depleted budget as the current dominant motivation."""
+        vector = self.get_drive_vector()
+        if not vector:
+            return "at_rest"
+        name = min(vector, key=lambda key: vector.get(key, 1.0))
+        level = vector.get(name, 1.0)
+        if level >= 0.75:
+            return "at_rest"
+        return str(name)
+
     async def get_status(self) -> Dict[str, Any]:
         """Snapshot for telemetry."""
         async with self._lock:

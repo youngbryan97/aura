@@ -168,23 +168,6 @@ def background_activity_reason(
 
     now = time.time()
 
-    try:
-        memory_pct = float(psutil.virtual_memory().percent)
-        if memory_pct >= max_memory_percent:
-            return f"memory_pressure_{memory_pct:.1f}"
-    except Exception as _exc:
-        record_degradation('background_policy', _exc)
-        logger.debug("Suppressed Exception: %s", _exc)
-
-    try:
-        failure = get_unified_failure_state()
-        pressure = float(failure.get("pressure", 0.0) or 0.0)
-        if pressure >= max_failure_pressure:
-            return f"failure_lockdown_{pressure:.2f}"
-    except Exception as _exc:
-        record_degradation('background_policy', _exc)
-        logger.debug("Suppressed Exception: %s", _exc)
-
     orch = orchestrator
     if orch is not None:
         if bool(getattr(orch, "is_busy", False)):
@@ -202,6 +185,23 @@ def background_activity_reason(
             return "no_user_anchor"
         if (now - last_user) < min_idle_seconds:
             return f"recent_user_{int(now - last_user)}"
+
+    try:
+        memory_pct = float(psutil.virtual_memory().percent)
+        if memory_pct >= max_memory_percent:
+            return f"memory_pressure_{memory_pct:.1f}"
+    except Exception as _exc:
+        record_degradation('background_policy', _exc)
+        logger.debug("Suppressed Exception: %s", _exc)
+
+    try:
+        failure = get_unified_failure_state()
+        pressure = float(failure.get("pressure", 0.0) or 0.0)
+        if pressure >= max_failure_pressure:
+            return f"failure_lockdown_{pressure:.2f}"
+    except Exception as _exc:
+        record_degradation('background_policy', _exc)
+        logger.debug("Suppressed Exception: %s", _exc)
 
     if require_conversation_ready:
         try:

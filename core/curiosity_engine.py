@@ -17,6 +17,13 @@ from core.runtime.background_policy import background_activity_allowed
 logger = logging.getLogger("Aura.Curiosity")
 
 
+class _PassiveProactiveComm:
+    """Fallback communication signal source used before proactive presence boots."""
+
+    def get_boredom_level(self) -> float:
+        return 0.0
+
+
 def _background_exploration_allowed(orchestrator) -> bool:
     return background_activity_allowed(
         orchestrator,
@@ -45,9 +52,9 @@ class LearningItem:
 class CuriosityEngine:
     """Manages Aura's autonomous learning and exploration."""
 
-    def __init__(self, orchestrator, proactive_comm):
+    def __init__(self, orchestrator=None, proactive_comm=None):
         self.orchestrator = orchestrator
-        self.proactive_comm = proactive_comm
+        self.proactive_comm = proactive_comm or _PassiveProactiveComm()
         self.curiosity_queue: deque[CuriosityTopic] = deque(maxlen=100)
         self.knowledge_base: List[LearningItem] = []
         self.explored_topics: Set[str] = set()

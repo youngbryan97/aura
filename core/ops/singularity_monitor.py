@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger("Aura.Singularity")
 
 class SingularityMonitor:
-    def __init__(self, orchestrator):
+    def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
         self.improvement_rate = 0.0
         self.last_health_score = 1.0

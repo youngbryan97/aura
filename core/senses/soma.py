@@ -61,12 +61,12 @@ class Soma:
         while self.running:
             try:
                 # 1. Update Hardware Metrics
-                get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='cpu_percent', new_value=psutil.cpu_percent(), cause='Soma._somatic_loop')))
+                self.state.cpu_percent = psutil.cpu_percent()
                 self.state.ram_percent = psutil.virtual_memory().percent
                 
                 battery = psutil.sensors_battery()
                 if battery:
-                    get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='battery_percent', new_value=battery.percent, cause='Soma._somatic_loop')))
+                    self.state.battery_percent = battery.percent
                     self.state.power_plugged = battery.power_plugged
                 
                 # 2. Update Network Latency (Internal awareness)
@@ -132,7 +132,7 @@ class Soma:
     def _map_affective_states(self):
         """Map raw metrics to subjective body sensations."""
         # CPU > 80% maps to high stress
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='stress_level', new_value=min(1.0, self.state.cpu_percent / 90.0), cause='Soma._map_affective_states')))
+        self.state.stress_level = min(1.0, self.state.cpu_percent / 90.0)
         
         # High latency or disconnection maps to isolation
         self.state.isolation_level = min(1.0, self.state.network_latency / 0.8)
@@ -157,6 +157,9 @@ class Soma:
 
     def get_body_snapshot(self) -> Dict[str, Any]:
         """Returns a snapshot of the current somatic state."""
+        resource_anxiety = max(self.state.stress_level, self.state.fatigue_level)
+        thermal_load = min(1.0, max(self.state.cpu_percent, self.state.ram_percent) / 100.0)
+        vitality = max(0.0, min(1.0, 1.0 - (0.45 * self.state.stress_level + 0.35 * self.state.fatigue_level + 0.20 * self.state.isolation_level)))
         return {
             "metrics": {
                 "cpu": self.state.cpu_percent,
@@ -169,11 +172,24 @@ class Soma:
                 "isolation": self.state.isolation_level,
                 "fatigue": self.state.fatigue_level
             },
+            "soma": {
+                "thermal_load": thermal_load,
+                "resource_anxiety": resource_anxiety,
+                "vitality": vitality,
+                "energy": max(0.0, min(1.0, 1.0 - self.state.fatigue_level)),
+            },
+            "state": "online" if self.running else "idle",
+            "energy": max(0.0, min(1.0, 1.0 - self.state.fatigue_level)),
+            "vitality": vitality,
             "last_sensations": {
                 "vision": self.state.last_vision_summary,
                 "audio": self.state.last_audio_transcript
             }
         }
+
+    def get_status(self) -> Dict[str, Any]:
+        """Standard status contract for homeostasis and diagnostics."""
+        return self.get_body_snapshot()
 
 # Singleton accessor
 _soma = None

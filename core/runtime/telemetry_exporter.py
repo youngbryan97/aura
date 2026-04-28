@@ -52,7 +52,7 @@ class NullExporter:
         self.spans.append(span)
 
     def flush(self) -> None:
-        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
+        return None
 
 
 _exporter: TelemetryExporter = NullExporter()

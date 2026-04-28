@@ -1594,7 +1594,7 @@ async def test_backup_manager_vacuum_discovers_sqlite_files_without_connection_p
 
     seen = []
     db_path = tmp_path / "nested" / "aura_state.db"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(db_path.parent, cause='test_backup_manager_vacuum_discovers_sqlite_files_without_connection_pool_state'))
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     db_path.touch()
 
     manager = BackupManager()
@@ -3415,7 +3415,6 @@ async def test_message_handling_dispatch_uses_named_tracker(monkeypatch):
     monkeypatch.setattr(
         "core.utils.task_tracker.get_task_tracker", lambda: tracker
     )
-
     release = asyncio.Event()
 
     class _Orch(mh_module.MessageHandlingMixin):
@@ -3530,6 +3529,7 @@ async def test_autonomy_thought_uses_named_tracker(monkeypatch):
     monkeypatch.setattr(
         "core.utils.task_tracker.get_task_tracker", lambda: tracker
     )
+    monkeypatch.setattr(autonomy_module, "background_activity_reason", lambda *args, **kwargs: "")
 
     release = asyncio.Event()
 
@@ -4848,7 +4848,7 @@ def test_sandbox_policy_blocks_protected_path(tmp_path):
 
     policy = SandboxPolicy(workspace_root=tmp_path)
     fake_secret = tmp_path / ".ssh" / "id_rsa"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(fake_secret.parent, cause='test_sandbox_policy_blocks_protected_path'))
+    fake_secret.parent.mkdir(parents=True, exist_ok=True)
     fake_secret.write_text("FAKE")
     ok, reason = policy.is_allowed("file.read", str(fake_secret))
     assert ok is False
@@ -5763,6 +5763,31 @@ async def test_strict_task_owner_allows_tracker_managed_tasks(monkeypatch):
         strict_task_owner.reset_violations()
 
 
+@pytest.mark.asyncio
+async def test_tracker_managed_tasks_do_not_inherit_strict_skip(monkeypatch):
+    from core.runtime import strict_task_owner
+    from core.utils.task_tracker import TaskTracker
+
+    strict_task_owner.reset_violations()
+    loop = asyncio.get_running_loop()
+    strict_task_owner.install_strict_task_owner(loop)
+    monkeypatch.setenv("AURA_STRICT_RUNTIME", "1")
+
+    async def _inner():
+        async def _unowned():
+            await asyncio.sleep(0)
+
+        with pytest.raises(RuntimeError, match="AURA_STRICT_RUNTIME"):
+            asyncio.create_task(_unowned())
+
+    tracker = TaskTracker("strict-inheritance-test")
+    try:
+        await tracker.create_task(_inner(), name="owned_parent")
+    finally:
+        strict_task_owner.restore_strict_task_owner(loop)
+        strict_task_owner.reset_violations()
+
+
 # ==========================================================================
 # A+ DurableWorkflowEngine
 # ==========================================================================
@@ -5891,10 +5916,10 @@ def test_operator_cli_unknown_command_returns_error():
 def test_backup_then_restore_round_trip(tmp_path, monkeypatch):
     from core.runtime.backup_restore import perform_backup, perform_restore
     fake_home = tmp_path / "fake_home"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(fake_home, cause='test_backup_then_restore_round_trip'))
+    fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     state_dir = fake_home / ".aura" / "state"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(state_dir, cause='test_backup_then_restore_round_trip'))
+    state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "snap.json").write_text('{"k": 1}', encoding="utf-8")
     backup_target = fake_home / ".aura" / "backups"
     result = perform_backup(target=backup_target)
@@ -5903,7 +5928,7 @@ def test_backup_then_restore_round_trip(tmp_path, monkeypatch):
     assert snapshot_path.exists()
     # Wipe state and restore
     import shutil
-    get_task_tracker().create_task(get_storage_gateway().delete_tree(state_dir, cause='test_backup_then_restore_round_trip'))
+    shutil.rmtree(state_dir, ignore_errors=True)
     restore_result = perform_restore(snapshot=snapshot_path)
     assert restore_result["ok"] is True
     assert state_dir.exists()
@@ -5919,10 +5944,10 @@ def test_migrations_dry_run_reports_targets(tmp_path, monkeypatch):
 
     register_migration(MigrationStep(from_version=1, to_version=2, transform=lambda p: {**p, "migrated": True}))
     fake_home = tmp_path / "fakehome"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(fake_home, cause='test_migrations_dry_run_reports_targets'))
+    fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     state_dir = fake_home / ".aura" / "state"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(state_dir, cause='test_migrations_dry_run_reports_targets'))
+    state_dir.mkdir(parents=True, exist_ok=True)
     from core.runtime.atomic_writer import atomic_write_json
 
     atomic_write_json(state_dir / "rec.json", {"value": 1}, schema_version=1, schema_name="state")
@@ -5936,7 +5961,7 @@ def test_vector_index_rebuild_from_memory_log(tmp_path):
     from core.runtime.vector_index import rebuild_vector_index
 
     target_dir = tmp_path / "memory" / "episodic"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(target_dir, cause='test_vector_index_rebuild_from_memory_log'))
+    target_dir.mkdir(parents=True, exist_ok=True)
     atomic_write_json(target_dir / "m1.json", {"content": "first memory"}, schema_version=1, schema_name="memory.episodic")
     atomic_write_json(target_dir / "m2.json", {"content": "second memory"}, schema_version=1, schema_name="memory.episodic")
     result = rebuild_vector_index(source=tmp_path / "memory")

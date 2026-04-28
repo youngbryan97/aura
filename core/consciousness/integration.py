@@ -26,6 +26,50 @@ from core.consciousness.phenomenological_experiencer import get_experiencer
 
 logger = logging.getLogger("Aura.ConsciousnessIntegration")
 
+
+class ConsciousnessAugmentor:
+    """Expose consciousness-state telemetry to the cognitive engine."""
+
+    def __init__(self, consciousness_core: Any):
+        self.consciousness_core = consciousness_core
+
+    def get_augmentation(self, objective: str) -> Dict[str, Any]:
+        status: Dict[str, Any] = {}
+        core = self.consciousness_core
+        try:
+            if hasattr(core, "get_status"):
+                raw_status = core.get_status()
+                if isinstance(raw_status, dict):
+                    status.update(raw_status)
+            if hasattr(core, "global_workspace"):
+                workspace = getattr(core, "global_workspace")
+                status["workspace"] = {
+                    "ignition": getattr(workspace, "ignition_level", None),
+                    "ignited": getattr(workspace, "ignited", None),
+                    "current_phi": getattr(workspace, "current_phi", None),
+                }
+            if hasattr(core, "qualia"):
+                qualia = getattr(core, "qualia")
+                if hasattr(qualia, "get_state"):
+                    status["qualia"] = qualia.get_state()
+            status["objective_hint"] = str(objective or "")[:240]
+        except Exception as exc:
+            record_degradation("integration", exc)
+            status["error"] = str(exc)
+        return {k: v for k, v in status.items() if v is not None}
+
+    def prepare_context(self, objective: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        enriched = dict(context or {})
+        enriched["consciousness"] = self.get_augmentation(objective)
+        return enriched
+
+    def enrich_prompt(self, system_prompt: str, context: Dict[str, Any]) -> str:
+        consciousness = (context or {}).get("consciousness")
+        if not consciousness:
+            return system_prompt
+        return f"{system_prompt}\n\n[CONSCIOUSNESS TELEMETRY]\n{consciousness}\n[/CONSCIOUSNESS TELEMETRY]"
+
+
 class ConsciousnessIntegration:
     """
     Manages the integration of consciousness evolutionary layers.

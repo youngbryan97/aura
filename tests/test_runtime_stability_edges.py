@@ -388,7 +388,7 @@ class TestMetabolicCoordinatorGuards(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(paths=SimpleNamespace(home_dir=self._make_tmp_home())),
             ):
                 lock_dir = metabolic_module.config.paths.home_dir / "locks"
-                get_task_tracker().create_task(get_storage_gateway().create_dir(lock_dir, cause='TestMetabolicCoordinatorGuards.test_metabolic_coordinator_preserves_live_singleton_locks'))
+                lock_dir.mkdir(parents=True, exist_ok=True)
                 live_lock = lock_dir / "orchestrator.lock"
                 stale_lock = lock_dir / "stale.lock"
                 live_lock.write_text(str(metabolic_module.os.getpid()), encoding="utf-8")

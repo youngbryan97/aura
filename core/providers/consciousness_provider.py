@@ -44,7 +44,8 @@ def register_consciousness_services(container):
     def create_curiosity():
         from core.curiosity_engine import CuriosityEngine
         orch = resolve_orchestrator(default=None)
-        return CuriosityEngine(orch)
+        pcomm = optional_service("proactive_comm", default=None)
+        return CuriosityEngine(orch, pcomm)
     container.register('curiosity_engine', create_curiosity, lifetime=ServiceLifetime.SINGLETON, required=True)
 
     # Free Energy Engine (Active Inference)
@@ -88,7 +89,7 @@ def register_consciousness_services(container):
     # 45. Singularity Monitor (Optimization & Safety)
     def create_singularity_monitor():
         from core.ops.singularity_monitor import SingularityMonitor
-        return SingularityMonitor()
+        return SingularityMonitor(resolve_orchestrator(default=None))
     container.register('singularity_monitor', create_singularity_monitor, lifetime=ServiceLifetime.SINGLETON, required=True)
 
     # 46. Alignment Engine (Constitution)

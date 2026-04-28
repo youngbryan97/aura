@@ -795,6 +795,12 @@ class LiquidSubstrate:
                 }
             }
 
+    def compute_cognitive_velocity(self) -> float:
+        """Return normalized instantaneous substrate change for phenomenology."""
+        with self.sync_lock:
+            v = np.nan_to_num(self.v, nan=0.0, posinf=0.0, neginf=0.0)
+            return float(max(0.0, min(1.0, np.mean(np.abs(v)))))
+
     def _save_state(self):
         """Persist substrate state (atomic)."""
         import os

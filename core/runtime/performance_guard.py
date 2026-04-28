@@ -29,8 +29,6 @@ The guard publishes per-window samples to the dashboard's "Performance"
 tab and to ``~/.aura/data/performance/samples.jsonl``.
 """
 from __future__ import annotations
-from core.utils.task_tracker import get_task_tracker
-
 import asyncio
 import json
 import logging
@@ -42,11 +40,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
+from core.utils.task_tracker import get_task_tracker
+
 logger = logging.getLogger("Aura.PerformanceGuard")
 
 
 _PERF_DIR = Path.home() / ".aura" / "data" / "performance"
-get_task_tracker().create_task(get_storage_gateway().create_dir(_PERF_DIR, cause=''))
+_PERF_DIR.mkdir(parents=True, exist_ok=True)
 _SAMPLES_PATH = _PERF_DIR / "samples.jsonl"
 
 

@@ -16,7 +16,10 @@ logger = logging.getLogger("Skills.SelfImprovement")
 
 class ImprovementInput(BaseModel):
     objective: Optional[str] = Field(None, description="The specific goal for self-reflection or learning.")
-    mode: Optional[str] = Field("introspective", description="Mode of improvement: 'knowledge_integration' or 'introspective'.")
+    mode: Optional[str] = Field("introspective", description="Mode of improvement: 'knowledge_integration', 'recursive', 'structural', or 'introspective'.")
+    allow_weight_update: bool = Field(True, description="Allow governed model-weight/adaptor updates.")
+    allow_code_modification: bool = Field(False, description="Allow governed structural source-code improvements.")
+    force: bool = Field(False, description="Run a cycle even when normal scheduling would wait.")
 
 class SelfImprovementSkill(BaseSkill):
     """Skill for reflecting on self-improvement, checking learning progress,
@@ -122,9 +125,41 @@ class SelfImprovementSkill(BaseSkill):
         # If the previous action was a search, we process the knowledge
         if previous_data.get("ok") and "summary" in previous_data:
             return self._process_new_knowledge(previous_data["summary"], params.model_dump())
+
+        if str(params.mode or "").lower() in {"recursive", "rsi", "structural"}:
+            return await self._perform_recursive_improvement(params)
         
         # Default: Introspective check
         return await self._perform_system_check(params.model_dump(), context) 
+
+    async def _perform_recursive_improvement(self, params: ImprovementInput) -> Dict[str, Any]:
+        """Run the real recursive self-improvement coordinator."""
+        try:
+            from core.learning.recursive_self_improvement import get_recursive_self_improvement_loop
+
+            loop = ServiceContainer.get("recursive_self_improvement", default=None) or get_recursive_self_improvement_loop()
+            allow_code = bool(params.allow_code_modification or str(params.mode or "").lower() == "structural")
+            result = await loop.run_cycle(
+                params.objective or "Improve Aura's capability and reliability.",
+                allow_weight_update=bool(params.allow_weight_update),
+                allow_code_modification=allow_code,
+                force=bool(params.force),
+            )
+            return {
+                "ok": result.authorized,
+                "action": "recursive_self_improvement",
+                "promoted": result.promoted,
+                "score_delta": result.score_delta,
+                "attempted_actions": result.attempted_actions,
+                "rollback_performed": result.rollback_performed,
+                "authorization_reason": result.authorization_reason,
+                "child_cycles": len(result.child_results),
+                "message": "Recursive self-improvement cycle completed.",
+            }
+        except Exception as e:
+            record_degradation('self_improvement', e)
+            logger.error("Recursive self-improvement cycle failed: %s", e)
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
     async def _process_new_knowledge(self, knowledge_text: str, goal: Dict[str, Any]):
         """Uses Cognitive Engine to summarize and store new info."""

@@ -421,8 +421,70 @@ class AVProductionSystem:
     - Mix audio
     """
     
-    def __init__(self):
-        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
+    def __init__(self, output_dir: Optional[str] = None):
+        base_dir = Path(output_dir) if output_dir else Path.home() / ".aura" / "data" / "media"
+        self.output_dir = base_dir
+        self.image_dir = base_dir / "generated_images"
+        self.video_dir = base_dir / "edited_video"
+        self.audio_dir = base_dir / "audio"
+        for directory in (self.image_dir, self.video_dir, self.audio_dir):
+            directory.mkdir(parents=True, exist_ok=True)
+
+    def _slug(self, text: str, limit: int = 48) -> str:
+        slug = "".join(ch.lower() if ch.isalnum() else "_" for ch in text).strip("_")
+        while "__" in slug:
+            slug = slug.replace("__", "_")
+        return (slug or "aura_media")[:limit]
+
+    def _render_local_image(self, description: str, style: str) -> Dict[str, Any]:
+        """Create a deterministic local visual artifact when no image model is loaded."""
+        import hashlib
+        import textwrap
+
+        digest = hashlib.sha256(f"{style}:{description}".encode("utf-8")).hexdigest()
+        path = self.image_dir / f"{int(time.time())}_{self._slug(description)}.png"
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+
+            width, height = 1024, 1024
+            bg = tuple(int(digest[i:i + 2], 16) for i in (0, 2, 4))
+            accent = tuple(255 - channel for channel in bg)
+            img = Image.new("RGB", (width, height), bg)
+            draw = ImageDraw.Draw(img)
+            for i in range(0, height, 32):
+                shade = tuple(max(0, min(255, channel + (i // 32) % 28)) for channel in bg)
+                draw.line((0, i, width, i), fill=shade)
+            draw.rectangle((72, 72, width - 72, height - 72), outline=accent, width=6)
+            font = ImageFont.load_default()
+            lines = textwrap.wrap(description, width=52)[:14]
+            y = 150
+            draw.text((120, 105), f"Aura local image: {style}", fill=accent, font=font)
+            for line in lines:
+                draw.text((120, y), line, fill=(245, 245, 245), font=font)
+                y += 42
+            img.save(path)
+            return {
+                "path": str(path),
+                "description": description,
+                "style": style,
+                "source": "local_renderer",
+                "timestamp": time.time(),
+            }
+        except Exception as exc:
+            record_degradation("sensory_integration", exc)
+            manifest = path.with_suffix(".txt")
+            manifest.write_text(
+                f"Aura local image request\nstyle: {style}\ndescription: {description}\n",
+                encoding="utf-8",
+            )
+            return {
+                "path": str(manifest),
+                "description": description,
+                "style": style,
+                "source": "manifest_fallback",
+                "warning": str(exc),
+                "timestamp": time.time(),
+            }
     
     async def create_image(self, description: str, style: str = "realistic") -> Dict[str, Any]:
         """Generate image via local Stable Diffusion or brain inference."""
@@ -437,7 +499,7 @@ class AVProductionSystem:
             record_degradation('sensory_integration', e)
             logger.debug("Image generation via brain failed: %s", e)
 
-        return {"error": "no_image_model", "description": description}
+        return await asyncio.to_thread(self._render_local_image, description, style)
 
     async def edit_video(self, video_path: str, edits: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Apply edits to video via FFmpeg."""

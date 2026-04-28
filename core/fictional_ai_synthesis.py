@@ -73,7 +73,17 @@ logger = logging.getLogger("Aura.FictionalSynthesis")
 class FictionalEngine:
     """Shim for legacy/orphaned references to FictionalEngine."""
     def __init__(self, *args, **kwargs):
-        raise NotImplementedError("Aura Pass 2: Unimplemented Stub")
+        self.args = args
+        self.kwargs = kwargs
+        self.created_at = time.time()
+
+    def get_status(self) -> Dict[str, Any]:
+        return {
+            "status": "shim_active",
+            "created_at": self.created_at,
+            "args": len(self.args),
+            "kwargs": sorted(self.kwargs.keys()),
+        }
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENGINE 1: JARVIS — ProactiveAnticipationEngine

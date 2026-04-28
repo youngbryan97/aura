@@ -87,7 +87,7 @@ class ResourceStakesLedger:
         initial: ViabilityState | None = None,
     ) -> None:
         self.db_path = Path(db_path or "data/resource_stakes.sqlite3")
-        get_task_tracker().create_task(get_storage_gateway().create_dir(self.db_path.parent, cause='ResourceStakesLedger.__init__'))
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
         if initial is not None and self._load_state() is None:
             self._save_state(initial)
@@ -388,4 +388,3 @@ def _rss_to_mb(raw: float) -> float:
 
 def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
-

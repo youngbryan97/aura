@@ -234,6 +234,50 @@ class ResilienceEngine:
 
         return ""
 
+    def get_body_snapshot(self) -> Dict[str, object]:
+        """Compatibility snapshot for affect, attention, and precision systems."""
+        self._apply_decay()
+        frustration = max(0.0, min(1.0, self.profile.frustration))
+        depletion = max(0.0, min(1.0, self.profile.depletion))
+        stress = max(frustration, 0.35 * depletion)
+        fatigue = depletion
+        vitality = max(0.0, min(1.0, 1.0 - (0.45 * frustration + 0.55 * depletion)))
+        energy = max(0.0, min(1.0, 1.0 - depletion))
+        resource_anxiety = max(stress, fatigue)
+        thermal_load = max(0.0, min(1.0, 0.15 + 0.5 * frustration + 0.35 * depletion))
+        return {
+            "state": self.profile.state.value,
+            "energy": energy,
+            "vitality": vitality,
+            "soma": {
+                "thermal_load": thermal_load,
+                "resource_anxiety": resource_anxiety,
+                "vitality": vitality,
+                "energy": energy,
+            },
+            "affects": {
+                "stress": stress,
+                "fatigue": fatigue,
+                "frustration": frustration,
+                "depletion": depletion,
+                "persistence_drive": max(0.0, min(1.0, self.profile.persistence_drive)),
+            },
+        }
+
+    def get_status(self) -> Dict[str, object]:
+        """Standard service status used by homeostasis and HUD diagnostics."""
+        snapshot = self.get_body_snapshot()
+        return {
+            "state": self.profile.state.value,
+            "frustration": round(float(self.profile.frustration), 4),
+            "depletion": round(float(self.profile.depletion), 4),
+            "persistence_drive": round(float(self.profile.persistence_drive), 4),
+            "effort_modifier": round(float(self.get_effort_modifier()), 4),
+            "failure_count": len(self.profile.failure_history),
+            "soma": snapshot["soma"],
+            "affects": snapshot["affects"],
+        }
+
     # ── Internal ──────────────────────────────────────────────────────────
 
     def _update_state(self):
