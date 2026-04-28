@@ -5,6 +5,7 @@ Synthesizes the modular intelligence pipeline into a single service.
 This class acts as the 'Advanced Cognition' hub, coordinating the
 CognitiveKernel, InnerMonologue, and LanguageCenter.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
@@ -67,6 +68,7 @@ async def _extract_history(context: dict[str, Any] | None = None) -> list[dict[s
             history.append({"role": str(item.get("role", "user") or "user"), "content": content})
         return history
     except Exception as exc:
+        record_degradation('cognitive_integration_layer', exc)
         logger.debug("Cognition history extraction failed: %s", exc)
         return []
 
@@ -100,6 +102,7 @@ async def _run_inline_inference(message: str, history: list[dict[str, str]]) -> 
     except TimeoutError:
         logger.debug("Inline inference timed out.")
     except Exception as exc:
+        record_degradation('cognitive_integration_layer', exc)
         logger.debug("Inline inference failed: %s", exc)
     return None
 
@@ -122,6 +125,7 @@ def _inject_live_modifiers(data: dict[str, Any]) -> None:
         modifiers["momentum"] = data.get("momentum", "flowing")
         modifiers["conversation_hooks"] = data.get("conversation_hooks", [])
     except Exception as exc:
+        record_degradation('cognitive_integration_layer', exc)
         logger.debug("Inline modifier injection skipped: %s", exc)
 
 
@@ -133,6 +137,7 @@ def _inject_packet_context(packet: Any) -> None:
         if pcs:
             fragments.append(f"[Phenomenal state: {str(pcs)[:300]}]")
     except Exception as exc:
+        record_degradation('cognitive_integration_layer', exc)
         logger.debug("Phenomenological context injection skipped: %s", exc)
 
     try:
@@ -142,6 +147,7 @@ def _inject_packet_context(packet: Any) -> None:
             if qctx:
                 fragments.append(f"[Qualia: {str(qctx)[:200]}]")
     except Exception as exc:
+        record_degradation('cognitive_integration_layer', exc)
         logger.debug("Qualia injection skipped: %s", exc)
 
     if not fragments:
@@ -154,6 +160,7 @@ def _inject_packet_context(packet: Any) -> None:
     try:
         packet.llm_briefing = f"{getattr(packet, 'llm_briefing', '') or ''}\n" + "\n".join(fragments) + identity_anchor
     except Exception as exc:
+        record_degradation('cognitive_integration_layer', exc)
         logger.debug("Packet context injection skipped: %s", exc)
 
 class CognitiveIntegrationLayer:
@@ -197,6 +204,7 @@ class CognitiveIntegrationLayer:
                 try:
                     ServiceContainer.register_instance(name, instance)
                 except Exception as register_err:
+                    record_degradation('cognitive_integration_layer', register_err)
                     logger.warning(f"⚠️ [BOOT] Could not register '{name}' in ServiceContainer: {register_err}")
 
             _safe_register("cognitive_kernel", self.kernel)
@@ -213,6 +221,7 @@ class CognitiveIntegrationLayer:
                     await self.monologue.start()
                 _safe_register("inner_monologue", self.monologue)
             except Exception as e:
+                record_degradation('cognitive_integration_layer', e)
                 logger.warning("InnerMonologue failed to resolve: %s. Proceeding in degraded mode.", e)
 
             # 3. Resolve or Instantiate LanguageCenter
@@ -226,12 +235,14 @@ class CognitiveIntegrationLayer:
                     await self.language_center.start()
                 _safe_register("language_center", self.language_center)
             except Exception as e:
+                record_degradation('cognitive_integration_layer', e)
                 logger.warning("LanguageCenter failed to resolve: %s. Proceeding in degraded mode.", e)
 
             self._initialized = True
             logger.info("✅ CognitiveIntegrationLayer initialized successfully.")
             return True
         except Exception as e:
+            record_degradation('cognitive_integration_layer', e)
             logger.error("❌ CognitiveIntegrationLayer initialization FAILED: %s", e, exc_info=True)
             # [RECOVERY] One-time force-reload attempt for critical components
             if not getattr(self, "_retrying_init", False):
@@ -292,6 +303,7 @@ class CognitiveIntegrationLayer:
                 _speech_profile.tone_override or "default",
             )
         except Exception as _sve_exc:
+            record_degradation('cognitive_integration_layer', _sve_exc)
             logger.debug("SubstrateVoiceEngine compile in Phase 7 skipped: %s", _sve_exc)
 
         if not self.is_active:
@@ -306,6 +318,7 @@ class CognitiveIntegrationLayer:
                 # Ava builds a social model of the user from the input
                 ava.analyze_message(message, is_user=True)
             except Exception as e:
+                record_degradation('cognitive_integration_layer', e)
                 logger.debug("Ava analysis failed: %s", e)
 
         # 0. Reflexive Path (Fast Fallback - Thread Isolated)
@@ -341,6 +354,7 @@ class CognitiveIntegrationLayer:
                 pass
             logger.debug("Inline inference still running; continuing without blocking.")
         except Exception as exc:
+            record_degradation('cognitive_integration_layer', exc)
             logger.debug("Inline inference injection failed: %s", exc)
 
         # Agency Integration: Execute tools if needed
@@ -364,6 +378,7 @@ class CognitiveIntegrationLayer:
                 else:
                     logger.warning("AgencyCoordinator missing from container during research-required turn.")
             except Exception as e:
+                record_degradation('cognitive_integration_layer', e)
                 logger.error("Agency resolution failed in CIL: %s", e)
         
         # 2. Express (LanguageCenter expression)
@@ -388,6 +403,7 @@ class CognitiveIntegrationLayer:
                     raw = await self.language_center.express(packet, message, history=history)
                     return self._shape_with_substrate(raw, _sve, _speech_profile)
             except Exception as e:
+                record_degradation('cognitive_integration_layer', e)
                 logger.exception("Error during cognitive expression: %s", e)
                 final_response = "I'm processing that. Give me a second—my internal monologue is a bit of a maze right now."
         else:
@@ -417,6 +433,7 @@ class CognitiveIntegrationLayer:
                     if mem and hasattr(mem, "prune_context"):
                          mem.prune_context()
             except Exception as e:
+                record_degradation('cognitive_integration_layer', e)
                 logger.debug("Cortana turn recording failed: %s", e)
                 
         # Post-process with Ava for the response
@@ -424,6 +441,7 @@ class CognitiveIntegrationLayer:
             try:
                 ava.analyze_message(final_response, is_user=False)
             except Exception as e:
+                record_degradation('cognitive_integration_layer', e)
                 logger.debug("Ava response analysis failed: %s", e)
                 
         return self._shape_with_substrate(final_response, _sve, _speech_profile)
@@ -474,6 +492,7 @@ class CognitiveIntegrationLayer:
             
             return brief.stance
         except Exception as e:
+            record_degradation('cognitive_integration_layer', e)
             logger.error("Autonomous thought processing failed in CIL: %s", e)
             return None
 
@@ -491,6 +510,7 @@ class CognitiveIntegrationLayer:
                     metadata={"domain": domain}
                 )
         except Exception as e:
+            record_degradation('cognitive_integration_layer', e)
             logger.error("Failed to record cognitive interaction: %s", e)
 
     async def think(self, user_input: str) -> str:

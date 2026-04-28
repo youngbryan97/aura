@@ -27,6 +27,7 @@ Deactivation:
   - No activity for IDLE_TIMEOUT_SECS and no pending messages
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import collections
@@ -125,12 +126,14 @@ class TerminalFallbackChat:
                             context={"reason": reason},
                         )
                     except Exception as _exc:
+                        record_degradation('terminal_chat', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     logger.debug("TerminalFallback: constitutional gate unavailable, suppressing autonomous message: %s", reason)
                     return False
                 logger.debug("TerminalFallback: constitutional gate suppressed queued autonomous message: %s", reason)
                 return False
         except Exception as exc:
+            record_degradation('terminal_chat', exc)
             if constitutional_runtime_live:
                 try:
                     from core.health.degraded_events import record_degraded_event
@@ -145,6 +148,7 @@ class TerminalFallbackChat:
                         exc=exc,
                     )
                 except Exception as _exc:
+                    record_degradation('terminal_chat', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 logger.debug("TerminalFallback: executive gate unavailable, suppressing autonomous message: %s", exc)
                 return False
@@ -283,6 +287,7 @@ class TerminalFallbackChat:
         except asyncio.CancelledError as _exc:
             logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
         except Exception as e:
+            record_degradation('terminal_chat', e)
             logger.error("TerminalFallback chat loop error: %s", e)
             self._active = False
 
@@ -314,6 +319,7 @@ class TerminalFallbackChat:
                 self._write_output(f"[Aura] Blocked: that command is on the safety deny-list.")
                 return
         except Exception as _exc:
+            record_degradation('terminal_chat', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         sys.stdout.write(f"[Aura] Running: {cmd}\n")
@@ -356,6 +362,7 @@ class TerminalFallbackChat:
                     logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
 
         except Exception as e:
+            record_degradation('terminal_chat', e)
             self._write_output(f"[Aura] Shell error: {e}")
 
     async def _get_response(self, user_input: str) -> str:
@@ -374,6 +381,7 @@ class TerminalFallbackChat:
         except asyncio.TimeoutError:
             return "Response timed out — I'm running slowly in emergency mode."
         except Exception as e:
+            record_degradation('terminal_chat', e)
             logger.debug("TerminalFallback response error: %s", e)
             return f"[error: {e}]"
         return "Message received but can't fully respond in this mode."
@@ -410,6 +418,7 @@ class TerminalFallbackChat:
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
         except Exception as _exc:
+            record_degradation('terminal_chat', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return False
 
@@ -456,6 +465,7 @@ class TerminalWatchdog:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('terminal_chat', e)
                 logger.debug("TerminalWatchdog tick error: %s", e)
 
     async def _tick(self):

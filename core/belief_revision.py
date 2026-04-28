@@ -4,6 +4,7 @@ The "Digital Metabolism" version: Merges simple belief tracking with
 complex affective self-modeling and identity evolution.
 """
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
@@ -96,6 +97,7 @@ class BeliefRevisionEngine:
                     "hooks_into": ["memory", "drive_engine", "cel", "self_model"]
                 })
         except Exception as e:
+            record_degradation('belief_revision', e)
             logger.debug("Events publish deferred: %s", e)
 
     async def stop(self):
@@ -157,6 +159,7 @@ class BeliefRevisionEngine:
                     self.seed_core_beliefs()
                 logger.info("Loaded %d beliefs and self-model.", len(self.beliefs))
             except Exception as e:
+                record_degradation('belief_revision', e)
                 logger.error("Failed to load belief system: %s", e)
         else:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -172,6 +175,7 @@ class BeliefRevisionEngine:
             }
             atomic_write_text(self.db_path, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('belief_revision', e)
             logger.error("Failed to save belief system: %s", e)
 
     async def _async_save(self):
@@ -189,6 +193,7 @@ class BeliefRevisionEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('belief_revision', e)
                 logger.error("Belief revision cycle failed: %s", e)
                 backoff = min(backoff * 2, 600.0)  # Exponential backoff, cap at 10 min
 
@@ -260,6 +265,7 @@ class BeliefRevisionEngine:
             try:
                 recent_episodes = await self.memory_facade.get_episodic(limit=3)
             except Exception as e:
+                record_degradation('belief_revision', e)
                 logger.debug("Beliefs: Failed to fetch episodic memory: %s", e)
 
         # Simple pattern: if identity or relationship keywords appear, update self_model
@@ -276,6 +282,7 @@ class BeliefRevisionEngine:
                             "origin": "belief_revision"
                         })
                     except Exception as e:
+                        record_degradation('belief_revision', e)
                         logger.debug("Beliefs: Theory elevation (CEL) failed: %s", e)
 
         # Use async save to prevent event loop blocking

@@ -1,6 +1,7 @@
 # skills/listen.py
 # AURA v5.3: Sovereign Listener (Local-Only)
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -39,6 +40,7 @@ def _initialize_audio():
         logger.info("PortAudio subsystem pre-warmed.")
         _AUDIO_INITIALIZED = True
     except Exception as e:
+        record_degradation('listen', e)
         logger.error("Audio initialization failed: %s", e)
         raise
 
@@ -51,6 +53,7 @@ def _get_default_input_device():
                     return i
         return sd.default.device[0]
     except Exception as e:
+        record_degradation('listen', e)
         logger.error("Error querying audio devices: %s", e)
         raise RuntimeError(f"No audio input device available. Ensure a microphone is connected. Details: {e}") from e
 
@@ -98,6 +101,7 @@ def _record_sync(duration: float, fs: int = 16000) -> str:
                     wf.writeframes(recording.tobytes())
             return temp_path
         except Exception as e:
+            record_degradation('listen', e)
             if os.path.exists(temp_path):
                 os.remove(temp_path)
             raise e
@@ -125,6 +129,7 @@ class AudioListenerSkill(BaseSkill):
                 from core.container import ServiceContainer
                 self._voice_engine = ServiceContainer.get("voice_engine")
             except Exception as e:
+                record_degradation('listen', e)
                 logger.error("Failed to resolve voice_engine: %s", e)
         return self._voice_engine
 
@@ -134,6 +139,7 @@ class AudioListenerSkill(BaseSkill):
             try:
                 params = ListenInput(**params)
             except Exception as e:
+                record_degradation('listen', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         duration = float(params.duration)
@@ -156,6 +162,7 @@ class AudioListenerSkill(BaseSkill):
                 # Transcribe using unified voice engine
                 text = await asyncio.to_thread(engine.transcribe, temp_wav)
             except Exception as e:
+                record_degradation('listen', e)
                 logger.error("Unified transcription failed: %s", e)
                 text = f"[Audio Recorded, Unified Transcription Failed: {e}]"
             
@@ -178,5 +185,6 @@ class AudioListenerSkill(BaseSkill):
                 "error": "Microphone access timed out."
             }
         except Exception as e:
+            record_degradation('listen', e)
             logger.error("Audio capture failed: %s", e)
             return {"ok": False, "error": f"Audio capture failed: {e}"}

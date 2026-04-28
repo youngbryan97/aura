@@ -2,6 +2,8 @@
 Spontaneous speech based on internal state triggers.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -72,6 +74,7 @@ class PersonhoodEngine:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                record_degradation('personhood_engine', exc)
                 logger.debug("Personhood error: %s", exc)
 
     async def _check_and_maybe_speak(self) -> None:
@@ -163,6 +166,7 @@ class PersonhoodEngine:
             if content:
                 return [SpontaneousThought("research_complete", content, 0.7)]
         except Exception as exc:
+            record_degradation('personhood_engine', exc)
             logger.debug("Personhood engine failed to check research findings: %s", exc)
         return []
 
@@ -185,6 +189,7 @@ class PersonhoodEngine:
             )
             return response.content.strip() if hasattr(response, "content") else response.strip()
         except Exception as exc:
+            record_degradation('personhood_engine', exc)
             logger.debug("Failed to generate spontaneous thought: %s", exc)
             return None
 
@@ -216,6 +221,7 @@ class PersonhoodEngine:
             if decision.get("ok"):
                 return
         except Exception as exc:
+            record_degradation('personhood_engine', exc)
             logger.debug("Personhood executive routing failed: %s", exc)
 
         if self._emit_callback:

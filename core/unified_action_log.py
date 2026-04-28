@@ -5,6 +5,7 @@ it gets logged here with its source generation, gate status, and outcome.
 This makes the three-generation overlap (VolitionEngine, AgencyCore,
 Gen3 constitutional) visible and debuggable.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -31,6 +32,7 @@ class UnifiedActionLog:
             self._persist_path.parent.mkdir(parents=True, exist_ok=True)
             self._load_recent_entries()
         except Exception as _exc:
+            record_degradation('unified_action_log', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def _load_recent_entries(self) -> None:
@@ -95,6 +97,7 @@ class UnifiedActionLog:
                 with open(self._persist_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry) + "\n")
             except Exception as _exc:
+                record_degradation('unified_action_log', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
     def recent(self, limit: int = 20):

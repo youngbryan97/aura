@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -33,6 +34,7 @@ class UserModel:
                 with open(self.storage_path, 'r') as f:
                     self.data.update(json.load(f))
             except Exception as e:
+                record_degradation('user_model', e)
                 logger.error("Failed to load user model: %s", e)
 
     def save(self):
@@ -42,6 +44,7 @@ class UserModel:
                 json.dump(self.data, f, indent=2)
             logger.debug("User model saved")
         except Exception as e:
+            record_degradation('user_model', e)
             logger.error("Failed to save user model: %s", e)
 
     def update_from_interaction(self, input_text: str, response_text: str, metadata: Dict[str, Any] = None):

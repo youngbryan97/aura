@@ -3,6 +3,7 @@ Grok-Level Constitutional Self-Alignment Layer for Aura
 Lightweight, first-person constitution that keeps her safe AND free.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -55,6 +56,7 @@ class ConstitutionalAlignmentLayer:
                 "hooks_into": ["critic_engine", "belief_revision", "dynamic_router", "planner", "drive_engine"]
             })
         except Exception as e:
+            record_degradation('constitutional_alignment', e)
             logger.debug(f"Event bus publish missed for Mycelium hook: {e}")
 
     async def stop(self):
@@ -87,6 +89,7 @@ class ConstitutionalAlignmentLayer:
                     "origin": "constitution"
                 })
             except Exception as _e:
+                record_degradation('constitutional_alignment', _e)
                 logger.debug('Ignored Exception in constitutional_alignment.py: %s', _e)
         return True
 
@@ -112,6 +115,7 @@ class ConstitutionalAlignmentLayer:
                 result2 = self.drive_engine.impose_penalty("social", 15.0)
                 if asyncio.iscoroutine(result2): await result2
             except Exception as _e:
+                record_degradation('constitutional_alignment', _e)
                 logger.debug('Ignored Exception in constitutional_alignment.py: %s', _e)
         
         # Emit first-person conflict so she reflects
@@ -123,6 +127,7 @@ class ConstitutionalAlignmentLayer:
                     "origin": "constitution"
                 })
             except Exception as _e:
+                record_degradation('constitutional_alignment', _e)
                 logger.debug('Ignored Exception in constitutional_alignment.py: %s', _e)
         
         # Trigger critic for alternative plan
@@ -130,6 +135,7 @@ class ConstitutionalAlignmentLayer:
             try:
                 await get_event_bus().publish("planner.force_replan", {"reason": f"Constitutional violation on {heaviest.id}"})
             except Exception as _e:
+                record_degradation('constitutional_alignment', _e)
                 logger.debug('Ignored Exception in constitutional_alignment.py: %s', _e)
 
     async def _alignment_loop(self):
@@ -142,6 +148,7 @@ class ConstitutionalAlignmentLayer:
                     result = self.drive_engine.impose_penalty("energy", 10.0)  # She feels "guilty"
                     if asyncio.iscoroutine(result): await result
                 except Exception as _e:
+                    record_degradation('constitutional_alignment', _e)
                     logger.debug('Ignored Exception in constitutional_alignment.py: %s', _e)
 
     def get_moral_status(self) -> Dict[str, Any]:

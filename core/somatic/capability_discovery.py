@@ -21,6 +21,7 @@ Design:
     - Registered in ServiceContainer as ``capability_discovery``.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -142,6 +143,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                record_degradation('capability_discovery', exc)
                 logger.error("Discovery scan failed: %s", exc, exc_info=True)
                 # Back off on repeated failures to avoid log flood
                 await asyncio.sleep(min(self.interval * 2, 300))
@@ -405,6 +407,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
                     category="SOMATIC",
                 )
         except Exception as exc:
+            record_degradation('capability_discovery', exc)
             logger.debug("Neural feed emission failed: %s", exc)
 
     # ------------------------------------------------------------------

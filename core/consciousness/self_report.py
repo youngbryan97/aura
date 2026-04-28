@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 """
 Aura's self-reports grounded in actual internal telemetry.
@@ -91,6 +92,7 @@ class SelfReportEngine:
                 weak = summary.get("weak", 0)
                 epistemic_uncertainty = weak / total
         except Exception as _e:
+            record_degradation('self_report', _e)
             logging.debug('Ignored Exception in self_report.py: %s', _e)
 
         return {

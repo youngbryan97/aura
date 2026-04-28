@@ -1,6 +1,7 @@
 """Personality Bridge Mixin for RobustOrchestrator.
 Extracts identity resolution and formatting logic.
 """
+from core.runtime.errors import record_degradation
 import inspect
 import logging
 from typing import Any
@@ -36,6 +37,7 @@ class PersonalityBridgeMixin:
                 return {"mood": "neutral", "tone": "balanced", "emotional_state": {}}
             return res
         except Exception as e:
+            record_degradation('personality_bridge', e)
             logger.warning("Personality metric retrieval failed: %s", e)
             return {"mood": "neutral", "tone": "snarky", "emotional_state": {}}
 

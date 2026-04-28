@@ -33,6 +33,8 @@ and for the introspective-calibration test harness in
 internal naming — whatever ServiceContainer offers, the Self reads.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import hashlib
@@ -166,6 +168,7 @@ class SelfObject:
                 forecast = predictor.forecast(scenario)
                 return {"forecast": forecast, "method": "predictive_engine"}
         except Exception as exc:
+            record_degradation('self_object', exc)
             logger.debug("self-predict via engine failed: %s", exc)
         # Deterministic projection: project current drives/affect under decay
         snap = self.snapshot()
@@ -276,6 +279,7 @@ class SelfObject:
                 "receipt": getattr(decision, "receipt_id", None),
             }
         except Exception as exc:
+            record_degradation('self_object', exc)
             return {"approved": False, "reason": f"adjust_exception:{exc}"}
 
     def _apply_parameters(self, parameters: Dict[str, Any]) -> None:
@@ -285,6 +289,7 @@ class SelfObject:
             if tunable is not None and hasattr(tunable, "set_many"):
                 tunable.set_many(parameters)
         except Exception as exc:
+            record_degradation('self_object', exc)
             logger.warning("self_object._apply_parameters failed: %s", exc)
 
     # ── identity continuity hash ───────────────────────────────────────

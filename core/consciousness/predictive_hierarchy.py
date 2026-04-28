@@ -26,6 +26,8 @@ References:
   - Hohwy, J. (2013). The Predictive Mind.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import logging
@@ -349,6 +351,7 @@ class PredictiveHierarchy:
             normalized = min(1.0, self._smoothed_fe / 0.5)
             fe_engine.accept_surprise_signal(normalized)
         except Exception as e:
+            record_degradation('predictive_hierarchy', e)
             logger.debug("PredictiveHierarchy → FreeEnergyEngine push failed: %s", e)
 
     # ------------------------------------------------------------------
@@ -385,6 +388,7 @@ class PredictiveHierarchy:
                     s[:n] = raw[:n]
                     result["sensory_input"] = s
         except Exception as e:
+            record_degradation('predictive_hierarchy', e)
             logger.debug("PH gather sensory failed: %s", e)
 
         # --- Association: neural mesh association-tier mean column activations ---
@@ -400,6 +404,7 @@ class PredictiveHierarchy:
                     a[:n] = raw[:n]
                     result["association_input"] = a
         except Exception as e:
+            record_degradation('predictive_hierarchy', e)
             logger.debug("PH gather association failed: %s", e)
 
         # --- Executive: global workspace snapshot hash or executive projection ---
@@ -412,6 +417,7 @@ class PredictiveHierarchy:
                 e[:n] = proj[:n]
                 result["executive_state"] = e
         except Exception as e:
+            record_degradation('predictive_hierarchy', e)
             logger.debug("PH gather executive failed: %s", e)
 
         # --- Narrative: self-model / temporal binding continuity vector ---
@@ -425,6 +431,7 @@ class PredictiveHierarchy:
                     narr[:n] = x[:n]
                     result["narrative_state"] = narr
         except Exception as e:
+            record_degradation('predictive_hierarchy', e)
             logger.debug("PH gather narrative failed: %s", e)
 
         return result

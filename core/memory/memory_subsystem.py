@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import asyncio
 from typing import Any
@@ -58,5 +59,6 @@ class MemorySubsystem:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('memory_subsystem', e)
                 logger.error("MemorySubsystem maintenance error: %s", e)
                 await asyncio.sleep(60)

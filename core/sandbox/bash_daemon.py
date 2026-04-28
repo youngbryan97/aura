@@ -6,6 +6,7 @@ interactions (e.g., maintaining `cd`, `export` variables, and activating
 virtual environments) across consecutive shell commands.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -56,6 +57,7 @@ class PersistentBashSession:
                     return "".join(output).strip(), exit_code
                 output.append(line_str)
             except Exception as e:
+                record_degradation('bash_daemon', e)
                 logger.error("Error reading from bash daemon: %s", e)
                 break
         return "".join(output).strip(), -1
@@ -70,6 +72,7 @@ class PersistentBashSession:
                 self._process.stdin.write(f"{cmd}\n".encode('utf-8'))
                 await self._process.stdin.drain()
             except Exception as e:
+                record_degradation('bash_daemon', e)
                 return False, f"Failed to write to daemon: {e}"
 
             # Wait for output up to timeout
@@ -79,6 +82,7 @@ class PersistentBashSession:
             except asyncio.TimeoutError:
                 return False, f"Command timed out after {timeout}s."
             except Exception as e:
+                record_degradation('bash_daemon', e)
                 return False, f"Execution failed: {e}"
 
     async def kill(self):

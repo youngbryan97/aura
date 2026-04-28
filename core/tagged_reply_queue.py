@@ -6,6 +6,8 @@ that preserves reply ownership across overlapping user, voice, and autonomous
 flows. It remains compatible with the plain queue interface most of Aura uses.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -159,6 +161,7 @@ class TaggedReplyQueue:
                 )
                 self._queue.put_nowait(reply)
             except Exception as exc:
+                record_degradation('tagged_reply_queue', exc)
                 logger.warning("Could not enqueue tagged reply: %s", exc)
 
     def put_nowait(
@@ -180,6 +183,7 @@ class TaggedReplyQueue:
                 )
                 self._queue.put_nowait(reply)
             except Exception as exc:
+                record_degradation('tagged_reply_queue', exc)
                 logger.warning("Could not enqueue tagged reply without waiting: %s", exc)
 
     async def get(self) -> Any:
@@ -303,6 +307,7 @@ class TaggedReplyQueue:
         try:
             self._queue.task_done()
         except Exception as _exc:
+            record_degradation('tagged_reply_queue', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def qsize(self) -> int:

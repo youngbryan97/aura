@@ -4,6 +4,7 @@ This service acts as the Broca's/Wernicke's area for Aura, translating hard
 volitional intents and internal affective states into linguistic expression.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import asyncio
 import time
@@ -87,6 +88,7 @@ class NarratorService:
             
             return response.strip() if response else f"{raw_message}"
         except Exception as e:
+            record_degradation('narrator', e)
             logger.error(f"Narration failed: {e}", exc_info=True)
             return f"{raw_message}"
 

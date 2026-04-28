@@ -2,6 +2,7 @@
 Durable conversation state.
 Persists every turn to SQLite so any crash can be recovered from.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import sqlite3
@@ -181,6 +182,7 @@ class ConversationPersistence:
             ))
             self._maintenance_registered = True
         except Exception as exc:
+            record_degradation('persistence', exc)
             logger.warning("ConversationPersistence maintenance registration failed: %s", exc)
 
     def get_retention_status(self) -> Dict[str, float]:

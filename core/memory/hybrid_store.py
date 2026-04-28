@@ -1,4 +1,5 @@
 # core/memory/hybrid_store.py — drop-in safe starter
+from core.runtime.errors import record_degradation
 import numpy as np
 import asyncio
 import logging
@@ -46,6 +47,7 @@ class HybridMemoryStore:
                 if await self._count_entries() > self.prune_threshold:
                     await self._prune_oldest()
             except Exception as e:
+                record_degradation('hybrid_store', e)
                 logger.error("Memory store failed: %s", e)
 
     async def _count_entries(self) -> int:

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import hashlib
 import hmac
 import json
@@ -144,6 +145,7 @@ def get_runtime_state() -> Dict[str, Any]:
             self_model_data = {**self_model_data, **merged_self}
 
     except Exception as e:
+        record_degradation('runtime_tools', e)
         logger.debug("Runtime state sampling skipped (pre-init): %s", e)
 
     state = {

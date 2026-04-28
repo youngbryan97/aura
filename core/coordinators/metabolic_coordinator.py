@@ -60,8 +60,10 @@ class MetabolicCoordinator:
                         logger.info("🧹 Removed stale lock: %s", lock_file.name)
                     except Exception as _exc:
                         record_degradation('metabolic_coordinator', _exc)
+                        record_degradation('metabolic_coordinator', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
         except Exception as e:
+            record_degradation('metabolic_coordinator', e)
             record_degradation('metabolic_coordinator', e)
             logger.debug("Stale lock cleanup failed: %s", e)
 
@@ -167,6 +169,7 @@ class MetabolicCoordinator:
             return await self._process_metabolic_tasks(volition)
         except Exception as e:
             record_degradation('metabolic_coordinator', e)
+            record_degradation('metabolic_coordinator', e)
             logger.error(f"Metabolic cycle failed: {e}")
             return False
         finally:
@@ -214,6 +217,7 @@ class MetabolicCoordinator:
                 )
             except Exception as e:
                 record_degradation('metabolic_coordinator', e)
+                record_degradation('metabolic_coordinator', e)
                 logger.debug("Failed to subscribe to BCI events: %s", e)
 
         orch = self.orch
@@ -247,6 +251,7 @@ class MetabolicCoordinator:
                         logger.info("Skipping RL training: Volition low (%d) or system busy.", volition)
                 except Exception as e:
                     record_degradation('metabolic_coordinator', e)
+                    record_degradation('metabolic_coordinator', e)
                     logger.debug("Dependency missing for memory check, skipping RL training: %s", e)
             if orch.status.cycle_count % 5000 == 0:
                 try:
@@ -259,6 +264,7 @@ class MetabolicCoordinator:
                     else:
                         logger.info("Skipping Evo update: Volition low (%d) or system busy.", volition)
                 except Exception as e:
+                    record_degradation('metabolic_coordinator', e)
                     record_degradation('metabolic_coordinator', e)
                     logger.debug("Dependency missing for memory check, skipping Evo update: %s", e)
             # 1. Internal Pacing & Mood updates
@@ -316,6 +322,7 @@ class MetabolicCoordinator:
                             )
                         except Exception as e:
                             record_degradation('metabolic_coordinator', e)
+                            record_degradation('metabolic_coordinator', e)
                             logger.debug("Delayed cognition failed: %s. Falling back...", e)
                             loop = asyncio.get_running_loop()
                             await loop.run_in_executor(
@@ -324,6 +331,7 @@ class MetabolicCoordinator:
                                 latent_summary
                             )
                 except Exception as lc_err:
+                    record_degradation('metabolic_coordinator', lc_err)
                     record_degradation('metabolic_coordinator', lc_err)
                     logger.debug("Latent core heartbeat skipped: %s", lc_err)
             
@@ -437,6 +445,7 @@ class MetabolicCoordinator:
             return bool(message)
         except Exception as e:
             record_degradation('metabolic_coordinator', e)
+            record_degradation('metabolic_coordinator', e)
             logging.getLogger("Aura.Critical").error("Error in process cycle: %s", e)
             # Feed the exception into the morphogenetic field so the cell ecology
             # can react (emit repair signals, trigger immunity bridge, modulate
@@ -471,6 +480,7 @@ class MetabolicCoordinator:
                 }
             except Exception as e:
                 record_degradation('metabolic_coordinator', e)
+                record_degradation('metabolic_coordinator', e)
                 logger.debug("Failed to pull authoritative affect status: %s", e)
         elif hasattr(orch, 'affect_engine') and orch.affect_engine:
             try:
@@ -480,6 +490,7 @@ class MetabolicCoordinator:
                     "arousal": affect_status.get("arousal")
                 }
             except Exception as e:
+                record_degradation('metabolic_coordinator', e)
                 record_degradation('metabolic_coordinator', e)
                 logger.debug("Failed to pull background affect status: %s", e)
 
@@ -549,6 +560,7 @@ class MetabolicCoordinator:
                 })
         except Exception as exc:
             record_degradation('metabolic_coordinator', exc)
+            record_degradation('metabolic_coordinator', exc)
             logger.error("Telemetry pulse failure: %s", exc)
             if hasattr(orch, "_recover_from_stall"):
                 get_task_tracker().create_task(
@@ -568,6 +580,7 @@ class MetabolicCoordinator:
             if snapshot_dir:
                 self.orch._emit_thought_stream(f"🏺 Eternal Record Snapshot secured: {snapshot_dir.name}")
         except Exception as e:
+            record_degradation('metabolic_coordinator', e)
             record_degradation('metabolic_coordinator', e)
             logger.debug("Eternal record snapshot failed: %s", e)
 
@@ -647,6 +660,7 @@ class MetabolicCoordinator:
             orch._last_pulse = time.time()
         except Exception as _e:
             record_degradation('metabolic_coordinator', _e)
+            record_degradation('metabolic_coordinator', _e)
             logger.debug("Neural pulse emit failed: %s", _e)
 
     # ------------------------------------------------------------------
@@ -712,6 +726,7 @@ class MetabolicCoordinator:
                 )
         except Exception as dlq_e:
             record_degradation('metabolic_coordinator', dlq_e)
+            record_degradation('metabolic_coordinator', dlq_e)
             logger.error("CRITICAL: Failed to log to DLQ during stall: %s", dlq_e)
         try:
             if orch._current_thought_task and not orch._current_thought_task.done():
@@ -743,6 +758,7 @@ class MetabolicCoordinator:
                         await asyncio.to_thread(_append_lines)
                     except Exception as e:
                         record_degradation('metabolic_coordinator', e)
+                        record_degradation('metabolic_coordinator', e)
                         logger.error("Failed to dump dropped messages to DLQ file: %s", e)
             await orch.retry_cognitive_connection()
             if orch._recovery_attempts >= 2 and hasattr(orch, 'lazarus') and orch.lazarus:
@@ -756,6 +772,7 @@ class MetabolicCoordinator:
                 orch._recovery_attempts = 0
             logger.info("✅ Recovery logic applied.")
         except Exception as e:
+            record_degradation('metabolic_coordinator', e)
             record_degradation('metabolic_coordinator', e)
             logger.error("Recovery sequence failed: %s", e)
 
@@ -793,6 +810,7 @@ class MetabolicCoordinator:
                         await db_coord.execute_write(str(db_file), "VACUUM")
                 except Exception as e:
                     record_degradation('metabolic_coordinator', e)
+                    record_degradation('metabolic_coordinator', e)
                     logger.error("Database hygiene failed: %s", e)
                     if audit:
                         audit.report_failure("database_hygiene", str(e))
@@ -821,6 +839,7 @@ class MetabolicCoordinator:
                 try:
                     orch.memory.prune_low_salience(threshold_days=14)
                 except Exception as e:
+                    record_degradation('metabolic_coordinator', e)
                     record_degradation('metabolic_coordinator', e)
                     logger.debug("Vector pruning skipped: %s", e)
 
@@ -864,6 +883,7 @@ class MetabolicCoordinator:
                 orch.conversation_history, orch.cognitive_engine
             )
         except Exception as e:
+            record_degradation('metabolic_coordinator', e)
             record_degradation('metabolic_coordinator', e)
             logger.debug("History pruning failed: %s", e)
             if isinstance(orch.conversation_history, list) and len(orch.conversation_history) > 50:
@@ -912,6 +932,7 @@ class MetabolicCoordinator:
                     await archive_eng.archive_vital_logs()
         except Exception as e:
             record_degradation('metabolic_coordinator', e)
+            record_degradation('metabolic_coordinator', e)
             logger.error("Memory consolidation failed: %s", e)
             # Circuit Breaker: Report degradation
             audit = ServiceContainer.get("subsystem_audit", default=None)
@@ -936,6 +957,7 @@ class MetabolicCoordinator:
                 await loop.run_in_executor(None, belief_graph.decay, 0.001)
             except Exception as e:
                 record_degradation('metabolic_coordinator', e)
+                record_degradation('metabolic_coordinator', e)
                 logger.error("World decay error: %s", e)
         if orch.status.cycle_count % 600 == 0:
             try:
@@ -952,6 +974,7 @@ class MetabolicCoordinator:
                             )
             except Exception as e:
                 record_degradation('metabolic_coordinator', e)
+                record_degradation('metabolic_coordinator', e)
                 logger.debug("Metabolic Archival trigger failed: %s", e)
         if runtime_feature_enabled(orch, "persona_evolution", default=True) and orch.status.cycle_count % 3600 == 0:
             try:
@@ -962,6 +985,7 @@ class MetabolicCoordinator:
                     name="metabolic.persona_evolution_cycle",
                 )
             except Exception as e:
+                record_degradation('metabolic_coordinator', e)
                 record_degradation('metabolic_coordinator', e)
                 logger.debug("Persona Evolution trigger failed: %s", e)
 
@@ -1040,6 +1064,7 @@ class MetabolicCoordinator:
                         )
         except Exception as e:
             record_degradation('metabolic_coordinator', e)
+            record_degradation('metabolic_coordinator', e)
             try:
                 from core.health.degraded_events import record_degraded_event
 
@@ -1052,6 +1077,7 @@ class MetabolicCoordinator:
                     exc=e,
                 )
             except Exception as _exc:
+                record_degradation('metabolic_coordinator', _exc)
                 record_degradation('metabolic_coordinator', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             logger.debug("Terminal monitor check failed: %s", e)
@@ -1090,6 +1116,7 @@ class MetabolicCoordinator:
                     raise
         except Exception as e:
             record_degradation('metabolic_coordinator', e)
+            record_degradation('metabolic_coordinator', e)
             if reflect_coro is not None and reflect_task is None:
                 reflect_coro.close()
             logger.debug("Background reflection setup failed: %s", e)
@@ -1121,6 +1148,7 @@ class MetabolicCoordinator:
                 orch.curiosity.extract_curiosity_from_conversation(original_msg)
         except Exception as e:
             record_degradation('metabolic_coordinator', e)
+            record_degradation('metabolic_coordinator', e)
             if learn_coro is not None and learn_task is None:
                 learn_coro.close()
             logger.debug("Background learning setup failed: %s", e)
@@ -1137,6 +1165,7 @@ class MetabolicCoordinator:
             celery_app.send_task("core.tasks.run_rl_training")
         except Exception as e:
             record_degradation('metabolic_coordinator', e)
+            record_degradation('metabolic_coordinator', e)
             logger.error("RL training trigger failed: %s", e)
 
     async def run_self_update(self):
@@ -1146,5 +1175,6 @@ class MetabolicCoordinator:
             from core.tasks import celery_app
             celery_app.send_task("core.tasks.run_self_update")
         except Exception as e:
+            record_degradation('metabolic_coordinator', e)
             record_degradation('metabolic_coordinator', e)
             logger.error("Self-update trigger failed: %s", e)

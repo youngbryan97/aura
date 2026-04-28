@@ -2,6 +2,7 @@
 Social Memory & Narrative Engine.
 Tracks relationship milestones, shared context, and social depth.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -45,6 +46,7 @@ class SocialMemory(AuraBaseModule):
                     self.relationship_depth = data.get("depth", 0.0)
                     self.shared_context_keys = data.get("shared_keys", [])
             except Exception as e:
+                record_degradation('social_memory', e)
                 if self.logger:
                     self.logger.error("Failed to load social memory: %s", e)
 
@@ -60,6 +62,7 @@ class SocialMemory(AuraBaseModule):
                 }, f, indent=2)
             os.replace(tmp_path, self.data_path)
         except Exception as e:
+            record_degradation('social_memory', e)
             self.logger.error("Failed to save social memory: %s", e)
 
     def record_milestone(self, description: str, importance: float = 0.5):

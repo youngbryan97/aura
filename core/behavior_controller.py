@@ -1,6 +1,7 @@
 """Autonomous Behavior Controller
 Ensures Aura acts safely and effectively in the world.
 """
+from core.runtime.errors import record_degradation
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -104,6 +105,7 @@ class AutonomousBehaviorController:
                     )
 
             except Exception as e:
+                record_degradation('behavior_controller', e)
                 logger.error("Real tool execution failed for %s: %s", tool_name, e)
                 return {"ok": False, "error": str(e)}
         

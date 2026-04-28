@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -45,6 +46,7 @@ class VoiceConversationBridge:
             logger.debug("Voice Bridge: Task cancelled due to barge-in/new input")
             return None
         except Exception as e:
+            record_degradation('voice_bridge', e)
             logger.error("Voice Bridge process input error: %s", e)
             return None
 
@@ -100,4 +102,5 @@ class VoiceConversationBridge:
                     get_task_tracker().create_task(voice_engine.speak(buffer.strip()))
                     
         except Exception as e:
+            record_degradation('voice_bridge', e)
             logger.error("VoiceBridge Stream Error: %s", e)

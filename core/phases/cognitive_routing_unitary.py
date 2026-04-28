@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import logging
 import re
 import time
@@ -521,6 +523,7 @@ class CognitiveRoutingPhase(Phase):
                         })
                         return new_state
         except Exception as e:
+            record_degradation('cognitive_routing_unitary', e)
             logger.debug("🧭 Routing: detect_intent check failed: %s", e)
 
         if is_user_facing and analysis.intent_type == "TASK" and not is_deep_mind_probe:
@@ -628,6 +631,7 @@ class CognitiveRoutingPhase(Phase):
                     names = sorted(cap.skills.keys())[:30]
                     skill_hint = "Available skills: " + ", ".join(names) + "\n"
             except Exception as _exc:
+                record_degradation('cognitive_routing_unitary', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
             prompt = (
@@ -713,6 +717,7 @@ class CognitiveRoutingPhase(Phase):
                 route_meta=route_meta,
             )
         except Exception as e:
+            record_degradation('cognitive_routing_unitary', e)
             logger.error("🧭 Routing: Classification error: %s", e)
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             self._stamp_llm_route(

@@ -9,6 +9,7 @@ Features:
 6. Comprehensive metrics and logging
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import atexit
 import json
@@ -150,6 +151,7 @@ class ManagedProcess:
                 return False
                 
             except Exception as e:
+                record_degradation('process_manager', e)
                 self.state = ProcessState.FAILED
                 logger.error("Failed to start process %s: %s", self.config.name, e, exc_info=True)
                 return False
@@ -172,6 +174,7 @@ class ManagedProcess:
         except KeyboardInterrupt:
             logger.info("Process %s interrupted gracefully", process_name)
         except Exception as e:
+            record_degradation('process_manager', e)
             logger.error("Process %s crashed: %s", process_name, e, exc_info=True)
             raise
         finally:
@@ -226,6 +229,7 @@ class ManagedProcess:
                 return True
                 
             except Exception as e:
+                record_degradation('process_manager', e)
                 logger.error("Error stopping process %s: %s", self.config.name, e)
                 self.state = ProcessState.FAILED
                 return False
@@ -297,6 +301,7 @@ class ManagedProcess:
             try:
                 await asyncio.to_thread(self._check_health)
             except Exception as e:
+                record_degradation('process_manager', e)
                 logger.error("Health check failed for %s: %s", self.config.name, e, exc_info=True)
             
             # Wait for next check or stop signal
@@ -347,6 +352,7 @@ class ManagedProcess:
         except psutil.NoSuchProcess:
             logger.warning("Process %s PID %s not found", self.config.name, self.process.pid)
         except Exception as e:
+            record_degradation('process_manager', e)
             logger.error("Health check error for %s: %s", self.config.name, e)
     
     def get_status(self) -> Dict[str, Any]:
@@ -533,6 +539,7 @@ class ProcessManager:
             try:
                 self._check_all_processes()
             except Exception as e:
+                record_degradation('process_manager', e)
                 logger.error("Process monitor error: %s", e)
             
             # Wait for next check or shutdown
@@ -560,6 +567,7 @@ class ProcessManager:
                                 logger.warning("No live event loop available to restart process %s", name)
                     
                 except Exception as e:
+                    record_degradation('process_manager', e)
                     logger.error("Error checking process %s: %s", name, e)
     
     def cleanup(self):

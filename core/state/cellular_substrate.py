@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -66,6 +67,7 @@ class CellularSubstrate:
                 await repo.commit(state, cause="cellular_unification")
                 
             except Exception as e:
+                record_degradation('cellular_substrate', e)
                 logger.error("🛑 [CELLULAR] Substrate crash: %s", e)
                 await asyncio.sleep(1.0)
 

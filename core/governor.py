@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import os
 import time
@@ -45,6 +46,7 @@ class SystemGovernor:
             self._cached_result = True
             return True
         except Exception as e:
+            record_degradation('governor', e)
             # Fail-safe: If sensors break, allow operation but log error
             logger.error("Governor sensor failure: %s", e)
             self._cached_result = True

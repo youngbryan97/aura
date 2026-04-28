@@ -2,6 +2,7 @@
 Advanced Theory of Mind (ToM) system for Aura.
 Consolidated from duplicate modules.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -78,9 +79,11 @@ class TheoryOfMindEngine:
                         d["interaction_history"] = d.get("interaction_history", [])[-20:]
                         self.known_selves[uid] = AgentModel(**{k: v for k, v in d.items() if k in AgentModel.__dataclass_fields__})
                     except Exception as _exc:
+                        record_degradation('theory_of_mind', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                 logger.debug("ToM: loaded %d user models", len(self.known_selves))
         except Exception as e:
+            record_degradation('theory_of_mind', e)
             logger.debug("ToM: load failed (%s), starting fresh", e)
 
     def save(self):
@@ -96,6 +99,7 @@ class TheoryOfMindEngine:
                 json.dump(data, f, indent=2)
             os.replace(tmp, self._data_path)
         except Exception as e:
+            record_degradation('theory_of_mind', e)
             logger.debug("ToM: save failed: %s", e)
 
     def get_health(self) -> Dict[str, Any]:
@@ -113,6 +117,7 @@ class TheoryOfMindEngine:
             from core.container import ServiceContainer
             return ServiceContainer.get("cognitive_integration", default=ServiceContainer.get("cognitive_engine", default=None))
         except Exception as exc:
+            record_degradation('theory_of_mind', exc)
             logger.debug("Failed to resolve brain from ServiceContainer: %s", exc)
             return None
 
@@ -216,6 +221,7 @@ class TheoryOfMindEngine:
                 if social_mem and hasattr(social_mem, "relationship_depth"):
                     social_mem.relationship_depth = min(1.0, social_mem.relationship_depth + rapport_delta * 0.5)
             except Exception as _exc:
+                record_degradation('theory_of_mind', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         return {
@@ -257,6 +263,7 @@ Return JSON: {{"intent": "...", "sentiment": "...", "emotional_state": "...", "k
                     "knowledge_level": model.knowledge_level
                 }
         except Exception as e:
+            record_degradation('theory_of_mind', e)
             logger.debug("Deep ToM analysis failed: %s", e)
 
         return self._fast_heuristic_update(user_id, message)

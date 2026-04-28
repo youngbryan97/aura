@@ -1,6 +1,7 @@
 """Cognitive Background Mixin for RobustOrchestrator.
 Handles background reflection, learning, RL training, and memory hygiene.
 """
+from core.runtime.errors import record_degradation
 import inspect
 import logging
 import time
@@ -50,6 +51,7 @@ class CognitiveBackgroundMixin:
                     if isinstance(msg, dict) and msg.get("timestamp", time.time()) > cutoff
                 ] or self.conversation_history[-20:]  # Keep at least 20
             except Exception as e:
+                record_degradation('cognitive_background', e)
                 capture_and_log(e, {'module': __name__})
             
         # 2. Deduplication
@@ -83,6 +85,7 @@ class CognitiveBackgroundMixin:
                 return
             reflect_task.add_done_callback(_bg_task_exception_handler)
         except Exception as e:
+            record_degradation('cognitive_background', e)
             if reflect_coro is not None:
                 _dispose_awaitable(reflect_coro)
             logger.debug("Background reflection setup failed: %s", e)
@@ -138,6 +141,7 @@ class CognitiveBackgroundMixin:
                     belief_task.add_done_callback(_bg_task_exception_handler)
 
         except Exception as e:
+            record_degradation('cognitive_background', e)
             if learn_coro is not None:
                 _dispose_awaitable(learn_coro)
             logger.debug("Background learning setup failed: %s", e)

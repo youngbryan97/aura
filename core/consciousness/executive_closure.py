@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -503,6 +505,7 @@ class ExecutiveClosureEngine:
                 ):
                     return str(next_goal.description)
             except Exception as exc:
+                record_degradation('executive_closure', exc)
                 logger.debug("ExecutiveClosure: goal hierarchy lookup failed: %s", exc)
 
         volition = ServiceContainer.get("volition_engine", default=None)
@@ -512,6 +515,7 @@ class ExecutiveClosureEngine:
                 if result and result.get("objective") and is_actionable_goal_text(result["objective"]):
                     return str(result["objective"])
             except Exception as _exc:
+                record_degradation('executive_closure', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
             if (
@@ -525,6 +529,7 @@ class ExecutiveClosureEngine:
                     loop.create_task(self._seed_from_volition(volition, current_objective))
                     self._last_volition_seed = time.time()
                 except Exception as exc:
+                    record_degradation('executive_closure', exc)
                     logger.debug("ExecutiveClosure: volition seed failed: %s", exc)
 
         workspace_focus = str(workspace_snapshot.get("last_content") or "").strip()
@@ -544,6 +549,7 @@ class ExecutiveClosureEngine:
                 return
             volition._last_goal = proposal
         except Exception as exc:
+            record_degradation('executive_closure', exc)
             logger.debug("ExecutiveClosure: volition tick failed: %s", exc)
 
     def _sync_active_goals(self, state: Any, selected_objective: str) -> int:
@@ -591,6 +597,7 @@ class ExecutiveClosureEngine:
         except asyncio.TimeoutError:
             logger.debug("ExecutiveClosure: homeostasis pulse timed out; using cached status.")
         except Exception as exc:
+            record_degradation('executive_closure', exc)
             logger.debug("ExecutiveClosure: homeostasis pulse failed: %s", exc)
         return dict(self._cached_homeostasis_status)
 
@@ -608,6 +615,7 @@ class ExecutiveClosureEngine:
                     "phi_estimate": float(status.get("phi", {}).get("estimate", 0.0)),
                 }
             except Exception as exc:
+                record_degradation('executive_closure', exc)
                 logger.debug("ExecutiveClosure: closed-loop read failed: %s", exc)
         return {"cycle_count": 0, "free_energy": 0.0, "phi_estimate": 0.0}
 
@@ -617,6 +625,7 @@ class ExecutiveClosureEngine:
             try:
                 return dict(workspace.get_snapshot() or {})
             except Exception as exc:
+                record_degradation('executive_closure', exc)
                 logger.debug("ExecutiveClosure: workspace snapshot failed: %s", exc)
         return {}
 
@@ -626,6 +635,7 @@ class ExecutiveClosureEngine:
             try:
                 return dict(interaction_signals.get_status() or {})
             except Exception as exc:
+                record_degradation('executive_closure', exc)
                 logger.debug("ExecutiveClosure: interaction signal snapshot failed: %s", exc)
         return {}
 
@@ -679,6 +689,7 @@ class ExecutiveClosureEngine:
                 self._sync_self_model_payload(self_model, payload)
             )
         except Exception as exc:
+            record_degradation('executive_closure', exc)
             logger.debug("ExecutiveClosure: self-model sync failed: %s", exc)
 
     async def _sync_self_model_payload(self, self_model: Any, payload: Dict[str, Any]) -> None:
@@ -709,10 +720,12 @@ class ExecutiveClosureEngine:
                             context={"reason": "update_belief_unavailable"},
                         )
                     except Exception as degraded_exc:
+                        record_degradation('executive_closure', degraded_exc)
                         logger.debug("ExecutiveClosure degraded-event logging failed: %s", degraded_exc)
                     return
                 self_model.beliefs["executive_closure"] = payload
         except Exception as exc:
+            record_degradation('executive_closure', exc)
             logger.debug("ExecutiveClosure: self-model sync task failed: %s", exc)
 
     def _maybe_sync_goal_hierarchy(
@@ -744,6 +757,7 @@ class ExecutiveClosureEngine:
             )
             self._last_goal_sync = now
         except Exception as exc:
+            record_degradation('executive_closure', exc)
             logger.debug("ExecutiveClosure: goal sync failed: %s", exc)
 
     # ------------------------------------------------------------------

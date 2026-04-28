@@ -5,6 +5,7 @@ Acts as the single source of truth for Affect, Agency, and Substrate states
 to prevent desynchronization and runtime contradictions.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -103,6 +104,7 @@ class UnifiedStateRegistry:
                             # Run sync listeners in threads to avoid blocking the dispatcher
                             await asyncio.to_thread(lambda l=listener, s=snapshot: l(s))
                     except Exception as e:
+                        record_degradation('state_registry', e)
                         self.failed_notifications += 1
                         logger.error(f"StateRegistry listener failed: {e}")
                 
@@ -110,6 +112,7 @@ class UnifiedStateRegistry:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('state_registry', e)
                 logger.error(f"StateRegistry dispatcher error: {e}")
                 await asyncio.sleep(0.1)
 

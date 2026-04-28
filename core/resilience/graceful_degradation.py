@@ -3,6 +3,7 @@
 Tracks component health and adjusts capabilities when components fail.
 Allows Aura to continue operating even when some subsystems are unavailable.
 """
+from core.runtime.errors import record_degradation
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -96,6 +97,7 @@ class GracefulDegradationManager:
                 state.status = ComponentStatus.DEGRADED
                 logger.info("Activated fallback for %s", component)
             except Exception as e:
+                record_degradation('graceful_degradation', e)
                 logger.error("Fallback for %s also failed: %s", component, e)
         
         # Adjust capabilities
@@ -196,6 +198,7 @@ def safe_init(factory: Callable, component_name: str,
         manager.register_component(component_name, initial_status=ComponentStatus.HEALTHY)
         return result
     except Exception as e:
+        record_degradation('graceful_degradation', e)
         manager.report_failure(component_name, str(e))
         logger.warning("Using fallback for %s: %s", component_name, type(fallback).__name__)
         return fallback

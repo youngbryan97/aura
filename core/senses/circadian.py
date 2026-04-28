@@ -25,6 +25,8 @@ This is not cosmetic. The circadian state feeds directly into:
   - Experience consolidation scheduling
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import logging
@@ -236,6 +238,7 @@ class CircadianEngine:
                         affect.apply_stimulus("circadian_arousal", delta * 2.0)
                     )
         except Exception as _exc:
+            record_degradation('circadian', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
 

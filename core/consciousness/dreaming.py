@@ -4,6 +4,7 @@ This component activation during 'low pulse' periods to process recent interacti
 summarize them using the Language Center (Narrator), and update the Ego-Model (Identity).
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -37,6 +38,7 @@ class DreamingProcess:
             try:
                 self._identity = ServiceContainer.get("identity", default=None)
             except Exception as exc:
+                record_degradation('dreaming', exc)
                 logger.debug("Failed to resolve identity service: %s", exc)
         return self._identity
 
@@ -46,6 +48,7 @@ class DreamingProcess:
             try:
                 self._narrator = ServiceContainer.get("narrator", default=None)
             except Exception as exc:
+                record_degradation('dreaming', exc)
                 logger.debug("Failed to resolve narrator service: %s", exc)
         return self._narrator
 
@@ -78,6 +81,7 @@ class DreamingProcess:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('dreaming', e)
                 logger.error(f"Error in dreaming loop: {e}")
 
     def _should_dream(self) -> bool:
@@ -210,6 +214,7 @@ class DreamingProcess:
                             confidence=conf,
                         )
             except Exception as exc:
+                record_degradation('dreaming', exc)
                 logger.debug("Dream: world_model belief update failed: %s", exc)
 
             # 4. Novel patterns (freq == 1) feed curiosity
@@ -220,6 +225,7 @@ class DreamingProcess:
                     for _ in novel[:3]:  # Cap curiosity nudges
                         homeostasis.feed_curiosity(0.05)
             except Exception as exc:
+                record_degradation('dreaming', exc)
                 logger.debug("Dream: homeostasis curiosity feed failed: %s", exc)
 
             # 5. High-frequency patterns feed credit assignment
@@ -234,6 +240,7 @@ class DreamingProcess:
                             "identity",
                         )
             except Exception as exc:
+                record_degradation('dreaming', exc)
                 logger.debug("Dream: credit_assignment failed: %s", exc)
 
             # 6. Store dream insight in journal (capped at 50)
@@ -258,12 +265,14 @@ class DreamingProcess:
                     if consolidated_count > 0:
                         logger.info(f"💾 Consolidated {consolidated_count} semantic clusters into insights.")
             except Exception as exc:
+                record_degradation('dreaming', exc)
                 logger.debug("Dream: vector memory consolidation failed: %s", exc)
 
             # 8. Update Identity with extracted patterns
             self._process_growth(recent_events, patterns)
 
         except Exception as e:
+            record_degradation('dreaming', e)
             logger.error(f"Dream cycle failed: {e}")
 
     async def _get_recent_summary(self) -> str:
@@ -282,6 +291,7 @@ class DreamingProcess:
 
             return "\n".join(summary)
         except Exception as e:
+            record_degradation('dreaming', e)
             logger.debug(f"Failed to get recent summary: {e}")
             return ""
 

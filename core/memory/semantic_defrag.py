@@ -4,6 +4,7 @@ core/memory/semantic_defrag.py
 Implements "Semantic Sleep" for vector memory consolidation.
 Finds dense clusters of similar memories and merges them into unified concepts.
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 import asyncio
@@ -168,6 +169,7 @@ class SemanticDefragmenter:
                     logger.info("✅ Successfully merged %s memories into a single Concept.", len(cluster_ids))
 
         except Exception as e:
+            record_degradation('semantic_defrag', e)
             logger.error("Semantic Defrag failed: %s", e)
 
 async def start_defrag_scheduler():

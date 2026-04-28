@@ -26,6 +26,8 @@ Two modes:
   RICH: LLM-generated HOT (~2-4s, runs asynchronously)
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -206,6 +208,7 @@ class HigherOrderThoughtEngine:
                 logger.debug("HOT rich: %s", hot.content[:80])
                 return hot
         except Exception as e:
+            record_degradation('hot_engine', e)
             logger.debug("HOT rich generation failed: %s", e)
         return self._current_hot
 
@@ -227,6 +230,7 @@ class HigherOrderThoughtEngine:
                         setattr(affect_engine._state, dim,
                                 float(max(-1.0, min(1.0, current + change))))
                 except Exception as _exc:
+                    record_degradation('hot_engine', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
         return delta
 

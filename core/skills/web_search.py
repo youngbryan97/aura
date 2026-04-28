@@ -1,6 +1,7 @@
 """Enhanced web search and research skill for Aura."""
 
 
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict, Optional
 
@@ -179,6 +180,7 @@ class EnhancedWebSearchSkill(BaseSkill):
                     return normalized
                 logger.warning("Deep Research returned an empty answer for '%s'; falling back to retrieval pipeline.", query)
             except Exception as e:
+                record_degradation('web_search', e)
                 logger.error("Deep Research failed, falling back to legacy: %s", e)
 
         # Legacy direct search

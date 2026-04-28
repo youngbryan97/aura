@@ -53,6 +53,8 @@ INSTALL:
   Or via apply_consciousness_patches() which handles all three patches.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -149,6 +151,7 @@ class ConsciousnessLoopMonitor:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                record_degradation('loop_monitor', exc)
                 logger.debug("LoopMonitor._loop error: %s", exc)
 
             await asyncio.sleep(HEALTH_CHECK_INTERVAL)
@@ -248,6 +251,7 @@ class ConsciousnessLoopMonitor:
                 affect.receive_qualia_echo(q_norm=0.001, pri=0.001, trend=0.0)
                 logger.debug("LoopMonitor: end-to-end probe fired successfully")
             except Exception as exc:
+                record_degradation('loop_monitor', exc)
                 issues.append({
                     "check":         "end_to_end_probe",
                     "message":       f"receive_qualia_echo() raised an exception: {exc}",
@@ -348,6 +352,7 @@ class ConsciousnessLoopMonitor:
             result = sc.get(key, default=None)
             return result
         except Exception as e:
+            record_degradation('loop_monitor', e)
             # Degrade gracefully if ServiceContainer API changes
             logger.debug(f"LoopMonitor: _get({key}) failed: {e}")
             return None

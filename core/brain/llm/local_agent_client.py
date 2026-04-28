@@ -1,6 +1,7 @@
 """Local Agentic Client.
 Enables 'Tool Use' and 'Reasoning Loops' using purely local models.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -136,6 +137,7 @@ class LocalAgentClient(RobustOllamaClient):
                 from .context_limit import context_guard
                 history = context_guard.prune(history, system_prompt)
             except Exception as e:
+                record_degradation('local_agent_client', e)
                 logger.debug("History pruning/compaction skipped: %s", e)
             
             # Phase 24 Upgrade: Keep model in VRAM and cap context
@@ -181,6 +183,7 @@ class LocalAgentClient(RobustOllamaClient):
                             level="info"
                         )
                 except Exception as e:
+                    record_degradation('local_agent_client', e)
                     logger.debug("Thought stream emit failed: %s", e)
                 
                 # ACTUAL EXECUTION
@@ -197,6 +200,7 @@ class LocalAgentClient(RobustOllamaClient):
                         level="success" if "error" not in result_str.lower() else "warning"
                     )
                 except Exception as e:
+                    record_degradation('local_agent_client', e)
                     logger.debug("Tool result emit failed: %s", e)
 
                 history += f"\nAURA: {response_text}\nSYSTEM: {result_str}\n"
@@ -273,6 +277,7 @@ class LocalAgentClient(RobustOllamaClient):
                     except json.JSONDecodeError:
                         continue
         except Exception as e:
+            record_degradation('local_agent_client', e)
             logger.error("Tool parsing error: %s", e)
             
         return None

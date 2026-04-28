@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import gc
@@ -300,10 +302,12 @@ class StabilityGuardian:
                             context={"issue_count": len(unhealthy)},
                         )
                     except Exception as record_exc:
+                        record_degradation('stability_guardian', record_exc)
                         logger.debug("StabilityGuardian degraded event emit failed: %s", record_exc)
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('stability_guardian', e)
                 logger.error("StabilityGuardian loop error: %s", e)
 
     async def run_checks(self) -> SystemHealthReport:
@@ -330,6 +334,7 @@ class StabilityGuardian:
                 if isinstance(result, HealthCheckResult):
                     checks.append(result)
             except Exception as e:
+                record_degradation('stability_guardian', e)
                 checks.append(HealthCheckResult(
                     name    = getattr(fn, "__name__", "unknown"),
                     healthy = False,
@@ -400,6 +405,7 @@ class StabilityGuardian:
                     await dual_mem.episodic.evict_oldest(0.2)
                     action = "gc.collect() + episodic eviction triggered"
             except Exception as _e:
+                record_degradation('stability_guardian', _e)
                 logger.debug('Ignored Exception in stability_guardian.py: %s', _e)
             return HealthCheckResult(
                 "memory", False,
@@ -444,6 +450,7 @@ class StabilityGuardian:
                         t.cancel()
                         cancelled_count += 1
                     except Exception as _exc:
+                        record_degradation('stability_guardian', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     if n - cancelled_count <= self.MAX_TASK_COUNT - 20:
                         break
@@ -495,6 +502,7 @@ class StabilityGuardian:
                 action_taken=f"watchdog_interventions={interventions}",
             )
         except Exception as exc:
+            record_degradation('stability_guardian', exc)
             return HealthCheckResult("lock_watchdog", False, f"Check failed: {exc}", "error")
 
     def _dump_thread_stacks(self, label: str) -> bool:
@@ -515,6 +523,7 @@ class StabilityGuardian:
         try:
             loop.run_in_executor(None, self._dump_thread_stacks_blocking, label, live_tasks)
         except Exception as exc:
+            record_degradation('stability_guardian', exc)
             logger.debug("StabilityGuardian thread dump dispatch failed: %s", exc)
             return False
         return True
@@ -565,6 +574,7 @@ class StabilityGuardian:
             dump = "\n\n".join(ordered_blocks)
             logger.error("🚨 [StabilityGuardian] %s. THREAD DUMP:%s\n%s", label, task_block, dump[:6000])
         except Exception as exc:
+            record_degradation('stability_guardian', exc)
             logger.debug("StabilityGuardian thread dump failed: %s", exc)
 
     def _check_tick_rate(self) -> HealthCheckResult:
@@ -736,6 +746,7 @@ class StabilityGuardian:
                             state.compact(trigger_threshold=100, keep_turns=50)
                             action = "Forced state.compact()"
                     except Exception as e:
+                        record_degradation('stability_guardian', e)
                         action = f"Compact failed: {e}"
                         
                 return HealthCheckResult(
@@ -748,6 +759,7 @@ class StabilityGuardian:
             return HealthCheckResult("state_integrity", True, f"State v{getattr(state, 'version', 0)} OK")
 
         except Exception as e:
+            record_degradation('stability_guardian', e)
             return HealthCheckResult("state_integrity", False, f"Check failed: {e}", "error")
 
     async def _check_state_repository_pressure(self) -> HealthCheckResult:
@@ -822,6 +834,7 @@ class StabilityGuardian:
                 action_taken=", ".join(actions) or None,
             )
         except Exception as exc:
+            record_degradation('stability_guardian', exc)
             return HealthCheckResult("state_repository", False, f"Check failed: {exc}", "error")
 
     async def _check_llm_circuit(self) -> HealthCheckResult:
@@ -871,6 +884,7 @@ class StabilityGuardian:
                                 action_taken="organ.load() called",
                             )
                     except Exception as reload_err:
+                        record_degradation('stability_guardian', reload_err)
                         return HealthCheckResult(
                             "llm_circuit", False,
                             f"LLM stuck on MockLLM: {reload_err}",
@@ -885,6 +899,7 @@ class StabilityGuardian:
             return HealthCheckResult("llm_circuit", True, f"LLM OK: {instance_name}")
 
         except Exception as e:
+            record_degradation('stability_guardian', e)
             return HealthCheckResult("llm_circuit", False, f"Check failed: {e}", "error")
 
     async def _check_db_connections(self) -> HealthCheckResult:
@@ -912,6 +927,7 @@ class StabilityGuardian:
                             action_taken="aiosqlite.connect() called",
                         )
                     except Exception as e:
+                        record_degradation('stability_guardian', e)
                         return HealthCheckResult(
                             "db_connections", False,
                             f"DB connection lost and reconnect failed: {e}",
@@ -921,6 +937,7 @@ class StabilityGuardian:
             return HealthCheckResult("db_connections", True, "DB connection OK")
 
         except Exception as e:
+            record_degradation('stability_guardian', e)
             return HealthCheckResult("db_connections", False, f"Check failed: {e}", "error")
 
     async def _check_backup_maintenance(self) -> HealthCheckResult:
@@ -972,6 +989,7 @@ class StabilityGuardian:
             latest_label = health.get("latest_backup") or "none_yet"
             return HealthCheckResult("backup_manager", True, f"Backup maintenance OK: latest={latest_label}")
         except Exception as exc:
+            record_degradation('stability_guardian', exc)
             return HealthCheckResult("backup_manager", False, f"Check failed: {exc}", "error")
 
     async def _check_runtime_hygiene(self) -> HealthCheckResult:
@@ -1017,6 +1035,7 @@ class StabilityGuardian:
                 action_taken=", ".join(report.get("repair_actions", []) or []) or None,
             )
         except Exception as exc:
+            record_degradation('stability_guardian', exc)
             return HealthCheckResult("runtime_hygiene", False, f"Check failed: {exc}", "error")
 
     async def _check_background_tasks(self) -> HealthCheckResult:
@@ -1047,6 +1066,7 @@ class StabilityGuardian:
                         )
                         action = "autonomous_loop.start() triggered"
                 except Exception as e:
+                    record_degradation('stability_guardian', e)
                     action = f"Restart failed: {e}"
                     
             logger.debug(f"[PID {os.getpid()}] StabilityGuardian: Total tasks: {len(tasks)}. Running task names: {running_names}")
@@ -1106,6 +1126,7 @@ class StabilityGuardian:
             except OSError as _exc:
                 logger.debug("Suppressed OSError: %s", _exc)
         except Exception as _e:
+            record_degradation('stability_guardian', _e)
             logger.debug('Ignored Exception in stability_guardian.py: %s', _e)
 
     def _rotate_health_log(self) -> None:
@@ -1131,4 +1152,5 @@ class StabilityGuardian:
             logger.info("🧹 [StabilityGuardian] Rotated health_log.jsonl (exceeded %dMB).",
                         self._HEALTH_LOG_MAX_BYTES // (1024 * 1024))
         except Exception as e:
+            record_degradation('stability_guardian', e)
             logger.debug("Health log rotation failed: %s", e)

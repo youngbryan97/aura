@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -39,6 +40,7 @@ class ThoughtTracer:
             with open(self.current_trace_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry) + "\n")
         except Exception as e:
+            record_degradation('thought_tracer', e)
             self.logger.error("Failed to write trace: %s", e)
 
     def log_event(self, event_type: str, details: dict[str, Any]) -> None:
@@ -52,6 +54,7 @@ class ThoughtTracer:
             with open(self.current_trace_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry) + "\n")
         except Exception as e:
+            record_degradation('thought_tracer', e)
             self.logger.error("Failed to write event trace: %s", e)
 
 # Global instance

@@ -17,6 +17,8 @@ Loops implemented:
 Runs as a background service at 30-second intervals.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -69,6 +71,7 @@ class SingularityLoops:
             try:
                 await self._tick()
             except Exception as exc:
+                record_degradation('singularity_loops', exc)
                 logger.debug("SingularityLoops tick error: %s", exc)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self._INTERVAL)
@@ -118,6 +121,7 @@ class SingularityLoops:
                             source="metacognition_loop",
                         )
                 except Exception as _exc:
+                    record_degradation('singularity_loops', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
             # Feed confusions into exploration queue
@@ -173,6 +177,7 @@ class SingularityLoops:
                                     tags=["exploration", "self_directed_learning"],
                                 )
                             except Exception as _exc:
+                                record_degradation('singularity_loops', _exc)
                                 logger.debug("Suppressed Exception: %s", _exc)
         except asyncio.TimeoutError as _exc:
             logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
@@ -205,6 +210,7 @@ class SingularityLoops:
                         timeout=20.0,
                     )
         except Exception as exc:
+            record_degradation('singularity_loops', exc)
             logger.debug("Goal decomposition failed: %s", exc)
 
         # 2. Advance operational goals by executing them
@@ -257,6 +263,7 @@ class SingularityLoops:
                                             f"Searched: {query[:40]}",
                                         )
                                     except Exception as _exc:
+                                        record_degradation('singularity_loops', _exc)
                                         logger.debug("Suppressed Exception: %s", _exc)
                             elif action.upper().startswith("REFLECT:"):
                                 # Store the reflection as progress
@@ -273,6 +280,7 @@ class SingularityLoops:
                     except asyncio.TimeoutError as _exc:
                         logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
         except Exception as exc:
+            record_degradation('singularity_loops', exc)
             logger.debug("Goal advancement failed: %s", exc)
 
     # ── Loop 4: Profile Injection ────────────────────────────────────────
@@ -318,6 +326,7 @@ class SingularityLoops:
                                 f"[USER_PROFILE] {context_block[:500]}"
                             )
         except Exception as exc:
+            record_degradation('singularity_loops', exc)
             logger.debug("Profile injection failed: %s", exc)
 
     # ── Loop 5: Distillation Auto-Trigger ────────────────────────────────
@@ -366,6 +375,7 @@ class SingularityLoops:
             except asyncio.TimeoutError:
                 logger.debug("Distillation timed out")
             except Exception as exc:
+                record_degradation('singularity_loops', exc)
                 logger.debug("Distillation failed: %s", exc)
 
     # ── Loop 6: Affect → Exploration ─────────────────────────────────────
@@ -424,6 +434,7 @@ class SingularityLoops:
                     active_topic=topic or "something new",
                 )
         except Exception as exc:
+            record_degradation('singularity_loops', exc)
             logger.debug("Affect→Exploration loop failed: %s", exc)
 
 
@@ -441,5 +452,6 @@ def get_singularity_loops() -> SingularityLoops:
                 "singularity_loops", _instance, required=False
             )
         except Exception as _exc:
+            record_degradation('singularity_loops', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
     return _instance

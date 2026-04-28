@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import urllib.parse
@@ -71,6 +72,7 @@ class SovereignBrowserSkill(BaseSkill):
         try:
             await asyncio.wait_for(browser.close(), timeout=10.0)
         except Exception as close_exc:
+            record_degradation('sovereign_browser', close_exc)
             logger.debug("Browser close error (suppressed): %s", close_exc)
             # Force-kill if close() hangs
             try:
@@ -97,6 +99,7 @@ class SovereignBrowserSkill(BaseSkill):
             logger.warning("🕐 read_content() timed out after %.0fs", self.READ_TIMEOUT)
             return ""
         except Exception as e:
+            record_degradation('sovereign_browser', e)
             logger.warning("read_content() error: %s", e)
             return ""
 
@@ -108,6 +111,7 @@ class SovereignBrowserSkill(BaseSkill):
             logger.warning("🕐 browse(%s) timed out after %.0fs", url[:80], self.BROWSE_TIMEOUT)
             return False
         except Exception as e:
+            record_degradation('sovereign_browser', e)
             logger.warning("browse(%s) error: %s", url[:80], e)
             return False
 
@@ -122,6 +126,7 @@ class SovereignBrowserSkill(BaseSkill):
             try:
                 params = BrowserInput(**params)
             except Exception as e:
+                record_degradation('sovereign_browser', e)
                 return {"ok": False, "error": f"Invalid input schema: {e}"}
 
         browser: Optional[PhantomBrowser] = None
@@ -151,10 +156,12 @@ class SovereignBrowserSkill(BaseSkill):
                 logger.warning("Browser operation timed out: %s", te)
                 return {"ok": False, "error": f"Browser operation timed out: {params.mode}"}
             except Exception as e:
+                record_degradation('sovereign_browser', e)
                 logger.warning("Primary Playwright strategy failed, attempting fallback: %s", e)
                 return await self._execute_fallback(params)
 
         except Exception as e:
+            record_degradation('sovereign_browser', e)
             logger.error("Browser skill failed completely: %s", e)
             return {"ok": False, "error": str(e)}
         finally:
@@ -198,6 +205,7 @@ class SovereignBrowserSkill(BaseSkill):
         except ImportError:
             return {"ok": False, "error": "Playwright failed and Selenium UC not installed."}
         except Exception as e:
+            record_degradation('sovereign_browser', e)
             return {"ok": False, "error": f"Fallback failed: {e}"}
 
     async def _handle_search(self, browser: PhantomBrowser, query: str, deep: bool) -> Dict[str, Any]:
@@ -222,6 +230,7 @@ class SovereignBrowserSkill(BaseSkill):
                     try:
                         await asyncio.wait_for(browser.rotate_user_agent(), timeout=10.0)
                     except Exception as rot_exc:
+                        record_degradation('sovereign_browser', rot_exc)
                         logger.debug("UA rotation failed: %s", rot_exc)
                     continue
 
@@ -268,6 +277,7 @@ class SovereignBrowserSkill(BaseSkill):
                                     "message": f"I have deeply synthesized the content from {target}. Here is the core information:\n\n{snippet[:2000]}..."
                                 }
                         except Exception as e:
+                            record_degradation('sovereign_browser', e)
                             logger.error("Deep dive into %s failed: %s", target, e)
                             continue
 
@@ -333,6 +343,7 @@ class SovereignBrowserSkill(BaseSkill):
                 logger.warning("Action '%s' timed out", action.type)
                 success = False
             except Exception as action_exc:
+                record_degradation('sovereign_browser', action_exc)
                 logger.warning("Action '%s' failed: %s", action.type, action_exc)
                 success = False
 

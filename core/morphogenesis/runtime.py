@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -250,6 +252,7 @@ class MorphogeneticRuntime:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                record_degradation('runtime', exc)
                 self._last_tick_error = f"{type(exc).__name__}: {exc}"
                 logger.error("Morphogenesis tick failed: %s", self._last_tick_error, exc_info=True)
                 self.emit_signal(
@@ -364,6 +367,7 @@ class MorphogeneticRuntime:
                 if asyncio.iscoroutine(result):
                     await asyncio.wait_for(result, timeout=3.0)
             except Exception as exc:
+                record_degradation('runtime', exc)
                 logger.debug("Adaptive immunity bridge skipped: %s", exc)
 
     async def _maybe_record_episode(self, results: List[Dict[str, Any]]) -> None:
@@ -404,6 +408,7 @@ class MorphogeneticRuntime:
             )
             self._episode_buffer.clear()
         except Exception as exc:
+            record_degradation('runtime', exc)
             logger.debug("morphogenesis episode record skipped: %s", exc)
 
     @staticmethod

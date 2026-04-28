@@ -8,6 +8,7 @@ configurable soak period.
 This goes beyond SandboxTester (which only validates syntax + imports) by
 running the full modified system for N seconds to catch runtime failures.
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 from core.utils.exceptions import capture_and_log
 import asyncio
@@ -207,6 +208,7 @@ print(f"SHADOW_OK: AST parsed, {{len(tree.body)}} top-level nodes")
                 result.errors.append(f"Shadow runtime timed out after {soak_seconds}s")
                 logger.warning("⏰ Shadow runtime timed out for %s", file_path)
             except Exception as e:
+                record_degradation('shadow_runtime', e)
                 result.errors.append(f"Shadow runtime error: {e}")
                 logger.error("Shadow runtime failed: %s", e)
             finally:
@@ -216,6 +218,7 @@ print(f"SHADOW_OK: AST parsed, {{len(tree.body)}} top-level nodes")
                     try:
                         shutil.rmtree(shadow_dir, ignore_errors=True)
                     except Exception as e:
+                        record_degradation('shadow_runtime', e)
                         capture_and_log(e, {'module': __name__})
                 self._active_shadow = None
 
@@ -254,6 +257,7 @@ print(f"SHADOW_OK: AST parsed, {{len(tree.body)}} top-level nodes")
                     else:
                         shutil.copy2(item, dest)
                 except Exception as e:
+                    record_degradation('shadow_runtime', e)
                     logger.debug("Shadow copy skip %s: %s", item.name, e)
 
         await asyncio.to_thread(_copy)

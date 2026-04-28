@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 from pathlib import Path
@@ -28,6 +29,7 @@ class CurriculumManager:
             with open(self.data_path, 'r') as f:
                 return json.load(f)
         except Exception as e:
+            record_degradation('curriculum', e)
             logger.error("Failed to load curriculum: %s", e)
             return {"categories": []}
 
@@ -36,6 +38,7 @@ class CurriculumManager:
             with open(self.data_path, 'w') as f:
                 json.dump(self.data, f, indent=2)
         except Exception as e:
+            record_degradation('curriculum', e)
             logger.error("Failed to save curriculum: %s", e)
 
     def get_suggestion(self, category: Optional[str] = None) -> Optional[Dict[str, Any]]:

@@ -3,6 +3,8 @@
 Shared helpers used by multiple route files and the main server module.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import time
@@ -47,4 +49,5 @@ def _notify_user_spoke(message: str = ""):
             # Direct timestamp used by some background loops
             orch._last_user_interaction_time = time.time()
     except Exception as _e:
+        record_degradation('helpers', _e)
         pass  # Non-critical; never block a user message on this

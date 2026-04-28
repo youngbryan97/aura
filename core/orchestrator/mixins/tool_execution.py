@@ -1,6 +1,7 @@
 """Tool Execution Mixin for RobustOrchestrator.
 Extracts browser task and tool execution logic.
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Any, Optional
@@ -96,6 +97,7 @@ class ToolExecutionMixin:
                     error=error,
                 )
             except Exception as _coding_exc:
+                record_degradation('tool_execution', _coding_exc)
                 logger.debug("Coding session tool recording skipped: %s", _coding_exc)
 
         # ── UNIFIED WILL GATE ────────────────────────────────────────────
@@ -113,6 +115,7 @@ class ToolExecutionMixin:
                 _record_coding_tool_event(result, success=False, error=str(_will_decision.reason))
                 return result
         except Exception as _will_err:
+            record_degradation('tool_execution', _will_err)
             logger.debug("Unified Will tool gate degraded: %s", _will_err)
         # ─────────────────────────────────────────────────────────────────
 
@@ -151,6 +154,7 @@ class ToolExecutionMixin:
             if _tool_handle.constraints:
                 kwargs.update(_tool_handle.constraints)  # Apply any degraded-mode constraints
         except Exception as _exec_err:
+            record_degradation('tool_execution', _exec_err)
             if _constitutional_runtime_live:
                 try:
                     from core.health.degraded_events import record_degraded_event
@@ -165,6 +169,7 @@ class ToolExecutionMixin:
                         exc=_exec_err,
                     )
                 except Exception as _exc:
+                    record_degradation('tool_execution', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 logger.warning("🚫 ConstitutionalCore unavailable for tool '%s': %s", tool_name, _exec_err)
                 result = {"ok": False, "error": "Constitutional tool gate unavailable"}
@@ -206,6 +211,7 @@ class ToolExecutionMixin:
                     return result
                 kwargs["capability_token_id"] = capability_token_id
             except Exception as capability_err:
+                record_degradation('tool_execution', capability_err)
                 logger.warning("Capability verification failed for tool '%s': %s", tool_name, capability_err)
                 if _constitution and _tool_handle:
                     await _constitution.finish_tool_execution(
@@ -338,6 +344,7 @@ class ToolExecutionMixin:
                         action_fn=lambda: _actual_outcome,
                     )
                 except Exception as _sbx_err:
+                    record_degradation('tool_execution', _sbx_err)
                     logger.debug("Resistance sandbox feedback failed: %s", _sbx_err)
 
             # 5. Tool Learning
@@ -346,6 +353,7 @@ class ToolExecutionMixin:
                     category = self.tool_learner.classify_task(str(args.get('query', args.get('path', ''))))
                     self.tool_learner.record_usage(tool_name, category, success, elapsed_ms)
                 except Exception as _e:
+                    record_degradation('tool_execution', _e)
                     logger.debug("Tool learning record failed: %s", _e)
 
             # 6. Episodic Recording (Now via Facade)
@@ -359,6 +367,7 @@ class ToolExecutionMixin:
                         importance=0.3 if success else 0.7,
                     )
                 except Exception as _e:
+                    record_degradation('tool_execution', _e)
                     logger.debug("Unified memory record failed: %s", _e)
 
             # 7. Causal Learning (ACG)
@@ -371,6 +380,7 @@ class ToolExecutionMixin:
                     success=success
                 )
             except Exception as _e:
+                record_degradation('tool_execution', _e)
                 logger.debug("ACG record failed: %s", _e)
 
             # WIRE-01: Affect State Update
@@ -395,6 +405,7 @@ class ToolExecutionMixin:
             return result
 
         except Exception as e:
+            record_degradation('tool_execution', e)
             logger.error("Execution Jolt (Pain): Tool %s crashed: %s", tool_name, e)
             # Record failure
             if hasattr(self, 'memory') and self.memory:
@@ -408,6 +419,7 @@ class ToolExecutionMixin:
                         importance=0.9,
                     )
                 except Exception as _e:
+                    record_degradation('tool_execution', _e)
                     logger.debug("Unified memory record failed (crash path): %s", _e)
             if _constitution and _tool_handle:
                 try:
@@ -419,6 +431,7 @@ class ToolExecutionMixin:
                         error=str(e),
                     )
                 except Exception as _finish_exc:
+                    record_degradation('tool_execution', _finish_exc)
                     logger.debug("Constitutional tool completion failed: %s", _finish_exc)
             result = {"ok": False, "error": "execution_jolt", "message": str(e)}
             _record_coding_tool_event(result, success=False, error=str(e))

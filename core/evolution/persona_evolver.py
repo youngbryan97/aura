@@ -1,6 +1,7 @@
 """Persona Evolver (Phase 8)
 Analyzes interaction memory and adapts personality baselines subtly over time.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -35,6 +36,7 @@ class PersonaEvolver:
             # In a full v34 implementation, this would call a LLM to generate the delta
             await self.run_evolution_cycle(force=True, custom_reflection=reflection)
         except Exception as e:
+            record_degradation('persona_evolver', e)
             logger.error(f"Persona evolution failed: {e}")
 
     async def run_evolution_cycle(self, force: bool = False, custom_reflection: str = None):
@@ -46,6 +48,7 @@ class PersonaEvolver:
                 logger.debug("Persona evolution skipped by runtime mode configuration.")
                 return
         except Exception as exc:
+            record_degradation('persona_evolver', exc)
             logger.debug("Persona evolution runtime-mode check skipped: %s", exc)
 
         now = time.time()
@@ -115,6 +118,7 @@ Recent Interactions:
                 self.last_evolution_time = time.time()
                 
         except Exception as e:
+            record_degradation('persona_evolver', e)
             logger.error("PersonaEvolver cycle failed: %s", e)
             
     def _apply_evolution(self, changes: dict[str, Any], personality):

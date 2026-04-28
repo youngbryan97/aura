@@ -1,6 +1,7 @@
 """skills/swarm_delegation.py
 Skills for spawning sub-agents — both thinking-only shards and full agentic executors.
 """
+from core.runtime.errors import record_degradation
 import logging
 import asyncio
 from typing import Any, Dict, List, Optional
@@ -30,6 +31,7 @@ class SwarmDelegationSkill(BaseSkill):
             try:
                 params = SwarmDelegationParams(**params)
             except Exception as e:
+                record_degradation('swarm_delegation', e)
                 return {"ok": False, "error": f"Invalid parameters: {e}"}
 
         delegator = self._get_delegator()
@@ -58,6 +60,7 @@ class SwarmDelegationSkill(BaseSkill):
                 return {"ok": False, "error": f"Shard failed: {agent.result}"}
 
         except Exception as e:
+            record_degradation('swarm_delegation', e)
             logger.error("SwarmDelegationSkill failed: %s", e)
             return {"ok": False, "error": str(e)}
 
@@ -95,6 +98,7 @@ class SpawnAgentSkill(BaseSkill):
             try:
                 params = SpawnAgentParams(**params)
             except Exception as e:
+                record_degradation('swarm_delegation', e)
                 return {"ok": False, "error": f"Invalid parameters: {e}"}
 
         delegator = SwarmDelegationSkill._get_delegator()
@@ -135,6 +139,7 @@ class SpawnAgentSkill(BaseSkill):
             }
 
         except Exception as e:
+            record_degradation('swarm_delegation', e)
             logger.error("SpawnAgentSkill failed: %s", e)
             return {"ok": False, "error": str(e)}
 
@@ -163,6 +168,7 @@ class ParallelAgentsSkill(BaseSkill):
             try:
                 params = ParallelAgentsParams(**params)
             except Exception as e:
+                record_degradation('swarm_delegation', e)
                 return {"ok": False, "error": f"Invalid parameters: {e}"}
 
         delegator = SwarmDelegationSkill._get_delegator()
@@ -178,5 +184,6 @@ class ParallelAgentsSkill(BaseSkill):
             return result
 
         except Exception as e:
+            record_degradation('swarm_delegation', e)
             logger.error("ParallelAgentsSkill failed: %s", e)
             return {"ok": False, "error": str(e)}

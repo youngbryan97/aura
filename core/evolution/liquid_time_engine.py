@@ -1,4 +1,5 @@
 # core/evolution/liquid_time_engine.py
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import math
@@ -59,6 +60,7 @@ class ContinuousState:
                 }
                 logger.info("✓ Liquid weights loaded from .npz")
             except Exception as e:
+                record_degradation('liquid_time_engine', e)
                 logger.error("Failed to load liquid weights: %s. Using defaults.", e)
                 self._set_defaults()
         else:

@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import logging
 import asyncio
 from typing import Optional, TYPE_CHECKING
@@ -43,6 +45,7 @@ class SelfReviewPhase(Phase):
         try:
             loop_state = loop_state_fn()
         except Exception as e:
+            record_degradation('self_review', e)
             logger.warning("SelfReview: loop_state() raised: %s", e)
             return state
 

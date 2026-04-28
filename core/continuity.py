@@ -4,6 +4,7 @@ Every shutdown writes a state. Every boot reads it. Gap > 0 means she was
 somewhere else for a while and knows it.
 """
 
+from core.runtime.errors import record_degradation
 import json
 import time
 import logging
@@ -183,6 +184,7 @@ class ContinuityEngine:
             )
             return self._record
         except Exception as e:
+            record_degradation('continuity', e)
             logger.warning("Continuity load failed (treating as first boot): %s", e)
             self._record = None
             self._gap_seconds = 0.0
@@ -330,6 +332,7 @@ class ContinuityEngine:
                         f"Commitments={commitments_preview} | Coherence={float(coherence_score or 1.0):.2f}"
                     )
             except Exception as e:
+                record_degradation('continuity', e)
                 logger.debug("Continuity auto-capture skipped: %s", e)
 
         current_objective = _sanitize_restored_text(current_objective)
@@ -366,6 +369,7 @@ class ContinuityEngine:
                 json.dump(asdict(record), f, indent=2)
             self._record = record
         except Exception as e:
+            record_degradation('continuity', e)
             logger.error("Continuity save failed: %s", e)
 
     @property
@@ -605,6 +609,7 @@ class ContinuityEngine:
             with open(path, "w") as f:
                 json.dump(asdict(self._record), f, indent=2)
         except Exception as e:
+            record_degradation('continuity', e)
             logger.debug("Continuity failure obligation save skipped: %s", e)
 
     def _get_live_identity_hash(self) -> str:

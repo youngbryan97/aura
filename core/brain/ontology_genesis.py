@@ -9,6 +9,7 @@ Refactored for ZENITH Protocol efficiency:
   - Mandatory resource_anxiety abort if system load exceeds thresholds.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -114,5 +115,6 @@ def register_ontology_genesis(orchestrator: Optional[Any] = None) -> OntologyGen
         try:
             setattr(orchestrator, "ontology_genesis", engine)
         except Exception as _exc:
+            record_degradation('ontology_genesis', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
     return engine

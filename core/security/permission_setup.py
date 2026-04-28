@@ -10,6 +10,8 @@ Everything is cached for the lifetime of the process, with an explicit
 permissions as N/A.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import platform
@@ -91,6 +93,7 @@ async def check_all_permissions(*, refresh: bool = False) -> PermissionReport:
             available = bool(result.get("available", True))
             detail = str(result.get("detail") or "")
         except Exception as exc:
+            record_degradation('permission_setup', exc)
             logger.debug("Permission check failed for %s: %s", ptype, exc)
             granted = False
             available = False
@@ -138,6 +141,7 @@ def open_settings_pane(permission: str) -> bool:
         subprocess.Popen([opener, url])
         return True
     except Exception as exc:
+        record_degradation('permission_setup', exc)
         logger.debug("Failed to open settings pane for %s: %s", permission, exc)
         return False
 

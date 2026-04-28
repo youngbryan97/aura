@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -31,6 +32,7 @@ class SpeakSkill(BaseSkill):
                 self._fallback_engine = pyttsx3.init()
                 self._fallback_engine.setProperty('rate', 175) 
             except Exception as e:
+                record_degradation('speak', e)
                 logger.warning("pyttsx3 init failed: %s", e)
             
     def _get_engine(self):
@@ -40,6 +42,7 @@ class SpeakSkill(BaseSkill):
                 from core.container import ServiceContainer
                 self._voice_engine = ServiceContainer.get("voice_engine")
             except Exception as e:
+                record_degradation('speak', e)
                 logger.error("Failed to resolve voice_engine: %s", e)
         return self._voice_engine
 
@@ -48,6 +51,7 @@ class SpeakSkill(BaseSkill):
             try:
                 params = SpeakInput(**params)
             except Exception as e:
+                record_degradation('speak', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         text = params.text
@@ -66,6 +70,7 @@ class SpeakSkill(BaseSkill):
                 await engine.synthesize_speech(text)
                 return {"ok": True, "mode": "sovereign", "message": "Spoken via Sovereign Voice Engine."}
             except Exception as e:
+                record_degradation('speak', e)
                 logger.error("Sovereign synthesis failed: %s", e)
 
         # Strategy 2: macOS 'say' (High Quality Fallback)
@@ -75,6 +80,7 @@ class SpeakSkill(BaseSkill):
                 await asyncio.create_subprocess_exec("say", "-v", voice, "-r", rate, text)
                 return {"ok": True, "mode": "macos_say", "message": f"Spoken via macOS ({voice})."}
             except Exception as e:
+                record_degradation('speak', e)
                 logger.error("macOS say failed: %s", e)
 
         # Strategy 3: Local pyttsx3 (Generic Fallback)
@@ -84,6 +90,7 @@ class SpeakSkill(BaseSkill):
                 self._fallback_engine.runAndWait()
                 return {"ok": True, "mode": "pyttsx3", "message": "Spoken via local engine."}
             except Exception as e:
+                record_degradation('speak', e)
                 logger.error("pyttsx3 failed: %s", e)
         
         return {"ok": False, "error": "No voice engine available."}

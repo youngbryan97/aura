@@ -27,6 +27,8 @@ Files:
   ~/.aura/data/consolidation_log.jsonl — consolidation history
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -156,6 +158,7 @@ class ExperienceConsolidator:
                 try:
                     await self._consolidate()
                 except Exception as e:
+                    record_degradation('experience_consolidator', e)
                     logger.error("Consolidation failed: %s", e)
                     self._consecutive_failures += 1
                     backoff = _BACKOFF_BASE_SECS * (2 ** min(self._consecutive_failures - 1,
@@ -217,6 +220,7 @@ class ExperienceConsolidator:
                         "timestamp": snap.get("timestamp", 0),
                     })
         except Exception as _exc:
+            record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # 2. CRSM LoRA bridge captures (high-quality felt moments)
@@ -232,6 +236,7 @@ class ExperienceConsolidator:
                     "hedonic_delta": m.hedonic_after - m.hedonic_before,
                 })
         except Exception as _exc:
+            record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # 3. HOT history (what higher-order thoughts have been prominent)
@@ -242,6 +247,7 @@ class ExperienceConsolidator:
                 for h in list(hot._history)[-15:]:
                     material["hot_history"].append(h.content if hasattr(h, "content") else str(h))
         except Exception as _exc:
+            record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # 4. Metacognition assessments (what knowledge states were notable)
@@ -250,6 +256,7 @@ class ExperienceConsolidator:
             # Can't easily get the global engine here; skip gracefully
             pass
         except Exception as _exc:
+            record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # 5. OmniReflector reflections
@@ -257,6 +264,7 @@ class ExperienceConsolidator:
             from core.consciousness.metacognition import MetaCognitionEngine
             pass
         except Exception as _exc:
+            record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return material
@@ -268,6 +276,7 @@ class ExperienceConsolidator:
                 from core.container import ServiceContainer
                 self.brain = ServiceContainer.get("cognitive_engine", default=None)
             except Exception as _exc:
+                record_degradation('experience_consolidator', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         if not self.brain:
@@ -355,6 +364,7 @@ Return valid JSON only:
             )
 
         except Exception as e:
+            record_degradation('experience_consolidator', e)
             logger.error("ExperienceConsolidator inference failed: %s", e)
             return self._heuristic_consolidate(material)
 
@@ -419,6 +429,7 @@ Return valid JSON only:
             narrative.home_vector_delta = avg_hidden[:8].tolist()  # first 8 dims as summary
 
         except Exception as e:
+            record_degradation('experience_consolidator', e)
             logger.debug("home_vector update failed: %s", e)
 
     # ── Persistence ────────────────────────────────────────────────────────
@@ -430,6 +441,7 @@ Return valid JSON only:
             data = asdict(self._narrative)
             atomic_write_text(NARRATIVE_PATH, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('experience_consolidator', e)
             logger.debug("Narrative save failed: %s", e)
 
     def _load_narrative(self):
@@ -445,6 +457,7 @@ Return valid JSON only:
                 )
                 self._apply_home_vector_delta()
         except Exception as e:
+            record_degradation('experience_consolidator', e)
             logger.debug("Narrative load failed: %s", e)
 
     def _apply_home_vector_delta(self):
@@ -470,6 +483,7 @@ Return valid JSON only:
                     float(np.linalg.norm(crsm.home_vector)),
                 )
         except Exception as e:
+            record_degradation('experience_consolidator', e)
             logger.debug("home_vector_delta restoration skipped: %s", e)
 
     def _log_consolidation(self, narrative: IdentityNarrative, material: Dict):
@@ -490,8 +504,10 @@ Return valid JSON only:
                     # Keep last 500 entries
                     atomic_write_text(CONSOL_LOG_PATH, "\n".join(lines[-500:]) + "\n")
             except Exception as _exc:
+                record_degradation('experience_consolidator', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         except Exception as _exc:
+            record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
 

@@ -9,6 +9,7 @@ Usage:
     writer.execute("INSERT INTO knowledge ...", (val1, val2))
     rows = writer.fetchall("SELECT * FROM knowledge WHERE ...", (val,))
 """
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -110,6 +111,7 @@ class SerializedDBWriter:
             conn.commit()
             self._writes_since_checkpoint[db_path] = 0
         except Exception as exc:
+            record_degradation('db_writer_queue', exc)
             logger.warning("DBWriter checkpoint failed for %s: %s", db_path, exc)
 
     def _writer_loop(self):
@@ -153,12 +155,14 @@ class SerializedDBWriter:
                                 if h:
                                     h.pulse(success=True)
                         except Exception as e:
+                            record_degradation('db_writer_queue', e)
                             capture_and_log(e, {'module': __name__})
 
                         for req, result in results:
                             if self._loop and not req.future.done():
                                 self._loop.call_soon_threadsafe(req.future.set_result, result)
                     except Exception as e:
+                        record_degradation('db_writer_queue', e)
                         logger.error(
                             "DBWriter error on %s sql=%s params=%s: %s",
                             db_path,
@@ -173,6 +177,7 @@ class SerializedDBWriter:
                 if stop_requested:
                     break
             except Exception as e:
+                record_degradation('db_writer_queue', e)
                 logger.error("DBWriter loop error: %s", e)
 
     async def execute(self, db_path: str, sql: str, params: tuple = ()) -> Dict[str, Any]:
@@ -221,6 +226,7 @@ class SerializedDBWriter:
                     conn.commit()
                     self._writes_since_checkpoint[db_path] = 0
                 except Exception as exc:
+                    record_degradation('db_writer_queue', exc)
                     logger.warning("DBWriter forced checkpoint failed for %s: %s", db_path, exc)
 
 

@@ -4,6 +4,7 @@ Watches every service, enforces circuit breakers, graceful degradation,
 and guarantees cognitive_stability never drops below 0.85.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -109,6 +110,7 @@ class ReliabilityEngine:
             dropped = await rq.prune_low_priority(threshold_priority=ReasoningPriority.HIGH.value)
             logger.info(f"🛡️ Degradation: dropped {dropped} low-priority tasks")
         except Exception as e:
+            record_degradation('reliability_engine', e)
             logger.error(f"Failed to access reasoning queue during degradation: {e}")
 
         # Call any registered callbacks (e.g. swarm pause)
@@ -116,6 +118,7 @@ class ReliabilityEngine:
             try:
                 await cb()
             except Exception as e:
+                record_degradation('reliability_engine', e)
                 logger.error(f"Degradation callback failed: {e}")
 
     def register_degrade_callback(self, cb: Callable):

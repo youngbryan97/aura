@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -103,6 +104,7 @@ class AutonomousInitiativeLoop:
                 )
                 logger.debug("✓ Subscribed to aura.proactive.initiation using EventBus")
         except Exception as e:
+            record_degradation('autonomous_initiative_loop', e)
             logger.warning("Failed to subscribe to proactive initiations: %s", e)
 
     async def stop(self):
@@ -124,6 +126,7 @@ class AutonomousInitiativeLoop:
                 category=category,
             )
         except Exception as exc:
+            record_degradation('autonomous_initiative_loop', exc)
             logger.debug("Feed emit failed for %s: %s", title, exc)
 
     def _queue_visible_update(self, content: str) -> bool:
@@ -147,6 +150,7 @@ class AutonomousInitiativeLoop:
                     )
                 )
         except Exception as exc:
+            record_degradation('autonomous_initiative_loop', exc)
             logger.debug("Visible initiative queue failed: %s", exc)
         return False
 
@@ -161,6 +165,7 @@ class AutonomousInitiativeLoop:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('autonomous_initiative_loop', e)
                 logger.debug("Initiative event listener transient error: %s", e)
 
     async def _world_watcher_loop(self):
@@ -199,6 +204,7 @@ class AutonomousInitiativeLoop:
                                 category="WorldFeed",
                             )
                         except Exception as _te:
+                            record_degradation('autonomous_initiative_loop', _te)
                             logger.debug("WorldWatcher thought emit failed: %s", _te)
 
                         # Live Knowledge Retention: run headline through epistemic filter
@@ -213,6 +219,7 @@ class AutonomousInitiativeLoop:
                                 emit_thoughts=False,
                             )
                         except Exception as _ef_err:
+                            record_degradation('autonomous_initiative_loop', _ef_err)
                             logger.debug("EpistemicFilter RSS ingest failed: %s", _ef_err)
                         
                     await asyncio.sleep(0)  # Yield between feeds
@@ -222,6 +229,7 @@ class AutonomousInitiativeLoop:
                 await asyncio.sleep(3600) # Sleep for an hour
                 continue
             except Exception as e:
+                record_degradation('autonomous_initiative_loop', e)
                 logger.debug(f"World watcher loop transient error: {e}")
                 
             # Check every 10 minutes (600s)
@@ -254,6 +262,7 @@ class AutonomousInitiativeLoop:
                                 context={"reason": gate["reason"]},
                             )
             except Exception as e:
+                record_degradation('autonomous_initiative_loop', e)
                 logger.debug(f"Knowledge gap monitor loop error: {e}")
                 
             await asyncio.sleep(30) # Check every 30s
@@ -276,6 +285,7 @@ class AutonomousInitiativeLoop:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                record_degradation('autonomous_initiative_loop', exc)
                 logger.debug("Self-development loop transient error: %s", exc)
 
             await asyncio.sleep(45)
@@ -468,6 +478,7 @@ class AutonomousInitiativeLoop:
                 objective=f"Research knowledge gap: {topic}",
             )
         except Exception as exc:
+            record_degradation('autonomous_initiative_loop', exc)
             record_degraded_event(
                 "autonomous_initiative_loop",
                 "research_tool_gate_failed",
@@ -500,6 +511,7 @@ class AutonomousInitiativeLoop:
             if not success:
                 error_text = "empty_result"
         except Exception as exc:
+            record_degradation('autonomous_initiative_loop', exc)
             error_text = f"{type(exc).__name__}: {exc}"
             record_degraded_event(
                 "autonomous_initiative_loop",
@@ -521,6 +533,7 @@ class AutonomousInitiativeLoop:
                     error=error_text,
                 )
             except Exception as finish_exc:
+                record_degradation('autonomous_initiative_loop', finish_exc)
                 logger.debug("AutonomousInitiativeLoop tool finish skipped: %s", finish_exc)
 
         if _emit_thought and content:
@@ -535,6 +548,7 @@ class AutonomousInitiativeLoop:
                 from core.affect.heartstone_values import get_heartstone_values
                 get_heartstone_values().on_research_success(len(content))
             except Exception as _exc:
+                record_degradation('autonomous_initiative_loop', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
     async def _evaluate_initiative(self, topic: str) -> Dict[str, Any]:
@@ -655,4 +669,5 @@ class AutonomousInitiativeLoop:
                     category="Initiative",
                 )
             except Exception as _te:
+                record_degradation('autonomous_initiative_loop', _te)
                 logger.debug("Proactive initiation thought emit failed: %s", _te)

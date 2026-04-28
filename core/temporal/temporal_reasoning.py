@@ -6,6 +6,7 @@ Enables Aura to:
 3. Model confidence levels (certain/maybe/uncertain)
 4. Consider externalities and impacts
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -144,6 +145,7 @@ class PastReflectionEngine:
                 
                 externalities, lessons = await asyncio.gather(ext_coro, less_coro)
             except Exception as e:
+                record_degradation('temporal_reasoning', e)
                 logger.error("Error in temporal analysis: %s", e, exc_info=True)
                 externalities = []
                 lessons = []
@@ -261,6 +263,7 @@ Return JSON:
                 **analysis
             }
         except Exception as e:
+            record_degradation('temporal_reasoning', e)
             logger.error("Failure analysis error: %s", e, exc_info=True)
             return {"error": str(e)}
     
@@ -322,6 +325,7 @@ Ensure valid JSON."""
             externalities = json.loads(response)
             return externalities if isinstance(externalities, list) else []
         except Exception as e:
+            record_degradation('temporal_reasoning', e)
             logger.debug("Failed to identify externalities: %s", e)
             return []
     
@@ -359,6 +363,7 @@ Format as JSON array: ["lesson1", "lesson2"]"""
             lessons = json.loads(response)
             return lessons if isinstance(lessons, list) else []
         except Exception as e:
+            record_degradation('temporal_reasoning', e)
             logger.debug("Failed to extract lessons: %s", e)
             return [f"Document {'success' if success else 'failure'} of {action}"]
     
@@ -452,6 +457,7 @@ Be specific and actionable."""
             thought = await self.brain.think(prompt)
             return thought.content
         except Exception as e:
+            record_degradation('temporal_reasoning', e)
             return f"Reflection unavailable: {e}"
     
     def _extract_recommendation(self, reflection: str) -> str:
@@ -492,6 +498,7 @@ Event {i}:
                 with open(self.memory_path, 'a') as f:
                     f.write(json.dumps(event.to_dict()) + '\n')
             except Exception as e:
+                record_degradation('temporal_reasoning', e)
                 logger.error("Failed to persist event: %s", e)
         await asyncio.to_thread(write_sync)
     
@@ -515,6 +522,7 @@ Event {i}:
                 self.past_events = self.past_events[-self.max_cache:]
             
         except Exception as e:
+            record_degradation('temporal_reasoning', e)
             logger.error("Failed to load past events: %s", e)
 
 
@@ -673,6 +681,7 @@ Return JSON:
             from core.utils.json_utils import extract_json
             return extract_json(response) or {}
         except Exception as e:
+            record_degradation('temporal_reasoning', e)
             logger.error("Prediction generation failed: %s", e)
             return {
                 "outcomes": [{"scenario": "unknown", "description": "Prediction unavailable", "probability": 0.5}],

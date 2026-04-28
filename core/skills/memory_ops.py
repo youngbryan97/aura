@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import logging
 import os
@@ -61,6 +62,7 @@ class MemoryOpsSkill(BaseSkill):
             try:
                 params = MemoryOpsInput(**params)
             except Exception as e:
+                record_degradation('memory_ops', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         action = self._normalize_action(params.action)
@@ -77,6 +79,7 @@ class MemoryOpsSkill(BaseSkill):
             else:
                 return {"ok": False, "error": f"Unknown memory action: {action}"}
         except Exception as e:
+            record_degradation('memory_ops', e)
             logger.error("MemoryOps failed: %s", e)
             return {"ok": False, "error": str(e)}
 
@@ -146,6 +149,7 @@ class MemoryOpsSkill(BaseSkill):
                     return {"ok": False, "error": "Facade missing insertion capability."}
                 return {"ok": True, "summary": "Committed to archival storage."}
             except Exception as e:
+                record_degradation('memory_ops', e)
                 return {"ok": False, "error": f"Archival insertion failed: {e}"}
 
         elif action == "archival_search":
@@ -179,6 +183,7 @@ class MemoryOpsSkill(BaseSkill):
                     "summary": f"Found {len(formatted)} artifacts."
                 }
             except Exception as e:
+                record_degradation('memory_ops', e)
                 return {"ok": False, "error": f"Archival search failed: {e}"}
 
         return {"ok": False, "error": f"Unknown archival action: {action}"}

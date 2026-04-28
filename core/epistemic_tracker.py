@@ -20,6 +20,7 @@ High-confidence wrong beliefs are the most dangerous — this system finds them.
 Output: EpistemicProfile fed to InquiryEngine every cycle.
 """
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 from core.utils.task_tracker import get_task_tracker
 import asyncio
@@ -132,6 +133,7 @@ class EpistemicTracker:
                                "inquiry_engine", "cognitive_kernel"]
             })
         except Exception as e:
+            record_degradation('epistemic_tracker', e)
             capture_and_log(e, {"context": "EpistemicTracker.start.event_bus"})
             pass
 
@@ -321,6 +323,7 @@ class EpistemicTracker:
             await self._detect_contradictions(beliefs)
 
         except Exception as e:
+            record_degradation('epistemic_tracker', e)
             capture_and_log(e, {"context": "EpistemicTracker.scan_beliefs"})
             logger.debug("Belief scan error: %s", e)
 
@@ -483,6 +486,7 @@ class EpistemicTracker:
             }
             atomic_write_text(self._db_path, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('epistemic_tracker', e)
             capture_and_log(e, {"context": "EpistemicTracker.save"})
             logger.debug("EpistemicTracker save failed: %s", e)
 
@@ -497,6 +501,7 @@ class EpistemicTracker:
                 self._gaps.append(EpistemicGap(**g))
             self._resolved_gaps = data.get("resolved", [])
         except Exception as e:
+            record_degradation('epistemic_tracker', e)
             capture_and_log(e, {"context": "EpistemicTracker.load"})
             logger.debug("EpistemicTracker load failed: %s", e)
 

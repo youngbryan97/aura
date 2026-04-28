@@ -12,6 +12,7 @@ Strategy: Use Flash for streaming chat (250 RPD budget), Pro for deep
 reasoning only when explicitly requested (100 RPD budget). Automatic
 fallback to local models when daily quota is exhausted.
 """
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import json
@@ -87,6 +88,7 @@ class DailyRateLimiter:
                     else:
                         logger.info("📊 New day — resetting Gemini usage counters")
             except Exception as e:
+                record_degradation('gemini_adapter', e)
                 logger.debug("Failed to load rate limiter state: %s", e)
     
     def _save_state(self):
@@ -100,6 +102,7 @@ class DailyRateLimiter:
                     "counts": dict(self._counts),
                 }))
             except Exception as e:
+                record_degradation('gemini_adapter', e)
                 capture_and_log(e, {'module': __name__})
     
     def _maybe_reset(self):
@@ -291,6 +294,7 @@ class GeminiAdapter:
             if match:
                 return float(match.group(1))
         except Exception as e:
+            record_degradation('gemini_adapter', e)
             capture_and_log(e, {'module': __name__})
         return 60.0  # Default 60s backoff
     
@@ -412,11 +416,13 @@ class GeminiAdapter:
                         model_tier="PRIMARY" if self.model == self.DEEP_MODEL else "SECONDARY"
                     )
                 except Exception as _e:
+                    record_degradation('gemini_adapter', _e)
                     logger.debug('Ignored Exception in gemini_adapter.py: %s', _e)
                 
         except httpx.TimeoutException:
             logger.warning("Gemini stream timed out after %.0fs", self.timeout)
         except Exception as e:
+            record_degradation('gemini_adapter', e)
             logger.error("Gemini stream error: %s", e)
 
     @circuit_breaker(service_name="gemini-api")
@@ -523,6 +529,7 @@ class GeminiAdapter:
                 try:
                     await self._handle_error(response)
                 except Exception as e:
+                    record_degradation('gemini_adapter', e)
                     return False, "", {"error": str(e)}
             
             self.rate_limiter.record_call(self.model)
@@ -554,6 +561,7 @@ class GeminiAdapter:
                     model_tier="PRIMARY" if self.model == self.DEEP_MODEL else "SECONDARY"
                 )
             except Exception as _e:
+                record_degradation('gemini_adapter', _e)
                 logger.debug('Ignored Exception in gemini_adapter.py: %s', _e)
             
             return True, text, metadata
@@ -562,6 +570,7 @@ class GeminiAdapter:
             metadata["latency_ms"] = int((time.monotonic() - t0) * 1000)
             return False, "", {"error": f"Timeout after {self.timeout}s"}
         except Exception as e:
+            record_degradation('gemini_adapter', e)
             metadata["latency_ms"] = int((time.monotonic() - t0) * 1000)
             return False, "", {"error": str(e)}
 

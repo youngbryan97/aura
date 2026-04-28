@@ -1,6 +1,7 @@
 """Error Intelligence System - Autonomous Bug Detection & Analysis
 Tracks execution, detects patterns, and generates diagnoses.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import hashlib
 import json
@@ -175,6 +176,7 @@ class StructuredErrorLogger:
         except asyncio.CancelledError:
             logger.debug("Log append cancelled for %s", path)
         except Exception as e:
+            record_degradation('error_intelligence', e)
             logger.error("Failed to append to log %s: %s", path, e)
     
     def get_recent_errors(self, limit: int = 50) -> List[ErrorEvent]:
@@ -191,6 +193,7 @@ class StructuredErrorLogger:
                         data = json.loads(line)
                         errors.append(ErrorEvent(**data))
                     except Exception as e:
+                        record_degradation('error_intelligence', e)
                         logger.error("Failed to parse error event: %s", e)
         return errors
 
@@ -374,6 +377,7 @@ class AutomatedDiagnosisEngine:
             return diagnosis
             
         except Exception as e:
+            record_degradation('error_intelligence', e)
             logger.error("Diagnosis failed: %s", e)
             return {
                 "ok": False,

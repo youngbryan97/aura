@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -66,6 +67,7 @@ class SwarmProtocol:
                 self.peers.add(writer.get_extra_info('peername')[0])
                 await self._process_gossip(message)
         except Exception as e:
+            record_degradation('swarm_protocol', e)
             logger.debug(f"Swarm gossip error: {e}")
         finally:
             writer.close()
@@ -88,6 +90,7 @@ class SwarmProtocol:
                     affect.modify(valence_delta=peer_valence * contagion_weight)
                     logger.debug("Swarm mood contagion from %s: valence nudge %.3f", peer_id, peer_valence * contagion_weight)
             except Exception as e:
+                record_degradation('swarm_protocol', e)
                 logger.debug("Mood contagion failed: %s", e)
         elif msg_type == "skill_verification":
             # Consensus Gating: Verify a forged skill

@@ -2,6 +2,7 @@
 Immutable autonomous action audit trail.
 Append-only SQLite table — no UPDATE or DELETE ever runs on audit records.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import sqlite3
@@ -93,6 +94,7 @@ class AuditLog:
             )
             con.commit()
         except Exception as e:
+            record_degradation('audit', e)
             logger.error("Failed to record audit entry: %s", e)
         return entry_id
 

@@ -20,6 +20,7 @@ Architecture:
   DualMemorySystem — unified interface that coordinates both, with cross-linking
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import hashlib
 import json
@@ -144,8 +145,9 @@ class EpisodicMemoryStore:
                   if res and "decoded" in res:
                         desc = res["decoded"]
         except Exception as e:
-             capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_desc"})
-             pass 
+            record_degradation('dual_memory', e)
+            capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_desc"})
+            pass 
              
         ctx = row[8] or ""
         try:
@@ -154,8 +156,9 @@ class EpisodicMemoryStore:
                   if res and "decoded" in res:
                         ctx = res["decoded"]
         except Exception as e:
-             capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_ctx"})
-             pass
+            record_degradation('dual_memory', e)
+            capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_ctx"})
+            pass
 
         return Episode(
             id=row[0], timestamp=row[1], description=desc,
@@ -283,8 +286,9 @@ class SemanticMemoryStore:
                   if res and "decoded" in res:
                         val = res["decoded"]
         except Exception as e:
-             capture_and_log(e, {"context": "SemanticMemoryStore.row_to_fact.decode"})
-             pass
+            record_degradation('dual_memory', e)
+            capture_and_log(e, {"context": "SemanticMemoryStore.row_to_fact.decode"})
+            pass
         return SemanticFact(
             id=row[0], concept=row[1], predicate=row[2], value=val,
             confidence=row[4],

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import hashlib
@@ -116,6 +117,7 @@ class ConversationContext:
             transcript = UnifiedTranscript.get_instance()
             transcript.add(u_role, content, channel="text", modality=u_modality)
         except Exception as e:
+            record_degradation('engine', e)
             capture_and_log(e, {'module': __name__})
 
         # Prevent infinite memory bloat locally (keep last 50 turns roughly)
@@ -187,6 +189,7 @@ class ConversationEngine:
                 )
                 logger.info("🧠 [PHASE 6] Hierarchical Memory Orchestrator integrated.")
         except Exception as e:
+            record_degradation('engine', e)
             logger.warning(f"⚠️ [PHASE 6] Failed to initialize Hierarchical Memory: {e}")
             self.hierarchical_memory = None
 
@@ -264,11 +267,13 @@ class ConversationEngine:
                         importance=0.4 # Default conversation importance
                     )
             except Exception as e:
+                record_degradation('engine', e)
                 capture_and_log(e, {"context": "ConversationEngine.record_episode"})
             
             return final_response
             
         except Exception as e:
+            record_degradation('engine', e)
             capture_and_log(e, {"context": "ConversationEngine.process_message"})
             # Re-raise major errors, swallow others with friendly message
             if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):

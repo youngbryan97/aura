@@ -6,6 +6,7 @@ Enables Aura to:
 3. Assess social and environmental impacts
 4. Consider effects on other individuals
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 from collections import defaultdict
@@ -337,6 +338,7 @@ Return JSON:
             from core.utils.json_utils import extract_json
             return extract_json(response) or {}
         except Exception as e:
+            record_degradation('causal_reasoning', e)
             logger.error("Impact analysis failed: %s", e)
             return {
                 "direct_effects": [],

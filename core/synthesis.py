@@ -1,6 +1,7 @@
 """Conversational Synthesis Layer
 Transforms tool outputs into natural, engaging dialogue
 """
+from core.runtime.errors import record_degradation
 import logging
 import re
 from typing import Any, Dict, List, Optional
@@ -323,6 +324,7 @@ class ConversationalSynthesizer:
             return response
             
         except Exception as e:
+            record_degradation('synthesis', e)
             self.logger.error("Synthesis failed: %s", e, exc_info=True)
             return "I tried to process that information, but my thoughts got tangled. (Synthesis Error)"
 

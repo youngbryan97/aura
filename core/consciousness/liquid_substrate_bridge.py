@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import hashlib
 import logging
@@ -56,6 +57,7 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
             substrate.inject_stimulus(stimulus, weight=0.5)
             logger.debug("Stimulus injected for message (%d chars)", len(message))
         except Exception as e:
+            record_degradation('liquid_substrate_bridge', e)
             logger.warning("Stimulus injection failed: %s", e)
     orchestrator.enqueue_message = enqueue_with_stimulus
 
@@ -91,6 +93,7 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
                     )
                 )
         except Exception as e:
+            record_degradation('liquid_substrate_bridge', e)
             logger.debug("Substrate cross-feed error: %s", e)
     orchestrator._update_liquid_pacing = _update_with_substrate_crossfeed
 
@@ -107,6 +110,7 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
                 "neural_volatility": round(sub_affect["volatility"], 3),
             }
         except Exception as e:
+            record_degradation('liquid_substrate_bridge', e)
             logger.debug("Substrate formatting error: %s", e)
         return ctx
     orchestrator._gather_agentic_context = _gather_with_substrate

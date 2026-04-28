@@ -3,6 +3,7 @@
 The celery_app instance is defined once in core/tasks/celery_app.py.
 When Celery/Redis isn't available, a MockCelery shim routes tasks locally.
 """
+from core.runtime.errors import record_degradation
 import logging
 from typing import Dict, Any
 
@@ -20,6 +21,7 @@ def dispatch_user_input(message: str):
         else:
             process_user_input(message)
     except Exception as e:
+        record_degradation('tasks', e)
         logger.error("Dispatch failed: %s. Falling back to local execution.", e)
         process_user_input(message)
 
@@ -57,6 +59,7 @@ def process_user_input(message: str):
         bus.publish_threadsafe("user_input", {"message": message})
         return {"status": "dispatched"}
     except Exception as e:
+        record_degradation('tasks', e)
         logger.error("EventBus publication failed: %s", e)
         return {"status": "error", "message": str(e)}
 
@@ -73,6 +76,7 @@ def run_rl_training():
         )
         return {"status": "success", "stdout": result.stdout}
     except Exception as e:
+        record_degradation('tasks', e)
         logger.error("RL training failed: %s", e)
         return {"status": "error", "message": str(e)}
 
@@ -89,6 +93,7 @@ def run_self_update():
         )
         return {"status": "success", "stdout": result.stdout}
     except Exception as e:
+        record_degradation('tasks', e)
         logger.error("Self-update failed: %s", e)
         return {"status": "error", "message": str(e)}
 
@@ -105,4 +110,5 @@ def run_mutation_tests(target_file: str):
         )
         return {"success": result.returncode == 0, "stdout": result.stdout, "stderr": result.stderr}
     except Exception as e:
+        record_degradation('tasks', e)
         return {"success": False, "error": str(e)}

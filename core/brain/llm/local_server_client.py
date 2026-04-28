@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -427,6 +429,7 @@ class LocalServerClient:
                 },
             )
         except Exception as exc:
+            record_degradation('local_server_client', exc)
             logger.debug("Failed to record degraded event for %s: %s", self._lane_name, exc)
 
     def get_lane_status(self) -> Dict[str, Any]:
@@ -554,6 +557,7 @@ class LocalServerClient:
 
             candidate_dirs.append(Path(config.paths.home_dir) / "logs")
         except Exception as _exc:
+            record_degradation('local_server_client', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         candidate_dirs.append(Path(__file__).resolve().parents[3] / ".aura_runtime" / "logs")
         candidate_dirs.append(Path.home() / ".aura" / "logs")
@@ -904,6 +908,7 @@ class LocalServerClient:
                 await asyncio.to_thread(self._process.wait, 5.0)
                 logger.info("[%s] Old server process killed.", self._lane_name)
         except Exception as e:
+            record_degradation('local_server_client', e)
             logger.debug("[%s] Kill failed: %s", self._lane_name, e)
 
         self._process = None
@@ -915,6 +920,7 @@ class LocalServerClient:
             await self.warmup()
             logger.info("[%s] Server restarted successfully.", self._lane_name)
         except Exception as e:
+            record_degradation('local_server_client', e)
             logger.error("[%s] Server restart failed: %s", self._lane_name, e)
 
     async def warmup(self, *, foreground_request: Optional[bool] = None):
@@ -964,6 +970,7 @@ class LocalServerClient:
             try:
                 await self._http.aclose()
             except Exception as _exc:
+                record_degradation('local_server_client', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             self._http = None
 
@@ -974,6 +981,7 @@ class LocalServerClient:
             try:
                 await asyncio.to_thread(proc.wait, 5.0)
             except Exception as _exc:
+                record_degradation('local_server_client', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         # ── Orphan Reclamation ─────────────────────────────────────────
@@ -989,12 +997,14 @@ class LocalServerClient:
                     self._port,
                 )
         except Exception as _exc:
+            record_degradation('local_server_client', _exc)
             logger.debug("reboot_worker: port reclamation failed: %s", _exc)
 
         if self._log_handle is not None and not self._log_handle.closed:
             try:
                 self._log_handle.flush()
             except Exception as _exc:
+                record_degradation('local_server_client', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         self._warmup_in_flight = False
@@ -1040,6 +1050,7 @@ class LocalServerClient:
                 stops.extend(_bridge.extra_stop_sequences)
                 kwargs["stop_sequences"] = stops
         except Exception as _bexc:
+            record_degradation('local_server_client', _bexc)
             pass
 
         if messages and isinstance(messages, list):
@@ -1166,6 +1177,7 @@ class LocalServerClient:
                     timeout=timeout,
                 )
             except Exception as exc:
+                record_degradation('local_server_client', exc)
                 self._record_degraded_event(
                     "request_failed",
                     detail=f"{self._lane_name}:{type(exc).__name__}",
@@ -1214,6 +1226,7 @@ class LocalServerClient:
                             if not t.cancelled() and t.exception() else None
                         )
                     except Exception as restart_err:
+                        record_degradation('local_server_client', restart_err)
                         logger.error("[%s] Failed to schedule server restart: %s", self._lane_name, restart_err)
                     return None
 
@@ -1231,6 +1244,7 @@ class LocalServerClient:
             try:
                 data = response.json()
             except Exception as exc:
+                record_degradation('local_server_client', exc)
                 self.note_lane_recovering(f"invalid_json:{type(exc).__name__}")
                 return None
 

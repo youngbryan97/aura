@@ -12,6 +12,7 @@ Uses ripser if available for performance; falls back to a pure-NumPy
 Vietoris-Rips approximation when ripser is not installed.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 from dataclasses import dataclass, field
@@ -135,6 +136,7 @@ def _compute_persistence_diagram(points: np.ndarray, use_ripser: bool = True) ->
         except ImportError as _exc:
             logger.debug("Suppressed ImportError: %s", _exc)
         except Exception as e:
+            record_degradation('topological_memory', e)
             logger.debug("ripser failed, using fallback: %s", e)
 
     # Fallback: H0 only via single-linkage
@@ -188,6 +190,7 @@ class TopologicalMemoryEngine:
                 self._diagram.total_persistence(),
             )
         except Exception as e:
+            record_degradation('topological_memory', e)
             logger.debug("Topology recompute error: %s", e)
 
     @property

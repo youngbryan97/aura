@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import numpy as np
 
@@ -37,6 +38,7 @@ class PredictiveSelfModel:
             noise = entropy.get_prediction_noise(self.dim)
             obs = obs + noise
         except Exception as e:
+            record_degradation('predictive_self_model', e)
             capture_and_log(e, {'module': __name__})
         
         pred = self.predict(obs)

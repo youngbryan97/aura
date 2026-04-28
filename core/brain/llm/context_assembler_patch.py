@@ -46,6 +46,8 @@ INSTALL:
   patch_context_assembler()   # call once at startup, before first request
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import logging
@@ -331,6 +333,7 @@ def _patched_build_system_prompt(state: "AuraState") -> str:
         if narrative_id and not is_casual:
             base += f"\n{narrative_id.get_system_prompt_injection()}\n"
     except Exception as _e:
+        record_degradation('context_assembler_patch', _e)
         logger.debug('Ignored Exception in context_assembler_patch.py: %s', _e)
 
     if is_casual:
@@ -371,6 +374,7 @@ def _patched_build_messages(state: "AuraState", objective: str) -> List[Dict[str
         try:
             state.cognition.attention_focus = objective
         except Exception as _e:
+            record_degradation('context_assembler_patch', _e)
             logger.debug('Ignored Exception in context_assembler_patch.py: %s', _e)
 
     governor = get_token_governor(max_tokens=8000)

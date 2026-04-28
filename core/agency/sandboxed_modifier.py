@@ -22,6 +22,8 @@ This is NOT general code execution. It is ONLY for modifying
 Aura's own modules with full audit trail and rollback contract.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -87,6 +89,7 @@ class SandboxedModifier:
         try:
             original = abs_path.read_text() if abs_path.exists() else ""
         except Exception as e:
+            record_degradation('sandboxed_modifier', e)
             return ModificationResult(False, f"Cannot read original: {e}", file_path)
 
         # 1. Identity Guard validation
@@ -135,6 +138,7 @@ class SandboxedModifier:
                 logger.info("SandboxedModifier: rolled back %s", file_path)
                 return True
         except Exception as e:
+            record_degradation('sandboxed_modifier', e)
             logger.warning("Rollback failed for %s: %s", file_path, e)
         return False
 
@@ -210,6 +214,7 @@ class SandboxedModifier:
                         False, f"Merge failed: {merge.stderr[:200]}", file_path
                     )
         except Exception as e:
+            record_degradation('sandboxed_modifier', e)
             return ModificationResult(False, f"Worktree operation failed: {e}", file_path)
         finally:
             # Clean up worktree
@@ -223,6 +228,7 @@ class SandboxedModifier:
                     cwd=self._repo_root, capture_output=True, timeout=10
                 )
             except Exception as _exc:
+                record_degradation('sandboxed_modifier', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
     def _apply_direct(self, file_path: str, abs_path: Path,
@@ -259,6 +265,7 @@ class SandboxedModifier:
                 validation_confidence=confidence,
             )
         except Exception as e:
+            record_degradation('sandboxed_modifier', e)
             return ModificationResult(False, f"Direct write failed: {e}", file_path)
 
     # ── Helpers ───────────────────────────────────────────────────────────
@@ -293,6 +300,7 @@ class SandboxedModifier:
             if result.returncode == 0:
                 return Path(result.stdout.strip())
         except Exception as _exc:
+            record_degradation('sandboxed_modifier', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return Path.cwd()
 

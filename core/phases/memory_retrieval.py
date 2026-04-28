@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -80,6 +81,7 @@ class MemoryRetrievalPhase(BasePhase):
             if homeostasis and homeostasis.compute_vitality() < 0.35:
                 retrieval_limit = max(2, retrieval_limit - 2)  # Low energy: conserve
         except Exception as _cmod_e:
+            record_degradation('memory_retrieval', _cmod_e)
             pass  # Non-critical — proceed with default limits
 
         logger.info("🧠 MemoryRetrieval: Searching for context: %s...", query[:50])
@@ -91,6 +93,7 @@ class MemoryRetrievalPhase(BasePhase):
                     async with asyncio.timeout(5.0):
                         return await mm.dual_memory.retrieve_context(query)
             except Exception as e:
+                record_degradation('memory_retrieval', e)
                 logger.debug("MemoryRetrieval: DualMemory RAG failed: %s", e)
                 return None
             return None
@@ -105,6 +108,7 @@ class MemoryRetrievalPhase(BasePhase):
                     else:
                         return await asyncio.to_thread(method, query, limit=retrieval_limit)
             except Exception as e:
+                record_degradation('memory_retrieval', e)
                 logger.debug("MemoryRetrieval: KnowledgeGraph search failed: %s", e)
                 return None
             return None
@@ -131,6 +135,7 @@ class MemoryRetrievalPhase(BasePhase):
 
                 return recalled or None
             except Exception as e:
+                record_degradation('memory_retrieval', e)
                 logger.debug("MemoryRetrieval: MemoryFacade search failed: %s", e)
                 return None
 
@@ -146,6 +151,7 @@ class MemoryRetrievalPhase(BasePhase):
                 elif ep and hasattr(ep, "recall_similar"):
                     return await asyncio.to_thread(ep.recall_similar, query, retrieval_limit)
             except Exception as e:
+                record_degradation('memory_retrieval', e)
                 logger.debug("MemoryRetrieval: Episodic recall failed: %s", e)
             return None
 
@@ -234,6 +240,7 @@ class MemoryRetrievalPhase(BasePhase):
                         affect_engine.modify(dv=val_shift, da=arousal_shift, de=0.0, source="memory_retrieval")
                     )
             except Exception as e:
+                record_degradation('memory_retrieval', e)
                 logger.debug("Failed to push memory affect: %s", e)
 
         if memory_candidates:

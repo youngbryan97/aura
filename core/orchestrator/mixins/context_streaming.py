@@ -1,6 +1,7 @@
 """Context Streaming Mixin for RobustOrchestrator.
 Extracts context gathering, chat streaming, and history management logic.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
@@ -77,6 +78,7 @@ class ContextStreamingMixin:
                 else:
                     ctx["inner_monologue"] = inner_monologue or ""
             except Exception as _exc:
+                record_degradation('context_streaming', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         # Sentient Context Injection: Affect & Drives
@@ -92,6 +94,7 @@ class ContextStreamingMixin:
                     else:
                         ctx["emotional_state"] = mood
             except Exception as e:
+                record_degradation('context_streaming', e)
                 logger.debug("Affect extraction skipped: %s", e)
 
         # Theory of Mind Projection
@@ -153,6 +156,7 @@ class ContextStreamingMixin:
                     }
                     logger.debug("Strategic context injected for project: %s", proj.name)
             except Exception as e:
+                record_degradation('context_streaming', e)
                 logger.error("Failed to inject strategic context: %s", e)
 
         # Core Engines
@@ -195,6 +199,7 @@ class ContextStreamingMixin:
                     drives = {"curiosity": 0.5, "energy": 0.8}
                 ctx["metabolic_drives"] = drives
             except Exception as e:
+                record_degradation('context_streaming', e)
                 logger.error("Drive extraction failed: %s", e)
 
         # Legacy CognitiveIntegration Integration
@@ -209,6 +214,7 @@ class ContextStreamingMixin:
                 if enhanced_ctx_str:
                     ctx["advanced_cognition"] = enhanced_ctx_str
             except Exception as e:
+                record_degradation('context_streaming', e)
                 logger.debug("Enhanced context unavailable: %s", e)
 
         # Tool Recommendation Injection
@@ -229,6 +235,7 @@ class ContextStreamingMixin:
                 }
                 logger.info("🛠️ Tool Recommendations: %s -> %s", category, recommendations)
         except Exception as e:
+            record_degradation('context_streaming', e)
             logger.debug("Tool recommendations failed: %s", e)
 
         return ctx
@@ -255,6 +262,7 @@ class ContextStreamingMixin:
                 from core.ops.thinking_mode import ModeRouter
                 tier = ModeRouter(self.reflex_engine).route(message).value
             except Exception as exc:
+                record_degradation('context_streaming', exc)
                 logger.debug("Suppressed: %s", exc)
             # Build objective
             # Cleaned history for streaming chat speed (Fix: No leaks)
@@ -269,6 +277,7 @@ class ContextStreamingMixin:
                 context['liquid_state'] = ls.get_status()
                 logger.debug("TOOL EXECUTION: Injected liquid_state: %s", context['liquid_state'])
             except Exception as e:
+                record_degradation('context_streaming', e)
                 context_injection_error = e
                 logger.warning("TOOL EXECUTION: LiquidState injection failed: %s", e)
 
@@ -307,9 +316,11 @@ class ContextStreamingMixin:
                 try:
                     await self.drives.satisfy("social", 5.0)
                 except Exception as _de:
+                    record_degradation('context_streaming', _de)
                     logger.debug("Drive satisfaction failed in stream: %s", _de)
 
         except Exception as e:
+            record_degradation('context_streaming', e)
             logger.error("Chat stream failed: %s", e)
             # v10.0 Zenith: Silent failure in stream if header already sent
             # but provide clean error formatting for dev
@@ -379,6 +390,7 @@ class ContextStreamingMixin:
 
             self.conversation_history = pruned_history[-max_history:]
         except Exception as e:
+            record_degradation('context_streaming', e)
             logger.debug("History pruning failed: %s", e)
             if isinstance(self.conversation_history, list) and len(self.conversation_history) > 50:
                 self.conversation_history = self.conversation_history[-50:]
@@ -452,4 +464,5 @@ class ContextStreamingMixin:
                     await archive_eng.archive_vital_logs()
 
         except Exception as e:
+            record_degradation('context_streaming', e)
             logger.error("Memory consolidation failed: %s", e)

@@ -1,6 +1,7 @@
 """core/providers/cognitive_provider.py — Cognitive, LLM, Learning & Reasoning Registration
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import subprocess
 from core.container import ServiceLifetime
@@ -64,6 +65,7 @@ def register_cognitive_services(container, is_proxy: bool = False):
             
             return router
         except Exception as e:
+            record_degradation('cognitive_provider', e)
             logger.error("🛑 LLMRouter Initialization Critical Failure: %s", e)
             # Do NOT return None; let the container know it failed so it can be re-attempted
             # or handled by the lazy-fetching LanguageCenter.

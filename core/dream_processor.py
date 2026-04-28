@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import List, Optional, Dict, Any
@@ -65,6 +66,7 @@ class DreamProcessor:
             logger.info("✓ Dream cycle complete: Consolidated wisdom into Knowledge Graph.")
             
         except Exception as e:
+            record_degradation('dream_processor', e)
             logger.error("Nightmare error: %s", e)
 
     async def _contract_graph(self, reflection: str):
@@ -95,4 +97,5 @@ class DreamProcessor:
                         logger.info("🕸️ Upserting relationship: %s -[%s]-> %s", e1, rel, e2)
                         kg.upsert_relationship(e1, rel, e2, weight=1.5)
         except Exception as e:
+            record_degradation('dream_processor', e)
             logger.debug("Graph contraction failed: %s", e)

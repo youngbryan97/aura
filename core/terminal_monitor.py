@@ -1,5 +1,6 @@
 """core/terminal_monitor.py — v5.0 PRODUCTION-GRADE"""
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import logging
 import re
@@ -122,6 +123,7 @@ class TerminalMonitor:
                 atomic_write_text(tmp, json.dumps(payload), encoding="utf-8")
                 tmp.replace(BLACKLIST_PATH)
         except Exception as e:
+            record_degradation('terminal_monitor', e)
             logger.error(f"Failed to save blacklist: {e}")
 
     def _attach_handler(self):
@@ -145,6 +147,7 @@ class TerminalMonitor:
                     )
                     self.monitor._ingest_error(entry)
                 except Exception as e:
+                    record_degradation('terminal_monitor', e)
                     import sys
                     print(f"TerminalMonitor Log Error: {e}", file=sys.stderr)
         
@@ -226,6 +229,7 @@ class TerminalMonitor:
             )
             self._ingest_error(entry)
         except Exception as e:
+            record_degradation('terminal_monitor', e)
             logger.debug("TerminalMonitor degraded-event ingest failed: %s", e)
 
     async def check_for_errors(self) -> Optional[Dict[str, Any]]:
@@ -242,6 +246,7 @@ class TerminalMonitor:
             from core.container import ServiceContainer
             reliability = ServiceContainer.get("reliability_engine", default=None)
         except Exception as _e:
+            record_degradation('terminal_monitor', _e)
             logger.debug('Ignored Exception in terminal_monitor.py: %s', _e)
 
         # Cleanup old fix window

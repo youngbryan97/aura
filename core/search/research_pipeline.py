@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import hashlib
@@ -650,6 +652,7 @@ class ResearchSearchPipeline:
                                 )
                             )
         except Exception as exc:
+            record_degradation('research_pipeline', exc)
             logger.debug("DDGS search failed for %s: %s", query, exc)
             return self._load_cached_search_hits(query, limit=num_results)
 
@@ -682,6 +685,7 @@ class ResearchSearchPipeline:
                 with urllib.request.urlopen(request, timeout=10) as response:
                     raw_html = response.read().decode("utf-8", errors="replace")
             except Exception as exc:
+                record_degradation('research_pipeline', exc)
                 logger.debug("Legacy HTML search failed for %s via %s: %s", query, source_engine, exc)
                 continue
 
@@ -922,6 +926,7 @@ class ResearchSearchPipeline:
                 logger.debug("Page fetch transient error (%d) for %s", status, hit.url)
             return None
         except Exception as exc:
+            record_degradation('research_pipeline', exc)
             logger.debug("Page fetch failed for %s: %s", hit.url, exc)
             return None
 
@@ -975,6 +980,7 @@ class ResearchSearchPipeline:
             finally:
                 await browser.close()
         except Exception as exc:
+            record_degradation('research_pipeline', exc)
             logger.debug("Browser fetch failed for %s: %s", hit.url, exc)
             return None
 
@@ -1354,6 +1360,7 @@ class ResearchSearchPipeline:
                 if result:
                     retained = True
         except Exception as exc:
+            record_degradation('research_pipeline', exc)
             logger.debug("Memory facade retention failed: %s", exc)
 
         # 2. Secondary: semantic/vector memory
@@ -1380,6 +1387,7 @@ class ResearchSearchPipeline:
                 if result:
                     retained = True
         except Exception as exc:
+            record_degradation('research_pipeline', exc)
             logger.debug("Vector memory retention failed: %s", exc)
 
         # 3. Tertiary: update belief system with facts
@@ -1399,6 +1407,7 @@ class ResearchSearchPipeline:
                         pass
                 retained = True
         except Exception as exc:
+            record_degradation('research_pipeline', exc)
             logger.debug("Belief system retention failed: %s", exc)
 
         # 4. Feed to WorldState as a salient learning event

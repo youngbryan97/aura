@@ -16,6 +16,8 @@ It can execute only a narrow subset of repair actions through the existing
 autopoiesis engine. Everything sensitive remains governance-gated.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -1412,6 +1414,7 @@ class AdaptiveImmuneSystem:
                     "notes": artifact.notes or "",
                 }
             except Exception as exc:
+                record_degradation('adaptive_immunity', exc)
                 artifact.executed = True
                 artifact.success = False
                 artifact.notes = artifact.notes or f"patch execution failed: {exc}"
@@ -1490,6 +1493,7 @@ class AdaptiveImmuneSystem:
                 verification_report["notes"] = artifact.notes
             return verification_report
         except Exception as exc:
+            record_degradation('adaptive_immunity', exc)
             artifact.executed = True
             artifact.success = False
             artifact.notes = artifact.notes or f"execution failed: {exc}"
@@ -1597,6 +1601,7 @@ class AdaptiveImmuneSystem:
             )
             return bool(decision.is_approved())
         except Exception as exc:
+            record_degradation('adaptive_immunity', exc)
             logger.debug("Protected-action authorization unavailable: %s", exc)
             return False
 
@@ -2110,6 +2115,7 @@ class AdaptiveImmuneSystem:
         try:
             atomic_write_text(self._state_path, json.dumps(payload, indent=2), encoding="utf-8")
         except Exception as exc:
+            record_degradation('adaptive_immunity', exc)
             logger.debug("Adaptive immune state save skipped: %s", exc)
 
     def _load_state(self) -> bool:
@@ -2183,6 +2189,7 @@ class AdaptiveImmuneSystem:
             self._assign_species()
             return bool(self._cells)
         except Exception as exc:
+            record_degradation('adaptive_immunity', exc)
             logger.warning("Adaptive immune state load failed; reseeding: %s", exc)
             return False
 

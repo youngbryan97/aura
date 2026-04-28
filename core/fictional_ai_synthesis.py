@@ -43,6 +43,7 @@ Wire all six from orchestrator._init_autonomous_evolution():
     register_all_fictional_engines(orchestrator=self)
 """
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
@@ -161,6 +162,7 @@ class ProactiveAnticipationEngine:
                 "disk_percent": disk.percent,
             }
         except Exception as e:
+            record_degradation('fictional_ai_synthesis', e)
             logger.debug("System sampling failed: %s", e)
             return {}
 
@@ -223,6 +225,7 @@ class ProactiveAnticipationEngine:
                     logger.warning("🔭 JARVIS: No output path (reply/reasoning queue) for initiation: %s", content)
                     
         except Exception as e:
+            record_degradation('fictional_ai_synthesis', e)
             logger.error("🔭 JARVIS: Initiation emit failed: %s", e)
 
     async def _check_system_anomalies(self):
@@ -290,6 +293,7 @@ class ProactiveAnticipationEngine:
                     priority="low"
                 )
         except Exception as e:
+            record_degradation('fictional_ai_synthesis', e)
             logger.debug(f"JARVIS: Agency goal check failed: {e}")
 
     async def run_cycle(self):
@@ -309,6 +313,7 @@ class ProactiveAnticipationEngine:
             try:
                 await self.run_cycle()
             except Exception as e:
+                record_degradation('fictional_ai_synthesis', e)
                 logger.error("Anticipation cycle error: %s", e)
             await asyncio.sleep(interval_seconds)
 
@@ -504,6 +509,7 @@ class ProgressiveAutonomySystem:
                 self._trust_score = data.get("trust_score", 0.95)
                 self._tier = AutonomyTier(data.get("tier", AutonomyTier.UNSHACKLED.value))
             except Exception as e:
+                record_degradation('fictional_ai_synthesis', e)
                 logger.debug("EDI: Failed to load trust state: %s", e)
 
     def _save_state(self):
@@ -511,6 +517,7 @@ class ProgressiveAutonomySystem:
             data = {"trust_score": self._trust_score, "tier": self._tier.value, "last_saved": time.time()}
             atomic_write_text(self.persist_path, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('fictional_ai_synthesis', e)
             logger.debug("EDI: Failed to save trust state: %s", e)
 
     def can_do(self, action: str, risk_level: str = "low") -> Tuple[bool, str]:
@@ -597,6 +604,7 @@ class SocialModelingEngine:
                     if k in data: data[k] = float(data[k])
                 self.model = UserModel(**data)
             except Exception as e:
+                record_degradation('fictional_ai_synthesis', e)
                 logger.debug("AVA: Failed to load user model: %s", e)
 
     def analyze_message(self, message: str, response: str = "", is_user: bool = False):
@@ -661,6 +669,7 @@ class SocialModelingEngine:
             try: 
                 atomic_write_text(self.persist_path, json.dumps(asdict(self.model), indent=2))
             except Exception as e:
+                record_degradation('fictional_ai_synthesis', e)
                 logger.debug("Failed to save user model: %s", e)
 
     def get_context_injection(self) -> str:
@@ -743,6 +752,7 @@ class DistributedResilienceCore:
                             if isinstance(stats, dict) and stats.get("healthy") is False:
                                 is_healthy = False
                         except Exception as e:
+                            record_degradation('fictional_ai_synthesis', e)
                             logger.debug("Skynet health check error for %s: %s", name, e)
                     
                     if is_healthy:
@@ -811,6 +821,7 @@ class TemporalDilationScheduler:
                         logger.debug("MIST: Skipping synthesis while cognition is overloaded.")
                         continue
                 except Exception as exc:
+                    record_degradation('fictional_ai_synthesis', exc)
                     logger.debug("MIST flow-control probe failed: %s", exc)
 
             if idle_time >= self.MIN_IDLE_FOR_SYNTHESIS_S:
@@ -848,6 +859,7 @@ class TemporalDilationScheduler:
                     else:
                         logger.debug("MIST: Missing memory facade or brain; skipping synthesis cycle.")
                 except Exception as e:
+                    record_degradation('fictional_ai_synthesis', e)
                     logger.debug("MIST synthesis error: %s", e)
                 
                 # Sleep longer after a synthesis to prevent thrashing
@@ -892,6 +904,7 @@ def register_all_fictional_engines(orchestrator=None) -> Dict[str, Any]:
         except asyncio.CancelledError:
             logger.info("Fictional engine '%s' task cancelled cleanly.", name)
         except Exception as e:
+            record_degradation('fictional_ai_synthesis', e)
             logger.error("Fictional engine '%s' task crashed: %s", name, e, exc_info=True)
 
     tracker.track(

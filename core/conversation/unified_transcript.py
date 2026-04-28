@@ -22,6 +22,7 @@ Usage:
     context = transcript.get_context_window(20)
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import logging
 import threading
@@ -129,6 +130,7 @@ class UnifiedTranscript:
             try:
                 listener(entry)
             except Exception as e:
+                record_degradation('unified_transcript', e)
                 capture_and_log(e, {'module': __name__})
 
         logger.debug(

@@ -8,6 +8,8 @@ This is the decision bottleneck — every autonomous action Aura takes
 flows through this arbiter. No initiative bypasses scoring.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import time
@@ -417,6 +419,7 @@ class InitiativeArbiter:
 
             logger.debug("InitiativeArbiter: weight overrides applied from identity values: %s", values)
         except Exception as exc:
+            record_degradation('initiative_arbiter', exc)
             logger.debug("InitiativeArbiter: could not load identity weights: %s", exc)
 
 

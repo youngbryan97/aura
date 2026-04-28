@@ -17,6 +17,8 @@ Public API:
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import math
@@ -149,6 +151,7 @@ class CuriosityScheduler:
         try:
             corpus = self._corpus_loader() or []
         except Exception as e:
+            record_degradation('curiosity_scheduler', e)
             logger.warning("corpus load failed: %s", e)
             return None
         if not corpus:
@@ -157,6 +160,7 @@ class CuriosityScheduler:
         try:
             progress = self._progress_loader()
         except Exception as e:
+            record_degradation('curiosity_scheduler', e)
             logger.warning("progress load failed; treating as empty: %s", e)
             progress = ProgressLog()
 
@@ -391,6 +395,7 @@ class CuriosityScheduler:
                 "energy": float(state.get("energy", 0.5)),
             }
         except Exception as e:
+            record_degradation('curiosity_scheduler', e)
             logger.debug("substrate read failed; defaulting: %s", e)
             return {"valence": 0.0, "arousal": 0.5, "curiosity": 0.5, "energy": 0.5}
 
@@ -398,6 +403,7 @@ class CuriosityScheduler:
         try:
             return list(self._trigger_drainer() or [])
         except Exception as e:
+            record_degradation('curiosity_scheduler', e)
             logger.debug("trigger drain failed: %s", e)
             return []
 

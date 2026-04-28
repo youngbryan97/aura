@@ -2,6 +2,8 @@
 Extracted AEGIS Sentinel monitoring loop from RobustOrchestrator.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -58,4 +60,5 @@ async def aegis_sentinel_loop(orch: "RobustOrchestrator") -> None:
                     orch._last_vault_sync = time.monotonic()
 
         except Exception as exc:
+            record_degradation('aegis', exc)
             logger.debug("🛡️ AEGIS Sentinel Pulse Error: %s", exc)

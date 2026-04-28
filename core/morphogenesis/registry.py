@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import threading
@@ -29,6 +31,7 @@ def _atomic_write_json(path: Path, payload: Dict[str, Any], *, schema_name: str)
         atomic_write_json(path, payload, schema_version=1, schema_name=schema_name)
         return
     except Exception as exc:
+        record_degradation('registry', exc)
         logger.debug("canonical atomic_write_json unavailable for %s: %s", path, exc)
 
     import json, os, tempfile
@@ -61,6 +64,7 @@ def _emit_state_receipt(path: Path, *, cause: str, key: str = "morphogenesis.reg
             )
         )
     except Exception as exc:
+        record_degradation('registry', exc)
         logger.debug("morphogenesis receipt skipped: %s", exc)
 
 
@@ -171,6 +175,7 @@ class MorphogenesisRegistry:
                 }
             return True
         except Exception as exc:
+            record_degradation('registry', exc)
             logger.warning("Morphogenesis registry load failed: %s", exc)
             return False
 

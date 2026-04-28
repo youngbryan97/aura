@@ -24,6 +24,8 @@ Defensive against:
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -143,6 +145,7 @@ def load_referenced_files(refs: List[str], remaining_budget: int = FILE_READ_BUD
         try:
             text = resolved.read_text(encoding="utf-8", errors="replace")
         except Exception as e:
+            record_degradation('chat_preflight', e)
             logger.debug("file read failed for %s: %s", resolved, e)
             continue
         if remaining_budget <= 0:
@@ -220,6 +223,7 @@ def _write_all(records: List[Dict[str, Any]], path: Path = PENDING_QUEUE_PATH) -
                 f.write(json.dumps(r) + "\n")
         os.replace(tmp, path)
     except Exception as e:
+        record_degradation('chat_preflight', e)
         logger.debug("pending queue write failed: %s", e)
 
 
@@ -580,10 +584,12 @@ def schedule_background_retry(
                         },
                     )
                 except Exception as emit_exc:
+                    record_degradation('chat_preflight', emit_exc)
                     logger.debug("Background retry proactive resume emit skipped: %s", emit_exc)
             else:
                 logger.warning("Background retry produced empty result for session %s", session_id)
         except Exception as e:
+            record_degradation('chat_preflight', e)
             logger.warning("Background retry failed for session %s: %s", session_id, e)
         finally:
             with _RETRY_TASKS_LOCK:

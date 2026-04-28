@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import re
 import logging
 
@@ -34,6 +35,7 @@ def resolve_pronouns(text: str, session=None) -> str:
                 if isinstance(s, dict) and s.get("name"):
                     name = s.get("name")
         except Exception as exc:
+            record_degradation('pronoun_resolution', exc)
             logger.debug("Suppressed: %s", exc)
     if not name:
         return text

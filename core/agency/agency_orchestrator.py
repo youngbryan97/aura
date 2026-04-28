@@ -20,6 +20,8 @@ the runtime that drives the policy engine through the full life-loop and
 produces forensic receipts for every decision.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -108,6 +110,7 @@ class _ReceiptLog:
                 with open(self.path, "a", encoding="utf-8") as fh:
                     fh.write(json.dumps(receipt.to_dict(), default=str) + "\n")
             except Exception as exc:
+                record_degradation('agency_orchestrator', exc)
                 logger.warning("Receipt log append failed: %s", exc)
 
     def recent(self, limit: int = 50) -> List[Dict[str, Any]]:
@@ -203,6 +206,7 @@ class AgencyOrchestrator:
         try:
             state_snapshot = await perceive() if perceive else self._default_perceive()
         except Exception as exc:
+            record_degradation('agency_orchestrator', exc)
             return await self._block(receipt, "perceive", str(exc))
         receipt.state_snapshot = state_snapshot
 
@@ -210,12 +214,14 @@ class AgencyOrchestrator:
         try:
             score_value = await score(proposal, state_snapshot) if score else proposal.priority
         except Exception as exc:
+            record_degradation('agency_orchestrator', exc)
             return await self._block(receipt, "score", str(exc))
 
         # 5. simulate (counterfactual; must NOT mutate live state)
         try:
             simulation = await simulate(proposal, state_snapshot) if simulate else {"score": score_value}
         except Exception as exc:
+            record_degradation('agency_orchestrator', exc)
             return await self._block(receipt, "simulate", str(exc))
         receipt.simulation_result = simulation
 
@@ -232,6 +238,7 @@ class AgencyOrchestrator:
         try:
             exec_result = await execute(proposal, state_snapshot, receipt.capability_token or "") if execute else {"executed": False}
         except Exception as exc:
+            record_degradation('agency_orchestrator', exc)
             return await self._block(receipt, "execute", str(exc))
         receipt.execution_receipt = str(exec_result.get("receipt") or exec_result)
 
@@ -239,6 +246,7 @@ class AgencyOrchestrator:
         try:
             outcome = await assess(proposal, state_snapshot, exec_result) if assess else {"observed": exec_result}
         except Exception as exc:
+            record_degradation('agency_orchestrator', exc)
             return await self._block(receipt, "assess", str(exc))
         receipt.outcome_assessment = outcome
         receipt.regret = float(outcome.get("regret", 0.0) or 0.0)
@@ -259,6 +267,7 @@ class AgencyOrchestrator:
                 snap = registry.snapshot()
                 return snap if isinstance(snap, dict) else {"raw": str(snap)[:1024]}
         except Exception as exc:
+            record_degradation('agency_orchestrator', exc)
             logger.debug("default perceive snapshot failed: %s", exc)
         return {}
 
@@ -294,6 +303,7 @@ class AgencyOrchestrator:
                 "capability_token": getattr(decision, "capability_token", None),
             }
         except Exception as exc:
+            record_degradation('agency_orchestrator', exc)
             return {"decision": "blocked", "reason": f"authorize_exception:{exc}"}
 
     @staticmethod

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import shutil
@@ -110,12 +111,14 @@ class StateManager:
                     recorder.create_snapshot(kg_path)
                     logger.info("🏺 Eternal Record snapshot triggered via StateManager (%s)", reason)
                 except Exception as er_err:
+                    record_degradation('state_manager', er_err)
                     logger.error("Failed to trigger Eternal Record: %s", er_err)
 
             logger.debug("State snapshot saved (%s).", reason)
             return True
             
         except Exception as e:
+            record_degradation('state_manager', e)
             logger.error("Failed to save state snapshot: %s", e)
             return False
 
@@ -137,6 +140,7 @@ class StateManager:
             shutil.move(str(corrupted_file_path), str(target_path))
             logger.critical("🚨 DATA CORRUPTION DETECTED: Snapshot quarantined to %s", target_path)
         except Exception as e:
+            record_degradation('state_manager', e)
             logger.error("Failed to quarantine corrupted file %s: %s", corrupted_file_path, e)
 
     def _load_from_path(self, path: Path) -> Optional[Dict[str, Any]]:
@@ -172,6 +176,7 @@ class StateManager:
             return data
             
         except Exception as e:
+            record_degradation('state_manager', e)
             logger.error("Failed to load snapshot from %s: %s", path, e)
             return None
 
@@ -187,6 +192,7 @@ class StateManager:
                     "time": f.stat().st_mtime
                 })
             except Exception as exc:
+                record_degradation('state_manager', exc)
                 logger.debug("Suppressed: %s", exc)
 
         return sorted(snapshots, key=lambda x: x['time'], reverse=True)

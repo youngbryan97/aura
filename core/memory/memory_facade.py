@@ -1,6 +1,7 @@
 """Refactored MemoryFacade — the central entry point for all long-term memory operations.
 Ensures episodic and semantic sub-systems work in harmony.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 import asyncio
@@ -413,6 +414,7 @@ class MemoryFacade:
                     limit=limit,
                 )
             except Exception as e:
+                record_degradation('memory_facade', e)
                 logger.debug("Vector collection metadata query failed: %s", e)
 
         if hasattr(self.vector, "search_similar"):
@@ -469,6 +471,7 @@ class MemoryFacade:
                 logger.info("MemoryFacade: deferring interaction commit: %s", reason)
                 return None
         except Exception as exc:
+            record_degradation('memory_facade', exc)
             logger.debug("MemoryFacade constitutional gate skipped: %s", exc)
             runtime_live = bool(
                 getattr(ServiceContainer, "_registration_locked", False)
@@ -510,6 +513,7 @@ class MemoryFacade:
                         metadata=metadata,
                     )
                 except Exception as e:
+                    record_degradation('memory_facade', e)
                     logger.error("Failed to record episode: %s", e)
 
             semantic_target = self.semantic if self.semantic is not None else self.vector
@@ -542,6 +546,7 @@ class MemoryFacade:
                         await self._call_maybe_async(semantic_target.index, semantic_text, semantic_metadata)
                     semantic_write_ok = True
                 except Exception as e:
+                    record_degradation('memory_facade', e)
                     logger.error("Failed to update semantic memory: %s", e)
 
             # 2. Update Vector Memory if important
@@ -560,6 +565,7 @@ class MemoryFacade:
                         }
                     )
                 except Exception as e:
+                    record_degradation('memory_facade', e)
                     logger.error("Failed to update vector memory: %s", e)
 
             if self.ledger and hasattr(self.ledger, "log_interaction"):
@@ -571,6 +577,7 @@ class MemoryFacade:
                         success,
                     )
                 except Exception as e:
+                    record_degradation('memory_facade', e)
                     logger.debug("Failed to update knowledge ledger: %s", e)
 
             return episode_id
@@ -596,12 +603,14 @@ class MemoryFacade:
                 recent = await self.episodic.recall_recent_async(limit=limit)
                 hot["recent_episodes"] = recent
             except Exception as e:
+                record_degradation('memory_facade', e)
                 logger.debug("Failed to get recent episodes: %s", e)
 
         if self.goals:
             try:
                 hot["current_goals"] = await self.goals.get_active_goals_async()
             except Exception as e:
+                record_degradation('memory_facade', e)
                 logger.debug("Failed to get active goals: %s", e)
 
         if self.short_term:
@@ -648,6 +657,7 @@ class MemoryFacade:
                     for item in list(await self._call_maybe_async(search_method, query, limit=limit) or []):
                         _append(item)
             except Exception as e:
+                record_degradation('memory_facade', e)
                 logger.debug("Vector search failed: %s", e)
 
         # 2. Semantic Graph
@@ -658,6 +668,7 @@ class MemoryFacade:
                     for item in list(await self._call_maybe_async(search_method, query, limit=limit) or []):
                         _append(item)
             except Exception as e:
+                record_degradation('memory_facade', e)
                 logger.debug("Graph search failed: %s", e)
 
         verified_results: List[Dict[str, Any]] = []
@@ -665,6 +676,7 @@ class MemoryFacade:
             try:
                 normalized = await self._verify_memory_result(item)
             except Exception as e:
+                record_degradation('memory_facade', e)
                 logger.debug("Memory live verification failed: %s", e)
                 normalized = dict(item)
                 metadata = dict(normalized.get("metadata") or {})
@@ -715,6 +727,7 @@ class MemoryFacade:
                 "schema_version": _stamped.provenance.schema_version,
             }
         except Exception as _prov_exc:
+            record_degradation('memory_facade', _prov_exc)
             logger.debug("provenance stamp skipped: %s", _prov_exc)
         resolved_source = self._resolve_memory_write_source(payload)
         self._last_add_memory_status = {"ok": False, "reason": "pending"}
@@ -746,6 +759,7 @@ class MemoryFacade:
                     logger.warning("🚫 MemoryFacade add_memory blocked: %s", reason)
                     return False
         except Exception as exc:
+            record_degradation('memory_facade', exc)
             logger.debug("MemoryFacade add_memory constitutional gate skipped: %s", exc)
             runtime_live = bool(
                 getattr(ServiceContainer, "_registration_locked", False)
@@ -782,6 +796,7 @@ class MemoryFacade:
                     self._last_add_memory_status = {"ok": stored, "reason": "stored_via_vector" if stored else "vector_backend_returned_false"}
                     return stored
                 except Exception as e:
+                    record_degradation('memory_facade', e)
                     self._last_add_memory_status = {"ok": False, "reason": f"vector_backend_error:{type(e).__name__}"}
                     logger.error("MemoryFacade.add_memory via vector failed: %s", e)
 
@@ -799,6 +814,7 @@ class MemoryFacade:
                         self._last_add_memory_status = {"ok": True, "reason": "stored_via_semantic.add_memory"}
                         return True
                 except Exception as e:
+                    record_degradation('memory_facade', e)
                     self._last_add_memory_status = {"ok": False, "reason": f"semantic_backend_error:{type(e).__name__}"}
                     logger.error("MemoryFacade.add_memory via semantic failed: %s", e)
 
@@ -809,6 +825,7 @@ class MemoryFacade:
                     self._last_add_memory_status = {"ok": stored, "reason": "stored_via_vault" if stored else "vault_backend_returned_false"}
                     return stored
                 except Exception as e:
+                    record_degradation('memory_facade', e)
                     self._last_add_memory_status = {"ok": False, "reason": f"vault_backend_error:{type(e).__name__}"}
                     logger.error("MemoryFacade.add_memory via vault failed: %s", e)
 
@@ -838,6 +855,7 @@ class MemoryFacade:
                 if results:
                     return results
             except Exception as e:
+                record_degradation('memory_facade', e)
                 logger.error("MemoryFacade.query_memory via vector failed: %s", e)
 
         if self.semantic and hasattr(self.semantic, "search_memories"):
@@ -862,6 +880,7 @@ class MemoryFacade:
                     limit=limit,
                 )
             except Exception as e:
+                record_degradation('memory_facade', e)
                 logger.error("MemoryFacade.query_memory via semantic failed: %s", e)
 
         return []
@@ -874,6 +893,7 @@ class MemoryFacade:
                 get_task_tracker().create_task(self.episodic.log_event_async(event))
                 return True
             except Exception as e:
+                record_degradation('memory_facade', e)
                 logger.debug("Sync log_event failed: %s", e)
         return False
 

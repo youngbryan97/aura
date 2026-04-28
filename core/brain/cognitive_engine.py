@@ -1,5 +1,6 @@
 """Refactored CognitiveEngine - Now a thin facade over modular phases.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -49,6 +50,7 @@ def _record_objective_binding(state: AuraState, objective: str, *, source: str, 
             reason=reason,
         )
     except Exception as exc:
+        record_degradation('cognitive_engine', exc)
         logger.debug("Executive objective audit skipped for %s: %s", source, exc)
 
 class CognitiveEngine:
@@ -172,6 +174,7 @@ class CognitiveEngine:
                 if last_user and (time.time() - last_user) < 180.0:
                     return True
         except Exception as exc:
+            record_degradation('cognitive_engine', exc)
             logger.debug("Background reflection suppression check failed: %s", exc)
 
         try:
@@ -180,6 +183,7 @@ class CognitiveEngine:
             if psutil.virtual_memory().percent >= 80.0:
                 return True
         except Exception as _exc:
+            record_degradation('cognitive_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return False
@@ -196,6 +200,7 @@ class CognitiveEngine:
                 or ""
             )
         except Exception as exc:
+            record_degradation('cognitive_engine', exc)
             logger.debug("Background thought policy check failed: %s", exc)
             return ""
 
@@ -256,6 +261,7 @@ class CognitiveEngine:
             if state_origin:
                 return state_origin
         except Exception as exc:
+            record_degradation('cognitive_engine', exc)
             logger.debug("CognitiveEngine origin resolution degraded: %s", exc)
 
         return "system"
@@ -401,6 +407,7 @@ class CognitiveEngine:
                     if aug_data:
                         augmentor_context[type(aug).__name__] = aug_data
             except Exception as e:
+                record_degradation('cognitive_engine', e)
                 logger.warning("Augmentor %s failed: %s", type(aug).__name__, e)
 
         if augmentor_context:
@@ -474,6 +481,7 @@ class CognitiveEngine:
             # Immediate Reactive Recovery
             return await self._reactive_recovery(objective, mode, origin, "timeout")
         except Exception as e:
+            record_degradation('cognitive_engine', e)
             logger.error("🚨 [COGNITION] Fatal error in phase logic: %s", e)
             # v14.1 HARDENING: Rollback & Downshift
             if mode == ThinkingMode.DEEP:
@@ -494,6 +502,7 @@ class CognitiveEngine:
                     state.cognition.current_objective = None
                     state.cognition.current_origin = None
             except Exception as _e:
+                record_degradation('cognitive_engine', _e)
                 logger.debug('Ignored Exception in cognitive_engine.py: %s', _e)
 
         # ─── SUCCESS PATH (Unreachable before fix) ──────────────────────────
@@ -536,6 +545,7 @@ class CognitiveEngine:
                 if hasattr(temp_state.cognition, "modifiers"):
                     state.cognition.modifiers = dict(getattr(temp_state.cognition, "modifiers", {}) or {})
             except Exception as e:
+                record_degradation('cognitive_engine', e)
                 logger.error("Failed to commit final cognitive state: %s", e)
                 break
         
@@ -611,6 +621,7 @@ class CognitiveEngine:
                 async with asyncio.timeout(5.0):
                     await self.state_repository.rollback(f"recovery: {reason}")
             except Exception as rollback_err:
+                record_degradation('cognitive_engine', rollback_err)
                 logger.warning("Rollback failed during recovery: %s", rollback_err)
             
             # 2. Get a quick reflex response if possible
@@ -643,6 +654,7 @@ class CognitiveEngine:
                 reasoning=[f"Hard fallback after cognitive failure: {reason}"]
             )
         except Exception as recovery_err:
+            record_degradation('cognitive_engine', recovery_err)
             logger.error("Error during recovery: %s", recovery_err)
             return Thought(
                 id=str(uuid.uuid4()),
@@ -669,6 +681,7 @@ class CognitiveEngine:
                 await context_manager.record_interaction(user_input, response, domain=domain)
                 return
             except Exception as exc:
+                record_degradation('cognitive_engine', exc)
                 logger.debug("CognitiveEngine.record_interaction context-manager path failed: %s", exc)
 
         learning = container.get("learning_engine", default=None)
@@ -680,6 +693,7 @@ class CognitiveEngine:
                     domain=domain,
                 )
             except Exception as exc:
+                record_degradation('cognitive_engine', exc)
                 logger.debug("CognitiveEngine.record_interaction learning path failed: %s", exc)
 
     async def think_stream(self, objective: str, **kwargs):
@@ -799,6 +813,7 @@ class CognitiveEngine:
                         category="Cognition"
                     )
                 except Exception as _exc:
+                    record_degradation('cognitive_engine', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 
                 strategy_input = strategy_query or prompt

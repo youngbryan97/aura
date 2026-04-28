@@ -9,6 +9,7 @@ Skills registered:
   add_belief    — Assert a new fact or reinforce an existing belief
   query_beliefs — Retrieve what Aura believes about a subject
 """
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict, Optional
 
@@ -91,6 +92,7 @@ class AddBeliefSkill(BaseSkill):
                 )
                 stored_layers.append("belief_engine")
         except Exception as e:
+            record_degradation('belief_ops', e)
             logger.debug("BeliefRevisionEngine store failed: %s", e)
 
         # Layer 2: EpistemicState / World Model (knowledge graph triples)
@@ -104,6 +106,7 @@ class AddBeliefSkill(BaseSkill):
                 )
                 stored_layers.append("world_model")
         except Exception as e:
+            record_degradation('belief_ops', e)
             logger.debug("EpistemicState store failed: %s", e)
 
         # Layer 3: MemFS text (legacy compatibility + human-readable backup)
@@ -119,6 +122,7 @@ class AddBeliefSkill(BaseSkill):
             if mem_resp.get("ok"):
                 stored_layers.append(f"memfs:{block}")
         except Exception as e:
+            record_degradation('belief_ops', e)
             logger.debug("MemFS store failed: %s", e)
 
         # Layer 4: Vector memory for semantic retrieval
@@ -134,6 +138,7 @@ class AddBeliefSkill(BaseSkill):
                 )
                 stored_layers.append("vector_memory")
         except Exception as e:
+            record_degradation('belief_ops', e)
             logger.debug("Vector memory store failed: %s", e)
 
         if not stored_layers:
@@ -205,6 +210,7 @@ class QueryBeliefsSkill(BaseSkill):
                         beliefs.append(f"{content} (confidence: {conf:.2f})")
                 sources_checked.append("belief_engine")
         except Exception as e:
+            record_degradation('belief_ops', e)
             logger.debug("BeliefRevisionEngine query failed: %s", e)
 
         # Layer 2: EpistemicState / World Model
@@ -219,6 +225,7 @@ class QueryBeliefsSkill(BaseSkill):
                         beliefs.append(belief_str)
                 sources_checked.append("world_model")
         except Exception as e:
+            record_degradation('belief_ops', e)
             logger.debug("EpistemicState query failed: %s", e)
 
         # Layer 3: Vector memory semantic search
@@ -238,6 +245,7 @@ class QueryBeliefsSkill(BaseSkill):
                             beliefs.append(content[:200])
                     sources_checked.append("vector_memory")
         except Exception as e:
+            record_degradation('belief_ops', e)
             logger.debug("Vector memory query failed: %s", e)
 
         # Layer 4: MemFS fallback
@@ -254,6 +262,7 @@ class QueryBeliefsSkill(BaseSkill):
                             beliefs.append(line.strip())
             sources_checked.append("memfs")
         except Exception as e:
+            record_degradation('belief_ops', e)
             logger.debug("MemFS query failed: %s", e)
 
         beliefs = beliefs[:limit]

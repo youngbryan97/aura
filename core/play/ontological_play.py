@@ -24,6 +24,8 @@ Sessions are throttled by AgencyBus (``priority_class="boredom"``) so
 play never starves the foreground lane.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -95,6 +97,7 @@ class OntologicalPlayEngine:
                     a, b = random.sample(concepts, 2)
                     return (str(a), str(b))
         except Exception as exc:
+            record_degradation('ontological_play', exc)
             logger.debug("knowledge graph sampling failed: %s", exc)
         # Fallback: pick from a built-in seed bank so play still happens
         # when the graph is empty (e.g. on a fresh boot).
@@ -175,8 +178,10 @@ class OntologicalPlayEngine:
                         },
                     )
                 except Exception as exc:
+                    record_degradation('ontological_play', exc)
                     logger.debug("play memory persist failed: %s", exc)
         except Exception as exc:
+            record_degradation('ontological_play', exc)
             logger.debug("play memory emit failed: %s", exc)
 
     # ── gates ──────────────────────────────────────────────────────────

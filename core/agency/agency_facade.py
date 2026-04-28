@@ -10,6 +10,8 @@ The facade does NOT reimplement AgencyCore; it wraps it and turns its
 internal signals into receipts that the LifeTrace ledger can persist.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import json
@@ -224,6 +226,7 @@ class AgencyFacade(AgencyCore):
                 "proposal": top.as_dict(),
             }
         except Exception as exc:
+            record_degradation('agency_facade', exc)
             return {"approved": False, "receipt_id": "", "reason": f"will error: {exc}", "proposal": top.as_dict()}
 
     # ---- Phase 4: execute ---------------------------------------------
@@ -244,6 +247,7 @@ class AgencyFacade(AgencyCore):
                 outcome_raw = {"recorded": True, "note": "no executor bound"}
                 success = True
         except Exception as exc:
+            record_degradation('agency_facade', exc)
             outcome_raw = {"error": repr(exc)}
             success = False
         receipt_id = _hash("receipt", started, proposal.get("proposal_id", ""))
@@ -296,6 +300,7 @@ class AgencyFacade(AgencyCore):
                 )
             return {"consolidated": True, "assessment": assessment.as_dict()}
         except Exception as exc:
+            record_degradation('agency_facade', exc)
             return {"consolidated": False, "reason": repr(exc)}
 
     # ---- Full cycle convenience ---------------------------------------

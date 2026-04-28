@@ -11,6 +11,7 @@ It models the digital environment as a probabilistic causal graph:
 This is core to Phase 22.8, enabling proactive planning over reactive scripting.
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import math
@@ -180,6 +181,7 @@ class CausalWorldModel:
             with open(self.data_path, "w") as f:
                 json.dump(data, f, indent=4)
         except Exception as e:
+            record_degradation('causal_world_model', e)
             logger.error(f"Failed to save Causal World Model: {e}")
 
     def _load(self):
@@ -198,6 +200,7 @@ class CausalWorldModel:
             self.nodes = {k: CausalNode(**v) for k, v in data.get("nodes", {}).items()}
             self.edges = [CausalEdge(**v) for v in data.get("edges", [])]
         except Exception as e:
+            record_degradation('causal_world_model', e)
             logger.error(f"Failed to load Causal World Model: {e}")
 
 def register_causal_world_model(orchestrator=None):

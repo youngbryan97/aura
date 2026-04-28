@@ -9,6 +9,7 @@ ZENITH Protocol compliance:
   - Zero raw secrets stored on disk.
 """
 
+from core.runtime.errors import record_degradation
 import base64
 import binascii
 import hashlib
@@ -103,6 +104,7 @@ class BlackHole:
             ciphertext = blob[12:]
             return self._aesgcm.decrypt(nonce, ciphertext, None)
         except Exception as e:
+            record_degradation('black_hole', e)
             logger.error("BlackHole decryption FAILED: %s", e)
             raise ValueError("Decryption/Authentication failure.") from e
             
@@ -146,5 +148,6 @@ def decode_payload(b64_blob: str, key_b64: str) -> DecodedPayload:
         decrypted = aesgcm.decrypt(nonce, ciphertext, None).decode()
         return DecodedPayload(decrypted)
     except Exception as e:
+        record_degradation('black_hole', e)
         logger.debug("decode_payload failed: %s", e)  # Downgraded — happens on first boot with no stored data
         return DecodedPayload("")

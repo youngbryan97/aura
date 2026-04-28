@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import json
 import time
@@ -70,6 +71,7 @@ Return the response as a valid JSON object with the following structure:
             return project
             
         except Exception as e:
+            record_degradation('strategic_planner', e)
             logger.error("🚫 Strategic scaling failure: %s", e)
             return None
 
@@ -170,6 +172,7 @@ Return as JSON as before:
             
             return True
         except Exception as e:
+            record_degradation('strategic_planner', e)
             logger.error("Failed to replan project: %s", e, exc_info=True)
             return False
 

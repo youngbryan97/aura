@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -581,6 +583,7 @@ class CodingSessionMemory:
                 return
             payload = json.loads(self.persist_path.read_text(encoding="utf-8"))
         except Exception as exc:
+            record_degradation('coding_session_memory', exc)
             logger.debug("Coding session memory load skipped: %s", exc)
             return
 
@@ -613,6 +616,7 @@ class CodingSessionMemory:
                 },
             )
         except Exception as exc:
+            record_degradation('coding_session_memory', exc)
             logger.debug("Coding session memory save skipped: %s", exc)
 
     @staticmethod

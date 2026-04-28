@@ -3,6 +3,7 @@
 The "Presence Patch" that wires the v30 components into the Orchestrator.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 from core.container import ServiceContainer
@@ -43,6 +44,7 @@ def apply_presence_patch(orchestrator):
         voice_engine._on_vad_change = presence.mark_user_speaking
         logger.info("🎤 VAD pinned to ProactivePresence.")
     except Exception as e:
+        record_degradation('presence_integration', e)
         logger.warning("Failed to hook VAD: %s", e)
 
     # 5. Shared Ground Buffer (inside jokes, established references, running callbacks)
@@ -52,6 +54,7 @@ def apply_presence_patch(orchestrator):
         ServiceContainer.register_instance("shared_ground", sg)
         logger.info("✅ SharedGroundBuffer registered (%d entries).", len(sg.entries))
     except Exception as e:
+        record_degradation('presence_integration', e)
         logger.warning("SharedGroundBuffer init failed: %s", e)
 
     # 6. SocialMemory (relationship depth & milestones)
@@ -63,6 +66,7 @@ def apply_presence_patch(orchestrator):
             ServiceContainer.register_instance("social_memory", social_mem)
             logger.info("✅ SocialMemory registered.")
     except Exception as e:
+        record_degradation('presence_integration', e)
         logger.warning("SocialMemory init failed: %s", e)
 
     # 7. TheoryOfMind (user model: rapport, trust, emotional state)
@@ -74,6 +78,7 @@ def apply_presence_patch(orchestrator):
             ServiceContainer.register_instance("theory_of_mind", tom)
             logger.info("✅ TheoryOfMind registered.")
     except Exception as e:
+        record_degradation('presence_integration', e)
         logger.warning("TheoryOfMind init failed: %s", e)
 
     # 8. DiscourseTracker (topic threading, user emotional trend, conversation energy)
@@ -84,6 +89,7 @@ def apply_presence_patch(orchestrator):
         ServiceContainer.register_instance("discourse_tracker", discourse_tracker)
         logger.info("✅ DiscourseTracker registered.")
     except Exception as e:
+        record_degradation('presence_integration', e)
         logger.warning("DiscourseTracker init failed: %s", e)
 
     return True

@@ -9,6 +9,7 @@ Refactored for ZENITH Protocol stability:
   - Mandatory Semaphore(1) on concurrent clones to prevent M5 memory thrashing.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
@@ -77,6 +78,7 @@ class MorphicForkingEngine:
             if "VERDICT: ACCEPTED" in verdict_text:
                 return True
         except Exception as e:
+            record_degradation('morphic_forking', e)
             logger.error("CriticGate error: %s", e)
         
         return False
@@ -120,5 +122,6 @@ def register_morphic_forking(orchestrator: Optional[Any] = None) -> MorphicForki
         try:
             setattr(orchestrator, "morphic_forking", engine)
         except Exception as _exc:
+            record_degradation('morphic_forking', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
     return engine

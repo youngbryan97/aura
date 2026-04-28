@@ -4,6 +4,7 @@ Asynchronous First Principles Extractor.
 Analyzes specific, successful problem resolutions and distills them into 
 universal, generalized rules for zero-shot application in novel domains.
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
@@ -121,6 +122,7 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
                         )
                     )
                 except Exception as _rcpt_exc:
+                    record_degradation('abstraction_engine', _rcpt_exc)
                     logger.debug("AbstractionEngine receipt emit skipped: %s", _rcpt_exc)
                 
                 # Optionally: Inject into the BlackHoleVault for semantic retrieval
@@ -143,6 +145,7 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
                     )
                     
             except Exception as e:
+                record_degradation('abstraction_engine', e)
                 logger.error(f"Failed to commit first principle: {e}")
 
     async def get_core_principles(self, limit: int = 5) -> str:
@@ -173,6 +176,7 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
             return formatted
             
         except Exception as e:
+            record_degradation('abstraction_engine', e)
             logger.error(f"Failed to load principles: {e}")
             return ""
 

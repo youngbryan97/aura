@@ -4,6 +4,7 @@ Manages core values, ethical weights, and persistent identity.
 Hardened implementation replacing earlier stubs.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 from core.utils.exceptions import capture_and_log
 import json
@@ -59,6 +60,7 @@ class ValueSystem:
                     if mood:
                         self.apply_emotional_context(mood)
         except Exception as e:
+            record_degradation('values_engine', e)
             capture_and_log(e, {'module': __name__})
 
         weights = {}
@@ -133,6 +135,7 @@ class IdentityModel:
                 with open(self.storage_path, "r") as f:
                     self.identity.update(json.load(f))
             except Exception as e:
+                record_degradation('values_engine', e)
                 logger.error("Failed to load identity: %s", e)
         else:
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
@@ -143,6 +146,7 @@ class IdentityModel:
             with open(self.storage_path, "w") as f:
                 json.dump(self.identity, f, indent=2)
         except Exception as e:
+            record_degradation('values_engine', e)
             logger.error("Failed to save identity: %s", e)
 
     def get_system_prompt_segment(self) -> str:

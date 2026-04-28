@@ -14,6 +14,8 @@ This feeds into initiative scoring: Aura acts based on what's
 happening in the world, not just internal timers.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import os
@@ -159,6 +161,7 @@ class WorldState:
         except ImportError:
             pass
         except Exception as e:
+            record_degradation('world_state', e)
             logger.debug("WorldState telemetry failed: %s", e)
 
         # Time of day

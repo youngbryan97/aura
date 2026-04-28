@@ -4,6 +4,7 @@ Consolidates Thermodynamic (biological) and Embodied (physical) simulations.
 Aura's 'body' now exists in a unified metabolic and spatial context.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import copy
 import logging
@@ -34,6 +35,7 @@ class ContinuousSensoryFeed:
         try:
             psutil.cpu_percent(interval=None)
         except Exception as exc:
+            record_degradation('__init__', exc)
             logger.debug("Suppressed: %s", exc)
     def get_snapshot(self) -> Dict[str, float]:
         """Return current hardware sensory data."""
@@ -48,6 +50,7 @@ class ContinuousSensoryFeed:
                 "memory_pressure": memory
             }
         except Exception as e:
+            record_degradation('__init__', e)
             logger.debug("Sensory capture failure: %s", e)
             return {"battery": 100.0, "cpu_temp": 45.0, "load": 10.0, "memory_pressure": 40.0}
 

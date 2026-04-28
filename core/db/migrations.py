@@ -8,6 +8,7 @@ Usage:
     migrator.register(2, "Add metadata index", sql_v2)
     migrator.run()   # Applies only unapplied migrations in order
 """
+from core.runtime.errors import record_degradation
 import hashlib
 import logging
 import os
@@ -49,6 +50,7 @@ class Migrator:
                     suffix = path_str[len("~/.aura/data/"):]
                     path_str = str(config.paths.data_dir / suffix)
                 except Exception as _exc:
+                    record_degradation('migrations', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
         elif path_str.startswith("~/.aura"):
             aura_root = os.environ.get("AURA_ROOT")
@@ -60,6 +62,7 @@ class Migrator:
                     suffix = path_str[len("~/.aura/"):]
                     path_str = str(config.paths._effective_home_dir() / suffix)
                 except Exception as _exc:
+                    record_degradation('migrations', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
         
         self.db_path = str(Path(path_str).expanduser())
@@ -113,6 +116,7 @@ class Migrator:
                     applied += 1
                     logger.info("✅ Migration v%d applied.", migration.version)
                 except Exception as e:
+                    record_degradation('migrations', e)
                     con.rollback()
                     logger.error(
                         "❌ Migration v%d FAILED: %s — database unchanged.", migration.version, e
@@ -178,6 +182,7 @@ class Migrator:
                     con.commit()
                     logger.info("✅ Added 'updated_at' column.")
         except Exception as e:
+            record_degradation('migrations', e)
             logger.error("Failed to reconcile legacy schema: %s", e)
             con.rollback()
         finally:

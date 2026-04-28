@@ -1,6 +1,7 @@
 """Evaluation Harness for Autonomous Self-Modification.
 Ensures that fixes actually solve the problem they claim to solve.
 """
+from core.runtime.errors import record_degradation
 import logging
 import asyncio
 from pathlib import Path
@@ -68,6 +69,7 @@ class EvaluationHarness:
         except SyntaxError as e:
             return False, f"Syntax Error in generated code: {e}"
         except Exception as e:
+            record_degradation('evaluation_harness', e)
             return False, f"Preflight error: {e}"
 
     async def create_weakness_probe(self, file_path: str, diagnosis: Dict[str, Any]) -> Optional[str]:
@@ -109,6 +111,7 @@ Return ONLY the Python code, no explanation, no markdown blocks.
             
             return probe_code
         except Exception as e:
+            record_degradation('evaluation_harness', e)
             logger.error("Failed to generate weakness probe: %s", e)
             return None
 
@@ -174,4 +177,5 @@ Return ONLY the Python code, no explanation, no markdown blocks.
             
             return False, {"error": "SandboxTester missing run_custom_probe method"}
         except Exception as e:
+            record_degradation('evaluation_harness', e)
             return False, {"error": str(e)}

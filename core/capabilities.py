@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import subprocess
 import asyncio
@@ -37,6 +38,7 @@ class Shell:
             out = (result.stdout + "\n" + result.stderr).strip()
             return result.returncode == 0, out
         except Exception as e:
+            record_degradation('capabilities', e)
             logger.error("Shell error: %s", e)
             return False, str(e)
 
@@ -63,6 +65,7 @@ class WebClient:
             resp = await asyncio.to_thread(requests.get, url, headers=headers, timeout=self.timeout)
             return True, resp.text
         except Exception as e:
+            record_degradation('capabilities', e)
             logger.error("Web error: %s", e)
             return False, str(e)
 

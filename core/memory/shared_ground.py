@@ -15,6 +15,7 @@ This module:
 4. Auto-detects potential callbacks from conversation history.
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -75,6 +76,7 @@ class SharedGroundBuffer:
                 self.entries = [SharedGroundEntry.from_dict(e) for e in raw]
                 logger.debug("SharedGround: loaded %d entries", len(self.entries))
             except Exception as e:
+                record_degradation('shared_ground', e)
                 logger.warning("SharedGround: load failed (%s), starting fresh", e)
                 self.entries = []
 
@@ -85,6 +87,7 @@ class SharedGroundBuffer:
                 json.dump([e.to_dict() for e in self.entries], f, indent=2)
             os.replace(tmp, self.data_path)
         except Exception as e:
+            record_degradation('shared_ground', e)
             logger.error("SharedGround: save failed: %s", e)
 
     # ── Recording ─────────────────────────────────────────────────────────

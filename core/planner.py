@@ -8,6 +8,7 @@ Features:
 5. Structured logging and metrics
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import hashlib
@@ -411,6 +412,7 @@ class Planner:
                     return self._create_fallback_plan(goal_text)
                 await reliability.heartbeat("planner", stability=0.95)
         except Exception as _e:
+            record_degradation('planner', _e)
             logger.debug('Ignored Exception in planner.py: %s', _e)
 
         # 1. Validation & Sanitization
@@ -448,6 +450,7 @@ class Planner:
                     self.plan_cache.put(goal_hash, strategic_plan)
                     return strategic_plan
             except Exception as e:
+                record_degradation('planner', e)
                 logger.warning("Strategic synthesis bypass failed, falling back to LLM: %s", e)
 
         # 3. Intent Shortcuts (Zero-Compute Bypasses)
@@ -485,6 +488,7 @@ class Planner:
                             memory_context = "\n".join([f"- {m.content}" for m in relevant_memories])
                             working_goal = f"{working_goal}\n\n[Relevant Long-Term Memories]:\n{memory_context}"
                 except Exception as e:
+                    record_degradation('planner', e)
                     logger.debug(f"Long-term memory recall failed in planner: {e}")
                     
                 prompt = self._build_planning_prompt(working_goal)
@@ -549,6 +553,7 @@ class Planner:
                 return plan
 
             except Exception as e:
+                record_degradation('planner', e)
                 attempt += 1
                 last_error = str(e)
                 logger.error("Planning Failure on attempt %d: %s", attempt, e)
@@ -572,6 +577,7 @@ class Planner:
                     return self._create_fallback_plan(original_plan.goal)
                 await reliability.heartbeat("planner", stability=0.85)
         except Exception as _e:
+            record_degradation('planner', _e)
             logger.debug('Ignored Exception in planner.py: %s', _e)
 
         logger.info("Revising plan due to failure at step %s: %s", failed_step_index, failure_reason)
@@ -666,6 +672,7 @@ OUTPUT JSON:
             return new_plan
             
         except Exception as e:
+            record_degradation('planner', e)
             logger.error("Plan revision failed: %s", e)
             return self._create_fallback_plan(original_plan.goal)
 
@@ -874,6 +881,7 @@ Return ONLY the JSON object, no additional text."""
             os.replace(temp_path, plan_path)
             logger.info("Plan persisted to disk: %s", plan_path)
         except Exception as e:
+            record_degradation('planner', e)
             logger.error("Failed to persist plan: %s", e)
 
     def load_from_disk(self) -> Optional[ExecutionPlan]:
@@ -907,6 +915,7 @@ Return ONLY the JSON object, no additional text."""
                 plan_hash=data.get("plan_hash")
             )
         except Exception as e:
+            record_degradation('planner', e)
             logger.error("Failed to load plan from disk: %s", e)
             return None
 
@@ -918,6 +927,7 @@ Return ONLY the JSON object, no additional text."""
             if plan_path.exists():
                 plan_path.unlink()
         except Exception as e:
+            record_degradation('planner', e)
             logger.error("Failed to clear persisted plan: %s", e)
 
 class PlanningError(Exception):

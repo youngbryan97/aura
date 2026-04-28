@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -128,6 +129,7 @@ class LocalBrain:
             logger.info("🔥 Model %s warmed up successfully", self.model)
             return True
         except Exception as e:
+            record_degradation('local_llm', e)
             logger.warning("Model warmup failed: %s", e)
             return False
     
@@ -246,6 +248,7 @@ class LocalBrain:
                     await asyncio.sleep(backoff)
                     continue
             except Exception as e:
+                record_degradation('local_llm', e)
                 last_error = e
                 break
         
@@ -345,6 +348,7 @@ class LocalBrain:
                         continue
             self._record_success()
         except Exception as e:
+            record_degradation('local_llm', e)
             self._record_failure()
             logger.error("Streaming Error: %s", e)
             yield f" [Error: Sovereign stream interrupted: {str(e)}]"
@@ -414,6 +418,7 @@ class LocalBrain:
                     await asyncio.sleep(backoff)
                     continue
             except Exception as e:
+                record_degradation('local_llm', e)
                 last_error = e
                 break
         
@@ -515,6 +520,7 @@ class LocalBrain:
                         continue
             self._record_success()
         except Exception as e:
+            record_degradation('local_llm', e)
             self._record_failure()
             logger.error("Chat Streaming Error: %s (%s)", e, type(e).__name__)
             yield f" [Error: Sovereign chat stream interrupted: {type(e).__name__}: {str(e) or repr(e)}]"

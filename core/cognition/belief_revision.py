@@ -18,6 +18,7 @@ Key behaviors:
 Design: Backed by the PersistentKnowledgeGraph for persistence.
 """
 
+from core.runtime.errors import record_degradation
 import hashlib
 import json
 import logging
@@ -95,6 +96,7 @@ class BeliefRevisionEngine:
                 self._beliefs[belief.id] = belief
             logger.info("📖 Loaded %d beliefs from knowledge graph", len(self._beliefs))
         except Exception as e:
+            record_degradation('belief_revision', e)
             logger.warning("Failed to load beliefs: %s", e)
 
     def believe(
@@ -149,6 +151,7 @@ class BeliefRevisionEngine:
                 category="Cognition"
             )
         except Exception as _exc:
+            record_degradation('belief_revision', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return belief
@@ -221,6 +224,7 @@ class BeliefRevisionEngine:
                         category="Cognition"
                     )
                 except Exception as _exc:
+                    record_degradation('belief_revision', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
                 return {
@@ -232,6 +236,7 @@ class BeliefRevisionEngine:
                 }
 
         except Exception as e:
+            record_degradation('belief_revision', e)
             logger.debug("LLM belief revision failed: %s", e)
 
         return {"revised": False, "reason": "evaluation_failed"}
@@ -314,6 +319,7 @@ class BeliefRevisionEngine:
                 metadata=metadata,
             )
         except Exception as e:
+            record_degradation('belief_revision', e)
             logger.warning("Failed to persist belief: %s", e)
 
 

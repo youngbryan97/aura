@@ -4,6 +4,7 @@ Recursive verifier + auto-backtrack loop.
 Makes Aura's planning as deep and self-correcting as mine.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -50,6 +51,7 @@ class CriticEngine:
                 "hooks_into": ["planner", "orchestrator", "cel"]
             })
         except Exception as e:
+            record_degradation('critic_engine', e)
             logger.debug(f"Event bus publish missed for Mycelium hook: {e}")
 
     async def stop(self):
@@ -95,6 +97,7 @@ class CriticEngine:
                         "origin": "critic_engine"
                     })
                 except Exception as e:
+                    record_degradation('critic_engine', e)
                     logger.debug(f"Failed to emit CEL thought: {e}")
             
             logger.info(f"Critic judgment @ step {judgment.step_number}: {judgment.recommendation} "
@@ -102,6 +105,7 @@ class CriticEngine:
             
             return judgment
         except Exception as e:
+            record_degradation('critic_engine', e)
             logger.error(f"Critic generation failed: {e}")
             return CriticJudgment(len(executed_steps), 0.4, "Critique failed", [], "continue", "I'm having trouble reflecting.")
 
@@ -159,6 +163,7 @@ Be concise. No extra text."""
                 first_person_thought=data.get("first_person_thought", "Still processing...")
             )
         except Exception as e:
+            record_degradation('critic_engine', e)
             logger.debug(f"Critic parse error: {e}")
             # Safe fallback
             return CriticJudgment(current_step, 0.4, "Parse failed", [], "continue", "Something feels off in my reasoning...")
@@ -172,6 +177,7 @@ Be concise. No extra text."""
                 if judgment.recommendation in ("backtrack", "replan"):
                     await get_event_bus().publish("planner.force_replan", {"reason": judgment.first_person_thought})
         except Exception as e:
+            record_degradation('critic_engine', e)
             logger.debug(f"Critic background injection error: {e}")
 
     async def spawn_critical_shard(self, research_insight: str, context: str = "") -> bool:

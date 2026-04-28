@@ -3,6 +3,8 @@ Hardened Configuration System for Aura.
 2026 Standards: Pydantic Settings V2, Strict Validation, and Mycelial Observability.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -68,6 +70,7 @@ class Paths(BaseModel):
             self.__class__._runtime_home_cache = candidate
             return candidate
         except Exception as exc:
+            record_degradation('config', exc)
             fallback = self.project_root / ".aura_runtime"
             fallback.mkdir(parents=True, exist_ok=True)
             self.__class__._runtime_home_cache = fallback
@@ -442,6 +445,7 @@ class AuraConfig(BaseSettings):
             if not bool(audit.get("ok", True)):
                 logger.warning("LLM lane role audit found issues: %s", audit.get("issues", []))
         except Exception as exc:
+            record_degradation('config', exc)
             logger.debug("LLM role canonicalization skipped: %s", exc)
 
         # 2. Create paths
@@ -471,6 +475,7 @@ class AuraConfig(BaseSettings):
                 with open(file_path.with_suffix('.json'), 'w') as f:
                     json.dump(data, f, indent=4)
         except Exception as e:
+            record_degradation('config', e)
             logger.error("config_save_failed: %s", e)
 
 # Singleton implementation

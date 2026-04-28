@@ -13,6 +13,7 @@ Design notes:
   the freeze."
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -62,6 +63,7 @@ class StallWatchdog(threading.Thread):
                 # Event loop closed during shutdown — exit silently
                 break
             except Exception as e:
+                record_degradation('stall_watchdog', e)
                 logger.debug("Watchdog heartbeat schedule issue: %s", e)
 
             time.sleep(1.0)  # Check every second
@@ -101,6 +103,7 @@ class StallWatchdog(threading.Thread):
                 if tid not in seen:
                     self._task_birth.pop(tid, None)
         except Exception as exc:
+            record_degradation('stall_watchdog', exc)
             logger.debug("Task age bookkeeping failed: %s", exc)
 
     def _report_stall(self, elapsed: float):
@@ -126,6 +129,7 @@ class StallWatchdog(threading.Thread):
             get_diagnostic_hub()
             # Future: trigger auto-repair or circuit break
         except Exception as _e:
+            record_degradation('stall_watchdog', _e)
             logger.debug('Ignored Exception in stall_watchdog.py: %s', _e)
 
     def _attempt_active_recovery(self, elapsed: float) -> None:
@@ -146,6 +150,7 @@ class StallWatchdog(threading.Thread):
         except RuntimeError:
             return
         except Exception as exc:
+            record_degradation('stall_watchdog', exc)
             logger.debug("Stall recovery scheduling failed: %s", exc)
 
     async def _recover_on_loop(self, elapsed: float) -> None:
@@ -183,6 +188,7 @@ class StallWatchdog(threading.Thread):
                 task.cancel()
                 cancelled += 1
             except Exception as exc:
+                record_degradation('stall_watchdog', exc)
                 logger.debug("Stall recovery: failed to cancel %s: %s", name, exc)
 
         if cancelled:
@@ -208,6 +214,7 @@ class StallWatchdog(threading.Thread):
                         # branch fires on next entry.
                         self.loop.call_soon(client._mark_progress)
                 except Exception as exc:
+                    record_degradation('stall_watchdog', exc)
                     logger.debug("Stall recovery MLX poke failed: %s", exc)
 
         # If we've taken many long stalls in a row, ask the orchestrator's
@@ -220,6 +227,7 @@ class StallWatchdog(threading.Thread):
                     state_repo.request_flush()
                     logger.info("💉 [IMMUNE] Requested state vault flush after %d consecutive stalls.", self._consecutive_long_stalls)
             except Exception as exc:
+                record_degradation('stall_watchdog', exc)
                 logger.debug("Stall recovery state-flush request failed: %s", exc)
 
 def start_watchdog(loop: Optional[asyncio.AbstractEventLoop] = None, threshold: float = 5.0):

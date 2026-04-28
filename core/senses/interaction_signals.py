@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -203,6 +205,7 @@ class InteractionSignalsEngine:
                 self._typing = self._update_typing_state(payload)
                 self._fused = self._compute_fused_state()
             except Exception as exc:
+                record_degradation('interaction_signals', exc)
                 logger.debug("Typing signal update failed: %s", exc)
             finally:
                 self._typing_queue.task_done()
@@ -214,6 +217,7 @@ class InteractionSignalsEngine:
                 self._voice = self._update_voice_state(payload)
                 self._fused = self._compute_fused_state()
             except Exception as exc:
+                record_degradation('interaction_signals', exc)
                 logger.debug("Voice signal update failed: %s", exc)
             finally:
                 self._voice_queue.task_done()
@@ -228,6 +232,7 @@ class InteractionSignalsEngine:
                 self._vision = self._update_vision_state(analysis)
                 self._fused = self._compute_fused_state()
             except Exception as exc:
+                record_degradation('interaction_signals', exc)
                 logger.debug("Vision signal update failed: %s", exc)
             finally:
                 self._vision_queue.task_done()
@@ -447,6 +452,7 @@ class InteractionSignalsEngine:
             self._vision_backend_reason = ""
             return True
         except Exception as exc:
+            record_degradation('interaction_signals', exc)
             self._vision_backend_ready = False
             self._vision_backend_reason = str(exc)
             return False
@@ -568,6 +574,7 @@ class InteractionSignalsEngine:
                 "height": int(metadata.get("height") or frame_h),
             }
         except Exception as exc:
+            record_degradation('interaction_signals', exc)
             logger.debug("Vision frame analysis failed: %s", exc)
             return {"updated_at": time.time()}
 

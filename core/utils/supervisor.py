@@ -7,6 +7,7 @@ Managed Task Supervisor.
 - exposes memory-based protective hooks to cancel/evict optional work when memory high
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -120,6 +121,7 @@ class Supervisor:
                 logger.info("Memory watcher shutting down.")
                 break
             except Exception as e:
+                record_degradation('supervisor', e)
                 logger.error("Memory watcher error: %s", e)
                 await asyncio.sleep(MEMORY_CHECK_INTERVAL)
 

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 import asyncio
@@ -111,6 +112,7 @@ class IntegrityGuard:
                     score -= 0.5
                     break
         except Exception as e:
+            record_degradation('integrity_guard', e)
             logger.debug("IntegrityGuard: PID check failed (likely psutil/permissions): %s", e)
             
         self._last_sovereignty_score = max(0.0, score)
@@ -124,6 +126,7 @@ class IntegrityGuard:
             if audit:
                 audit.heartbeat("sovereign_scanner")
         except Exception as _exc:
+            record_degradation('integrity_guard', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         while self.active:
@@ -139,6 +142,7 @@ class IntegrityGuard:
                     if mycelium:
                         await mycelium.emit_reflex("ENV_BREACH", {"score": score})
             except Exception as e:
+                record_degradation('integrity_guard', e)
                 logger.error("Integrity watchdog error: %s", e)
             
             # Sleep 10s for the first minute, then 60s
@@ -165,6 +169,7 @@ class IntegrityGuard:
                 }
             return await self._process_scan(message)
         except Exception as e:
+            record_degradation('integrity_guard', e)
             logger.error(f"Scanner failure: {e}")
             # v25: Fail-soft bypass to ensure the user isn't stuck behind a broken scanner
             return {"blocked": False, "reason": "BYPASS"}

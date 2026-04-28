@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 import asyncio
@@ -108,6 +109,7 @@ class ICELayer:
                 # provides nuance, legacy accumulator provides hard safety floor.
                 self._threat_level = max(self._threat_level, learned_threat)
             except Exception as exc:
+                record_degradation('ice_layer', exc)
                 logger.debug("[ICE] Anomaly detector observe failed: %s", exc)
 
         # Legacy safety net: hard threshold for extreme drift
@@ -145,6 +147,7 @@ class ICELayer:
                     "timestamp": time.time(),
                 })
             except Exception as exc:
+                record_degradation('ice_layer', exc)
                 logger.debug("[ICE] Anomaly detector observe failed: %s", exc)
 
         # Legacy escalation (slightly softened since detector provides continuous signal)

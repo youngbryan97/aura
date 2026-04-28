@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 import time
@@ -130,6 +131,7 @@ class Tricorder:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('tricorder', e)
                 logger.debug("Tricorder violation processing error: %s", e)
 
     async def _on_violation(self, _):
@@ -148,6 +150,7 @@ class Tricorder:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('tricorder', e)
                 logger.debug("Tricorder empathy processing error: %s", e)
 
     async def _on_empathy_update(self, payload: Dict[str, Any]):

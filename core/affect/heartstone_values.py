@@ -23,6 +23,7 @@ Values are persisted to ~/.aura/data/heartstone_values.json and survive restarts
 They are injected into every LLM system prompt so the model's dispositions
 actually reflect earned experience, not fixed constants.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -176,6 +177,7 @@ class HeartstoneValues:
                 logger.info("♥ HeartstoneValues loaded: %s",
                             {k: round(v, 2) for k, v in self._values.items()})
         except Exception as e:
+            record_degradation('heartstone_values', e)
             logger.warning("HeartstoneValues load failed (using defaults): %s", e)
 
     def _write_now(self):
@@ -190,9 +192,11 @@ class HeartstoneValues:
                 try:
                     Path(tmp_path).unlink(missing_ok=True)
                 except Exception as _exc:
+                    record_degradation('heartstone_values', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             self._last_saved = time.time()
         except Exception as e:
+            record_degradation('heartstone_values', e)
             logger.debug("HeartstoneValues save failed: %s", e)
 
     def _flush_pending_save(self):

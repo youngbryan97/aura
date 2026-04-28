@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import errno
 import json
@@ -81,6 +82,7 @@ class SharedMemoryTransport:
 
             ReaperManifest().deregister_shm(name)
         except Exception as exc:
+            record_degradation('shared_mem_bus', exc)
             logger.warning(
                 "🚌 SharedMem: Failed to deregister from Reaper during close: %s",
                 exc,
@@ -93,10 +95,12 @@ class SharedMemoryTransport:
             shm.unlink()
             logger.debug("Shared Memory Segment Unlinked by finalizer: %s", name)
         except Exception as exc:
+            record_degradation('shared_mem_bus', exc)
             logger.debug("Finalizer unlink skipped for %s: %s", name, exc)
         try:
             shm.close()
         except Exception as exc:
+            record_degradation('shared_mem_bus', exc)
             logger.debug("Finalizer close skipped for %s: %s", name, exc)
 
     def _arm_owner_finalizer(self) -> None:
@@ -177,6 +181,7 @@ class SharedMemoryTransport:
             try:
                 buf.release()
             except Exception as _exc:
+                record_degradation('shared_mem_bus', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         logger.warning(
@@ -217,6 +222,7 @@ class SharedMemoryTransport:
                 from core.reaper import register_reaper_shm
                 register_reaper_shm(self.name)
             except Exception as _e:
+                record_degradation('shared_mem_bus', _e)
                 logger.debug('Ignored Exception in shared_mem_bus.py: %s', _e)
 
             # Zero out the memory correctly using bytes and memoryview
@@ -228,6 +234,7 @@ class SharedMemoryTransport:
             # Already exists, just attach
             await self.attach()
         except Exception as e:
+            record_degradation('shared_mem_bus', e)
             if self._should_use_file_fallback(e):
                 logger.warning(
                     "POSIX shared memory unavailable for %s (%s). Falling back to file-backed mmap.",
@@ -265,6 +272,7 @@ class SharedMemoryTransport:
                     logger.error(f"❌ Shared memory segment not found after {max_retries} attempts: {self.name}")
                     raise
             except Exception as e:
+                record_degradation('shared_mem_bus', e)
                 if self._should_use_file_fallback(e):
                     if fallback_path.exists():
                         self._attach_file_backed_segment()
@@ -345,6 +353,7 @@ class SharedMemoryTransport:
                 
             logger.debug(f"Wrote {length} bytes to {self.name} (Ver: {current_ver + 2})")
         except Exception as e:
+            record_degradation('shared_mem_bus', e)
             # [RECOVERY] Always restore to a known-even version on failure to unblock readers
             logger.error(f"Write failure on {self.name}: {e}. Restoring version {current_ver}.")
             try:
@@ -352,6 +361,7 @@ class SharedMemoryTransport:
                 if hasattr(buf, 'obj') and isinstance(buf.obj, mmap.mmap):
                     buf.obj.flush()
             except Exception as _e:
+                record_degradation('shared_mem_bus', _e)
                 logger.debug('Ignored Exception in shared_mem_bus.py: %s', _e)
             raise
 
@@ -406,6 +416,7 @@ class SharedMemoryTransport:
             logger.warning(f"Failed to read atomic state from {self.name} after 10 attempts.")
             return None
         except Exception as e:
+            record_degradation('shared_mem_bus', e)
             logger.error(f"Read failure on {self.name}: {e}")
             return None
 
@@ -424,6 +435,7 @@ class SharedMemoryTransport:
                     shm.unlink()
                     logger.debug(f"Shared Memory Segment Unlinked: {self.name}")
                 except Exception as e:
+                    record_degradation('shared_mem_bus', e)
                     logger.debug(f"Unlink failed (already gone?): {e}")
             shm.close()
             self.shm = None

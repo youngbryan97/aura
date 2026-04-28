@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import logging
 from typing import Any, Optional
 
@@ -54,6 +56,7 @@ class OrchestratorServicesMixin:
                 context={"alias": alias or "", "error": type(error).__name__ if error else ""},
             )
         except Exception as exc:
+            record_degradation('services', exc)
             logger.debug("Critical service degraded-event logging failed for %s: %s", name, exc)
 
     def _get_service(self, name: str, alias: Optional[str] = None, *, critical: bool = False) -> Any:
@@ -71,6 +74,7 @@ class OrchestratorServicesMixin:
             try:
                 return require_service(name, alias)
             except Exception as exc:
+                record_degradation('services', exc)
                 service_error = exc
                 logger.debug("Critical service lookup failed for '%s' (alias=%s): %s", name, alias, exc)
 
@@ -79,6 +83,7 @@ class OrchestratorServicesMixin:
             if val is not None:
                 return val
         except Exception as e:
+            record_degradation('services', e)
             service_error = service_error or e
             logger.debug("Service lookup failed for '%s' (alias=%s): %s", name, alias, e)
 

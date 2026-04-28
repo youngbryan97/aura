@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -77,6 +78,7 @@ class HierarchicalMemoryOrchestrator:
                     self.turn_counter = 0
                     self.last_compaction = datetime.now()
             except Exception as e:
+                record_degradation('hierarchical_memory_orchestrator', e)
                 logger.error("Failed to perform hierarchical compaction: %s", e)
             
             return current_context
@@ -147,6 +149,7 @@ class HierarchicalMemoryOrchestrator:
             raw_summary = await self.llm_router.think(summary_prompt, is_background=True)
             summary_data = self._parse_json(raw_summary)
         except Exception as e:
+            record_degradation('hierarchical_memory_orchestrator', e)
             logger.error(f"Hierarchical compaction summary failed: {e}")
             summary_data = {}
 
@@ -164,6 +167,7 @@ class HierarchicalMemoryOrchestrator:
             if hasattr(self.narrative, "inject_chapter_note"):
                 await self.narrative.inject_chapter_note(chapter_note)
         except Exception as e:
+            record_degradation('hierarchical_memory_orchestrator', e)
             logger.warning(f"Failed to store chapter note in BlackHole: {e}")
         
         compacted = [
@@ -190,5 +194,6 @@ class HierarchicalMemoryOrchestrator:
                 clean = clean.split("```")[1].split("```")[0].strip()
             return json.loads(clean)
         except Exception as e:
+            record_degradation('hierarchical_memory_orchestrator', e)
             logger.debug(f"JSON parse failed: {e}")
             return {}

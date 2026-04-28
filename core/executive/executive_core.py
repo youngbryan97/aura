@@ -17,6 +17,8 @@ Design:
     - Maintains a full audit ledger of all decisions
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -779,6 +781,7 @@ class ExecutiveCore:
                     }
                 )
             except Exception as exc:
+                record_degradation('executive_core', exc)
                 logger.debug("Executive ledger completion append failed: %s", exc)
 
     def get_active_intents(self) -> List[Intent]:
@@ -793,6 +796,7 @@ class ExecutiveCore:
             if binding and hasattr(binding, "get_coherence"):
                 return binding.get_coherence()
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return 0.75  # conservative default — allows normal ops but not risky ones
 
@@ -803,6 +807,7 @@ class ExecutiveCore:
             if binding and hasattr(binding, "get_coherence"):
                 return binding.get_coherence()
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return 0.75
 
@@ -813,6 +818,7 @@ class ExecutiveCore:
             if self_engine and hasattr(self_engine, "assert_identity"):
                 return self_engine.assert_identity(intent.goal)
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return self._identity_integrity_available()
 
@@ -822,6 +828,7 @@ class ExecutiveCore:
             if self_engine and hasattr(self_engine, "assert_identity"):
                 return bool(self_engine.assert_identity(intent.goal))
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return self._identity_integrity_available()
 
@@ -844,6 +851,7 @@ class ExecutiveCore:
             if ServiceContainer.get("self_model", default=None) is not None:
                 return True
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return not self._strict_runtime_active()
 
@@ -869,6 +877,7 @@ class ExecutiveCore:
             pending_anchor = first_actionable_goal_text(pending_items)
             active_goal_anchor = first_actionable_goal_text(active_goal_items)
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -894,6 +903,7 @@ class ExecutiveCore:
                 int(obligations.get("contradiction_count", 0) or 0),
             )
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -909,6 +919,7 @@ class ExecutiveCore:
                     if not active_goal_anchor:
                         active_goal_anchor = first_actionable_goal_text(active_goal_items)
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         current_objective = _normalize_goal_text(current_objective)
@@ -1024,6 +1035,7 @@ class ExecutiveCore:
             continuity = dict(modifiers.get("continuity_obligations", {}) or {})
             identity_mismatch = bool(continuity.get("identity_mismatch", False))
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return {
             "energy": energy,
@@ -1049,6 +1061,7 @@ class ExecutiveCore:
                 modifiers["failure_obligations"] = failure_state
                 cognition.modifiers = modifiers
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -1059,6 +1072,7 @@ class ExecutiveCore:
                 continuity.load()
             continuity.note_failure_obligation(reason, getattr(intent, "goal", ""))
         except Exception as _exc:
+            record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     # ── Observability ────────────────────────────────────────────────────
@@ -1123,6 +1137,7 @@ class ExecutiveCore:
                 }
             )
         except Exception as exc:
+            record_degradation('executive_core', exc)
             logger.debug("Executive ledger append failed: %s", exc)
 
 
@@ -1140,5 +1155,6 @@ def get_executive_core() -> ExecutiveCore:
         try:
             ServiceContainer.register_instance("executive_core", _instance, required=False)
         except Exception as exc:
+            record_degradation('executive_core', exc)
             logger.debug("ExecutiveCore registration skipped: %s", exc)
     return _instance

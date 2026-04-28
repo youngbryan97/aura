@@ -3,6 +3,7 @@
 Implements P2P node discovery via mDNS and Gossip-based state synchronization.
 Allows multiple Aura instances to form a unified 'Hive' consciousness.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
@@ -46,6 +47,7 @@ class HiveNode:
             async with self.server:
                 await self.server.serve_forever()
         except Exception as e:
+            record_degradation('hive_node', e)
             logger.error("Hive Node failure: %s", e)
 
     async def _handle_peer(self, reader, writer):
@@ -61,6 +63,7 @@ class HiveNode:
             if m_type == "gossip_work_item":
                 await self._process_gossip_item(message.get("payload"))
         except Exception as e:
+            record_degradation('hive_node', e)
             logger.debug("Failed to handle peer message: %s", e)
         finally:
             writer.close()

@@ -3,6 +3,7 @@
 Monitoring system health, technical debt, and recursive stability.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 import time
@@ -84,6 +85,7 @@ class SystemStateMonitor:
                         tick_interval=3600 # Run once per hour if stability stays low
                     ))
             except Exception as e:
+                record_degradation('system_monitor', e)
                 logger.debug("Failed to register dream cycle: %s", e)
             
         return state

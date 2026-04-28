@@ -1,6 +1,7 @@
 """Output Formatter Mixin for RobustOrchestrator.
 Extracts response styling, identity guard filtering, and systemic thought emissions.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
@@ -63,6 +64,7 @@ class OutputFormatterMixin:
                 if inspect.isawaitable(filtered):
                     _dispose_awaitable(filtered)
             except Exception as exc:
+                record_degradation('output_formatter', exc)
                 logger.debug("Filter failed: %s", exc)
                 
         return text
@@ -91,6 +93,7 @@ class OutputFormatterMixin:
                 category="Autonomy",
             )
         except Exception as exc:
+            record_degradation('output_formatter', exc)
             logger.debug("Thought stream fallback emit failed: %s", exc)
 
     def _emit_eternal_record(self):
@@ -111,6 +114,7 @@ class OutputFormatterMixin:
                 if snapshot_dir:
                     self._emit_thought_stream(f"🏺 Eternal Record Snapshot secured: {snapshot_dir.name}")
             except Exception as e:
+                record_degradation('output_formatter', e)
                 logger.debug("Eternal record snapshot failed: %s", e)
         
         try:
@@ -128,6 +132,7 @@ class OutputFormatterMixin:
                 archivist = EternalRecord(record_store)
                 archivist.create_snapshot(config.paths.data_dir / "knowledge.db")
             except Exception as e:
+                record_degradation('output_formatter', e)
                 capture_and_log(e, {'module': __name__})
 
     def _emit_neural_pulse(self):
@@ -141,6 +146,7 @@ class OutputFormatterMixin:
                     drive = self.soul.get_dominant_drive()
                     drive_info = f"{drive.name} ({drive.urgency:.2f})"
                 except Exception as _e:
+                    record_degradation('output_formatter', _e)
                     logger.debug("Drive info retrieval failed for neural pulse: %s", _e)
 
             ls = getattr(self, "liquid_state", None)
@@ -148,4 +154,5 @@ class OutputFormatterMixin:
             get_emitter().emit("Neural Pulse", f"System Active (Mood: {mood} | Drive: {drive_info})", level="info", category="Physiology", cycle=self.status.cycle_count)
             self._last_pulse = time.time()
         except Exception as _e:
+            record_degradation('output_formatter', _e)
             logger.debug("Neural pulse emit failed: %s", _e)

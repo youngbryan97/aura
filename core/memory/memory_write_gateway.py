@@ -13,6 +13,8 @@ AbstractionEngine, EnhancedMemorySystem) should call this gateway
 instead of writing JSON to disk directly.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -134,6 +136,7 @@ class ConcreteMemoryWriteGateway(MemoryWriteGatewayBase):
             if asyncio.iscoroutine(decision):
                 decision = await decision
         except Exception as exc:
+            record_degradation('memory_write_gateway', exc)
             logger.warning(
                 "MemoryWriteGateway governance call failed; denying write (fail-closed): %s",
                 exc,

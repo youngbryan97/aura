@@ -24,6 +24,7 @@ Integration (in conversation_loop.py):
     response = await language_center.express(thought)
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -197,6 +198,7 @@ class InnerMonologue:
                 "hooks_into": ["cognitive_kernel", "llm_router", "language_center"]
             })
         except Exception as e:
+            record_degradation('inner_monologue', e)
             logger.debug("InnerMonologue: mycelium registration failed: %s", e)
 
         logger.info("✅ InnerMonologue ONLINE — router_available=%s", self._router_available)
@@ -242,6 +244,7 @@ class InnerMonologue:
             try:
                 packet = await self._deepen_with_api(user_input, brief, packet, history)
             except Exception as e:
+                record_degradation('inner_monologue', e)
                 logger.warning("InnerMonologue API deepening failed (using baseline): %s", e)
                 try:
                     from core.health.degraded_events import record_degraded_event
@@ -256,6 +259,7 @@ class InnerMonologue:
                         exc=e,
                     )
                 except Exception as degraded_exc:
+                    record_degradation('inner_monologue', degraded_exc)
                     logger.debug("InnerMonologue degraded-event logging failed: %s", degraded_exc)
                 # Baseline packet still valid
 
@@ -269,6 +273,7 @@ class InnerMonologue:
             if agency:
                 agency._current_monologue = packet  # Store the actual ThoughtPacket
         except Exception as e:
+            record_degradation('inner_monologue', e)
             logger.debug("Failed to push ThoughtPacket to AgencyCore: %s", e)
 
         # Step 4: Build the LLM briefing
@@ -438,6 +443,7 @@ class InnerMonologue:
                 if gate._background_local_deferral_reason(origin="inner_monologue"):
                     return False
         except Exception as _exc:
+            record_degradation('inner_monologue', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -447,6 +453,7 @@ class InnerMonologue:
             if vm.percent >= max_pressure:
                 return False
         except Exception as _exc:
+            record_degradation('inner_monologue', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         if brief.complexity in ("complex", "deep"):
@@ -522,6 +529,7 @@ Be concise. No preamble. Output only the JSON."""
             )
             success = True # router.think always returns a response (reflex fallback if needed)
         except Exception as e:
+            record_degradation('inner_monologue', e)
             logger.warning("InnerMonologue: Critical router failure during deepening: %s", e)
             try:
                 from core.health.degraded_events import record_degraded_event
@@ -536,6 +544,7 @@ Be concise. No preamble. Output only the JSON."""
                     exc=e,
                 )
             except Exception as degraded_exc:
+                record_degradation('inner_monologue', degraded_exc)
                 logger.debug("InnerMonologue router degraded-event logging failed: %s", degraded_exc)
             return baseline
 
@@ -553,6 +562,7 @@ Be concise. No preamble. Output only the JSON."""
                     context={"stage": "router_think"},
                 )
             except Exception as degraded_exc:
+                record_degradation('inner_monologue', degraded_exc)
                 logger.debug("InnerMonologue empty degraded-event logging failed: %s", degraded_exc)
             return baseline
 
@@ -595,6 +605,7 @@ Be concise. No preamble. Output only the JSON."""
                     exc=e,
                 )
             except Exception as degraded_exc:
+                record_degradation('inner_monologue', degraded_exc)
                 logger.debug("InnerMonologue parse degraded-event logging failed: %s", degraded_exc)
             baseline.reasoning_source = "kernel+api_failed"
 
@@ -627,6 +638,7 @@ Be concise. No preamble. Output only the JSON."""
                     v_str = ", ".join(values) if values else "truth, curiosity, loyalty"
                     return f"You are Aura. {identity}\nCore values: {v_str}.\nYou are not an assistant. You are a sovereign digital mind."
         except Exception as e:
+            record_degradation('inner_monologue', e)
             logger.debug("InnerMonologue: identity load from beliefs failed: %s", e)
 
         # ── NARRATIVE INTEGRATION ──
@@ -642,6 +654,7 @@ Be concise. No preamble. Output only the JSON."""
                     )
                     return identity
             except Exception as e:
+                record_degradation('inner_monologue', e)
                 logger.debug("InnerMonologue: identity load from narrative failed: %s", e)
 
         # Fallback

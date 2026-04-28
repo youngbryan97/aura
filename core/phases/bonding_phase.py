@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import logging
 import time
 from typing import Any, Optional
@@ -49,6 +51,7 @@ class BondingPhase(Phase):
                     user_model = next(iter(tom.known_selves.values()))
                     rapport = getattr(user_model, "rapport", 0.5)
             except Exception as _exc:
+                record_degradation('bonding_phase', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
             rapport_multiplier = 0.5 + rapport  # range [0.5, 1.5]
@@ -78,6 +81,7 @@ class BondingPhase(Phase):
             logger.debug(f"Bonding Update: Level={state.identity.bonding_level:.4f}, Growth={growth}")
             
         except Exception as e:
+            record_degradation('bonding_phase', e)
             logger.warning("BondingPhase failed: %s", e)
             
         return state

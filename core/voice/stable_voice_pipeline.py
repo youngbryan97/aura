@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 
@@ -108,6 +110,7 @@ class StableVoicePipeline:
                 logger.info("STT: Consolidated via SovereignVoiceEngine")
                 return True
         except Exception as exc:
+            record_degradation('stable_voice_pipeline', exc)
             logger.warning("SovereignVoiceEngine STT unavailable: %s", exc)
 
         logger.error("No STT engine available")
@@ -127,6 +130,7 @@ class StableVoicePipeline:
                 logger.info("TTS: Consolidated via SovereignVoiceEngine")
                 return True
         except Exception as exc:
+            record_degradation('stable_voice_pipeline', exc)
             logger.warning("SovereignVoiceEngine TTS unavailable: %s", exc)
 
         logger.error("No TTS engine available")
@@ -244,12 +248,14 @@ class StableVoicePipeline:
                             self._utterance_queue.get_nowait()
                             self._utterance_queue.put_nowait(utterance)
                         except Exception as e:
+                            record_degradation('stable_voice_pipeline', e)
                             import logging
                             logger.debug("STT frame processing: %s", e)
 
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                record_degradation('stable_voice_pipeline', exc)
                 self._stt_errors += 1
                 logger.error("Listen loop error: %s", exc)
                 # Issue 48: Ensure we don't recurse indefinitely; handle via loop
@@ -296,6 +302,7 @@ class StableVoicePipeline:
         except asyncio.TimeoutError:
             return None
         except Exception as e:
+            record_degradation('stable_voice_pipeline', e)
             logger.debug("STT Breaker intercepted error: %s", e)
             return None
 
@@ -322,6 +329,7 @@ class StableVoicePipeline:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                record_degradation('stable_voice_pipeline', exc)
                 logger.error("Process loop error: %s", exc)
                 self._set_state(VoiceState.IDLE)
 
@@ -379,6 +387,7 @@ class StableVoicePipeline:
                 if mycelium:
                     mycelium.reinforce("voice_cognitive_pipeline", success=True)
             except Exception as e:
+                record_degradation('stable_voice_pipeline', e)
                 capture_and_log(e, {'module': __name__})
 
         except asyncio.TimeoutError:
@@ -391,6 +400,7 @@ class StableVoicePipeline:
             logger.debug("Voice handler cancelled for utterance: %r", utterance[:50])
             raise
         except Exception as exc:
+            record_degradation('stable_voice_pipeline', exc)
             # Issue 47 Fix: Use 'exc' instead of 'e'
             logger.error("Voice: Error handling utterance: %s", exc)
             self._set_state(VoiceState.IDLE)
@@ -420,6 +430,7 @@ class StableVoicePipeline:
             await self._interrupt_tts()  # VP-01: Ensure engine stop
             raise
         except Exception as exc:
+            record_degradation('stable_voice_pipeline', exc)
             logger.error("TTS error: %s", exc)
         finally:
             self._current_tts_task = None
@@ -442,6 +453,7 @@ class StableVoicePipeline:
         try:
             await self._tts_breaker.execute(_do_speak)
         except Exception as e:
+            record_degradation('stable_voice_pipeline', e)
             logger.warning("TTS pipeline bypassed due to breaker: %s", e)
 
     async def _interrupt_tts(self):
@@ -456,6 +468,7 @@ class StableVoicePipeline:
             try:
                 self._tts.stop()
             except Exception as e:
+                record_degradation('stable_voice_pipeline', e)
                 logger.debug("TTS stop cleanup: %s", e)
 
     # ── Orchestrator Integration ──────────────────────────────────────────────
@@ -479,6 +492,7 @@ class StableVoicePipeline:
         except (asyncio.CancelledError, asyncio.TimeoutError):
             logger.debug('Ignored Exception in stable_voice_pipeline.py: %s', "unknown_error")
         except Exception as e:
+            record_degradation('stable_voice_pipeline', e)
             logger.debug("Autonomous thought interruption: %s", e)
 
         # Clear the task reference
@@ -603,5 +617,6 @@ class _WhisperWrapper:
                 sf.write(f.name, audio, SAMPLE_RATE)
                 return f.name
         except Exception as exc:
+            record_degradation('stable_voice_pipeline', exc)
             logger.error("Mic capture failed: %s", exc)
             return None

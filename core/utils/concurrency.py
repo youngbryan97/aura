@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -74,6 +75,7 @@ class RobustLock:
                     wait_time = max(wait_time, 180.0)
                     logger.debug(f"🛡️ [ADAPTIVE] GPU Saturated ({m:.2f}). Extending '{self.name}' timeout to {wait_time}s")
             except Exception as _exc:
+                record_degradation('concurrency', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         async def _await_threaded_acquire(acquire_timeout: float) -> bool:
@@ -95,6 +97,7 @@ class RobustLock:
                     try:
                         self._lock.release()
                     except Exception as _exc:
+                        record_degradation('concurrency', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                 watchdog.report_release(self.id)
                 raise
@@ -107,6 +110,7 @@ class RobustLock:
             except asyncio.CancelledError:
                 raise
             except Exception as e:
+                record_degradation('concurrency', e)
                 watchdog.report_release(self.id)
                 logger.error(f"Unexpected error acquiring lock '{self.name}': {e}")
                 break
@@ -151,6 +155,7 @@ class RobustLock:
                 get_lock_watchdog().report_release(self.id)
                 logger.debug(f"Released lock: '{self.name}'")
         except Exception as e:
+            record_degradation('concurrency', e)
             logger.debug(f"RobustLock.release() error for '{self.name}': {e}")
 
     def force_release(self):
@@ -169,6 +174,7 @@ class RobustLock:
             # release() on an unlocked lock — harmless
             pass
         except Exception as _exc:
+            record_degradation('concurrency', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def locked(self) -> bool:

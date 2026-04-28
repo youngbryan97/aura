@@ -18,6 +18,7 @@ Theory:
     Higher Φ → more integrated system → partitions lose more information.
 """
 
+from core.runtime.errors import record_degradation
 import numpy as np
 import time
 import logging
@@ -131,6 +132,7 @@ class RIIU:
                 if hypha:
                     hypha.pulse(success=True)
         except Exception as _e:
+            record_degradation('iit_surrogate', _e)
             logger.debug('Ignored Exception in iit_surrogate.py: %s', _e)
 
         self._last_phi = phi
@@ -166,6 +168,7 @@ class RIIU:
             
             return self.compute_phi(state_vec)
         except Exception as e:
+            record_degradation('iit_surrogate', e)
             logger.debug("Failed network-bound Φ update: %s", e)
             return 0.0
 

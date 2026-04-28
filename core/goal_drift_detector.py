@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict, Optional
 
@@ -54,6 +55,7 @@ REASON: [Brief explanation]
             return False
             
         except Exception as e:
+            record_degradation('goal_drift_detector', e)
             logger.error("Drift check failed: %s", e)
             return False
 

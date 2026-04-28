@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import fcntl
 import logging
 import os
@@ -95,6 +96,7 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
         logger.info("🔒 Instance lock acquired: %s (PID: %d)", lock_name, os.getpid())
         
     except Exception as e:
+        record_degradation('singleton', e)
         logger.warning("Failed to acquire single-instance lock for '%s': %s", lock_name, e)
 
 
@@ -107,4 +109,5 @@ def release_instance_lock() -> None:
             os.close(_LOCK_FD)
             _LOCK_FD = None
         except Exception as _e:
+            record_degradation('singleton', _e)
             logger.debug('Ignored Exception in singleton.py: %s', _e)

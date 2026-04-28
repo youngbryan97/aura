@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -42,6 +43,7 @@ class SovereignTerminalSkill(BaseSkill):
             try:
                 params = TerminalInput(**params)
             except Exception as e:
+                record_degradation('sovereign_terminal', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         action = params.action
@@ -59,6 +61,7 @@ class SovereignTerminalSkill(BaseSkill):
             else:
                 return {"ok": False, "error": f"Unsupported terminal action: {action}"}
         except Exception as e:
+            record_degradation('sovereign_terminal', e)
             logger.error("Terminal skill failed: %s", e)
             return {"ok": False, "error": str(e)}
 
@@ -141,6 +144,7 @@ class SovereignTerminalSkill(BaseSkill):
                 try:
                     process.kill()
                 except Exception as e:
+                    record_degradation('sovereign_terminal', e)
                     logger.debug("Failed to kill process %s: %s", process.pid, e)
                 
                 stdout_str = b"".join(stdout_chunks).decode(errors="replace")
@@ -178,6 +182,7 @@ class SovereignTerminalSkill(BaseSkill):
                 ),
             }
         except Exception as e:
+            record_degradation('sovereign_terminal', e)
             return {"ok": False, "error": f"Shell error: {e}"}
 
     def _smart_truncate(self, text: str, max_len: int = 5000) -> str:
@@ -239,4 +244,5 @@ class SovereignTerminalSkill(BaseSkill):
                 await process.wait()
                 return {"ok": True, "summary": f"Target {target} opened successfully."}
         except Exception as e:
+            record_degradation('sovereign_terminal', e)
             return {"ok": False, "error": f"Failed to open target: {e}"}

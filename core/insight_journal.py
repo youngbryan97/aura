@@ -18,6 +18,7 @@ continuity and personal history. It's the "story" Aura tells herself
 about her own development.
 """
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
@@ -66,6 +67,7 @@ class InsightJournal:
                 "hooks_into": ["cognitive_kernel", "inquiry_engine", "concept_linker"]
             })
         except Exception as _e:
+            record_degradation('insight_journal', _e)
             logger.debug('Ignored Exception in insight_journal.py: %s', _e)
         logger.info("✅ InsightJournal ONLINE — chronicling the journey.")
 
@@ -114,6 +116,7 @@ class InsightJournal:
                         source=f"insight:{source}"
                     )
         except Exception as _e:
+            record_degradation('insight_journal', _e)
             logger.debug('Ignored Exception in insight_journal.py: %s', _e)
 
     def get_recent_insights(self, limit: int = 5) -> List[Insight]:
@@ -140,6 +143,7 @@ class InsightJournal:
             data = [asdict(i) for i in self._insights]
             atomic_write_text(self._db_path, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('insight_journal', e)
             logger.debug("InsightJournal save failed: %s", e)
 
     def _load(self):
@@ -148,6 +152,7 @@ class InsightJournal:
             data = json.loads(self._db_path.read_text())
             self._insights = [Insight(**i) for i in data]
         except Exception as e:
+            record_degradation('insight_journal', e)
             logger.debug("InsightJournal load failed: %s", e)
 
     def get_status(self) -> Dict:

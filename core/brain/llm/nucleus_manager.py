@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 import logging
@@ -132,6 +133,7 @@ class NucleusManager(LLMProvider):
             logger.info("✅ [NUCLEUS] %s load success.", name.upper())
             logger.info("✅ [NUCLEUS] %s ready.", name.upper())
         except Exception as e:
+            record_degradation('nucleus_manager', e)
             logger.error("❌ [NUCLEUS] Load failed for %s: %s", name, e)
             logger.error("Failed to load internal model %s: %s", name, e)
 
@@ -207,6 +209,7 @@ class NucleusManager(LLMProvider):
                 if homeostasis:
                     temp = homeostasis.get_modifiers().temperature_mod * 0.7
             except Exception as _exc:
+                record_degradation('nucleus_manager', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         sampler = make_sampler(temp=temp or 0.7)
 
@@ -238,6 +241,7 @@ class NucleusManager(LLMProvider):
             response = await asyncio.to_thread(_generate_locked)
             return response.strip()
         except Exception as e:
+            record_degradation('nucleus_manager', e)
             logger.error("Nucleus inference failed: %s", e)
             return f"Nucleus Error: {str(e)}"
 
@@ -294,6 +298,7 @@ class NucleusManager(LLMProvider):
                 if homeostasis:
                     temp = homeostasis.get_modifiers().temperature_mod * 0.7
             except Exception as e:
+                record_degradation('nucleus_manager', e)
                 capture_and_log(e, {'module': __name__})
         
         if temp is None: temp = 0.7
@@ -373,6 +378,7 @@ class NucleusManager(LLMProvider):
                 finally:
                     sentinel.release()
         except Exception as e:
+            record_degradation('nucleus_manager', e)
             logger.debug(f"[NUCLEUS] Cache clear skipped: {e}")
 
     # --- Abstract Method Implementations ---

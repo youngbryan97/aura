@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -59,6 +60,7 @@ class MetricsExporter:
             logger.info(f"📊 Metrics Exporter ONLINE (port {self.actual_port})")
             self._task = get_task_tracker().create_task(self._monitor_loop())
         except Exception as e:
+            record_degradation('metrics_exporter', e)
             logger.error(f"Failed to start Metrics Exporter: {e}")
             self.running = False
 
@@ -85,6 +87,7 @@ class MetricsExporter:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('metrics_exporter', e)
                 logger.debug(f"Metrics monitor tick failed: {e}")
                 await asyncio.sleep(10)
 

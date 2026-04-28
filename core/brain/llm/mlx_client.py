@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
@@ -155,6 +157,7 @@ def _background_deferral_active(origin: Optional[str] = None) -> Optional[str]:
             reason = gate._background_local_deferral_reason(origin=origin)
             return str(reason) if reason else None
     except Exception as exc:
+        record_degradation('mlx_client', exc)
         logger.debug("MLX background deferral check unavailable: %s", exc)
     return None
 
@@ -294,6 +297,7 @@ def _bridge_asyncio_future_to_concurrent(future: asyncio.Future) -> cfutures.Fut
         try:
             proxy.set_result(done_future.result())
         except Exception as exc:
+            record_degradation('mlx_client', exc)
             try:
                 proxy.set_exception(exc)
             except Exception:
@@ -412,6 +416,7 @@ def _notify_closed_loop_output(text: str) -> None:
 
         notify_closed_loop_output(str(text))
     except Exception as exc:
+        record_degradation('mlx_client', exc)
         logger.debug("Closed-loop output notification failed: %s", exc)
 
 
@@ -450,6 +455,7 @@ def _store_probe_cache_to_disk(ok: bool, detail: str) -> None:
             )
         )
     except Exception as exc:
+        record_degradation('mlx_client', exc)
         logger.debug("Failed to persist MLX runtime probe cache: %s", exc)
 
 
@@ -526,6 +532,7 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
             124,
         )
     except Exception as exc:
+        record_degradation('mlx_client', exc)
         detail = f"probe_exception:{type(exc).__name__}"
 
     with _MLX_RUNTIME_PROBE_LOCK:
@@ -712,6 +719,7 @@ class MLXLocalClient:
                 },
             )
         except Exception as exc:
+            record_degradation('mlx_client', exc)
             logger.debug("Failed to record MLX degraded event: %s", exc)
 
     def _stale_after(self, *, during_generation: bool = False,
@@ -1128,6 +1136,7 @@ class MLXLocalClient:
                 p.kill()
                 p.join(timeout=2.0)
             except Exception as e:
+                record_degradation('mlx_client', e)
                 logger.warning("Error killing process: %s", e)
 
     def _spawn_worker_blocking(self) -> mp.Process:
@@ -1159,6 +1168,7 @@ class MLXLocalClient:
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                     pass
         except Exception as orphan_exc:
+            record_degradation('mlx_client', orphan_exc)
             logger.debug("Orphan reclamation scan failed (non-fatal): %s", orphan_exc)
 
         ctx = mp.get_context("spawn") if os.uname().sysname == "Darwin" else mp.get_context("forkserver")
@@ -1209,6 +1219,7 @@ class MLXLocalClient:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('mlx_client', e)
                 # If queue is closed/broken, graceful exit
                 if "closed" in str(e).lower() or isinstance(e, ValueError):
                     break
@@ -1292,6 +1303,7 @@ class MLXLocalClient:
                     logger.error("🛑 [MLX] Async worker error: %s", res.get("message"))
 
             except Exception as e:
+                record_degradation('mlx_client', e)
                 logger.error("⚠️ [MLX] Response listener message processing error: %s", e)
                 await asyncio.sleep(1.0)
 
@@ -1502,6 +1514,7 @@ class MLXLocalClient:
                                 RuntimeError("stale_handshake_recycled")
                             )
                     except Exception as _exc:
+                        record_degradation('mlx_client', _exc)
                         logger.debug("Suppressed stale-handshake future-set: %s", _exc)
                     self._init_future = None
                     await asyncio.get_running_loop().run_in_executor(
@@ -1552,6 +1565,7 @@ class MLXLocalClient:
                         self._consecutive_spawn_failures = 0
                         self._spawn_backoff_until = 0.0
                     except Exception as exc:
+                        record_degradation('mlx_client', exc)
                         detail = str(exc)
                         _sf = getattr(self, "_consecutive_spawn_failures", 0) + 1
                         self._consecutive_spawn_failures = _sf
@@ -1602,6 +1616,7 @@ class MLXLocalClient:
                     self._consecutive_spawn_failures = 0  # Reset on success
                     self._spawn_backoff_until = 0.0
                 except Exception as exc:
+                    record_degradation('mlx_client', exc)
                     detail = str(exc)
                     # [BUG FIX] Exponential backoff: 10s, 30s, 60s, 120s, 300s
                     self._consecutive_spawn_failures = _spawn_fails + 1
@@ -2114,6 +2129,7 @@ class MLXLocalClient:
                 foreground=bool(foreground_request),
             )
         except Exception as _bridge_exc:
+            record_degradation('mlx_client', _bridge_exc)
             _bridge = None
             logger.debug("latent_bridge unavailable: %s", _bridge_exc)
 
@@ -2412,6 +2428,7 @@ class MLXLocalClient:
                     else:
                         tool_result = str(raw_result)
             except Exception as exc:
+                record_degradation('mlx_client', exc)
                 tool_result = f"[Tool error: {exc}]"
                 logger.warning("[think_and_act] Tool '%s' failed: %s", tool_name, exc)
 
@@ -2488,6 +2505,7 @@ class MLXLocalClient:
                 logger.info("🔥 [MLX] Warmup complete — Metal shaders compiled.")
                 return
             except Exception as exc:
+                record_degradation('mlx_client', exc)
                 last_exc = exc
                 if attempt == 0:
                     logger.warning(
@@ -2557,6 +2575,7 @@ class MLXLocalClient:
                                 warmup_timeout=warmup_timeout,
                             )
                         except Exception as e:
+                            record_degradation('mlx_client', e)
                             self._set_lane_state("recovering", f"warmup_precompile_failed:{type(e).__name__}")
                             self._record_degraded_event(
                                 "warmup_precompile_failed",
@@ -2595,6 +2614,7 @@ class MLXLocalClient:
                     warmup_timeout=warmup_timeout,
                 )
             except Exception as e:
+                record_degradation('mlx_client', e)
                 self._set_lane_state("recovering", f"warmup_precompile_failed:{type(e).__name__}")
                 self._record_degraded_event(
                     "warmup_precompile_failed",

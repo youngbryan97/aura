@@ -4,6 +4,7 @@ Version control integration with automatic rollback on failure.
 v5.2: Added path allowlisting, risk gating, backup integrity verification,
       and event bus integration for modification proposals.
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import hashlib
 import json
@@ -120,6 +121,7 @@ class GitIntegration:
             if not full_path.startswith(cwd_path):
                 raise ValueError(f"Path escaped project root via symlink: {file_path!r}")
         except Exception as e:
+            record_degradation('safe_modification', e)
             if isinstance(e, ValueError): raise
             # If path doesn't exist yet, we can't realpath it fully, but we checked ..
             logger.debug("Path validation exception (likely non-existent): %s", e)
@@ -162,6 +164,7 @@ class GitIntegration:
             )
             return bool(result.stdout.strip())
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.debug("Dirty worktree check failed: %s", e)
             return True
     
@@ -194,6 +197,7 @@ class GitIntegration:
                 return False
                 
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Branch creation exception: %s", e)
             return False
     
@@ -242,6 +246,7 @@ class GitIntegration:
             return commit_hash
             
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Commit exception: %s", e)
             return None
     
@@ -279,6 +284,7 @@ class GitIntegration:
                 return False
                 
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Merge exception: %s", e)
             return False
     
@@ -299,6 +305,7 @@ class GitIntegration:
             logger.info("Deleted branch: %s", branch_name)
             return True
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Branch deletion failed: %s", e)
             return False
     
@@ -388,6 +395,7 @@ class BackupSystem:
             return backup_id
             
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Backup creation failed: %s", e)
             return None
     
@@ -421,6 +429,7 @@ class BackupSystem:
             return True
             
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Restore failed: %s", e)
             return False
     
@@ -440,6 +449,7 @@ class BackupSystem:
                             meta_file.unlink()
                         logger.debug("Cleaned up old backup: %s", backup_file.name)
                 except Exception as e:
+                    record_degradation('safe_modification', e)
                     logger.error("Cleanup failed for %s: %s", backup_file, e)
 
 
@@ -539,6 +549,7 @@ class SafeSelfModification:
         try:
             normalized_target = self._relative_target_path(fix.target_file)
         except Exception as exc:
+            record_degradation('safe_modification', exc)
             self.stats["blocked_by_policy"] += 1
             return False, f"Target path resolution failed: {exc}"
 
@@ -567,6 +578,7 @@ class SafeSelfModification:
                 if fix.target_file in sepsis_data.get("banned_files", []):
                     return False, f"File {fix.target_file} is barred due to previous sepsis"
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.debug("Sepsis check failed (non-blocking): %s", e)
 
         # 2. Risk Evaluation
@@ -591,6 +603,7 @@ class SafeSelfModification:
                 logger.error("Proposed fix contains syntax error: %s", e)
                 return False, f"Proposed fix contains syntax error: {e.msg} (Line {e.lineno})"
             except Exception as e:
+                record_degradation('safe_modification', e)
                 logger.error("Failed to compile proposed fix: %s", e)
                 return False, f"Proposed fix failed compilation: {e}"
 
@@ -614,6 +627,7 @@ class SafeSelfModification:
             )
             self.event_bus.publish(event)
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.debug("Failed to emit proposal event: %s", e)
 
     @staticmethod
@@ -701,6 +715,7 @@ class SafeSelfModification:
             logger.info("✓ Stage 3: Staged modification applied to quarantine")
             
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Code modification exception: %s", e)
             await self._rollback(backup_id, branch_name if branch_created else None, expected_hash=pre_mod_hash)
             return False, f"Modification exception: {e}"
@@ -835,6 +850,7 @@ class SafeSelfModification:
             return True
             
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Patching failed for %s: %s", fix.target_file, e)
             return False
             
@@ -879,6 +895,7 @@ class SafeSelfModification:
             return True
             
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Logic transplant failed for %s: %s", transplant.target_file, e)
             return False
     
@@ -906,6 +923,7 @@ class SafeSelfModification:
                     else:
                         logger.error("✗ Backup integrity MISMATCH — file may be corrupt")
                 except Exception as e:
+                    record_degradation('safe_modification', e)
                     logger.warning("Could not verify backup integrity: %s", e)
         else:
             logger.error("✗ Backup restoration failed!")
@@ -933,6 +951,7 @@ class SafeSelfModification:
             atomic_write_text(sepsis_file, json.dumps(sepsis_data, indent=2))
             logger.error("💀 FILE %s MARKED AS SEPSIS (Cause: Boot Failure)", file_path)
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Failed to mark sepsis: %s", e)
     
     def _log_modification(self, record: ModificationRecord):
@@ -941,6 +960,7 @@ class SafeSelfModification:
             with open(self.modification_log, 'a') as f:
                 f.write(json.dumps(record.to_dict()) + '\n')
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Failed to log modification: %s", e)
     
     def get_modification_history(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -959,8 +979,10 @@ class SafeSelfModification:
                 try:
                     history.append(json.loads(line))
                 except Exception as e:
+                    record_degradation('safe_modification', e)
                     logger.debug("Skipped malformed line in history log: %s", e)
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Failed to read history: %s", e)
         
         return history
@@ -1003,11 +1025,13 @@ class SafeSelfModification:
                     logger.error("Syntax error in %s: %s", py_file, e)
                     return False
                 except Exception as e:
+                    record_degradation('safe_modification', e)
                     logger.warning("Could not validate %s: %s", py_file, e)
 
             logger.info("\u2713 Static validation PASSED")
             return True
 
         except Exception as e:
+            record_degradation('safe_modification', e)
             logger.error("Static validation failed: %s", e)
             return False

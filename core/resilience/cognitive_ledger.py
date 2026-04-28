@@ -22,6 +22,8 @@ The old CognitiveWAL (wal.jsonl) is preserved as a lightweight fallback;
 this ledger is the canonical record.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import json
@@ -190,6 +192,7 @@ class CognitiveLedger:
                 self._transition_count, self._db_path,
             )
         except Exception as e:
+            record_degradation('cognitive_ledger', e)
             logger.error("CognitiveLedger initialization failed: %s", e)
             self._conn = None
 
@@ -228,6 +231,7 @@ class CognitiveLedger:
                 self._last_transition_id = t.id
                 return True
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger append failed: %s", e)
                 return False
 
@@ -243,6 +247,7 @@ class CognitiveLedger:
                 cols = [d[0] for d in cur.description]
                 return [dict(zip(cols, row)) for row in cur.fetchall()]
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger get_recent failed: %s", e)
                 return []
 
@@ -259,6 +264,7 @@ class CognitiveLedger:
                 cols = [d[0] for d in cur.description]
                 return [dict(zip(cols, row)) for row in cur.fetchall()]
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger get_by_subsystem failed: %s", e)
                 return []
 
@@ -275,6 +281,7 @@ class CognitiveLedger:
                 cols = [d[0] for d in cur.description]
                 return [dict(zip(cols, row)) for row in cur.fetchall()]
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger get_since failed: %s", e)
                 return []
 
@@ -296,6 +303,7 @@ class CognitiveLedger:
                 logger.debug("CognitiveLedger: snapshot saved (hash=%s)", state_hash[:12])
                 return True
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger snapshot failed: %s", e)
                 return False
 
@@ -332,6 +340,7 @@ class CognitiveLedger:
                 logger.debug("CognitiveLedger: WAL checkpoint complete.")
                 return True
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger compact failed: %s", e)
                 return False
 
@@ -359,6 +368,7 @@ class CognitiveLedger:
                     )
                 return deleted
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger prune failed: %s", e)
                 return 0
 
@@ -383,6 +393,7 @@ class CognitiveLedger:
                 cols = [d[0] for d in cur.description]
                 return [dict(zip(cols, row)) for row in cur.fetchall()]
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger get_intention_chain failed: %s", e)
                 return []
 
@@ -399,6 +410,7 @@ class CognitiveLedger:
                 cols = [d[0] for d in cur.description]
                 return [dict(zip(cols, row)) for row in cur.fetchall()]
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger get_belief_revisions failed: %s", e)
                 return []
 
@@ -453,6 +465,7 @@ class CognitiveLedger:
                     "key_events": key_events,
                 }
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger autobiographical summary failed: %s", e)
                 return {}
 
@@ -476,6 +489,7 @@ class CognitiveLedger:
                         logger.debug("Suppressed json.JSONDecodeError: %s", _exc)
                 return results
             except Exception as e:
+                record_degradation('cognitive_ledger', e)
                 logger.error("CognitiveLedger get_coherence_history failed: %s", e)
                 return []
 
@@ -505,6 +519,7 @@ class CognitiveLedger:
                 cur = self._conn.execute("SELECT COUNT(*) FROM snapshots")
                 stats["snapshot_count"] = cur.fetchone()[0]
             except Exception as _exc:
+                record_degradation('cognitive_ledger', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         return stats
 

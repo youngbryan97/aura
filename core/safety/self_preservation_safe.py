@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -69,6 +71,7 @@ class SafeBackupSystem:
                     await asyncio.to_thread(shutil.copytree, src, dst, dirs_exist_ok=True)
                     results["backed_up"].append(str(src.name))
                 except Exception as e:
+                    record_degradation('self_preservation_safe', e)
                     logger.warning("Backup: could not copy %s: %s", src.name, e)
 
         for db in db_files:
@@ -76,6 +79,7 @@ class SafeBackupSystem:
                 await asyncio.to_thread(shutil.copy2, db, backup_dir / db.name)
                 results["backed_up"].append(db.name)
             except Exception as e:
+                record_degradation('self_preservation_safe', e)
                 logger.warning("Backup: could not copy %s: %s", db.name, e)
 
         # Write manifest

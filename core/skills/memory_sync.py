@@ -1,6 +1,7 @@
 """Aura Hive Mind Sync
 Enables memory synchronization between Home and Cloud variants via a private Git repository.
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
@@ -38,6 +39,7 @@ class MemorySyncSkill(BaseSkill):
             try:
                 params = MemorySyncParams(**params)
             except Exception as e:
+                record_degradation('memory_sync', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         action = params.action # sync, push, pull
@@ -105,6 +107,7 @@ class MemorySyncSkill(BaseSkill):
             finally:
                 await bus.unsubscribe("human_consent_response", confirmation_queue)
         except Exception as e:
+            record_degradation('memory_sync', e)
             logger.error("Consent gate failure: %s", e)
             return False
 
@@ -117,6 +120,7 @@ class MemorySyncSkill(BaseSkill):
             subprocess.run(["git", "pull", "origin", "main"], cwd=cwd, check=False)
             return {"ok": True, "message": "Memory repository initialized."}
         except Exception as e:
+            record_degradation('memory_sync', e)
             return {"ok": False, "error": f"Init failed: {e}"}
 
     def _pull(self):
@@ -130,6 +134,7 @@ class MemorySyncSkill(BaseSkill):
                 logger.warning("Pull failed: %s", res.stderr)
                 return {"ok": False, "error": res.stderr}
         except Exception as e:
+            record_degradation('memory_sync', e)
             return {"ok": False, "error": f"Pull error: {e}"}
 
     def _push(self):
@@ -156,4 +161,5 @@ class MemorySyncSkill(BaseSkill):
                 logger.warning("Push failed: %s", res.stderr)
                 return {"ok": False, "error": res.stderr}
         except Exception as e:
+            record_degradation('memory_sync', e)
             return {"ok": False, "error": f"Push error: {e}"}

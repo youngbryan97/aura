@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import ast
 import json
@@ -135,6 +136,7 @@ class SelfEvolutionSkill(BaseSkill):
             source = path.read_text(encoding="utf-8")
             tree = ast.parse(source, filename=str(path))
         except Exception as exc:
+            record_degradation('self_evolution', exc)
             summary["parse_error"] = str(exc)
             return summary
 
@@ -234,6 +236,7 @@ class SelfEvolutionSkill(BaseSkill):
             try:
                 params = EvolutionInput(**params)
             except Exception as e:
+                record_degradation('self_evolution', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         action = params.action
@@ -270,6 +273,7 @@ class SelfEvolutionSkill(BaseSkill):
                 thought = await self._think_with_timeout(brain, prompt, context, default_timeout=12.0)
                 proposal = thought.content
             except Exception as e:
+                record_degradation('self_evolution', e)
                 fallback_reason = str(e)
                 self.logger.warning(
                     "Falling back to deterministic self-evolution planning for '%s': %s",
@@ -329,6 +333,7 @@ class SelfEvolutionSkill(BaseSkill):
                 "fallback": bool(fallback_reason),
             }
         except Exception as e:
+            record_degradation('self_evolution', e)
             return {"ok": False, "error": f"Failed to save proposal: {e}"}
 
     async def _apply_evolution(self, objective: str, files: Optional[List[str]], brain: Any, context: Dict[str, Any]) -> Dict[str, Any]:

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -39,6 +40,7 @@ class BootBackgroundMixin:
                         cont.save(reason="checkpoint", last_exchange=last_msg)
                     _last_continuity_save = time.time()
             except Exception as _e:
+                record_degradation('boot_background', _e)
                 # Fail-silent internally, brainstem will eventually reboot us if this fails repeatedly
                 logger.debug("Ignored Exception in boot.py: %s", _e)
             await asyncio.sleep(10)
@@ -51,6 +53,7 @@ class BootBackgroundMixin:
             scl = register_subconscious_loop(self)
             tracker.create_task(scl.start(), name="subconscious_loop")
         except Exception as e:
+            record_degradation('boot_background', e)
             logger.error("Subconscious Loop init failed: %s", e)
             ServiceContainer.register_instance("subconscious_loop", None)
 
@@ -68,6 +71,7 @@ class BootBackgroundMixin:
                 "🌀 [BOOT] Meta-Evolution Engine (meta_cognition_shard) initialized."
             )
         except Exception as e:
+            record_degradation('boot_background', e)
             logger.error("🛑 [BOOT] Failed to initialize Meta-Evolution Engine: %s", e)
 
     async def _start_belief_sync_at_boot(self, tracker):
@@ -80,6 +84,7 @@ class BootBackgroundMixin:
             ):
                 tracker.create_task(self.belief_sync.start(), name="belief_sync")
         except Exception as e:
+            record_degradation('boot_background', e)
             logger.error("BeliefSync start failed: %s", e)
 
     async def _proactive_notify_callback(self, content: str, urgency: int):
@@ -110,6 +115,7 @@ class BootBackgroundMixin:
             if decision.get("action") in {"released", "suppressed"}:
                 return
         except Exception as exc:
+            record_degradation('boot_background', exc)
             logger.debug("Proactive callback executive route failed: %s", exc)
 
         if _constitutional_runtime_live():
@@ -125,6 +131,7 @@ class BootBackgroundMixin:
                     context={"urgency": urgency},
                 )
             except Exception as degraded_exc:
+                record_degradation('boot_background', degraded_exc)
                 logger.debug("Proactive callback degraded-event logging failed: %s", degraded_exc)
             return
 
@@ -140,6 +147,7 @@ class BootBackgroundMixin:
                 context={"urgency": urgency},
             )
         except Exception as exc:
+            record_degradation('boot_background', exc)
             logger.debug("Proactive callback degraded-event logging failed: %s", exc)
 
     async def _init_metabolism(self):
@@ -164,6 +172,7 @@ class BootBackgroundMixin:
                 ServiceContainer.register_instance("metabolism", coordinator)
                 logger.info("✓ Metabolic Coordinator ACTIVE (High-level pacing enabled)")
             except Exception as e:
+                record_degradation('boot_background', e)
                 logger.error("Failed to initialize Metabolic Coordinator: %s", e)
 
             logger.info("✓ Metabolic Monitor ACTIVE (Decoupled ANS Thread Online)")
@@ -191,7 +200,9 @@ class BootBackgroundMixin:
                 if cycle:
                     cycle.start()
             except Exception as e:
+                record_degradation('boot_background', e)
                 logger.error("Failed to initialize Dream Cycle: %s", e)
 
         except Exception as e:
+            record_degradation('boot_background', e)
             logger.error("Failed to initialize Metabolic systems: %s", e)

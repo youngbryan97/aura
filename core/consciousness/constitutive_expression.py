@@ -19,6 +19,7 @@ ARCHITECTURE:
 All LLM calls route through CognitiveEngine -> MLX (fully local).
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -223,6 +224,7 @@ class ConstitutiveExpressionLayer:
             if queue_depth > 2:
                 queue_backlogged = True
         except Exception as e:
+            record_degradation('constitutive_expression', e)
             capture_and_log(e, {'module': __name__})
 
         # Adjust significance for noise/backlog
@@ -290,6 +292,7 @@ class ConstitutiveExpressionLayer:
                 if asyncio.iscoroutine(result):
                     await result
             except Exception as e:
+                record_degradation('constitutive_expression', e)
                 logger.debug("CEL on_expression callback error: %s", e)
 
         return se
@@ -395,6 +398,7 @@ class ConstitutiveExpressionLayer:
                     if last_user and (now - last_user) < USER_ACTIVE_COOLDOWN_S:
                         return self._fallback_expression(user_content)
             except Exception as _exc:
+                record_degradation('constitutive_expression', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
             try:
@@ -402,6 +406,7 @@ class ConstitutiveExpressionLayer:
                 if psutil.virtual_memory().percent >= HIGH_MEMORY_PRESSURE_PCT:
                     return self._fallback_expression(user_content)
             except Exception as _exc:
+                record_degradation('constitutive_expression', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
             # Lazy-load cognitive engine from DI container
@@ -435,6 +440,7 @@ class ConstitutiveExpressionLayer:
             return text
 
         except Exception as e:
+            record_degradation('constitutive_expression', e)
             logger.debug("CEL constitutive call failed: %s", e)
             return self._fallback_expression(user_content)
 
@@ -522,6 +528,7 @@ class CELBridge:
                         arousal = float(getattr(a, 'arousal', 0.5))
                         valence = float(getattr(a, 'valence', 0.0))
                     except Exception as e:
+                        record_degradation('constitutive_expression', e)
                         capture_and_log(e, {'module': __name__})
                 else:
                     arousal = float(getattr(affect, 'arousal', 0.5))
@@ -533,6 +540,7 @@ class CELBridge:
                 pe = float(predictor.get_surprise_signal())
 
         except Exception as e:
+            record_degradation('constitutive_expression', e)
             logger.debug("CELBridge state read failed: %s", e)
 
         se = await self.cel.tick(
@@ -555,6 +563,7 @@ class CELBridge:
                     "phi": se.phi,
                 })
             except Exception as e:
+                record_degradation('constitutive_expression', e)
                 capture_and_log(e, {'module': __name__})
 
         return se
@@ -574,6 +583,7 @@ class CELBridge:
                     affect_weight=abs(se.valence) * 0.5,
                 ))
         except Exception as e:
+            record_degradation('constitutive_expression', e)
             logger.debug("CELBridge→GW submission failed: %s", e)
 
     def get_stream_context(self) -> str:

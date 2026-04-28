@@ -3,6 +3,7 @@ streaming, and impulse handling.
 
 Extracted from orchestrator.py as part of the God Object decomposition.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import queue
@@ -47,6 +48,7 @@ class MessageCoordinator:
         except asyncio.QueueEmpty:
             return None
         except Exception as e:
+            record_degradation('message_coordinator', e)
             logger.error("Error acquiring message: %s", e)
             return None
 
@@ -89,6 +91,7 @@ class MessageCoordinator:
                 label = "User"
             get_emitter().emit(f"Input ({label})", message[:120], level="info")
         except Exception as exc:
+            record_degradation('message_coordinator', exc)
             logger.error("Dispatch telemetry failure: %s", exc)
 
     # ------------------------------------------------------------------
@@ -113,6 +116,7 @@ class MessageCoordinator:
                     reply = await asyncio.wait_for(orch.reply_queue.get(), timeout=30)
                 return {"ok": True, "response": reply}
             except Exception as e:
+                record_degradation('message_coordinator', e)
                 logger.error("Timed out waiting for reply to: %s", message[:50])
                 return {"ok": False, "error": f"Response timeout: {str(e)}"}
 
@@ -212,6 +216,7 @@ class MessageCoordinator:
                             import logging
                             logger.debug("Exception caught during execution", exc_info=True)
                 except Exception as e:
+                    record_degradation('message_coordinator', e)
                     logger.error("State machine execution failed: %s", e)
                 finally:
                     orch.status.is_processing = False
@@ -220,6 +225,7 @@ class MessageCoordinator:
                 name="message_coordinator.execute_and_reply",
             )
         except Exception as e:
+            record_degradation('message_coordinator', e)
             logger.error("Error in handle_incoming_message: %s", e)
             orch.status.is_processing = False
         finally:
@@ -276,6 +282,7 @@ class MessageCoordinator:
                 from core.ops.thinking_mode import ModeRouter
                 tier = ModeRouter(orch.reflex_engine).route(message).value
             except Exception as exc:
+                record_degradation('message_coordinator', exc)
                 logger.debug("Suppressed: %s", exc)
             context = orch._get_cleaned_history_context(8)
             try:
@@ -285,6 +292,7 @@ class MessageCoordinator:
                 context['liquid_state'] = ls.get_status()
                 logger.debug("TOOL EXECUTION: Injected liquid_state: %s", context['liquid_state'])
             except Exception as e:
+                record_degradation('message_coordinator', e)
                 logger.warning("TOOL EXECUTION: LiquidState injection failed: %s", e)
             token_buffer = ""
             if hasattr(orch.cognitive_engine, "think_stream"):
@@ -299,6 +307,7 @@ class MessageCoordinator:
             orch.conversation_history.append({"role": orch.AI_ROLE, "content": token_buffer})
             if hasattr(orch, 'drives'): await orch.drives.satisfy("social", 5.0)
         except Exception as e:
+            record_degradation('message_coordinator', e)
             logger.error("Chat stream failed: %s", e)
             yield f" [Error: {e}] "
         finally:

@@ -1,4 +1,5 @@
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import multiprocessing
@@ -71,11 +72,13 @@ class SensoryGateActor:
             try:
                 await self.bus.stop()
             except Exception as exc:
+                record_degradation('sensory_gate', exc)
                 logger.error("❌ SensoryGate bus shutdown failed: %s", exc)
             if self.browser is not None:
                 try:
                     await self.browser.close()
                 except Exception as exc:
+                    record_degradation('sensory_gate', exc)
                     logger.error("❌ SensoryGate browser shutdown failed: %s", exc)
             logger.info("👁️ SensoryGate Actor stopped.")
 
@@ -89,6 +92,7 @@ class SensoryGateActor:
                     "status": "healthy"
                 })
             except Exception as e:
+                record_degradation('sensory_gate', e)
                 logger.error("❌ Heartbeat failed: %s", e)
             await asyncio.sleep(self._heartbeat_interval)
 
@@ -108,6 +112,7 @@ class SensoryGateActor:
                 "requires_governance_for_effects": True,
             }
         except Exception as e:
+            record_degradation('sensory_gate', e)
             logger.error("❌ [%s] Browse failed: %s", trace_id[:8], e)
             return {"error": str(e)}
 
@@ -158,6 +163,7 @@ class SensoryGateActor:
                 }
 
         except Exception as e:
+            record_degradation('sensory_gate', e)
             logger.error("❌ [%s] Wikipedia search failed: %s", trace_id[:8], e)
             return {"error": str(e)}
 

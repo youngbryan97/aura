@@ -6,6 +6,7 @@ evolves the identity's "evolved context" layer, and prunes stale data.
 Implements an 'Idea Immune System' — the base identity (core directives)
 is immutable; only the evolved context layer can change.
 """
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict
 
@@ -36,6 +37,7 @@ class SleepSkill(BaseSkill):
                     mem_text = "\n".join(str(m) for m in recent)
                     steps_completed.append("memory_recall")
         except Exception as e:
+            record_degradation('sleep', e)
             logger.debug("Sleep: memory recall failed: %s", e)
 
         if not mem_text:
@@ -75,6 +77,7 @@ class SleepSkill(BaseSkill):
                 steps_completed.append("dream_synthesis")
                 logger.info("Dream synthesis complete: knowledge extracted.")
         except Exception as e:
+            record_degradation('sleep', e)
             logger.debug("Sleep: dream synthesis failed: %s", e)
 
         # ── 3. Dream journal entry ───────────────────────────────────
@@ -87,6 +90,7 @@ class SleepSkill(BaseSkill):
                 )
                 steps_completed.append("dream_journal")
         except Exception as e:
+            record_degradation('sleep', e)
             logger.debug("Sleep: dream journal failed: %s", e)
 
         # ── 4. Identity evolution (immune system) ────────────────────
@@ -99,6 +103,7 @@ class SleepSkill(BaseSkill):
                     if identity_evolved:
                         steps_completed.append("identity_evolution")
             except Exception as e:
+                record_degradation('sleep', e)
                 logger.debug("Sleep: identity evolution failed: %s", e)
 
         # ── 5. Memory compaction ─────────────────────────────────────
@@ -108,6 +113,7 @@ class SleepSkill(BaseSkill):
                 await compressor.compact()
                 steps_completed.append("memory_compaction")
         except Exception as e:
+            record_degradation('sleep', e)
             logger.debug("Sleep: memory compaction failed: %s", e)
 
         # ── 6. Satisfy drives (rest restores energy) ─────────────────
@@ -118,6 +124,7 @@ class SleepSkill(BaseSkill):
                 await drive.satisfy("competence", 5.0)
                 steps_completed.append("drive_restoration")
         except Exception as e:
+            record_degradation('sleep', e)
             logger.debug("Sleep: drive restoration failed: %s", e)
 
         # ── 7. Record in WorldState ──────────────────────────────────

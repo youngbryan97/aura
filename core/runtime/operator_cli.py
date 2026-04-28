@@ -11,6 +11,8 @@ The CLI intentionally does not import the full orchestrator at module
 import time; commands fetch what they need on demand.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import argparse
@@ -58,6 +60,7 @@ def cmd_doctor(args: argparse.Namespace) -> Dict[str, Any]:
 
         checks["sqlite_available"] = {"ok": True}
     except Exception as exc:
+        record_degradation('operator_cli', exc)
         checks["sqlite_available"] = {"ok": False, "error": repr(exc)}
 
     try:
@@ -65,6 +68,7 @@ def cmd_doctor(args: argparse.Namespace) -> Dict[str, Any]:
 
         checks["mlx_available"] = {"ok": True}
     except Exception as exc:
+        record_degradation('operator_cli', exc)
         checks["mlx_available"] = {"ok": False, "error": repr(exc)}
 
     try:
@@ -76,6 +80,7 @@ def cmd_doctor(args: argparse.Namespace) -> Dict[str, Any]:
         probe_path.unlink(missing_ok=True)
         checks["atomic_writer_round_trip"] = {"ok": env["payload"]["ok"] is True}
     except Exception as exc:
+        record_degradation('operator_cli', exc)
         checks["atomic_writer_round_trip"] = {"ok": False, "error": repr(exc)}
 
     overall_ok = all(v.get("ok") for v in checks.values())

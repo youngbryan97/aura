@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import subprocess
 
@@ -94,5 +95,6 @@ class CognitivePatchStrategy(PatchStrategy):
             logger.info("Patch saved to %s for manual review.", patch_file)
             return True
         except Exception as e:
+            record_degradation('cognitive_patch', e)
             logger.error("Cognitive Fix Failed: %s", e)
             return False

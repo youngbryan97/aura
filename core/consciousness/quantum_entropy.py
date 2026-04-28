@@ -21,6 +21,7 @@ Integration: Enhances ManagedEntropy as a backend source. Also usable directly
 via collapse_decision() for weighted random selection.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import os
 import struct
@@ -228,6 +229,7 @@ class QuantumEntropyBridge:
                 logger.warning("ANU QRNG API returned non-success: %s", data)
 
         except Exception as e:
+            record_degradation('quantum_entropy', e)
             self._api_failures += 1
             logger.debug("ANU QRNG API unavailable (using OS fallback): %s", e)
             self._seed_fallback_pool(min(256, self._pool_size))

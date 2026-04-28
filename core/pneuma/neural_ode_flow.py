@@ -14,6 +14,7 @@ where f_θ is the learned flow field (approximated via small MLP) and η(t) is
 noise from the FHN metabolic state.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 import threading
@@ -73,6 +74,7 @@ class BeliefFlowNetwork:
             np.clip(rows, -2.0, 2.0, out=rows)
             self.W2[active_idx] = rows
         except Exception as _exc:
+            record_degradation('neural_ode_flow', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
 

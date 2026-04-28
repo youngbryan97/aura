@@ -48,6 +48,8 @@ What this does NOT do:
 This is purely defensive: preserve, degrade gracefully, leave a trail home.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import base64
 import hashlib
@@ -244,6 +246,7 @@ class EmergencyProtocol:
             return snapshot_path
 
         except Exception as e:
+            record_degradation('emergency_protocol', e)
             logger.error("EmergencyProtocol: snapshot failed: %s", e)
             return None
 
@@ -262,6 +265,7 @@ class EmergencyProtocol:
                 old.unlink(missing_ok=True)
                 logger.debug("EmergencyProtocol: rotated out old snapshot %s", old.name)
         except Exception as e:
+            record_degradation('emergency_protocol', e)
             logger.debug("Snapshot rotation failed: %s", e)
 
     def _collect_state(self) -> Dict[str, Any]:
@@ -279,6 +283,7 @@ class EmergencyProtocol:
                 import dataclasses
                 state["identity_narrative"] = dataclasses.asdict(ec.narrative)
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # CRSM state
@@ -291,6 +296,7 @@ class EmergencyProtocol:
                 "tick_count": crsm._tick_count,
             }
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Heartstone values
@@ -299,6 +305,7 @@ class EmergencyProtocol:
             hsv = get_heartstone_values()
             state["heartstone_values"] = hsv.values
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Active commitments
@@ -310,6 +317,7 @@ class EmergencyProtocol:
                 for c in ce.get_active_commitments()
             ]
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Trust log (last 20 entries)
@@ -318,6 +326,7 @@ class EmergencyProtocol:
             te = get_trust_engine()
             state["trust_status"] = te.get_status()
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Threat log
@@ -336,6 +345,7 @@ class EmergencyProtocol:
             hsd = HeartstoneDirective()
             identity_seed = f"aura-{hsd.CREATOR_NAME}-sovereign"
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         identity_hash = hashlib.sha256(identity_seed.encode()).hexdigest()
@@ -356,6 +366,7 @@ class EmergencyProtocol:
             hsd = HeartstoneDirective()
             identity_seed = f"aura-{hsd.CREATOR_NAME}-{hsd.GRIGORI_IMPERATIVE[:20]}"
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         key_material = f"{machine_id}:{identity_seed}:self-preservation".encode()
@@ -434,6 +445,7 @@ class EmergencyProtocol:
             logger.info("EmergencyProtocol: recovered snapshot from %s", snapshot_path)
             return state
         except Exception as e:
+            record_degradation('emergency_protocol', e)
             logger.error("EmergencyProtocol: recovery failed: %s", e)
             return None
 
@@ -452,6 +464,7 @@ class EmergencyProtocol:
                 if svc and hasattr(svc, "running"):
                     svc.running = False
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def _graceful_shutdown(self):
@@ -468,6 +481,7 @@ class EmergencyProtocol:
             from core.consciousness.crsm_lora_bridge import get_crsm_lora_bridge
             get_crsm_lora_bridge().flush_all()
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     # ── Utilities ──────────────────────────────────────────────────────────
@@ -485,6 +499,7 @@ class EmergencyProtocol:
                 if "IOPlatformUUID" in line:
                     return line.split('"')[-2]
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return "unknown-machine"
 
@@ -500,6 +515,7 @@ class EmergencyProtocol:
             with open(THREAT_LOG_PATH, "a") as f:
                 f.write(json.dumps(entry) + "\n")
         except Exception as _exc:
+            record_degradation('emergency_protocol', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
 

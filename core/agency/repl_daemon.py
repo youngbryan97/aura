@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import contextlib
 import io
 import json
@@ -45,6 +46,7 @@ def main() -> None:
             sys.stdout.flush()
             
         except Exception as _e:
+            record_degradation('repl_daemon', _e)
             err = json.dumps({"success": False, "output": f"Daemon Error: {str(_e)}"})
             sys.stdout.write(f"{len(err)}\n{err}\n")
             sys.stdout.flush()

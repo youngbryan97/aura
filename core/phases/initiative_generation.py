@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Any, Optional
@@ -34,6 +35,7 @@ class InitiativeGenerationPhase(BasePhase):
                 if reason:
                     return reason
         except Exception as _exc:
+            record_degradation('initiative_generation', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return ""
 

@@ -1,6 +1,7 @@
 """core/self_healer.py
 Pattern-based diagnostic and auto-fix system.
 """
+from core.runtime.errors import record_degradation
 import logging
 import re
 from collections.abc import Callable
@@ -33,6 +34,7 @@ class SelfHealer:
                 try:
                     return fixer(match, exception)
                 except Exception as e:
+                    record_degradation('self_healer', e)
                     logger.error("SelfHealer: Fixer failed: %s", e)
                     return False
         return False

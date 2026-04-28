@@ -13,6 +13,7 @@ Design principles:
   4. All autonomous actions are logged to an audit trail for observability.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 import asyncio
@@ -96,6 +97,7 @@ class AutonomyGuardian:
                 # For Aura, we simply log and return None.
                 return None
         except Exception as e:
+            record_degradation('autonomy_guardian', e)
             self._log_audit(task_id, "FAILED", error=str(e))
             logger.error("🛡️ Guardian: Task %s failed: %s", task_id, e)
             if retry_on_fail:
@@ -104,6 +106,7 @@ class AutonomyGuardian:
                 try:
                     self._emit_diagnostic(label, str(e))
                 except Exception as retry_err:
+                    record_degradation('autonomy_guardian', retry_err)
                     logger.error("🛡️ Guardian: Retry also failed: %s", retry_err)
                     self._log_audit(task_id, "RETRY_FAILED", error=str(retry_err))
         finally:
@@ -146,6 +149,7 @@ class AutonomyGuardian:
             logger.info("🛡️ Guardian: Delivered response via telemetry (origin=%s, autonomic=%s)", origin, autonomic)
 
         except Exception as e:
+            record_degradation('autonomy_guardian', e)
             logger.error("🛡️ Guardian: CRITICAL — failed to deliver response: %s", e)
 
     # ── Diagnostics ────────────────────────────────────────────────
@@ -161,6 +165,7 @@ class AutonomyGuardian:
                 "metadata": {"autonomic": True, "diagnostic": True}
             })
         except Exception as e:
+            record_degradation('autonomy_guardian', e)
             capture_and_log(e, {'module': __name__})
 
     def _log_audit(self, task_id: str, status: str, **kwargs):
@@ -202,6 +207,7 @@ class AutonomyGuardian:
                                 
                 await asyncio.sleep(2.0)
             except Exception as e:
+                record_degradation('autonomy_guardian', e)
                 logger.error("🛡️ Guardian: Dread Watcher error: %s", e)
                 await asyncio.sleep(5.0)
 

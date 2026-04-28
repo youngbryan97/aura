@@ -26,6 +26,8 @@ atomically (write-tmp + rename) so a crash mid-write never produces a
 half-written dossier.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -159,6 +161,7 @@ class RelationshipStore:
                 self._cache[relationship_id] = dossier
                 return dossier
             except Exception as exc:
+                record_degradation('relationship_model', exc)
                 logger.warning("relationship load failed for %s: %s", relationship_id, exc)
                 return None
 

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import time
 import logging
 import asyncio
@@ -66,6 +67,7 @@ class WillEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('will_engine', e)
                 logger.error("🛑 [WILL] Error in metabolic loop: %s", e)
                 await asyncio.sleep(5.0)
 
@@ -150,6 +152,7 @@ class WillEngine:
                 try:
                     await handler(state, elapsed)
                 except Exception as eval_err:
+                    record_degradation('will_engine', eval_err)
                     logger.warning("⚠️ [WILL] Evolution handler '%s' failed: %s", name, eval_err)
 
             # 4. Cellular Patch Submission (Unification Ph4)
@@ -182,9 +185,11 @@ class WillEngine:
                         ls.x[ls.idx_curiosity] = (0.8 * ls.x[ls.idx_curiosity]) + (0.2 * curiosity_val)
                         logger.debug("🧠 [WILL] Synced metabolic state to LiquidSubstrate.")
             except Exception as sub_err:
+                record_degradation('will_engine', sub_err)
                 logger.debug("⚠️ [WILL] Substrate coupling failed: %s", sub_err)
             
         except Exception as e:
+            record_degradation('will_engine', e)
             logger.error("🛑 [WILL] Failed to process metabolic cycle: %s", e)
 
 

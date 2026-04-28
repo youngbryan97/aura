@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import logging
 from typing import Any, Optional
 from core.kernel.bridge import Phase
@@ -89,6 +91,7 @@ class SocialContextPhase(Phase):
                             state.cognition.modifiers["relational_register"] = "cordial"
                         state.cognition.modifiers["rapport_level"] = rapport
                 except Exception as _exc:
+                    record_degradation('social_context_phase', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
                 # 5. Synchronize
@@ -97,6 +100,7 @@ class SocialContextPhase(Phase):
                     logger.debug("Social context synchronized: %s", injection)
 
         except Exception as e:
+            record_degradation('social_context_phase', e)
             logger.warning("SocialContextPhase failed: %s", e)
             
         return state

@@ -1,4 +1,5 @@
 # core/brain/trace_logger.py
+from core.runtime.errors import record_degradation
 import atexit
 import json
 import logging
@@ -26,6 +27,7 @@ class TraceLogger:
         try:
             self._fh.close()
         except Exception as _e:
+            record_degradation('trace_logger', _e)
             logging.debug('Ignored Exception in trace_logger.py: %s', _e)
 
     def __del__(self) -> None:

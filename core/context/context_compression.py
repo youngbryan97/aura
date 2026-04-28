@@ -11,6 +11,7 @@ Protects files read in the last 2 turns from any compression.
 Caches summaries with content hashes for change detection.
 """
 
+from core.runtime.errors import record_degradation
 import hashlib
 import json
 import logging
@@ -112,6 +113,7 @@ class ContextCompressionService:
                         char_count=fdata.get("char_count", 0),
                     )
         except Exception as e:
+            record_degradation('context_compression', e)
             logger.debug("Could not load compression state: %s", e)
 
     def _save_state(self):
@@ -134,6 +136,7 @@ class ContextCompressionService:
             with open(STATE_FILE, "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
+            record_degradation('context_compression', e)
             logger.debug("Could not save compression state: %s", e)
 
     def advance_turn(self):
@@ -238,6 +241,7 @@ class ContextCompressionService:
                         to_evaluate[path].compression_level = level_map.get(level_str, CompressionLevel.FULL)
 
         except Exception as e:
+            record_degradation('context_compression', e)
             logger.warning("LLM file routing failed, keeping all FULL: %s", e)
 
         # Build final result
@@ -301,5 +305,6 @@ class ContextCompressionService:
                 self._save_state()
                 return summary
         except Exception as e:
+            record_degradation('context_compression', e)
             logger.warning("Summary generation failed for %s: %s", path, e)
         return ""

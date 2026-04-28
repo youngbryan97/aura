@@ -12,6 +12,7 @@ Safety features:
 - Local activation tracking for telemetry
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -144,6 +145,7 @@ class GanglionNode:
                 return action
 
         except Exception as e:
+            record_degradation('ganglion_node', e)
             logger.error("Ganglion [%s]: handler error for '%s': %s", self.domain, stimulus_type, e)
 
         return None

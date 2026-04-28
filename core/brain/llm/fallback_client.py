@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -25,6 +26,7 @@ class FallbackLLMClient(LLMProvider):
                     continue
                 return provider.generate_text(prompt, system_prompt, model)
             except Exception as e:
+                record_degradation('fallback_client', e)
                 last_error = e
                 logger.warning("Provider %s failed: %s. Trying fallback if available...", provider.__class__.__name__, e)
         
@@ -40,6 +42,7 @@ class FallbackLLMClient(LLMProvider):
                     continue
                 return provider.generate_json(prompt, schema, system_prompt, model)
             except Exception as e:
+                record_degradation('fallback_client', e)
                 last_error = e
                 logger.warning("Provider %s failed: %s. Trying fallback if available...", provider.__class__.__name__, e)
         
@@ -69,6 +72,7 @@ class FallbackLLMClient(LLMProvider):
                 else:
                     return await asyncio.to_thread(provider.generate_text, prompt, system_prompt, model, **kwargs)
             except Exception as e:
+                record_degradation('fallback_client', e)
                 last_error = e
                 logger.warning("Provider %s failed (async): %s. Trying fallback...", provider.__class__.__name__, e)
         
@@ -97,6 +101,7 @@ class FallbackLLMClient(LLMProvider):
                 else:
                     return await asyncio.to_thread(provider.generate_json, prompt, schema, system_prompt, model, **kwargs)
             except Exception as e:
+                record_degradation('fallback_client', e)
                 last_error = e
                 logger.warning("Provider %s failed (async): %s. Trying fallback...", provider.__class__.__name__, e)
         
@@ -122,6 +127,7 @@ class FallbackLLMClient(LLMProvider):
                     yield chunk
                 return
             except Exception as e:
+                record_degradation('fallback_client', e)
                 last_error = e
                 logger.warning("Provider %s stream failed: %s. Trying fallback...", provider.__class__.__name__, e)
 

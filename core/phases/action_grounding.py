@@ -21,6 +21,8 @@ current turn's execution record. This makes memory/belief writes refuse
 to encode hallucinated actions as truth.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import re

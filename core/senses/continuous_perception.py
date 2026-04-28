@@ -7,6 +7,7 @@ Autonomous perceptions may advise the runtime, but they must not silently bypass
 constitutional routing once the live runtime is up.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import os
 import logging
@@ -126,6 +127,7 @@ class ContinuousPerceptionEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('continuous_perception', e)
                 logger.debug("Continuous audio error: %s", e)
                 await asyncio.sleep(5)
 
@@ -198,6 +200,7 @@ class ContinuousPerceptionEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('continuous_perception', e)
                 logger.debug("Continuous vision error: %s", e)
 
     async def _continuous_ambient_loop(self):
@@ -237,11 +240,13 @@ class ContinuousPerceptionEngine:
                                 agency.update_ambient_context(summary)
                                 
                     except Exception as summarize_err:
+                        record_degradation('continuous_perception', summarize_err)
                         logger.debug("Failed to summarize ambient context: %s", summarize_err)
                         
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('continuous_perception', e)
                 logger.debug("Ambient loop error: %s", e)
                 await asyncio.sleep(10)
 
@@ -261,6 +266,7 @@ class ContinuousPerceptionEngine:
                 source_type = "vision" if "vision" in source else "audio"
                 self.soma.update_sensory_imprint(source_type, text)
         except Exception as agency_err:
+            record_degradation('continuous_perception', agency_err)
             logger.debug("Failed to route perception to AgencyCore: %s", agency_err)
             
         constitutional_runtime_live = (
@@ -284,6 +290,7 @@ class ContinuousPerceptionEngine:
                             urgency=0.35,
                         )
                     except Exception as exc:
+                        record_degradation('continuous_perception', exc)
                         record_degraded_event(
                             "continuous_perception",
                             "autonomous_intent_gate_unavailable",
@@ -317,6 +324,7 @@ class ContinuousPerceptionEngine:
 
                 await self.orchestrator.process_user_input(text, origin="continuous_perception")
             except Exception as e:
+                record_degradation('continuous_perception', e)
                 logger.error("Failed to dispatch spontaneous intent: %s", e)
                 
         try:

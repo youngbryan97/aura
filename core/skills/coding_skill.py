@@ -3,6 +3,7 @@ Coding Skill — Dedicated interface for code generation with Thought Circulatio
 Ensures complex programming tasks are wrapped with <think> tags for high-accuracy reasoning.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict
 
@@ -58,5 +59,6 @@ class CodingSkill(BaseSkill):
                 "note": "Generated with thought circulation"
             }
         except Exception as e:
+            record_degradation('coding_skill', e)
             logger.error(f"Coding skill failed: {e}")
             return {"ok": False, "error": str(e)}

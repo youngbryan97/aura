@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import json
 import time
@@ -55,6 +56,7 @@ Synthesize a short (2-3 sentence) internal reflection that captures your subject
                 await self._record_reflection(reflection, current_pad)
                 return reflection
         except Exception as e:
+            record_degradation('private_phenomenology', e)
             logger.error("Reflection failed: %s", e)
 
     def _sync_record_reflection(self, text: str, pad: dict):
@@ -98,6 +100,7 @@ Synthesize a short (2-3 sentence) internal reflection that captures your subject
                                         "\n".join(json.dumps(l) for l in sorted_kept) + "\n",
                                         encoding="utf-8")
         except Exception as e:
+            record_degradation('private_phenomenology', e)
             logger.debug("Pruning failed: %s", e)
 
     def _sync_get_reflections(self) -> list:
@@ -129,5 +132,6 @@ Synthesize a short (2-3 sentence) internal reflection that captures your subject
                 bias_context += f"• {r['reflection']}\n"
             return bias_context
         except Exception as e:
+            record_degradation('private_phenomenology', e)
             logger.error("Error reading reflections: %s", e)
             return ""

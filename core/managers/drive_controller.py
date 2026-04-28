@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import random
@@ -114,6 +115,7 @@ class DriveController:
                     logger.debug("😤 Frustration reflection already queued (%d pending). Skipping.", len(queued))
                     return
         except Exception as _exc:
+            record_degradation('drive_controller', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         logger.info("😤 FRUSTRATION TRIGGERED: Generating reflection impulse.")
@@ -148,4 +150,5 @@ class DriveController:
             get_emitter().emit("Neural Pulse", f"System Active (Mood: {mood})", level="info")
             self._last_pulse = time.time()
         except Exception as _e:
+            record_degradation('drive_controller', _e)
             logger.debug("Neural pulse emit failed: %s", _e)

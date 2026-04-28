@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -31,6 +32,7 @@ class ReliabilityTracker:
                 with open(self.data_path, 'r') as f:
                     self.stats = json.load(f)
         except Exception as e:
+            record_degradation('reliability_tracker', e)
             logger.warning("Failed to load reliability data: %s", e)
             self.stats = {}
 
@@ -40,6 +42,7 @@ class ReliabilityTracker:
             with open(self.data_path, 'w') as f:
                 json.dump(self.stats, f, indent=2)
         except Exception as e:
+            record_degradation('reliability_tracker', e)
             logger.error("Failed to save reliability data: %s", e)
 
     def record_attempt(self, tool_name: str, success: bool, error_msg: Optional[str] = None):

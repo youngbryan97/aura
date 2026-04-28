@@ -10,6 +10,7 @@ CRITICAL CAPABILITIES:
 
 This allows Aura to "tap you on the shoulder" when she wants to talk.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
@@ -120,6 +121,7 @@ end tell
             logger.info("✅ Terminal window opened: %s", self.window_id)
             
         except Exception as e:
+            record_degradation('external_chat', e)
             logger.error("Failed to open terminal: %s", e)
     
     def _create_chat_script(self, initial_message: Optional[str]) -> str:
@@ -216,6 +218,7 @@ rm -f $PIPE_IN $PIPE_OUT
                 await asyncio.sleep(0.1)
                 
             except Exception as e:
+                record_degradation('external_chat', e)
                 logger.error("Message handler error: %s", e)
                 await asyncio.sleep(1)
     
@@ -240,6 +243,7 @@ rm -f $PIPE_IN $PIPE_OUT
                 })
             
         except Exception as e:
+            record_degradation('external_chat', e)
             logger.error("Failed to process message through orchestrator: %s", e)
     
     def send_message(self, text: str):
@@ -274,6 +278,7 @@ rm -f $PIPE_IN $PIPE_OUT
                 try:
                     os.remove(pipe)
                 except Exception as exc:
+                    record_degradation('external_chat', exc)
                     logger.debug("Suppressed: %s", exc)        
         logger.info("✅ Terminal window closed: %s", self.window_id)
 
@@ -399,6 +404,7 @@ class GUIChatWindow:
                 except queue.Empty:
                     pass
                 except Exception as e:
+                    record_degradation('external_chat', e)
                     logger.debug("GUI outgoing pump failed: %s", e, exc_info=True)
                 
                 # Schedule next check
@@ -418,6 +424,7 @@ class GUIChatWindow:
             self.active = False
             
         except Exception as e:
+            record_degradation('external_chat', e)
             logger.error("GUI creation failed: %s", e)
             logger.info("Falling back to terminal window")
             # Could fallback to terminal window here
@@ -439,6 +446,7 @@ class GUIChatWindow:
                 })
         
         except Exception as e:
+            record_degradation('external_chat', e)
             logger.error("Failed to process message: %s", e)
     
     def send_message(self, text: str):
@@ -464,6 +472,7 @@ class GUIChatWindow:
                 # But for now basic implementation
                 pass 
             except Exception as exc:
+                record_degradation('external_chat', exc)
                 logger.debug("Suppressed: %s", exc)
 
 class ExternalChatManager:

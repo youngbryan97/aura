@@ -3,6 +3,7 @@ Grok-Level Long-Term Memory with Forgetting Curve + Emotional Tagging for Aura
 Makes her remember the important things — and feel them.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -67,6 +68,7 @@ class LongTermMemoryEngine:
                 "hooks_into": ["memory_facade", "drive_engine", "cel", "dream_processor"]
             })
         except Exception as e:
+            record_degradation('long_term_memory_engine', e)
             logger.debug(f"Event bus publish missed for Mycelium hook: {e}")
 
     async def stop(self):
@@ -82,6 +84,7 @@ class LongTermMemoryEngine:
                 self.memories = [TaggedMemory(**m) for m in data]
                 logger.info(f"Loaded {len(self.memories)} emotionally tagged memories")
             except Exception as _e:
+                record_degradation('long_term_memory_engine', _e)
                 logger.debug('Ignored Exception in long_term_memory_engine.py: %s', _e)
 
     def _save_memories(self):
@@ -91,6 +94,7 @@ class LongTermMemoryEngine:
             data = [m.__dict__ for m in self.memories]
             atomic_write(str(self.db_path), json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('long_term_memory_engine', e)
             logger.error(f"Memory save failed: {e}")
 
     async def store(self, content: str, valence: float = 0.0, importance: float = 0.5, tags: List[str] = None):
@@ -122,9 +126,11 @@ class LongTermMemoryEngine:
                         context={"importance": importance, "valence": valence},
                     )
                 except Exception as exc:
+                    record_degradation('long_term_memory_engine', exc)
                     logger.debug("LongTermMemory degraded-event logging skipped: %s", exc)
                 return
         except Exception as exc:
+            record_degradation('long_term_memory_engine', exc)
             logger.debug("LongTermMemory constitutional gate skipped: %s", exc)
             runtime_live = bool(
                 getattr(ServiceContainer, "_registration_locked", False)
@@ -161,6 +167,7 @@ class LongTermMemoryEngine:
                     "origin": "long_term_memory"
                 })
             except Exception as _e:
+                record_degradation('long_term_memory_engine', _e)
                 logger.debug('Ignored Exception in long_term_memory_engine.py: %s', _e)
 
     async def recall_relevant(self, query: str, limit: int = 5) -> List[TaggedMemory]:
@@ -192,6 +199,7 @@ class LongTermMemoryEngine:
                                 "origin": "long_term_memory"
                             })
                         except Exception as e:
+                            record_degradation('long_term_memory_engine', e)
                             logger.debug(f"CEL emission failed in nightly consolidation: {e}")
             self._save_memories()
 

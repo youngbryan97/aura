@@ -7,6 +7,7 @@ Audits the belief graph for:
 
 Logs audit results to integrity_audit.log and emits to thought stream.
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from dataclasses import dataclass, field
@@ -82,6 +83,7 @@ class IntegrityGuard:
             # Use the dedicated decay method
             await self._decay_stale(beliefs, report)
         except Exception as exc:
+            record_degradation('integrity_check', exc)
             msg = f"Integrity audit error: {exc}"
             logger.error(msg, exc_info=True)
             report.errors.append(msg)
@@ -97,6 +99,7 @@ class IntegrityGuard:
                 level="info" if not report.quarantined else "warning",
             )
         except Exception as exc:
+            record_degradation('integrity_check', exc)
             logger.debug("Suppressed thought-stream emit: %s", exc)
 
         return report
@@ -113,6 +116,7 @@ class IntegrityGuard:
                 c.execute("SELECT * FROM beliefs")
                 return [dict(row) for row in c.fetchall()]
         except Exception as exc:
+            record_degradation('integrity_check', exc)
             logger.warning("Failed to retrieve beliefs: %s", exc)
         return []
 
@@ -134,6 +138,7 @@ class IntegrityGuard:
                 await asyncio.to_thread(_do_quarantine)
             report.quarantined += 1
         except Exception as exc:
+            record_degradation('integrity_check', exc)
             report.errors.append(f"quarantine {belief_id}: {exc}")
 
     def _detect_contradictions(self, beliefs: List[Dict], report: AuditReport) -> None:
@@ -207,6 +212,7 @@ class IntegrityGuard:
                         await asyncio.to_thread(_do_decay)
                     report.decayed += 1
                 except Exception as exc:
+                    record_degradation('integrity_check', exc)
                     report.errors.append(f"decay {belief_id}: {exc}")
 
     def _write_audit_log(self, report: AuditReport) -> None:
@@ -215,4 +221,5 @@ class IntegrityGuard:
             with open(self.audit_log_path, "a") as f:
                 f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {report}\n")
         except Exception as exc:
+            record_degradation('integrity_check', exc)
             logger.warning("Failed to write audit log: %s", exc)

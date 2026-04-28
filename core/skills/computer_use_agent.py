@@ -5,6 +5,7 @@ Provides a structured agent loop for controlling the computer interface.
 Supports denormalized coordinates, safety confirmation flows, and screenshot pruning.
 """
 
+from core.runtime.errors import record_degradation
 import base64
 import logging
 from dataclasses import dataclass, field
@@ -50,6 +51,7 @@ class BrowserAgent:
             url = await self.computer.get_url()
             return EnvState(screenshot_bytes=screenshot, url=url)
         except Exception as e:
+            record_degradation('computer_use_agent', e)
             logger.error("Failed to capture environment state: %s", e)
             return EnvState()
 
@@ -114,6 +116,7 @@ class BrowserAgent:
             self.state = AgentState.COMPLETE
             
         except Exception as e:
+            record_degradation('computer_use_agent', e)
             logger.error("Computer Use step failed: %s", e)
             self.state = AgentState.FAILED
             self._history.append({"role": "system", "content": f"Error: {e}"})

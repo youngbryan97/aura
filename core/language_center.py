@@ -31,6 +31,7 @@ Model routing:
 Falls back gracefully: api_deep → api_fast → local → pattern fallback.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import re
@@ -99,6 +100,7 @@ class LanguageCenter:
                 "hooks_into": ["inner_monologue", "api_adapter", "cognitive_engine"]
             })
         except Exception as _e:
+            record_degradation('language_center', _e)
             logger.debug('Ignored Exception in language_center.py: %s', _e)
 
     async def _ensure_router(self) -> bool:
@@ -174,6 +176,7 @@ class LanguageCenter:
 
             return response
         except Exception as e:
+            record_degradation('language_center', e)
             logger.error("LanguageCenter expression failed: %s", e, exc_info=True)
             try:
                 from core.health.degraded_events import record_degraded_event
@@ -190,6 +193,7 @@ class LanguageCenter:
                     exc=e,
                 )
             except Exception as degraded_exc:
+                record_degradation('language_center', degraded_exc)
                 logger.debug("LanguageCenter degraded-event logging failed: %s", degraded_exc)
             return self._fallback_response(thought, user_input)
 
@@ -308,6 +312,7 @@ class LanguageCenter:
                 is_background=origin not in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"},
             )
         except Exception as e:
+            record_degradation('language_center', e)
             logger.error("LanguageCenter router dispatch failed: %s", e)
             return ""
 
@@ -340,6 +345,7 @@ class LanguageCenter:
                 is_background=origin not in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"},
             )
         except Exception as e:
+            record_degradation('language_center', e)
             logger.error("LanguageCenter router dispatch failed: %s", e)
             return ""
 
@@ -365,6 +371,7 @@ class LanguageCenter:
                 elif isinstance(event, str):
                     yield event
         except Exception as e:
+            record_degradation('language_center', e)
             logger.warning("Streaming router dispatch failed (%s)", e)
 
     # ─── Config helpers ───────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import contextvars
 import logging
@@ -150,6 +151,7 @@ class TaskTracker:
                 try:
                     tracker.observe(task, source="loop_factory")
                 except Exception as exc:
+                    record_degradation('task_tracker', exc)
                     logger.debug("TaskTracker[%s]: failed to observe loop task: %s", tracker.name, exc)
             return task
 
@@ -165,6 +167,7 @@ class TaskTracker:
                 try:
                     target_loop.set_task_factory(previous_factory)
                 except Exception as exc:
+                    record_degradation('task_tracker', exc)
                     logger.debug("TaskTracker[%s]: failed to restore loop factory: %s", self.name, exc)
             return
 
@@ -173,6 +176,7 @@ class TaskTracker:
             try:
                 target_loop.set_task_factory(previous_factory)
             except Exception as exc:
+                record_degradation('task_tracker', exc)
                 logger.debug("TaskTracker[%s]: failed to restore loop factory: %s", self.name, exc)
             finally:
                 self._installed_loop_factories.pop(loop_id, None)
@@ -201,6 +205,7 @@ class TaskTracker:
             setattr(task, "_aura_task_tracker", self.name)
             setattr(task, "_aura_task_supervision", "explicit")
         except Exception as e:
+            record_degradation('task_tracker', e)
             logger.debug("TaskTracker[%s]: failed to mark task supervised: %s", self.name, e)
 
     def _attach(
@@ -246,6 +251,7 @@ class TaskTracker:
             elif not hasattr(task, "_aura_supervised"):
                 setattr(task, "_aura_supervised", False)
         except Exception as exc:
+            record_degradation('task_tracker', exc)
             logger.debug("TaskTracker[%s]: failed to annotate task: %s", self.name, exc)
 
         if task.done():
@@ -283,6 +289,7 @@ class TaskTracker:
                 record.cancelled = True
                 self._cancelled_total += 1
             except Exception as exc:
+                record_degradation('task_tracker', exc)
                 record.failed = True
                 record.exception = f"{type(exc).__name__}: {exc}"
                 self._failed_total += 1
@@ -323,6 +330,7 @@ class TaskTracker:
         try:
             await asyncio.wait(pending, timeout=timeout)
         except Exception as e:
+            record_degradation('task_tracker', e)
             logger.error("Error during TaskTracker shutdown: %s", e)
 
         remaining = [task for task in pending if not task.done()]

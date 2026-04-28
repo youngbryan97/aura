@@ -3,6 +3,7 @@ core/ops/lymphatic_reaper.py
 Enterprise Maintenance: Cleans uporphaned processes, stale file handles, and fragments.
 Inspired by the biological lymphatic system.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -48,6 +49,7 @@ class LymphaticReaper:
             try:
                 await self.sweep()
             except Exception as e:
+                record_degradation('lymphatic_reaper', e)
                 logger.error("Reaper sweep failed: %s", e)
             await asyncio.sleep(self._interval)
 
@@ -101,6 +103,7 @@ class LymphaticReaper:
                         elif f.is_dir():
                             shutil.rmtree(f)
                 except Exception as e:
+                    record_degradation('lymphatic_reaper', e)
                     logger.debug("Reaper: failed to clean %s: %s", f, e)
         return reclaimed
 

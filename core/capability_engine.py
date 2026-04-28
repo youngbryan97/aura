@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import importlib
@@ -186,6 +187,7 @@ class SkillMetadata(BaseModel):
             
             return params
         except Exception as e:
+            record_degradation('capability_engine', e)
             # Fallback for complex extraction failures
             return {"raw_params": params_raw, "_error": str(e)}
 
@@ -209,6 +211,7 @@ class Shell:
             )
             return result.returncode == 0, (result.stdout + "\n" + result.stderr).strip()
         except Exception as e:
+            record_degradation('capability_engine', e)
             return False, str(e)
 
 class WebClient:
@@ -229,6 +232,7 @@ class WebClient:
             resp = await asyncio.to_thread(requests.get, url, headers=headers, timeout=self.timeout)
             return True, resp.text
         except Exception as e:
+            record_degradation('capability_engine', e)
             return False, str(e)
 
 class Sandbox2:
@@ -264,6 +268,7 @@ class Sandbox2:
                 
             return locs[func_name](**params)
         except Exception as e:
+            record_degradation('capability_engine', e)
             self.logger.error(f"Sandbox Violation or Error: {e}")
             raise e
 
@@ -763,6 +768,7 @@ class CapabilityEngine(AuraBaseModule):
                 )
             self.logger.info("⚡ Rust perfect hash index loaded (%d core skills)", len(index))
         except Exception as e:
+            record_degradation('capability_engine', e)
             self.logger.info("ℹ️ Rust index unavailable, falling back to AST: %s", e)
 
         # 2. AST Discovery (Fallback/Project skills)
@@ -814,12 +820,14 @@ class CapabilityEngine(AuraBaseModule):
                                     class_name=node.name
                                 )
                 except Exception as e:
+                    record_degradation('capability_engine', e)
                     self.logger.error("AST fail for %s: %s", filename, e)
 
         if self.orchestrator and hasattr(self.orchestrator, 'status') and self.orchestrator.status:
             try:
                 self.orchestrator.status.skills_loaded = len(self.skills)
             except Exception as _exc:
+                record_degradation('capability_engine', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         self._refresh_active_skills()
         self.logger.info("✓ %d total skills registered", len(self.skills))
@@ -911,6 +919,7 @@ class CapabilityEngine(AuraBaseModule):
                 if mod in accessed_names and mod not in defined_names:
                     self.logger.warning(f"⚠️ Skill Safety Audit: '{skill_name}' uses '{mod}' but does not import it.")
         except Exception as e:
+            record_degradation('capability_engine', e)
             self.logger.debug(f"AST validation skipped for {skill_name}: {e}")
 
     def _initialize_skill_states(self) -> None:
@@ -1506,6 +1515,7 @@ class CapabilityEngine(AuraBaseModule):
                     # Initialize instance
                     self.instances[skill_name] = skill_class()
                 except Exception as e:
+                    record_degradation('capability_engine', e)
                     self.logger.error("Failed to lazy load %s: %s", skill_name, e)
                     return {"ok": False, "error": f"Failed to load implementation: {e}"}
 
@@ -1567,6 +1577,7 @@ class CapabilityEngine(AuraBaseModule):
                 if capability_token_id:
                     ctx["capability_token_id"] = capability_token_id
             except Exception as e:
+                record_degradation('capability_engine', e)
                 if constitutional_runtime_live:
                     try:
                         from core.health.degraded_events import record_degraded_event
@@ -1581,6 +1592,7 @@ class CapabilityEngine(AuraBaseModule):
                             exc=e,
                         )
                     except Exception as _exc:
+                        record_degradation('capability_engine', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     self.logger.warning("🚫 CapabilityEngine: Executive check failed for '%s': %s", skill_name, e)
                     return {
@@ -1636,6 +1648,7 @@ class CapabilityEngine(AuraBaseModule):
                             },
                         )
                     except Exception as _exc:
+                        record_degradation('capability_engine', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     return {
                         "ok": False,
@@ -1643,6 +1656,7 @@ class CapabilityEngine(AuraBaseModule):
                         "status": "blocked_by_self_preservation",
                     }
             except Exception as e:
+                record_degradation('capability_engine', e)
                 self.logger.debug("CapabilityEngine: metabolic self-preservation check skipped: %s", e)
 
             # 2. EDI Autonomy & Security Check (Phase 23.4)
@@ -1671,6 +1685,7 @@ class CapabilityEngine(AuraBaseModule):
                     )
                     return result if isinstance(result, dict) else {"ok": True, "result": result}
                 except Exception as e:
+                    record_degradation('capability_engine', e)
                     self.logger.error("Sandbox execution failed for %s: %s", skill_name, e)
                     return {"ok": False, "error": f"Sandbox failed: {e}"}
 
@@ -1738,6 +1753,7 @@ class CapabilityEngine(AuraBaseModule):
                     )
                 
             except Exception as e:
+                record_degradation('capability_engine', e)
                 self.logger.error("❌ Skill '%s' unwrapped failure: %s", skill_name, e)
                 result = {"ok": False, "error": str(e), "_exception": True}
             
@@ -1782,6 +1798,7 @@ class CapabilityEngine(AuraBaseModule):
                         error=result.get("error") if not result.get("ok") else None
                     )
                 except Exception as e:
+                    record_degradation('capability_engine', e)
                     self.logger.warning("ORM logging failed: %s", e)
             
             # 5. Mycelium Reinforcement (Sentient Feedback Loop)
@@ -1795,6 +1812,7 @@ class CapabilityEngine(AuraBaseModule):
             except AttributeError as e:
                 self.logger.debug("Reinforcement attribute missing: %s", e)
             except Exception as e:
+                record_degradation('capability_engine', e)
                 self.logger.warning("Reinforcement failed: %s", e)
             
             # 6. Outcome Recording (Asynchronous)
@@ -1816,6 +1834,7 @@ class CapabilityEngine(AuraBaseModule):
                         error="" if bool(isinstance(result, dict) and result.get("ok", False)) else str((result or {}).get("error", "")),
                     )
             except Exception as _exc:
+                record_degradation('capability_engine', _exc)
                 self.logger.debug("Suppressed Exception: %s", _exc)
 
     def _apply_security(self, skill_name: str, params: Dict[str, Any]) -> Union[Dict[str, Any], Dict[str, str]]:
@@ -1898,6 +1917,7 @@ class CapabilityEngine(AuraBaseModule):
                 if not self._is_transient(last_error): 
                     break
             except Exception as e:
+                record_degradation('capability_engine', e)
                 last_error = str(e)
                 if not self._is_transient(last_error): 
                     break
@@ -1980,6 +2000,7 @@ class CapabilityEngine(AuraBaseModule):
                 success=result.get("ok", False)
             )
         except Exception as e:
+            record_degradation('capability_engine', e)
             self.logger.debug("Temporal record failed: %s", e)
 
     def get_health(self) -> Dict[str, Any]:

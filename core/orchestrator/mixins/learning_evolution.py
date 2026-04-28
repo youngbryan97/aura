@@ -1,6 +1,7 @@
 """Learning & Evolution Mixin for RobustOrchestrator.
 Extracts knowledge extraction, self-update, meta-evolution, and self-modification logic.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -55,6 +56,7 @@ class LearningEvolutionMixin:
                     self.knowledge_graph = PersistentKnowledgeGraph(db_path)
                     kg = self.knowledge_graph
                 except Exception as e:
+                    record_degradation('learning_evolution', e)
                     logger.debug("Knowledge graph unavailable: %s", e)
                     return
 
@@ -132,6 +134,7 @@ class LearningEvolutionMixin:
                                     )
                                     logger.info("📚 Learned: %s", (item.get('content') or "")[:80])
                 except Exception as e:
+                    record_degradation('learning_evolution', e)
                     logger.debug("Knowledge extraction failed: %s", e)
 
             # 3. Track user identity/name mentions
@@ -160,6 +163,7 @@ class LearningEvolutionMixin:
                             break  # Max 1 question per exchange
 
         except Exception as e:
+            record_degradation('learning_evolution', e)
             logger.debug("Learning from exchange failed: %s", e)
 
         # 4. Long-Term Memory (Phase 29)
@@ -175,6 +179,7 @@ class LearningEvolutionMixin:
                     memory_engine.store(f"User: {user_message} → Aura: {aura_response}", valence=valence, importance=0.7)
                 )
         except Exception as e:
+            record_degradation('learning_evolution', e)
             logger.debug("Phase 29 Long-Term Memory storage failed: %s", e)
 
     async def _run_self_update(self):
@@ -184,6 +189,7 @@ class LearningEvolutionMixin:
             from core.tasks import celery_app
             celery_app.send_task("core.tasks.run_self_update")
         except Exception as e:
+            record_degradation('learning_evolution', e)
             logger.error("Self-update trigger failed: %s", e)
 
     async def _run_meta_evolution(self):
@@ -212,6 +218,7 @@ class LearningEvolutionMixin:
             else:
                 logger.debug("Meta-Evolution engine not available in container.")
         except Exception as e:
+            record_degradation('learning_evolution', e)
             logger.error("Meta-Evolution cycle failed: %s", e)
 
     # ── PEER MODE EXTENSIONS ──────────────────────────────
@@ -244,6 +251,7 @@ class LearningEvolutionMixin:
                         logger.info("🎯 Peer Mode: New autonomous goal persisted: %s", goal_text[:50])
 
         except Exception as e:
+            record_degradation('learning_evolution', e)
             logger.error("Failed peer goal genesis: %s", e)
 
     async def _safe_self_modification_loop(self):
@@ -256,6 +264,7 @@ class LearningEvolutionMixin:
                     await asyncio.sleep(3600)
                     continue
             except Exception as exc:
+                record_degradation('learning_evolution', exc)
                 logger.debug("Self-modification runtime-mode check skipped: %s", exc)
 
             # : Safety Lock — No patches while processing.
@@ -276,6 +285,7 @@ class LearningEvolutionMixin:
                     await asyncio.sleep(3600)
                     continue
             except Exception as exec_err:
+                record_degradation('learning_evolution', exec_err)
                 logger.debug("Self-modification cycle authority gate unavailable: %s", exec_err)
 
             try:
@@ -295,6 +305,7 @@ class LearningEvolutionMixin:
                                     logger.info("🛠️ Peer Mode: Sovereign self-modification applied safely.")
 
             except Exception as e:
+                record_degradation('learning_evolution', e)
                 logger.warning("Sovereign self-mod loop pulse error (non-fatal): %s", e)
 
             await asyncio.sleep(3600) # Check every hour

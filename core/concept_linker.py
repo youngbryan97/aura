@@ -17,6 +17,7 @@ Contradictory links trigger the BeliefChallenger.
 High-resonance links become InsightJournal candidates.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -71,6 +72,7 @@ class ConceptLinker:
                 "hooks_into": ["epistemic_tracker", "belief_challenger", "insight_journal"]
             })
         except Exception as _e:
+            record_degradation('concept_linker', _e)
             logger.debug('Ignored Exception in concept_linker.py: %s', _e)
 
         logger.info("✅ ConceptLinker ONLINE — looking for connections.")

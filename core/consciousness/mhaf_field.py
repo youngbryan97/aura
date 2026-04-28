@@ -15,6 +15,7 @@ cognitive modules at a deeper level than the service bus.
 Persistence: state is checkpointed to ~/.aura/data/mhaf_state.json
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
@@ -228,6 +229,7 @@ class MycelialHypergraphAttractorField:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('mhaf_field', e)
                 logger.debug("MHAF loop error: %s", e)
 
     def _sync_from_services(self):
@@ -237,6 +239,7 @@ class MycelialHypergraphAttractorField:
             params = get_circumplex().get_llm_params()
             self.update_node("affect", params.get("arousal", 0.5))
         except Exception as _exc:
+            record_degradation('mhaf_field', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -245,6 +248,7 @@ class MycelialHypergraphAttractorField:
             self.update_node("curiosity", vals.get("Curiosity", 0.5))
             self.update_node("values", vals.get("Empathy", 0.5))
         except Exception as _exc:
+            record_degradation('mhaf_field', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -255,6 +259,7 @@ class MycelialHypergraphAttractorField:
                 stress = snap.get("affects", {}).get("stress", 0.0)
                 self.update_node("soma", 1.0 - stress)
         except Exception as _exc:
+            record_degradation('mhaf_field', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def _compute_global_phi(self):
@@ -320,6 +325,7 @@ class MycelialHypergraphAttractorField:
             with open(_DATA_PATH, "w") as f:
                 json.dump(state, f, indent=2)
         except Exception as e:
+            record_degradation('mhaf_field', e)
             logger.debug("MHAF save error: %s", e)
 
     def _load(self):
@@ -341,6 +347,7 @@ class MycelialHypergraphAttractorField:
                 self._global_phi = state.get("global_phi", 0.0)
                 logger.info("MHAF state restored from disk.")
         except Exception as e:
+            record_degradation('mhaf_field', e)
             logger.debug("MHAF load error: %s", e)
 
 

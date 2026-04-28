@@ -28,6 +28,7 @@ Architecture:
    IntentRouter.classify()            ← SECOND (LLM-based reasoning, slower)
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import ast
 import asyncio
@@ -508,6 +509,7 @@ class MycelialNetwork:
 
             await get_event_bus().publish(signal_type, payload, priority=EventPriority.COGNITIVE)
         except Exception as exc:
+            record_degradation('mycelium', exc)
             logger.debug("🍄 [MYCELIUM] emit bridge publish failed: %s", exc)
         return payload
 
@@ -540,6 +542,7 @@ class MycelialNetwork:
                 if not success:
                     logger.warning("🍄 [MYCELIUM] Neural Root pulse drop: %s", nr.name)
             except Exception as e:
+                record_degradation('mycelium', e)
                 logger.error("🍄 [MYCELIUM] Neural Root pulse failure: %s", e)
 
     def reinforce(self, pathway_id: str, success: bool):
@@ -580,6 +583,7 @@ class MycelialNetwork:
                     pathway_id, qualia_bonus, qualia.q_norm, arousal
                 )
         except Exception as e:
+            record_degradation('mycelium', e)
             capture_and_log(e, {'module': __name__})
 
         # --- RUNTIME PHYSICAL HYPHAE REINFORCEMENT ---
@@ -773,6 +777,7 @@ class MycelialNetwork:
             hypha.log(f"CANCELLED: {activity}")
             raise
         except Exception as e:
+            record_degradation('mycelium', e)
             hypha.pulse(success=False)
             hypha.log(f"STALL/FAILURE: {activity} - {e}")
             logger.error("🍄 [MYCELIUM] Critical Stall in %s (%s). Triggering Override.", hypha.name, e)
@@ -1156,10 +1161,12 @@ class MycelialNetwork:
                         await self._critical_cleanup()
                         logger.info("🛡️ Memory Governor shutdown complete. All worker handles leaked/active were purged.")
                 except Exception as e:
+                    record_degradation('mycelium', e)
                     logger.error(f"Error during Memory Governor shutdown: {e}")
                 logger.info("🍄 [MYCELIUM] Pulse check loop shutting down.")
                 break
             except Exception as e:
+                record_degradation('mycelium', e)
                 logger.error("🍄 [MYCELIUM] Pulse check error: %s", e, exc_info=True)
                 await asyncio.sleep(10)  # Backoff on error
 
@@ -1246,6 +1253,7 @@ class MycelialNetwork:
                                    ("hyphae", json.dumps(hypha_data), time.time()))
                     conn.commit()
             except Exception as e:
+                record_degradation('mycelium', e)
                 logger.error("🛡️ AEGIS: Vault Sync Worker Failed! %s", e)
                 raise
         
@@ -1253,6 +1261,7 @@ class MycelialNetwork:
             await run_io_bound(_sync_worker)
             logger.debug("🛡️ AEGIS: Vault Sync Complete.")
         except Exception as e:
+            record_degradation('mycelium', e)
             logger.error("🛡️ AEGIS: Vault Sync Failed! %s", e)
 
     @classmethod
@@ -1318,6 +1327,7 @@ class MycelialNetwork:
                     logger.critical("🛡️ AEGIS: Restoration Successful. Mycelium Unity restored.")
                     return True
             except Exception as e:
+                record_degradation('mycelium', e)
                 logger.critical("🛡️ AEGIS FATAL: Restoration Failed! %s", e)
                 return False
 

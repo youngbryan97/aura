@@ -8,6 +8,7 @@ Enables Aura to:
 4. Select appropriate reasoning strategies
 5. Evaluate her own performance
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import json
 import logging
@@ -168,6 +169,7 @@ Return JSON:
                 }
                 
         except Exception as e:
+            record_degradation('metacognition', e)
             logger.error("Self-evaluation failed: %s", e)
             return {"quality": "acceptable", "confidence": 0.5, "knowledge_state": "learning"}
 
@@ -407,5 +409,6 @@ Output as a technical 'Sovereign Directive'."""
              thought = await self.brain.think(prompt, mode=ThinkingMode.REFLECTIVE)
              return thought.content
         except Exception as e:
-             logger.error("Architectural audit failed: %s", e, exc_info=True)
-             return "Audit failed due to process interruption."
+            record_degradation('metacognition', e)
+            logger.error("Architectural audit failed: %s", e, exc_info=True)
+            return "Audit failed due to process interruption."

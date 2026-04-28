@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -153,6 +154,7 @@ class ComputerUseSkill(BaseSkill):
                 hypha = mycelium.get_hypha("skill", "os")
                 if hypha: hypha.pulse(success=True)
         except Exception as e:
+            record_degradation('computer_use', e)
             capture_and_log(e, {'module': __name__})
 
         try:
@@ -288,6 +290,7 @@ class ComputerUseSkill(BaseSkill):
                 return {"ok": False, "error": f"Unknown action: {action}"}
 
         except Exception as e:
+            record_degradation('computer_use', e)
             runtime_permission_error = self._runtime_permission_payload(str(e))
             if runtime_permission_error:
                 return runtime_permission_error
@@ -299,6 +302,7 @@ class ComputerUseSkill(BaseSkill):
         try:
             return self._read_screen_text_macos()
         except Exception as e:
+            record_degradation('computer_use', e)
             return f"[read_screen_text failed: {e}]"
 
     def read_menu_clock(self) -> str:
@@ -306,6 +310,7 @@ class ComputerUseSkill(BaseSkill):
         try:
             return self._read_menu_clock_macos()
         except Exception as e:
+            record_degradation('computer_use', e)
             return f"[read_menu_clock failed: {e}]"
 
     def _read_screen_text_macos(self) -> str:

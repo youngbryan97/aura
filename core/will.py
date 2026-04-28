@@ -27,6 +27,8 @@ Design principles:
     6. IDENTITY-ROOTED: CanonicalSelf feeds every decision
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import logging
@@ -191,6 +193,7 @@ class UnifiedWill:
                 if values and isinstance(values, (list, tuple)):
                     self._core_values = [str(v) for v in values[:10]]
         except Exception as e:
+            record_degradation('will', e)
             logger.debug("Will: identity refresh failed (degraded): %s", e)
 
     # ------------------------------------------------------------------
@@ -386,6 +389,7 @@ class UnifiedWill:
             return IdentityAlignment.ALIGNED
 
         except Exception as e:
+            record_degradation('will', e)
             logger.debug("Will: identity check failed (degraded): %s", e)
             return IdentityAlignment.ALIGNED
 
@@ -408,6 +412,7 @@ class UnifiedWill:
                 return float(affect.valence)
             return 0.0
         except Exception as e:
+            record_degradation('will', e)
             logger.debug("Will: affect read failed (degraded): %s", e)
             return 0.0
 
@@ -453,6 +458,7 @@ class UnifiedWill:
                 verdict.receipt_id,
             )
         except Exception as e:
+            record_degradation('will', e)
             logger.debug("Will: substrate consultation failed (degraded): %s", e)
             return 0.6, 0.0, ""
 
@@ -489,6 +495,7 @@ class UnifiedWill:
 
             return constraints
         except Exception as e:
+            record_degradation('will', e)
             logger.debug("Will: scar check failed (degraded): %s", e)
             return []
 
@@ -508,6 +515,7 @@ class UnifiedWill:
                 else:
                     relevance = max(relevance, 0.3)  # memory exists but no relevance API
         except Exception as e:
+            record_degradation('will', e)
             logger.debug("Will: memory check failed (degraded): %s", e)
 
         try:
@@ -515,6 +523,7 @@ class UnifiedWill:
             if chronicle is not None and hasattr(chronicle, "relevance_score"):
                 relevance = max(relevance, min(1.0, float(chronicle.relevance_score(content[:200]))))
         except Exception as e:
+            record_degradation('will', e)
             logger.debug("Will: identity chronicle relevance failed (degraded): %s", e)
 
         return relevance
@@ -555,6 +564,7 @@ class UnifiedWill:
                     self._state.identity_coherence = min(0.9,
                         self._state.identity_coherence + 0.02)
         except Exception as e:
+            record_degradation('will', e)
             logger.debug("Will: phenomenological modulation failed: %s", e)
 
     def _apply_world_state_modulation(self, domain: ActionDomain,
@@ -589,6 +599,7 @@ class UnifiedWill:
                     self._state.assertiveness = max(0.3,
                         self._state.assertiveness - 0.1)
         except Exception as e:
+            record_degradation('will', e)
             logger.debug("Will: world state modulation failed: %s", e)
 
     # ------------------------------------------------------------------

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import time
 import os
@@ -122,6 +123,7 @@ class SubsystemAudit:
                     }
                     logger.warning("🚨 [ESC] Homeostatic collapse detected in SubsystemAudit (Vitality: %.2f)", vitality)
         except Exception as e:
+            record_degradation('subsystem_audit', e)
             logger.debug("Affective escalation check failed: %s", e)
 
         return {"all_ok": all_ok, "subsystems": report, "checked_at": now}

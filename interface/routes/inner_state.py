@@ -14,6 +14,8 @@ This endpoint is how you prove to yourself and anyone watching
 that the system is doing what you think it's doing.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import time
@@ -50,6 +52,7 @@ async def get_inner_state() -> JSONResponse:
             "recent_refusals": will.get_recent_refusals(n=3),
         }
     except Exception as e:
+        record_degradation('inner_state', e)
         result["will"] = {"error": str(e)}
 
     # 2. Canonical Self — identity, condition, values
@@ -69,6 +72,7 @@ async def get_inner_state() -> JSONResponse:
         else:
             result["self"] = {"status": "not_booted"}
     except Exception as e:
+        record_degradation('inner_state', e)
         result["self"] = {"error": str(e)}
 
     # 3. Drive levels
@@ -89,6 +93,7 @@ async def get_inner_state() -> JSONResponse:
         else:
             result["drives"] = {"status": "not_booted"}
     except Exception as e:
+        record_degradation('inner_state', e)
         result["drives"] = {"error": str(e)}
 
     # 4. World State
@@ -99,6 +104,7 @@ async def get_inner_state() -> JSONResponse:
         result["world"]["context_summary"] = ws.get_context_summary()
         result["world"]["salient_events"] = ws.get_salient_events(limit=5)
     except Exception as e:
+        record_degradation('inner_state', e)
         result["world"] = {"error": str(e)}
 
     # 5. Initiative Synthesizer
@@ -108,6 +114,7 @@ async def get_inner_state() -> JSONResponse:
         result["synthesis"] = synth.get_status()
         result["synthesis"]["recent"] = synth.get_recent_syntheses(n=3)
     except Exception as e:
+        record_degradation('inner_state', e)
         result["synthesis"] = {"error": str(e)}
 
     # 6. Initiative Arbiter — last selection
@@ -128,6 +135,7 @@ async def get_inner_state() -> JSONResponse:
         else:
             result["last_initiative"] = {"status": "not_booted"}
     except Exception as e:
+        record_degradation('inner_state', e)
         result["last_initiative"] = {"error": str(e)}
 
     # 7. Substrate coherence
@@ -150,6 +158,7 @@ async def get_inner_state() -> JSONResponse:
         elif phi and hasattr(phi, "current_phi"):
             result["coherence"]["phi"] = round(phi.current_phi, 6)
     except Exception as e:
+        record_degradation('inner_state', e)
         result["coherence"] = {"error": str(e)}
 
     # 8. Active goals
@@ -169,6 +178,7 @@ async def get_inner_state() -> JSONResponse:
         else:
             result["goals"] = []
     except Exception as e:
+        record_degradation('inner_state', e)
         result["goals"] = {"error": str(e)}
 
     # 9. LLM tier health
@@ -190,6 +200,7 @@ async def get_inner_state() -> JSONResponse:
         else:
             result["llm_tiers"] = {"status": "not_booted"}
     except Exception as e:
+        record_degradation('inner_state', e)
         result["llm_tiers"] = {"error": str(e)}
 
     # 10. Continuous cognition loop
@@ -198,6 +209,7 @@ async def get_inner_state() -> JSONResponse:
         ccl = get_continuous_cognition()
         result["cognition_loop"] = ccl.get_status()
     except Exception as e:
+        record_degradation('inner_state', e)
         result["cognition_loop"] = {"error": str(e)}
 
     # 10. Governance enforcement status
@@ -205,6 +217,7 @@ async def get_inner_state() -> JSONResponse:
         from core.governance_context import get_governance_status
         result["governance"] = get_governance_status()
     except Exception as e:
+        record_degradation('inner_state', e)
         result["governance"] = {"error": str(e)}
 
     # 10. Affect state
@@ -224,6 +237,7 @@ async def get_inner_state() -> JSONResponse:
         else:
             result["affect"] = {"status": "not_booted"}
     except Exception as e:
+        record_degradation('inner_state', e)
         result["affect"] = {"error": str(e)}
 
     return JSONResponse(content=result)
@@ -244,4 +258,5 @@ async def verify_will_receipt(receipt_id: str) -> JSONResponse:
             "timestamp": time.time(),
         })
     except Exception as e:
+        record_degradation('inner_state', e)
         return JSONResponse(content={"error": str(e)}, status_code=500)

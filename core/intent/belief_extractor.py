@@ -4,6 +4,7 @@ Extracts structured beliefs from LLM outputs for integration
 into the BeliefSystem.
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import re
@@ -55,6 +56,7 @@ class BeliefExtractor:
                     )
                     extracted_count += 1
                 except Exception as e:
+                    record_degradation('belief_extractor', e)
                     logger.warning("Failed to parse belief match: %s", e)
 
         # 2. Heuristic extraction (optional, can be more complex)

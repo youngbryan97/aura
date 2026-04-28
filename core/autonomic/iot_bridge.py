@@ -3,6 +3,7 @@
 Bridges Aura's internal affective states and physical logic to the real world 
 via local network requests (e.g., Home Assistant, ESP32 MQTT).
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -43,6 +44,7 @@ class PhysicalActuator:
                         return await resp.json()
             return []
         except Exception as e:
+            record_degradation('iot_bridge', e)
             if not self._unreachable:
                 logger.warning(f"IoT Discovery failed (disabling further attempts): {e}")
                 self._unreachable = True
@@ -91,6 +93,7 @@ class PhysicalActuator:
                     else:
                         self._unreachable = False
         except Exception as e:
+            record_degradation('iot_bridge', e)
             if not self._unreachable:
                 logger.warning(f"IoT Bridge Connection Error (disabling further attempts): {e}")
                 self._unreachable = True

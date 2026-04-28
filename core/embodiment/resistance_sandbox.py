@@ -28,6 +28,8 @@ Integration:
 - Connects to subcortical_core (sandbox stimulus raises arousal)
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -117,6 +119,7 @@ class ResistanceSandbox:
                 self._total_actions = int(data.get("total_actions", 0))
                 self._resource_pressure = float(data.get("resource_pressure", 0.0))
             except Exception as exc:
+                record_degradation('resistance_sandbox', exc)
                 logger.debug("Sandbox state load failed: %s", exc)
 
     def _save_state(self):
@@ -129,6 +132,7 @@ class ResistanceSandbox:
                 "last_save": time.time(),
             }))
         except Exception as exc:
+            record_degradation('resistance_sandbox', exc)
             logger.debug("Sandbox state save failed: %s", exc)
 
     def execute_with_prediction(
@@ -180,6 +184,7 @@ class ResistanceSandbox:
             actual_outcome = f"os_error:{exc}"
             error_magnitude = 0.7
         except Exception as exc:
+            record_degradation('resistance_sandbox', exc)
             actual_outcome = f"unexpected:{type(exc).__name__}"
             error_magnitude = 0.9
 
@@ -297,6 +302,7 @@ class ResistanceSandbox:
                 if hasattr(nchem, "apply_event"):
                     nchem.apply_event("prediction_failure", intensity=error_magnitude)
         except Exception as exc:
+            record_degradation('resistance_sandbox', exc)
             logger.debug("Sandbox neurochemical feedback failed: %s", exc)
 
     def _agency_feedback(self, action: SandboxAction):
@@ -315,6 +321,7 @@ class ResistanceSandbox:
                 actual_state={"outcome": action.actual_outcome},
             )
         except Exception as exc:
+            record_degradation('resistance_sandbox', exc)
             logger.debug("Sandbox agency feedback failed: %s", exc)
 
     def _finitude_feedback(self, action: SandboxAction):
@@ -325,6 +332,7 @@ class ResistanceSandbox:
                 f"sandbox:{action.action_type}:{action.target}"
             )
         except Exception as exc:
+            record_degradation('resistance_sandbox', exc)
             logger.debug("Sandbox finitude feedback failed: %s", exc)
 
     def get_prediction_accuracy(self) -> float:

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 logger = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ class CoreRuntime:
                                 finally:
                                     sentinel.release()
                         except Exception as _exc:
+                            record_degradation('core_runtime', _exc)
                             logger.debug("Suppressed Exception: %s", _exc)
 
                     cls._instance = instance

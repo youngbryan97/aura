@@ -21,6 +21,7 @@ Integrates:
   5. UAL (Unlimited Associative Learning Profile)
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 from collections import deque
@@ -146,6 +147,7 @@ class QualiaSynthesizer:
             # Tension = density of active hyphae normalized
             tension = min(1.0, len(myc.hyphae) / 100.0)
         except Exception as _e:
+            record_degradation('qualia_synthesizer', _e)
             logger.debug('Ignored Exception in qualia_synthesizer.py: %s', _e)
 
         # 2. Construct Qualia Vector
@@ -193,6 +195,7 @@ class QualiaSynthesizer:
                 if descriptor.phenomenal_richness > 0:
                     self.pri = 0.6 * self.pri + 0.4 * descriptor.phenomenal_richness
         except Exception as e:
+            record_degradation('qualia_synthesizer', e)
             logger.debug("QualiaEngine enrichment skipped: %s", e)
 
         # 5.7 Structural Qualia Topology (Loorits 2014)
@@ -442,6 +445,7 @@ class QualiaSynthesizer:
                         trend=self._trend,
                     )
             except Exception as e:
+                record_degradation('qualia_synthesizer', e)
                 logger.debug("Qualia→Affect bridge failed: %s", e)
 
         # 2. EventBus: Emit qualia snapshot for HUD visualization
@@ -451,6 +455,7 @@ class QualiaSynthesizer:
                 bus = get_event_bus()
                 bus.publish_threadsafe("qualia_update", self.get_snapshot())
             except Exception as e:
+                record_degradation('qualia_synthesizer', e)
                 logger.debug("Qualia→EventBus bridge failed: %s", e)
 
     # ------------------------------------------------------------------
@@ -668,6 +673,7 @@ class QualiaSynthesizer:
             from core.consciousness.illusionism_layer import get_illusionism_layer
             report = get_illusionism_layer().annotate_report(report)
         except Exception as e:
+            record_degradation('qualia_synthesizer', e)
             logger.debug("Illusionism annotation skipped: %s", e)
 
         return report

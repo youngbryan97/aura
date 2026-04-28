@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import os
 import logging
 import asyncio
@@ -60,6 +61,7 @@ class ResourceArbitrator:
             fd = os.open(self._lock_path, os.O_CREAT | os.O_RDWR, 0o666)
             return fd
         except Exception as e:
+            record_degradation('resource_arbitrator', e)
             logger.error(f"Failed to open VRAM lock file: {e}")
             return None
 
@@ -169,6 +171,7 @@ class ResourceArbitrator:
             return True
             
         except Exception as e:
+            record_degradation('resource_arbitrator', e)
             logger.error(f"Error acquiring VRAM lock: {e}")
             os.close(fd)
             return False
@@ -183,6 +186,7 @@ class ResourceArbitrator:
                 self._evolution_active = False
                 logger.info("🧬 EVOLUTION token released.")
             except Exception as e:
+                record_degradation('resource_arbitrator', e)
                 logger.error(f"Error releasing VRAM lock: {e}")
 
     def is_inference_busy(self) -> bool:

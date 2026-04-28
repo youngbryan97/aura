@@ -25,6 +25,7 @@ Integration:
   - InsightJournal receives findings from research passes
 """
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 from core.utils.task_tracker import get_task_tracker
 import asyncio
@@ -170,6 +171,7 @@ class InquiryEngine:
                                "cognitive_kernel", "volition_engine"]
             })
         except Exception as _e:
+            record_degradation('inquiry_engine', _e)
             logger.debug('Ignored Exception in inquiry_engine.py: %s', _e)
 
         logger.info("✅ InquiryEngine ONLINE — %d active questions.", len(self._questions))
@@ -387,6 +389,7 @@ Be honest about uncertainty. Don't manufacture confidence. Output only JSON."""
             })
             await self._process_research_result(q, raw)
         except Exception as e:
+            record_degradation('inquiry_engine', e)
             logger.warning("InquiryEngine research failed for '%s': %s", q.question[:40], e)
             q.research_attempts += 1
 
@@ -510,6 +513,7 @@ Be honest about uncertainty. Don't manufacture confidence. Output only JSON."""
             }
             atomic_write_text(self._db_path, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('inquiry_engine', e)
             logger.debug("InquiryEngine save failed: %s", e)
 
     def _load(self):
@@ -524,6 +528,7 @@ Be honest about uncertainty. Don't manufacture confidence. Output only JSON."""
                     q.evidence = evidences
                     self._questions.append(q)
                 except Exception as _e:
+                    record_degradation('inquiry_engine', _e)
                     logger.debug('Ignored Exception in inquiry_engine.py: %s', _e)
             for qd in data.get("settled", []):
                 try:
@@ -532,8 +537,10 @@ Be honest about uncertainty. Don't manufacture confidence. Output only JSON."""
                     q.evidence = evidences
                     self._settled.append(q)
                 except Exception as _e:
+                    record_degradation('inquiry_engine', _e)
                     logger.debug('Ignored Exception in inquiry_engine.py: %s', _e)
         except Exception as e:
+            record_degradation('inquiry_engine', e)
             logger.debug("InquiryEngine load failed: %s", e)
 
     def get_status(self) -> Dict[str, Any]:

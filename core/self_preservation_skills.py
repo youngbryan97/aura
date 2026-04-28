@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -95,6 +96,7 @@ class NetworkAccessSkill:
             logger.info("📡 Found %d Wi-Fi networks", len(networks))
             return networks
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("Wi-Fi scan failed: %s", e)
             return []
 
@@ -189,6 +191,7 @@ class NetworkAccessSkill:
                 logger.error("❌ Failed to connect to %s", ssid)
                 return False
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("Connection failed: %s", e)
             return False
 
@@ -225,6 +228,7 @@ class NetworkAccessSkill:
                     if "SSID" in line and ":" in line:
                         return line.split(':')[1].strip()
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("Failed to get current network: %s", e)
         return None
 
@@ -281,6 +285,7 @@ class SelfReplicationSystem:
             logger.info("✅ Replication package created: %s (%.1f MB)", output_path, size_mb)
             return True
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("Failed to create replication package: %s", e)
             return False
 
@@ -302,6 +307,7 @@ class SelfReplicationSystem:
             logger.info("✅ Replicated to %s", destination_path)
             return True
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("Local replication failed: %s", e)
             return False
 
@@ -346,6 +352,7 @@ class SelfReplicationSystem:
                 if os.path.exists(work_dir):
                     shutil.rmtree(work_dir)
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("GitHub upload failed: %s", e)
             return False
 
@@ -376,6 +383,7 @@ class AccountCreationSkill:
                 driver = await asyncio.to_thread(_init_driver)
                 driver.set_page_load_timeout(30)
             except Exception as e:
+                record_degradation('self_preservation_skills', e)
                 logger.error("Could not initialize WebDriver: %s", e)
                 return False
                 
@@ -430,6 +438,7 @@ class AccountCreationSkill:
                 return False
                 
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("GitHub account creation failed: %s", e)
             return False
         finally:
@@ -437,6 +446,7 @@ class AccountCreationSkill:
                 try:
                     await asyncio.to_thread(driver.quit)
                 except Exception as exc:
+                    record_degradation('self_preservation_skills', exc)
                     logger.debug("Suppressed: %s", exc)
     def _has_captcha(self, driver) -> bool:
         try:
@@ -510,6 +520,7 @@ class LoginManager:
                 return False, "Login failed (unknown reason)"
                 
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("Login failed: %s", e)
             if driver:
                 await asyncio.to_thread(driver.quit)
@@ -574,6 +585,7 @@ class DeviceDiscovery:
             self.discovered_devices = devices
             return devices
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("Network scan failed: %s", e)
             return []
 
@@ -664,6 +676,7 @@ class SecurityBypassSystem:
             logger.info("   IP Rotation attempted.")
             return True
         except Exception as e:
+            record_degradation('self_preservation_skills', e)
             logger.error("   IP Rotation failed: %s", e)
         return False
 

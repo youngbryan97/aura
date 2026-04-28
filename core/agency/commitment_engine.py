@@ -25,6 +25,8 @@ Commitments are distinct from HierarchicalPlanner goals:
   Commitments = promises, often interpersonal, with accountability
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json
@@ -245,6 +247,7 @@ class CommitmentEngine:
             if pp and hasattr(pp, "queue_autonomous_message"):
                 pp.queue_autonomous_message(msg)
         except Exception as _exc:
+            record_degradation('commitment_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         logger.info("CommitmentEngine check-in: %s", msg[:80])
 
@@ -257,6 +260,7 @@ class CommitmentEngine:
                 quality_score=0.8 + (0.2 if not c.is_overdue() else 0.0),
             )
         except Exception as _exc:
+            record_degradation('commitment_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def _on_broken(self, c: Commitment, orchestrator=None):
@@ -265,6 +269,7 @@ class CommitmentEngine:
             from core.terminal_chat import get_terminal_fallback
             get_terminal_fallback().queue_autonomous_message(msg)
         except Exception as _exc:
+            record_degradation('commitment_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         logger.warning("CommitmentEngine BROKEN: %s", c.description[:60])
 
@@ -290,6 +295,7 @@ class CommitmentEngine:
             }
             atomic_write_text(PERSIST_PATH, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('commitment_engine', e)
             logger.debug("CommitmentEngine save failed: %s", e)
 
     def _load(self):
@@ -313,6 +319,7 @@ class CommitmentEngine:
                         notes=d.get("notes", []),
                     )
         except Exception as e:
+            record_degradation('commitment_engine', e)
             logger.debug("CommitmentEngine load failed: %s", e)
 
 

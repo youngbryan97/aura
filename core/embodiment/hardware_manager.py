@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Dict, List, Optional, Any
@@ -29,6 +30,7 @@ class HardwareManager(AuraBaseModule):
                 else:
                     self.logger.warning("Failed to connect to hardware: %s", device.device_name)
             except Exception as e:
+                record_degradation('hardware_manager', e)
                 self.logger.error("Exception connecting %s: %s", device.device_name, e)
 
     async def stop(self) -> None:

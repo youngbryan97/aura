@@ -5,6 +5,8 @@ This module rebuilds an index from the canonical memory write log so a
 corrupt/missing index can always be recovered.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import logging
@@ -36,6 +38,7 @@ def rebuild_vector_index(*, source: Optional[Path] = None) -> Dict[str, Any]:
             # so the contract is testable without a vector backend.
             rebuilt += 1
         except Exception as exc:
+            record_degradation('vector_index', exc)
             failed.append({"path": str(jf), "error": repr(exc)})
     return {
         "command": "rebuild-index",

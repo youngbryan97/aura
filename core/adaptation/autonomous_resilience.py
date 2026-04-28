@@ -12,6 +12,8 @@ The goal is to make her dramatically better at surfacing risk honestly,
 preempting common failures, and turning repair proposals into validated action.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import ast
@@ -130,6 +132,7 @@ class StaticFaultAuditor:
             try:
                 findings.extend(self.audit_file(path))
             except Exception as exc:
+                record_degradation('autonomous_resilience', exc)
                 logger.debug("Static fault audit skipped for %s: %s", path, exc)
             if len(findings) >= limit:
                 break
@@ -364,6 +367,7 @@ class IntegrationAuditor:
         try:
             from core.cognitive.autopoiesis import RepairStrategy
         except Exception as exc:
+            record_degradation('autonomous_resilience', exc)
             return {
                 "health_probes_added": [],
                 "repair_handlers_added": [],
@@ -389,6 +393,7 @@ class IntegrationAuditor:
                         autopoiesis.register_component(name, probe)
                         health_added.append(name)
                     except Exception as exc:
+                        record_degradation('autonomous_resilience', exc)
                         logger.debug("Auto-wire health probe skipped for %s: %s", name, exc)
 
             for strategy_name, handler in self._repair_handlers_for(instance).items():
@@ -403,6 +408,7 @@ class IntegrationAuditor:
                     self._auto_wired_repairs.add(key)
                     repair_added.append(f"{name}:{strategy.value}")
                 except Exception as exc:
+                    record_degradation('autonomous_resilience', exc)
                     logger.debug("Auto-wire repair handler skipped for %s/%s: %s", name, strategy_name, exc)
 
         return {
@@ -561,6 +567,7 @@ class RuntimeWatchdogAuditor:
                 lock_watchdog = get_lock_watchdog()
             return dict(lock_watchdog.get_snapshot())
         except Exception as exc:
+            record_degradation('autonomous_resilience', exc)
             return {
                 "active_count": 0,
                 "locks": [],
@@ -575,6 +582,7 @@ class RuntimeWatchdogAuditor:
             tracker = get_task_tracker()
             stats = dict(tracker.get_stats())
         except Exception as exc:
+            record_degradation('autonomous_resilience', exc)
             return {
                 "active": 0,
                 "high_water": 0,
@@ -743,6 +751,7 @@ class VerifierGuidedRepairPipeline:
                 diagnosis,
             )
         except Exception as exc:
+            record_degradation('autonomous_resilience', exc)
             logger.debug("Repair pipeline generation failed for %s:%s: %s", file_path, line_number, exc)
             return {
                 "attempted": True,
@@ -783,6 +792,7 @@ class VerifierGuidedRepairPipeline:
             try:
                 applied = bool(await modifier.apply_fix(proposal, force=True, test_results=test_results))
             except Exception as exc:
+                record_degradation('autonomous_resilience', exc)
                 apply_error = str(exc)
 
         status = "applied" if applied else "validated_unapplied"

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import os
 import logging
 import asyncio
@@ -14,6 +15,7 @@ def dispatch_user_input(message: str):
         # Force local execution so the orchestrator actually receives the message
         process_user_input(message)
     except Exception as e:
+        record_degradation('__init__', e)
         logger.error("Dispatch failed: %s.", e)
 
 # Configuration for Celery is now managed in core.tasks.celery_app
@@ -39,6 +41,7 @@ def process_user_input(message: str):
         logger.debug("EventBus publication successful.")
         return {"status": "dispatched"}
     except Exception as e:
+        record_degradation('__init__', e)
         logger.error("EventBus publication failed: %s", e)
         return {"status": "error", "message": str(e)}
 
@@ -57,6 +60,7 @@ def run_rl_training():
         )
         return {"status": "success", "stdout": result.stdout}
     except Exception as e:
+        record_degradation('__init__', e)
         logger.error("RL training failed: %s", e)
         return {"status": "error", "message": str(e)}
 
@@ -75,6 +79,7 @@ def run_self_update():
         )
         return {"status": "success", "stdout": result.stdout}
     except Exception as e:
+        record_degradation('__init__', e)
         logger.error("Self-update failed: %s", e)
         return {"status": "error", "message": str(e)}
 
@@ -96,6 +101,7 @@ def execute_skill_task(skill_name: str, params: dict):
         import asyncio
         return asyncio.run(_run_skill())
     except Exception as e:
+        record_degradation('__init__', e)
         logger.error("❌ Background execution failed for '%s': %s", skill_name, e)
         return {"ok": False, "error": str(e)}
 
@@ -117,4 +123,5 @@ def run_mutation_tests(target_file: str):
             "stderr": result.stderr
         }
     except Exception as e:
+        record_degradation('__init__', e)
         return {"success": False, "error": str(e)}

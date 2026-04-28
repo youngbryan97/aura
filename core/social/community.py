@@ -25,6 +25,8 @@ The default `LocalLogTransport` writes to a JSONL file so the layer is
 testable without any external API.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -144,6 +146,7 @@ class CommunityLayer:
                 return {"ok": False, "error": "will_refused"}
             will_receipt_id = getattr(wd, "receipt_id", None)
         except Exception as exc:
+            record_degradation('community', exc)
             self._record({"event": "will_exception", "error": str(exc)})
             return {"ok": False, "error": "will_exception"}
 
@@ -176,6 +179,7 @@ class CommunityLayer:
             self._record({"event": "sent", "message": asdict(msg), "result": res})
             return {"ok": True, "message_id": msg.message_id, "result": res}
         except Exception as exc:
+            record_degradation('community', exc)
             store.revoke(tok.token, reason=f"send_failed:{exc}")
             self._record({"event": "send_failed", "error": str(exc)})
             return {"ok": False, "error": str(exc)}
@@ -197,6 +201,7 @@ class CommunityLayer:
                     pass
                 return msg
             except Exception as exc:
+                record_degradation('community', exc)
                 logger.debug("community receive failed (%s): %s", tname, exc)
         return None
 

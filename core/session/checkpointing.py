@@ -12,6 +12,7 @@ Features:
   - Rotational cleanup (keep last 10 checkpoints)
 """
 
+from core.runtime.errors import record_degradation
 import glob
 import json
 import logging
@@ -105,6 +106,7 @@ class CheckpointService:
 
             return filepath
         except Exception as e:
+            record_degradation('checkpointing', e)
             logger.error("Checkpoint save failed: %s", e)
             return ""
 
@@ -117,6 +119,7 @@ class CheckpointService:
                 os.remove(old_file)
                 logger.debug("Removed old checkpoint: %s", os.path.basename(old_file))
             except Exception as e:
+                record_degradation('checkpointing', e)
                 logger.warning("Failed to remove old checkpoint: %s", e)
 
     # ── Restore ──────────────────────────────────────────────────────────
@@ -174,6 +177,7 @@ class CheckpointService:
             return checkpoint
 
         except Exception as e:
+            record_degradation('checkpointing', e)
             logger.error("Checkpoint restore failed for %s: %s", filepath, e)
             return None
 

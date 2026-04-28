@@ -100,6 +100,7 @@ Integration:
 ════════════════════════════════════════════════════════════════════════════════
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -448,6 +449,7 @@ class SteeringVectorLibrary:
                     logger.debug("📂 Loaded cached vector: %s (norm=%.3f)", key, np.linalg.norm(data["v"]))
                     continue
                 except Exception as e:
+                    record_degradation('affective_steering', e)
                     logger.warning("Failed to load cached vector %s: %s", key, e)
 
             # Derive from model
@@ -477,6 +479,7 @@ class SteeringVectorLibrary:
                 derived += 1
                 logger.info("✅ Derived: %s (norm=%.3f)", key, np.linalg.norm(vec))
             except Exception as e:
+                record_degradation('affective_steering', e)
                 logger.error("❌ Failed to derive vector %s: %s", key, e)
                 # Evidence-mode: random fallback vectors are NOT credited as
                 # live steering. In normal mode we still install one so the
@@ -571,6 +574,7 @@ class SteeringVectorLibrary:
                 _ = model(input_tensor)
                 mx.eval(_)  # Force evaluation (MLX is lazy)
             except Exception as inner_e:
+                record_degradation('affective_steering', inner_e)
                 logger.debug("Capture failed for prompt: %s", inner_e)
             finally:
                 # 4. Restore Original Class
@@ -750,6 +754,7 @@ class AffectiveSteeringHook:
                 return mx.astype(mx.array(mask_np), h.dtype)
             self._last_mask_mode = "single_token"
         except Exception as exc:
+            record_degradation('affective_steering', exc)
             self._last_mask_mode = f"mask_unavailable:{type(exc).__name__}"
         return None
 
@@ -808,6 +813,7 @@ class AffectiveSteeringHook:
                 return h
 
             except Exception as e:
+                record_degradation('affective_steering', e)
                 logger.debug("Steering injection failed at layer %d: %s", hook._layer_idx, e)
                 return result
 
@@ -894,6 +900,7 @@ class SubstrateSyncThread:
                         for hook in self._hooks:
                             hook.update_substrate(x)
                     except Exception as e:
+                        record_degradation('affective_steering', e)
                         logger.debug("Shared memory read failed: %s", e)
                 else:
                     # Local mode: ServiceContainer lookup
@@ -902,6 +909,7 @@ class SubstrateSyncThread:
                             from core.container import ServiceContainer
                             substrate = ServiceContainer.get("conscious_substrate", default=None)
                         except Exception as _e:
+                            record_degradation('affective_steering', _e)
                             logger.debug('Ignored Exception in affective_steering.py: %s', _e)
 
                     if substrate is not None:
@@ -937,6 +945,7 @@ class SubstrateSyncThread:
                                 pass
 
             except Exception as e:
+                record_degradation('affective_steering', e)
                 logger.debug("SubstrateSyncThread error: %s", e)
 
             time.sleep(SUBSTRATE_SYNC_INTERVAL_S)
@@ -1158,6 +1167,7 @@ class AffectiveSteeringEngine:
             logger.warning("Geometry discovery reached fallback for d_model.")
             return n_layers, d_model or 4096  # Reasonable guess if discovery fails
         except Exception as e:
+            record_degradation('affective_steering', e)
             logger.error("Error discovering model geometry: %s", e)
             return 0, 0
 
@@ -1270,6 +1280,7 @@ def attach_steering_to_mlx_client():
                 try:
                     attach_steering_to_mlx_client()
                 except Exception as e:
+                    record_degradation('affective_steering', e)
                     logger.warning("Affective steering failed to attach: %s", e)
                 # ================
     
@@ -1301,6 +1312,7 @@ def attach_steering_to_mlx_client():
         logger.info("✅ Affective steering attached to MLX client")
 
     except Exception as e:
+        record_degradation('affective_steering', e)
         logger.error("attach_steering_to_mlx_client failed: %s", e)
 
 
@@ -1378,6 +1390,7 @@ class SteeringCalibrator:
                         "top_tokens": top_tokens,
                     })
                 except Exception as e:
+                    record_degradation('affective_steering', e)
                     alpha_results.append({"prompt": prompt, "error": str(e)})
 
             results[f"alpha_{alpha}"] = alpha_results

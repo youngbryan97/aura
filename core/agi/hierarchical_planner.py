@@ -18,6 +18,8 @@ This is what separates an assistant from an agent:
   An agent pursues what it has committed to.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -175,6 +177,7 @@ class HierarchicalPlanner:
                         f"[Goal check-in] {goal.to_brief()}"
                     )
                 except Exception as _exc:
+                    record_degradation('hierarchical_planner', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
         # Auto-decompose active strategic goals with no children
@@ -235,6 +238,7 @@ class HierarchicalPlanner:
                         goal.title[:40], len(created))
             return created
         except Exception as e:
+            record_degradation('hierarchical_planner', e)
             logger.debug("Goal decomposition failed: %s", e)
             return []
 
@@ -267,6 +271,7 @@ class HierarchicalPlanner:
                 quality_score=min(1.0, 0.7 + goal.progress * 0.3),
             )
         except Exception as _exc:
+            record_degradation('hierarchical_planner', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         logger.info("HierarchicalPlanner: COMPLETED '%s'", goal.title[:60])
 
@@ -286,6 +291,7 @@ class HierarchicalPlanner:
             }
             atomic_write_text(PERSIST_PATH, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('hierarchical_planner', e)
             logger.debug("HierarchicalPlanner save failed: %s", e)
 
     def _load(self):
@@ -307,6 +313,7 @@ class HierarchicalPlanner:
                         child_ids=d.get("child_ids", []),
                     )
         except Exception as e:
+            record_degradation('hierarchical_planner', e)
             logger.debug("HierarchicalPlanner load failed: %s", e)
 
 

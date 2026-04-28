@@ -21,6 +21,7 @@ ZENITH Protocol compliance:
   - All container interactions are read-only during the hot path.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import re
@@ -406,6 +407,7 @@ class IntentClassifierQueue:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('intent_gate', e)
                 if future is not None and not future.done():
                     future.set_result(RouteResult(kind=RouteKind.PASSTHROUGH))
                 logger.error("IntentClassifierQueue worker error: %s", e, exc_info=True)
@@ -462,6 +464,7 @@ class IntentClassifierQueue:
                         latency_ms=(time.monotonic() - t0) * 1000,
                     )
         except Exception as e:
+            record_degradation('intent_gate', e)
             logger.debug("LLM intent classification failed: %s", e)
 
         return RouteResult(kind=RouteKind.PASSTHROUGH)
@@ -593,6 +596,7 @@ def register_intent_gate() -> IntentGate:
                 return f"✓ Volition Level set to {level}"
             return "❌ Kernel not found in container."
         except Exception as e:
+            record_degradation('intent_gate', e)
             return f"❌ Volition error: {e}"
 
     gate.admin.register(

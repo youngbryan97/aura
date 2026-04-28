@@ -20,6 +20,8 @@ Based on:
 Register in ServiceContainer as "conversation_intelligence".
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import re
@@ -870,5 +872,6 @@ def get_conversation_intelligence() -> ConversationIntelligenceEngine:
                 )
                 logger.info("ConversationIntelligenceEngine registered in ServiceContainer")
         except Exception as e:
+            record_degradation('conversation_intelligence', e)
             logger.debug("Could not register in ServiceContainer: %s", e)
     return _engine_instance

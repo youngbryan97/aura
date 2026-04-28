@@ -3,6 +3,7 @@ Implements the persistent conversation loop for Aura.
 
 v5.2: Added exponential backoff with circuit breaker for fault tolerance.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -116,6 +117,7 @@ async def conversation_loop(orchestrator: RobustOrchestrator | None = None):
             await asyncio.sleep(min(backoff, MAX_BACKOFF_SECONDS))
             backoff *= 2
         except Exception as e:
+            record_degradation('main', e)
             consecutive_failures += 1
             logger.error("Unexpected error in conversation loop: %s", e, exc_info=True)
             await asyncio.sleep(min(backoff, MAX_BACKOFF_SECONDS))

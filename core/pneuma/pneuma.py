@@ -18,6 +18,7 @@ Public API (used by InferenceGate):
     pneuma.get_llm_temperature()    → precision-weighted temperature
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -95,6 +96,7 @@ class PNEUMA:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('pneuma', e)
                 logger.debug("PNEUMA loop error: %s", e)
 
     # ── Public API ────────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import ast
 import logging
 import os
@@ -147,6 +148,7 @@ class CodeVerifier:
             logger.warning("Verification timed out after %ss — possible infinite loop", timeout)
             return False
         except Exception as e:
+            record_degradation('code_verifier', e)
             logger.error("Verifier internal error: %s", e)
             return False
         finally:

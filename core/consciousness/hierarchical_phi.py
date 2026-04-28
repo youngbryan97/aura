@@ -41,6 +41,8 @@ ClosedCausalLoop which calls ``record_mesh_snapshot(mesh_field)`` every
 prediction tick.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import logging
@@ -695,6 +697,7 @@ class HierarchicalPhi:
                     if r is not None:
                         results.append(r)
                 except Exception as exc:
+                    record_degradation('hierarchical_phi', exc)
                     logger.debug("HierarchicalPhi subsystem job failed: %s", exc)
 
             primary_32 = next((r for r in results if r.name == "primary_32"), None)

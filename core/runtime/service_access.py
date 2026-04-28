@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from typing import Any
 
@@ -27,6 +29,7 @@ def require_service(*names: Any) -> Any:
         try:
             service = ServiceContainer.require(name)
         except Exception as exc:
+            record_degradation('service_access', exc)
             last_error = exc
             continue
         if service is not None:

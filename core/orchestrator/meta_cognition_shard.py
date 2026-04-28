@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -46,6 +47,7 @@ class MetaCognitionShard:
                 or ""
             )
         except Exception as exc:
+            record_degradation('meta_cognition_shard', exc)
             logger.debug("Meta-Cognition background gate skipped: %s", exc)
             return ""
 
@@ -59,6 +61,7 @@ class MetaCognitionShard:
                     continue
                 await self.perform_audit()
             except Exception as e:
+                record_degradation('meta_cognition_shard', e)
                 logger.error(f"Meta-Cognition audit loop failed: {e}")
                 await asyncio.sleep(10)
 
@@ -75,6 +78,7 @@ class MetaCognitionShard:
             
             logger.info("🧠 Meta-Evolution cycle completed successfully (v35).")
         except Exception as e:
+            record_degradation('meta_cognition_shard', e)
             logger.error(f"Meta-Evolution failed: {e}")
 
     async def _validate_stability(self) -> bool:
@@ -136,6 +140,7 @@ class MetaCognitionShard:
                 logger.warning("🧠 DETECTED TRIVIAL REPETITION LOOP (N=1)")
                 return True
         except Exception as e:
+            record_degradation('meta_cognition_shard', e)
             logger.debug(f"Repetition detection error: {e}")
         return False
 
@@ -150,6 +155,7 @@ class MetaCognitionShard:
                         logger.warning(f"🧠 DETECTED LATENCY SPIKE / STALL (Delta: {delta:.2f}s)")
                         return True
         except Exception as e:
+            record_degradation('meta_cognition_shard', e)
             logger.warning("Latency check failed: %s", e)
         return False
 
@@ -163,6 +169,7 @@ class MetaCognitionShard:
                     logger.warning(f"🧠 DETECTED AFFECTIVE COLLAPSE (Volatility: {volatility:.2f})")
                     return True
         except Exception as e:
+            record_degradation('meta_cognition_shard', e)
             logger.warning("Affective audit failed: %s", e)
         return False
 
@@ -177,4 +184,5 @@ class MetaCognitionShard:
             else:
                 logger.debug(f"Correction logged (orchestrator missing add_correction_shard): {hint}")
         except Exception as e:
+            record_degradation('meta_cognition_shard', e)
             logger.error(f"Failed to push correction: {e}")

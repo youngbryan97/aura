@@ -9,6 +9,7 @@ Assembles the prompt context by prioritizing:
 All within a configurable token budget to avoid exceeding
 the model's context window.
 """
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -95,6 +96,7 @@ class ContextManager:
                         memory_block = candidate
                         remaining -= len(memory_block)
             except Exception as exc:
+                record_degradation('context_manager', exc)
                 logger.debug("Memory retrieval failed: %s", exc)
 
         if memory_block:

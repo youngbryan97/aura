@@ -3,6 +3,7 @@
 Refactored into a modular provider system for Digital Metabolism.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 from .container import ServiceContainer, ServiceLifetime, get_container
 from .config import config
@@ -258,6 +259,7 @@ def _finalize_wiring(container):
                 mycelial.establish_neural_root("llm", hardware_id=hardware_id)
             
     except Exception as e:
+        record_degradation('service_registration', e)
         logger.debug("Wiring deferred: %s", e)
 
 def inject_services_into_context(context: dict) -> dict:

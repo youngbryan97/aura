@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -41,6 +42,7 @@ class HealingSwarmService:
                 await asyncio.sleep(45) # Lower frequency than MetaCognition
                 await self.reconcile_subsystems()
             except Exception as e:
+                record_degradation('healing_swarm', e)
                 logger.error(f"Healing Swarm monitor loop failed: {e}")
                 await asyncio.sleep(10)
 

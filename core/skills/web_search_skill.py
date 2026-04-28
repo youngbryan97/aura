@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from typing import Any, Dict
 
 from pydantic import BaseModel, Field
@@ -24,6 +25,7 @@ class WebSearchSkill(EnhancedWebSearchSkill):
             try:
                 params = SearchInput(**params)
             except Exception as e:
+                record_degradation('web_search_skill', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         if isinstance(params, SearchInput):

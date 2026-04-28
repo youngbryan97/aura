@@ -6,6 +6,8 @@ issue, and also relate abstract topics back to lived stakes, daily life,
 identity, and institutional structure.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import json
@@ -215,6 +217,7 @@ class SocialImagination:
                     if isinstance(frame, dict)
                 ]
         except Exception as exc:
+            record_degradation('social_imagination', exc)
             logger.warning("SocialImagination load failed: %s", exc)
 
     def save(self) -> None:
@@ -230,6 +233,7 @@ class SocialImagination:
                 json.dump(payload, handle, indent=2)
             os.replace(tmp, self._storage_path)
         except Exception as exc:
+            record_degradation('social_imagination', exc)
             logger.error("SocialImagination save failed: %s", exc)
 
     def analyze_text(self, text: str) -> Optional[SocialImaginationFrame]:
@@ -411,5 +415,6 @@ def get_social_imagination() -> SocialImagination:
             if not ServiceContainer.has("social_imagination"):
                 ServiceContainer.register_instance("social_imagination", _instance, required=False)
         except Exception as exc:
+            record_degradation('social_imagination', exc)
             logger.debug("SocialImagination container registration skipped: %s", exc)
     return _instance

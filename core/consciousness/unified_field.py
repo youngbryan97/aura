@@ -43,6 +43,8 @@ The field provides:
   - Back-pressure signals that modulate all input subsystems
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -230,6 +232,7 @@ class UnifiedField:
                 try:
                     await asyncio.to_thread(self._tick)
                 except Exception as e:
+                    record_degradation('unified_field', e)
                     logger.error("UnifiedField tick error: %s", e, exc_info=True)
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
@@ -461,6 +464,7 @@ class UnifiedField:
                 })
             return modes
         except Exception as e:
+            record_degradation('unified_field', e)
             logger.debug("PCA mode extraction failed: %s", e)
             return []
 

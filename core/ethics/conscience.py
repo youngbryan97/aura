@@ -40,6 +40,8 @@ The conscience is not personality. It is the irreversible safety floor
 that lets the rest of the system be expressive without becoming dangerous.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -289,6 +291,7 @@ class Conscience:
                 except Exception:
                     pass
         except Exception as exc:
+            record_degradation('conscience', exc)
             logger.warning("conscience violation log write failed: %s", exc)
 
 

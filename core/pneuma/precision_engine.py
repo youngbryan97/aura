@@ -15,6 +15,7 @@ Where:
     I_ext = external stimulus (derived from heartstone Curiosity + somatic stress)
 """
 
+from core.runtime.errors import record_degradation
 import math
 import logging
 import time
@@ -167,6 +168,7 @@ class PrecisionEngine:
             curiosity = vals.get("Curiosity", 0.5)
             drive += 0.3 * (curiosity - 0.5)
         except Exception as _exc:
+            record_degradation('precision_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         try:
             from core.affect.affective_circumplex import get_circumplex
@@ -174,6 +176,7 @@ class PrecisionEngine:
             arousal = params.get("arousal", 0.5)
             drive += 0.2 * (arousal - 0.5)
         except Exception as _exc:
+            record_degradation('precision_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return max(0.0, min(1.5, drive))
 
@@ -185,6 +188,7 @@ class PrecisionEngine:
                 snap = soma.get_body_snapshot()
                 return snap.get("affects", {}).get("stress", 0.0)
         except Exception as _exc:
+            record_degradation('precision_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return 0.0
 

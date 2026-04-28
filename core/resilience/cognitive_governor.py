@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -44,6 +45,7 @@ class CognitiveGovernor:
                 return {"status": "timeout", "error": "Operation took too long"}
                 
             except Exception as e:
+                record_degradation('cognitive_governor', e)
                 logger.error(f"Task {task_name} failed: {e}")
                 await self._record_failure()
                 return {"status": "failed", "error": str(e)}

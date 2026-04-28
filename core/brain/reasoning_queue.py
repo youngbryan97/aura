@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -65,6 +66,7 @@ class BackgroundReasoningQueue:
             from core.state_registry import get_registry
             get_task_tracker().create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
         except Exception as _e:
+            record_degradation('reasoning_queue', _e)
             logger.debug('Ignored Exception in reasoning_queue.py: %s', _e)
             
         return task_id
@@ -107,6 +109,7 @@ class BackgroundReasoningQueue:
                             task.callback(result)
                             
                 except Exception as e:
+                    record_degradation('reasoning_queue', e)
                     logger.error("✗ [%s] failed: %s", task.description, e)
                     
                 finally:
@@ -116,11 +119,13 @@ class BackgroundReasoningQueue:
                         from core.state_registry import get_registry
                         get_task_tracker().create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
                     except Exception as _e:
+                        record_degradation('reasoning_queue', _e)
                         logger.debug('Ignored Exception in reasoning_queue.py: %s', _e)
                     
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('reasoning_queue', e)
                 logger.error("Queue worker encountered error: %s", e)
                 await asyncio.sleep(1) # Prevent tight loop on persistent errors
     
@@ -146,6 +151,7 @@ class BackgroundReasoningQueue:
             from core.state_registry import get_registry
             get_task_tracker().create_task(get_registry().update(reasoning_queue_size=self._queue.qsize()))
         except Exception as _e:
+            record_degradation('reasoning_queue', _e)
             logger.debug('Ignored Exception in reasoning_queue.py: %s', _e)
             
         return dropped_count

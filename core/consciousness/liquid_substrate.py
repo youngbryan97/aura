@@ -6,6 +6,7 @@ persistence, emotional depth, and temporal continuity.
 Based on Liquid Time-Constant Networks (LTCs) and global workspace theory.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 import asyncio
@@ -118,6 +119,7 @@ class LiquidSubstrate:
                 ChaosConfig(state_dim=self.config.neuron_count)
             )
         except Exception as _chaos_err:
+            record_degradation('liquid_substrate', _chaos_err)
             logger.debug("ChaosEngine not available: %s", _chaos_err)
 
         # Metadata
@@ -142,6 +144,7 @@ class LiquidSubstrate:
             self._load_state()
             self._init_soma()
         except Exception as e:
+            record_degradation('liquid_substrate', e)
             logger.error("Failed to initialize substrate directory: %s", e)
         
     def pulse(self, success: bool = True):
@@ -160,6 +163,7 @@ class LiquidSubstrate:
                 if hypha:
                     hypha.pulse(success=success)
         except Exception as e:
+            record_degradation('liquid_substrate', e)
             logger.debug("Substrate pulse failed: %s", e)
 
     def _init_soma(self):
@@ -269,6 +273,7 @@ class LiquidSubstrate:
                                 em_field=float(_em)
                             )
                         except Exception as e:
+                            record_degradation('liquid_substrate', e)
                             logger.debug("Registry sync failed in substrate: %s", e)
 
                     self.tick_count += 1
@@ -280,6 +285,7 @@ class LiquidSubstrate:
                 except asyncio.CancelledError:
                     raise
                 except Exception as loop_e:
+                    record_degradation('liquid_substrate', loop_e)
                     logger.error("Liquid Substrate loop error: %s", loop_e)
                     await asyncio.sleep(1.0) # Backoff on error
         except asyncio.CancelledError:
@@ -330,6 +336,7 @@ class LiquidSubstrate:
                     chaos_perturbation = self._chaos_engine.tick(dt)
                     new_x_np = np.clip(new_x_np + chaos_perturbation, -1.0, 1.0)
                 except Exception as _ce:
+                    record_degradation('liquid_substrate', _ce)
                     pass  # Fail silently -- chaos is non-critical
 
             # Legacy sync (keep numpy x for downstream consumers)
@@ -401,6 +408,7 @@ class LiquidSubstrate:
             else:
                 self.x[self.idx_energy] = min(1.0, self.x[self.idx_energy] + (0.005 * dt))
         except Exception as e:
+            record_degradation('liquid_substrate', e)
             capture_and_log(e, {'module': __name__})
 
     async def update(self, delta_frustration=0.0, delta_curiosity=0.0, **kwargs):
@@ -434,6 +442,7 @@ class LiquidSubstrate:
                         logger.debug("Substrate update BLOCKED by authority (magnitude=%.3f)", _magnitude)
                         return
         except Exception as _gate_err:
+            record_degradation('liquid_substrate', _gate_err)
             logger.debug("Substrate authority gate failed (allowing update): %s", _gate_err)
 
         with self.sync_lock:
@@ -646,6 +655,7 @@ class LiquidSubstrate:
             else:
                 self._current_phi = 0.0
         except Exception as e:
+            record_degradation('liquid_substrate', e)
             logger.debug("RIIU Φ computation skipped: %s", e)
 
     async def _apply_plasticity(self):
@@ -681,6 +691,7 @@ class LiquidSubstrate:
                             dw = stdp.deliver_reward(surprise, pred_error)
                             self.W = stdp.apply_to_connectivity(self.W, dw)
             except Exception as e:
+                record_degradation('liquid_substrate', e)
                 logger.debug("STDP plasticity step skipped: %s", e)
 
             # 3. Neural Resonance: Slow weight calibration towards high-phi states
@@ -797,10 +808,12 @@ class LiquidSubstrate:
                 os.replace(temp_path, str(self.state_path))
                 logger.info("💾 Substrate state saved (atomic)")
             except Exception as e:
+                record_degradation('liquid_substrate', e)
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
                 raise e
         except Exception as e:
+            record_degradation('liquid_substrate', e)
             logger.error("Failed to save substrate state: %s", e)
 
     def _load_state(self):
@@ -827,6 +840,7 @@ class LiquidSubstrate:
                 self.tick_count = int(data['tick'])
             logger.info("Substrate state restored.")
         except Exception as e:
+            record_degradation('liquid_substrate', e)
             logger.error("Failed to load substrate state: %s", e)
             self.x = np.zeros(self.config.neuron_count)
             self.W = np.random.randn(self.config.neuron_count, self.config.neuron_count) * 0.1
@@ -894,6 +908,7 @@ class LiquidSubstrate:
                 elif idle_seconds >= 180.0:
                     multiplier = max(multiplier, 2.0)
         except Exception as e:
+            record_degradation('liquid_substrate', e)
             logger.debug("Idle throttling check failed: %s", e)
 
         dt *= multiplier

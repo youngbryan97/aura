@@ -4,6 +4,7 @@ Enforces the capabilities manifest at runtime.
 Acts as a gatekeeper for tool calls and file system operations.
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -37,6 +38,7 @@ class CapabilityGuard:
                 logger.warning("No capability manifest found at %s. Using default restricted mode.", self.manifest_path)
                 self.capabilities = self._get_default_capabilities()
         except Exception as e:
+            record_degradation('capability_guard', e)
             logger.error("Failed to load capability manifest: %s", e)
             self.capabilities = self._get_default_capabilities()
 

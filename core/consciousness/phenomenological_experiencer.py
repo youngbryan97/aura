@@ -64,6 +64,7 @@ narrative self-identity, autobiographical memory, and the sense of being
 a persistent subject across time.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
@@ -845,6 +846,7 @@ class PhenomenalSelfModel:
                 
             self._present_description += somatic_desc
         except Exception as _e:
+            record_degradation('phenomenological_experiencer', _e)
             logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
 
     async def run_deep_narrative_update(
@@ -925,6 +927,7 @@ class PhenomenalSelfModel:
         except asyncio.TimeoutError:
             logger.debug("PSM deep update timed out")
         except Exception as e:
+            record_degradation('phenomenological_experiencer', e)
             logger.debug("PSM deep update error: %s", e)
 
         self._last_narrative_update = time.time()
@@ -996,6 +999,7 @@ class PhenomenalSelfModel:
                 else:
                     logger.warning("👁 Witness: LLM returned non-meaty or action-tagged observation. Skipping.")
         except Exception as e:
+            record_degradation('phenomenological_experiencer', e)
             logger.debug("Witness reflection error: %s", e)
         return ""
 
@@ -1179,6 +1183,7 @@ class PhenomenologicalExperiencer:
             try:
                 self._substrate_velocity = self._substrate.compute_cognitive_velocity()
             except Exception as _e:
+                record_degradation('phenomenological_experiencer', _e)
                 logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
 
         # Update drives-based motivation
@@ -1186,6 +1191,7 @@ class PhenomenologicalExperiencer:
             try:
                 self._dominant_motivation = self._drives.get_dominant_motivation()
             except Exception as _e:
+                record_degradation('phenomenological_experiencer', _e)
                 logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
 
         # Fast PSM update (no LLM)
@@ -1235,6 +1241,7 @@ class PhenomenologicalExperiencer:
                         if time.time() - last_interaction < 60: # User active in last 60s
                             is_user_active = True
                 except Exception as _e:
+                    record_degradation('phenomenological_experiencer', _e)
                     logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
 
                 under_memory_pressure = False
@@ -1242,6 +1249,7 @@ class PhenomenologicalExperiencer:
                     import psutil
                     under_memory_pressure = psutil.virtual_memory().percent >= HIGH_MEMORY_PRESSURE_PCT
                 except Exception as _e:
+                    record_degradation('phenomenological_experiencer', _e)
                     logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
 
                 if is_user_active or under_memory_pressure:
@@ -1265,6 +1273,7 @@ class PhenomenologicalExperiencer:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('phenomenological_experiencer', e)
                 logger.debug("Experiencer update loop error: %s", e)
 
             await asyncio.sleep(5.0)  # Check every 5s
@@ -1292,6 +1301,7 @@ class PhenomenologicalExperiencer:
             try:
                 credit_str = self._credit_engine.get_introspection_string()
             except Exception as _e:
+                record_degradation('phenomenological_experiencer', _e)
                 logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
         await self.psm.run_witness_reflection(
             continuity=self.continuity,
@@ -1310,6 +1320,7 @@ class PhenomenologicalExperiencer:
             self._current_arousal  = float(getattr(self._affect_module, "arousal",  0.3))
             self._current_emotion  = self._affect_module._get_dominant_emotion()
         except Exception as _e:
+            record_degradation('phenomenological_experiencer', _e)
             logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
 
     # ── Context String Builder ────────────────────────────────────────────────
@@ -1423,6 +1434,7 @@ class PhenomenologicalExperiencer:
             with open(archive_path, "a") as f:
                 f.write(json.dumps(entry) + "\n")
         except Exception as e:
+            record_degradation('phenomenological_experiencer', e)
             logger.debug("Phenomenal archive write error: %s", e)
 
     def _save_phenomenal_memory(self):
@@ -1459,10 +1471,12 @@ class PhenomenologicalExperiencer:
                 os.replace(temp_path, str(target_path))
                 logger.info("💾 Phenomenal memory saved (atomic)")
             except Exception as e:
+                record_degradation('phenomenological_experiencer', e)
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
                 raise e
         except Exception as e:
+            record_degradation('phenomenological_experiencer', e)
             logger.debug("Phenomenal memory save error: %s", e)
 
     def _load_phenomenal_memory(self):
@@ -1499,6 +1513,7 @@ class PhenomenologicalExperiencer:
                 bool(self.continuity.current_thread)
             )
         except Exception as e:
+            record_degradation('phenomenological_experiencer', e)
             logger.warning("Phenomenal memory load error: %s", e)
 
     def _seed_continuity_from_memory(self, memory: Dict[str, Any]) -> None:

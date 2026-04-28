@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import os
 import re
@@ -153,6 +154,7 @@ class InputSanitizer:
                 
             return str(resolved), True
         except Exception as e:
+            record_degradation('input_sanitizer', e)
             logger.warning("🛡️ Path Resolution Failed: %s (%s)", path, e)
             return "", False
 

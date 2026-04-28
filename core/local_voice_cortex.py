@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -97,6 +98,7 @@ class LocalVoiceCortex:
             self._loop_task = fire_and_track(self.listen_loop(), name="VoiceListenLoop")
             logger.info("✅ Voice Cortex online. Aura is listening locally.")
         except Exception as e:
+            record_degradation('local_voice_cortex', e)
             logger.error(f"Failed to start Voice Cortex: {e}")
 
     async def stop(self):
@@ -136,10 +138,12 @@ class LocalVoiceCortex:
                 # Last resort fallback to system say
                 await asyncio.to_thread(subprocess.run, ["say", "-v", "Samantha", text])
         except Exception as e:
+            record_degradation('local_voice_cortex', e)
             logger.error(f"TTS failed: {e}")
             try:
                 await asyncio.to_thread(subprocess.run, ["say", text])
             except Exception as e2:
+                record_degradation('local_voice_cortex', e2)
                 logger.error(f"Fallback TTS also failed: {e2}")
 
     async def listen_loop(self):
@@ -162,6 +166,7 @@ class LocalVoiceCortex:
                 stream.start_stream()
                 retry_delay = 1.0  # Reset on successful open
             except Exception as e:
+                record_degradation('local_voice_cortex', e)
                 logger.error(f"Could not open audio stream: {e}. Retrying in {retry_delay}s...")
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(60.0, retry_delay * 2)
@@ -203,6 +208,7 @@ class LocalVoiceCortex:
                     except asyncio.TimeoutError:
                         continue
                     except Exception as e:
+                        record_degradation('local_voice_cortex', e)
                         logger.debug(f"Audio read error: {e}")
                         break
 
@@ -253,6 +259,7 @@ class LocalVoiceCortex:
                 try:
                     await transcribe_task
                 except Exception as _exc:
+                    record_degradation('local_voice_cortex', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 raise
             transcript = result.get("text", "").strip()
@@ -269,4 +276,5 @@ class LocalVoiceCortex:
                         await self.speak(response)
                         
         except Exception as e:
+            record_degradation('local_voice_cortex', e)
             logger.error(f"Error processing audio segment: {e}")

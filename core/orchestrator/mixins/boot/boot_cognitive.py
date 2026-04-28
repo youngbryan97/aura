@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
@@ -73,6 +74,7 @@ class BootCognitiveMixin:
             # Unified services are now handled in _async_init_subsystems
             pass
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("Cognitive core wiring failed: %s", e, exc_info=True)
 
     async def _init_meta_learning(self):
@@ -83,6 +85,7 @@ class BootCognitiveMixin:
             self.rsi_lab = register_rsi_lab(self)
             logger.info("🔬 RSI Lab online")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.debug("🔬 RSI Lab skipped: %s", e)
 
     async def _init_concept_bridge(self):
@@ -100,6 +103,7 @@ class BootCognitiveMixin:
 
             logger.info("🛰️  Cryptolalia Decoder online")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.warning("🛰️  Cryptolalia Decoder failed: %s", e)
 
     async def _init_advanced_ontology(self):
@@ -114,6 +118,7 @@ class BootCognitiveMixin:
             self.morphic_forking = register_morphic_forking(self)
             logger.info("🌑 Ontology & Morphic Forking online")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.warning("🌑 Ontology/Forking failed: %s", e)
 
     async def _init_belief_sync_subsystem(self):
@@ -124,6 +129,7 @@ class BootCognitiveMixin:
             self.belief_sync = BeliefSync(self)
             ServiceContainer.register_instance("belief_sync", self.belief_sync)
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("BeliefSync init failed: %s", e)
             ServiceContainer.register_instance("belief_sync", None)
 
@@ -139,6 +145,7 @@ class BootCognitiveMixin:
                 ServiceContainer.register_instance("react_loop", self.react_loop)
             logger.info("✓ ReAct Loop online (Multi-step reasoning)")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("Failed to init ReAct Loop: %s", e)
 
     async def _init_continuous_learner(self):
@@ -158,6 +165,7 @@ class BootCognitiveMixin:
                 )
             logger.info("✓ Continuous Learner online")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("Failed to init Continuous Learner: %s", e)
 
     async def _init_live_learner(self):
@@ -177,6 +185,7 @@ class BootCognitiveMixin:
             ServiceContainer.register_instance("live_learner", ll)
             logger.info("✓ Live Learner online and buffering")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("🛑 Live Learner init failed: %s", e)
 
     async def _initialize_advanced_cognition(self):
@@ -249,6 +258,7 @@ class BootCognitiveMixin:
                             logger.error("   ❌ CIL component not ready: %s", key)
 
             except Exception as e:
+                record_degradation('boot_cognitive', e)
                 logger.error(
                     "Failed to init Advanced Cognition (attempt %d/%d): %s",
                     attempt,
@@ -280,6 +290,7 @@ class BootCognitiveMixin:
                 )
                 logger.info("✓ Meta-Learning Engine active")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.debug("Meta-Learning Engine optional: %s", e)
 
         # World Model & Motivation
@@ -294,6 +305,7 @@ class BootCognitiveMixin:
                 self.aesthetic_critic = AestheticCritic(self.cognitive_engine)
                 logger.info("✓ Mental Simulation & Intrinsic Motivation active")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.debug("Simulation/Motivation modules optional: %s", e)
 
         # Narrative Memory (v11.0 Temporal Narrative)
@@ -305,6 +317,7 @@ class BootCognitiveMixin:
             ServiceContainer.register_instance("narrative_engine", self.narrative_engine)
             logger.info("✓ Narrative Engine initialized")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("Failed to init Narrative Memory: %s", e)
             self.narrative_engine = None
 
@@ -345,6 +358,7 @@ class BootCognitiveMixin:
 
             logger.info("✓ Continuous Learning Engine integrated (v6.2 Unified)")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("Failed to integrate continuous learning: %s", e)
 
         try:
@@ -352,6 +366,7 @@ class BootCognitiveMixin:
 
             integrate_behavior_control(self)
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("Failed to integrate behavior control: %s", e)
 
     async def _init_cognitive_architecture(self):
@@ -416,6 +431,7 @@ class BootCognitiveMixin:
                     await consciousness.start()
                     logger.info("🧠 Consciousness System started in background")
                 except Exception as e:
+                    record_degradation('boot_cognitive', e)
                     logger.error(
                         "🛑 Consciousness System background start failed: %s", e
                     )
@@ -432,6 +448,7 @@ class BootCognitiveMixin:
             logger.info("🌟 Layer 8: Phenomenological Experiencer active")
 
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("Failed to initialize Unified Consciousness/Affect: %s", e)
 
         # 🟢 Additional Cognitive Models
@@ -460,6 +477,7 @@ class BootCognitiveMixin:
             register_prompt_compiler()
             logger.info("✓ PromptCompiler (The Body) registered")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("Failed to register Language/Identity/Compiler services: %s", e)
 
     def _init_strategic_planning(self):
@@ -482,6 +500,7 @@ class BootCognitiveMixin:
             ServiceContainer.register_instance("strategic_planner", planner)
             logger.info("🎯 Strategic Planner & Neural Feed online")
         except Exception as e:
+            record_degradation('boot_cognitive', e)
             logger.error("Failed to initialize Strategic systems: %s", e)
             self.strategic_planner = None
             self.project_store = None

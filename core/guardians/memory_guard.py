@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import psutil
@@ -92,6 +93,7 @@ class MemoryGuard:
                                 logger.info("MemoryGuard: Clearing LLM Router cache")
                                 router.clear_cache()
                         except Exception as e:
+                            record_degradation('memory_guard', e)
                             logger.error("MemoryGuard: Cache purge failed: %s", e)
                     
                     # 4. LoRA Abort
@@ -108,6 +110,7 @@ class MemoryGuard:
                             logger.warning("MemoryGuard: Triggering HIGH PRESSURE mode in LLM Router (%s%%)", mem.percent)
                             router.high_pressure_mode = True
                     except Exception as e:
+                        record_degradation('memory_guard', e)
                         logger.error("MemoryGuard: Setting high pressure mode failed: %s", e)
 
                     if mem.percent > max(adaptive_threshold + 1.5, 84.0):
@@ -117,6 +120,7 @@ class MemoryGuard:
                                 logger.warning("MemoryGuard: Shedding background local-runtime workers to protect Cortex (%s%%)", mem.percent)
                                 await gate._shed_background_workers_for_memory_pressure()
                         except Exception as e:
+                            record_degradation('memory_guard', e)
                             logger.error("MemoryGuard: Background MLX shed failed: %s", e)
 
                 else:
@@ -143,6 +147,7 @@ class MemoryGuard:
                 await asyncio.sleep(sleep_time)
 
             except Exception as e:
+                record_degradation('memory_guard', e)
                 # Focus Area 3 - Catch Exception (not BaseException) to allow CancelledError
                 # to propagate and shut down the task cleanly.
                 if not self._running:

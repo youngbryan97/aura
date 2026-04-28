@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -67,6 +68,7 @@ def _authorize_state_mutation_through_will(content: str, source: str, *, priorit
             )
         return decision
     except Exception as exc:
+        record_degradation('mind_tick', exc)
         logger.warning("MindTick: UnifiedWill unavailable for %s; state mutation blocked: %s", source, exc)
         return None
 
@@ -176,6 +178,7 @@ class MindTick:
                 if str(getattr(snap, "governor_mode", "") or "").upper() == "DEGRADED_CORE_ONLY":
                     return "degraded_core_only"
         except Exception as exc:
+            record_degradation('mind_tick', exc)
             logger.debug("MindTick background flow probe failed: %s", exc)
 
         try:
@@ -183,6 +186,7 @@ class MindTick:
             if router and getattr(router, "high_pressure_mode", False):
                 return "memory_pressure"
         except Exception as exc:
+            record_degradation('mind_tick', exc)
             logger.debug("MindTick router pressure probe failed: %s", exc)
 
         try:
@@ -192,6 +196,7 @@ class MindTick:
                 if reason:
                     return reason
         except Exception as exc:
+            record_degradation('mind_tick', exc)
             logger.debug("MindTick gate pressure probe failed: %s", exc)
 
         objective = str(getattr(getattr(state, "cognition", None), "current_objective", "") or "").strip() if state is not None else ""
@@ -272,6 +277,7 @@ class MindTick:
                     if not _will._started:
                         await _will.start()
                 except Exception as _will_boot:
+                    record_degradation('mind_tick', _will_boot)
                     if self._tick_count <= 1:
                         logger.debug("MindTick: Unified Will boot deferred: %s", _will_boot)
 
@@ -305,6 +311,7 @@ class MindTick:
                         _binding = get_binding_engine()
                         _coherence_report = await asyncio.wait_for(_binding.tick(state), timeout=3.0)
                     except Exception as _be:
+                        record_degradation('mind_tick', _be)
                         logger.debug("MindTick: BindingEngine tick skipped: %s", _be)
                 else:
                     if self._tick_count % 30 == 0:
@@ -346,6 +353,7 @@ class MindTick:
                                     )
                                     break  # Only inject one goal per cycle
                         except Exception as _ge:
+                            record_degradation('mind_tick', _ge)
                             logger.debug("MindTick: goal-driven initiative generation failed: %s", _ge)
 
                 # ── INITIATIVE ARBITRATION: Replace FIFO with scored selection ──
@@ -492,6 +500,7 @@ class MindTick:
                                 )
                                 return current_state
                         except Exception as _kt_err:
+                            record_degradation('mind_tick', _kt_err)
                             logger.warning("💓 MindTick: Kernel tick failed (%s).", _kt_err)
                             record_degraded_event(
                                 "mind_tick",
@@ -548,6 +557,7 @@ class MindTick:
                                 logger.error(f"🛑 MindTick: Phase '{name}' STALLED (timeout). Tripping circuit.")
                                 breaker.record_failure()
                             except Exception as phase_err:
+                                record_degradation('mind_tick', phase_err)
                                 logger.error(f"❌ MindTick: Phase '{name}' failed: {phase_err}")
                                 breaker.record_failure()
                                 
@@ -595,6 +605,7 @@ class MindTick:
                                 source="mind_tick",
                             )
                     except Exception as e:
+                        record_degradation('mind_tick', e)
                         logger.debug(f"MindTick: Objective cleanup failed: {e}")
                     return current_state
 
@@ -620,6 +631,7 @@ class MindTick:
                 except asyncio.TimeoutError:
                     logger.warning("⚠️ MindTick: EventBus publish stalled (timeout). Continuing tick.")
                 except Exception as e:
+                    record_degradation('mind_tick', e)
                     logger.error("⚠️ MindTick: EventBus publish failed: %s", e)
                 
                 # 4. Metacognitive Audit
@@ -670,6 +682,7 @@ class MindTick:
                                 )
                                 logger.info("🌐 CausalWorldModel learned new observation from surprise signal.")
                         except Exception as cwm_e:
+                            record_degradation('mind_tick', cwm_e)
                             logger.error(f"Failed to record causal observation in MindTick: {cwm_e}")
 
                 # 5.5 Goal evaluation — check for goal completion every ~30 ticks
@@ -681,6 +694,7 @@ class MindTick:
                     except asyncio.TimeoutError:
                         logger.debug("MindTick: Goal evaluation timed out.")
                     except Exception as _ge_err:
+                        record_degradation('mind_tick', _ge_err)
                         logger.debug("MindTick: Goal evaluation failed: %s", _ge_err)
 
                 # 5.6 Resource stakes — tick the digital mortality engine
@@ -710,6 +724,7 @@ class MindTick:
                         elif lane_state in {"warming", "recovering", "spawning", "handshaking", "ready"}:
                             local_runtime_state = "warming"
                 except Exception as exc:
+                    record_degradation('mind_tick', exc)
                     logger.debug("MindTick local runtime health probe via gate failed: %s", exc)
                 if local_runtime_state == "offline":
                     from core.brain.llm.mlx_client import get_mlx_client
@@ -767,11 +782,13 @@ class MindTick:
                                             metadata={"autonomous": True, "spontaneous": True},
                                         )
                                     except Exception as _ea_err:
+                                        record_degradation('mind_tick', _ea_err)
                                         logger.debug("MindTick: ExecutiveAuthority emission failed: %s", _ea_err)
                     except StateVersionConflictError:
                         # For MindTick, we can safely ignore conflicts; the next tick will catch up
                         logger.debug("💓 MindTick: Skipping commit due to concurrent update (Atomic Guard).")
                     except Exception as e:
+                        record_degradation('mind_tick', e)
                         logger.error(f"❌ MindTick: Commit failed: {e}")
                         
                 # Subconscious Memory Consolidation ("Dreaming")
@@ -827,6 +844,7 @@ class MindTick:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('mind_tick', e)
                 logger.error("⚠️ MindTick Loop Error: %s", e)
                 try:
                     record_degraded_event(
@@ -842,6 +860,7 @@ class MindTick:
                         exc=e,
                     )
                 except Exception as _exc:
+                    record_degradation('mind_tick', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             finally:
                 # [CRITICAL FIX] ALWAYS increment tick and cycle count, even on failure.
@@ -932,5 +951,6 @@ class MindTick:
 
             breaker.record_success()
         except Exception as e:
+            record_degradation('mind_tick', e)
             logger.error("💉 [IMMUNE] Pulse Audit failed: %s", e)
             if breaker: breaker.record_failure()

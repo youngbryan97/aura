@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any, Dict, List
@@ -59,6 +60,7 @@ class ToolAuditor:
             }
             
         except Exception as e:
+            record_degradation('tool_auditor', e)
             logger.error("Audit failed: %s", e)
             return {
                 "error": str(e), 

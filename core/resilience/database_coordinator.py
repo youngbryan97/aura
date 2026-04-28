@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import sqlite3
@@ -73,6 +74,7 @@ class DatabaseCoordinator:
                     if not future.done():
                         future.set_result(cursor.lastrowid or True)
                 except Exception as e:
+                    record_degradation('database_coordinator', e)
                     logger.error("Database write error on %s: %s", db_path, e)
                     if not future.done():
                         future.set_exception(e)
@@ -82,6 +84,7 @@ class DatabaseCoordinator:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('database_coordinator', e)
                 logger.error("DatabaseCoordinator loop error: %s", e)
                 await asyncio.sleep(1)
 
@@ -105,6 +108,7 @@ class DatabaseCoordinator:
                 conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 logger.info("✓ [DB] WAL checkpoint: %s", path)
             except Exception as e:
+                record_degradation('database_coordinator', e)
                 logger.error("❌ [DB] WAL checkpoint failed for %s: %s", path, e)
 
     def vacuum_all_databases(self):
@@ -115,6 +119,7 @@ class DatabaseCoordinator:
                 conn.execute("VACUUM")
                 logger.info("✓ [DB] Vacuumed: %s", path)
             except Exception as e:
+                record_degradation('database_coordinator', e)
                 logger.error("❌ [DB] Vacuum failed for %s: %s", path, e)
 
 # Global singleton

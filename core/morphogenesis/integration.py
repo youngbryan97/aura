@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 from typing import Any, Dict, Iterable, List, Optional
@@ -49,6 +51,7 @@ async def _service_health_handler(cell, signals, field_state):
                 status = value
                 break
             except Exception as exc:
+                record_degradation('integration', exc)
                 actions.append({"kind": "health_probe_error", "service": service_name, "method": method, "error": f"{type(exc).__name__}: {exc}"})
                 out_signals.append(
                     MorphogenSignal(
@@ -151,6 +154,7 @@ def register_morphogenesis_services(runtime: Optional[MorphogeneticRuntime] = No
             ServiceContainer.register_instance("morphogenetic_runtime", rt)
         logger.info("MorphogeneticRuntime registered in ServiceContainer.")
     except Exception as exc:
+        record_degradation('integration', exc)
         logger.debug("ServiceContainer registration skipped: %s", exc)
 
     return rt
@@ -168,6 +172,7 @@ async def start_morphogenesis_runtime(runtime: Optional[MorphogeneticRuntime] = 
         hook_results = await wire_all_hooks()
         logger.info("Morphogenesis hooks: %s", hook_results)
     except Exception as hook_exc:
+        record_degradation('integration', hook_exc)
         logger.warning("Morphogenesis hook wiring degraded: %s", hook_exc)
 
     return rt

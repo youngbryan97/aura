@@ -3,6 +3,7 @@ core/brain/context_limit.py
 ───────────────────────────
 Implements rolling memory compaction to prevent Context Window Collapse.
 """
+from core.runtime.errors import record_degradation
 import logging
 from typing import List, Dict, Any
 
@@ -72,6 +73,7 @@ async def compact_working_memory(chat_history: List[Dict[str, Any]], max_raw_tur
         return new_history
         
     except Exception as e:
+        record_degradation('context_limit', e)
         logger.error("Memory compaction failed: %s", e)
         # Fallback: Just drop oldest if summarization fails (better than crashing)
         return chat_history[-10:]

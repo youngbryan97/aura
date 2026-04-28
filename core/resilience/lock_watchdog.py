@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
@@ -124,6 +125,7 @@ class LockWatchdog:
             )
             return True
         except Exception as exc:
+            record_degradation('lock_watchdog', exc)
             logger.error("LockWatchdog recovery failed for '%s': %s", tracked.name, exc)
             return False
 
@@ -160,6 +162,7 @@ class LockWatchdog:
                                     },
                                 )
                             except Exception as exc:
+                                record_degradation('lock_watchdog', exc)
                                 logger.debug("LockWatchdog degraded event emit failed: %s", exc)
                         if tracked.on_stall and (
                             tracked.interventions == 0
@@ -170,6 +173,7 @@ class LockWatchdog:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('lock_watchdog', e)
                 logger.error(f"Error in LockWatchdog loop: {e}")
 
 def get_lock_watchdog() -> LockWatchdog:

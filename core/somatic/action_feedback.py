@@ -21,6 +21,8 @@ Design invariants:
   4. Limb health degrades on failure, recovers on success.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import logging
@@ -294,6 +296,7 @@ class FeedbackProcessor:
             elif hasattr(affect, "process_percept"):
                 affect.process_percept(percept)
         except Exception as exc:
+            record_degradation('action_feedback', exc)
             logger.debug("FeedbackProcessor: affect injection failed: %s", exc)
 
     def _request_compensation(self, feedback: ActionFeedback) -> None:
@@ -319,6 +322,7 @@ class FeedbackProcessor:
                     source="feedback_processor",
                 ))
         except Exception as exc:
+            record_degradation('action_feedback', exc)
             logger.debug("FeedbackProcessor: compensation request failed: %s", exc)
 
     def _record_outcome(self, feedback: ActionFeedback) -> None:
@@ -335,6 +339,7 @@ class FeedbackProcessor:
                     metadata=feedback.metadata,
                 )
         except Exception as exc:
+            record_degradation('action_feedback', exc)
             logger.debug("FeedbackProcessor: outcome recording failed: %s", exc)
 
     def _publish_event(self, feedback: ActionFeedback) -> None:

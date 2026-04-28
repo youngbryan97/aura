@@ -9,6 +9,7 @@ ZENITH Protocol compliance:
   - Zero-wait asynchronous ready checks.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import sys
@@ -77,6 +78,7 @@ class ZenithBootloader:
             logger.info("🔒 SYSTEM STABILIZED. RADAR ONLINE.")
             
         except Exception as e:
+            record_degradation('aura_3_boot', e)
             logger.critical("ZENITH BOOT FAILURE: %s", e, exc_info=True)
             raise RuntimeError(f"ZENITH BOOT FAILURE: {e}")
 

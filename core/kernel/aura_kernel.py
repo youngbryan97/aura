@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import inspect
@@ -288,6 +290,7 @@ class AuraKernel:
                 task._aura_supervised = True
                 task._aura_task_tracker = "AuraKernel"
             except Exception as _exc:
+                record_degradation('aura_kernel', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         self._background_tasks.append(task)
         return task
@@ -319,6 +322,7 @@ class AuraKernel:
                 else:
                     logger.debug("⚠️ [ASI] LLM engine not found for SME initialization.")
             except Exception as e:
+                record_degradation('aura_kernel', e)
                 logger.error("❌ [ASI] SME initialization failed: %s", e)
         return self._auto_fix_engine
 
@@ -339,6 +343,7 @@ class AuraKernel:
                 # We assume the governor will be updated to handle this
                 gov.apply_volition_profile(self.volition_level)
             except Exception as e:
+                record_degradation('aura_kernel', e)
                 logger.error("Failed to update SubstrateGovernor with new volition: %s", e)
 
     async def boot(self) -> None:
@@ -353,6 +358,7 @@ class AuraKernel:
 
             await get_runtime_hygiene().start()
         except Exception as hygiene_exc:
+            record_degradation('aura_kernel', hygiene_exc)
             logger.debug("Kernel boot runtime hygiene install skipped: %s", hygiene_exc)
         
         # Initialize Lock Watchdog before anything else
@@ -360,6 +366,7 @@ class AuraKernel:
             from core.resilience.lock_watchdog import get_lock_watchdog
             get_lock_watchdog().start()
         except Exception as e:
+            record_degradation('aura_kernel', e)
             logger.error(f"Failed to start LockWatchdog: {e}")
 
         try:
@@ -417,6 +424,7 @@ class AuraKernel:
                 ))
                 ServiceContainer.register_instance("cognitive_ledger", ledger)
             except Exception as _le:
+                record_degradation('aura_kernel', _le)
                 logger.debug("Ledger boot record failed (non-critical): %s", _le)
             
             # Verify LLM resolution
@@ -426,9 +434,11 @@ class AuraKernel:
                     # We log the class name to confirm if it's IntelligentLLMRouter or MockLLM
                     logger.info("LLM organ instance: %s", llm_organ.instance.__class__.__name__)
             except Exception as e:
+                record_degradation('aura_kernel', e)
                 logger.warning(f"Failed to log LLM instance class: {e}")
 
         except Exception as e:
+            record_degradation('aura_kernel', e)
             logger.critical("🛑 Kernel Boot FATAL ERROR: %s", e)
             raise SystemExit(1) from e
 
@@ -517,6 +527,7 @@ class AuraKernel:
                  pass
             logger.info("🫀 Organ %s is READY", organ.name)
         except Exception as e:
+            record_degradation('aura_kernel', e)
             logger.error("⚠️ Organ %s failed to load: %s", organ.name, e)
 
     def _setup_phases(self):
@@ -605,11 +616,13 @@ class AuraKernel:
                 continuity.load()
                 state = continuity.apply_to_state(state)
             except Exception as continuity_exc:
+                record_degradation('aura_kernel', continuity_exc)
                 logger.debug("Continuity hydration skipped: %s", continuity_exc)
 
             self.state = state
             logger.info("🧬 State successfully initialized (version %d)", self.state.version)
         except Exception as e:
+            record_degradation('aura_kernel', e)
             logger.error("❌ Failed to initialize state: %s", e, exc_info=True)
             raise RuntimeError(f"Kernel state initialization failed: {e}") from e
 
@@ -630,6 +643,7 @@ class AuraKernel:
             await fp.start()
             logger.info("[RUBICON] FeedbackProcessor ONLINE")
         except Exception as exc:
+            record_degradation('aura_kernel', exc)
             logger.warning("[RUBICON] FeedbackProcessor boot failed (degraded): %s", exc)
 
         # 2. Motor Cortex (independent 50ms reflex loop)
@@ -643,6 +657,7 @@ class AuraKernel:
             )
             logger.info("[RUBICON] MotorCortex ONLINE -- 50ms reflex loop active")
         except Exception as exc:
+            record_degradation('aura_kernel', exc)
             logger.warning("[RUBICON] MotorCortex boot failed (degraded): %s", exc)
 
         # 3. Pre-Linguistic Decision Engine
@@ -652,6 +667,7 @@ class AuraKernel:
             await pl.start()
             logger.info("[RUBICON] PreLinguisticEngine ONLINE")
         except Exception as exc:
+            record_degradation('aura_kernel', exc)
             logger.warning("[RUBICON] PreLinguisticEngine boot failed (degraded): %s", exc)
 
     async def _motor_cortex_watchdog(self, mc: Any) -> None:
@@ -663,6 +679,7 @@ class AuraKernel:
                     logger.warning("[RUBICON] Motor cortex loop died -- restarting")
                     mc._task = get_task_tracker().create_task(mc._run_loop(), name="motor_cortex_loop")
             except Exception as exc:
+                record_degradation('aura_kernel', exc)
                 logger.debug("[RUBICON] Motor cortex watchdog error: %s", exc)
 
     async def tick(self, objective: str, priority: bool = False) -> TickEntry | None:
@@ -829,6 +846,7 @@ class AuraKernel:
                         # Let the shielded task finish in the background; do not cancel it.
                         continue
                 except Exception as phase_err:
+                    record_degradation('aura_kernel', phase_err)
                     logger.error("🔥 Phase '%s' raised unexpected error: %s", phase_name, phase_err, exc_info=True)
                     # Don't let a single phase crash the entire tick — skip and continue
                     continue
@@ -869,6 +887,7 @@ class AuraKernel:
                         if isinstance(d, dict) and d.get("outcome") == "rejected"
                     ][-5:]
             except Exception as _cc_err:
+                record_degradation('aura_kernel', _cc_err)
                 logger.debug("Constitutional closure stamp skipped: %s", _cc_err)
             # ────────────────────────────────────────────────────────────────
 
@@ -904,6 +923,7 @@ class AuraKernel:
                     confidence=1.0 - (self.state.free_energy if hasattr(self.state, "free_energy") else 0.0),
                 ))
             except Exception as _ledger_err:
+                record_degradation('aura_kernel', _ledger_err)
                 logger.debug("Ledger tick record failed (non-critical): %s", _ledger_err)
 
             # Visual Update
@@ -922,6 +942,7 @@ class AuraKernel:
                 if self._guardian:
                     self._guardian.record_tick_health(entry)
             except Exception as e:
+                record_degradation('aura_kernel', e)
                 logger.debug(f"StabilityGuardian: Health record skipped: {e}")
             
             # Log the loop summary
@@ -970,6 +991,7 @@ class AuraKernel:
                     outcome=trace_outcome,
                 )
             except Exception as e:
+                record_degradation('aura_kernel', e)
                 logger.debug("Tracer failed: %s", e)
 
             self._finalize_foreground_turn_state(objective=objective, turn_origin=turn_origin)
@@ -1008,6 +1030,7 @@ class AuraKernel:
         except (BrokenPipeError, ConnectionError, OSError) as e:
             logger.warning("Vault commit failed (pipe/connection): %s — state not persisted this tick.", e)
         except Exception as e:
+            record_degradation('aura_kernel', e)
             logger.warning("Vault commit failed: %s — state not persisted this tick.", e)
 
     async def _process_storage_intents(self):
@@ -1042,6 +1065,7 @@ class AuraKernel:
                         await _append_to_file(path, payload)
                         logger.debug("✅ Eternal Vault: Appended state record to %s", path)
             except Exception as e:
+                record_degradation('aura_kernel', e)
                 logger.exception("Failed to process storage intent: %s", e)
 
         # Clear intents after processing
@@ -1083,6 +1107,7 @@ class AuraKernel:
                     # if still full, log and drop
                     logger.debug("Mirror queue still full after purge; dropping snapshot")
         except Exception as e:
+            record_degradation('aura_kernel', e)
             logger.error("Mirror projection failed: %s", e)
 
     async def shutdown(self):
@@ -1113,6 +1138,7 @@ class AuraKernel:
                     await organ.shutdown()
                 logger.info("🫀 Organ %s shut down.", name)
             except Exception as e:
+                record_degradation('aura_kernel', e)
                 logger.error("Error shutting down organ %s: %s", name, e)
 
         logger.info("✅ [KERNEL] Shutdown complete.")
@@ -1160,6 +1186,7 @@ class AuraKernel:
                         self._module_mtimes[mod_name] = mtime
                         reloaded_count += 1
                 except Exception as e:
+                    record_degradation('aura_kernel', e)
                     logger.warning("⚠️ [REBOOT] Could not reload %s: %s", mod_name, e)
 
         # 3. Re-setup phases (In case of code modifications)
@@ -1219,6 +1246,7 @@ class AuraKernel:
                     if mem_status in ("warning", "emergency"):
                         logger.warning("⚠️ ResourceGovernor: memory pressure detected — %s", report)
                 except Exception as e:
+                    record_degradation('aura_kernel', e)
                     logger.debug("ResourceGovernor cycle failed (non-critical): %s", e)
     
     async def stop(self):

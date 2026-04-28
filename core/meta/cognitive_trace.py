@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -40,6 +41,7 @@ class CognitiveTrace:
                 }, f, indent=2)
             logger.info("Cognitive Trace saved: %s", path)
         except Exception as e:
+            record_degradation('cognitive_trace', e)
             logger.error("Failed to save trace: %s", e)
 
 # Global instance for easy access if needed, or initialized per turn

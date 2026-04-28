@@ -45,6 +45,8 @@ INSTALL:
   patch_cognitive_integration()
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -89,6 +91,7 @@ def _extract_history(context: Optional[Dict[str, Any]] = None) -> List[Dict[str,
                         if m.get("content")
                     ]
     except Exception as exc:
+        record_degradation('cognitive_integration_patch', exc)
         logger.debug("CILPatch._extract_history: %s", exc)
 
     return []
@@ -155,6 +158,7 @@ async def _run_inline_inference(
     except asyncio.TimeoutError:
         logger.debug("CILPatch: inline inference timed out")
     except Exception as exc:
+        record_degradation('cognitive_integration_patch', exc)
         logger.debug("CILPatch: inline inference failed — %s", exc)
     return None
 
@@ -179,6 +183,7 @@ def _inject_phenomenal_into_packet(packet: Any) -> None:
             if pcs:
                 fragments.append(f"[Phenomenal state: {pcs[:300]}]")
     except Exception as _e:
+        record_degradation('cognitive_integration_patch', _e)
         logger.debug('Ignored Exception in cognitive_integration_patch.py: %s', _e)
 
     # 2. QualiaSynthesizer context
@@ -190,6 +195,7 @@ def _inject_phenomenal_into_packet(packet: Any) -> None:
             if qctx:
                 fragments.append(f"[Qualia: {qctx[:200]}]")
     except Exception as _e:
+        record_degradation('cognitive_integration_patch', _e)
         logger.debug('Ignored Exception in cognitive_integration_patch.py: %s', _e)
 
     # 3. Identity anchor (compact version — LanguageCenter doesn't need the full block)
@@ -240,6 +246,7 @@ async def _patched_process_turn(
             logger.info("⚡ [REFLEX] Instant response (Thread Isolated).")
             return reflex_response
     except Exception as exc:
+        record_degradation('cognitive_integration_patch', exc)
         logger.debug("CILPatch: reflex path error — %s", exc)
 
     if not self.kernel:
@@ -267,6 +274,7 @@ async def _patched_process_turn(
         # Inference is still running — fire and forget, don't block response
         logger.debug("CILPatch: inference still running — not waiting")
     except Exception as exc:
+        record_degradation('cognitive_integration_patch', exc)
         logger.debug("CILPatch: inference inject error — %s", exc)
 
     # ── Expression ───────────────────────────────────────────────────────────
@@ -294,6 +302,7 @@ async def _patched_process_turn(
         return await self.language_center.express(packet, message, history=history)
 
     except Exception as exc:
+        record_degradation('cognitive_integration_patch', exc)
         logger.exception("CILPatch: expression error — %s", exc)
         return getattr(brief, "to_briefing_text", lambda: "")()
 
@@ -320,6 +329,7 @@ def _inject_modifiers(data: Dict[str, Any]) -> None:
             data.get("momentum", ""),
         )
     except Exception as exc:
+        record_degradation('cognitive_integration_patch', exc)
         logger.debug("CILPatch._inject_modifiers: %s", exc)
 
 

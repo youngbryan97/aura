@@ -31,6 +31,8 @@ Not:
     pathway C acts
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import hashlib
@@ -213,6 +215,7 @@ class InitiativeSynthesizer:
                         urgency=0.6, drive=lowest_drive,
                     )
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: DriveEngine gather failed: %s", e)
 
         # 2. GoalEngine -- resumed/active goals + stalled goal tension tracking
@@ -248,6 +251,7 @@ class InitiativeSynthesizer:
                             status=status_str,
                         )
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: GoalEngine gather failed: %s", e)
 
         # 3. CommitmentEngine -- active promises
@@ -262,6 +266,7 @@ class InitiativeSynthesizer:
                         commitment_id=c.get("id"),
                     )
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: CommitmentEngine gather failed: %s", e)
 
         # 4. WorldState -- environment-triggered impulses
@@ -277,6 +282,7 @@ class InitiativeSynthesizer:
                             drive="curiosity",
                         )
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: WorldState gather failed: %s", e)
 
         # 5. Existing pending_initiatives from state (legacy compatibility)
@@ -292,24 +298,28 @@ class InitiativeSynthesizer:
                             drive=init.get("triggered_by", ""),
                         )
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: pending_initiatives gather failed: %s", e)
 
         # 6. Boredom-driven exploration impulses
         try:
             self._gather_boredom_impulses()
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: boredom gather failed: %s", e)
 
         # 7. Opportunity detection from WorldState
         try:
             self._gather_opportunity_impulses()
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: opportunity gather failed: %s", e)
 
         # 8. Unresolved tension resurfacing
         try:
             self._gather_tension_impulses()
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: tension gather failed: %s", e)
 
     # ------------------------------------------------------------------
@@ -575,6 +585,7 @@ class InitiativeSynthesizer:
             ]
             atomic_write_text(path, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Tension save failed: %s", e)
 
     def _load_tensions(self) -> None:
@@ -602,6 +613,7 @@ class InitiativeSynthesizer:
                     self._unresolved_tensions.append(tension)
             logger.info("Loaded %d persisted unresolved tensions", len(self._unresolved_tensions))
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Tension load failed: %s", e)
 
     # ------------------------------------------------------------------
@@ -657,6 +669,7 @@ class InitiativeSynthesizer:
 
             scored = await arbiter.arbitrate(state)
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.warning("Synth: arbiter failed: %s", e)
             scored = None
         finally:
@@ -684,6 +697,7 @@ class InitiativeSynthesizer:
                         rationale=f"simulator_veto: score={sim_score:.3f}",
                     )
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: simulation failed (degraded): %s", e)
 
         # ── Authorize via UnifiedWill ──
@@ -702,6 +716,7 @@ class InitiativeSynthesizer:
             if not approved:
                 logger.info("Synth: Will refused initiative: %s", decision.reason)
         except Exception as e:
+            record_degradation('initiative_synthesis', e)
             logger.debug("Synth: Will authorization degraded: %s", e)
             approved = True  # fail-open
 

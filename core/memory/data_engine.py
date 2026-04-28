@@ -14,6 +14,8 @@ Changes from previous version:
   - Added type annotations
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import json
@@ -138,6 +140,7 @@ class DataEngine:
                 json.dump(data, fh, indent=2, ensure_ascii=False)
             Path(tmp_path).replace(self.dataset_file)   # atomic on POSIX; near-atomic on Windows
         except Exception as exc:
+            record_degradation('data_engine', exc)
             logger.error("Failed to save hard example: %s", exc)
             try:
                 os.unlink(tmp_path)

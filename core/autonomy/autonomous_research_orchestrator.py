@@ -22,6 +22,8 @@ orchestrators can run in parallel if Bryan wants pipelined throughput.
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import json
@@ -174,6 +176,7 @@ class AutonomousResearchOrchestrator:
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
+                    record_degradation('autonomous_research_orchestrator', e)
                     logger.error("research loop iteration crashed: %s\n%s", e, traceback.format_exc())
                     self._consecutive_failures += 1
 
@@ -311,6 +314,7 @@ class AutonomousResearchOrchestrator:
             result.error = "cancelled"
             raise
         except Exception as e:
+            record_degradation('autonomous_research_orchestrator', e)
             result.error = f"{type(e).__name__}: {e}"
             result.completed_at = time.time()
             logger.error("engagement crashed for %r: %s\n%s",
@@ -370,6 +374,7 @@ class AutonomousResearchOrchestrator:
             try:
                 log.add_entry(entry)
             except Exception as e:
+                record_degradation('autonomous_research_orchestrator', e)
                 logger.warning("progress add_entry failed: %s", e)
         else:
             # Update existing — merge what was already there with new findings
@@ -391,6 +396,7 @@ class AutonomousResearchOrchestrator:
         try:
             log.save()
         except Exception as e:
+            record_degradation('autonomous_research_orchestrator', e)
             logger.warning("progress save failed: %s", e)
 
     # ── Helpers ──────────────────────────────────────────────────────────

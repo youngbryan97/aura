@@ -26,6 +26,8 @@ Safety:
   • Generational history logged for analysis
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -176,6 +178,7 @@ class SubstrateEvolution:
                 try:
                     await self._run_generation()
                 except Exception as e:
+                    record_degradation('substrate_evolution', e)
                     logger.error("Evolution generation error: %s", e, exc_info=True)
         except asyncio.CancelledError:
             pass

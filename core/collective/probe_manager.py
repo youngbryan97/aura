@@ -2,6 +2,7 @@
 Phase 16.4: Ghost Deployment - Resource Monitoring Probes.
 Spawns and manages lightweight monitoring scripts.
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 from core.utils.task_tracker import get_task_tracker
 import asyncio
@@ -83,6 +84,7 @@ except Exception as e:
             logger.info("👻 Ghost Probe '%s' deployed to watch %s.", probe_id, target)
             return True
         except Exception as e:
+            record_degradation('probe_manager', e)
             logger.error("Failed to deploy probe %s: %s", probe_id, e)
             return False
 
@@ -113,6 +115,7 @@ except Exception as e:
             try:
                 os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             except Exception as e:
+                record_degradation('probe_manager', e)
                 logger.debug("Failed to kill probe process group %d: %s", proc.pid, e)
             
             meta = self.probe_metadata.pop(probe_id, {})

@@ -4,6 +4,7 @@ Soma (Body) — Unified Sensory Registry and Proprioception Layer.
 Aggregates hardware metrics, network latency, and sensory imprints 
 into a cohesive self-perception of physical state.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -97,12 +98,14 @@ class Soma:
                             valence=circ_params.get("valence", 0.5),
                         )
                 except Exception as _exc:
+                    record_degradation('soma', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
                 await asyncio.sleep(self.update_interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('soma', e)
                 logger.error(f"Soma loop error: {e}")
                 await asyncio.sleep(10)
 

@@ -8,6 +8,8 @@ page content, extracting structured facts and relationships without
 blocking the user-facing response.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -55,6 +57,7 @@ class KnowledgeFormalizer:
             if mem and hasattr(mem, "knowledge_graph"):
                 return mem.knowledge_graph
         except Exception as exc:
+            record_degradation('formalizer', exc)
             logger.debug("KnowledgeGraph resolution failed: %s", exc)
         return None
 
@@ -193,6 +196,7 @@ class KnowledgeFormalizer:
                     fact_ids.append(node_id)
                     result["facts_committed"] += 1
                 except Exception as exc:
+                    record_degradation('formalizer', exc)
                     logger.debug("Formalizer: fact commit failed: %s", exc)
 
                 # Yield to event loop periodically
@@ -214,6 +218,7 @@ class KnowledgeFormalizer:
                     )
                     entity_ids[entity] = eid
                 except Exception as exc:
+                    record_degradation('formalizer', exc)
                     logger.debug("Formalizer: entity commit failed: %s", exc)
 
             # 4. Link facts to entities they mention
@@ -242,6 +247,7 @@ class KnowledgeFormalizer:
             )
 
         except Exception as exc:
+            record_degradation('formalizer', exc)
             result["error"] = str(exc)
             logger.error("Formalizer error: %s", exc, exc_info=True)
         finally:

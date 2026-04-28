@@ -1,4 +1,5 @@
 """Response Generation Phase for Aura's Cognitive Pipeline."""
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -98,6 +99,7 @@ class ResponseGenerationPhase(BasePhase):
                     _speech_profile.followup_probability,
                 )
             except Exception as _sve_exc:
+                record_degradation('response_generation', _sve_exc)
                 logger.debug("SubstrateVoiceEngine compile skipped: %s", _sve_exc)
 
             is_background = not background_policy.is_user_facing_origin(origin)
@@ -117,6 +119,7 @@ class ResponseGenerationPhase(BasePhase):
                         )
                         return state
                 except Exception as exc:
+                    record_degradation('response_generation', exc)
                     logger.debug("ResponseGeneration background policy check skipped: %s", exc)
 
             # 2. Build structured messages purely from State via ContextAssembler
@@ -290,6 +293,7 @@ class ResponseGenerationPhase(BasePhase):
                                 if not action:
                                     action = data.get("action")
                 except Exception as e:
+                    record_degradation('response_generation', e)
                     logger.debug("Proactive JSON extraction failed (normal for non-JSON): %s", e)
 
             # Mode-specific validation for DELIBERATE reasoning
@@ -367,6 +371,7 @@ class ResponseGenerationPhase(BasePhase):
                     else:
                         cleaned_response = shaped
                 except Exception as _shape_exc:
+                    record_degradation('response_generation', _shape_exc)
                     logger.debug("ResponseShaper failed (using raw): %s", _shape_exc)
 
             # 6c. Skip emission for background tasks if they produced no meaningful content
@@ -438,11 +443,13 @@ class ResponseGenerationPhase(BasePhase):
                     if _shaped_messages:
                         new_state.response_modifiers["queued_messages"] = _shaped_messages
                 except Exception as _fu_exc:
+                    record_degradation('response_generation', _fu_exc)
                     logger.debug("Follow-up decision failed: %s", _fu_exc)
 
             return new_state
             
         except Exception as e:
+            record_degradation('response_generation', e)
             logger.error("❌ ResponseGeneration: LLM call failed: %s", e, exc_info=True)
             return state
 

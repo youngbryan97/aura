@@ -17,6 +17,7 @@ For Aura's response selection:
   - The response with minimum EFE (most aligned, least uncertain) is selected.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import math
 import time
@@ -166,6 +167,7 @@ class FreeEnergyOracle:
             if any(w in t_lower for w in empathy_words):
                 score += 0.1 * vals.get("Empathy", 0.5)
         except Exception as _exc:
+            record_degradation('free_energy_oracle', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return min(1.0, score)
 

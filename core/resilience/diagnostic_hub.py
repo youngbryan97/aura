@@ -2,6 +2,7 @@
 Part of Aura's Neural Neuro-Surgeon (Phase 29).
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import json
 import subprocess
@@ -70,6 +71,7 @@ class DiagnosticHub:
                 return {"ok": False, "issues": json.loads(result.stdout)}
             return {"ok": True, "issues": []}
         except Exception as e:
+            record_degradation('diagnostic_hub', e)
             return {"ok": False, "error": str(e)}
 
     async def _run_pyright(self, target: Path) -> Dict[str, Any]:
@@ -82,6 +84,7 @@ class DiagnosticHub:
                 return {"ok": False, "issues": data.get("generalDiagnostics", [])}
             return {"ok": True, "issues": []}
         except Exception as e:
+            record_degradation('diagnostic_hub', e)
             return {"ok": False, "error": str(e)}
 
 # Global Instance

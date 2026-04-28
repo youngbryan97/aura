@@ -6,6 +6,8 @@ atomic_writer with schema-versioned envelopes and recorded as
 StateMutationReceipts.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -124,6 +126,7 @@ class ConcreteStateGateway(StateGatewayBase):
             if asyncio.iscoroutine(decision):
                 decision = await decision
         except Exception as exc:
+            record_degradation('state_gateway', exc)
             logger.warning(
                 "StateGateway governance call failed; denying mutation (fail-closed): %s",
                 exc,

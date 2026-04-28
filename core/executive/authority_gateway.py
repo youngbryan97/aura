@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 from dataclasses import dataclass, field
@@ -96,6 +98,7 @@ class AuthorityGateway:
                     decision,
                 )
         except Exception as exc:
+            record_degradation('authority_gateway', exc)
             logger.warning("UnifiedWill gate unavailable; failing closed: %s", exc)
             return (
                 AuthorityDecision(
@@ -653,11 +656,13 @@ class AuthorityGateway:
             try:
                 self._get_executive_core().complete_intent(executive_intent_id, success=success)
             except Exception as exc:
+                record_degradation('authority_gateway', exc)
                 logger.debug("Executive intent completion skipped: %s", exc)
         if capability_token_id:
             try:
                 self._capabilities.revoke_token(capability_token_id)
             except Exception as exc:
+                record_degradation('authority_gateway', exc)
                 logger.debug("Capability token revoke skipped: %s", exc)
 
     def _complete_intent_safely(self, intent_id: Optional[str], *, success: bool = True) -> None:
@@ -666,6 +671,7 @@ class AuthorityGateway:
         try:
             self._get_executive_core().complete_intent(intent_id, success=success)
         except Exception as exc:
+            record_degradation('authority_gateway', exc)
             logger.debug("Executive intent completion skipped: %s", exc)
 
     def _get_executive_core(self) -> Any:
@@ -773,6 +779,7 @@ class AuthorityGateway:
             else:
                 authority = optional_service("substrate_authority", default=None)
         except Exception as exc:
+            record_degradation('authority_gateway', exc)
             return (
                 self._contextualize(
                     approved=False,
@@ -799,6 +806,7 @@ class AuthorityGateway:
                 is_critical=is_critical,
             )
         except Exception as exc:
+            record_degradation('authority_gateway', exc)
             if require_substrate:
                 return (
                     self._contextualize(
@@ -855,5 +863,6 @@ def get_authority_gateway() -> AuthorityGateway:
         try:
             ServiceContainer.register_instance("authority_gateway", _instance, required=False)
         except Exception as exc:
+            record_degradation('authority_gateway', exc)
             logger.debug("AuthorityGateway registration skipped: %s", exc)
     return _instance

@@ -20,6 +20,7 @@ Algorithm:
 This gives Aura a private internal vocabulary for recurring state patterns.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -149,6 +150,7 @@ class NeologismEngine:
         try:
             labels = _dbscan_simple(points, eps=0.4, min_samples=_MIN_CLUSTER_SIZE)
         except Exception as e:
+            record_degradation('neologism_engine', e)
             logger.debug("DBSCAN failed: %s", e)
             return None
 
@@ -176,6 +178,7 @@ class NeologismEngine:
                 if min_dist > _ALIEN_DISTANCE_THRESHOLD:
                     alien_centroids.append((centroid, lbl, len(mask)))
         except Exception as e:
+            record_degradation('neologism_engine', e)
             logger.debug("Alien centroid detection failed: %s", e)
             return None
 
@@ -244,6 +247,7 @@ Only reply with the JSON, nothing else."""
                 data["occurrence_count"] = count
                 return data
         except Exception as e:
+            record_degradation('neologism_engine', e)
             logger.debug("Neologism generation failed: %s", e)
         return None
 
@@ -262,6 +266,7 @@ Only reply with the JSON, nothing else."""
             with open(_LEXICON_PATH, "w") as f:
                 json.dump(self._lexicon, f, indent=2)
         except Exception as e:
+            record_degradation('neologism_engine', e)
             logger.debug("Lexicon save error: %s", e)
 
     def _load_lexicon(self):

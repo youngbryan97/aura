@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import uuid
 import logging
@@ -141,6 +142,7 @@ class LocalPipeBus:
         try:
             conn.close()
         except Exception as exc:
+            record_degradation('local_pipe_bus', exc)
             logger.debug("📡 LocalPipeBus: connection close skipped: %s", exc)
 
     def start(self):
@@ -177,6 +179,7 @@ class LocalPipeBus:
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass # Normal during shutdown
             except Exception as e:
+                record_degradation('local_pipe_bus', e)
                 logger.error("📡 LocalPipeBus: Error during stop: %s", e)
         if self._dispatcher_task:
             self._dispatcher_task.cancel()
@@ -186,6 +189,7 @@ class LocalPipeBus:
                 logger.debug("Suppressed bare exception")
                 pass
             except Exception as e:
+                record_degradation('local_pipe_bus', e)
                 logger.error("📡 LocalPipeBus: Dispatcher stop error: %s", e)
         self._cleanup_expired_shm_segments(force=True)
         if self.read_conn is self.write_conn:
@@ -220,6 +224,7 @@ class LocalPipeBus:
             try:
                 shm.close()
             except Exception as e:
+                record_degradation('local_pipe_bus', e)
                 logger.debug("📡 LocalPipeBus: SHM cleanup failed for %s: %s", name, e)
 
     def _retain_outbound_shm(self, shm: SharedMemoryTransport):
@@ -249,10 +254,12 @@ class LocalPipeBus:
             logger.debug("🚀 [SHM] Offloaded payload: %s (%d bytes)", shm_name, len(payload_bytes))
             return {"__shm__": shm_name}
         except Exception as e:
+            record_degradation('local_pipe_bus', e)
             if shm is not None:
                 try:
                     shm.close()
                 except Exception as _exc:
+                    record_degradation('local_pipe_bus', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             logger.warning("⚠️ SHM offload failed, falling back to Pipe: %s", e)
             return payload
@@ -286,6 +293,7 @@ class LocalPipeBus:
                 # We can't poll writing, but we can check if it's explicitly broken if there's a quick way
                 pass
             except Exception as _e:
+                record_degradation('local_pipe_bus', _e)
                 logger.debug('Ignored Exception in local_pipe_bus.py: %s', _e)
 
             msg["payload"] = await self._prepare_payload_for_transport(payload)
@@ -306,6 +314,7 @@ class LocalPipeBus:
             except Exception:
                 pass  # Already closed, expected
         except Exception as e:
+            record_degradation('local_pipe_bus', e)
             if self._is_running:
                 logger.error("❌ Unexpected error in bus send: %s", e)
 
@@ -364,6 +373,7 @@ class LocalPipeBus:
             try:
                 self._safe_close_connection(self.write_conn)
             except Exception as _e:
+                record_degradation('local_pipe_bus', _e)
                 logger.debug("📡 LocalPipeBus: Secondary error during request-failure close: %s", _e)
             raise
 
@@ -389,6 +399,7 @@ class LocalPipeBus:
                     try:
                         self._activity_callback()
                     except Exception as callback_err:
+                        record_degradation('local_pipe_bus', callback_err)
                         logger.debug("LocalPipeBus activity callback failed: %s", callback_err)
                 
                 # SHM De-referencing
@@ -404,6 +415,7 @@ class LocalPipeBus:
                         shm.close()
                         logger.debug("📥 Resolved SHM payload: %s", shm_name)
                     except Exception as e:
+                        record_degradation('local_pipe_bus', e)
                         logger.error("❌ Failed to resolve SHM payload %s: %s", shm_name, e)
                         if msg.get("is_request") and "request_id" in msg:
                             err_resp = {
@@ -456,6 +468,7 @@ class LocalPipeBus:
                 self._cancel_pending_requests(e)
                 break
             except Exception as e:
+                record_degradation('local_pipe_bus', e)
                 logger.exception("❌ Error in Bus read loop: %s", e)
                 await asyncio.sleep(0.1)
 
@@ -474,6 +487,7 @@ class LocalPipeBus:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('local_pipe_bus', e)
                 logger.error("❌ Error in Bus dispatch loop: %s", e)
                 await asyncio.sleep(0.1)
 
@@ -507,6 +521,7 @@ class LocalPipeBus:
                 # ZENITH LOCKDOWN: Dedicated executor
                 await self.loop.run_in_executor(self._get_executor(), self.write_conn.send, raw_resp)
         except Exception as e:
+            record_degradation('local_pipe_bus', e)
             logger.error("❌ Bus handler error (%s): %s", msg.get("type"), e)
             if msg.get("is_request") and "request_id" in msg:
                 err_resp = {

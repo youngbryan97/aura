@@ -4,6 +4,7 @@ Asynchronous Tool Execution Environment.
 Grants Aura the ability to run Python scripts and search the web to resolve 
 knowledge gaps dynamically.
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
@@ -97,6 +98,7 @@ class ToolOrchestrator:
                 self._repl_process = None
                 return False, "Execution Error: Script timed out (Infinite loop or heavy resource)."
             except Exception as e:
+                record_degradation('tool_orchestrator', e)
                 if self._repl_process:
                     try: self._repl_process.kill()
                     except (ProcessLookupError, OSError): pass
@@ -120,6 +122,7 @@ class ToolOrchestrator:
                         return f"SUCCESS: Search results retrieved for: {query}. (Raw data pending parser integration)"
                     return f"FAILED: Search status: {resp.status}"
         except Exception as e:
+            record_degradation('tool_orchestrator', e)
             return f"ERROR: Network failure during search: {str(e)}"
 
     async def sanitize_output(self, data: str) -> str:
@@ -202,6 +205,7 @@ class ToolOrchestrator:
                             current_code = current_code.rsplit("\n", 1)[0]
                         continue
                     except Exception as he:
+                        record_degradation('tool_orchestrator', he)
                         logger.debug("Healing failed: %s", he)
                         break
                 else:

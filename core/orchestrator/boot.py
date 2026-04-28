@@ -1,4 +1,5 @@
 """Orchestrator Boot Mixin"""
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -170,6 +171,7 @@ class OrchestratorBootMixin(
 
             self.executive_authority = get_executive_authority(self)
         except Exception as exc:
+            record_degradation('boot', exc)
             logger.debug("Executive authority bootstrap skipped: %s", exc)
 
         try:
@@ -177,6 +179,7 @@ class OrchestratorBootMixin(
 
             self.constitutional_core = get_constitutional_core(self)
         except Exception as exc:
+            record_degradation('boot', exc)
             logger.debug("Constitutional core bootstrap skipped: %s", exc)
 
         # [PATCH 23] Integrity Guard (File Verification)
@@ -187,6 +190,7 @@ class OrchestratorBootMixin(
             if score < 1.0:
                 logger.warning("🛡️ [BOOT] Integrity score degraded: %.2f", score)
         except Exception as e:
+            record_degradation('boot', e)
             logger.error("🛡️ [BOOT] Integrity check failed: %s", e)
         
         # Initialize internal state markers on wall-clock time so the rest of the
@@ -235,6 +239,7 @@ class OrchestratorBootMixin(
             
             logger.info("✓ [BOOT] All Core Facades (Memory, Agency, Affect) registered during synchronous setup.")
         except Exception as e:
+            record_degradation('boot', e)
             logger.warning("⚠️ [BOOT] Early Facade registration encountered issues: %s", e)
 
         self.agency = AgencyCoordinator(self)
@@ -310,6 +315,7 @@ class OrchestratorBootMixin(
                     ServiceContainer.register_instance("runtime_hygiene", self.runtime_hygiene)
                     logger.info("🧹 Runtime hygiene installed (tasks, threads, processes, memory).")
                 except Exception as hygiene_exc:
+                    record_degradation('boot', hygiene_exc)
                     logger.error("⚠️ Runtime hygiene bootstrap failed: %s", hygiene_exc, exc_info=True)
                 
                 await init_enterprise_layer(self)
@@ -342,6 +348,7 @@ class OrchestratorBootMixin(
                     ServiceContainer.register_instance("inference_gate", self._inference_gate)
                     logger.info("✅ [BOOT] InferenceGate registered and initialized.")
                 except Exception as gate_err:
+                    record_degradation('boot', gate_err)
                     logger.error("⚠️ [BOOT] InferenceGate init failed: %s. Creating cloud-only gate.", gate_err, exc_info=True)
                     # ALWAYS create a gate — cloud fallback is better than Legacy Pipeline
                     from core.brain.inference_gate import InferenceGate
@@ -443,6 +450,7 @@ class OrchestratorBootMixin(
                         )
                         mycelium.establish_consciousness_hyphae()
                     except Exception as e:
+                        record_degradation('boot', e)
                         logger.error("🍄 [MYCELIUM] Mapping failed: %s", e)
 
                 if not lightweight_test_boot:
@@ -522,6 +530,7 @@ class OrchestratorBootMixin(
                     except asyncio.TimeoutError:
                         logger.error("🛑 Cognitive Loop boot TIMEOUT.")
                     except Exception as e:
+                        record_degradation('boot', e)
                         logger.error("❌ Cognitive Loop failed: %s", e)
                     ServiceContainer.register_instance("cognitive_loop", self.cognitive_loop)
                 else:
@@ -538,6 +547,7 @@ class OrchestratorBootMixin(
                         except asyncio.TimeoutError:
                             logger.error("🛑 MindTick boot TIMEOUT.")
                         except Exception as e:
+                            record_degradation('boot', e)
                             logger.error("❌ MindTick failed: %s", e)
                 else:
                     logger.info("💀 Skeletal Mode: MindTick activation skipped.")
@@ -556,6 +566,7 @@ class OrchestratorBootMixin(
                     except asyncio.TimeoutError:
                         logger.error("🛑 Memory Governor TIMEOUT.")
                     except Exception as e:
+                        record_degradation('boot', e)
                         logger.error("❌ Memory Governor failed: %s", e)
                     ServiceContainer.register_instance("memory_governor", gov)
 
@@ -567,6 +578,7 @@ class OrchestratorBootMixin(
                 except (ImportError, ModuleNotFoundError) as e:
                     logger.warning(f"📈 [BOOT] Metrics Exporter skipped: {e}")
                 except Exception as e:
+                    record_degradation('boot', e)
                     logger.error(f"📈 [BOOT] Metrics Exporter failed to start: {e}")
                 
                 # Phase 4 Advanced Features (Unified Meta-Cognition & Resilience Shards)
@@ -578,6 +590,7 @@ class OrchestratorBootMixin(
                     self.meta_cognition = metacog
                     logger.info("🧠 Meta-Cognition Shard initialized and started.")
                 except Exception as e:
+                    record_degradation('boot', e)
                     logger.error(f"🛑 Failed to init Meta-Cognition Shard: {e}")
 
                 try:
@@ -588,6 +601,7 @@ class OrchestratorBootMixin(
                     self.healing_service = healer
                     logger.info("🛡️ Healing Swarm Service initialized and started.")
                 except Exception as e:
+                    record_degradation('boot', e)
                     logger.error(f"🛑 Failed to init Healing Swarm: {e}")
                 
                 self.hotfix_engine = HotfixEngine(self)
@@ -649,6 +663,7 @@ class OrchestratorBootMixin(
                     else:
                         logger.warning("⚠️ UPSO: No state found to commit online.")
                 except Exception as e:
+                    record_degradation('boot', e)
                     logger.error("UPSO: Failed to commit online state: %s", e)
                 
                 # ── Only auto-start voice capture after validation passes ──────────────
@@ -670,6 +685,7 @@ class OrchestratorBootMixin(
                         else:
                             logger.info("🎙️ Voice capture deferred. Mic will start only after explicit enablement.")
                     except Exception as e:
+                        record_degradation('boot', e)
                         logger.warning("🎙️ Voice auto-start skipped: %s", e)
                 
                 # Swarm Protocol start moved to proactive systems (v26.3 Unified)
@@ -679,6 +695,7 @@ class OrchestratorBootMixin(
                     if immune and hasattr(immune, 'post_boot_scan'):
                         await immune.post_boot_scan(self)
                 except Exception as scan_err:
+                    record_degradation('boot', scan_err)
                     logger.warning("Immune post-boot scan failed: %s", scan_err)
 
                 # ── Final Success State ──────────────────────────
@@ -689,6 +706,7 @@ class OrchestratorBootMixin(
                     logger.warning("⚠️ BOOT COMPLETE: System initialized in degraded mode.")
                 
             except Exception as e:
+                record_degradation('boot', e)
                 logger.error("BOOT ENCOUNTERED ISSUES (Recovering...): %s", e, exc_info=True)
                 self.status.add_error(str(e))
                 # IMMORTAL BOOT: We still mark as initialized if core components are likely to run

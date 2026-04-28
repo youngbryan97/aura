@@ -1,6 +1,7 @@
 """Toggle Senses Skill
 Enables or Disables sensory perception services (Vision/Hearing).
 """
+from core.runtime.errors import record_degradation
 import logging
 import os
 import signal
@@ -45,6 +46,7 @@ def _clear_pid(sense_name: str):
     if os.path.exists(path):
         try: os.remove(path)
         except Exception as e:
+            record_degradation('toggle_senses', e)
             from core.errors import SensesError
             raise SensesError(f"Failed to clear PID for {sense_name}: {e}", context={"sensor": sense_name})
 
@@ -94,6 +96,7 @@ class ToggleSensesSkill(BaseSkill):
              try:
                  params = ToggleParams(**params)
              except Exception as e:
+                 record_degradation('toggle_senses', e)
                  return {"ok": False, "error": f"Invalid input: {e}"}
 
         sense = params.sense
@@ -126,6 +129,7 @@ class ToggleSensesSkill(BaseSkill):
                 get_emitter().emit("Senses", f"👁️ {sense.title()} Activated (PID: {pid})", level="success")
                 return {"ok": True, "message": f"{sense} activated.", "pid": pid}
             except Exception as e:
+                record_degradation('toggle_senses', e)
                 logger.error("Failed to start %s: %s", sense, e)
                 return {"ok": False, "error": f"Failed to start {sense}: {e}"}
                 
@@ -139,6 +143,7 @@ class ToggleSensesSkill(BaseSkill):
                     get_emitter().emit("Senses", f"👁️ {sense.title()} Deactivated.", level="warning")
                     return {"ok": True, "message": f"{sense} deactivated (PID {target_pid} stopped)."}
                 except Exception as e:
+                    record_degradation('toggle_senses', e)
                     logger.error("Failed to stop %s (PID %s): %s", sense, target_pid, e)
                     return {"ok": False, "error": f"Failed to stop {sense}: {e}"}
             else:

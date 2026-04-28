@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import hashlib
@@ -78,6 +80,7 @@ class ExecutiveAuthority:
                 if reason:
                     return reason
         except Exception as _exc:
+            record_degradation('executive_authority', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return ""
 
@@ -204,6 +207,7 @@ class ExecutiveAuthority:
                     "status": str(record.get("status", "") or ""),
                 }
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority goal binding skipped: %s", exc)
         return policy
 
@@ -371,6 +375,7 @@ class ExecutiveAuthority:
 
             selected = await get_initiative_arbiter().arbitrate(state)
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority promotion fallback engaged: %s", exc)
 
         initiative = dict(selected.initiative) if selected else dict(pending[0])
@@ -441,6 +446,7 @@ class ExecutiveAuthority:
                         cf_best.simulated_hedonic_gain, 4
                     )
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("Counterfactual deliberation skipped: %s", exc)
         # ── End counterfactual deliberation ───────────────────────────────
 
@@ -466,6 +472,7 @@ class ExecutiveAuthority:
                 action_source=str(initiative.get("source") or source),
             )
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("AgencyComparator efference emission skipped: %s", exc)
         # ── End agency comparator emission ────────────────────────────────
 
@@ -548,6 +555,7 @@ class ExecutiveAuthority:
             if goal_engine and binding_goal_id and hasattr(goal_engine, "get_goal"):
                 bound_goal = await asyncio.to_thread(goal_engine.get_goal, binding_goal_id)
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority objective binding probe failed: %s", exc)
             bound_goal = None
 
@@ -631,6 +639,7 @@ class ExecutiveAuthority:
                     actual_hedonic_change,
                 )
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("Counterfactual outcome recording skipped: %s", exc)
         # ── End counterfactual outcome recording ─────────────────────────
 
@@ -664,6 +673,7 @@ class ExecutiveAuthority:
                 objective[:50], trace.attribution_label, trace.self_caused_fraction,
             )
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("AgencyComparator comparison skipped: %s", exc)
         # ── End agency comparator comparison ─────────────────────────────
 
@@ -679,6 +689,7 @@ class ExecutiveAuthority:
                     summary=str(reason or ""),
                 )
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority goal settlement skipped: %s", exc)
 
         self._record_constitutional_decision(
@@ -928,6 +939,7 @@ class ExecutiveAuthority:
                 outcome,
             )
         except Exception as _exc:
+            record_degradation('executive_authority', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return {
@@ -947,6 +959,7 @@ class ExecutiveAuthority:
                 title = f"Executive Hold · {source}"
             get_emitter().emit(title, content, level="info", category=f"Authority ({reason})")
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority thought-card emit skipped: %s", exc)
 
     def _get_orchestrator(self) -> Any:
@@ -961,6 +974,7 @@ class ExecutiveAuthority:
             if closure and hasattr(closure, "get_status"):
                 return dict(closure.get_status() or {})
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority: closure lookup failed: %s", exc)
         return {}
 
@@ -978,6 +992,7 @@ class ExecutiveAuthority:
                     ctx["valence"] = float(getattr(astate, "valence", 0.0))
                     ctx["curiosity"] = float(getattr(astate, "curiosity", 0.5))
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority: affect lookup failed: %s", exc)
         try:
             hedonic = ServiceContainer.get("hedonic_gradient", default=None)
@@ -988,6 +1003,7 @@ class ExecutiveAuthority:
                 elif hstatus is not None:
                     ctx["hedonic_score"] = float(getattr(hstatus, "hedonic_score", 0.5))
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority: hedonic lookup failed: %s", exc)
         closure = self._get_closure_status()
         if closure:
@@ -1038,6 +1054,7 @@ class ExecutiveAuthority:
                 state=state,
             )
         except Exception as exc:
+            record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority constitutional audit skipped: %s", exc)
 
 
@@ -1051,5 +1068,6 @@ def get_executive_authority(orchestrator: Any = None) -> ExecutiveAuthority:
     try:
         ServiceContainer.register_instance("executive_authority", authority, required=False)
     except Exception as exc:
+        record_degradation('executive_authority', exc)
         logger.debug("ExecutiveAuthority registration skipped: %s", exc)
     return authority

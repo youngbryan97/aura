@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -173,11 +174,13 @@ class AuraEventBus:
             )
             logger.info("AuraEventBus: Redis Pub/Sub connection established.")
         except Exception as e:
+            record_degradation('event_bus', e)
             logger.error("AuraEventBus: Failed to connect to Redis: %s", e)
             if self._redis:
                 try:
                     await self._redis.aclose()
                 except Exception as _exc:
+                    record_degradation('event_bus', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 self._redis = None
             self._use_redis = False
@@ -210,6 +213,7 @@ class AuraEventBus:
         except asyncio.CancelledError as _e:
             logger.debug('Ignored asyncio.CancelledError in event_bus.py: %s', _e)
         except Exception as e:
+            record_degradation('event_bus', e)
             self._last_error = e
             self._error_count += 1
             self.degraded = True
@@ -220,15 +224,18 @@ class AuraEventBus:
             try:
                 await pubsub.punsubscribe("aura/events/*")
             except Exception as _exc:
+                record_degradation('event_bus', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             try:
                 await pubsub.aclose()
             except Exception as _exc:
+                record_degradation('event_bus', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             if not self._use_redis and self._redis:
                 try:
                     await self._redis.aclose()
                 except Exception as _exc:
+                    record_degradation('event_bus', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 self._redis = None
 
@@ -247,12 +254,14 @@ class AuraEventBus:
             except asyncio.CancelledError as _exc:
                 logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
             except Exception as exc:
+                record_degradation('event_bus', exc)
                 logger.debug("AuraEventBus: pubsub shutdown failed: %s", exc)
 
         if self._redis:
             try:
                 await self._redis.aclose()
             except Exception as exc:
+                record_degradation('event_bus', exc)
                 logger.debug("AuraEventBus: redis close failed: %s", exc)
             finally:
                 self._redis = None
@@ -331,6 +340,7 @@ class AuraEventBus:
                 except asyncio.TimeoutError:
                     logger.debug("AuraEventBus: Redis publish STALLED (timeout).")
                 except Exception as e:
+                    record_degradation('event_bus', e)
                     logger.debug("AuraEventBus: Redis publish failed: %s", e)
 
     async def _publish_local(self, topic: str, data: Any, priority: int = EventPriority.COGNITIVE):
@@ -379,6 +389,7 @@ class AuraEventBus:
                     with self._stats_lock:
                         self._delivered_count += 1
             except Exception as e:
+                record_degradation('event_bus', e)
                 with self._stats_lock:
                     self._error_count += 1
                     self._last_error = e
@@ -394,6 +405,7 @@ class AuraEventBus:
             with self._stats_lock:
                 self._dropped_count += 1
         except Exception as e:
+            record_degradation('event_bus', e)
             with self._stats_lock:
                 self._error_count += 1
                 self._last_error = e
@@ -443,6 +455,7 @@ async def reset_event_bus() -> AuraEventBus:
     try:
         await _bus.shutdown()
     except Exception as exc:
+        record_degradation('event_bus', exc)
         logger.debug("EventBus reset shutdown failed: %s", exc)
     _bus = AuraEventBus()
     return _bus

@@ -1,6 +1,7 @@
 """Autonomy Mixin for RobustOrchestrator.
 Extracts autonomous thought, impulse, and agency pulse logic.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import random
@@ -46,6 +47,7 @@ class AutonomyMixin:
             personality_context = personality.get_emotional_context_for_response()
             time_context = personality.get_time_context()
         except Exception as exc:
+            record_degradation('autonomy', exc)
             logger.debug("Autonomous personality context unavailable: %s", exc)
 
         recent_history = (
@@ -96,6 +98,7 @@ class AutonomyMixin:
                 system_prompt=system_prompt,
             )
         except Exception as exc:
+            record_degradation('autonomy', exc)
             logger.error("Autonomous brain reflection failed: %s", exc)
             self._emit_thought_stream("[Cognitive Stall] My background thoughts are hazy...")
             return True
@@ -138,6 +141,7 @@ class AutonomyMixin:
             try:
                 await self.execute_tool(name, args)
             except Exception as exc:
+                record_degradation('autonomy', exc)
                 logger.debug("Autonomous tool '%s' failed: %s", name, exc)
 
         return True
@@ -157,6 +161,7 @@ class AutonomyMixin:
                 logger.debug("Unified Will deferred boredom impulse: %s", _will_decision.reason)
                 return
         except Exception as _will_err:
+            record_degradation('autonomy', _will_err)
             logger.debug("Unified Will boredom gate degraded: %s", _will_err)
         # ─────────────────────────────────────────────────────────────
 
@@ -186,8 +191,10 @@ class AutonomyMixin:
                         if action_list:
                             impulse_text = random.choice(action_list)
                     except Exception as e:
+                        record_degradation('autonomy', e)
                         capture_and_log(e, {'module': __name__})
             except Exception as e:
+                record_degradation('autonomy', e)
                 capture_and_log(e, {'module': __name__})
 
             # Legacy curiosity filter (v10.0 compliance)
@@ -197,6 +204,7 @@ class AutonomyMixin:
                     if curiosity_actions:
                         impulse_text = random.choice(curiosity_actions)
             except Exception as e:
+                record_degradation('autonomy', e)
                 capture_and_log(e, {'module': __name__})
 
             if isinstance(impulse_text, dict):
@@ -252,6 +260,7 @@ class AutonomyMixin:
                 logger.debug("Unified Will deferred agency pulse: %s", _will_decision.reason)
                 return
         except Exception as _will_err:
+            record_degradation('autonomy', _will_err)
             logger.debug("Unified Will agency gate degraded: %s", _will_err)
         # ─────────────────────────────────────────────────────────────
 
@@ -288,6 +297,7 @@ class AutonomyMixin:
                         urgency=max(0.2, min(1.0, float(action.get("priority", 0.5) or 0.5))),
                     )
                 except Exception as exc:
+                    record_degradation('autonomy', exc)
                     record_degraded_event(
                         "orchestrator",
                         "agency_dispatch_gate_failed",
@@ -420,6 +430,7 @@ class AutonomyMixin:
                     )
 
         except Exception as e:
+            record_degradation('autonomy', e)
             logger.warning("Agency pulse error (non-fatal): %s", e)
 
     def _trigger_reflection_impulse(self):
@@ -610,6 +621,7 @@ class AutonomyMixin:
                             else:
                                 emitter.emit("Sleep Complete 🌙", "Maintenance done. Dream drifted — no new insights.", level="info")
                     except Exception as dream_err:
+                        record_degradation('autonomy', dream_err)
                         logger.error("Sleep cycle failed: %s", dream_err)
                         emitter.emit("Sleep Error", str(dream_err)[:100], level="warning")
 
@@ -624,6 +636,7 @@ class AutonomyMixin:
                     self._last_thought_time = time.time()
                     return
             except Exception as e:
+                record_degradation('autonomy', e)
                 logger.debug("Boredom substrate check failed: %s", e)
 
             # 4. Reflective autonomous thought (Priority 3)
@@ -653,6 +666,7 @@ class AutonomyMixin:
                 try:
                     await self.drives.satisfy("thinking", 0.05)
                 except Exception as e:
+                    record_degradation('autonomy', e)
                     capture_and_log(e, {'module': __name__})
 
             emitter.emit(
@@ -663,6 +677,7 @@ class AutonomyMixin:
             )
             self._last_thought_time = time.time()
         except Exception as e:
+            record_degradation('autonomy', e)
             logger.error("Autonomous thought failed: %s", e)
             # Don't crash the loop
 
@@ -712,6 +727,7 @@ class AutonomyMixin:
                 logger.info("\U0001f4da Autonomous insight stored: [%s] %s", thought_type, (response or '')[:80])
 
         except Exception as e:
+            record_degradation('autonomy', e)
             logger.debug("Autonomous insight storage failed: %s", e)
 
     async def handle_impulse(self, impulse: str):
@@ -748,6 +764,7 @@ class AutonomyMixin:
                 )
                 return
         except Exception as exc:
+            record_degradation('autonomy', exc)
             record_degraded_event(
                 "autonomy",
                 "impulse_processing_gate_failed",
@@ -799,6 +816,7 @@ class AutonomyMixin:
                     "source": origin,
                 }
         except Exception as _will_err:
+            record_degradation('autonomy', _will_err)
             logger.debug("Unified Will spontaneous gate degraded: %s", _will_err)
         # ───────────────────────────────────────────────────────────────────
 
@@ -834,6 +852,7 @@ class AutonomyMixin:
                             "source": origin,
                         }
             except Exception as exc:
+                record_degradation('autonomy', exc)
                 logger.warning("emit_spontaneous_message: constitutional preflight failed for %s: %s", origin, exc)
                 try:
                     from core.health.degraded_events import record_degraded_event
@@ -848,6 +867,7 @@ class AutonomyMixin:
                         exc=exc,
                     )
                 except Exception as degraded_exc:
+                    record_degradation('autonomy', degraded_exc)
                     logger.debug("emit_spontaneous_message degraded-event logging failed: %s", degraded_exc)
                 return {
                     "ok": False,
@@ -915,6 +935,7 @@ class AutonomyMixin:
                     logger.debug("emit_spontaneous_message: executive returned unrecognized action=%s, honoring as release", action)
                     return decision
             except Exception as exc:
+                record_degradation('autonomy', exc)
                 logger.warning("emit_spontaneous_message: executive routing failed for %s: %s", origin, exc)
                 try:
                     from core.health.degraded_events import record_degraded_event
@@ -929,6 +950,7 @@ class AutonomyMixin:
                         exc=exc,
                     )
                 except Exception as degraded_exc:
+                    record_degradation('autonomy', degraded_exc)
                     logger.debug("emit_spontaneous_message degraded-event logging failed: %s", degraded_exc)
                 return {
                     "ok": False,

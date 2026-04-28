@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -47,6 +48,7 @@ class DamasioMarkers:
                 
                 logger.info("✓ Damasio weights loaded from .npz")
             except Exception as e:
+                record_degradation('damasio_v2', e)
                 logger.error("Failed to load Damasio weights (falling back to defaults): %s", e)
 
         # Somatic markers (virtual physiology)
@@ -174,6 +176,7 @@ class AffectEngineV2:
                 try:
                     coro.close()
                 except Exception as _exc:
+                    record_degradation('damasio_v2', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             return None
 
@@ -243,6 +246,7 @@ class AffectEngineV2:
                         abs(appraisal.get("v", 0.0)) + abs(appraisal.get("a", 0.0))
                     ) / 2.0 or intensity
                 except Exception as e:
+                    record_degradation('damasio_v2', e)
                     failure_reason = self._classify_appraisal_failure(e)
                     if failure_reason == "lane_unavailable":
                         logger.debug("Affect appraisal skipped because the foreground lane is reserved or unavailable.")
@@ -275,6 +279,7 @@ class AffectEngineV2:
                                 exc=e,
                             )
                         except Exception as degraded_exc:
+                            record_degradation('damasio_v2', degraded_exc)
                             logger.debug("Affect degraded-event logging failed: %s", degraded_exc)
                         self._llm_available = False
                         self._last_llm_failure = time.time()
@@ -311,6 +316,7 @@ class AffectEngineV2:
                 name="affect.iot_broadcast",
             )
         except Exception as e:
+            record_degradation('damasio_v2', e)
             logger.debug("IoT Bridge broadcast failed: %s", e)
 
         return wheel
@@ -325,6 +331,7 @@ class AffectEngineV2:
             try:
                 soma_state = await soma.pulse()
             except Exception as exc:
+                record_degradation('damasio_v2', exc)
                 logger.debug("Soma pulse failed during affect update: %s", exc)
 
         if not await self._lock.acquire_robust(timeout=2.0):
@@ -699,12 +706,14 @@ class AffectEngineV2:
                     if gate._background_local_deferral_reason(origin="affect_engine"):
                         return True
                 except Exception as _exc:
+                    record_degradation('damasio_v2', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             if gate and hasattr(gate, "_should_quiet_background_for_cortex_startup"):
                 try:
                     if gate._should_quiet_background_for_cortex_startup():
                         return True
                 except Exception as _exc:
+                    record_degradation('damasio_v2', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             if not gate or not hasattr(gate, "get_conversation_status"):
                 return False
@@ -713,12 +722,14 @@ class AffectEngineV2:
                     if gate._foreground_user_turn_active():
                         return True
                 except Exception as _exc:
+                    record_degradation('damasio_v2', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             if hasattr(gate, "_foreground_owner_active"):
                 try:
                     if gate._foreground_owner_active():
                         return True
                 except Exception as _exc:
+                    record_degradation('damasio_v2', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             lane = gate.get_conversation_status() or {}
             if bool(lane.get("foreground_owned")):
@@ -836,6 +847,7 @@ class AffectEngineV2:
                     results[key] = float(data[key])
             return results
         except Exception as _exc:
+            record_degradation('damasio_v2', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         import re
@@ -962,4 +974,5 @@ class AffectEngineV2:
                 elif hasattr(bus, "post"):
                     bus.post(event_type, snapshot)
         except Exception as e:
+            record_degradation('damasio_v2', e)
             logger.debug("Failed to broadcast affect event: %s", e)

@@ -34,6 +34,8 @@ Recognition in conversation:
   Anomalous patterns = SUSPICIOUS.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import hashlib
@@ -378,6 +380,7 @@ class UserRecognizer:
                     self._salt = bytes.fromhex(s)
                     logger.info("UserRecognizer: owner passphrase loaded.")
         except Exception as e:
+            record_degradation('user_recognizer', e)
             logger.debug("Credential load failed: %s", e)
 
     def _save_credentials(self, hashed: bytes, salt: bytes):
@@ -390,6 +393,7 @@ class UserRecognizer:
             atomic_write_text(PROFILE_PATH, json.dumps(data, indent=2))
             logger.info("UserRecognizer: credentials saved to creator profile.")
         except Exception as e:
+            record_degradation('user_recognizer', e)
             logger.error("Credential save failed: %s", e)
 
     def _load_fingerprint(self):
@@ -398,6 +402,7 @@ class UserRecognizer:
                 data = json.loads(FINGERPRINT_PATH.read_text())
                 self._fingerprint.update(data)
         except Exception as _exc:
+            record_degradation('user_recognizer', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def _save_fingerprint(self):
@@ -405,6 +410,7 @@ class UserRecognizer:
             FINGERPRINT_PATH.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_text(FINGERPRINT_PATH, json.dumps(self._fingerprint, indent=2))
         except Exception as _exc:
+            record_degradation('user_recognizer', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
 

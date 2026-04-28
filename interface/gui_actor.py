@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import os
 import sys
 import logging
@@ -93,6 +94,7 @@ def gui_actor_entry(port: int, token: str = None):
                 window.load_url(app_url)
                 logger.info(f"🔄 GUI Loaded: {app_url}")
             except Exception as e:
+                record_degradation('gui_actor', e)
                 logger.error(f"Failed to load URL in WebView: {e}")
 
         # Watchdog: Periodically check if the UI is responsive
@@ -122,6 +124,7 @@ def gui_actor_entry(port: int, token: str = None):
                     try:
                         window.load_url(app_url)
                     except Exception as _exc:
+                        record_degradation('gui_actor', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
 
                 if consecutive_failures >= 6:
@@ -135,6 +138,7 @@ def gui_actor_entry(port: int, token: str = None):
         webview.start(func=_on_shown, debug=False)
         
     except Exception as e:
+        record_degradation('gui_actor', e)
         logger.error(f"❌ WebView Failure: {e}")
         time.sleep(5)
 

@@ -14,6 +14,8 @@ Drop-in: replace the existing router instantiation in orchestrator_boot.py
 with HealthAwareLLMRouter.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -355,6 +357,7 @@ def _local_client_failure_reason(client: Any) -> str:
                     break
             candidate = next_candidate
     except Exception as exc:
+        record_degradation('llm_health_router', exc)
         logger.debug("Local client lane inspection failed: %s", exc)
     return ""
 
@@ -673,6 +676,7 @@ class HealthAwareLLMRouter:
                 return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
             return None
         except Exception as exc:
+            record_degradation('llm_health_router', exc)
             logger.warning("[LLMRouter.think] Failed: %s", exc)
             return None
 
@@ -726,6 +730,7 @@ class HealthAwareLLMRouter:
                 
             return text
         except Exception as e:
+            record_degradation('llm_health_router', e)
             logger.error("❌ Intent classification failed: %s. Defaulting to 'casual'.", e)
             return "casual"
 
@@ -824,6 +829,7 @@ class HealthAwareLLMRouter:
                         self.last_user_tier = ep.tier
                     return result
             except Exception as exc:
+                record_degradation('llm_health_router', exc)
                 logger.warning("think_and_act on %s failed: %s", ep.name, exc)
                 ep.record_failure(str(exc))
 
@@ -1142,6 +1148,7 @@ class HealthAwareLLMRouter:
                 await primary_client.warmup()
                 logger.info("♻️ Router: restored %s after deep handoff.", PRIMARY_ENDPOINT)
         except Exception as exc:
+            record_degradation('llm_health_router', exc)
             logger.warning("Router: failed to restore primary model after deep handoff: %s", exc)
 
     async def unload_models(self, keep: Optional[List[str]] = None) -> None:
@@ -1153,6 +1160,7 @@ class HealthAwareLLMRouter:
             try:
                 await self._reboot_endpoint_client(endpoint.client)
             except Exception as exc:
+                record_degradation('llm_health_router', exc)
                 logger.debug("Router unload skipped for %s: %s", name, exc)
 
         try:
@@ -1160,6 +1168,7 @@ class HealthAwareLLMRouter:
             if hasattr(mx, "clear_cache"):
                 mx.clear_cache()
         except Exception as _exc:
+            record_degradation('llm_health_router', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def clear_cache(self) -> None:
@@ -1308,6 +1317,7 @@ class HealthAwareLLMRouter:
                             "error": f"background_deferred:{background_deferral}",
                         }
             except Exception as exc:
+                record_degradation('llm_health_router', exc)
                 logger.debug("Background router deferral probe failed: %s", exc)
 
         foreground_owned = False
@@ -1569,6 +1579,7 @@ class HealthAwareLLMRouter:
                             ep.name, last_error
                         )
             except Exception as exc:
+                record_degradation('llm_health_router', exc)
                 logger.error("Endpoint %s raised exception: %s", ep.name, exc)
                 ep.record_failure(str(exc))
                 last_error = str(exc)
@@ -1754,6 +1765,7 @@ class HealthAwareLLMRouter:
                     logger.warning("Client adapter method missing for %s: %s", ep.name, ae)
                     return {"ok": False, "error": f"client_adapter_missing_method:{ae}"}
                 except Exception as e:
+                    record_degradation('llm_health_router', e)
                     logger.error("Client adapter call failed for %s: %s", ep.name, e)
                     raise e
 
@@ -1794,6 +1806,7 @@ class HealthAwareLLMRouter:
             }
 
         except Exception as exc:
+            record_degradation('llm_health_router', exc)
             ep.record_failure(str(exc))
             raise
 
@@ -1900,6 +1913,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
 
             logger.info("✅ Local runtime client instantiated for HealthAwareLLMRouter")
         except Exception as e:
+            record_degradation('llm_health_router', e)
             logger.error("❌ Failed to instantiate local runtime client: %s", e)
     else:
         logger.info("🛡️ HealthRouter using existing InferenceGate; skipping standalone local runtime bootstrap.")
@@ -1953,6 +1967,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
         logger.info("✅ %s registered with lazy 72B client.", DEEP_ENDPOINT)
     except Exception as e:
+        record_degradation('llm_health_router', e)
         logger.error("❌ Failed to register %s: %s", DEEP_ENDPOINT, e)
 
     # Brainstem (7B) — fast local fallback.
@@ -1968,6 +1983,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
         logger.info("✅ %s registered with lazy 7B client.", BRAINSTEM_ENDPOINT)
     except Exception as e:
+        record_degradation('llm_health_router', e)
         logger.error("❌ Failed to register %s: %s", BRAINSTEM_ENDPOINT, e)
 
     # Emergency reflex lane (1.5B / CPU-friendly).
@@ -1984,6 +2000,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
         logger.info("🚨 EMERGENCY Tier registered: %s lazy bypass", FALLBACK_ENDPOINT)
     except Exception as e:
+        record_degradation('llm_health_router', e)
         logger.error("❌ Failed to register %s: %s", FALLBACK_ENDPOINT, e)
 
     # Gemini Cloud Fallback (used when ALL local models fail)
@@ -2040,6 +2057,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             )
             logger.info("✅ Gemini cloud fallbacks registered (2.0-flash, 2.5-flash, 2.5-pro) — shared rate limiter.")
         except Exception as e:
+            record_degradation('llm_health_router', e)
             logger.error("❌ Failed to register Gemini fallbacks: %s", e)
 
     return router

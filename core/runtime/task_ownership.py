@@ -3,6 +3,8 @@
 Use this instead of raw asyncio.create_task in production code.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -62,6 +64,7 @@ def create_tracked_task(
                     elif hasattr(tracker, "track_task"):
                         tracker.track_task(task, name=name)
                 except Exception as exc:
+                    record_degradation('task_ownership', exc)
                     logger.debug("Failed to observe fallback task %s: %s", name or task, exc)
 
         if on_done is not None:
@@ -98,6 +101,7 @@ def fire_and_forget(
         close_awaitable(awaitable)
         return None
     except Exception as exc:
+        record_degradation('task_ownership', exc)
         close_awaitable(awaitable)
         logger.debug("fire_and_forget scheduling failed for %s: %s", name, exc)
         return None

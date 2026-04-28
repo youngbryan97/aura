@@ -34,6 +34,8 @@ Security:
     - No arbitrary code execution -- only structured data
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -244,6 +246,7 @@ class AuraProtocolServer:
         except asyncio.IncompleteReadError:
             logger.debug("AuraProtocol: connection closed by %s", peer)
         except Exception as e:
+            record_degradation('aura_protocol', e)
             logger.warning("AuraProtocol: connection error from %s -- %s", peer, e)
         finally:
             writer.close()
@@ -257,6 +260,7 @@ class AuraProtocolServer:
         try:
             msg = AuraMessage.from_bytes(payload)
         except Exception as e:
+            record_degradation('aura_protocol', e)
             logger.warning("AuraProtocol: malformed message -- %s", e)
             self._messages_rejected += 1
             return
@@ -283,6 +287,7 @@ class AuraProtocolServer:
             try:
                 await handler(msg)
             except Exception as e:
+                record_degradation('aura_protocol', e)
                 logger.error("AuraProtocol handler error: %s", e)
 
         # Inject into Global Workspace as external candidate
@@ -320,6 +325,7 @@ class AuraProtocolServer:
                 msg.source_identity, candidate.priority,
             )
         except Exception as e:
+            record_degradation('aura_protocol', e)
             logger.warning("AuraProtocol: workspace injection failed -- %s", e)
 
     # ------------------------------------------------------------------
@@ -511,6 +517,7 @@ def build_message_from_state(
                         float(getattr(state, "dominance", 0.0)),
                     ]
     except Exception as e:
+        record_degradation('aura_protocol', e)
         logger.debug("build_message_from_state: affect read failed: %s", e)
 
     # Episodic snapshot from temporal binding
@@ -526,6 +533,7 @@ def build_message_from_state(
                     w.get("winner", "") for w in recent
                 ]
     except Exception as e:
+        record_degradation('aura_protocol', e)
         logger.debug("build_message_from_state: episodic read failed: %s", e)
 
     # Identity

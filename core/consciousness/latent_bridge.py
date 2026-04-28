@@ -12,6 +12,7 @@ Together: genuine bidirectional coupling in activation space.
 No text, no symbols, no lookup tables.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import threading
 import time
@@ -148,6 +149,7 @@ class LatentReadoutHook:
                     hook._readout_count += 1
 
             except Exception as e:
+                record_degradation('latent_bridge', e)
                 logger.debug("Readout extraction failed at layer %d: %s", hook._layer_idx, e)
 
             return result
@@ -229,6 +231,7 @@ class SubstrateInjectionThread:
                         from core.container import ServiceContainer
                         substrate = ServiceContainer.get("conscious_substrate", default=None)
                     except Exception as _e:
+                        record_degradation('latent_bridge', _e)
                         logger.debug('Ignored Exception in latent_bridge.py: %s', _e)
 
                 if substrate is not None:
@@ -262,6 +265,7 @@ class SubstrateInjectionThread:
                                 logger.debug('Ignored RuntimeError in latent_bridge.py: %s', _e)
 
             except Exception as e:
+                record_degradation('latent_bridge', e)
                 logger.debug("InjectionThread error: %s", e)
 
             time.sleep(INJECTION_INTERVAL_S)
@@ -480,6 +484,7 @@ def attach_latent_bridge(model) -> Optional[LatentBridge]:
         from core.container import ServiceContainer
         ServiceContainer.register_instance("latent_bridge", _bridge_instance)
     except Exception as _e:
+        record_degradation('latent_bridge', _e)
         logger.debug('Ignored Exception in latent_bridge.py: %s', _e)
 
     logger.info("✅ LatentBridge singleton created and registered")

@@ -1,6 +1,7 @@
 """skills/train_self.py - Neuroplasticity / Self-Fine-Tuning Skill
 Provides the architecture for Aura to learn from her own high-value experiences.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -97,6 +98,7 @@ class TrainSelfSkill(BaseSkill):
                 "collected": collected
             }
         except Exception as e:
+            record_degradation('train_self', e)
             logger.error("Memory collection failed: %s", e)
             return {"ok": False, "error": str(e)}
 
@@ -126,6 +128,7 @@ class TrainSelfSkill(BaseSkill):
                             if "output" in data:
                                 lines.append(data['output'][:500])
                         except Exception as e:
+                            record_degradation('train_self', e)
                             logger.debug("TrainSelf: failed to parse memory line: %s", e)
                 return lines
 
@@ -160,6 +163,7 @@ class TrainSelfSkill(BaseSkill):
                     logger.warning("Cognitive Engine absent. Falling back to raw aggregation.")
                     new_knowledge = [f"- **Raw Pattern**: {m[:100]}..." for m in raw_memories]
             except Exception as e:
+                record_degradation('train_self', e)
                 logger.error("Distillation execution failed: %s", e)
                 new_knowledge = [f"- **Failed Pattern Extraction**: {m[:100]}..." for m in raw_memories]
             
@@ -178,6 +182,7 @@ class TrainSelfSkill(BaseSkill):
                 "path": knowledge_path
             }
         except Exception as e:
+            record_degradation('train_self', e)
             logger.error("Consolidation failed: %s", e)
             return {"ok": False, "error": str(e)}
 

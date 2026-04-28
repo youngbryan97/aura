@@ -4,6 +4,8 @@ Extracted from server.py — EventBus → WebSocket bridge,
 telemetry broadcasting, and mycelial UI callback.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -98,6 +100,7 @@ async def run_event_bridge(is_gui_proxy: bool = False) -> None:
                 from core.brain.personality_engine import get_personality_engine
                 return get_personality_engine().filter_response(text)
             except Exception as e:
+                record_degradation('event_bridge', e)
                 logger.debug("Personality filtering failed: %s", e)
                 return text
 
@@ -150,6 +153,7 @@ async def run_event_bridge(is_gui_proxy: bool = False) -> None:
             q.task_done()
 
     except Exception as e:
+        record_degradation('event_bridge', e)
         logger.error("EventBus bridge failure: %s", e, exc_info=True)
 
 

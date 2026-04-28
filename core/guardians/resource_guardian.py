@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import psutil
@@ -50,5 +51,6 @@ class ResourceGuardian:
                 
                 await asyncio.sleep(5)
             except Exception as e:
+                record_degradation('resource_guardian', e)
                 logger.error("ResourceGuardian monitor error: %s", e)
                 await asyncio.sleep(10)

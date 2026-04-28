@@ -4,6 +4,7 @@ This service manages Aura's 'Slow Cognition' — her stable beliefs, core values
 and deep social bonds (kinship). This is her persistent 'Ghost' in the machine.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import json
 import time
@@ -96,6 +97,7 @@ class IdentityService:
             )
             logger.info("Identity state loaded successfully.")
         except Exception as e:
+            record_degradation('identity', e)
             logger.error(f"Failed to load identity state: {e}")
 
     def save(self):
@@ -109,6 +111,7 @@ class IdentityService:
                 json.dump(data, f, indent=4)
             logger.info("Identity state persisted.")
         except Exception as e:
+            record_degradation('identity', e)
             logger.error(f"Failed to persist identity state: {e}")
 
     def _constitutional_gate_active(self) -> bool:
@@ -186,10 +189,12 @@ class IdentityService:
                     context={"kind": kind, "source": source, "reason": reason},
                 )
             except Exception as exc:
+                record_degradation('identity', exc)
                 logger.debug("Identity degraded-event logging failed: %s", exc)
             logger.warning("Identity write blocked by constitutional gate (%s, source=%s): %s", kind, source, reason)
             return False
         except Exception as exc:
+            record_degradation('identity', exc)
             try:
                 from core.health.degraded_events import record_degraded_event
 
@@ -203,6 +208,7 @@ class IdentityService:
                     exc=exc,
                 )
             except Exception as degraded_exc:
+                record_degradation('identity', degraded_exc)
                 logger.debug("Identity gate degraded-event logging failed: %s", degraded_exc)
             logger.warning("Identity write gate failed (%s, source=%s): %s", kind, source, exc)
             return False

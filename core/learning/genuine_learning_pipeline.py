@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -256,6 +257,7 @@ class BehavioralBenchmark:
             except asyncio.TimeoutError:
                 failures.append(f"FAIL [{case.description}]: Inference timed out")
             except Exception as e:
+                record_degradation('genuine_learning_pipeline', e)
                 failures.append(f"FAIL [{case.description}]: Exception during inference: {e}")
 
         passed = len(failures) == 0
@@ -326,6 +328,7 @@ class LoRATrainer:
                     multiplier = 1.0 + drive.urgency
                     return self.learning_rate * multiplier
         except Exception as _e:
+            record_degradation('genuine_learning_pipeline', _e)
             logger.debug('Ignored Exception in genuine_learning_pipeline.py: %s', _e)
         return self.learning_rate
 
@@ -383,6 +386,7 @@ class LoRATrainer:
             logger.error("❌ Training timed out after 30 minutes")
             return False, "timeout"
         except Exception as e:
+            record_degradation('genuine_learning_pipeline', e)
             logger.error("❌ Training subprocess error: %s", e)
             return False, str(e)
 
@@ -436,6 +440,7 @@ class LoRATrainer:
                             metadata={"examples": len(examples), "timestamp": time.time()}
                         )
                 except Exception as _e:
+                    record_degradation('genuine_learning_pipeline', _e)
                     logger.debug('Ignored Exception in genuine_learning_pipeline.py: %s', _e)
 
             return success
@@ -601,6 +606,7 @@ class ContinuousLearner:
             if soul and hasattr(soul, "update_state"):
                 soul.update_state("learning_activity", {"type": "record_turn"})
         except Exception as _e:
+            record_degradation('genuine_learning_pipeline', _e)
             logger.debug('Ignored Exception in genuine_learning_pipeline.py: %s', _e)
 
         if explicit_correction:

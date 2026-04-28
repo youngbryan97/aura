@@ -41,6 +41,8 @@ INSTALL:
   Or via the unified apply_consciousness_patches() in this package's __init__.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import json
@@ -118,6 +120,7 @@ def _patched_save_phenomenal_memory(self: "PhenomenologicalExperiencer") -> None
             try:
                 moments_dicts.append(_moment_to_dict(m))
             except Exception as exc:
+                record_degradation('continuity_patch', exc)
                 logger.debug("ContinuityPatch: moment serialise error — %s", exc)
 
         memory: Dict[str, Any] = {
@@ -152,11 +155,13 @@ def _patched_save_phenomenal_memory(self: "PhenomenologicalExperiencer") -> None
                 memory["continuity_thread"] or "(empty)",
             )
         except Exception as exc:
+            record_degradation('continuity_patch', exc)
             if os.path.exists(temp_path):
                 os.remove(temp_path)
             raise exc
 
     except Exception as exc:
+        record_degradation('continuity_patch', exc)
         logger.debug("ContinuityPatch._save: %s", exc)
 
 
@@ -199,6 +204,7 @@ def _patched_load_phenomenal_memory(self: "PhenomenologicalExperiencer") -> None
         )
 
     except Exception as exc:
+        record_degradation('continuity_patch', exc)
         logger.warning("ContinuityPatch._load: %s", exc)
 
 

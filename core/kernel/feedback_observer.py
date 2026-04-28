@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import logging
 """core/kernel/feedback_observer.py - The Causal Chain Observer."""
 
@@ -221,6 +223,7 @@ class FeedbackObserver:
             try:
                 cb(entry)
             except Exception as _e:
+                record_degradation('feedback_observer', _e)
                 logging.debug('Ignored Exception in feedback_observer.py: %s', _e)
 
         return entry

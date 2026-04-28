@@ -17,6 +17,8 @@ The class never calls an LLM directly.  It receives an ``llm_fn`` callback
 at construction time, making it backend-agnostic and trivially testable.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -359,6 +361,7 @@ class TreeOfThoughts:
             try:
                 return (await self._llm(system, user, style["temperature"])).strip()
             except Exception as exc:
+                record_degradation('tree_of_thoughts', exc)
                 logger.warning("Brainstorm draft (%s) failed: %s", style["tag"], exc)
                 return ""
 
@@ -432,6 +435,7 @@ class TreeOfThoughts:
             raw = await self._llm(system, user, 0.2)
             scores = self._parse_scores(raw, len(drafts))
         except Exception as exc:
+            record_degradation('tree_of_thoughts', exc)
             logger.warning("Critique scoring failed (%s), using uniform scores", exc)
             scores = [
                 {dim: 5.0 for dim in self._CRITIQUE_DIMENSIONS}

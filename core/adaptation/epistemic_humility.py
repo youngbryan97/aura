@@ -11,6 +11,7 @@ This is the essence of Epistemic Humility: the ability to recognize when you
 are wrong and autonomously adjust your own operating parameters to compensate.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 from collections import Counter
@@ -90,6 +91,7 @@ class EpistemicHumility:
                 await self._evaluate_failure_stream()
                 await asyncio.sleep(300)  # Run every 5 minutes
             except Exception as e:
+                record_degradation('epistemic_humility', e)
                 logger.error("Error in critic loop: %s", e)
                 await asyncio.sleep(60)
 
@@ -163,9 +165,11 @@ class EpistemicHumility:
                         source="EpistemicHumility",
                     )
                 except Exception as _exc:
+                    record_degradation('epistemic_humility', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 
         except Exception as e:
+            record_degradation('epistemic_humility', e)
             logger.error(f"Failed to synthesize heuristic: {e}")
 
     def _select_domain(self, failures: List[FailureEvent]) -> str:
@@ -199,6 +203,7 @@ class EpistemicHumility:
             with open(self.data_path, "w") as f:
                 json.dump(data, f, indent=4)
         except Exception as e:
+            record_degradation('epistemic_humility', e)
             logger.error(f"Failed to save epistemic humility state: {e}")
 
     def _load(self):
@@ -211,6 +216,7 @@ class EpistemicHumility:
                 k: LearnedHeuristic(**v) for k, v in data.get("heuristics", {}).items()
             }
         except Exception as e:
+            record_degradation('epistemic_humility', e)
             logger.error(f"Failed to load epistemic humility state: {e}")
 
 def register_epistemic_humility(orchestrator):

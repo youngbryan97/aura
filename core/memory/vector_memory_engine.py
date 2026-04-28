@@ -48,6 +48,7 @@ Wire to orchestrator:
     relevant = await memory_engine.recall(query=user_input, limit=5)
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import hashlib
 import json
@@ -133,6 +134,7 @@ class EmbeddingEngine:
                     self._model = self._model.to("mps")
                     logger.info("🧠 EmbeddingEngine: Using Apple Silicon GPU (MPS)")
             except Exception as _e:
+                record_degradation('vector_memory_engine', _e)
                 logger.debug('Ignored Exception in vector_memory_engine.py: %s', _e)
             logger.info("✅ EmbeddingEngine: sentence-transformers loaded (%s)", self.PREFERRED_MODEL)
         except ImportError:
@@ -249,6 +251,7 @@ class MemoryVault:
                 "Using in-memory fallback (memories lost on restart)"
             )
         except Exception as e:
+            record_degradation('vector_memory_engine', e)
             logger.error("ChromaDB init failed: %s. Using in-memory fallback.", e)
 
     @effect_sink("memory.vault_store", allowed_domains=("memory_write",))
@@ -277,6 +280,7 @@ class MemoryVault:
                 )
                 return
             except Exception as e:
+                record_degradation('vector_memory_engine', e)
                 logger.error("ChromaDB store failed: %s", e)
 
         # Fallback
@@ -315,6 +319,7 @@ class MemoryVault:
                     ))
                 return output
             except Exception as e:
+                record_degradation('vector_memory_engine', e)
                 logger.error("ChromaDB query failed: %s", e)
 
         # Fallback: brute-force numpy search
@@ -471,6 +476,7 @@ class ConsolidationEngine:
                                 )
 
             except Exception as e:
+                record_degradation('vector_memory_engine', e)
                 logger.error("Consolidation failed: %s", e)
 
         logger.info("🌙 Consolidation complete: %d memories merged", consolidated)
@@ -573,6 +579,7 @@ class VectorMemoryEngine:
                 return approved, decision
             return approved
         except Exception as exc:
+            record_degradation('vector_memory_engine', exc)
             if self._constitutional_runtime_live():
                 record_degraded_event(
                     "vector_memory_engine",

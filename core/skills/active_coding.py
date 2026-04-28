@@ -2,6 +2,7 @@
 Allows Aura to write and execute code in a sandbox to solve problems, 
 analyze data, or test hypotheses.
 """
+from core.runtime.errors import record_degradation
 import logging
 from pathlib import Path
 from typing import Any, Dict
@@ -57,6 +58,7 @@ class RunCodeSkill(BaseSkill):
             try:
                 params = RunCodeParams(**params)
             except Exception as e:
+                record_degradation('active_coding', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
                 
         code = params.code
@@ -90,6 +92,7 @@ class RunCodeSkill(BaseSkill):
                 "summary": self._build_summary(out_str, err_str, result.exit_code, params.stateful),
             }
         except Exception as e:
+            record_degradation('active_coding', e)
             return {"ok": False, "error": str(e)}
 
     @staticmethod

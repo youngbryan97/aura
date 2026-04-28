@@ -2,6 +2,8 @@
 Extracted cognitive recovery and circuit-breaker reset logic.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -48,6 +50,7 @@ async def retry_cognitive_connection(orch: "RobustOrchestrator") -> bool:
             logger.info("⚡ Circuit breaker FORCE RESET on CognitiveEngine.client")
 
     except Exception as cb_err:
+        record_degradation('recovery', cb_err)
         logger.warning("Circuit breaker/RateLimit reset skipped: %s", cb_err)
 
     try:
@@ -59,6 +62,7 @@ async def retry_cognitive_connection(orch: "RobustOrchestrator") -> bool:
         try:
             ce.setup()
         except Exception as exc:
+            record_degradation('recovery', exc)
             logger.error("Setup failed: %s", exc)
 
         if not ce.lobotomized:
@@ -74,6 +78,7 @@ async def retry_cognitive_connection(orch: "RobustOrchestrator") -> bool:
                     category="Brain",
                 )
             except Exception as exc:
+                record_degradation('recovery', exc)
                 logger.debug("ThoughtStream emit failed during cognitive retry: %s", exc)
 
             return True
@@ -82,5 +87,6 @@ async def retry_cognitive_connection(orch: "RobustOrchestrator") -> bool:
             return False
 
     except Exception as exc:
+        record_degradation('recovery', exc)
         logger.error("Cognitive Retry Exception: %s", exc)
         return False

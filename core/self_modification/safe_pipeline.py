@@ -32,6 +32,8 @@ agency receipts so external reviewers can reconstruct the lineage of
 every code change.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -104,6 +106,7 @@ def _record(p: PipelineProposal, event: str, payload: Optional[Dict[str, Any]] =
             except Exception:
                 pass
     except Exception as exc:
+        record_degradation('safe_pipeline', exc)
         logger.warning("self-mod pipeline ledger append failed: %s", exc)
 
 
@@ -161,6 +164,7 @@ class SafePipeline:
                     return self._block(proposal, Stage.FORMAL_VERIFY, "; ".join(vr.invariants_violated))
                 proposal.stages_completed.append(Stage.FORMAL_VERIFY.value)
             except Exception as exc:
+                record_degradation('safe_pipeline', exc)
                 return self._block(proposal, Stage.FORMAL_VERIFY, f"verify_exception:{exc}")
 
             # 5. SHADOW_RUNTIME — load the patched module in a subprocess
@@ -184,6 +188,7 @@ class SafePipeline:
                 reg.register(organ)
                 reg.capture(organ, before_source, schema_version="1")
             except Exception as exc:
+                record_degradation('safe_pipeline', exc)
                 logger.debug("stem-cell capture during rollback plan failed: %s", exc)
             proposal.rollback_plan = f"stem_cell:selfmod_target_{Path(file_path).stem}"
             _record(proposal, "rollback_planned")
@@ -213,6 +218,7 @@ class SafePipeline:
                     return self._block(proposal, Stage.APPROVAL, f"will_refused:{getattr(wd, 'reason', '')}")
                 proposal.will_receipt_id = getattr(wd, "receipt_id", None)
             except Exception as exc:
+                record_degradation('safe_pipeline', exc)
                 return self._block(proposal, Stage.APPROVAL, f"approval_exception:{exc}")
             proposal.stages_completed.append(Stage.APPROVAL.value)
             _record(proposal, "approved", {"will_receipt_id": proposal.will_receipt_id})
@@ -277,6 +283,7 @@ class SafePipeline:
                 return False, f"shadow_rc={proc.returncode} stderr={err.decode('utf-8', 'replace')[:240]}"
             return True, out.decode("utf-8", "replace")[:240]
         except Exception as exc:
+            record_degradation('safe_pipeline', exc)
             return False, f"shadow_exception:{exc}"
 
     @staticmethod
@@ -312,6 +319,7 @@ class SafePipeline:
                 atomic_write_text(target, before_source, encoding="utf-8")
                 _record(proposal, "rolled_back", {"reason": "regression_after_deploy"})
             except Exception as exc:
+                record_degradation('safe_pipeline', exc)
                 _record(proposal, "rollback_failed", {"error": str(exc)})
         else:
             _record(proposal, "post_deploy_clean")

@@ -4,6 +4,7 @@ Synthesizes multiple internal states (insights, goals, epistemic status, continu
 into a coherent first-person narrative of 'who I am right now'.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 import asyncio
@@ -65,6 +66,7 @@ class NarrativeThread:
                 # Refresh every 30-60 minutes
                 await asyncio.sleep(random.randint(1800, 3600))
             except Exception as e:
+                record_degradation('narrative_thread', e)
                 logger.error(f"Error in narrative refresh loop: {e}")
                 await asyncio.sleep(300)
 

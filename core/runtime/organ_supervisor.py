@@ -28,6 +28,8 @@ open its socket, accept requests, and dispatch to the local handler;
 each organ ships its own stub (e.g. ``core/brain/llm/mlx_controller.py``).
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -136,6 +138,7 @@ class OrganSupervisor:
                     except asyncio.TimeoutError:
                         record.proc.kill()  # type: ignore[union-attr]
                 except Exception as exc:
+                    record_degradation('organ_supervisor', exc)
                     logger.debug("organ stop %s failed: %s", record.name, exc)
 
     async def _start_organ(self, record: OrganRecord) -> None:
@@ -155,6 +158,7 @@ class OrganSupervisor:
             record.started_at = time.time()
             logger.info("🩻 organ '%s' launched (pid=%s)", record.name, record.proc.pid)
         except Exception as exc:
+            record_degradation('organ_supervisor', exc)
             logger.warning("organ '%s' failed to launch: %s", record.name, exc)
 
     async def _watchdog(self) -> None:

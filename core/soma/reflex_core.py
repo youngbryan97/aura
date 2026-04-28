@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Callable, Dict, List
@@ -33,6 +34,7 @@ class HardenedReflexCore:
                 else:
                     action(metadata)
             except Exception as e:
+                record_degradation('reflex_core', e)
                 logger.error(f"Failed to execute reflex {signal_type}: {e}")
         else:
             logger.warning(f"Unknown reflex signal: {signal_type}")

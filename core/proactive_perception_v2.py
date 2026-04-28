@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import numpy as np
 import psutil
@@ -123,6 +124,7 @@ class ProactivePerceptionV2:
                     
                 await asyncio.sleep(self.config.camera_interval)
         except Exception as e:
+            record_degradation('proactive_perception_v2', e)
             logger.error("Camera loop failure: %s", e)
         finally:
             if self.cap:
@@ -152,6 +154,7 @@ class ProactivePerceptionV2:
                         "audio", f"Sound level alert (RMS: {rms:.0f})"
                     )
             except Exception as e:
+                record_degradation('proactive_perception_v2', e)
                 logger.debug("Mic loop transient error: %s", e)
 
             await asyncio.sleep(self.config.mic_interval)

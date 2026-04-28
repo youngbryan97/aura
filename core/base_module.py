@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import time
 import asyncio
@@ -58,6 +59,7 @@ class AuraBaseModule:
                     self._update_latency(latency)
                     return result
                 except Exception as e:
+                    record_degradation('base_module', e)
                     self.metrics["errors"] += 1
                     self.metrics["last_error"] = str(e)
                     self.logger.error("Error in %s: %s", func.__name__, e)
@@ -75,6 +77,7 @@ class AuraBaseModule:
                     self._update_latency(latency)
                     return result
                 except Exception as e:
+                    record_degradation('base_module', e)
                     self.metrics["errors"] += 1
                     self.metrics["last_error"] = str(e)
                     self.logger.error("Error in %s: %s", func.__name__, e)

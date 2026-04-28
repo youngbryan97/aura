@@ -57,6 +57,8 @@ Technical choices:
     - Singleton via get_homeostatic_rl()
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 __all__ = [
@@ -858,6 +860,7 @@ class HomeostaticRL:
             tmp_path.replace(self._state_path)
             logger.debug("HomeostaticRL state saved to %s", self._state_path)
         except Exception as e:
+            record_degradation('homeostatic_rl', e)
             logger.error("Failed to save HomeostaticRL state: %s", e)
             # Clean up partial write
             try:
@@ -934,6 +937,7 @@ class HomeostaticRL:
                 self._state_path, e,
             )
         except Exception as e:
+            record_degradation('homeostatic_rl', e)
             logger.error("Unexpected error loading HomeostaticRL state: %s", e)
 
     async def save(self) -> None:

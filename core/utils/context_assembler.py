@@ -4,6 +4,7 @@ Unifies context gathering for LLM prompts.
 Consolidates logic from orchestrator, conversation_loop, and strategic_planner.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Any, Dict, List, Optional
@@ -46,6 +47,7 @@ class ContextAssembler:
                 context["cognitive_modifiers"] = coupling.get_metadata() if hasattr(coupling, 'get_metadata') else {}
                 context["prompt_injection"] = coupling.get_prompt_injection()
         except Exception as e:
+            record_degradation('context_assembler', e)
             logger.debug("Failed to gather internal state: %s", e)
 
         # 2. Consciousness State (Global Workspace / Substrate)
@@ -58,6 +60,7 @@ class ContextAssembler:
             if gw:
                 context["consciousness_snapshot"] = gw.get_snapshot()
         except Exception as e:
+            record_degradation('context_assembler', e)
             logger.debug("Failed to gather consciousness state: %s", e)
 
         # 3. World Model & Beliefs
@@ -66,6 +69,7 @@ class ContextAssembler:
             if bg:
                 context["world_model"]["beliefs"] = bg.get_beliefs() if hasattr(bg, 'get_beliefs') else {}
         except Exception as e:
+            record_degradation('context_assembler', e)
             logger.debug("Failed to gather world model: %s", e)
 
         # 4. Theory of Mind
@@ -80,6 +84,7 @@ class ContextAssembler:
                 if hasattr(tom, 'known_selves') and user_id in tom.known_selves:
                     context["social_model"]["user"] = tom.known_selves[user_id].to_dict()
         except Exception as e:
+            record_degradation('context_assembler', e)
             logger.debug("Failed to gather ToM: %s", e)
 
         # 5. Strategic Context
@@ -88,6 +93,7 @@ class ContextAssembler:
             if planner:
                 context["strategic_state"] = planner.get_status() if hasattr(planner, 'get_status') else {}
         except Exception as e:
+            record_degradation('context_assembler', e)
             logger.debug("Failed to gather strategic state: %s", e)
 
         # 6. Memory (Optional/Large)
@@ -100,6 +106,7 @@ class ContextAssembler:
                     # (This is usually done in the cognitive cycle, but we can provide a hook)
                     pass
             except Exception as e:
+                record_degradation('context_assembler', e)
                 logger.debug("Failed to gather memory: %s", e)
 
         return context

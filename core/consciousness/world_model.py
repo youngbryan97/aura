@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import re
 import time
 from collections import Counter
@@ -56,6 +57,7 @@ class EpistemicState:
                     note=f"confidence={confidence:.3f}",
                 )
         except Exception as exc:
+            record_degradation('world_model', exc)
             logger.debug("BeliefAuthority audit skipped for epistemic-state update: %s", exc)
 
         # Logic to check for contradictions before writing

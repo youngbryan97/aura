@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any, Dict
@@ -19,6 +20,7 @@ def _schedule_background_task(coro: Any, *, name: str) -> None:
     try:
         get_task_tracker().create_task(coro, name=name)
     except Exception as exc:
+        record_degradation('dream_skill', exc)
         try:
             coro.close()
         except Exception:
@@ -57,6 +59,7 @@ class DreamSkill(BaseSkill):
                 else:
                     results["dream_journal"] = {"status": "skipped", "reason": "insufficient salient material"}
             except Exception as e:
+                record_degradation('dream_skill', e)
                 results["dream_journal"] = {"status": "failed", "error": str(e)}
         else:
             results["dream_journal"] = {"status": "unavailable"}
@@ -73,6 +76,7 @@ class DreamSkill(BaseSkill):
             else:
                 results["semantic_defrag"] = "unavailable"
         except Exception as e:
+            record_degradation('dream_skill', e)
             results["semantic_defrag"] = f"failed: {e}"
 
         # 3. Dream Cycle (DLQ Re-ingestion)
@@ -86,6 +90,7 @@ class DreamSkill(BaseSkill):
             else:
                 results["dlq_cycle"] = "unavailable"
         except Exception as e:
+            record_degradation('dream_skill', e)
             results["dlq_cycle"] = f"failed: {e}"
 
         # 4. Heuristic Synthesis — extract learned instincts from recent telemetry
@@ -95,6 +100,7 @@ class DreamSkill(BaseSkill):
                 hs_result = await hs.synthesize_from_telemetry()
                 results["heuristic_synthesis"] = hs_result
             except Exception as e:
+                record_degradation('dream_skill', e)
                 results["heuristic_synthesis"] = {"status": "failed", "error": str(e)}
 
         # 5. Drive restoration (dreaming restores energy)
@@ -104,6 +110,7 @@ class DreamSkill(BaseSkill):
                 await drive.satisfy("energy", 20.0)
                 results["drive_restoration"] = "energy +20"
         except Exception as e:
+            record_degradation('dream_skill', e)
             results["drive_restoration"] = f"failed: {e}"
 
         # 6. WorldState event

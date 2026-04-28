@@ -19,6 +19,8 @@ The synthesizer does NOT write arbitrary code. It:
   - Persists to disk for survival across restarts
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -215,6 +217,7 @@ class SkillSynthesizer:
             return skill
 
         except Exception as e:
+            record_degradation('skill_synthesizer', e)
             logger.debug("Skill synthesis failed for gap '%s': %s", gap[:40], e)
             return None
 
@@ -233,6 +236,7 @@ class SkillSynthesizer:
                 skill.registered = True
                 logger.info("SkillSynthesizer: registered '%s'", skill.name)
         except Exception as e:
+            record_degradation('skill_synthesizer', e)
             logger.debug("Skill registration failed: %s", e)
 
     # ── Persistence ───────────────────────────────────────────────────────
@@ -252,6 +256,7 @@ class SkillSynthesizer:
             }
             atomic_write_text(PERSIST_PATH, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('skill_synthesizer', e)
             logger.debug("SkillSynthesizer save failed: %s", e)
 
     def _load(self):
@@ -272,6 +277,7 @@ class SkillSynthesizer:
                 logger.info("SkillSynthesizer: loaded %d synthesized skills.",
                             len(self._synthesized))
         except Exception as e:
+            record_degradation('skill_synthesizer', e)
             logger.debug("SkillSynthesizer load failed: %s", e)
 
 

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -30,6 +31,7 @@ def atomic_write_json(file_path: str, data: Any, indent: int = 2) -> None:
         # Atomic rename (on POSIX, this is atomic)
         os.replace(temp_path, file_path)
     except Exception as e:
+        record_degradation('file_utils', e)
         logger.error(f"Atomic write to {file_path} failed: {e}")
         if os.path.exists(temp_path):
             try:

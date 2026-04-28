@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any
@@ -28,6 +29,7 @@ class BootSensoryMixin:
                     ServiceContainer.register_instance("ears", ears)
                     logger.info("👂 Sovereign Ears Active")
                 except Exception as e:
+                    record_degradation('boot_sensory', e)
                     logger.error("👂 Ears init failed: %s", e)
 
             # 2. Vision (Eyes)
@@ -39,6 +41,7 @@ class BootSensoryMixin:
                     ServiceContainer.register_instance("vision", vision)
                     logger.info("👁️  Sovereign Vision Active")
                 except Exception as e:
+                    record_degradation('boot_sensory', e)
                     logger.error("👁️  Vision init failed: %s", e)
 
             # Defer sensory IO to background but keep them as tasks
@@ -70,9 +73,11 @@ class BootSensoryMixin:
                 self.instincts = SensoryInstincts(self)
                 logger.info("✓ Sensory Instincts initialized")
             except Exception as e:
+                record_degradation('boot_sensory', e)
                 logger.error("Failed to init Sensory Instincts: %s", e)
                 self.instincts = None
         except Exception as e:
+            record_degradation('boot_sensory', e)
             logger.error("🛑 Halting: Critical validation failures.")
             self.terminal_monitor = None
 
@@ -101,6 +106,7 @@ class BootSensoryMixin:
                 ServiceContainer.register_instance("voice_engine", voice)
                 logger.info("🎙️  Voice Engine initialized and registered in background")
             except Exception as e:
+                record_degradation('boot_sensory', e)
                 logger.error("🛑 Voice Engine background init failed: %s", e)
 
         from core.utils.task_tracker import get_task_tracker

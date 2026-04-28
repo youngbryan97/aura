@@ -3,6 +3,7 @@ Strategic Synthesis Engine: Coordinates specialized swarm agents to solve comple
 Produces a unified ExecutionPlan from multi-agent consensus.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -147,6 +148,7 @@ class StrategicSynthesizer:
             return plan
             
         except Exception as e:
+            record_degradation('strategic_synthesis', e)
             logger.error("StrategicSynthesizer: Final synthesis failed: %s", e)
             return None
 

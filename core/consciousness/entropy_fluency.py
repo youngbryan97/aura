@@ -50,6 +50,8 @@ No model loads.
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import math
@@ -242,6 +244,7 @@ class EntropyFluencyTracker:
             squashed = np.tanh(np.asarray(relative_std, dtype=np.float64))
             return float(max(0.0, min(1.0, squashed.mean())))
         except Exception as e:
+            record_degradation('entropy_fluency', e)
             logger.debug("entropy compute fallback (zero): %s", e)
             return 0.0
 

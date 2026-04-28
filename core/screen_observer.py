@@ -18,6 +18,7 @@ Limitations (current):
 Dependencies: mss, sounddevice, scipy (install via pip if missing)
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -88,6 +89,7 @@ class ScreenObserver:
             logger.info("👁️ Vision service started (PID: %s)", self._vision_proc.pid)
             return {"ok": True, "pid": self._vision_proc.pid, "message": "Screen capture active"}
         except Exception as e:
+            record_degradation('screen_observer', e)
             logger.error("Failed to start vision: %s", e)
             return {"ok": False, "error": str(e)}
     
@@ -112,6 +114,7 @@ class ScreenObserver:
             logger.info("👂 Audio service started (PID: %s)", self._audio_proc.pid)
             return {"ok": True, "pid": self._audio_proc.pid, "message": "Audio capture active"}
         except Exception as e:
+            record_degradation('screen_observer', e)
             logger.error("Failed to start audio: %s", e)
             return {"ok": False, "error": str(e)}
     
@@ -163,6 +166,7 @@ class ScreenObserver:
                         del data["image"]
                     return data
         except Exception as e:
+            record_degradation('screen_observer', e)
             logger.debug("Vision read error: %s", e)
         return None
     
@@ -178,6 +182,7 @@ class ScreenObserver:
                     data["age_seconds"] = round(age, 1)
                     return data
         except Exception as e:
+            record_degradation('screen_observer', e)
             logger.debug("Audio read error: %s", e)
         return None
     
@@ -243,6 +248,7 @@ class ScreenObserver:
                     confidence=obs.get("confidence", 0.5),
                 )
             except Exception as e:
+                record_degradation('screen_observer', e)
                 logger.debug("Failed to store observation: %s", e)
     
     def _get_kg(self):
@@ -252,6 +258,7 @@ class ScreenObserver:
                 from core.memory.knowledge_graph import PersistentKnowledgeGraph
                 self._kg = PersistentKnowledgeGraph(str(_BASE / "data" / "knowledge.db"))
             except Exception as exc:
+                record_degradation('screen_observer', exc)
                 logger.debug("Suppressed: %%s", exc)
 
                 return self._kg

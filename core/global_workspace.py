@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import heapq
 import logging
@@ -111,6 +112,7 @@ class GlobalWorkspace:
 
             return priority
         except Exception as e:
+            record_degradation('global_workspace', e)
             logger.debug("Negotiation error (defaulting to raw priority): %s", e)
             return priority
 
@@ -136,6 +138,7 @@ class GlobalWorkspace:
                 if asyncio.iscoroutine(r):
                     await r
             except Exception as e:
+                record_degradation('global_workspace', e)
                 logger.error("Subscriber failed processing %s: %s", wi.id, e)
         
         # Phase 16: Append to history for summarization

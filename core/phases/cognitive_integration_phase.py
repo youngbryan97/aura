@@ -31,6 +31,8 @@ evolves her own neural wiring, maintains dual thermodynamic constraints
 species within her cortical columns.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -93,6 +95,7 @@ class CognitiveIntegrationPhase(Phase):
             self._alife_extensions = ServiceContainer.get("alife_extensions", default=None)
             self._endogenous_fitness = ServiceContainer.get("endogenous_fitness", default=None)
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("CognitiveIntegration: service resolution deferred: %s", exc)
         self._resolved = True
 
@@ -206,6 +209,7 @@ class CognitiveIntegrationPhase(Phase):
             if mood:
                 state.response_modifiers["mood_narrative"] = mood
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("Sentiment analysis skipped: %s", exc)
 
     async def _run_anomaly_detection(self, state: AuraState, text: str):
@@ -229,6 +233,7 @@ class CognitiveIntegrationPhase(Phase):
             }
             return score
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("Anomaly detection skipped: %s", exc)
             return None
 
@@ -246,6 +251,7 @@ class CognitiveIntegrationPhase(Phase):
             state.response_modifiers["autonomous_resilience"] = report
             return report
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("Autonomous resilience skipped: %s", exc)
             return None
 
@@ -330,6 +336,7 @@ class CognitiveIntegrationPhase(Phase):
                 if secondary_responses:
                     state.response_modifiers["autonomous_resilience_immune"] = secondary_responses
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("Adaptive immunity skipped: %s", exc)
 
     async def _run_strange_loop(self, state: AuraState) -> None:
@@ -354,6 +361,7 @@ class CognitiveIntegrationPhase(Phase):
             if loop_state.self_narrative:
                 state.response_modifiers["self_narrative"] = loop_state.self_narrative
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("Strange loop skipped: %s", exc)
 
     async def _run_homeostatic_rl(self, state: AuraState) -> None:
@@ -370,6 +378,7 @@ class CognitiveIntegrationPhase(Phase):
             if hasattr(state.affect, "energy"):
                 state.affect.energy = energy / 100.0  # Normalize to 0-1
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("Homeostatic RL skipped: %s", exc)
 
     async def _run_topology_evolution(self, state: AuraState) -> None:
@@ -400,6 +409,7 @@ class CognitiveIntegrationPhase(Phase):
                         "deaths": getattr(delta, "deaths", 0) if delta else 0,
                     }
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("Topology evolution skipped: %s", exc)
 
     async def _run_autopoiesis(self, state: AuraState) -> None:
@@ -415,6 +425,7 @@ class CognitiveIntegrationPhase(Phase):
                     vitality,
                 )
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("Autopoiesis skipped: %s", exc)
 
     # ── ALife System Runners ─────────────────────────────────────────────
@@ -464,6 +475,7 @@ class CognitiveIntegrationPhase(Phase):
             except Exception:
                 pass
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("Criticality regulation skipped: %s", exc)
 
     async def _run_alife_dynamics(self, state: AuraState) -> None:
@@ -502,6 +514,7 @@ class CognitiveIntegrationPhase(Phase):
                     if hasattr(self._alife_dynamics, "get_status") else 0.0
                 )
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("ALife dynamics skipped: %s", exc)
 
     async def _run_alife_extensions(self, state: AuraState) -> None:
@@ -535,4 +548,5 @@ class CognitiveIntegrationPhase(Phase):
                     ext_state.species_info, "species_count", 0
                 )
         except Exception as exc:
+            record_degradation('cognitive_integration_phase', exc)
             logger.debug("ALife extensions skipped: %s", exc)

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any, Optional
@@ -77,5 +78,6 @@ class SensoryIngestionPhase(BasePhase):
             # No message in queue, return state unchanged
             return state
         except Exception as e:
+            record_degradation('sensory_ingestion', e)
             logger.error("❌ SensoryIngestion: Error pulling from queue: %s", e)
             return state

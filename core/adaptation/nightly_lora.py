@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 from pathlib import Path
@@ -104,6 +105,7 @@ class NightlyLoRATrainer:
             await proc.communicate()
             logger.info("✅ Nightly LoRA: Fine-tuning pass complete.")
         except Exception as e:
+            record_degradation('nightly_lora', e)
             logger.error(f"❌ Nightly LoRA: Training failed: {e}")
             return
 
@@ -120,6 +122,7 @@ class NightlyLoRATrainer:
         try:
             result = await validator.validate(adapter_path)
         except Exception as e:
+            record_degradation('nightly_lora', e)
             logger.error(
                 "❌ Nightly LoRA: Validation crashed — quarantining adapter as precaution: %s", e
             )

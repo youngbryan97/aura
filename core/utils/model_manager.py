@@ -7,6 +7,7 @@ ModelManager: single point-of-truth for loading/unloading heavy model objects.
 - exposes async load_model / unload_model
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -105,6 +106,7 @@ class ModelManager:
                 else:
                     model_obj = maybe_coro
             except Exception as e:
+                record_degradation('model_manager', e)
                 logger.error("ModelManager: failed to load %s: %s", name, e)
                 raise ModelLoadError(f"Failed to load model {name}") from e
 

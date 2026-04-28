@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -56,6 +57,7 @@ class ConversationalMemoryGuard:
             self.working_memory = self.working_memory[5:]
             logger.info("🧠 ConversationalMemoryGuard: Compression complete. Context window optimized.")
         except Exception as e:
+            record_degradation('conversational_guard', e)
             logger.error(f"Memory compression failed: {e}")
 
     def get_prompt_for_tier(self, tier: str, system_vibe: str, current_user_input: str) -> str:

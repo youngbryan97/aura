@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -239,6 +241,7 @@ class ConsciousnessAuditSuite:
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
+                    record_degradation('unified_audit', e)
                     logger.error("Scheduled audit failed: %s", e)
 
         self._schedule_task = get_task_tracker().create_task(_loop(), name="consciousness_audit")
@@ -279,6 +282,7 @@ class ConsciousnessAuditSuite:
                 metrics["phi"] = phi
                 metrics["riiu_stats"] = riiu.get_stats()
         except Exception as e:
+            record_degradation('unified_audit', e)
             error = str(e)
             metrics["phi"] = 0.0
 
@@ -322,6 +326,7 @@ class ConsciousnessAuditSuite:
                 metrics["ignition_level"]       = ignition_level
                 metrics["broadcast_source"]     = broadcast_source
         except Exception as e:
+            record_degradation('unified_audit', e)
             error = str(e)
 
         # GWT criteria:
@@ -363,6 +368,7 @@ class ConsciousnessAuditSuite:
                 metrics["fe_trend"]         = trend
                 metrics["fe_action"]        = dominant_action
         except Exception as e:
+            record_degradation('unified_audit', e)
             error = str(e)
             metrics["free_energy"] = 0.5
 
@@ -406,6 +412,7 @@ class ConsciousnessAuditSuite:
                 metrics["causal_depth"]           = causal_depth
                 metrics["phenomenal_criterion"]   = criterion_met
         except Exception as e:
+            record_degradation('unified_audit', e)
             error = str(e)
             metrics["opacity_index"] = 0.0
 
@@ -448,6 +455,7 @@ class ConsciousnessAuditSuite:
                 metrics["self_referential"] = self_referential
                 metrics["dominant_modality"] = dominant
         except Exception as e:
+            record_degradation('unified_audit', e)
             error = str(e)
             metrics["pri"] = 0.0
 
@@ -484,6 +492,7 @@ class ConsciousnessAuditSuite:
                 metrics["phi_delta_5"]        = phi_delta
                 metrics["val_delta_5"]        = val_delta
         except Exception as e:
+            record_degradation('unified_audit', e)
             error = str(e)
 
         # Causal loop criteria:
@@ -528,6 +537,7 @@ class ConsciousnessAuditSuite:
                 metrics["ignition_count"] = ignition_count
             metrics["phenomenal_state"] = phenomenal_state
         except Exception as e:
+            record_degradation('unified_audit', e)
             error = str(e)
 
         criteria     = ["phenomenal state exists", "ignition has occurred", "state is non-trivial"]
@@ -562,6 +572,7 @@ class ConsciousnessAuditSuite:
                 metrics["ual_profile"] = dict(profile)
                 metrics["ual_score"]   = ual_score
         except Exception as e:
+            record_degradation('unified_audit', e)
             error = str(e)
 
         criteria     = ["UAL score > 0", "trace learning active", "second-order learning active"]

@@ -11,6 +11,7 @@ Skills can be:
 This fulfills Phase 22.9 for persistent procedure learning.
 """
 
+from core.runtime.errors import record_degradation
 import ast
 import json
 import logging
@@ -135,6 +136,7 @@ class SkillLibrary:
             return results
             
         except Exception as e:
+            record_degradation('skill_library', e)
             skill.failures += 1
             self._save()
             self._update_system_health()
@@ -197,6 +199,7 @@ class SkillLibrary:
             }
             atomic_write_json(self.data_path, data)
         except Exception as e:
+            record_degradation('skill_library', e)
             logger.error("Failed to save Skill Library: %s", e)
 
     def _load(self):
@@ -212,6 +215,7 @@ class SkillLibrary:
                 self.skills[k] = LearnedSkill(steps=steps, **dict_v)
                 
         except Exception as e:
+            record_degradation('skill_library', e)
             logger.error("Failed to load Skill Library: %s", e)
 
 def register_skill_library(orchestrator=None):

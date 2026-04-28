@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -48,6 +49,7 @@ class OrganStub:
             logger.warning("Organ %s load TIMEOUT — using fallback.", self.name)
             self.instance = FallbackOrgan()
         except Exception as e:
+            record_degradation('organs', e)
             logger.exception("Organ %s load failed: %s — using fallback.", self.name, e)
             self.instance = FallbackOrgan()
 
@@ -112,6 +114,7 @@ class OrganStub:
             await asyncio.wait_for(instance.load(), timeout=2.5 if safe_boot else 4.0)
             return instance
         except Exception as e:
+            record_degradation('organs', e)
             logger.warning("NeuralBridge load failed: %s", e)
             return FallbackNeural()
 
@@ -135,6 +138,7 @@ class OrganStub:
             await asyncio.wait_for(instance.load(), timeout=3.0)
             return instance
         except Exception as e:
+            record_degradation('organs', e)
             logger.warning("Continuity organ load failed: %s", e)
             return FallbackOrgan()
 

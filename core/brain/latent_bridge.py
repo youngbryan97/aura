@@ -37,6 +37,8 @@ activation steering on a given build, the bridge degrades gracefully —
 the sampling-parameter modulation continues to work.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import logging
@@ -106,6 +108,7 @@ def _read_substrate() -> Dict[str, float]:
                 if k in d:
                     out[k] = float(d[k])
     except Exception as exc:
+        record_degradation('latent_bridge', exc)
         logger.debug("latent_bridge substrate read failed: %s", exc)
     return out
 

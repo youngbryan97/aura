@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import time
 import uuid
@@ -215,6 +216,7 @@ class MemoryConsolidationPhase(BasePhase):
                     },
                 )
             except Exception as e:
+                record_degradation('memory_consolidation', e)
                 logger.debug("MemoryConsolidation: MemoryFacade commit failed: %s", e)
  
         # Queue the knowledge for the ColdStore to process asynchronously.

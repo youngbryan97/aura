@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import subprocess
 import logging
 from pathlib import Path
@@ -62,6 +63,7 @@ class CodeGuardian:
         except subprocess.TimeoutExpired:
             return ValidationReport(success=False, error_message="Ruff check timed out.")
         except Exception as e:
+            record_degradation('code_guardian', e)
             return ValidationReport(success=False, error_message=f"Ruff execution error ({ruff_path}): {e}")
 
         # 2. Run Mypy (Static Type Checker)
@@ -85,6 +87,7 @@ class CodeGuardian:
         except subprocess.TimeoutExpired:
             return ValidationReport(success=False, error_message="Mypy check timed out.")
         except Exception as e:
+            record_degradation('code_guardian', e)
             return ValidationReport(success=False, error_message=f"Mypy execution error ({mypy_path}): {e}")
 
         logger.info("✅ CodeGuardian: %s passed all checks.", filepath.name)

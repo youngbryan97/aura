@@ -33,6 +33,8 @@ Migration runbook (used by ``core/sovereignty/migration.py``):
     9. on confirmation, cancel local persistence loops
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -216,6 +218,7 @@ class Wallet:
         except PermissionError:
             raise
         except Exception as exc:
+            record_degradation('wallet', exc)
             self._record(intent, f"will_exception:{exc}")
             raise
 
@@ -231,6 +234,7 @@ class Wallet:
         try:
             txid = await adapter.submit_spend(intent)
         except Exception as exc:
+            record_degradation('wallet', exc)
             self._record(intent, f"execute_failed:{exc}")
             raise
         intent.txid = txid
@@ -263,6 +267,7 @@ class Wallet:
                 except Exception:
                     pass
         except Exception as exc:
+            record_degradation('wallet', exc)
             logger.warning("wallet ledger append failed: %s", exc)
 
 

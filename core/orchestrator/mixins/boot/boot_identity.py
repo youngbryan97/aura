@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 from pathlib import Path
 from typing import Any, Optional
@@ -40,6 +41,7 @@ class BootIdentityMixin:
 
             logger.info("🎬 Fictional Engine Synthesis Complete (JARVIS-class online)")
         except Exception as e:
+            record_degradation('boot_identity', e)
             logger.error("🎬 Fictional Engine Synthesis failed: %s", e)
 
     async def _init_self_modification_engine(self):
@@ -64,6 +66,7 @@ class BootIdentityMixin:
                 modifier.start_monitoring()
                 logger.info("🧬 Self-Modification Engine Active")
         except Exception as e:
+            record_degradation('boot_identity', e)
             logger.warning("🧬 Self-Modification Engine init failed: %s", e)
             self.self_modifier = None
 
@@ -80,6 +83,7 @@ class BootIdentityMixin:
                     gate.identity_guard.identity = identity
                 logger.info("🛡️  Identity Guard Gate active on OutputGate")
         except Exception as e:
+            record_degradation('boot_identity', e)
             logger.error("Identity Guard initialization failed: %s", e)
 
     async def _init_persona_evolver(self):
@@ -91,6 +95,7 @@ class BootIdentityMixin:
             ServiceContainer.register_instance("persona_evolver", self.persona_evolver)
             logger.info("🧬 Persona Evolver initialized (waiting for heartbeat)")
         except Exception as e:
+            record_degradation('boot_identity', e)
             logger.error("Failed to init Persona Evolver: %s", e)
             self.persona_evolver = None
 
@@ -118,6 +123,7 @@ class BootIdentityMixin:
             ServiceContainer.register_instance("moral", moral)
             ServiceContainer.register_instance("social", social)
         except Exception as e:
+            record_degradation('boot_identity', e)
             logger.error("Failed to integrate moral systems: %s", e)
 
     def _init_architecture(self):
@@ -148,6 +154,7 @@ class BootIdentityMixin:
 
                     attach_contract(self)
                 except Exception as e:
+                    record_degradation('boot_identity', e)
                     logger.debug("Failed to attach consciousness contract: %s", e)
 
             # 4. Liquid Substrate Bridge (v6 Integration)
@@ -158,6 +165,7 @@ class BootIdentityMixin:
 
                 bridge_to_orchestrator(self)
             except Exception as e:
+                record_degradation('boot_identity', e)
                 logger.debug("Liquid Substrate bridge skipped/failed: %s", e)
 
             # 5. Moral Agency & Personality (The 'Soul')
@@ -167,6 +175,7 @@ class BootIdentityMixin:
             logger.info("✓ Core Architecture ACTIVE")
 
         except Exception as e:
+            record_degradation('boot_identity', e)
             logger.error("Failed to initialize Core Architecture: %s", e)
 
     def _initialize_execution_hardened(self):

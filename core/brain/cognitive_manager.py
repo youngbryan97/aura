@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
@@ -29,6 +30,7 @@ class CognitiveManager:
             self.initialized = True
             logger.info("Cognitive Manager online.")
         except Exception as e:
+            record_degradation('cognitive_manager', e)
             logger.error("Cognitive initialization failed: %s", e)
             raise
 

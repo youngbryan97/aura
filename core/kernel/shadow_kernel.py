@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import multiprocessing
 import traceback
 import json
@@ -90,6 +92,7 @@ class ShadowExecutionPhase(Phase):
                 logger.error("Sandbox: Structural integrity check failed (State Bounds violation)")
                 return False
         except Exception as e:
+            record_degradation('shadow_kernel', e)
             logger.error(f"Sandbox: Critical failure during structural validation: {e}")
             return False
             
@@ -163,5 +166,6 @@ class ShadowExecutionPhase(Phase):
             logger.info(f"Sandbox: Mutation validated successfully: {result.get('info')}")
             return True
         except Exception as e:
+            record_degradation('shadow_kernel', e)
             logger.error(f"Sandbox: Failed to retrieve result from worker: {e}")
             return False

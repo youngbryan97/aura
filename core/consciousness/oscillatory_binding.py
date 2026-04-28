@@ -24,6 +24,8 @@ Integration:
   • Desynchronization → fragmentation signal → executive attention redirect
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -163,6 +165,7 @@ class OscillatoryBinding:
                         self._output_tick += 1
 
                 except Exception as e:
+                    record_degradation('oscillatory_binding', e)
                     logger.error("Oscillatory binding error: %s", e, exc_info=True)
 
                 elapsed = time.time() - t0

@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
@@ -71,6 +73,7 @@ class EternalMemoryPhase(Phase):
                     # Optimized read of last N lines
                     return [json.loads(l) for l in deque(f, limit)]
             except Exception as e:
+                record_degradation('upgrades_10x', e)
                 logger.error(f"Failed to read eternal slice: {e}")
         return []
 
@@ -109,12 +112,14 @@ class EternalMemoryPhase(Phase):
                     if gate._background_local_deferral_reason(origin="eternal_memory"):
                         return True
                 except Exception as _exc:
+                    record_degradation('upgrades_10x', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             if gate and hasattr(gate, "_should_quiet_background_for_cortex_startup"):
                 try:
                     if gate._should_quiet_background_for_cortex_startup():
                         return True
                 except Exception as _exc:
+                    record_degradation('upgrades_10x', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             if not gate or not hasattr(gate, "get_conversation_status"):
                 return False
@@ -157,10 +162,12 @@ class EternalMemoryPhase(Phase):
                         classification="non_critical_fallback",
                     )
                 except Exception as _exc:
+                    record_degradation('upgrades_10x', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 return []
             return [{"role": "system", "content": f"[ETERNAL MEMORY]\n{response}"}]
         except Exception as e:
+            record_degradation('upgrades_10x', e)
             try:
                 from core.health.degraded_events import record_degraded_event
 
@@ -172,6 +179,7 @@ class EternalMemoryPhase(Phase):
                     classification="background_degraded",
                 )
             except Exception as _exc:
+                record_degradation('upgrades_10x', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             logger.warning("EternalMemory: Summary generation failed: %s", e)
             return []
@@ -228,6 +236,7 @@ class TrueEvolutionPhase(Phase):
                         else:
                             logger.debug("Evolution: initiative_queue not registered; insight dropped.")
                 except Exception as e:
+                    record_degradation('upgrades_10x', e)
                     logger.warning("Evolution: Background exploration failed: %s", e)
 
             get_task_tracker().create_task(_background_explore())
@@ -262,6 +271,7 @@ class TrueEvolutionPhase(Phase):
             else:
                 logger.warning("⚠️ Evolution: Refinement cycle completed with no applied changes.")
         except Exception as e:
+            record_degradation('upgrades_10x', e)
             logger.error("❌ Evolution: Refinement cycle failed: %s", e)
 
 # ──────────────────────────────────────────────────────────────
@@ -282,6 +292,7 @@ class PerfectEmotionPhase(Phase):
             cpu = state.soma.hardware.get("cpu_usage", 0.0)
             hardware_stress = min(1.0, cpu / 100.0)
         except Exception as e:
+            record_degradation('upgrades_10x', e)
             logger.warning("Emotion: Somatic mirroring failed: %s", e)
             
         # Feed into Damasio markers
@@ -320,6 +331,7 @@ class GodModeToolPhase(Phase):
                 from core.container import ServiceContainer
                 self._cap_engine = ServiceContainer.get("capability_engine", default=None)
             except Exception as _exc:
+                record_degradation('upgrades_10x', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         return self._cap_engine
 
@@ -521,6 +533,7 @@ class GodModeToolPhase(Phase):
                 return None
             return chosen
         except Exception as e:
+            record_degradation('upgrades_10x', e)
             logger.debug("GodMode: LLM skill selection failed: %s", e)
             return None
 
@@ -564,6 +577,7 @@ class GodModeToolPhase(Phase):
                     import json as _json
                     return _json.loads(m.group(0))
         except Exception as e:
+            record_degradation('upgrades_10x', e)
             logger.debug("GodMode: Param extraction failed: %s", e)
         return {"query": objective}
 
@@ -583,6 +597,7 @@ class GodModeToolPhase(Phase):
                 return True, validated.model_dump(), ""
             return True, dict(params), ""
         except Exception as exc:
+            record_degradation('upgrades_10x', exc)
             return False, dict(params or {}), str(exc)
 
     async def _dispatch_task_request(self, state: AuraState, objective: str) -> AuraState:
@@ -623,6 +638,7 @@ class GodModeToolPhase(Phase):
             )
             logger.info("⚡ GodMode/TASK: %s → %s", objective[:60], acceptance.outcome.value)
         except Exception as e:
+            record_degradation('upgrades_10x', e)
             logger.warning("GodMode: Task dispatch failed (%s): %s", objective[:40], e)
         return state
 
@@ -655,6 +671,7 @@ class GodModeToolPhase(Phase):
             try:
                 matched_skill_hints = list(cap.detect_intent(objective) or [])
             except Exception as exc:
+                record_degradation('upgrades_10x', exc)
                 logger.debug("GodMode: matched skill refresh skipped: %s", exc)
 
         if intent_type == "SKILL" and looks_like_multi_step_skill_request(objective, matched_skill_hints):
@@ -751,6 +768,7 @@ class GodModeToolPhase(Phase):
                     self._record_skill_blocked(state, skill_name, f"Executive veto: {reason}")
                     return state
             except Exception as e:
+                record_degradation('upgrades_10x', e)
                 if constitutional_runtime_live:
                     try:
                         from core.health.degraded_events import record_degraded_event
@@ -765,6 +783,7 @@ class GodModeToolPhase(Phase):
                             exc=e,
                         )
                     except Exception as _exc:
+                        record_degradation('upgrades_10x', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     logger.warning("🚫 GodMode: Executive gate unavailable for '%s': %s", skill_name, e)
                     self._record_skill_blocked(state, skill_name, "Executive gate unavailable.")
@@ -818,10 +837,12 @@ class GodModeToolPhase(Phase):
                     if direct_reply:
                         state.response_modifiers["precomputed_grounded_reply"] = direct_reply
                 except Exception as exc:
+                    record_degradation('upgrades_10x', exc)
                     logger.debug("GodMode: precomputed grounded reply skipped: %s", exc)
             logger.info("✅ GodMode: '%s' result injected into working memory.", skill_name)
 
         except Exception as e:
+            record_degradation('upgrades_10x', e)
             logger.warning("GodMode: Skill dispatch failed (%s): %s", objective[:40], e)
 
         return state
@@ -888,6 +909,7 @@ class EternalGrowthEngine(Phase):
                             classification="non_critical_fallback",
                         )
                     except Exception as _exc:
+                        record_degradation('upgrades_10x', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     logger.warning(
                         "EternalGrowth: LLM returned no autonomous goal. "
@@ -909,6 +931,7 @@ class EternalGrowthEngine(Phase):
             if audit_res and "UPGRADE" in audit_res.upper():
                 state.identity.evolution_score += 0.05
         except Exception as e:
+            record_degradation('upgrades_10x', e)
             try:
                 from core.health.degraded_events import record_degraded_event
 
@@ -920,6 +943,7 @@ class EternalGrowthEngine(Phase):
                     classification="background_degraded",
                 )
             except Exception as _exc:
+                record_degradation('upgrades_10x', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             logger.warning("EternalGrowth: Tick failed: %s", e)
 
@@ -953,6 +977,7 @@ class NativeMultimodalBridge(Phase):
                     if frame and hasattr(frame, "description"):
                         state.world.recent_percepts.append({"role": "vision", "content": frame.description})
             except Exception as e:
+                record_degradation('upgrades_10x', e)
                 logger.warning("NativeMultimodalBridge vision failed: %s", e)
                 
         if "voice" in obj_lower or "listen" in obj_lower:
@@ -974,6 +999,7 @@ class NativeMultimodalBridge(Phase):
                             metadata={"phase": "NativeMultimodalBridge"},
                         )
             except Exception as e:
+                record_degradation('upgrades_10x', e)
                 logger.warning("NativeMultimodalBridge voice failed: %s", e)
                 
         return state

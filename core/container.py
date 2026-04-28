@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import contextvars
@@ -238,6 +239,7 @@ class ServiceContainer:
                         context={"service": name},
                     )
                 except Exception as exc:
+                    record_degradation('container', exc)
                     logger.debug("Protected service overwrite degraded-event logging failed: %s", exc)
                 return
             if not existing and name in _LATE_CAUSAL_SERVICES:
@@ -254,6 +256,7 @@ class ServiceContainer:
                         context={"service": name},
                     )
                 except Exception as exc:
+                    record_degradation('container', exc)
                     logger.debug("Late causal registration degraded-event logging failed: %s", exc)
         with cls._lock:
             cls._services[name] = ServiceDescriptor(
@@ -306,6 +309,7 @@ class ServiceContainer:
             if hasattr(register_all_services, "_full_run"):
                 register_all_services._full_run = False
         except Exception as _exc:
+            record_degradation('container', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     @classmethod
@@ -460,6 +464,7 @@ class ServiceContainer:
             except (CircularDependencyError, ServiceNotFoundError):
                 raise
             except Exception as exc:
+                record_degradation('container', exc)
                 raise LifecycleError(f"Service '{resolved_name}' failed to initialize: {exc}") from exc
             finally:
                 cls._resolving_var.reset(token)
@@ -530,6 +535,7 @@ class ServiceContainer:
                             desc._async_initialized = True
                         logger.info("   [✓] %s online.", name)
                     except Exception as e:
+                        record_degradation('container', e)
                         logger.critical("   [!] %s FAILED: %s", name, e)
                         raise ContainerError(f"Wake failed for {name}: {e}")
 
@@ -537,6 +543,7 @@ class ServiceContainer:
                 seal = cls.write_sovereignty_seal()
                 logger.info("🔒 ServiceContainer sovereignty seal written — %s", seal.get("hash", "")[:12])
             except Exception as seal_exc:
+                record_degradation('container', seal_exc)
                 logger.warning("ServiceContainer sovereignty seal write failed: %s", seal_exc)
             
             return list(cls._services.keys())
@@ -577,6 +584,7 @@ class ServiceContainer:
                     elif result is not None:
                         logger.debug("on_stop_async for %s returned non-awaitable %r", name, type(result).__name__)
                 except Exception as e:
+                    record_degradation('container', e)
                     logger.error("on_stop_async failed for %s: %s", name, e)
             
             # Sync stop
@@ -588,6 +596,7 @@ class ServiceContainer:
                         if inspect.isawaitable(result):
                             await result
                     except Exception as e:
+                        record_degradation('container', e)
                         logger.error("%s failed for %s: %s", hook, name, e)
             
             desc.instance = None
@@ -628,6 +637,7 @@ class ServiceContainer:
             if not seal_valid:
                 report["status"] = "degraded"
         except Exception as exc:
+            record_degradation('container', exc)
             logger.debug("ServiceContainer health seal verification failed: %s", exc)
         return report
 

@@ -1,6 +1,7 @@
 """core/proactive_communication.py - Intelligent Proactive Messaging
 Aura decides WHEN to interrupt the user based on emotional state and context.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -173,6 +174,7 @@ class ProactiveCommunicationManager:
                 for msg in ready:
                     await self._send_msg(msg)
             except Exception as e:
+                record_degradation('proactive_communication', e)
                 logger.error("Proactive comm error: %s", e)
 
     async def _send_msg(self, msg: ProactiveMessage):
@@ -218,6 +220,7 @@ class ProactiveCommunicationManager:
             )
             delivered = bool(decision.get("ok"))
         except Exception as exc:
+            record_degradation('proactive_communication', exc)
             logger.debug("Executive authority routing failed for proactive comm: %s", exc)
 
         if not delivered:
@@ -237,6 +240,7 @@ class ProactiveCommunicationManager:
                     },
                 )
             except Exception as exc:
+                record_degradation('proactive_communication', exc)
                 logger.debug("Proactive comm degraded-event logging failed: %s", exc)
             return
 

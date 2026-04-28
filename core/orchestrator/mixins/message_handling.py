@@ -1,6 +1,7 @@
 """Message Handling Mixin for RobustOrchestrator.
 Extracts message acquisition, enqueueing, dispatch, and user input processing logic.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
@@ -63,6 +64,7 @@ class MessageHandlingMixin:
         except asyncio.QueueEmpty:
             return None
         except Exception as e:
+            record_degradation('message_handling', e)
             logger.error("Error acquiring message from queue: %s", e)
             return None
 
@@ -115,6 +117,7 @@ class MessageHandlingMixin:
                 state=current_state,
             )
         except Exception as exc:
+            record_degradation('message_handling', exc)
             approved = False
             reason = f"background_enqueue_gate_failed:{type(exc).__name__}"
 
@@ -171,6 +174,7 @@ class MessageHandlingMixin:
                 context={"origin": origin, "priority": priority, "reason": reason},
             )
         except Exception as exc:
+            record_degradation('message_handling', exc)
             logger.debug("Background enqueue degraded-event logging failed: %s", exc)
         return False
 
@@ -319,6 +323,7 @@ class MessageHandlingMixin:
                             "Message dropped. This is a boot-ordering bug."
                         )
             except Exception as inner_err:
+                record_degradation('message_handling', inner_err)
                 logger.error("enqueue_from_thread: Loop resolution failed: %s", inner_err)
 
     def _deep_circular_safe_sanitize(self, obj: Any, memo: Optional[set] = None) -> Any:
@@ -403,6 +408,7 @@ class MessageHandlingMixin:
             except asyncio.CancelledError as _e:
                 logger.debug('Ignored asyncio.CancelledError: %s', _e)
             except Exception as e:
+                record_degradation('message_handling', e)
                 logging.getLogger("Aura.BgTasks").debug(f"Task exception handler itself failed: {e}")
 
         get_task_tracker().create_task(
@@ -426,6 +432,7 @@ class MessageHandlingMixin:
                 label = "User"
             get_emitter().emit(f"Input ({label})", safe_msg[:120], level="info", category="Perception")
         except Exception as exc:
+            record_degradation('message_handling', exc)
             logger.error("Dispatch telemetry failure: %s", exc)
 
     async def process_user_input_priority(self, message: str, origin: str = "user", timeout_sec: float = 300.0) -> Optional[str]:
@@ -464,6 +471,7 @@ class MessageHandlingMixin:
                 logger.error("⌛ Priority processing TIMEOUT for: %s...", message[:50])
                 return "I was deep in thought and took too long. Please try again."
             except Exception as e:
+                record_degradation('message_handling', e)
                 logger.error("❌ Priority processing FAILED: %s", e)
                 return f"A cognitive fault occurred: {str(e)}"
 
@@ -534,6 +542,7 @@ class MessageHandlingMixin:
                     else:
                         return None  # Internal messages can be refused
         except Exception as _will_err:
+            record_degradation('message_handling', _will_err)
             logger.debug("Unified Will gate skipped (degraded): %s", _will_err)
 
         # ZENITH BYPASS: ALL user-origin messages go through InferenceGate. NO EXCEPTIONS.
@@ -568,6 +577,7 @@ class MessageHandlingMixin:
                     from core.utils.task_tracker import get_task_tracker
                     get_task_tracker().track(cme.on_new_user_message(message), name="on_new_user_message")
             except Exception as _exc:
+                record_degradation('message_handling', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
             try:
@@ -599,6 +609,7 @@ class MessageHandlingMixin:
                         if kernel:
                             brief = await kernel.evaluate(message, history=history)
                     except Exception as _exc:
+                        record_degradation('message_handling', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
 
                 # 2. GENERATION (Unlocked Phase)
@@ -634,6 +645,7 @@ class MessageHandlingMixin:
                                 context={"history": history, "origin": origin, "is_background": False},
                             )
                     except Exception as retry_err:
+                        record_degradation('message_handling', retry_err)
                         logger.debug("Emergency retry failed: %s", retry_err)
 
                     if not response:
@@ -663,6 +675,7 @@ class MessageHandlingMixin:
                         from core.affect.affective_circumplex import get_circumplex
                         get_circumplex().apply_event(+0.04, -0.08)  # calm, settled
                     except Exception as _exc:
+                        record_degradation('message_handling', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     # Record to history so she knows she stayed silent
                     async with self._lock:
@@ -689,6 +702,7 @@ class MessageHandlingMixin:
                         from core.affect.affective_circumplex import get_circumplex as _gc
                         _gc().apply_event(+0.06, +0.04)
                 except Exception as _exc:
+                    record_degradation('message_handling', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
                 # ── Epistemic Filter: run user messages through for belief retention ──
@@ -699,6 +713,7 @@ class MessageHandlingMixin:
                         _gef().ingest(message, source_type="conversation",
                                       source_label="user", emit_thoughts=False)
                 except Exception as _exc:
+                    record_degradation('message_handling', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
                 return response
@@ -790,6 +805,7 @@ class MessageHandlingMixin:
                                 reply_coro.close()
                 return {"ok": True, "response": reply}
             except Exception as e:
+                record_degradation('message_handling', e)
                 error_detail = str(e).strip()
                 error_message = f"Response timeout: {error_detail}" if error_detail else "Response timeout"
                 logger.error("Timed out waiting for reply to: %s", message[:50])

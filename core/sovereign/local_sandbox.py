@@ -2,6 +2,7 @@
 Executes Python code and shell commands in an isolated temporary directory
 using subprocess with timeouts and resource limits.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -115,6 +116,7 @@ class LocalSandbox(Sandbox):
             try:
                 self._temp_dir.cleanup()
             except Exception as e:
+                record_degradation('local_sandbox', e)
                 logger.warning("Sandbox cleanup failed: %s", e)
             self._temp_dir = None
         self._active = False
@@ -153,6 +155,7 @@ class LocalSandbox(Sandbox):
                 duration=duration,
             )
         except Exception as e:
+            record_degradation('local_sandbox', e)
             duration = time.monotonic() - start
             return ExecutionResult(
                 stdout="", stderr=str(e), exit_code=-1, duration=duration
@@ -210,6 +213,7 @@ class LocalSandbox(Sandbox):
                 stdout="", stderr=str(e), exit_code=126, duration=duration
             )
         except Exception as e:
+            record_degradation('local_sandbox', e)
             duration = time.monotonic() - start
             return ExecutionResult(
                 stdout="", stderr=str(e), exit_code=-1, duration=duration

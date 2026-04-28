@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 from datetime import datetime
@@ -40,6 +41,7 @@ class SelfImprovementSkill(BaseSkill):
             with open(self.learning_log_path, "w") as f:
                 json.dump(history, f, indent=2)
         except Exception as e:
+            record_degradation('self_improvement', e)
             logger.error("Failed to write learning log: %s", e)
 
     def match(self, goal: Dict[str, Any]) -> bool:
@@ -106,6 +108,7 @@ class SelfImprovementSkill(BaseSkill):
             try:
                 params = ImprovementInput(**goal)
             except Exception as e:
+                record_degradation('self_improvement', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
         else:
             # If goal is not a dict, it might be None or already an ImprovementInput instance
@@ -140,6 +143,7 @@ class SelfImprovementSkill(BaseSkill):
                 )
                 insight = reflection.content
             except Exception as e:
+                record_degradation('self_improvement', e)
                 logger.warning("Cognitive analysis unavailable: %s. Using deterministic fallback.", e)
                 insight = self._fallback_learning_node(knowledge_text, goal.get("objective", ""))
         else:
@@ -187,6 +191,7 @@ class SelfImprovementSkill(BaseSkill):
                 reflection = await brain.think(prompt, mode=ThinkingMode.REFLECTIVE)
                 improvement_plan = [line for line in reflection.content.split("\n") if line.strip()]
             except Exception as e:
+                record_degradation('self_improvement', e)
                 logger.error("Dynamic planning failed: %s", e)
                 improvement_plan = self._fallback_improvement_plan(stats, history, objective)
         else:

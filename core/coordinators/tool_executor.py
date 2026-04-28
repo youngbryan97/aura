@@ -12,6 +12,7 @@ Handles:
 
 All execution is gated through AuthorityGateway -> UnifiedWill.
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Any, Dict, List
@@ -48,6 +49,7 @@ class ToolExecutor:
                 error=error,
             )
         except Exception as exc:
+            record_degradation('tool_executor', exc)
             logger.debug("ToolExecutor: coding tool recording skipped: %s", exc)
 
     async def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
@@ -147,6 +149,7 @@ class ToolExecutor:
             return result
 
         except Exception as e:
+            record_degradation('tool_executor', e)
             logger.error("Execution Jolt (Pain): Tool %s crashed: %s", tool_name, e)
             await self._record_crash(orch, tool_name, args, e)
             elapsed_ms = (time.time() - _start) * 1000
@@ -184,6 +187,7 @@ class ToolExecutor:
                 )
                 orch.tool_learner.record_usage(tool_name, category, success, elapsed_ms)
             except Exception as _e:
+                record_degradation('tool_executor', _e)
                 logger.debug("Tool learning record failed: %s", _e)
 
     @staticmethod
@@ -200,6 +204,7 @@ class ToolExecutor:
                     importance=0.3 if success else 0.7,
                 )
             except Exception as _e:
+                record_degradation('tool_executor', _e)
                 logger.debug("Unified memory record failed: %s", _e)
 
     @staticmethod
@@ -214,6 +219,7 @@ class ToolExecutor:
                 success=success,
             )
         except Exception as _e:
+            record_degradation('tool_executor', _e)
             logger.debug("ACG record failed: %s", _e)
 
     @staticmethod
@@ -244,6 +250,7 @@ class ToolExecutor:
                 source=source,
             )
         except Exception as exc:
+            record_degradation('tool_executor', exc)
             logger.debug("ToolExecutor: action feedback emission failed: %s", exc)
 
     @staticmethod
@@ -259,4 +266,5 @@ class ToolExecutor:
                     importance=0.9,
                 )
             except Exception as _e:
+                record_degradation('tool_executor', _e)
                 logger.debug("Unified memory record failed (crash path): %s", _e)

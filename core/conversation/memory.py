@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from core.utils.exceptions import capture_and_log
@@ -109,6 +110,7 @@ If no facts found, return [].
                         domain=f.get("domain", "general")
                     )
         except Exception as e:
+            record_degradation('memory', e)
             capture_and_log(e, {"context": "ConversationMemory.knowledge_extraction"})
             logger.error("Knowledge extraction failed: %s", e)
 

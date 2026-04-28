@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import httpx
 import os
@@ -28,6 +29,7 @@ class ManifestToDeviceSkill(BaseSkill):
         try:
             self.desktop_path.mkdir(parents=True, exist_ok=True)
         except Exception as e:
+            record_degradation('manifest_to_device', e)
             logger.warning("Could not create Manifests directory on Desktop: %s", e)
 
     async def execute(self, params: ManifestInput, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -36,6 +38,7 @@ class ManifestToDeviceSkill(BaseSkill):
             try:
                 params = ManifestInput(**params)
             except Exception as e:
+                record_degradation('manifest_to_device', e)
                 return {"ok": False, "error": f"Invalid parameters: {e}"}
 
         url = params.url
@@ -73,5 +76,6 @@ class ManifestToDeviceSkill(BaseSkill):
             }
 
         except Exception as e:
+            record_degradation('manifest_to_device', e)
             logger.error("Manifest failed: %s", e)
             return {"ok": False, "error": str(e)}

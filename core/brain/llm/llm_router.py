@@ -7,6 +7,7 @@ Routing Priority:
 
 Never fails. Always has a working brain.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -133,6 +134,7 @@ class LLMHealthMonitor:
                 # Assuming Event structure or specific health event
                 logger.debug("Event fallback not implemented in router health record.") 
             except Exception as e:
+                record_degradation('llm_router', e)
                 logger.debug("Failed to emit recovery event: %s", e)
 
     
@@ -213,6 +215,7 @@ class LocalLLMAdapter:
                     snippet = " | ".join([str(m) for m in recent])
                     context_parts.append(f"[Memories: {snippet}]")
         except Exception as e:
+            record_degradation('llm_router', e)
             logger.debug("Context injection failed: %s", e)
             
         return "\n".join(context_parts) + "\n\n" if context_parts else ""
@@ -314,6 +317,7 @@ class LocalLLMAdapter:
                         }
                         return True, data.get("response", ""), metadata
                 except Exception as e:
+                    record_degradation('llm_router', e)
                     logger.debug("Ollama /api/generate failed, trying /v1/chat/completions: %s", e)
 
                 # 2. Try OpenAI-compatible /v1/chat/completions fallback
@@ -360,6 +364,7 @@ class LocalLLMAdapter:
                     return False, "", {"error": error}
                     
         except Exception as e:
+            record_degradation('llm_router', e)
             return False, "", {"error": str(e)}
 
 
@@ -388,6 +393,7 @@ class StaticReflexClient:
             if substrate:
                 mood_desc = substrate.get_summary()
         except Exception as exc:
+            record_degradation('llm_router', exc)
             logger.debug("Substrate not available for static reflex: %s", exc)
         
         try:
@@ -399,6 +405,7 @@ class StaticReflexClient:
                     items = [m.content if hasattr(m, "content") else str(m) for m in recent]
                     context_snippet = " | ".join(items)
         except Exception as exc:
+            record_degradation('llm_router', exc)
             logger.debug("Memory not available for static reflex: %s", exc)
             
         # 2. Match Heuristics
@@ -607,6 +614,7 @@ class IntelligentLLMRouter:
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 return str(gate._background_local_deferral_reason(origin=origin) or "").strip()
         except Exception as exc:
+            record_degradation('llm_router', exc)
             logger.debug("LegacyRouter background deferral probe failed: %s", exc)
         return ""
     
@@ -934,6 +942,7 @@ class IntelligentLLMRouter:
                     self.health_monitor.record_failure(endpoint_name, last_error_str)
                     break  # Don't retry timeouts — fail over to next endpoint
                 except Exception as e:
+                    record_degradation('llm_router', e)
                     logger.error("🚨 Error calling %s (Attempt %d): %s", endpoint_name, attempt + 1, e)
                     last_error_str = str(e)
                     if attempt == 0: await asyncio.sleep(0.5)
@@ -1075,6 +1084,7 @@ class IntelligentLLMRouter:
                     return
                     
             except Exception as e:
+                record_degradation('llm_router', e)
                 logger.warning("Streaming from %s failed: %s. Trying next...", endpoint_name, e)
                 continue
 
@@ -1238,6 +1248,7 @@ class IntelligentLLMRouter:
                     self.health_monitor.record_success(name)
                     return result
                 except Exception as e:
+                    record_degradation('llm_router', e)
                     logger.warning("think_and_act on %s failed: %s", name, e)
                     self.health_monitor.record_failure(name, str(e))
                     continue

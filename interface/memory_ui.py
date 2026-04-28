@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -26,6 +27,7 @@ async def get_vault_stats():
     try:
         total_bytes = len(json.dumps(memories, default=str).encode()) if memories else 0
     except Exception as e:
+        record_degradation('memory_ui', e)
         logger.warning("Failed to calculate Vault mass: %s", e)
         total_bytes = 0
     total_bits = total_bytes * 8
@@ -54,6 +56,7 @@ async def get_vault_stats():
             elif shard_count < 5:
                 horcrux_status = "UNSTABLE"
         except Exception as e:
+            record_degradation('memory_ui', e)
             horcrux_status = "UNKNOWN"
             logger.warning("Horcrux shard check failed: %s", e)
 
@@ -76,6 +79,7 @@ async def get_vault_stats():
                     } for e in recent_episodes
                 ]
         except Exception as e:
+            record_degradation('memory_ui', e)
             logger.warning("Episodic fallback failed: %s", e)
 
     for m in sorted(source_memories, key=lambda x: x.get("created", 0), reverse=True)[:10]:

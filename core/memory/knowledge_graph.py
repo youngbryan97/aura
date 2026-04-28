@@ -2,6 +2,7 @@
 Aura's knowledge persists forever across sessions.
 v5.0: Thread-safe with WAL mode.
 """
+from core.runtime.errors import record_degradation
 import hashlib
 import json
 import logging
@@ -88,11 +89,13 @@ class PersistentKnowledgeGraph:
                     context={"source": source, "reason": reason},
                 )
             except Exception as exc:
+                record_degradation('knowledge_graph', exc)
                 logger.debug("KnowledgeGraph degraded-event logging skipped: %s", exc)
             if return_decision:
                 return False, None
             return False
         except Exception as exc:
+            record_degradation('knowledge_graph', exc)
             logger.debug("KnowledgeGraph constitutional gate skipped: %s", exc)
             if return_decision:
                 return (not runtime_live), None
@@ -124,6 +127,7 @@ class PersistentKnowledgeGraph:
                 health["status"] = "degraded"
                 
         except Exception as e:
+            record_degradation('knowledge_graph', e)
             health["status"] = "error"
             health["error"] = str(e)
             
@@ -691,6 +695,7 @@ class PersistentKnowledgeGraph:
 
             return {"nodes": nodes, "edges": edges}
         except Exception as e:
+            record_degradation('knowledge_graph', e)
             logger.error("Failed to generate vis data: %s", e)
             return {"nodes": [{"id": "error", "label": "Graph Error", "color": "red"}], "edges": []}
 

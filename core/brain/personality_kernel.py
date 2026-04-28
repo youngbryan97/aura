@@ -1,6 +1,7 @@
 """core/personality_kernel.py - Immutable Identity Core
 Enforces immutability and cryptographic integrity for Aura's identity.
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import hashlib
 import hmac
@@ -35,6 +36,7 @@ class PersonalityKernel:
             self.key_file.write_bytes(key)
             os.chmod(self.key_file, 0o600)
         except Exception as e:
+            record_degradation('personality_kernel', e)
             logger.error("Failed to write identity key: %s", e)
         return key
 
@@ -60,6 +62,7 @@ class PersonalityKernel:
                 logger.info("Identity seal initialized and locked: %s...", signature[:16])
                 return True
             except Exception as e:
+                record_degradation('personality_kernel', e)
                 logger.error("Failed to write identity seal: %s", e)
                 return False
 
@@ -71,6 +74,7 @@ class PersonalityKernel:
             logger.critical("IDENTITY TAMPERING DETECTED: Expected %s, got %s", stored_seal[:16], signature[:16])
             return False
         except Exception as e:
+            record_degradation('personality_kernel', e)
             logger.error("Failed to read identity seal: %s", e)
             return False
 

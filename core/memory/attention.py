@@ -2,6 +2,7 @@
 Phase 16.3: Infinite Narrative Context - Attention Summarizer.
 Compresses GlobalWorkspace history into Latent Seed Thoughts.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -66,6 +67,7 @@ class AttentionSummarizer:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('attention', e)
                 logger.error("AttentionSummarizer cycle error: %s", e)
 
     async def _generate_seed_thought(self, items: List[Any]) -> Optional[str]:
@@ -87,5 +89,6 @@ class AttentionSummarizer:
             res = await brain.think(prompt, mode=ThinkingMode.FAST)
             return res.content.strip()
         except Exception as e:
+            record_degradation('attention', e)
             logger.error("Failed to generate seed thought: %s", e)
             return None

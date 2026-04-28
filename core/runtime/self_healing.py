@@ -22,6 +22,8 @@ Repair actions:
   * record an action receipt + a phenomenal envelope (severity = 0.5)
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -126,6 +128,7 @@ class SelfHealing:
             w.last_heartbeat_at = time.time()
             record["result"] = "restarted"
         except Exception as exc:
+            record_degradation('self_healing', exc)
             record["result"] = f"restart_failed:{exc}"
         try:
             with open(_LEDGER, "a", encoding="utf-8") as fh:

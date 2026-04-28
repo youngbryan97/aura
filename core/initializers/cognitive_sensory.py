@@ -3,6 +3,7 @@
 Registers sensory subsystems (vision, hearing, continuous perception)
 into the service container for use by the cognitive pipeline.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 
@@ -18,6 +19,7 @@ def init_cognitive_sensory_layer(container):
             container.register_instance("sensory_system", sensory, required=False)
             logger.debug("Sensory system registered.")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.debug("Sensory system init deferred: %s", e)
 
     try:
@@ -27,6 +29,7 @@ def init_cognitive_sensory_layer(container):
         container.register_instance("continuous_vision", buffer, required=False)
         logger.debug("Continuous vision buffer registered.")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.debug("Continuous vision init deferred: %s", e)
 
     # Research-inspired memory systems
@@ -36,6 +39,7 @@ def init_cognitive_sensory_layer(container):
         container.register_instance("conceptual_gravitation", grav, required=False)
         logger.debug("Conceptual gravitation engine registered.")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.debug("Conceptual gravitation init deferred: %s", e)
 
     try:
@@ -44,6 +48,7 @@ def init_cognitive_sensory_layer(container):
         container.register_instance("knowledge_compressor", compressor, required=False)
         logger.debug("Knowledge compressor registered.")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.debug("Knowledge compressor init deferred: %s", e)
 
     try:
@@ -52,6 +57,7 @@ def init_cognitive_sensory_layer(container):
         container.register_instance("navigating_graph", nsg, required=False)
         logger.debug("Navigating graph registered.")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.debug("Navigating graph init deferred: %s", e)
 
     try:
@@ -60,6 +66,7 @@ def init_cognitive_sensory_layer(container):
         container.register_instance("stdp_engine", stdp, required=False)
         logger.debug("STDP learning engine registered.")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.debug("STDP engine init deferred: %s", e)
 
     # Code graph — Aura's self-knowledge of her own codebase
@@ -72,6 +79,7 @@ def init_cognitive_sensory_layer(container):
         get_task_tracker().create_task(_build_code_graph_background(graph))
         logger.info("Code graph registered (building in background).")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.debug("Code graph init deferred: %s", e)
 
 
@@ -85,4 +93,5 @@ async def _build_code_graph_background(graph):
         _logger.info("Code graph ready: %d files, %d symbols, %d relationships (%.1fs)",
                      stats["files"], stats["symbols"], stats["relationships"], stats.get("build_time_s", 0))
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         _logger.warning("Code graph background build failed: %s", e)

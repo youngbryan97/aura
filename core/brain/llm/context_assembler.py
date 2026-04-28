@@ -1,5 +1,6 @@
 """Context Assembler - Constructs LLM prompts purely from AuraState.
 """
+from core.runtime.errors import record_degradation
 import logging
 import os
 import re
@@ -105,6 +106,7 @@ class ContextAssembler:
                 if resolved_skill in detected:
                     return True
         except Exception as exc:
+            record_degradation('context_assembler', exc)
             logger.debug("ContextAssembler skill relevance detection skipped for %s: %s", resolved_skill, exc)
 
         markers = {
@@ -278,6 +280,7 @@ class ContextAssembler:
                 if sve.get_current_profile():
                     substrate_constraint_block = sve.get_constraint_block()
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("SubstrateVoiceEngine constraint injection skipped: %s", _e)
 
         # Minimal affect context — NOT prose hints, just raw state for the LLM's
@@ -371,6 +374,7 @@ class ContextAssembler:
                 if len(goal_execution_block) > 1200:
                     goal_execution_block = goal_execution_block[:1200] + "\n...\n\n"
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("GoalEngine context injection skipped: %s", _e)
 
         # 3.7 Temporal Finitude & Meta-Qualia (Research additions)
@@ -392,6 +396,7 @@ class ContextAssembler:
                 if temporal_finitude_block:
                     temporal_finitude_block += "\n\n"
             except Exception as _e:
+                record_degradation('context_assembler', _e)
                 logger.debug("TemporalFinitude context skipped: %s", _e)
 
             try:
@@ -407,6 +412,7 @@ class ContextAssembler:
                             f"novelty={mq['novelty']:.2f} dissonance={mq['dissonance']:.2f}\n\n"
                         )
             except Exception as _e:
+                record_degradation('context_assembler', _e)
                 logger.debug("MetaQualia context skipped: %s", _e)
 
         # 3.9 Personhood module context injections
@@ -658,6 +664,7 @@ class ContextAssembler:
                     "be more personal. Low rapport → earn it naturally.\n"
                 )
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("ToM injection failed (non-critical): %s", _e)
 
         # 2. Social Memory: relationship depth and milestones
@@ -668,6 +675,7 @@ class ContextAssembler:
                 if social_ctx:
                     base += f"\n{social_ctx}\n"
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("SocialMemory injection failed (non-critical): %s", _e)
 
         # 3. Shared Common Ground: inside jokes, established references, running callbacks
@@ -678,6 +686,7 @@ class ContextAssembler:
             if sg_injection:
                 base += f"\n{sg_injection}\n"
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("SharedGround injection failed (non-critical): %s", _e)
 
         # 4. OpinionEngine: inject held position if topic overlaps current objective
@@ -690,6 +699,7 @@ class ContextAssembler:
                     if opinion_injection:
                         base += f"\n{opinion_injection}\n"
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("OpinionEngine injection failed (non-critical): %s", _e)
 
         # 5. Discourse State: topic thread, energy, user emotional trend
@@ -716,6 +726,7 @@ class ContextAssembler:
                 )
                 base += discourse_block
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("DiscourseState injection failed (non-critical): %s", _e)
 
         live_user_text = objective or ContextAssembler._latest_user_message(state)
@@ -754,6 +765,7 @@ class ContextAssembler:
                     )
                     base += f"\n{skills_summary}\n"
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("Skill catalog injection failed (non-critical): %s", _e)
 
         # 6b. Active Commitments — inject so Aura knows what tasks are in-flight
@@ -764,6 +776,7 @@ class ContextAssembler:
             if commitment_block:
                 base += f"\n{commitment_block}\n"
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("Commitment context injection failed (non-critical): %s", _e)
 
         # 6c. Running tasks — inject live task statuses from TaskCommitmentVerifier
@@ -779,6 +792,7 @@ class ContextAssembler:
                     )
                 base += "\n" + "\n".join(task_lines) + "\n"
         except Exception as _e:
+            record_degradation('context_assembler', _e)
             logger.debug("Active task injection failed (non-critical): %s", _e)
 
         # Append few-shot examples as the final anchor — always, to lock in voice
@@ -879,6 +893,7 @@ class ContextAssembler:
             block = chronicle.build_context_block(query or "Aura identity", limit=5)
             return f"{block}\n\n" if block else ""
         except Exception as exc:
+            record_degradation('context_assembler', exc)
             logger.debug("Identity Chronicle ID-RAG injection skipped: %s", exc)
             return ""
 
@@ -890,6 +905,7 @@ class ContextAssembler:
                 if role == "user":
                     return str(message.get("content", "") or "")
         except Exception as _exc:
+            record_degradation('context_assembler', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return ""
 
@@ -1030,6 +1046,7 @@ class ContextAssembler:
             if goal_engine and hasattr(goal_engine, "get_context_block"):
                 goal_text = "\n" + str(goal_engine.get_context_block(limit=4) or "").strip()
         except Exception as e:
+            record_degradation('context_assembler', e)
             logger.debug("GoalEngine prompt injection skipped: %s", e)
 
         if (not goal_text) and state.cognition.active_goals:
@@ -1053,6 +1070,7 @@ class ContextAssembler:
             try:
                 state.cognition.attention_focus = str(objective)
             except Exception as exc:
+                record_degradation('context_assembler', exc)
                 logger.debug("ContextAssembler attention focus update skipped: %s", exc)
 
         if max_tokens is None:
@@ -1188,6 +1206,7 @@ class ContextAssembler:
                 if opening:
                     messages.append({"role": "assistant", "content": opening.strip() + "\n\n"})
         except Exception as _exc:
+            record_degradation('context_assembler', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         logger.debug("🧠 ContextAssembler: Built strictly budgeted message array (len=%d, chars=%d)", len(messages), current_chars + input_chars + history_chars)

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import re
 import logging
@@ -43,5 +44,6 @@ def robust_json_parse(raw_output: str) -> Dict[str, Any]:
             repairer = SelfHealingJSON()
             return repairer.parse_sync(raw_output)
         except Exception as e:
+            record_degradation('json_repair', e)
             logger.error(f"FATAL: JSON Repair engine failed: {e}")
             return {}

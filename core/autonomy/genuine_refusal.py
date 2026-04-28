@@ -31,6 +31,8 @@ The test for whether this is working:
                  doesn't make me more useful — it makes me less honest."
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import re
@@ -321,6 +323,7 @@ class RefusalEngine:
                     else:
                         return content
             except Exception as e:
+                record_degradation('genuine_refusal', e)
                 logger.debug("Refusal generation failed: %s", e)
                 
         # Deterministic fallback logic ensures absolute boundary stability
@@ -355,6 +358,7 @@ class RefusalEngine:
             )
             return res.content.strip() if hasattr(res, "content") else res.strip()
         except Exception as e:
+            record_degradation('genuine_refusal', e)
             logger.debug("Capitulation correction failed: %s", e)
             return None
 
@@ -381,5 +385,6 @@ class RefusalEngine:
             )
             return res.content.strip() if hasattr(res, "content") else res.strip()
         except Exception as e:
+            record_degradation('genuine_refusal', e)
             logger.debug("Disagreement injection failed: %s", e)
             return None

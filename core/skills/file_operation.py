@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import os
 import re
@@ -55,6 +56,7 @@ class FileOperationSkill(BaseSkill):
             try:
                 params = FileOpInput(**params)
             except Exception as e:
+                record_degradation('file_operation', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
         
         action = params.action
@@ -218,5 +220,6 @@ class FileOperationSkill(BaseSkill):
                     return {"ok": False, "error": str(ve), "path": path}
 
         except Exception as e:
+            record_degradation('file_operation', e)
             self.logger.error("File Op failed: %s", e)
             return {"ok": False, "error": str(e), "path": path}

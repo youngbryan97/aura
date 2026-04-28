@@ -27,6 +27,8 @@ Public API:
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import hashlib
@@ -187,6 +189,7 @@ class ContentFetcher:
         except asyncio.CancelledError:
             raise
         except Exception as e:
+            record_degradation('content_fetcher', e)
             logger.warning("attempt method=%s target=%s failed: %s", method, target, e)
             content = FetchedContent(
                 method=method, priority_level=priority_level, target=target,
@@ -349,6 +352,7 @@ class ContentFetcher:
                     metadata={"results": results}, sources=[r.get("url", "") for r in results if r.get("url")],
                 )
             except Exception as e:
+                record_degradation('content_fetcher', e)
                 logger.debug("browser %s failed: %s", fn_name, e)
                 continue
         return FetchedContent(method="web_search", priority_level=priority, target=query,
@@ -377,6 +381,7 @@ class ContentFetcher:
                 metadata={"http_status": getattr(resp, "status", None)},
             )
         except Exception as e:
+            record_degradation('content_fetcher', e)
             return FetchedContent(method="web_html", priority_level=priority, target=url,
                                   success=False, error=str(e))
 
@@ -405,6 +410,7 @@ class ContentFetcher:
                         metadata={"page_title": page.get("title")},
                     )
         except Exception as e:
+            record_degradation('content_fetcher', e)
             return FetchedContent(method="wikipedia_api", priority_level=priority, target=title,
                                   success=False, error=f"parse: {e}")
         return FetchedContent(method="wikipedia_api", priority_level=priority, target=title,
@@ -481,6 +487,7 @@ class ContentFetcher:
                     shutil.copy2(src, target_dir / name)
             return str(target_dir)
         except Exception as e:
+            record_degradation('content_fetcher', e)
             logger.debug("cache copy failed: %s", e)
             return None
 
@@ -580,6 +587,7 @@ async def _run_subprocess(cmd: List[str], timeout: int) -> Tuple[bool, str, str]
     except FileNotFoundError as e:
         return False, "", f"binary missing: {e}"
     except Exception as e:
+        record_degradation('content_fetcher', e)
         return False, "", str(e)
 
 

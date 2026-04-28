@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import shlex
 import subprocess
 import asyncio
@@ -41,6 +42,7 @@ class ShellInterface:
         except asyncio.TimeoutError:
             return {"success": False, "error": "Command timed out.", "stdout": "", "stderr": "", "code": -1}
         except Exception as e:
+            record_degradation('shell', e)
             return {"success": False, "error": str(e), "stdout": "", "stderr": "", "code": -1}
 
     async def write_file_safe(self, target_file: str, content: str) -> Dict[str, Any]:
@@ -69,6 +71,7 @@ class ShellInterface:
                 
             return {"success": True, "file": target_file}
         except Exception as e:
+            record_degradation('shell', e)
             logging.getLogger("Shell").error("Failed to write %s safely: %s", target_file, e)
             if snapshot:
                 sandbox_manager.restore_snapshot(target_file, snapshot)

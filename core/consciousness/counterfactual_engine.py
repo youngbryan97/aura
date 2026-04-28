@@ -24,6 +24,8 @@ Regret/relief learning:
   If actual > counterfactual: relief  → update world model, strengthen confidence
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -186,12 +188,14 @@ class CounterfactualEngine:
                 if homeostasis and hasattr(homeostasis, "report_error"):
                     homeostasis.report_error("low")
             except Exception as e:
+                record_degradation('counterfactual_engine', e)
                 logger.debug("feed_back homeostasis (regret): %s", e)
             try:
                 credit = ServiceContainer.get("credit_assignment", default=None)
                 if credit and hasattr(credit, "assign_credit"):
                     credit.assign_credit(action_id, -record.regret, domain)
             except Exception as e:
+                record_degradation('counterfactual_engine', e)
                 logger.debug("feed_back credit_assignment (regret): %s", e)
 
         if record.relief > 0.1:
@@ -200,12 +204,14 @@ class CounterfactualEngine:
                 if homeostasis and hasattr(homeostasis, "feed_curiosity"):
                     homeostasis.feed_curiosity(record.relief * 0.1)
             except Exception as e:
+                record_degradation('counterfactual_engine', e)
                 logger.debug("feed_back homeostasis (relief): %s", e)
             try:
                 credit = ServiceContainer.get("credit_assignment", default=None)
                 if credit and hasattr(credit, "assign_credit"):
                     credit.assign_credit(action_id, record.relief, domain)
             except Exception as e:
+                record_degradation('counterfactual_engine', e)
                 logger.debug("feed_back credit_assignment (relief): %s", e)
 
     # ── Action evaluation ─────────────────────────────────────────────────

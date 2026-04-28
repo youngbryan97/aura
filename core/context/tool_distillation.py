@@ -9,6 +9,7 @@ Multi-tier output handling:
 Replaces all hard-coded [:2000] / [:5000] truncation across Aura's skills.
 """
 
+from core.runtime.errors import record_degradation
 import hashlib
 import logging
 import os
@@ -72,6 +73,7 @@ class ToolOutputDistillationService:
                 f.write(content)
             return filepath
         except Exception as e:
+            record_degradation('tool_distillation', e)
             logger.warning("Failed to save tool output: %s", e)
             return "(save failed)"
 
@@ -213,6 +215,7 @@ class ToolOutputDistillationService:
                     return f"{header}\n{summary}"
 
             except Exception as e:
+                record_degradation('tool_distillation', e)
                 logger.warning("LLM distillation failed, falling back to structural truncation: %s", e)
 
         # Tier 3: Structural truncation fallback

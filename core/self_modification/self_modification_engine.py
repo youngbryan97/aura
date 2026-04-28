@@ -1,6 +1,7 @@
 """Autonomous Self-Modification Engine
 Orchestrates the complete self-improvement system.
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
@@ -36,6 +37,7 @@ def _schedule_background_coro(coro: Any, *, label: str) -> None:
             except asyncio.CancelledError:
                 logger.debug("%s background runner cancelled", label)
             except Exception as exc:
+                record_degradation('self_modification_engine', exc)
                 logger.debug("%s background runner failed: %s", label, exc)
 
         threading.Thread(target=_runner, name=f"aura_{label}", daemon=True).start()
@@ -49,6 +51,7 @@ def _schedule_background_coro(coro: Any, *, label: str) -> None:
         except asyncio.CancelledError:
             logger.debug("%s background task cancelled", label)
         except Exception as exc:
+            record_degradation('self_modification_engine', exc)
             logger.debug("%s background task failed: %s", label, exc)
 
     task.add_done_callback(_consume_result)
@@ -158,6 +161,7 @@ class AutonomousSelfModificationEngine:
             try:
                 result = await skill.execute(goal, context)
             except Exception as e:
+                record_degradation('self_modification_engine', e)
                 self_mod_engine.on_error(e, context, skill.name, goal)
                 raise
         """
@@ -307,6 +311,7 @@ class AutonomousSelfModificationEngine:
                     logger.error("🛑 [NEURO] Component %s is QUARANTINED. Modification blocked.", fix.target_file)
                     return False
         except Exception as e:
+            record_degradation('self_modification_engine', e)
             logger.debug("Shielded circuit breaker check failed: %s", e)
 
         # Use provided test results, or those inside the proposal
@@ -351,6 +356,7 @@ class AutonomousSelfModificationEngine:
                         from ..thought_stream import get_emitter
                         get_emitter().emit("System Evolution", f"Sovereign Repair Persistent: {fix.target_file}", level="success")
                     except Exception as exc:
+                        record_degradation('self_modification_engine', exc)
                         logger.debug("Suppressed: %s", exc)            
                 else:
                     logger.error("❌ [NEURO] Permanent application FAILED: %s", message)
@@ -359,6 +365,7 @@ class AutonomousSelfModificationEngine:
                         if immunity:
                             immunity.audit_error(RuntimeError(f"Persistence failed: {message}"), {"file": fix.target_file})
                     except Exception as e:
+                        record_degradation('self_modification_engine', e)
                         logger.debug("Failed to audit persistence error to immunity: %s", e)
                 
                 # Record for learning
@@ -374,6 +381,7 @@ class AutonomousSelfModificationEngine:
                 return success
                 
             except Exception as e:
+                record_degradation('self_modification_engine', e)
                 logger.exception("CRITICAL: Persistence error in SME: %s", e)
                 return False
         
@@ -408,6 +416,7 @@ class AutonomousSelfModificationEngine:
             logger.info("✅ Sovereign Swarm Consensus: Fix is safe to apply.")
             return True
         except Exception as e:
+            record_degradation('self_modification_engine', e)
             logger.error("Swarm review failed: %s. Proceeding with caution.", e)
             return True
 
@@ -506,6 +515,7 @@ class AutonomousSelfModificationEngine:
                     from ..thought_stream import get_emitter
                     get_emitter().emit("Proactive Refinement 💎", "Scanning for architectural optimizations...", level="info", category="Self-Modification")
                 except Exception as _exc:
+                    record_degradation('self_modification_engine', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 return await self.run_refinement_cycle()
             
@@ -601,6 +611,7 @@ class AutonomousSelfModificationEngine:
             from ..thought_stream import get_emitter
             get_emitter().emit("Synthesis 🚀", f"Optimizing {top_refinement.get('file', 'system')}: {top_refinement.get('message', '')}", level="info", category="Self-Modification")
         except Exception as _exc:
+            record_degradation('self_modification_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         
         # Step 2: Convert refinement to a 'synthetic bug' for the repair engine
@@ -722,6 +733,7 @@ class AutonomousSelfModificationEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('self_modification_engine', e)
                 logger.error("Monitoring cycle error: %s", e, exc_info=True)
                 _consecutive_failures += 1
                 await asyncio.sleep(max(60, _backoff))
@@ -789,6 +801,7 @@ class AutonomousSelfModificationEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('self_modification_engine', e)
                 logger.error("Health Watcher error: %s", e)
                 await asyncio.sleep(30)
 
@@ -809,7 +822,8 @@ class AutonomousSelfModificationEngine:
                  goal="Verify autonomous recovery health"
              )
         except Exception as e:
-             logger.error("Failed to trigger synthetic test: %s", e)
+            record_degradation('self_modification_engine', e)
+            logger.error("Failed to trigger synthetic test: %s", e)
     
     # ========================================================================
     # Reporting & Status

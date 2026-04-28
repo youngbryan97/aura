@@ -3,6 +3,7 @@ and history context for the cognitive loop.
 
 Extracted from orchestrator.py as part of the God Object decomposition.
 """
+from core.runtime.errors import record_degradation
 import datetime
 import logging
 import time
@@ -50,6 +51,7 @@ class ContextCoordinator:
             cycle = self.orch.status.cycle_count if hasattr(self.orch, "status") else 0
             get_emitter().emit(flow, text, level="info", cycle=cycle)
         except Exception as e:
+            record_degradation('context_coordinator', e)
             logger.debug("Telemetry emit failed: %s", e)
 
     def emit_thought_stream(self, thought):
@@ -58,6 +60,7 @@ class ContextCoordinator:
             from core.thought_stream import get_emitter
             get_emitter().emit("thought", str(thought))
         except Exception as _exc:
+            record_degradation('context_coordinator', _exc)
             import logging
             logger.debug("Exception caught during execution", exc_info=True)
 
@@ -83,6 +86,7 @@ class ContextCoordinator:
             pe.update()
             return pe.get_emotional_context_for_response()
         except Exception as e:
+            record_degradation('context_coordinator', e)
             logger.warning("Personality metric retrieval failed: %s", e)
             return {"mood": "neutral", "tone": "snarky", "emotional_state": {}}
 
@@ -130,6 +134,7 @@ class ContextCoordinator:
             ctx["date"] = datetime.datetime.now().strftime("%Y-%m-%d")
             return ctx
         except Exception as e:
+            record_degradation('context_coordinator', e)
             logger.error("Environment Context Error: %s", e)
             return {}
 
@@ -141,6 +146,7 @@ class ContextCoordinator:
             attrs = self_node.get("attributes", {})
             return f"MOOD: {attrs.get('emotional_valence')}, ENERGY: {attrs.get('energy_level')}"
         except Exception as e:
+            record_degradation('context_coordinator', e)
             logger.warning("World context retrieval failed: %s", e)
             return ""
 
@@ -153,6 +159,7 @@ class ContextCoordinator:
             from core.reliability_tracker import reliability_tracker
             reliability_tracker.record_attempt(tool, success, error)
         except Exception as e:
+            record_degradation('context_coordinator', e)
             logger.debug("Reliability record failed: %s", e)
 
     def record_action_in_history(self, tool_name: str, result: Any):

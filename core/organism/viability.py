@@ -33,6 +33,8 @@ The state machine is observed by the AgencyOrchestrator, the universal
 error UX layer, the dashboard, and the conversation lane controller.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -193,6 +195,7 @@ class ViabilityEngine:
             try:
                 cb(old, new)
             except Exception as exc:
+                record_degradation('viability', exc)
                 logger.debug("viability transition cb error: %s", exc)
 
     def on_transition(self, cb: Callable[[ViabilityState, ViabilityState], None]) -> None:
@@ -240,6 +243,7 @@ class ViabilityEngine:
                 try:
                     self.tick()
                 except Exception as exc:
+                    record_degradation('viability', exc)
                     logger.debug("viability tick error: %s", exc)
                 await asyncio.sleep(interval)
 

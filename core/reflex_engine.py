@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import random
 import re
@@ -132,6 +133,7 @@ class ReflexEngine:
                 if texts:
                     self.tiny_brain.train_on_memories(texts)
             except Exception as e:
+                record_degradation('reflex_engine', e)
                 logger.debug("Failed to train Tiny Brain on recent memories: %s", e)
                 
         return self.tiny_brain.generate(prompt)
@@ -171,5 +173,6 @@ class ReflexEngine:
                 
             return False
         except Exception as e:
+            record_degradation('reflex_engine', e)
             logger.error("⚡ [SPINAL CORD] Reflex failure: %s", e)
             return False

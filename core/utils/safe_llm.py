@@ -3,6 +3,7 @@
 All LLM calls should go through this wrapper to prevent hung local inference
 from blocking the entire system indefinitely.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -55,6 +56,7 @@ async def safe_think(brain, prompt: str, timeout: float = 60.0,
             latency_ms=latency,
         )
     except Exception as e:
+        record_degradation('safe_llm', e)
         latency = (time.monotonic() - start) * 1000
         logger.error("LLM call failed after %.1fms: %s", latency, e)
         return SafeThought(

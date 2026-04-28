@@ -15,6 +15,7 @@ Design:
   - Graceful: failures never impact the main conversation
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -195,9 +196,11 @@ class KnowledgeEnricher:
                             category="Memory"
                         )
                     except Exception as _exc:
+                        record_degradation('knowledge_enrichment', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
 
             except Exception as e:
+                record_degradation('knowledge_enrichment', e)
                 logger.debug("Knowledge enrichment failed (non-critical): %s", e)
 
         return result
@@ -231,6 +234,7 @@ class KnowledgeEnricher:
                 if isinstance(items, list):
                     return items[:15]  # Cap at 15 items per extraction
         except Exception as e:
+            record_degradation('knowledge_enrichment', e)
             logger.debug("Knowledge extraction LLM call failed: %s", e)
 
         return []

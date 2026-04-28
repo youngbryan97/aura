@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -182,6 +184,7 @@ class DialogueCognitionEngine:
             for user_id, data in (payload.get("profiles", {}) or {}).items():
                 self._profiles[user_id] = DialogueCognitionProfile.from_dict(data)
         except Exception as exc:
+            record_degradation('dialogue_cognition', exc)
             logger.debug("DialogueCognition load skipped: %s", exc)
 
     def save(self) -> None:
@@ -192,6 +195,7 @@ class DialogueCognitionEngine:
                 json.dump(payload, handle, indent=2)
             os.replace(tmp, self._storage_path)
         except Exception as exc:
+            record_degradation('dialogue_cognition', exc)
             logger.debug("DialogueCognition save skipped: %s", exc)
 
     def get_profile(self, user_id: str) -> DialogueCognitionProfile:
@@ -699,5 +703,6 @@ def get_dialogue_cognition() -> DialogueCognitionEngine:
             if not ServiceContainer.has("dialogue_cognition"):
                 ServiceContainer.register_instance("dialogue_cognition", _dialogue_cognition, required=False)
         except Exception as _exc:
+            record_degradation('dialogue_cognition', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
     return _dialogue_cognition

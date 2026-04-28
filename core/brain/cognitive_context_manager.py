@@ -4,6 +4,7 @@ Unified Cognitive Context Manager for Aura.
 Consolidates all system states into a cohesive narrative for the LLM.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any
 
@@ -39,6 +40,7 @@ class CognitiveContextManager:
             if liquid:
                 context["vitality"] = liquid.get_status()
         except Exception as exc:
+            record_degradation('cognitive_context_manager', exc)
             logger.debug("Vitality/Homeostasis context failed: %s", exc)
 
         try:
@@ -46,6 +48,7 @@ class CognitiveContextManager:
             if identity:
                 context["identity"] = identity.get_full_system_prompt_injection()
         except Exception as exc:
+            record_degradation('cognitive_context_manager', exc)
             logger.debug("Identity context failed: %s", exc)
 
         try:
@@ -56,6 +59,7 @@ class CognitiveContextManager:
                 context["personality"] = personality.get_emotional_context_for_response()
                 context["ocean_traits"] = AURA_BIG_FIVE
         except Exception as exc:
+            record_degradation('cognitive_context_manager', exc)
             logger.debug("Personality context failed: %s", exc)
 
         try:
@@ -67,6 +71,7 @@ class CognitiveContextManager:
                     memories = await memory.memory.retrieve(message, limit=3)
                     context["memory_context"] = "\n".join(f"- {memory_item}" for memory_item in memories)
         except Exception as exc:
+            record_degradation('cognitive_context_manager', exc)
             logger.debug("Memory context failed: %s", exc)
 
         try:
@@ -81,6 +86,7 @@ class CognitiveContextManager:
                     "phi": state.get("iit_phi"),
                 }
         except Exception as exc:
+            record_degradation('cognitive_context_manager', exc)
             logger.debug("Consciousness context failed: %s", exc)
 
         try:
@@ -92,6 +98,7 @@ class CognitiveContextManager:
                     for belief in strong[:5]
                 )
         except Exception as exc:
+            record_degradation('cognitive_context_manager', exc)
             logger.debug("Belief context failed: %s", exc)
 
         try:
@@ -99,6 +106,7 @@ class CognitiveContextManager:
             if theory_of_mind:
                 context["user_intent"] = await theory_of_mind.infer_intent(message, context)
         except Exception as exc:
+            record_degradation('cognitive_context_manager', exc)
             logger.debug("ToM context failed: %s", exc)
 
         return context
@@ -138,6 +146,7 @@ class CognitiveContextManager:
                     domain=domain,
                 )
         except Exception as exc:
+            record_degradation('cognitive_context_manager', exc)
             logger.debug("Automatic learning record failed: %s", exc)
 
     def get_ui_snapshot(self) -> dict[str, Any]:

@@ -1,6 +1,7 @@
 """core/consciousness/system.py — The Consciousness Facade
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -98,6 +99,7 @@ class ConsciousnessSystem:
             self.stream_of_being = await boot_stream_of_being(orchestrator=self.orch)
             logger.info("🧠 Layer 1: StreamOfBeing ONLINE")
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not boot StreamOfBeing: %s", e)
 
         # Layer 2: Affective Steering — substrate sync start
@@ -112,6 +114,7 @@ class ConsciousnessSystem:
             ServiceContainer.register_instance("affective_steering", steering_engine)
             logger.info("🧠 Layer 2: AffectiveSteering registered (awaiting model attach)")
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not register AffectiveSteering: %s", e)
 
         # Layer 3: LatentBridge — attaches AFTER model loads in mlx_client
@@ -124,6 +127,7 @@ class ConsciousnessSystem:
             self.closed_loop = await boot_closed_loop()
             logger.info("🧠 Layer 4: ClosedCausalLoop ONLINE")
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not boot ClosedCausalLoop: %s", e)
 
         # Layer 5: PhiCore — IIT 4.0 φs computation
@@ -133,6 +137,7 @@ class ConsciousnessSystem:
             ServiceContainer.register_instance("phi_core", self.phi_core)
             logger.info("🧠 Layer 5: PhiCore ONLINE (recording via ClosedCausalLoop)")
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not initialize PhiCore: %s", e)
 
         # Layer 5b: HierarchicalPhi — extended 32-node primary + K overlapping subsystems
@@ -145,6 +150,7 @@ class ConsciousnessSystem:
                 getattr(self.hierarchical_phi, '_subsystems', []).__len__(),
             )
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not initialize HierarchicalPhi: %s", e)
 
         # Layer 5c: HemisphericSplit — left (verbal/confabulating) vs right (mute/spatial)
@@ -154,6 +160,7 @@ class ConsciousnessSystem:
             ServiceContainer.register_instance("hemispheric_split", self.hemispheric_split)
             logger.info("🧠 Layer 5c: HemisphericSplit ONLINE (corpus callosum intact)")
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not initialize HemisphericSplit: %s", e)
 
         # Layer 5d: MinimalSelfhood — chemotaxis → directed-motion (Glasgow)
@@ -163,6 +170,7 @@ class ConsciousnessSystem:
             ServiceContainer.register_instance("minimal_selfhood", self.minimal_selfhood)
             logger.info("🧠 Layer 5d: MinimalSelfhood ONLINE (trichoplax→dugesia)")
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not initialize MinimalSelfhood: %s", e)
 
         # Layer 5e: RecursiveToM — depth-3 nested minds + observer-aware bias
@@ -172,6 +180,7 @@ class ConsciousnessSystem:
             ServiceContainer.register_instance("recursive_tom", self.recursive_tom)
             logger.info("🧠 Layer 5e: RecursiveToM ONLINE (max_depth=3, observer-aware)")
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not initialize RecursiveToM: %s", e)
 
         # Layer 5f: OctopusFederation — 8-arm semi-autonomous agents
@@ -181,6 +190,7 @@ class ConsciousnessSystem:
             ServiceContainer.register_instance("octopus_federation", self.octopus_federation)
             logger.info("🧠 Layer 5f: OctopusFederation ONLINE (8 arms, link=intact)")
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not initialize OctopusFederation: %s", e)
 
         # Layer 5g: CellularTurnover — neuron death/birth + identity preservation
@@ -193,6 +203,7 @@ class ConsciousnessSystem:
             ServiceContainer.register_instance("cellular_turnover", self.cellular_turnover)
             logger.info("🧠 Layer 5g: CellularTurnover ONLINE (attached=%s)", mesh is not None)
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not initialize CellularTurnover: %s", e)
 
         # Layer 5h: AbsorbedVoices — cultural/internalised perspectives layer
@@ -205,6 +216,7 @@ class ConsciousnessSystem:
                 self.absorbed_voices.voice_count(),
             )
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not initialize AbsorbedVoices: %s", e)
 
         # Layer 6: Consciousness Bridge — Neural Mesh, Neurochemicals,
@@ -218,6 +230,7 @@ class ConsciousnessSystem:
             logger.info("🧠 Layer 6: ConsciousnessBridge ONLINE (%d/7 layers)",
                         self.bridge.get_status().get("layers_active", 0))
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not boot ConsciousnessBridge: %s", e)
 
         # Layer 7: Parallel Cognitive Branches — concurrent thought streams
@@ -228,6 +241,7 @@ class ConsciousnessSystem:
             logger.info("🧠 Layer 7: BranchManager ONLINE (max_branches=%d)",
                         self.branch_manager.MAX_BRANCHES)
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not boot BranchManager: %s", e)
 
         # Layer 8: Aura Protocol — inter-instance communication
@@ -238,6 +252,7 @@ class ConsciousnessSystem:
             logger.info("🧠 Layer 8: AuraProtocolServer ONLINE (port=%d)",
                         self.aura_protocol._port)
         except Exception as e:
+            record_degradation('system', e)
             logger.warning("Could not boot AuraProtocolServer: %s", e)
 
         # ═══════════════════════════════════════════════════════════════════
@@ -260,6 +275,7 @@ class ConsciousnessSystem:
             try:
                 await self.bridge.stop()
             except Exception as _e:
+                record_degradation('system', _e)
                 logger.debug('Ignored Exception stopping bridge: %s', _e)
 
         # Stop the closed loop
@@ -267,6 +283,7 @@ class ConsciousnessSystem:
             try:
                 await self.closed_loop.stop()
             except Exception as _e:
+                record_degradation('system', _e)
                 logger.debug('Ignored Exception in system.py: %s', _e)
 
         # Stop the branch manager
@@ -274,6 +291,7 @@ class ConsciousnessSystem:
             try:
                 await self.branch_manager.stop()
             except Exception as _e:
+                record_degradation('system', _e)
                 logger.debug('Ignored Exception stopping branch_manager: %s', _e)
 
         # Stop the aura protocol server
@@ -281,6 +299,7 @@ class ConsciousnessSystem:
             try:
                 await self.aura_protocol.stop()
             except Exception as _e:
+                record_degradation('system', _e)
                 logger.debug('Ignored Exception stopping aura_protocol: %s', _e)
 
         await self.liquid_substrate.stop()

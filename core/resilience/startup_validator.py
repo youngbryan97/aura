@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -71,6 +73,7 @@ class StartupValidator:
                     check.passed = True
                     check.message = "Check not implemented (ignored)"
             except Exception as e:
+                record_degradation('startup_validator', e)
                 check.passed = False
                 check.message = f"Check crashed: {e}"
 
@@ -158,6 +161,7 @@ class StartupValidator:
             c.passed = True
             c.message = f"Registry active with {len(reg.circuits)} circuits."
         except Exception as e:
+            record_degradation('startup_validator', e)
             c.passed = False
             c.message = f"Registry failure: {e}"
 
@@ -244,6 +248,7 @@ class StartupValidator:
             c.passed = True
             c.message = f"Data dir writable: {config.paths.data_dir}"
         except Exception as e:
+            record_degradation('startup_validator', e)
             c.passed = False
             c.message = f"Storage inaccessible: {e}"
 
@@ -275,6 +280,7 @@ class StartupValidator:
                 c.message = "No zombies found."
                 
         except Exception as e:
+            record_degradation('startup_validator', e)
             c.passed = True # Non-critical
             c.message = f"Reaper skipped: {e}"
 

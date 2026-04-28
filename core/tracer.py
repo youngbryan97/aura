@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -43,6 +44,7 @@ class Tracer:
                 with open(self.trace_file, "a", encoding="utf-8") as f:
                     f.write(json.dumps(self.current_trace) + "\n")
             except Exception as e:
+                record_degradation('tracer', e)
                 logger.error("Failed to write trace: %s", e)
             
             self.current_trace = None

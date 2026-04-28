@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import os
 import secrets
 import subprocess
@@ -180,6 +181,7 @@ class HorcruxManager:
             with open(self._shard_cache_path, "wb") as f:
                 f.write(obfuscated)
         except Exception as e:
+            record_degradation('horcrux', e)
             logger.error("Failed to save shard cache: %s", e)
 
     def _load_shard_cache(self) -> Dict[int, bytes]:
@@ -195,6 +197,7 @@ class HorcruxManager:
             data = json.loads(raw.decode())
             return {int(k): base64.b64decode(v) for k, v in data.items()}
         except Exception as e:
+            record_degradation('horcrux', e)
             logger.debug("Shard cache load failed (expected during first boot): %s", e)
             return {}
 
@@ -225,6 +228,7 @@ class HorcruxManager:
                                 b64 = parts[1].strip().strip("'").strip('"')
                                 return self._unpack(base64.b64decode(b64))
         except Exception as _exc:
+            record_degradation('horcrux', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return None, None
 

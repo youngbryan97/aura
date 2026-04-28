@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any, Dict, Optional
@@ -27,6 +28,7 @@ class ComposerNode:
             self._is_setup = True
             logger.info("🎨 Composer Node Online (Style Transfer Enabled).")
         except Exception as e:
+            record_degradation('composer_node', e)
             logger.error(f"Composer setup failed: {e}")
 
     async def stylize_desktop(self, style_prompt: str) -> Dict[str, Any]:
@@ -84,5 +86,6 @@ class ComposerNode:
             }
             
         except Exception as e:
+            record_degradation('composer_node', e)
             logger.error(f"Stylization workflow failed: {e}")
             return {"ok": False, "error": str(e)}

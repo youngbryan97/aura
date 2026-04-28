@@ -15,6 +15,7 @@ Strategy Selection Rules:
   - TOOL_REFLECT: After tool use → verify tool output solved the problem
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import collections
 import logging
@@ -259,6 +260,7 @@ class ReasoningStrategies:
                             stats["avg_confidence"] = stats["avg_confidence"] + (result.confidence - stats["avg_confidence"]) / n
                             return result
                     except Exception as tot_exc:
+                        record_degradation('reasoning_strategies', tot_exc)
                         logger.debug("Tree of Thoughts failed, falling back to legacy: %s", tot_exc)
 
             if strategy == StrategyType.DEBATE:
@@ -281,6 +283,7 @@ class ReasoningStrategies:
             return result
             
         except Exception as e:
+            record_degradation('reasoning_strategies', e)
             logger.error("Strategy %s failed: %s. Falling back to DIRECT.", strategy.name, e)
             return await self._direct(query, **kwargs)
 
@@ -480,6 +483,7 @@ class ReasoningStrategies:
             if match:
                 return float(match.group(1))
         except Exception as _exc:
+            record_degradation('reasoning_strategies', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return 0.5
 

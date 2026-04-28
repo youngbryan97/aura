@@ -5,6 +5,7 @@ extracts the reasoning trajectory, and writes it to a JSONL dataset in Alpaca/Sh
 This allows Aura to generate her own active-learning data for future fine-tuning.
 """
 
+from core.runtime.errors import record_degradation
 import os
 import json
 import logging
@@ -75,6 +76,7 @@ class FinetunePipe:
                 await self.flush()
                 
         except Exception as e:
+            record_degradation('finetune_pipe', e)
             logger.error("Failed to register success trace: %s", e)
 
     async def flush(self):
@@ -123,9 +125,11 @@ class FinetunePipe:
                 try:
                     await asyncio.to_thread(_rotate_dataset, self.dataset_path)
                 except Exception as rotate_err:
+                    record_degradation('finetune_pipe', rotate_err)
                     logger.debug("Dataset rotation skipped: %s", rotate_err)
                     
             except Exception as e:
+                record_degradation('finetune_pipe', e)
                 logger.error("Failed to flush traces to disk: %s", e)
 
 # Singleton instance

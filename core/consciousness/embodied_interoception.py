@@ -27,6 +27,8 @@ Resilient: if psutil or any sensor fails, that channel returns its last good
 value.  Total sensor failure degrades gracefully to neutral baseline.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -208,6 +210,7 @@ class EmbodiedInteroception:
                     self._push_to_mesh()
                     self._trigger_neurochemical_events()
                 except Exception as e:
+                    record_degradation('embodied_interoception', e)
                     logger.error("Interoception tick error: %s", e, exc_info=True)
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
@@ -333,6 +336,7 @@ class EmbodiedInteroception:
             vec = self.get_sensory_vector()
             self._mesh_ref.inject_sensory(vec)
         except Exception as e:
+            record_degradation('embodied_interoception', e)
             logger.debug("Failed to push sensory to mesh: %s", e)
 
     def _trigger_neurochemical_events(self):
@@ -416,6 +420,7 @@ class EmbodiedInteroception:
                 ncs.on_rest()
 
         except Exception as e:
+            record_degradation('embodied_interoception', e)
             logger.debug("Neurochemical trigger error: %s", e)
 
     # ── External API ─────────────────────────────────────────────────────

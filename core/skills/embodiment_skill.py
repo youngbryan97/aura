@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from typing import Any, Dict
 import logging
 
@@ -30,6 +31,7 @@ class EmbodimentSkill(BaseSkill):
         try:
             manager: HardwareManager = ServiceContainer.get("hardware_manager", default=None)
         except Exception as e:
+            record_degradation('embodiment_skill', e)
             logger.warning("Hardware manager not available: %s", e)
             manager = None
             

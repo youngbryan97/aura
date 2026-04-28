@@ -1,6 +1,7 @@
 """Self-Improvement Learning System
 Learns from successful and failed modification attempts.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -339,6 +340,7 @@ class SelfImprovementLearning:
             logger.info("Loaded %d learned strategies", len(self.strategies))
             
         except Exception as e:
+            record_degradation('learning_system', e)
             logger.error("Failed to load learning database: %s", e)
     
     def _save_knowledge(self):
@@ -354,6 +356,7 @@ class SelfImprovementLearning:
                 json.dump(data, f, indent=2)
             
         except Exception as e:
+            record_degradation('learning_system', e)
             logger.error("Failed to save learning database: %s", e)
 
 

@@ -10,6 +10,7 @@ This keeps long conversations stable by preventing context overflow while
 preserving critical information through intelligent summarization.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import hashlib
 import json
@@ -88,6 +89,7 @@ def _save_truncated_output(content: str, tool_name: str, truncation_id: str, tem
             f.write(content)
         return filepath
     except Exception as e:
+        record_degradation('chat_compression', e)
         logger.warning("Failed to save truncated output: %s", e)
         return "(save failed)"
 
@@ -385,6 +387,7 @@ class ChatCompressionService:
             )
 
         except Exception as e:
+            record_degradation('chat_compression', e)
             logger.error("Chat compression failed: %s", e, exc_info=True)
             self._has_failed_attempt = True
             # Fallback to truncation-only

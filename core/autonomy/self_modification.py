@@ -26,6 +26,8 @@ MODIFIABLE (with Will authorization):
   - Self-modification engine     (self_modification/)
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import copy
@@ -288,6 +290,7 @@ class AutonomousSelfModification:
                 },
             )
         except Exception as exc:
+            record_degradation('self_modification', exc)
             receipt = ModificationReceipt(
                 proposal_id=proposal.proposal_id,
                 target_path=proposal.target_path,
@@ -394,6 +397,7 @@ class AutonomousSelfModification:
                 return True, f"Untyped change -- passed basic validation"
 
         except Exception as exc:
+            record_degradation('self_modification', exc)
             return False, f"Simulation error: {exc}"
 
     # ── Application ─────────────────────────────────────────────────────
@@ -418,6 +422,7 @@ class AutonomousSelfModification:
             else:
                 return "No automatic application -- logged for manual review"
         except Exception as exc:
+            record_degradation('self_modification', exc)
             logger.error("Self-modification apply failed: %s", exc)
             return f"Apply error: {exc}"
 
@@ -437,6 +442,7 @@ class AutonomousSelfModification:
                     hv._adjust(key, delta)
                     applied.append(f"{key}: {old_val:.3f} -> {val:.3f}")
             except Exception as exc:
+                record_degradation('self_modification', exc)
                 return f"Heartstone adjustment failed: {exc}"
 
         elif target_system == "drive_engine":
@@ -450,6 +456,7 @@ class AutonomousSelfModification:
                             b.level = max(0.0, min(b.capacity, val * b.capacity))
                             applied.append(f"{name}: {old_level:.1f} -> {b.level:.1f}")
             except Exception as exc:
+                record_degradation('self_modification', exc)
                 return f"Drive engine adjustment failed: {exc}"
 
         return f"Applied {len(applied)} value change(s): {'; '.join(applied)}"
@@ -477,6 +484,7 @@ class AutonomousSelfModification:
             with open(_AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
                 f.write(json.dumps(receipt.to_dict(), default=str) + "\n")
         except Exception as exc:
+            record_degradation('self_modification', exc)
             logger.debug("Audit log write failed: %s", exc)
 
     def _publish_event(self, topic: str, receipt: ModificationReceipt) -> None:

@@ -4,6 +4,7 @@ Handles audio input, Voice Activity Detection (VAD), and Transcription.
 Now unified to wrap around SovereignVoiceEngine v5.0 for reliability.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from pathlib import Path
@@ -43,6 +44,7 @@ class SovereignEars:
 
             self._engine = ServiceContainer.get("voice_engine", default=None)
         except Exception as e:
+            record_degradation('ears', e)
             logger.debug("👂 SovereignEars: voice engine lookup deferred: %s", e)
         return self._engine
 
@@ -109,4 +111,5 @@ class SovereignEars:
             # as it often collides with the larger service lifecycle.
             logger.warning("mock_hear: No running event loop. Transcript not dispatched.")
         except Exception as e:
+            record_degradation('ears', e)
             logger.error("Mock hear failed: %s", e)

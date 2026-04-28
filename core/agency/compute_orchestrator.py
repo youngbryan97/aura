@@ -20,6 +20,8 @@ The orchestrator also:
   - Logs allocation decisions for transparency
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 import asyncio
@@ -114,6 +116,7 @@ class ComputeOrchestrator:
                 hedonic = hg.score
                 token_mult = hg.allocation.token_multiplier
         except Exception as _exc:
+            record_degradation('compute_orchestrator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Compute actual allowed allocations
@@ -227,6 +230,7 @@ class ComputeOrchestrator:
                     affect.apply_stimulus("resource_strain", anxiety * 5)
                 )
         except Exception as _exc:
+            record_degradation('compute_orchestrator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def _default_state(self) -> ResourceState:

@@ -24,6 +24,8 @@ Persistence: saves creative history to ~/.aura/data/aesthetic_journal.json
 Initiative integration: during boredom, may autonomously create art.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -239,6 +241,7 @@ class AestheticEngine:
                 self._valence = getattr(circumplex, "current_valence", self._valence)
                 self._arousal = getattr(circumplex, "current_arousal", self._arousal)
         except Exception as e:
+            record_degradation('aesthetic_engine', e)
             logger.debug("AestheticEngine: affect read failed: %s", e)
 
         # Fallback: affective circumplex
@@ -269,6 +272,7 @@ class AestheticEngine:
                     ncs_arousal = (mood["arousal"] + 1.0) / 2.0
                     self._arousal = 0.6 * self._arousal + 0.4 * max(0.0, min(1.0, ncs_arousal))
         except Exception as e:
+            record_degradation('aesthetic_engine', e)
             logger.debug("AestheticEngine: neurochemical read failed: %s", e)
 
         # Free Energy
@@ -280,6 +284,7 @@ class AestheticEngine:
             elif fee and hasattr(fee, "_history") and fee._history:
                 self._free_energy = fee._history[-1].free_energy
         except Exception as e:
+            record_degradation('aesthetic_engine', e)
             logger.debug("AestheticEngine: free energy read failed: %s", e)
 
         # Phi (integration) from substrate
@@ -293,6 +298,7 @@ class AestheticEngine:
                     raw_d = substrate.x[substrate.idx_dominance]
                     self._dominance = float(np.clip((raw_d + 1.0) / 2.0, 0, 1))
         except Exception as e:
+            record_degradation('aesthetic_engine', e)
             logger.debug("AestheticEngine: substrate read failed: %s", e)
 
         # Drives
@@ -305,6 +311,7 @@ class AestheticEngine:
             elif drive and hasattr(drive, "get_drives"):
                 self._drives = drive.get_drives()
         except Exception as e:
+            record_degradation('aesthetic_engine', e)
             logger.debug("AestheticEngine: drive read failed: %s", e)
 
         # Qualia PRI
@@ -746,6 +753,7 @@ class AestheticEngine:
             )
             logger.debug("Aesthetic journal saved (%d entries)", len(trimmed))
         except Exception as e:
+            record_degradation('aesthetic_engine', e)
             logger.debug("Failed to save aesthetic journal: %s", e)
 
     def _load_journal(self):
@@ -757,6 +765,7 @@ class AestheticEngine:
                     self._journal = data[-_MAX_JOURNAL_ENTRIES:]
                     logger.debug("Loaded aesthetic journal (%d entries)", len(self._journal))
         except Exception as e:
+            record_degradation('aesthetic_engine', e)
             logger.debug("Failed to load aesthetic journal: %s", e)
             self._journal = []
 

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import sys
 import json
 import logging
@@ -91,6 +92,7 @@ class IPCWriterThread(threading.Thread):
                     # the local buffer when it is saturated with telemetry.
                     self.mp_queue.put(item, block=True, timeout=5.0)
                 except Exception as _exc:
+                    record_degradation('mlx_worker', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             # Drop non-essential telemetry if buffer is full.
 
@@ -172,6 +174,7 @@ def _setup_worker_env():
             os.environ["SDKROOT"] = sdk_path
             os.environ["AURA_SDK_PATH"] = sdk_path # Cache for subsequent spawns
         except Exception as e:
+            record_degradation('mlx_worker', e)
             print(f"⚠️ [MLX_WORKER_ENV] Failed to probe environment: {e}")
             return # Exit early if SDK probe fails critically
 
@@ -191,6 +194,7 @@ def _setup_worker_env():
         if cpath_parts:
             os.environ["CPATH"] = ":".join(cpath_parts + [os.environ.get("CPATH", "")]).strip(":")
     except Exception as e:
+        record_degradation('mlx_worker', e)
         print(f"⚠️ [MLX_WORKER_ENV] Failed to probe Mac version/CPATH: {e}")
 
     os.environ["MLX_NUM_THREADS"] = "10"   # M-series has 10+ perf cores
@@ -210,6 +214,7 @@ def _clear_mlx_cache(mx_module: Any) -> None:
         try:
             mx_module.metal.clear_cache()
         except Exception as _exc:
+            record_degradation('mlx_worker', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
 
@@ -509,6 +514,7 @@ def _mlx_worker_loop(
             mx.set_cache_limit(limit)
             logger.info(f"Metal cache limit set to {limit // (1024**2)}MB")
         except Exception as e:
+            record_degradation('mlx_worker', e)
             try: mx.metal.set_cache_limit(1024 * 1024 * 1024 * 24)
             except Exception: pass
 
@@ -530,6 +536,7 @@ def _mlx_worker_loop(
                 model, tokenizer = load(model_path, adapter_path=adapter_path)
                 logger.info("Model loaded with Aura personality LoRA fused.")
             except Exception as adapter_exc:
+                record_degradation('mlx_worker', adapter_exc)
                 logger.warning(
                     "⚠️ [WORKER] LoRA adapter failed to load for %s: %s. Using base model + prompt hardening.",
                     os.path.basename(model_path),
@@ -550,6 +557,7 @@ def _mlx_worker_loop(
                 engine.start_substrate_sync(shared_state=substrate_mem)
             logger.info("🎯 Affective Steering Engine ONLINE.")
         except Exception as se:
+            record_degradation('mlx_worker', se)
             logger.warning(f"Failed to attach steering: {se}")
 
         # Apply Recurrent Depth — Mythos-inspired layer looping.
@@ -561,10 +569,12 @@ def _mlx_worker_loop(
             if apply_for_model(model):
                 logger.info("🧠 Recurrent Depth ACTIVE — model now thinks before answering.")
         except Exception as rd_exc:
+            record_degradation('mlx_worker', rd_exc)
             logger.warning(f"Recurrent depth not applied: {rd_exc}")
 
         ipc_writer.put({"status": "ok", "action": "init", "device": device})
     except Exception as e:
+        record_degradation('mlx_worker', e)
         import traceback
         err_detail = f"{e}\n{traceback.format_exc()}"
         logger.error(f"Worker Init Error: {err_detail}")
@@ -614,6 +624,7 @@ def _mlx_worker_loop(
                             tokenize=False
                         )
                     except Exception as e:
+                        record_degradation('mlx_worker', e)
                         logger.warning(f"❌ [WORKER] Native template compilation failed: {e}")
 
                 temp = job.get("temp", 0.7)
@@ -668,6 +679,7 @@ def _mlx_worker_loop(
                         logits_processors.append(json_start_processor)
                         logger.info("🎯 [WORKER] JSON start enforcement ACTIVE.")
                     except Exception as e:
+                        record_degradation('mlx_worker', e)
                         logger.warning(f"Failed to setup JSON logits processor: {e}")
                 
                 if logits_processors:
@@ -719,6 +731,7 @@ def _mlx_worker_loop(
                                         substrate_mem=substrate_mem,
                                     )
                                 except Exception as _sent_exc:
+                                    record_degradation('mlx_worker', _sent_exc)
                                     sentinel = None
                                     logger.debug("TokenSentinel not available: %s", _sent_exc)
 
@@ -863,6 +876,7 @@ def _mlx_worker_loop(
                         "tokens_used": total_generated_tokens
                     })
                 except Exception as e:
+                    record_degradation('mlx_worker', e)
                     logger.error(f"Generation failed: {e}")
                     ipc_writer.put({"status": "error", "action": "generate", "message": str(e)})
                 finally:
@@ -980,6 +994,7 @@ def _mlx_worker_loop(
                     
                     ipc_writer.put({"status": "ok", "action": "stream_done"})
                 except Exception as e:
+                    record_degradation('mlx_worker', e)
                     logger.error(f"Streaming failed: {e}")
                     ipc_writer.put({"status": "error", "action": "stream", "message": str(e)})
                 finally:
@@ -1011,6 +1026,7 @@ def _mlx_worker_loop(
                 ipc_writer.put({"status": "ok"})
                 
         except Exception as e:
+            record_degradation('mlx_worker', e)
             import traceback
             tb = traceback.format_exc()
             logger.error("❌ [WORKER] Fatal error during initialization: %s\n%s", e, tb)

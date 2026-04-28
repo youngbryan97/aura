@@ -3,6 +3,7 @@ Pre-flight startup validation.
 Checks every hard dependency before accepting any user input.
 Fails fast with actionable error messages.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import importlib
 import logging
@@ -58,6 +59,7 @@ class StartupValidator:
                 elif result:
                     results.append(result)
             except Exception as e:
+                record_degradation('validator', e)
                 results.append(ValidationResult(
                     name=check_fn.__name__,
                     passed=False,
@@ -229,6 +231,7 @@ def check_audio_device() -> ValidationResult:
             message=f"{count} audio device(s) found",
         )
     except Exception as e:
+        record_degradation('validator', e)
         return ValidationResult(
             name="Audio input device",
             passed=False,

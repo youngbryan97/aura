@@ -2,6 +2,7 @@
 Handles periodic database maintenance (VACUUM) and rotating compressed backups
 of critical state to ensure Data Safety & Recovery on Apple Silicon.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -44,6 +45,7 @@ class BackupManager:
             for path in getattr(db_coord, "_connections", {}).keys():
                 candidates.append(Path(path))
         except Exception as exc:
+            record_degradation('backup', exc)
             logger.debug("BackupManager database discovery skipped coordinator paths: %s", exc)
         deduped = []
         seen = set()
@@ -71,6 +73,7 @@ class BackupManager:
                 or ""
             )
         except Exception as exc:
+            record_degradation('backup', exc)
             logger.debug("Maintenance background policy check skipped: %s", exc)
             return ""
 
@@ -108,12 +111,14 @@ class BackupManager:
                 try:
                     await asyncio.to_thread(self._vacuum_database_sync, db_path)
                 except Exception as e:
+                    record_degradation('backup', e)
                     logger.warning("Failed to vacuum %s: %s", db_path, e)
 
             logger.info("VACUUM operation complete.")
             self._last_vacuum_at = time.time()
             return True
         except Exception as e:
+            record_degradation('backup', e)
             logger.error("VACUUM operation failed: %s", e)
             return False
         finally:
@@ -155,6 +160,7 @@ class BackupManager:
                 return final_path
             return None
         except Exception as e:
+            record_degradation('backup', e)
             logger.error(f"Backup failed: {e}")
             return None
         finally:
@@ -171,6 +177,7 @@ class BackupManager:
                 await asyncio.to_thread(os.remove, oldest)
                 
         except Exception as e:
+            record_degradation('backup', e)
             logger.error(f"Failed to enforce backup rotation: {e}")
 
     async def ensure_recent_backup(self, max_age_s: Optional[float] = None) -> Optional[Path]:

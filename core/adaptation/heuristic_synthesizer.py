@@ -9,6 +9,7 @@ Example synthesized heuristics:
   - "SQLite operations frequently fail under concurrent load; serialize writes."
   - "Web search results older than 7 days should be re-verified."
 """
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import json
 import logging
@@ -39,6 +40,7 @@ class HeuristicSynthesizer:
                 self._active_heuristics = data.get("heuristics", [])[:MAX_ACTIVE_HEURISTICS]
                 logger.info("📐 Loaded %d active heuristics", len(self._active_heuristics))
             except Exception as e:
+                record_degradation('heuristic_synthesizer', e)
                 logger.error("Failed to load heuristics: %s", e)
                 self._active_heuristics = []
 
@@ -85,6 +87,7 @@ class HeuristicSynthesizer:
                 errors = [e for e in emitter.recent_events if e.get("level") in ("error", "warning")]
                 error_signals.extend([e.get("message", "")[:200] for e in errors[-20:]])
         except Exception as e:
+            record_degradation('heuristic_synthesizer', e)
             capture_and_log(e, {'module': __name__})
 
         # Check dead letter queue
@@ -94,6 +97,7 @@ class HeuristicSynthesizer:
                 for f in dlq.recent_failures[-10:]:
                     error_signals.append(f"DLQ: {f.get('error', '')[:150]}")
         except Exception as e:
+            record_degradation('heuristic_synthesizer', e)
             capture_and_log(e, {'module': __name__})
 
         if not error_signals:
@@ -161,6 +165,7 @@ class HeuristicSynthesizer:
                             h = mycelium.get_hypha("adaptation", "cognition")
                             if h: h.pulse(success=True)
                     except Exception as e:
+                        record_degradation('heuristic_synthesizer', e)
                         capture_and_log(e, {'module': __name__})
                         
                     logger.info("📐 Synthesized %d new heuristics (%d total active)", added, len(self._active_heuristics))
@@ -169,6 +174,7 @@ class HeuristicSynthesizer:
             return {"ok": True, "new_heuristics": 0, "reason": "no_parseable_rules"}
 
         except Exception as e:
+            record_degradation('heuristic_synthesizer', e)
             logger.error("Heuristic synthesis failed: %s", e)
             return {"ok": False, "error": str(e)}
 

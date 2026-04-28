@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 """Shared helpers for safer macOS desktop boot behavior."""
 
 
@@ -146,6 +148,7 @@ def configure_inprocess_mlx_runtime(
                 }
             )
         except Exception as exc:
+            record_degradation('desktop_boot_safety', exc)
             _INPROCESS_MLX_STATE.update(
                 {
                     "configured": True,

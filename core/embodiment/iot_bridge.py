@@ -29,6 +29,8 @@ event into the prediction-error stream tagged with provenance so it never
 gets confused with internal state.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -220,6 +222,7 @@ class IoTBridge:
                 if not rule.when(snapshot):
                     continue
             except Exception as exc:
+                record_degradation('iot_bridge', exc)
                 logger.debug("iot rule predicate failed: %s", exc)
                 continue
             last = self._last_fired.get(rule.name, 0.0)
@@ -228,6 +231,7 @@ class IoTBridge:
             try:
                 effect = rule.effect(snapshot)
             except Exception as exc:
+                record_degradation('iot_bridge', exc)
                 logger.debug("iot rule effect build failed: %s", exc)
                 continue
             self._last_fired[rule.name] = now
@@ -236,6 +240,7 @@ class IoTBridge:
                     out = await transport.apply(effect)
                     results.append({"transport": tname, "rule": rule.name, "out": out})
                 except Exception as exc:
+                    record_degradation('iot_bridge', exc)
                     logger.debug("iot transport %s apply failed: %s", tname, exc)
         return results
 
@@ -250,6 +255,7 @@ class IoTBridge:
                 try:
                     obs = await transport.observe()
                 except Exception as exc:
+                    record_degradation('iot_bridge', exc)
                     logger.debug("iot observe failed (%s): %s", tname, exc)
                     obs = None
                 if obs is None:
@@ -265,6 +271,7 @@ class IoTBridge:
             if sg is not None and hasattr(sg, "ingest"):
                 sg.ingest({"source": f"iot:{transport_name}", "observation": observation, "when": time.time()})
         except Exception as exc:
+            record_degradation('iot_bridge', exc)
             logger.debug("iot substrate inject failed: %s", exc)
 
     async def start(self, *, interval: float = 5.0) -> None:
@@ -277,6 +284,7 @@ class IoTBridge:
                 try:
                     await self.tick()
                 except Exception as exc:
+                    record_degradation('iot_bridge', exc)
                     logger.debug("iot bridge tick failed: %s", exc)
                 await asyncio.sleep(interval)
 

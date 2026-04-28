@@ -52,6 +52,8 @@ Registered as ``cellular_turnover`` in ServiceContainer and linked to
 the NeuralMesh instance.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import logging

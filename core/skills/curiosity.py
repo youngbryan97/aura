@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Any, Dict, List, Optional
@@ -136,6 +137,7 @@ class CuriositySkill(BaseSkill):
                 else:
                     return {"ok": False, "error": search_result.get("error", "Search failed")}
             except Exception as e:
+                record_degradation('curiosity', e)
                 logger.warning("Curiosity exploration failed: %s", e)
                 return {"ok": False, "error": f"Exploration failed: {e}"}
         else:

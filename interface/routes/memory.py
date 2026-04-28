@@ -4,6 +4,8 @@ Extracted from server.py — Memory retrieval endpoints:
 episodic, semantic, recent, and goal memory.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -79,8 +81,10 @@ async def _build_episodic_memory_response(limit: int, offset: int) -> JSONRespon
                     _memory_page_payload(items, limit=safe_limit, offset=safe_offset, window_limit=window_limit)
                 )
             except Exception as e:
+                record_degradation('memory', e)
                 logger.debug("Memory recall failed: %s", e)
     except Exception as exc:
+        record_degradation('memory', exc)
         logger.debug("Episodic memory recall failed: %s", exc)
     return JSONResponse(
         _memory_page_payload([], limit=safe_limit, offset=safe_offset, window_limit=window_limit)
@@ -173,6 +177,7 @@ async def _build_semantic_memory_response(limit: int, offset: int) -> JSONRespon
                     _memory_page_payload(items, limit=safe_limit, offset=safe_offset, window_limit=window_limit)
                 )
     except Exception as exc:
+        record_degradation('memory', exc)
         logger.debug("Semantic memory failed: %s", exc)
     return JSONResponse(
         _memory_page_payload([], limit=safe_limit, offset=safe_offset, window_limit=window_limit)
@@ -260,6 +265,7 @@ async def api_memory_goals(limit: int = 20, _: None = Depends(_require_internal)
                         "source": "strategic",
                     })
             except Exception as _exc:
+                record_degradation('memory', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         # 3. Orchestrator goal queue
@@ -288,6 +294,7 @@ async def api_memory_goals(limit: int = 20, _: None = Depends(_require_internal)
                         "source": "belief_graph",
                     })
     except Exception as exc:
+        record_degradation('memory', exc)
         logger.debug("Goals retrieval failed: %s", exc)
     summary = {
         "active_count": sum(1 for item in goals if item.get("status") not in {"completed", "failed"}),

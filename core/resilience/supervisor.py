@@ -5,6 +5,7 @@ It uses strictly local monitoring (psutil) and implements exponential backoff
 to prevent rapid crash loops from consuming resources.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import os
 import signal
@@ -53,6 +54,7 @@ class SovereignSupervisor:
             except KeyboardInterrupt:
                 await self.stop()
             except Exception as e:
+                record_degradation('supervisor', e)
                 logger.error("Supervisor loop error: %s", e)
                 await asyncio.sleep(5)
 
@@ -97,6 +99,7 @@ class SovereignSupervisor:
             else:
                 logger.error(f"ValueError in pipe {label}: {e}")
         except Exception as e:
+            record_degradation('supervisor', e)
             logger.error(f"Error reading pipe {label}: {e}")
         finally:
             pipe.close()

@@ -2,6 +2,7 @@
 These methods are intended for future integration with the NeuroWeb CNS.
 Currently unused — the main orchestrator handles all message processing.
 """
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any
 
@@ -53,5 +54,6 @@ class OrchestratorCNSMixin:
                  await self.cognitive_engine.process(message, self)
                  
         except Exception as e:
+            record_degradation('orchestrator_methods', e)
             logger.error("CNS Processing Error: %s", e)
             self.emitter.emit("error", f"Neural Error: {e}")

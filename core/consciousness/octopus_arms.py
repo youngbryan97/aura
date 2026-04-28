@@ -45,6 +45,8 @@ Registered as ``octopus_federation`` in ServiceContainer.  Fed by
 the heartbeat via ``tick(environment)``.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import logging

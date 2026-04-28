@@ -1,6 +1,7 @@
 """Singularity Monitor — Phase 20.3
 Tracks the rate of self-improvement and enables Accelerated Cognition.
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Dict, Any, Optional
@@ -48,6 +49,7 @@ class SingularityMonitor:
                         self._apply_acceleration(1.0)
                         
         except Exception as e:
+            record_degradation('singularity_monitor', e)
             logger.debug("Singularity pulse failed: %s", e)
 
     def _apply_acceleration(self, factor: float):

@@ -22,6 +22,7 @@ Design:
     - Registered in ServiceContainer as ``body_schema``.
 """
 
+from core.runtime.errors import record_degradation
 import importlib
 import logging
 import os
@@ -173,6 +174,7 @@ class BodySchema(AuraBaseModule):
                         metabolic_cost = getattr(obj, "metabolic_cost", 1)
                         break
             except Exception as exc:
+                record_degradation('body_schema', exc)
                 logger.debug(
                     "Lightweight introspection failed for %s: %s", skill_name, exc
                 )

@@ -8,6 +8,7 @@ instructions, constraints, and knowledge.
 Hierarchy: workspace → parent → global (~/.aura/AURA.md)
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import os
 
@@ -58,6 +59,7 @@ class ContextInjectionService:
             return content
 
         except Exception as e:
+            record_degradation('context_injection', e)
             logger.debug("Failed to read context file %s: %s", filepath, e)
             return None
 

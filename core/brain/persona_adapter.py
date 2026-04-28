@@ -6,6 +6,7 @@
 This intentionally does not fine-tune models; it's a practical bridge to produce
 consistent persona-conditioned outputs and training data.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -47,6 +48,7 @@ class PersonaAdapter:
                 self.profiles = json.load(f)
             logger.info("PersonaAdapter: loaded %d personas", len(self.profiles))
         except Exception as e:
+            record_degradation('persona_adapter', e)
             logger.error("Failed to load persona profiles: %s", e)
             self.profiles = {}
 

@@ -16,6 +16,8 @@ The inspector is what an external evaluator uses to reconstruct Aura's
 "will pattern" without reading any of her replies — only her decisions.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -55,6 +57,7 @@ def append(entry: WillReceiptEntry) -> None:
             except Exception:
                 pass
     except Exception as exc:
+        record_degradation('will_receipt_log', exc)
         logger.warning("will receipt append failed: %s", exc)
 
 
@@ -77,6 +80,7 @@ def recent(*, days: int = 30) -> List[WillReceiptEntry]:
                     continue
                 out.append(WillReceiptEntry(**{k: v for k, v in rec.items() if k in WillReceiptEntry.__dataclass_fields__}))
     except Exception as exc:
+        record_degradation('will_receipt_log', exc)
         logger.debug("will receipt read failed: %s", exc)
     return out
 

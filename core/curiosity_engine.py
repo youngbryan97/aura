@@ -1,6 +1,7 @@
 """core/curiosity_engine.py - Autonomous Learning and Exploration
 Aura can explore, learn, and satisfy her curiosity in the background.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -132,6 +133,7 @@ class CuriosityEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('curiosity_engine', e)
                 logger.error("Curiosity worker error: %s", e)
                 await asyncio.sleep(60) # Backoff on error
 
@@ -174,6 +176,7 @@ class CuriosityEngine:
             if emitter:
                 emitter.emit("Curiosity 🔍", f"Researching: {topic.topic}", level="info")
         except Exception as exc:
+            record_degradation('curiosity_engine', exc)
             logger.debug("Suppressed: %s", exc)        
         try:
             # 1. Formulate a concrete search query around the topic itself.
@@ -229,6 +232,7 @@ class CuriosityEngine:
                                 self._feed_to_meta_evolution(topic.topic, result_content)
                                 
                             except Exception as store_err:
+                                record_degradation('curiosity_engine', store_err)
                                 logger.warning("Failed to store curiosity finding: %s", store_err)
                         elif emitter:
                             emitter.emit("Curiosity", f"Search returned no usable data for: {topic.topic}", level="info")
@@ -236,11 +240,13 @@ class CuriosityEngine:
                         emitter.emit("Curiosity", f"Search failed/unavailable for: {topic.topic}", level="info")
                         
                 except Exception as search_err:
+                    record_degradation('curiosity_engine', search_err)
                     logger.error("Search failed: %s", search_err)
                     if emitter:
                         emitter.emit("Curiosity Error", str(search_err)[:80], level="warning")
             
         except Exception as e:
+            record_degradation('curiosity_engine', e)
             logger.error("Exploration failed: %s", e)
         finally:
             self.current_topic = None
@@ -291,4 +297,5 @@ class CuriosityEngine:
                 })
                 logger.info("📋 Queued curiosity insight for next evolution cycle")
         except Exception as e:
+            record_degradation('curiosity_engine', e)
             logger.debug("Could not feed to MetaEvolution: %s", e)

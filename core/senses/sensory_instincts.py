@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 import time
@@ -41,6 +42,7 @@ class SensoryInstincts:
                 await asyncio.sleep(1.0) # Check every second
                 
             except Exception as e:
+                record_degradation('sensory_instincts', e)
                 logger.debug("Sensory monitoring hiccup: %s", e)
                 await asyncio.sleep(5)
 
@@ -68,6 +70,7 @@ class SensoryInstincts:
                 if verdict.decision == AuthorizationDecision.CONSTRAIN:
                     applied_intensity *= 0.5
         except Exception as exc:
+            record_degradation('sensory_instincts', exc)
             logger.debug("SensoryInstincts authority gate unavailable: %s", exc)
 
         ls = ServiceContainer.get("liquid_state", default=None)

@@ -1,4 +1,5 @@
 """Skill: evolution_status — Aura's self-assessment of her evolutionary progress."""
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict, Optional
 from core.skills.base_skill import BaseSkill
@@ -28,6 +29,7 @@ class EvolutionStatusSkill(BaseSkill):
             try:
                 params = EvolutionInput(**params)
             except Exception as e:
+                record_degradation('evolution_status', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         evo = ServiceContainer.get("evolution_orchestrator", default=None)

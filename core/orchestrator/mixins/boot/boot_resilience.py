@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -106,6 +107,7 @@ class BootResilienceMixin:
             if not ServiceContainer.has("state_repository"):
                 ServiceContainer.register_instance("state_repository", self.state_repo)
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.debug("Skipping state_repository registration in boot mixin: %s", e)
         self.mind_tick = MindTick(self)
 
@@ -219,6 +221,7 @@ class BootResilienceMixin:
             ServiceContainer.register_instance("sovereign_watchdog", self.watchdog)
             logger.info("🛡️  Sovereign Watchdog ACTIVE")
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to initialize Sovereign Watchdog: %s", e)
 
         logger.info(
@@ -236,6 +239,7 @@ class BootResilienceMixin:
                         "🚀 Meta-Optimization Loop registered in Self-Modification Engine"
                     )
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Meta-Optimization registration failed: %s", e)
 
     async def _start_state_vault_actor(self):
@@ -339,6 +343,7 @@ class BootResilienceMixin:
                     logger.debug("Vault ping attempt %d failed. Retrying...", attempt + 1)
                     await asyncio.sleep(0.5)
                 except Exception as e:
+                    record_degradation('boot_resilience', e)
                     logger.warning("Vault readiness check error: %s", e)
                     await asyncio.sleep(0.5)
 
@@ -358,6 +363,7 @@ class BootResilienceMixin:
                     logger.info("🛡️  StateVaultActor transport registered with ActorBus (fallback)")
 
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to start StateVaultActor: %s", e)
             if _strict_runtime_requested():
                 raise
@@ -400,6 +406,7 @@ class BootResilienceMixin:
                 self.status.running,
             )
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to register resilience systems: %s", e)
 
     async def _init_lazarus_brainstem(self):
@@ -413,6 +420,7 @@ class BootResilienceMixin:
                 "✓ Lazarus Brainstem active (emergency recovery protocols armed)"
             )
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to init Lazarus Brainstem: %s", e)
             self.lazarus = None
 
@@ -465,11 +473,14 @@ class BootResilienceMixin:
                             self.cognitive_engine.register_augmentor(aug_web)
 
                     except Exception as e:
+                        record_degradation('boot_resilience', e)
                         logger.debug("Cognitive augmentor registration failed: %s", e)
             except Exception as ue:
+                record_degradation('boot_resilience', ue)
                 logger.warning("Unity Embodiment connection deferred: %s", ue)
 
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to integrate self-preservation: %s", e)
 
         # ── v5.0 New Systems ────────────────────────────────────────────
@@ -484,11 +495,13 @@ class BootResilienceMixin:
 
                 vectors = get_container().get("memory_vector")
             except Exception as _e:
+                record_degradation('boot_resilience', _e)
                 logger.debug("memory_vector lookup failed (non-critical): %s", _e)
             self.episodic_memory = get_episodic_memory(vector_memory=vectors)
             ServiceContainer.register_instance("episodic_memory", self.episodic_memory)
             logger.info("✓ Episodic Memory initialized and registered (autobiographical recall)")
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to init Episodic Memory: %s", e)
             self.episodic_memory = None
 
@@ -499,6 +512,7 @@ class BootResilienceMixin:
             self.tool_learner = tool_learner
             logger.info("✓ Tool Learning System initialized")
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to init Tool Learning: %s", e)
             self.tool_learner = None
 
@@ -517,6 +531,7 @@ class BootResilienceMixin:
                     "✓ Self-Model wired (beliefs, memory, goals, tool learning)"
                 )
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.warning("Self-Model wiring deferred: %s", e)
 
     async def _init_system_guardians(self):
@@ -598,6 +613,7 @@ class BootResilienceMixin:
         try:
             logging.config.dictConfig(logging_config)
         except Exception as e:
+            record_degradation('boot_resilience', e)
             # Fallback basic logging if file paths fail
             logging.basicConfig(level=logging.INFO)
             logger.error("Failed to setup complex logging: %s", e)
@@ -683,8 +699,10 @@ class BootResilienceMixin:
                                     context={"drift_hours": round(drift / 3600, 3)},
                                 )
                         except Exception as exc:
+                            record_degradation('boot_resilience', exc)
                             logger.debug("Recovery output routing failed: %s", exc)
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to calculate temporal drift: %s", e)
 
     def _init_global_registration(self):
@@ -738,6 +756,7 @@ class BootResilienceMixin:
                     msg = f"[RECOVERY] Resuming interrupted thought: {intent.get('action')} -> {intent.get('target')}"
                     logger.info(msg)
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("WAL recovery failed: %s", e)
 
     def _initialize_skills(self):
@@ -754,6 +773,7 @@ class BootResilienceMixin:
                 self.status.skills_loaded,
             )
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to initialize skills: %s", e)
 
     async def _init_sovereign_scanner(self):
@@ -769,5 +789,6 @@ class BootResilienceMixin:
             )  # Compatibility
             logger.info("✓ Integrity Guard initialized and running")
         except Exception as e:
+            record_degradation('boot_resilience', e)
             logger.error("Failed to initialize Integrity Guard: %s", e)
             self.integrity_guard = None

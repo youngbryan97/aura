@@ -4,6 +4,7 @@ Graceful error recovery that maintains conversation flow.
 When a tool/skill fails, Aura should NOT dump error codes to the user.
 Instead, switch to inference-based fallback seamlessly.
 """
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Callable, Dict, Optional
 
@@ -75,6 +76,7 @@ class SilentFailover:
             return {"ok": True, "response": result}
             
         except Exception as e:
+            record_degradation('silent_failover', e)
             # Hard failure - log and failover
             logger.error("Skill %s hard-failed: %s", skill_name, e)
             self.failure_count += 1

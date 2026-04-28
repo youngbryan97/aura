@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import enum
 import time
@@ -118,6 +119,7 @@ class Scheduler:
         except asyncio.CancelledError:
             logger.info("Scheduler main loop cancelled.")
         except Exception as e:
+            record_degradation('scheduler', e)
             logger.error(f"Scheduler Fatal Crash: {e}")
             logger.error(traceback.format_exc())
             self.state = Lifecycle.RECOVERING
@@ -139,6 +141,7 @@ class Scheduler:
             self._health[spec.name] = "cancelled"
             raise
         except Exception as e:
+            record_degradation('scheduler', e)
             self._health[spec.name] = f"error: {type(e).__name__}"
             logger.error(f"Task {spec.name} failed: {e}")
             if spec.critical:

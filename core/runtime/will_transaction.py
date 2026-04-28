@@ -27,6 +27,8 @@ The transaction never silently fails open: if Will is unavailable or
 raises, the transaction is treated as DENIED and a violation is logged.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -115,6 +117,7 @@ class WillTransaction:
                     self.record.cause,
                 )
         except Exception as exc:
+            record_degradation('will_transaction', exc)
             self.record.approved = False
             self.record.failure = repr(exc)
             logger.error(
@@ -179,6 +182,7 @@ class WillTransaction:
 
             return get_will()
         except Exception as exc:
+            record_degradation('will_transaction', exc)
             logger.debug("UnifiedWill unavailable: %s", exc)
             return None
 

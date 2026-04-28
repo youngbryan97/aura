@@ -14,6 +14,7 @@ Design principles:
 - Graceful failure: if reflection fails, nothing breaks
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -83,6 +84,7 @@ class ConversationReflector:
                         from core.thought_stream import get_emitter
                         get_emitter().emit("Reflection 💭", reflection, level="info", category="Cognition")
                     except Exception as _exc:
+                        record_degradation('conversation_reflection', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     
                     # v41: Extract lessons and store to memory
@@ -96,6 +98,7 @@ class ConversationReflector:
             except asyncio.CancelledError:
                 return None
             except Exception as e:
+                record_degradation('conversation_reflection', e)
                 logger.debug("Reflection failed (non-critical): %s", e)
                 return None
 
@@ -152,6 +155,7 @@ class ConversationReflector:
             else:
                 return None
         except Exception as e:
+            record_degradation('conversation_reflection', e)
             logger.debug("Reflection LLM call failed: %s", e)
             return None
 
@@ -217,6 +221,7 @@ class ConversationReflector:
                             importance=min(0.6, exchange_len / 3000),
                         )
             except Exception as _exc:
+                record_degradation('conversation_reflection', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
             # 1. Store reflection as episodic memory
@@ -273,8 +278,10 @@ class ConversationReflector:
                                     category="Memory"
                                 )
                             except Exception as _exc:
+                                record_degradation('conversation_reflection', _exc)
                                 logger.debug("Suppressed Exception: %s", _exc)
                 except Exception as e:
+                    record_degradation('conversation_reflection', e)
                     logger.debug("Preference extraction failed (non-critical): %s", e)
 
             # 3. Extract shared ground (inside jokes, callbacks, established references)
@@ -320,9 +327,11 @@ class ConversationReflector:
                         if sg_items:
                             logger.info("🤝 SharedGround: detected %d new entries", len(sg_items))
             except Exception as e:
+                record_degradation('conversation_reflection', e)
                 logger.debug("SharedGround extraction failed (non-critical): %s", e)
 
         except Exception as e:
+            record_degradation('conversation_reflection', e)
             logger.debug("Lesson storage failed (non-critical): %s", e)
 
 

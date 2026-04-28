@@ -36,6 +36,8 @@ This module deliberately does NOT implement the network/IoT clients
 itself — that's `core/embodiment/iot_bridge.py` — it provides the gate.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -107,6 +109,7 @@ class PermissionStore:
                 if isinstance(raw, dict):
                     self._cache[c] = Permission(**raw)
         except Exception as exc:
+            record_degradation('world_bridge', exc)
             logger.warning("permission load failed: %s", exc)
 
     def _save(self) -> None:
@@ -215,6 +218,7 @@ class WorldBridge:
             if not getattr(decision, "approved", False):
                 return WorldActionResult(channel=channel.value, ok=False, receipt_id="", error=f"will_refused:{getattr(decision, 'reason', '')}")
         except Exception as exc:
+            record_degradation('world_bridge', exc)
             return WorldActionResult(channel=channel.value, ok=False, receipt_id="", error=f"will_exception:{exc}")
 
         from core.agency.capability_token import get_token_store
@@ -239,6 +243,7 @@ class WorldBridge:
             store.consume(tok.token, child_receipt=tok.token, side_effects=[action])
             return WorldActionResult(channel=channel.value, ok=True, receipt_id=tok.token, data=data)
         except Exception as exc:
+            record_degradation('world_bridge', exc)
             store.revoke(tok.token, reason=f"handler_error:{exc}")
             return WorldActionResult(channel=channel.value, ok=False, receipt_id=tok.token, error=str(exc))
 

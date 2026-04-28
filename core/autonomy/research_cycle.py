@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -147,6 +149,7 @@ class ResearchCycle:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('research_cycle', e)
                 logger.error("ResearchCycle daemon error: %s", e, exc_info=True)
                 await asyncio.sleep(60.0)  # Back off on error
 
@@ -165,6 +168,7 @@ class ResearchCycle:
             if reason:
                 return False
         except Exception as _exc:
+            record_degradation('research_cycle', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # 2. User must be idle
@@ -250,6 +254,7 @@ class ResearchCycle:
                 source="research_cycle",
             )
         except Exception as exc:
+            record_degradation('research_cycle', exc)
             logger.warning("ResearchCycle: executive suppression failed, leaving initiative intact: %s", exc)
 
         # 5. Integrate into knowledge graph
@@ -438,6 +443,7 @@ class ResearchCycle:
             logger.warning("ResearchCycle: research timed out for '%s'", goal[:60])
             return None
         except Exception as e:
+            record_degradation('research_cycle', e)
             logger.error("ResearchCycle: research execution failed: %s", e)
             return None
 
@@ -454,6 +460,7 @@ class ResearchCycle:
                 )
                 return await llm.think(prompt)
         except Exception as e:
+            record_degradation('research_cycle', e)
             logger.debug("Direct LLM research failed: %s", e)
         return None
 
@@ -516,6 +523,7 @@ class ResearchCycle:
                     findings = json.loads(raw[start:end])
                     return [str(f) for f in findings if isinstance(f, str) and len(f) > 10]
         except Exception as e:
+            record_degradation('research_cycle', e)
             logger.debug("Finding extraction failed: %s", e)
 
         # Fallback: split content into sentences as findings
@@ -574,6 +582,7 @@ class ResearchCycle:
                     await result
 
         except Exception as e:
+            record_degradation('research_cycle', e)
             logger.debug("Knowledge integration failed: %s", e)
 
     async def _update_narrative(
@@ -625,6 +634,7 @@ class ResearchCycle:
                 return impact
 
         except Exception as e:
+            record_degradation('research_cycle', e)
             logger.debug("Narrative update failed: %s", e)
 
         return "Research integrated into knowledge base."
@@ -648,6 +658,7 @@ class ResearchCycle:
                     name=f"aura.dream_cycle_{self._cycle_count}",
                 )
         except Exception as e:
+            record_degradation('research_cycle', e)
             logger.debug("Dream trigger failed: %s", e)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
@@ -667,6 +678,7 @@ class ResearchCycle:
             if isinstance(result, dict) and result.get("ok"):
                 return result
         except Exception as exc:
+            record_degradation('research_cycle', exc)
             logger.debug("ResearchCycle grounded search failed for %s: %s", goal[:80], exc)
         return None
 
@@ -742,6 +754,7 @@ class ResearchCycle:
                     if content:
                         return content[:120]
         except Exception as exc:
+            record_degradation('research_cycle', exc)
             logger.debug("Autotelic topic derivation fell back from KG: %s", exc)
 
         fallback_topics = (
@@ -766,6 +779,7 @@ class ResearchCycle:
             if repo:
                 return repo.get_state()
         except Exception as _e:
+            record_degradation('research_cycle', _e)
             logger.debug('Ignored Exception in research_cycle.py: %s', _e)
         return None
 
@@ -774,6 +788,7 @@ class ResearchCycle:
             with open(self._record_path, "a") as f:
                 f.write(json.dumps(record.to_dict()) + "\n")
         except Exception as e:
+            record_degradation('research_cycle', e)
             logger.debug("Record save failed: %s", e)
 
     def _load_history(self) -> None:
@@ -792,6 +807,7 @@ class ResearchCycle:
                     except Exception:
                         continue
         except Exception as _e:
+            record_degradation('research_cycle', _e)
             logger.debug('Ignored Exception in research_cycle.py: %s', _e)
         self._cycle_count = count
 

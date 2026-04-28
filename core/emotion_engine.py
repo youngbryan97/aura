@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -70,6 +71,7 @@ class EmotionEngine:
                  loop.run_until_complete(self.engine.react(trigger, context))
 
         except Exception as e:
+            record_degradation('emotion_engine', e)
             logger.error("Failed to forward reaction: %s", e)
 
 # Global Instance (Legacy)

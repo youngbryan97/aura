@@ -4,6 +4,8 @@ Extracted from server.py — shared authentication, authorization,
 rate-limiting, and session management utilities used across route files.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import base64
 import hashlib
@@ -207,6 +209,7 @@ def _restore_owner_session_from_request(request: Optional[Request]) -> bool:
         )
         return True
     except Exception as exc:
+        record_degradation('auth', exc)
         logger.debug("Owner session cookie restore failed: %s", exc)
         return False
 
@@ -219,6 +222,7 @@ def _activate_cheat_code_for_request(code: Optional[str], *, silent: bool, sourc
 
         return activate_cheat_code(code, silent=silent, source=source)
     except Exception as exc:
+        record_degradation('auth', exc)
         logger.debug("Cheat code activation failed: %s", exc)
         return {
             "ok": False,

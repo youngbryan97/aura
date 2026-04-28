@@ -31,6 +31,8 @@ Public API (unchanged from prior stub):
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -179,6 +181,7 @@ class ContinuousSubstrate:
         except asyncio.CancelledError:
             raise
         except Exception as e:
+            record_degradation('continuous_substrate', e)
             logger.error("🛑 [SUBSTRATE] integration loop crashed: %s", e)
             self.running = False
 

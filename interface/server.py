@@ -16,6 +16,8 @@ in interface/event_bridge.py. This file retains only:
 # This module bootstraps logging, middleware, and route registration in phases;
 # several imports intentionally stay next to the phase they wire.
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 # ── stdlib ────────────────────────────────────────────────────
 import asyncio
@@ -243,6 +245,7 @@ async def lifespan(app: FastAPI):
             else:
                 logger.warning("LocalBrain (legacy) unavailable — Fallback mode active")
         except Exception as _exc:
+            record_degradation('server', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -250,6 +253,7 @@ async def lifespan(app: FastAPI):
             if not is_missing(mod):
                 _LatentCore = mod.LatentCore
         except Exception as _exc:
+            record_degradation('server', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -257,6 +261,7 @@ async def lifespan(app: FastAPI):
             if not is_missing(mod):
                 _PredictiveSelf = mod.PredictiveSelfModel
         except Exception as _exc:
+            record_degradation('server', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -264,6 +269,7 @@ async def lifespan(app: FastAPI):
             if not is_missing(mod):
                 _FastMouth = mod.FastMouth
         except Exception as _exc:
+            record_degradation('server', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -271,6 +277,7 @@ async def lifespan(app: FastAPI):
             if not is_missing(mod):
                 _LocalVision = mod.LocalVision
         except Exception as _exc:
+            record_degradation('server', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -285,9 +292,11 @@ async def lifespan(app: FastAPI):
                     else:
                         logger.info("✓ Voice engine health check passed.")
                 except Exception as ve_err:
+                    record_degradation('server', ve_err)
                     logger.warning("⚠️ Voice engine health check failed: %s — disabling voice.", ve_err)
                     _voice_engine_fn = None
         except Exception as _exc:
+            record_degradation('server', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
     else:
         logger.info("📡 GUI Proxy Mode: Skipping heavy subsystem initialization (Brain, TTS, Vision).")
@@ -482,6 +491,7 @@ async def global_exception_handler(request: Request, exc: Exception):
             },
         )
     except Exception as inner:
+        record_degradation('server', inner)
         # Fall back to a structured 500 only when the envelope builder
         # itself crashes — should never happen in practice, but we never
         # want this handler to compound the problem.
@@ -648,6 +658,7 @@ async def _ws_broadcaster() -> None:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('server', e)
                 logger.error("WebSocket broadcaster error: %s", e)
                 await asyncio.sleep(1.0)
     finally:
@@ -829,6 +840,7 @@ async def websocket_endpoint(ws: WebSocket):
                                     "content": "I was thinking but my cortex took too long. Try again — I should be warmer now.",
                                 }))
                             except Exception as e:
+                                record_degradation('server', e)
                                 logger.error("WS: Message handling failed: %s (%s)", type(e).__name__, e, exc_info=True)
                                 await ws_ref.send_text(json.dumps({
                                     "type": "aura_message",
@@ -854,6 +866,7 @@ async def websocket_endpoint(ws: WebSocket):
     except WebSocketDisconnect as _exc:
         logger.debug("Suppressed WebSocketDisconnect: %s", _exc)
     except Exception as exc:
+        record_degradation('server', exc)
         logger.debug("WS error: %s", exc)
     finally:
         await ws_manager.disconnect(ws)

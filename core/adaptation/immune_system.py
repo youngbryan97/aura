@@ -4,6 +4,7 @@ Protected Enclaves & Cognitive Rollback.
 Ensures core identity, kinship data, and lore bibles are immune to memory decay.
 Proactively scans for silent errors, dormant services, and broken interfaces.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import json
@@ -128,6 +129,7 @@ class ImmuneSystem:
                     else:
                         report["healthy"].append(service_name)
                 except Exception as e:
+                    record_degradation('immune_system', e)
                     report["failed"].append({
                         "service": service_name,
                         "tier": tier,
@@ -156,6 +158,7 @@ class ImmuneSystem:
                     },
                 )
         except Exception as _e:
+            record_degradation('immune_system', _e)
             logger.error("🛡️ IMMUNE: Failed to publish health report to event bus: %s", _e)
 
         summary = (
@@ -214,6 +217,7 @@ class ImmuneSystem:
             await asyncio.to_thread(shutil.copy2, snapshot, target)
             logger.info(f"✅ Rollback complete: {target} restored.")
         except Exception as e:
+            record_degradation('immune_system', e)
             logger.error(f"Rollback error: {e}")
         finally:
             self.rollback_active = False

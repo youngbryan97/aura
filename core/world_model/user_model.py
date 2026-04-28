@@ -4,6 +4,7 @@ Aura's model of Bryan.
 A peer doesn't just respond to you — they have a theory of you.
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -86,6 +87,7 @@ class BryanModelEngine:
                         total_messages=data.get("total_messages", 0),
                     )
             except Exception as e:
+                record_degradation('user_model', e)
                 logger.warning("User model load failed: %s", e)
         return UserModel()
 
@@ -134,9 +136,11 @@ class BryanModelEngine:
                     )
                 )
             except Exception as _rcpt_exc:
+                record_degradation('user_model', _rcpt_exc)
                 logger.debug("Receipt emit skipped: %s", _rcpt_exc)
             self._last_saved = time.time()
         except Exception as e:
+            record_degradation('user_model', e)
             logger.error("User model save failed: %s", e)
 
     def _flush_pending_save(self) -> None:

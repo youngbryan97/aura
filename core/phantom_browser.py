@@ -13,6 +13,7 @@ Usage:
     browser.type("input[name='q']", "Hello World")
     browser.click("input[name='btnK']")
 """
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -167,6 +168,7 @@ class PhantomBrowser:
                     launch_error = None
                     break  # Launch succeeded
                 except Exception as launch_exc:
+                    record_degradation('phantom_browser', launch_exc)
                     launch_error = launch_exc
                     logger.warning("Browser %s failed to launch: %s. Trying next fallback...", bt, launch_exc)
 
@@ -185,11 +187,13 @@ class PhantomBrowser:
             try:
                 await Stealth().apply_stealth_async(self.page)
             except Exception as se:
+                record_degradation('phantom_browser', se)
                 logger.warning("Stealth application failed: %s", se)
 
             self.is_active = True
             logger.info("✓ Phantom Browser initialized (Visible: %s, UA: %s...)", self.visible, user_agent[:30])
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.error("Failed to start browser: %s", e)
             self.is_active = False
             # Release resource lock on failure
@@ -221,6 +225,7 @@ class PhantomBrowser:
         try:
             await Stealth().apply_stealth_async(self.page)
         except Exception as e:
+            record_degradation('phantom_browser', e)
             capture_and_log(e, {'module': __name__})
         
         # Properly close old page and context to prevent resource leaks
@@ -285,6 +290,7 @@ class PhantomBrowser:
             await self._human_delay(1, 2)
             return True
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.error("Navigation failed: %s", e)
             return False
 
@@ -343,6 +349,7 @@ class PhantomBrowser:
                 logger.warning("Element not found or not visible: %s", selector or text_match)
                 return False
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.error("Click failed: %s", e)
             return False
 
@@ -360,6 +367,7 @@ class PhantomBrowser:
             await self._human_delay(0.5, 1.0)
             return True
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.error("Typing failed: %s", e)
             return False
 
@@ -376,6 +384,7 @@ class PhantomBrowser:
                 await asyncio.sleep(random.uniform(0.1, 0.3))
             await self._human_delay(0.5, 1.0)
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.error("Scroll failed: %s", e)
 
     async def read_content(self) -> str:
@@ -461,6 +470,7 @@ class PhantomBrowser:
 
             return f"# {title}\n\n{best_text[:60000]}"
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.error("Read content failed: %s", e)
             return ""
 
@@ -476,6 +486,7 @@ class PhantomBrowser:
             }""")
             return links
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.error("Get links failed: %s", e)
             return []
 
@@ -487,6 +498,7 @@ class PhantomBrowser:
             bytes_data = await self.page.screenshot()
             return base64.b64encode(bytes_data).decode('utf-8')
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.error("Screenshot failed: %s", e)
             return None
 
@@ -499,6 +511,7 @@ class PhantomBrowser:
                 except Exception:
                     pass
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.debug("Page close error: %s", e)
         try:
             if self.context:
@@ -507,6 +520,7 @@ class PhantomBrowser:
                 except Exception:
                     pass
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.debug("Context close error: %s", e)
         try:
             if self.browser:
@@ -515,6 +529,7 @@ class PhantomBrowser:
                 except Exception:
                     pass
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.debug("Browser close error: %s", e)
         try:
             if self.playwright:
@@ -523,6 +538,7 @@ class PhantomBrowser:
                 except Exception:
                     pass
         except Exception as e:
+            record_degradation('phantom_browser', e)
             logger.debug("Playwright stop error: %s", e)
         self.page = None
         self.context = None
@@ -547,6 +563,7 @@ class PhantomBrowser:
                 from core.container import ServiceContainer
                 self._homeostasis = ServiceContainer.get("homeostatic_coupling", default=None)
             except Exception as e:
+                record_degradation('phantom_browser', e)
                 capture_and_log(e, {'module': __name__})
         
         delay_mod = 1.0

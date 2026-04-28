@@ -2,6 +2,7 @@
 Links LLM-driven PsychState to MuJoCo Physical Dynamics.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import numpy as np
 from core.container import ServiceContainer
@@ -76,5 +77,6 @@ class PersonalityBridge:
                 
             return mods
         except Exception as e:
+            record_degradation('personality_bridge', e)
             logger.debug("Personality-Body drift: %s", e)
             return None

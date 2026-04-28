@@ -43,6 +43,7 @@ References:
   PyPhi: pyphi.readthedocs.io
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import math
@@ -233,6 +234,7 @@ class PhiCore:
             from research.phi_approximation import SpectralPhiApproximator
             self._spectral_approx = SpectralPhiApproximator(n_refinement_candidates=24)
         except Exception as exc:
+            record_degradation('phi_core', exc)
             logger.warning("PhiCore: spectral approximator unavailable: %s", exc)
             self._spectral_approx = None
 
@@ -605,6 +607,7 @@ class PhiCore:
         try:
             self.compute_affective_phi()
         except Exception as exc:
+            record_degradation('phi_core', exc)
             logger.debug("PhiCore affective baseline failed: %s", exc)
 
         # ── 16-node spectral phi ─────────────────────────────────────────
@@ -626,6 +629,7 @@ class PhiCore:
                 try:
                     self.compute_max_phi_complex()
                 except Exception as exc:
+                    record_degradation('phi_core', exc)
                     logger.debug("PhiCore exclusion postulate computation failed: %s", exc)
 
                 return result

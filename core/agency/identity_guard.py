@@ -26,6 +26,8 @@ Human approval is required for:
   - Any change that touches the safety registry
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import ast
 import logging
@@ -222,6 +224,7 @@ class IdentityGuard:
             from core.identity.identity_guard import PersonaEnforcementGate
             return PersonaEnforcementGate().validate_output(content)
         except Exception as e:
+            record_degradation('identity_guard', e)
             logger.debug("validate_output delegation error (non-critical): %s", e)
             return True, "OK", 1.0
 

@@ -47,6 +47,8 @@ INSTALL:
   patch_memory_compaction()
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -91,6 +93,7 @@ async def compact_if_needed(
             )
             return compacted
     except Exception as exc:
+        record_degradation('memory_compaction_patch', exc)
         logger.warning("MemoryCompactionPatch: compaction failed — %s", exc)
 
     return working_memory
@@ -118,6 +121,7 @@ async def _patched_memory_consolidation_execute(
     try:
         state = await self._original_execute(state, objective, **kwargs)
     except Exception as exc:
+        record_degradation('memory_compaction_patch', exc)
         logger.error("MemoryCompactionPatch: original execute failed — %s", exc)
         return state
 

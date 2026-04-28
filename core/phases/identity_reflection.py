@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -37,6 +38,7 @@ class IdentityReflectionPhase(BasePhase):
                 )
             return decision
         except Exception as exc:
+            record_degradation('identity_reflection', exc)
             logger.warning("IdentityReflection: UnifiedWill unavailable; identity mutation blocked: %s", exc)
             return None
 

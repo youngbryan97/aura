@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import time
 import logging
 import asyncio
@@ -102,5 +103,6 @@ async def run_with_watchdog(task_name: str, coro_or_fn: Any, timeout: float = 5.
         logger.error("⏰ Task [%s] Timed Out (>%ds)", task_name, timeout)
         return fallback
     except Exception as e:
+        record_degradation('resilience', e)
         logger.error("💥 Task [%s] Failed: %s", task_name, e)
         return fallback

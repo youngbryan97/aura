@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 from typing import Any, Dict, Optional
@@ -90,6 +92,7 @@ async def api_signal_vision(payload: VisionSignalPayload, _: None = Depends(_req
     try:
         frame_bytes = decode_data_url_image(payload.frame_data_url)
     except Exception as exc:
+        record_degradation('interaction_signals', exc)
         raise HTTPException(status_code=400, detail="Invalid image payload") from exc
 
     if len(frame_bytes) > 512 * 1024:

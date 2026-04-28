@@ -2,6 +2,7 @@
 Bridges local LLMs to Aura's Skill Registry.
 Ensures Mind/Body alignment: 'Aura says, Aura does.'
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 from typing import Any, Dict, List, Optional
@@ -38,6 +39,7 @@ class FunctionCallingAdapter:
                     tools[name] = skill.skill_class.to_json_schema()
                     continue
                 except Exception as e:
+                    record_degradation('function_calling_adapter', e)
                     logger.debug("Skill schema generation skipped for %s: %s", name, e)
             
             description = getattr(skill, "description", "")
@@ -77,6 +79,7 @@ class FunctionCallingAdapter:
                         valid_data = input_model(**args)
                     return {"valid": True, "args": valid_data.model_dump()}
                 except Exception as e:
+                    record_degradation('function_calling_adapter', e)
                     return {"valid": False, "error": f"Pydantic Validation Error: {e}"}
             
             return {"valid": True, "args": args}
@@ -105,6 +108,7 @@ class FunctionCallingAdapter:
             
             return json.dumps(result, indent=2)
         except Exception as e:
+            record_degradation('function_calling_adapter', e)
             logger.error("Tool execution failed: %s", e)
             return f"Error: {str(e)}"
 

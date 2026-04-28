@@ -4,6 +4,7 @@ The Dialectical Crucible: Multi-Agent Internal Debate.
 Forces new concepts to survive an adversarial attack before entering Aura's permanent belief system.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -148,6 +149,7 @@ Return ONLY the final synthesized belief.
             }
 
         except Exception as e:
+            record_degradation('dialectics', e)
             capture_and_log(e, {'module': 'DialecticalCrucible', 'concept': concept})
             return {"ok": False, "error": str(e)}
             

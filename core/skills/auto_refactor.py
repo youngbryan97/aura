@@ -1,6 +1,7 @@
 """Auto-Refactor Skill
 Periodically scans the codebase for bad patterns, high complexity, or TODOs.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import ast
 import logging
@@ -34,6 +35,7 @@ class AutoRefactorSkill(BaseSkill):
             try:
                 params = AutoRefactorParams(**params)
             except Exception as e:
+                record_degradation('auto_refactor', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         target_path = params.path
@@ -58,6 +60,7 @@ class AutoRefactorSkill(BaseSkill):
                     "stderr": pytest_res.stderr[-2000:]
                 }
             except Exception as e:
+                record_degradation('auto_refactor', e)
                 logger.warning("Dynamic test execution failed: %s", e)
                 test_results = {"ok": False, "error": str(e)}
         
@@ -112,6 +115,7 @@ class AutoRefactorSkill(BaseSkill):
             except SyntaxError as e:
                 logger.debug("Skipping unparsable Python candidate %s: %s", file_path, e)
             except Exception as e:
+                record_degradation('auto_refactor', e)
                 logger.warning("Failed to scan %s: %s", file_path, e)
                 
         return sorted(issues, key=lambda x: 0 if x['type'] == 'complexity' else 1)
@@ -130,4 +134,5 @@ class AutoRefactorSkill(BaseSkill):
                     }
                 )
             except Exception as e:
+                record_degradation('auto_refactor', e)
                 logger.error("Failed to publish refactor proposal: %s", e)

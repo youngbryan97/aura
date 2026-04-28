@@ -4,6 +4,7 @@ The "Digital Metabolism" version: Merges resource budgets, boredom
 triggers, and autonomous intention generation into a single system.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import random
@@ -130,6 +131,7 @@ class MotivationEngine:
                 # Check every 60s
                 await asyncio.sleep(60)
             except Exception as e:
+                record_degradation('engine', e)
                 logger.error("Motivation Loop Error: %s", e)
                 # --- Neural Stream Integration ---
                 try:
@@ -137,6 +139,7 @@ class MotivationEngine:
                     if self_modifier:
                         self_modifier.on_error(e, {"source": "motivation_engine", "loop": "will_loop"})
                 except Exception as exc:
+                    record_degradation('engine', exc)
                     logger.debug("Self-modification on_error failed in motivation loop: %s", exc)
                 await asyncio.sleep(10)
 
@@ -224,6 +227,7 @@ class MotivationEngine:
                     metadata={"autonomous": True, "drive": "curiosity"},
                 )
             except Exception as _ea_err:
+                record_degradation('engine', _ea_err)
                 logger.debug("Motivation: ExecutiveAuthority curiosity emission failed: %s", _ea_err)
             # Satisfy curiosity drive slightly to prevent immediate re-trigger
             await self.satisfy("curiosity", 5.0)
@@ -261,12 +265,14 @@ class MotivationEngine:
                 self._last_activity_time = time.time()
                 return # Short-circuit
             except Exception as e:
+                record_degradation('engine', e)
                 logger.error("Instinctual bypass failed: %s", e)
 
         try:
             from core.thought_stream import get_emitter
             get_emitter().emit("Inner Drive 🧠", intention.goal, level="info", category="Motivation")
         except Exception as exc:
+            record_degradation('engine', exc)
             logger.debug("ThoughtStream emit failed in motivation engine: %s", exc)
 
         if self.cognitive and hasattr(self.cognitive, "process_autonomous_intention"):
@@ -286,6 +292,7 @@ class MotivationEngine:
                     metadata={"autonomous": True, "drive": str(intention.drive)},
                 )
             except Exception as _ea_err:
+                record_degradation('engine', _ea_err)
                 logger.debug("Motivation: ExecutiveAuthority goal emission failed: %s", _ea_err)
             
         # Drive Satisfaction: Prevent immediate re-triggering of the same drive

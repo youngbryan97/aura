@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any
@@ -19,6 +20,7 @@ async def init_hardening_layer(orchestrator: Any):
         #     logger.info("🌿 [BOOT] Platform Root persistence monitor started.")
         logger.info("🌿 [BOOT] Platform Root DEFERRED to prevent spawn corruption.")
     except Exception as e:
+        record_degradation('hardening', e)
         logger.warning("🌿 [BOOT] Platform Root monitor failed to start: %s", e)
     
     # 8. Startup Validation (Pre-flight)
@@ -42,6 +44,7 @@ async def init_hardening_layer(orchestrator: Any):
     except asyncio.TimeoutError:
         logger.error("🛑 Reaper boot timed out. Proceeding in degraded state.")
     except Exception as e:
+        record_degradation('hardening', e)
         logger.error("❌ Reaper boot failed: %s", e)
 
     try:
@@ -49,6 +52,7 @@ async def init_hardening_layer(orchestrator: Any):
     except asyncio.TimeoutError:
         logger.error("🛑 Hypervisor boot timed out. Proceeding in degraded state.")
     except Exception as e:
+        record_degradation('hardening', e)
         logger.error("❌ Hypervisor boot failed: %s", e)
         
     ServiceContainer.register_instance("reaper", orchestrator.reaper)
@@ -63,6 +67,7 @@ async def init_hardening_layer(orchestrator: Any):
         ServiceContainer.register_instance("event_loop_monitor", monitor)
         logger.info("🛡️ [BOOT] EventLoopMonitor active (Threshold: 0.1s)")
     except Exception as e:
+        record_degradation('hardening', e)
         logger.error("❌ [BOOT] EventLoopMonitor failed to start: %s", e)
 
     logger.info("🛡️ [BOOT] Hardening Layer (Reaper/Hypervisor/Watchdog) online.")

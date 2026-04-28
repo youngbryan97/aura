@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import random
 import time
@@ -116,6 +117,7 @@ class VolitionEngine:
                 logger.debug("Unified Will deferred volition tick: %s", _will_decision.reason)
                 return None
         except Exception as _will_err:
+            record_degradation('volition', _will_err)
             logger.debug("Unified Will volition gate degraded: %s", _will_err)
         # ─────────────────────────────────────────────────────────────
 
@@ -266,6 +268,7 @@ class VolitionEngine:
                     from core.unified_action_log import get_action_log
                     get_action_log().record("speak", "VolitionEngine.connection_drive", "gen1_volition", "approved", "spontaneous_reach_out")
                 except Exception as _exc:
+                    record_degradation('volition', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 return {
                     "objective": "Reach out to the user — say something genuine, not a check-in template.",
@@ -377,6 +380,7 @@ class VolitionEngine:
                             "context": {"project_id": proj.id, "task_id": task.id}
                         }
         except Exception as e:
+            record_degradation('volition', e)
             logger.error("Failed to check Strategic Planner in Volition: %s", e)
 
         # 2. Legacy task.md Fallback
@@ -412,6 +416,7 @@ class VolitionEngine:
                         "context": {"source": "task.md", "file": str(task_path)}
                     }
         except Exception as e:
+            record_degradation('volition', e)
             logger.error("Failed to generate duty goal: %s", e)
             
         return None
@@ -492,6 +497,7 @@ class VolitionEngine:
                 self.fun_interests = data.get("fun", [])
                 self.technical_interests = data.get("technical", [])
             except Exception as e:
+                record_degradation('volition', e)
                 logger.error("Failed to load dynamic interests: %s", e)
                 
         if not self.general_interests:
@@ -522,6 +528,7 @@ class VolitionEngine:
                 }, f, indent=2)
             logger.info("✨ Volition adopted new interest: %s", topic)
         except Exception as e:
+            record_degradation('volition', e)
             logger.error("Failed to save dynamic interests: %s", e)
 
     def _scan_roadmap(self) -> List[str]:

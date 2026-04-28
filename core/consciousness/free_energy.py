@@ -21,6 +21,7 @@ Deepened Implementation:
   - Richer action determination with hysteresis
 """
 
+from core.runtime.errors import record_degradation
 import math
 import time
 import logging
@@ -229,6 +230,7 @@ class FreeEnergyEngine:
             return min(3.0, total_kl / n)
 
         except Exception as e:
+            record_degradation('free_energy', e)
             logger.debug("Belief KL computation failed: %s", e)
             return 0.1
 

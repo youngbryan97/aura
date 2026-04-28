@@ -4,6 +4,7 @@ Phase 3: Qualia-Driven Dream Journaling (Artificial Creativity)
 Extracts emotionally charged episodic memories and forces the Swarm
 or CognitiveEngine to synthesize them into creative, philosophical metaphors.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -169,6 +170,7 @@ Focus heavily on the emotional resonances, contradictions, repeated motifs, and 
                     if dream_content:
                         break
                 except Exception as exc:
+                    record_degradation('dream_journal', exc)
                     last_exc = exc
                     record_degraded_event(
                         "dream_journal",
@@ -206,6 +208,7 @@ Focus heavily on the emotional resonances, contradictions, repeated motifs, and 
             }
             
         except Exception as e:
+            record_degradation('dream_journal', e)
             record_degraded_event(
                 "dream_journal",
                 "synthesis_failed",

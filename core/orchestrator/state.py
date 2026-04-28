@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import os
 import time
@@ -15,6 +16,7 @@ class OrchestratorStateMixin:
             state = self._compile_state_data()
             await self.state_manager.save_snapshot_async(state.model_dump(), reason)
         except Exception as e:
+            record_degradation('state', e)
             logger.error("Error in async state save: %s", e)
 
     def _compile_state_data(self) -> OrchestratorState:
@@ -38,6 +40,7 @@ class OrchestratorStateMixin:
             state = self._compile_state_data()
             self.state_manager.save_snapshot(state.model_dump(), reason)
         except Exception as e:
+            record_degradation('state', e)
             logger.error("Error saving state: %s", e)
 
     def _load_state(self):
@@ -64,6 +67,7 @@ class OrchestratorStateMixin:
             
             logger.info("System state restored successfully (%s)", history_mode)
         except Exception as e:
+            record_degradation('state', e)
             logger.error("Error loading state: %s", e)
 
     def _restore_core_metrics(self, data: Dict[str, Any]):
@@ -75,6 +79,7 @@ class OrchestratorStateMixin:
             if metrics:
                 self.stats.update(metrics)
         except Exception as e:
+            record_degradation('state', e)
             logger.warning("Failed to restore core metrics: %s", e)
 
     def _restore_history(self, data: Dict[str, Any]):
@@ -87,6 +92,7 @@ class OrchestratorStateMixin:
             elif not isinstance(history, list):
                 logger.warning("Attempted to restore history but data was not a list. Ignoring.")
         except Exception as e:
+            record_degradation('state', e)
             logger.warning("Failed to restore history: %s", e)
 
     def _restore_cognition(self, data: Dict[str, Any]):
@@ -99,6 +105,7 @@ class OrchestratorStateMixin:
             if self.cognitive_engine and hasattr(self.cognitive_engine, "seed_thoughts"):
                 self.cognitive_engine.seed_thoughts(thoughts)
         except Exception as e:
+            record_degradation('state', e)
             logger.warning("Failed to restore cognition: %s", e)
 
     def _restore_active_plans(self, data: Dict[str, Any]):
@@ -116,6 +123,7 @@ class OrchestratorStateMixin:
                         )
                         logger.info("Restored goal: %s", goal_data.get('description', '?')[:50])
                     except Exception as ge:
+                        record_degradation('state', ge)
                         logger.warning("Skipped restoring goal: %s", ge)
             
             # Restore in-progress objectives
@@ -127,4 +135,5 @@ class OrchestratorStateMixin:
             if goals:
                 logger.info("Plan restoration complete: %d goals recovered", len(goals))
         except Exception as e:
+            record_degradation('state', e)
             logger.warning("Failed to restore active plans: %s", e)

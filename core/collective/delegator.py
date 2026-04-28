@@ -2,6 +2,7 @@
 Agent Swarm / Collective Intelligence Delegator (Swarm 2.0).
 Allows the primary orchestrator to spawn specialized sub-tasks and synthesize consensus.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -72,6 +73,7 @@ class AgentDelegator(AuraBaseModule):
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('delegator', e)
                 self.logger.error("Scavenger loop error: %s", e)
 
     def get_status(self) -> Dict[str, Any]:
@@ -144,6 +146,7 @@ class AgentDelegator(AuraBaseModule):
                     for t in pending:
                         t.cancel()
             except Exception as e:
+                record_degradation('delegator', e)
                 self.logger.error("Error during swarm wait: %s", e)
                 
         results = []
@@ -191,6 +194,7 @@ FINAL SYNTHESIS:"""
             self.logger.error("❌ Synthesis FAILED: Cognitive engine timed out (>60s).")
             return "Consensus synthesis failed due to cognitive engine timeout."
         except Exception as e:
+            record_degradation('delegator', e)
             self.logger.error("Failed to synthesize consensus: %s", e)
             return f"Synthesis error: {e}"
 
@@ -307,6 +311,7 @@ FINAL SYNTHESIS:"""
             agent.status = "FAILED"
             agent.result = f"[TIMEOUT] Agent could not complete goal within {timeout}s"
         except Exception as e:
+            record_degradation('delegator', e)
             self.logger.error("❌ Agentic Agent %s failed: %s", agent.id, e)
             agent.status = "FAILED"
             agent.result = f"[ERROR] {str(e)}"
@@ -379,6 +384,7 @@ FINAL SYNTHESIS:"""
             agent.result = "[CRITICAL] Cognitive timeout. Agent failed to reach consensus."
 
         except Exception as e:
+            record_degradation('delegator', e)
             self.logger.error("❌ Swarm Agent %s FAILED: %s", agent.id, e)
             agent.status = "FAILED"
             agent.result = f"[ERROR] {str(e)}"

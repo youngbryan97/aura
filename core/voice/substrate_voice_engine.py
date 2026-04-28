@@ -22,6 +22,8 @@ Integration points:
 Registered in ServiceContainer as "substrate_voice_engine".
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -362,6 +364,7 @@ def get_live_voice_state(
                 origin=origin,
             )
         except Exception as exc:
+            record_degradation('substrate_voice_engine', exc)
             logger.debug("Live voice state refresh failed: %s", exc)
     voice_state = engine.get_voice_state()
     return voice_state if isinstance(voice_state, dict) else {"status": "no_profile_compiled"}
@@ -403,6 +406,7 @@ def _extract_neurochemicals() -> Dict[str, float]:
                         for name, chem in nc.chemicals.items()
                     }
     except Exception as e:
+        record_degradation('substrate_voice_engine', e)
         logger.debug("Neurochemical extraction failed: %s", e)
     return {}
 
@@ -424,6 +428,7 @@ def _extract_homeostasis() -> Dict[str, float]:
                 "vitality": homeo.compute_vitality() if hasattr(homeo, "compute_vitality") else 0.7,
             }
     except Exception as e:
+        record_degradation('substrate_voice_engine', e)
         logger.debug("Homeostasis extraction failed: %s", e)
     return {}
 
@@ -483,6 +488,7 @@ def _extract_unified_field() -> Dict[str, float]:
                 result["binding_demand"] = float(bp.get("binding_demand", 0.0))
 
     except Exception as e:
+        record_degradation('substrate_voice_engine', e)
         logger.debug("Unified field extraction failed: %s", e)
     return result
 
@@ -499,6 +505,7 @@ def _extract_personality(state: Any) -> Dict[str, float]:
                     base[trait] = max(0.0, min(1.0, base[trait] + offset))
         return base
     except Exception as e:
+        record_degradation('substrate_voice_engine', e)
         logger.debug("Personality extraction failed: %s", e)
     return {}
 
@@ -517,6 +524,7 @@ def _extract_social_context() -> Dict[str, Any]:
                 "knowledge_level": getattr(user_model, "knowledge_level", "unknown"),
             }
     except Exception as e:
+        record_degradation('substrate_voice_engine', e)
         logger.debug("Social context extraction failed: %s", e)
     return {}
 
@@ -532,6 +540,7 @@ def _extract_conversation_context(state: Any) -> Dict[str, Any]:
             ctx["topic_depth"] = getattr(cog, "discourse_depth", 0)
             ctx["turn_count"] = len(getattr(cog, "working_memory", []) or [])
     except Exception as e:
+        record_degradation('substrate_voice_engine', e)
         logger.debug("Conversation context extraction failed: %s", e)
 
     # Also pull from conversational dynamics engine

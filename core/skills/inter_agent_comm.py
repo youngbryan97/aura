@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -90,6 +91,7 @@ class InterAgentCommSkill(BaseSkill):
             }
 
         except Exception as e:
+            record_degradation('inter_agent_comm', e)
             logger.error("Inter-agent comm failed: %s", e)
             return {
                 "ok": False,
@@ -102,4 +104,5 @@ class InterAgentCommSkill(BaseSkill):
             with open(self.comm_log_path, 'a') as f:
                 f.write(json.dumps(data) + "\n")
         except Exception as e:
+            record_degradation('inter_agent_comm', e)
             logger.error("Failed to write comm log: %s", e)

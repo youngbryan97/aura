@@ -29,6 +29,7 @@ Integration:
     #   architecture through working with Bryan. I believe elegant systems..."
 """
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
@@ -149,6 +150,7 @@ class MemorySynthesizer:
                 "hooks_into": ["memory_facade", "cognitive_kernel", "belief_revision_engine"]
             })
         except Exception as _e:
+            record_degradation('memory_synthesizer', _e)
             logger.debug('Ignored Exception in memory_synthesizer.py: %s', _e)
 
         logger.info("✅ MemorySynthesizer ONLINE — worldview synthesis active.")
@@ -263,6 +265,7 @@ class MemorySynthesizer:
                             elapsed, len(domains), len(topics), len(open_q))
 
             except Exception as e:
+                record_degradation('memory_synthesizer', e)
                 logger.error("MemorySynthesizer synthesis failed: %s", e, exc_info=True)
 
     async def _get_episodic_memories(self, limit: int = 100) -> List[Dict]:
@@ -278,6 +281,7 @@ class MemorySynthesizer:
                     return [vars(m) if not isinstance(m, dict) else m
                             for m in list(memories.memories)[-limit:]]
         except Exception as e:
+            record_degradation('memory_synthesizer', e)
             logger.debug("Episodic memory retrieval error: %s", e)
         return []
 
@@ -294,6 +298,7 @@ class MemorySynthesizer:
                     facts = sm.data.get("facts", {})
                     return [{"concept": k, "content": str(v)} for k, v in list(facts.items())[-limit:]]
         except Exception as e:
+            record_degradation('memory_synthesizer', e)
             logger.debug("Semantic fact retrieval error: %s", e)
         return []
 
@@ -461,6 +466,7 @@ class MemorySynthesizer:
             data = asdict(self._snapshot)
             atomic_write_text(self._snapshot_path, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('memory_synthesizer', e)
             logger.debug("Failed to save worldview snapshot: %s", e)
 
     def _load_snapshot(self) -> Optional[WorldviewSnapshot]:
@@ -475,6 +481,7 @@ class MemorySynthesizer:
                 return None
             return snapshot
         except Exception as e:
+            record_degradation('memory_synthesizer', e)
             logger.debug("Failed to load worldview snapshot: %s", e)
         return None
 

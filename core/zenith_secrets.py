@@ -6,6 +6,7 @@ Hierarchy (highest priority first):
   3. .env file (development)
   4. config.yaml (least secure — warns if used for secrets)
 """
+from core.runtime.errors import record_degradation
 import logging
 import os
 from pathlib import Path
@@ -64,6 +65,7 @@ def _keychain_get(key: str) -> str | None:
         if result.returncode == 0:
             return result.stdout.strip()
     except Exception as _e:
+        record_degradation('zenith_secrets', _e)
         logger.debug('Ignored Exception in secrets.py: %s', _e)
     return None
 

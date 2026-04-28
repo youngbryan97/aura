@@ -3,6 +3,7 @@
 Autonomous Markdown workspace manager. Allows background shards to silently 
 compile world-building notes, character arcs, and project specs.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -71,6 +72,7 @@ If the section does not exist, create it. Do not output conversational text, ONL
                 # ZENITH Audit Fix 2.1: Automated Pruning
                 await self._prune_if_needed(file_path)
             except Exception as e:
+                record_degradation('canvas_manager', e)
                 from core.utils.exceptions import capture_and_log
                 capture_and_log(e, {"context": "CanvasManager.autonomous_update", "project": safe_name})
 
@@ -85,4 +87,5 @@ If the section does not exist, create it. Do not output conversational text, ONL
                 kept = lines[-1000:]
                 await asyncio.to_thread(file_path.write_text, "\n".join(kept), encoding="utf-8")
         except Exception as e:
+            record_degradation('canvas_manager', e)
             logger.debug("Canvas pruning failed: %s", e)

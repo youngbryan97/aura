@@ -19,6 +19,8 @@ Usage:
   print(me.identity.name, me.affect.dominant_emotion)
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -452,6 +454,7 @@ class CanonicalSelfEngine:
             snapshot.fatigue = affects.get("fatigue", 0.0)
             return snapshot
         except Exception as _exc:
+            record_degradation('canonical_self', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Fallback: derive from AuraState.soma directly
@@ -513,6 +516,7 @@ class CanonicalSelfEngine:
                     "hidden_norm": round(float(snap.vector.dot(snap.vector) ** 0.5), 4),
                 }
         except Exception as _exc:
+            record_degradation('canonical_self', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return {
@@ -785,6 +789,7 @@ class CanonicalSelfEngine:
         try:
             await asyncio.to_thread(self._persist_sync)
         except Exception as e:
+            record_degradation('canonical_self', e)
             logger.debug("CanonicalSelf persist failed: %s", e)
 
     def _persist_sync(self):
@@ -892,6 +897,7 @@ class CanonicalSelfEngine:
                 len(self._deltas),
             )
         except Exception as e:
+            record_degradation('canonical_self', e)
             logger.debug("CanonicalSelf load failed (starting fresh): %s", e)
 
 

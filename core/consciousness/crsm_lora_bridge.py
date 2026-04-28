@@ -27,6 +27,8 @@ The quality score passed to FinetunePipe:
            - 0.2 * (1 - confidence)        (uncertain responses = weaker signal)
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import json
@@ -221,6 +223,7 @@ class CRSMLoraBridge:
             )
 
         except Exception as e:
+            record_degradation('crsm_lora_bridge', e)
             logger.debug("CRSMLoraBridge flush failed: %s", e)
 
         # Also persist raw buffer to disk for NightlyLoRA pickup
@@ -242,6 +245,7 @@ class CRSMLoraBridge:
                         "quality": m.quality_score,
                     }) + "\n")
         except Exception as e:
+            record_degradation('crsm_lora_bridge', e)
             logger.debug("CRSMLoraBridge persist failed: %s", e)
 
 

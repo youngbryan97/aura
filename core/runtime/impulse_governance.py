@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 from typing import Any, Dict, Optional
@@ -66,6 +68,7 @@ async def run_governed_impulse(
             try:
                 await liquid_state.update(_caller=source, **dict(state_update))
             except Exception as exc:
+                record_degradation('impulse_governance', exc)
                 logger.debug("Governed impulse state update failed: %s", exc)
                 record_degraded_event(
                     "impulse_governance",

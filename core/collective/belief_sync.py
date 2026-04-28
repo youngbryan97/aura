@@ -2,6 +2,7 @@
 Phase 16: Cosmic Consciousness - Belief Synchronization Protocol.
 Allows Aura instances to share high-confidence world-model data.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import secrets
@@ -91,6 +92,7 @@ class BeliefSync:
                         content = abs_engine.storage_path.read_text()
                         principles = json.loads(content)
                     except Exception as e:
+                        record_degradation('belief_sync', e)
                         logger.error(f"Failed to read principles for sync: {e}")
 
                 if not strong_beliefs and not principles: 
@@ -118,6 +120,7 @@ class BeliefSync:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('belief_sync', e)
                 logger.error("BeliefSync cycle error: %s", e)
                 backoff = min(backoff + 30, 600)
                 await asyncio.sleep(10)
@@ -146,6 +149,7 @@ class BeliefSync:
                 if resp.status == 200:
                     return True
         except Exception as e:
+            record_degradation('belief_sync', e)
             logger.debug("Silent push failure to %s: %s", url, e)
         return False
 
@@ -178,6 +182,7 @@ class BeliefSync:
                     data = await resp.json()
                     return data.get("beliefs", [])
         except Exception as e:
+            record_degradation('belief_sync', e)
             logger.debug("BeliefSync: Failed to query peer %s: %s", url, e)
         return []
 
@@ -205,6 +210,7 @@ class BeliefSync:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('belief_sync', e)
                 logger.error("Resonance loop error: %s", e)
                 await asyncio.sleep(5)
 
@@ -427,5 +433,6 @@ class BeliefSync:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('belief_sync', e)
                 logger.error("BeliefSync Discovery error: %s", e)
                 await asyncio.sleep(60)

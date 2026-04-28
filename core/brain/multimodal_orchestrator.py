@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import inspect
@@ -32,6 +33,7 @@ class MultimodalOrchestrator:
             self._is_setup = True
             logger.info("✨ Multimodal Rendering Engine Online.")
         except Exception as e:
+            record_degradation('multimodal_orchestrator', e)
             logger.error(f"Multimodal setup failed: {e}")
 
     async def render(self, content: str, metadata: Optional[Dict[str, Any]] = None):

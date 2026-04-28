@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -285,6 +286,7 @@ class SelfPredictionLoop:
                         context=f"High prediction error (surprise: {self._smoothed_error:.2f})"
                     )
             except Exception as e:
+                record_degradation('self_prediction', e)
                 capture_and_log(e, {'module': __name__})
 
     def _direct_policy_adaptation(self, error: PredictionError) -> None:
@@ -334,4 +336,5 @@ class SelfPredictionLoop:
                         mods["phi_autonomy_scale"] = round(max(0.5, dampened), 3)
 
         except Exception as e:
+            record_degradation('self_prediction', e)
             logger.debug("SelfPrediction: policy adaptation failed (non-critical): %s", e)

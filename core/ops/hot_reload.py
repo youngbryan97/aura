@@ -23,6 +23,8 @@ Usage:
     POST /api/system/hot-reload?scope=X  → reload only scope X
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import importlib
 import logging
@@ -263,6 +265,7 @@ class HotReloader:
                 importlib.reload(module)
                 result.reloaded.append(module_name)
             except Exception as exc:
+                record_degradation('hot_reload', exc)
                 tb = traceback.format_exc()
                 logger.error(
                     "♻️ HotReload: Failed to reload %s: %s",
@@ -343,6 +346,7 @@ class HotReloader:
             importlib.reload(module)
             result.reloaded.append(module_name)
         except Exception as exc:
+            record_degradation('hot_reload', exc)
             tb = traceback.format_exc()
             result.failed.append({
                 "module": module_name,

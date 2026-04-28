@@ -2,6 +2,7 @@
 Performs "Neural Replay" and "Graph Traversal" to generate new insights.
 Replaces the old linear summary dreamer.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -56,6 +57,7 @@ class DreamerV2:
             if emitter:
                 emitter.emit("Consolidation 🧠", str(results["consolidation"]), level="info")
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Consolidation step failed: %s", e)
             results["consolidation"] = {"error": str(e)}
 
@@ -67,6 +69,7 @@ class DreamerV2:
             if emitter:
                 emitter.emit("Archive 📦", str(results["archive"]), level="info")
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Archive step failed: %s", e)
             results["archive"] = {"error": str(e)}
 
@@ -78,6 +81,7 @@ class DreamerV2:
             if emitter:
                 emitter.emit("Integrity 🛡️", str(results["integrity"]), level="info")
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Integrity step failed: %s", e)
             results["integrity"] = {"error": str(e)}
 
@@ -92,6 +96,7 @@ class DreamerV2:
             elif emitter and not results["self_optimization"].get("ok"):
                  emitter.emit("Optimization ⏸️", f"Skipped: {results['self_optimization'].get('error')}", level="info")
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Optimization step failed: %s", e)
             results["self_optimization"] = {"error": str(e)}
 
@@ -103,6 +108,7 @@ class DreamerV2:
             if emitter:
                 emitter.emit("Metabolism 🫀", str(results["metabolism"]), level="info")
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Metabolism step failed: %s", e)
             results["metabolism"] = {"error": str(e)}
 
@@ -116,6 +122,7 @@ class DreamerV2:
                 distilled = results["distillation"].get("distilled", 0)
                 emitter.emit("Distillation 🧪", f"{distilled} responses improved via teacher model", level="info")
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Distillation step failed: %s", e)
             results["distillation"] = {"error": str(e)}
 
@@ -129,6 +136,7 @@ class DreamerV2:
                 new_h = results["heuristics"].get("new_heuristics", 0)
                 emitter.emit("Heuristics 📐", f"{new_h} new rules extracted", level="info")
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Heuristic synthesis step failed: %s", e)
             results["heuristics"] = {"error": str(e)}
 
@@ -151,6 +159,7 @@ class DreamerV2:
                         logger.info("🌌 Dream injected into waking consciousness stream.")
                         
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Dream journal step failed: %s", e)
             results["qualia_dream"] = {"error": str(e)}
 
@@ -169,6 +178,7 @@ class DreamerV2:
                 shift_desc = ", ".join(f"{s.value_name}:{s.delta:+.3f}" for s in shifts[:4])
                 emitter.emit("Value Evolution 🧬", f"{len(shifts)} value(s) evolved: {shift_desc}", level="info")
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Value autopoiesis step failed: %s", e)
             results["value_autopoiesis"] = {"error": str(e)}
 
@@ -185,6 +195,7 @@ class DreamerV2:
             if emitter and scar_status["active_scars"] > 0:
                 emitter.emit("Scar Healing", f"{scar_status['active_scars']} active scar(s) maintained", level="info")
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Scar maintenance step failed: %s", e)
             results["scar_maintenance"] = {"error": str(e)}
 
@@ -192,6 +203,7 @@ class DreamerV2:
         try:
             results["dream"] = await self.dream()
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.warning("Dream step failed: %s", e)
             results["dream"] = {"dreamed": False, "error": str(e)}
 
@@ -274,6 +286,7 @@ class DreamerV2:
                         emit_thoughts=False,
                     )
                 except Exception as _exc:
+                    record_degradation('dreamer_v2', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
                 # Save as new Knowledge
@@ -296,6 +309,7 @@ class DreamerV2:
                 return {"dreamed": False, "reason": "no_connection"}
                 
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.error("Nightmare encountered: %s", e)
             if emitter:
                 emitter.emit("Nightmare ⚡", f"Dream interrupted: {e}", level="warning")
@@ -323,5 +337,6 @@ class DreamerV2:
                         results.append({"content": str(row), "id": "unknown"})
             return results
         except Exception as e:
+            record_degradation('dreamer_v2', e)
             logger.error("Failed to get random nodes: %s", e)
             return []

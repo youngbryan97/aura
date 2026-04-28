@@ -20,6 +20,7 @@ This module is named "shadow" because it operates in the background
 during error recovery, not because it hides from governance.
 """
 
+from core.runtime.errors import record_degradation
 import ast
 import asyncio
 import hashlib
@@ -95,6 +96,7 @@ class ShadowASTHealer:
                 )
             return approved
         except Exception as exc:
+            record_degradation('shadow_ast_healer', exc)
             # Governance check failed — fail closed
             logger.warning("ShadowHealer: Governance check failed (denying): %s", exc)
             return False
@@ -164,6 +166,7 @@ class ShadowASTHealer:
 
             return False
         except Exception as e:
+            record_degradation('shadow_ast_healer', e)
             logger.error("ShadowHealer: AST repair failed: %s", e)
             return False
 

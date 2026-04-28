@@ -1,6 +1,7 @@
 """Message Pipeline Mixin for RobustOrchestrator.
 Handles request lifecycle steps, guardrails, and context assembly.
 """
+from core.runtime.errors import record_degradation
 import inspect
 import logging
 import asyncio
@@ -50,6 +51,7 @@ class MessagePipelineMixin:
                     logger.warning("🛑 Constitutional Block: %s vetoed by alignment layer.", tool_name)
                     return {"break": True, "response": "Constitutional Block: Action violates core principles."}
         except Exception as e:
+            record_degradation('message_pipeline', e)
             logger.debug("Constitutional check failed: %s", e)
             
         # 2. Execution
@@ -61,6 +63,7 @@ class MessagePipelineMixin:
             await self._record_reliability(tool_name, True)
             successful_tools.append(tool_name)
         except Exception as e:
+            record_degradation('message_pipeline', e)
             await self._record_reliability(tool_name, False, str(e))
             result = f"Error: {e}"
 
@@ -91,6 +94,7 @@ class MessagePipelineMixin:
                 logger.warning("🛑 Simulation block: %s", reason)
             return {"allowed": is_safe, "reason": reason}
         except Exception as e:
+            record_degradation('message_pipeline', e)
             logger.warning("Safety validation error (fail-closed): %s", e)
             return {"allowed": False, "reason": f"Internal safety verification fault: {str(e)}"}
 
@@ -133,6 +137,7 @@ class MessagePipelineMixin:
                     })
                 return True
         except Exception as exc:
+            record_degradation('message_pipeline', exc)
             logger.debug("Suppressed: %s", exc)
 
             return False
@@ -147,6 +152,7 @@ class MessagePipelineMixin:
                 return "I'm having trouble formulating a response. Let me try once more."
             return t.content
         except Exception as e:
+            record_degradation('message_pipeline', e)
             logger.warning("Fallback generation also failed: %s", e)
             return "I'm having trouble processing that right now — my cognitive engine hit an error. Could you try rephrasing?"
 
@@ -162,6 +168,7 @@ class MessagePipelineMixin:
             logger.warning("[ConstitutionalGuard] Timed out after 5s — passing raw response.")
             return response
         except Exception as e:
+            record_degradation('message_pipeline', e)
             logger.warning(f"[ConstitutionalGuard] Error — passing raw response. Reason: {e}")
             return response
 
@@ -171,6 +178,7 @@ class MessagePipelineMixin:
             if not constitutional_guard.check_output(response):
                 return "My safety filters blocked the formulated response. How else can I help?"
         except Exception as exc:
+            record_degradation('message_pipeline', exc)
             logger.error("Constitutional guard evaluation failed, failing closed: %s", exc)
             return "My safety filters encountered an error and blocked the response as a precaution."
 
@@ -260,6 +268,7 @@ class MessagePipelineMixin:
             
             return ctx
         except Exception as e:
+            record_degradation('message_pipeline', e)
             logger.error("Environment Context Error: %s", e)
             return {}
 
@@ -278,6 +287,7 @@ class MessagePipelineMixin:
             attrs = self_node.get("attributes", {})
             return f"MOOD: {attrs.get('emotional_valence')}, ENERGY: {attrs.get('energy_level')}"
         except Exception as e:
+            record_degradation('message_pipeline', e)
             logger.warning("World context retrieval failed: %s", e)
             return ""
 
@@ -286,6 +296,7 @@ class MessagePipelineMixin:
             from core.reliability_tracker import reliability_tracker
             reliability_tracker.record_attempt(tool, success, error)
         except Exception as e:
+            record_degradation('message_pipeline', e)
             logger.debug("Reliability record failed: %s", e)
             
     def _record_action_in_history(self, tool_name: str, result: Any):

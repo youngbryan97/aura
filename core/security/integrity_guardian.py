@@ -21,6 +21,8 @@ Design principle: Aura shouldn't need to trust that her environment is safe.
 She should be able to verify it herself, continuously.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -73,6 +75,7 @@ def _get_hmac_secret() -> bytes:
                 machine_id = line.split('"')[-2]
                 break
     except Exception as _exc:
+        record_degradation('integrity_guardian', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
 
     if not machine_id:
@@ -157,6 +160,7 @@ class IntegrityGuardian:
                         len(tampered), tampered[:3],
                     )
             except Exception as e:
+                record_degradation('integrity_guardian', e)
                 logger.debug("IntegrityGuardian background check error: %s", e)
             await asyncio.sleep(CHECK_INTERVAL)
 
@@ -220,6 +224,7 @@ class IntegrityGuardian:
                     rel = str(full.relative_to(_BASE_DIR))
                     manifest[rel] = self._hash_file(full)
                 except Exception as _exc:
+                    record_degradation('integrity_guardian', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
         self._manifest = manifest
         return len(manifest)
@@ -257,6 +262,7 @@ class IntegrityGuardian:
                     tampered = [p for p in tampered if self._normalize_repo_path(p) not in git_active]
                     missing = [p for p in missing if self._normalize_repo_path(p) not in git_active]
             except Exception as exc:
+                record_degradation('integrity_guardian', exc)
                 logger.debug("IntegrityGuardian: git check failed: %s", exc)
 
         self._last_tampered = list(tampered)
@@ -285,6 +291,7 @@ class IntegrityGuardian:
             with open(ALERT_LOG_PATH, "a") as f:
                 f.write(json.dumps(entry) + "\n")
         except Exception as _exc:
+            record_degradation('integrity_guardian', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Check if extra-critical files are affected
@@ -312,6 +319,7 @@ class IntegrityGuardian:
                 f"({'critical' if severity == 'critical' else 'non-critical'} files)"
             )
         except Exception as e:
+            record_degradation('integrity_guardian', e)
             logger.debug("Emergency notification failed: %s", e)
 
     # ── Hashing & Signing ──────────────────────────────────────────────────
@@ -345,6 +353,7 @@ class IntegrityGuardian:
             self._manifest_hmac = stored_sig
             return True
         except Exception as e:
+            record_degradation('integrity_guardian', e)
             logger.debug("Manifest load failed: %s", e)
             return False
 
@@ -355,6 +364,7 @@ class IntegrityGuardian:
             data = {"files": self._manifest, "signature": sig, "built_at": time.time()}
             atomic_write_text(MANIFEST_PATH, json.dumps(data, indent=2))
         except Exception as e:
+            record_degradation('integrity_guardian', e)
             logger.debug("Manifest save failed: %s", e)
 
     @staticmethod

@@ -15,6 +15,7 @@ Usage:
     response = await adapter.generate(prompt, {"model_tier": "api_fast"})
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -106,6 +107,7 @@ class APIAdapter:
             except ImportError:
                 logger.warning("APIAdapter: 'google-genai' package not installed.")
             except Exception as e:
+                record_degradation('api_adapter', e)
                 logger.error("APIAdapter: Gemini init failed: %s", e)
 
         # Initialize Aura's local runtime
@@ -115,6 +117,7 @@ class APIAdapter:
                 self.has_local = True
                 logger.info("✅ APIAdapter: Local runtime enabled.")
             except Exception as e:
+                record_degradation('api_adapter', e)
                 logger.error("APIAdapter: local runtime init failed: %s", e)
 
         if not self.has_gemini and not self.has_local:
@@ -132,6 +135,7 @@ class APIAdapter:
         except ImportError:
             logger.warning("⚠️ [BOOT] Early Facade registration deferred: AgencyFacade missing.")
         except Exception as e:
+            record_degradation('api_adapter', e)
             logger.error("❌ [BOOT] AgencyFacade registration error: %s", e)
 
     async def stop(self):
@@ -251,6 +255,7 @@ class APIAdapter:
                 self._call_count["gemini"] += 1
                 return response.text or ""
             except Exception as e:
+                record_degradation('api_adapter', e)
                 err_text = str(e)
                 if "429" in err_text or "quota" in err_text.lower():
                     self._gemini_backoff_until = time.monotonic() + 60.0
@@ -282,6 +287,7 @@ class APIAdapter:
             yield ChatStreamEvent(type="end")
             self._call_count["gemini"] += 1
         except Exception as e:
+            record_degradation('api_adapter', e)
             logger.warning("Gemini streaming failed: %s", e)
 
     # ─── Local Runtime ───────────────────────────────────────────────────────
@@ -310,6 +316,7 @@ class APIAdapter:
             self._call_count["local"] += 1
             return result
         except Exception as e:
+            record_degradation('api_adapter', e)
             logger.warning("Local runtime generate failed: %s", e)
             self._error_count["local"] += 1
         return None
@@ -351,6 +358,7 @@ class APIAdapter:
             yield ChatStreamEvent(type="end")
             self._call_count["local"] += 1
         except Exception as e:
+            record_degradation('api_adapter', e)
             logger.warning("Local runtime stream failed: %s", e)
             self._error_count["local"] += 1
 
@@ -366,6 +374,7 @@ class APIAdapter:
                 )
                 return res.embeddings[0].values
             except Exception as e:
+                record_degradation('api_adapter', e)
                 logger.debug("Gemini embedding failed: %s", e)
 
         # Deterministic local embedding fallback using bag-of-words hashing.

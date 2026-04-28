@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict, Optional
 from core.skills.base_skill import BaseSkill
@@ -31,6 +32,7 @@ class LurkerSkill(BaseSkill):
             try:
                 params = LurkerInput(**params)
             except Exception as e:
+                record_degradation('social_lurker', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         url = params.url or "https://news.ycombinator.com"
@@ -77,4 +79,5 @@ class LurkerSkill(BaseSkill):
                     "summary": f"Found {len(headlines)} posts on {url}"
                 }
         except Exception as e:
+            record_degradation('social_lurker', e)
             return {"ok": False, "error": f"Lurker failed: {e}"}

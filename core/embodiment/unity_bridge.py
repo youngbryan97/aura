@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 from typing import Any, Dict
@@ -28,6 +29,7 @@ class UnityEmbodiment:
         try:
             self.ws = await websockets.connect(uri)
         except Exception as e:
+            record_degradation('unity_bridge', e)
             logger.warning("Unity connection failed: %s", e)
         
     async def update_affect(self, affect_wheel: Dict):
@@ -55,8 +57,9 @@ class UnityEmbodiment:
             }
             await self.ws.send(json.dumps(msg))
         except Exception as e:
-             logger.error("Failed to send affect update to Unity: %s", e)
-             self.ws = None
+            record_degradation('unity_bridge', e)
+            logger.error("Failed to send affect update to Unity: %s", e)
+            self.ws = None
     
     async def get_sensor_data(self) -> Dict:
         """Read Unity sensors"""
@@ -70,6 +73,7 @@ class UnityEmbodiment:
                 "vestibular": data.get("acceleration", [0,0,0])
             }
         except Exception as e:
+            record_degradation('unity_bridge', e)
             logger.error("Failed to receive sensor data from Unity: %s", e)
             return {}
 

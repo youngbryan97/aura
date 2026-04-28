@@ -16,6 +16,8 @@ Install: instantiate in orchestrator_boot.py after the orchestrator is created,
 call guardian.attach(orchestrator). Then call guardian.start() in the run loop.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -295,6 +297,7 @@ class SessionGuardian:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                record_degradation('session_guardian', exc)
                 logger.error("Monitor loop error: %s", exc)
 
     async def _check_for_stall(self):
@@ -333,6 +336,7 @@ class SessionGuardian:
                 else:
                     callback()
             except Exception as exc:
+                record_degradation('session_guardian', exc)
                 logger.error("Recovery callback failed: %s", exc)
 
         # Strategy 3: If orchestrator has a retry mechanism, trigger it
@@ -341,6 +345,7 @@ class SessionGuardian:
                 await self._orchestrator._reconnect_cognitive_engine()
                 logger.info("Guardian triggered cognitive engine reconnect")
             except Exception as exc:
+                record_degradation('session_guardian', exc)
                 logger.error("Cognitive engine reconnect failed: %s", exc)
 
         # Reset the silence timer so we don't spam recovery

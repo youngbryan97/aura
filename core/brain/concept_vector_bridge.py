@@ -9,6 +9,7 @@ or semantic hash-trees. This is exponentially faster and lossless compared to
 parsing human language.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 import numpy as np
@@ -101,6 +102,7 @@ class ConceptVectorBridge:
             self._concept_cache[text_concept] = vector
             return vector
         except Exception as e:
+            record_degradation('concept_vector_bridge', e)
             logger.error(f"Failed to generate concept vector: {e}")
             return []
 

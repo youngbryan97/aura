@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import functools
@@ -137,6 +139,7 @@ def error_boundary(
                 breaker.record_success()
                 return result
             except Exception as e:
+                record_degradation('error_boundary', e)
                 breaker.record_failure(e)
                 logger.warning("Error in boundary [%s]: %s", breaker_name, e)
                 if reraise:
@@ -155,6 +158,7 @@ def error_boundary(
                 breaker.record_success()
                 return result
             except Exception as e:
+                record_degradation('error_boundary', e)
                 breaker.record_failure(e)
                 logger.warning("Error in boundary [%s]: %s", breaker_name, e)
                 if reraise:
@@ -212,6 +216,7 @@ async def wrap_phase(
         return result if result is not None else state
 
     except Exception as e:
+        record_degradation('error_boundary', e)
         breaker.record_failure(e)
         logger.error(
             "ERROR BOUNDARY: Phase [%s] failed. State preserved.\n%s",

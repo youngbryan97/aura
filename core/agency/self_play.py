@@ -4,6 +4,7 @@ Asynchronous Adversarial Self-Play.
 Spawns competing cognitive shards during system idle time to generate novel 
 problems and solve them, pushing failures to the DistillationPipe for nightly learning.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -183,6 +184,7 @@ Detail your logical chain of thought before providing the final answer.
                     task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
 
         except Exception as e:
+            record_degradation('self_play', e)
             logger.error("Self-Play Cycle Error: %s", e)
         finally:
             self.is_playing = False

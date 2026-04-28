@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 from typing import Any, Dict, List, Optional
@@ -41,6 +42,7 @@ class MentalSimulator:
             from core.world_model.acg import acg
             history = acg.query_consequences(tool_name, params)
         except Exception as _e:
+            record_degradation('mental_simulator', _e)
             logger.debug("ACG lookup failed: %s", _e)
             
         history_summary = "No historical precedents found for this action."
@@ -112,6 +114,7 @@ class MentalSimulator:
                 return {"risk": 0.1, "prediction": response.content}
                 
         except Exception as e:
+            record_degradation('mental_simulator', e)
             logger.error("Simulation failed: %s", e)
             return {"risk": 0.5, "error": str(e)}
             

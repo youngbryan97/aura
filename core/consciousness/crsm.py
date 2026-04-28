@@ -24,6 +24,8 @@ Architecture:
 No torch dependency: pure numpy GRU cell for stability.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json
@@ -294,6 +296,7 @@ class ContinuousRecurrentSelfModel:
             }
             atomic_write_text(PERSIST_PATH, json.dumps(data))
         except Exception as e:
+            record_degradation('crsm', e)
             logger.debug("CRSM save failed: %s", e)
 
     def _load(self):
@@ -306,6 +309,7 @@ class ContinuousRecurrentSelfModel:
                 self._error_ema = data.get("error_ema", 0.0)
                 logger.info("CRSM resumed from checkpoint (tick %d).", self._tick_count)
         except Exception as e:
+            record_degradation('crsm', e)
             logger.debug("CRSM load failed (starting fresh): %s", e)
 
 

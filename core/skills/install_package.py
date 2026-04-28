@@ -2,6 +2,7 @@
 Allows Aura to install Python packages into the Sovereign Sandbox.
 Essential for upgrading the "Body" (Perception libraries).
 """
+from core.runtime.errors import record_degradation
 import inspect
 import logging
 import sys
@@ -36,6 +37,7 @@ class InstallPackageSkill(BaseSkill):
             try:
                 params = InstallPackageParams(**params)
             except Exception as e:
+                record_degradation('install_package', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         package_name = params.package_name
@@ -70,4 +72,5 @@ class InstallPackageSkill(BaseSkill):
                 "message": f"Installed {package_name}" if result.exit_code == 0 else f"Failed to install {package_name}"
             }
         except Exception as e:
+            record_degradation('install_package', e)
             return {"ok": False, "error": str(e)}

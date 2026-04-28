@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any
@@ -31,6 +32,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
         
         logger.info("🆔 Identity, Soul, Personality, and Fictional Engines registered.")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.error("🛑 Failed to load SelfModel: %s", e)
             
     try:
@@ -45,6 +47,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
         else:
             logger.warning("🚗 Affect system missing; deferring DriveController")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.error("🚗 DriveController init failed: %s", e)
     
     # 2. Senses
@@ -105,6 +108,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
         orchestrator.metabolic_coordinator = orchestrator.will_engine
         logger.info("☘️ WillEngine (Metabolic Evolution) registered.")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.error("🛑 WillEngine init failed: %s", e)
 
     # ── 12. Learned Cognitive Systems ────────────────────────────────────
@@ -139,6 +143,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
             ServiceContainer.register_instance(svc_name, instance)
             registered_count += 1
         except Exception as cog_exc:
+            record_degradation('cognitive_sensory', cog_exc)
             logger.debug("Cognitive/ALife service '%s' deferred: %s", svc_name, cog_exc)
     if registered_count:
         logger.info(
@@ -154,6 +159,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
         ServiceContainer.register_instance("cellular_substrate", orchestrator.cellular_substrate)
         logger.info("♾️ CellularSubstrate (Unified Mutation) registered.")
     except Exception as e:
+        record_degradation('cognitive_sensory', e)
         logger.error("🛑 CellularSubstrate init failed: %s", e)
     
     logger.info("🧬 [BOOT] Cognitive & Sensory Layer initialized.")

@@ -1,5 +1,6 @@
 """Multi-layer code validation for safe self-modification.
 """
+from core.runtime.errors import record_degradation
 import ast
 import io
 import logging
@@ -53,6 +54,7 @@ class CodeValidator:
                 elif not result:
                     errors.append(f"Validation failed: {validator.__name__}")
             except Exception as e:
+                record_degradation('code_validation', e)
                 errors.append(f"Validator {validator.__name__} crashed: {e}")
         
         return len(errors) == 0, warnings + errors
@@ -81,6 +83,7 @@ class CodeValidator:
             return True, f"Imports OK ({len(imports)} imports)"
             
         except Exception as e:
+            record_degradation('code_validation', e)
             return False, f"Import validation failed: {e}"
     
     def _validate_ast_structure(self, code: str, file_path: Optional[Path] = None) -> Tuple[bool, str]:
@@ -121,6 +124,7 @@ class CodeValidator:
                 return True, "Structure OK"
             
         except Exception as e:
+            record_degradation('code_validation', e)
             return False, f"Structure validation failed: {e}"
     
     def _validate_no_syntax_errors(self, code: str, file_path: Optional[Path] = None) -> Tuple[bool, str]:
@@ -153,6 +157,7 @@ class CodeValidator:
         except tokenize.TokenError as e:
             return False, f"Token error: {e}"
         except Exception as e:
+            record_degradation('code_validation', e)
             return False, f"Token validation failed: {e}"
     
     def _validate_security_concerns(self, code: str, file_path: Optional[Path] = None) -> Tuple[bool, str]:

@@ -19,6 +19,8 @@ already exist across core/self_modification, core/learning, core/affect,
 core/agi, core/consciousness, core/resilience, and core/evolution.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -161,6 +163,7 @@ class EvolutionOrchestrator:
                         logger.info("🏆 [EVOLUTION] %s milestone: %s", axis.value, m)
                 ax.blockers = blockers
             except Exception as exc:
+                record_degradation('evolution_orchestrator', exc)
                 logger.debug("Evolution eval %s failed: %s", axis.value, exc)
 
         # Recompute overall progress
@@ -179,6 +182,7 @@ class EvolutionOrchestrator:
             if ladder:
                 await ladder.evaluate_advancement()
         except Exception as exc:
+            record_degradation('evolution_orchestrator', exc)
             logger.debug("Growth ladder eval skipped: %s", exc)
 
         self._save()
@@ -340,6 +344,7 @@ class EvolutionOrchestrator:
                 level += 0.15
                 milestones.append("voice_communication_active")
         except Exception as _exc:
+            record_degradation('evolution_orchestrator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return min(level, 1.0), milestones, blockers
@@ -378,6 +383,7 @@ class EvolutionOrchestrator:
                     level += 0.1
                     milestones.append("web_access_active")
         except Exception as _exc:
+            record_degradation('evolution_orchestrator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Metal scheduler (hardware resource management)
@@ -527,6 +533,7 @@ class EvolutionOrchestrator:
                         blockers=ax_data.get("blockers", []),
                     )
         except Exception as exc:
+            record_degradation('evolution_orchestrator', exc)
             logger.debug("Evolution state load failed: %s", exc)
 
     def _save(self) -> None:
@@ -549,6 +556,7 @@ class EvolutionOrchestrator:
             }
             atomic_write_text(self._STATE_FILE, json.dumps(data, indent=2))
         except Exception as exc:
+            record_degradation('evolution_orchestrator', exc)
             logger.debug("Evolution state save failed: %s", exc)
 
     # ── Background Loop ─────────────────────────────────────────────────
@@ -564,6 +572,7 @@ class EvolutionOrchestrator:
                     self._snapshot.overall_progress * 100,
                 )
             except Exception as exc:
+                record_degradation('evolution_orchestrator', exc)
                 logger.error("Evolution tick failed: %s", exc)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self._TICK_INTERVAL)
@@ -586,5 +595,6 @@ def get_evolution_orchestrator() -> EvolutionOrchestrator:
                 "evolution_orchestrator", _instance, required=False
             )
         except Exception as _exc:
+            record_degradation('evolution_orchestrator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
     return _instance

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from abc import ABC, abstractmethod
@@ -63,6 +64,7 @@ class BaseHardwareDevice(ABC):
                 self.is_connected = False
                 return {"ok": False, "error": "Hardware command timed out. Connection forced closed."}
             except Exception as e:
+                record_degradation('base_device', e)
                 logger.error("Execution failed on device %s: %s", self.device_id, e, exc_info=True)
                 return {"ok": False, "error": str(e)}
 

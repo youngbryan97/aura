@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import inspect
 import logging
 import json
@@ -32,6 +33,7 @@ class SystemProprioceptionSkill(BaseSkill):
             try:
                 params = ProprioceptionInput(**params)
             except Exception as e:
+                record_degradation('system_proprioception', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         target_service = params.service_name
@@ -77,6 +79,7 @@ class SystemProprioceptionSkill(BaseSkill):
                                 service_info["description"] = doc.split('\n')[0] # First line only for brevity
                                 
                     except Exception as e:
+                        record_degradation('system_proprioception', e)
                         self.logger.debug("Metadata extraction failed for %s: %s", name, e)
 
                 system_map.append(service_info)
@@ -89,5 +92,6 @@ class SystemProprioceptionSkill(BaseSkill):
             }
 
         except Exception as e:
+            record_degradation('system_proprioception', e)
             self.logger.error("Proprioception failed: %s", e)
             return {"ok": False, "error": str(e)}

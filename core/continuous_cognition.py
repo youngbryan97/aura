@@ -27,6 +27,8 @@ system feel like it "exists" rather than merely "responds."
 Runtime: Pure Python, zero LLM calls, <1ms per iteration.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -93,6 +95,7 @@ class ContinuousCognitionLoop:
             try:
                 self._cognitive_step()
             except Exception as e:
+                record_degradation('continuous_cognition', e)
                 if self._tick_count % 100 == 0:
                     logger.debug("CognitionLoop step error: %s", e)
 
@@ -206,6 +209,7 @@ class ContinuousCognitionLoop:
             logger.debug("CognitionLoop: seeded impulse from %s pressure (%.2f)",
                         lowest_name, lowest_level)
         except Exception as e:
+            record_degradation('continuous_cognition', e)
             logger.debug("CognitionLoop: initiative seeding failed: %s", e)
 
     def _check_for_salient_changes(self) -> None:

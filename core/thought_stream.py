@@ -1,5 +1,6 @@
 """Thread-safe ThoughtEmitter — the broadcast backbone for Aura's internal thought stream.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import threading
@@ -97,6 +98,7 @@ class ThoughtEmitter:
             from .event_bus import get_event_bus
             get_event_bus().publish_threadsafe("thoughts", message)
         except Exception as e:
+            record_degradation('thought_stream', e)
             logger.debug("Failed to bridge thought to EventBus: %s", e)
 
 

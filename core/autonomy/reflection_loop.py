@@ -28,6 +28,8 @@ Public API:
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import json
@@ -239,6 +241,7 @@ class ReflectionLoop:
                 if isinstance(res, dict):
                     return str(res.get("content", res.get("text", "")) or "")
             except Exception as e:
+                record_degradation('reflection_loop', e)
                 logger.debug("inference %s failed: %s", fn_name, e)
                 continue
         return ""
@@ -251,6 +254,7 @@ class ReflectionLoop:
         try:
             return dict(self._substrate() or {})
         except Exception as e:
+            record_degradation('reflection_loop', e)
             logger.debug("substrate snapshot failed: %s", e)
             return {}
 

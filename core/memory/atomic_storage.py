@@ -4,6 +4,7 @@ This module provides persistent memory storage with automatic pruning,
 corruption detection, and atomic write operations to prevent data loss.
 """
 
+from core.runtime.errors import record_degradation
 import hashlib
 import json
 import logging
@@ -123,6 +124,7 @@ class Memory:
                         old_backup.unlink()
                         
         except Exception as e:
+            record_degradation('atomic_storage', e)
             logger.error("Failed to create backup: %s", e)
     
     def _atomic_write(self, data: Dict[str, Any]) -> bool:
@@ -162,6 +164,7 @@ class Memory:
             return True
             
         except Exception as e:
+            record_degradation('atomic_storage', e)
             logger.error("Atomic write failed: %s", e)
             
             # Attempt rollback
@@ -171,6 +174,7 @@ class Memory:
                         self.storage_file.unlink()
                     backup_file.replace(self.storage_file)
             except Exception as rollback_error:
+                record_degradation('atomic_storage', rollback_error)
                 logger.critical("Rollback failed: %s", rollback_error)
             
             # Clean up temp file
@@ -178,6 +182,7 @@ class Memory:
                 try:
                     temp_file.unlink()
                 except Exception as exc:
+                    record_degradation('atomic_storage', exc)
                     logger.debug("Suppressed: %s", exc)
 
             return False
@@ -212,6 +217,7 @@ class Memory:
                     logger.info("Memory loaded successfully (%d events)", len(self.data['episodic']))
                     
         except Exception as e:
+            record_degradation('atomic_storage', e)
             logger.error("Memory load failed: %s", e)
             # Continue with default data
     
@@ -245,6 +251,7 @@ class Memory:
             logger.error("JSON decode error in %s: %s", file_path.name, e)
             return None
         except Exception as e:
+            record_degradation('atomic_storage', e)
             logger.error("Error reading %s: %s", file_path.name, e)
             return None
     
@@ -275,6 +282,7 @@ class Memory:
                 return success
                 
             except Exception as e:
+                record_degradation('atomic_storage', e)
                 logger.error("Save operation failed: %s", e, exc_info=True)
                 return False
     
@@ -319,6 +327,7 @@ class Memory:
             logger.error("Invalid event data: %s", e)
             return False
         except Exception as e:
+            record_degradation('atomic_storage', e)
             logger.error("Failed to log event: %s", e)
             return False
     
@@ -350,6 +359,7 @@ class Memory:
                 return True
                 
         except Exception as e:
+            record_degradation('atomic_storage', e)
             logger.error("Failed to update semantic memory: %s", e)
             return False
     
@@ -391,6 +401,7 @@ class Memory:
                 logger.info("Cleared episodic memory")
                 return True
             except Exception as e:
+                record_degradation('atomic_storage', e)
                 logger.error("Failed to clear episodic memory: %s", e)
                 return False
     
@@ -424,6 +435,7 @@ def atomic_write(file_path: str, content: str) -> None:
         # Atomic rename
         temp_path.replace(path)
     except Exception as e:
+        record_degradation('atomic_storage', e)
         logger.error("Standalone atomic write failed for %s: %s", file_path, e)
         if temp_path.exists():
             temp_path.unlink()

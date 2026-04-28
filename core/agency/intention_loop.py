@@ -17,6 +17,8 @@ The loop provides:
   - Registration as ``intention_loop`` in ServiceContainer.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import json
@@ -168,6 +170,7 @@ class IntentionLoop:
                 self._db_path,
             )
         except Exception as e:
+            record_degradation('intention_loop', e)
             logger.error("IntentionLoop initialization failed: %s", e)
             self._conn = None
 
@@ -198,6 +201,7 @@ class IntentionLoop:
                 rec = self._row_to_record(raw)
                 self._completed_intentions.appendleft(rec)
         except Exception as e:
+            record_degradation('intention_loop', e)
             logger.error("IntentionLoop hydration failed: %s", e)
 
     # ── Service accessors (lazy) ────────────────────────────────────────
@@ -208,6 +212,7 @@ class IntentionLoop:
                 from core.container import ServiceContainer
                 self._ledger = ServiceContainer.get("cognitive_ledger", default=None)
             except Exception as _exc:
+                record_degradation('intention_loop', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         return self._ledger
 
@@ -217,6 +222,7 @@ class IntentionLoop:
                 from core.container import ServiceContainer
                 self._belief_engine = ServiceContainer.get("belief_revision_engine", default=None)
             except Exception as _exc:
+                record_degradation('intention_loop', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         return self._belief_engine
 
@@ -434,6 +440,7 @@ class IntentionLoop:
                             loop,
                         )
                 except Exception as e:
+                    record_degradation('intention_loop', e)
                     logger.debug("Belief push deferred: %s", e)
 
         # Record to CognitiveLedger
@@ -546,6 +553,7 @@ class IntentionLoop:
                 cur = self._conn.execute("SELECT COUNT(*) FROM intentions")
                 total_from_db = cur.fetchone()[0]
             except Exception as _exc:
+                record_degradation('intention_loop', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         return {
@@ -581,6 +589,7 @@ class IntentionLoop:
                 sim = embedder.similarity(expected, actual)
                 return round(max(0.0, min(1.0, 1.0 - sim)), 3)
         except Exception as _exc:
+            record_degradation('intention_loop', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Fallback: normalised token overlap (Jaccard distance)
@@ -636,6 +645,7 @@ class IntentionLoop:
                 self._conn.commit()
                 return True
             except Exception as e:
+                record_degradation('intention_loop', e)
                 logger.error("IntentionLoop persist failed: %s", e)
                 return False
 
@@ -708,6 +718,7 @@ class IntentionLoop:
                     )
                 return deleted
             except Exception as e:
+                record_degradation('intention_loop', e)
                 logger.error("IntentionLoop prune failed: %s", e)
                 return 0
 
@@ -752,5 +763,6 @@ def get_intention_loop() -> IntentionLoop:
             from core.container import ServiceContainer
             ServiceContainer.register_instance("intention_loop", _instance)
         except Exception as e:
+            record_degradation('intention_loop', e)
             logger.debug("IntentionLoop: ServiceContainer registration deferred: %s", e)
     return _instance

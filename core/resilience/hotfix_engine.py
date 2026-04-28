@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import importlib
 import logging
@@ -39,6 +40,7 @@ class HotfixEngine:
             logger.info(f"✅ Hotfix applied to {module_name}. Total reloads: {self.reloads_total}")
             return {"ok": True, "reloaded": module_name}
         except Exception as e:
+            record_degradation('hotfix_engine', e)
             logger.error(f"❌ Hotfix stage fail for {module_name}: {e}")
             return {"ok": False, "error": str(e)}
 

@@ -2,6 +2,7 @@
 Memory Coordinator for the RobustOrchestrator.
 Handles RAG retrieval, persistence, and multi-modal memory management.
 """
+from core.runtime.errors import record_degradation
 import logging
 import asyncio
 from typing import Any, Dict, Optional
@@ -31,6 +32,7 @@ class MemoryCoordinator:
                     try:
                         self._memory = get_vault()
                     except Exception as e:
+                        record_degradation('memory', e)
                         logger.error(f"Fallback to vault failed: {e}")
                         self._memory = None
                     return self._memory
@@ -71,6 +73,7 @@ class MemoryCoordinator:
                 else:
                     return await asyncio.to_thread(self.memory.get_hot_memory, limit=limit)
             except Exception as e:
+                record_degradation('memory', e)
                 logger.error(f"MemoryCoordinator.get_hot_memory failed: {e}")
         return {}
 
@@ -98,6 +101,7 @@ class MemoryCoordinator:
                         metadata=metadata,
                     )
             except Exception as e:
+                record_degradation('memory', e)
                 logger.error("MemoryCoordinator.commit_interaction failed: %s", e)
 
     async def log_event(self, event_type: str, content: Any, metadata: Optional[Dict[str, Any]] = None) -> None:
@@ -113,6 +117,7 @@ class MemoryCoordinator:
                 else:
                     await asyncio.to_thread(self.memory.prune_low_salience, threshold_days=threshold_days)
             except Exception as e:
+                record_degradation('memory', e)
                 logger.error(f"MemoryCoordinator.prune_low_salience failed: {e}")
 
     async def get_cold_memory_context(self, query: str, limit: int = 5) -> Dict[str, Any]:
@@ -138,6 +143,7 @@ class MemoryCoordinator:
                     res = await asyncio.to_thread(self.memory.get_cold_memory_context, query, limit=limit)
                 return res if isinstance(res, dict) else {"results": res}
         except Exception as e:
+            record_degradation('memory', e)
             logger.error(f"Memory retrieval failure: {e}")
             
         return {"results": []}
@@ -196,6 +202,7 @@ class MemoryCoordinator:
                         from core.thought_stream import get_emitter
                         get_emitter().emit("Memory Consolidation 🌙", summary, level="info", category="Subconscious")
                     except Exception as _exc:
+                        record_degradation('memory', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     # Commit to long-term memory
                     await self.commit_interaction("system_insight", f"[Dream Consolidation] {summary}")
@@ -204,4 +211,5 @@ class MemoryCoordinator:
                     logger.info("🌙 [SUBCONSCIOUS] Truncating working memory from %d to 2 items.", len(state.cognition.working_memory))
                     state.cognition.working_memory = state.cognition.working_memory[-2:]
         except Exception as e:
+            record_degradation('memory', e)
             logger.error("❌ [SUBCONSCIOUS] Consolidation failed: %s", e)

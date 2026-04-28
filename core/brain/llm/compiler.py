@@ -4,6 +4,7 @@ Aggregates state from Identity, Personality, Substrate, and Goals to
 build a dynamic system prompt for the Language Center.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Optional, Dict, Any
@@ -127,6 +128,7 @@ Stay true to her personality: sovereign, curious, loyal, and slightly detached f
                 state_str += "- Affective Status: Steady (Registry state unavailable)\n"
                 
         except Exception as e:
+            record_degradation('compiler', e)
             logger.debug("Failed to pull from StateRegistry in compiler: %s", e)
             # Minimal fallback behavior
             state_str += "- Affective Status: Steady\n"
@@ -154,8 +156,10 @@ Stay true to her personality: sovereign, curious, loyal, and slightly detached f
                         if principles:
                             state_str += principles
                     except Exception as e:
+                        record_degradation('compiler', e)
                         logger.debug("Failed to inject principles: %s", e)
         except Exception as e:
+            record_degradation('compiler', e)
             logger.debug("Failed to inject principles into prompt: %s", e)
 
         return state_str

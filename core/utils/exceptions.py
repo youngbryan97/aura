@@ -2,6 +2,7 @@
 ==================================================================
 Standardizes error handling across the entire engine.
 """
+from core.runtime.errors import record_degradation
 import logging
 import functools
 from typing import Any, Optional
@@ -24,6 +25,7 @@ def _record_exception_degraded_event(error: Exception, context: Optional[dict] =
             exc=error,
         )
     except Exception as degraded_exc:
+        record_degradation('exceptions', degraded_exc)
         logger.debug("Degraded event capture failed: %s", degraded_exc)
 
 class AuraError(Exception):
@@ -70,6 +72,7 @@ def capture_and_log(error_or_func=None, context=None):
                         try:
                             return await func(*args, **kwargs)
                         except Exception as e:
+                            record_degradation('exceptions', e)
                             logger.error(f"Error in {func.__name__}: {e}", exc_info=True)
                             _record_exception_degraded_event(
                                 e,
@@ -82,6 +85,7 @@ def capture_and_log(error_or_func=None, context=None):
                     return async_run()
                 return func(*args, **kwargs)
             except Exception as e:
+                record_degradation('exceptions', e)
                 logger.error(f"Error in {func.__name__}: {e}", exc_info=True)
                 _record_exception_degraded_event(
                     e,

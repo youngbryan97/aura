@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import os
 import psutil
 import logging
@@ -64,4 +65,5 @@ class SurvivalDriver:
             )
             logger.warning("🚨 Survival Imperative Published: %s", imperative)
         except Exception as e:
+            record_degradation('survival_driver', e)
             logger.error("Failed to publish survival threat: %s", e)

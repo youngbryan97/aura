@@ -9,6 +9,7 @@ Proprioception in biology: the sense of where your body is in space.
 Proprioception in Aura: the sense of how fast she's thinking, how much
 VRAM she's using, and what her GUI expression looks like.
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Optional
@@ -64,6 +65,7 @@ class ProprioceptiveLoop(BasePhase):
                     logger.debug('Ignored AttributeError in proprioceptive_loop.py: %s', _e)
                     
             except Exception as e:
+                record_degradation('proprioceptive_loop', e)
                 logger.debug("Proprioception hardware probe failed (non-fatal): %s", e)
         
         # ── 2. Cognitive Latency (Self-Awareness of Thought Speed) ──
@@ -84,6 +86,7 @@ class ProprioceptiveLoop(BasePhase):
                 if total > 0:
                     soma.latency["token_velocity"] = total  # Cumulative for now
         except Exception as _e:
+            record_degradation('proprioceptive_loop', _e)
             logger.debug('Ignored Exception in proprioceptive_loop.py: %s', _e)
         
         # ── 3. Expressive State (Self-Image) ────────────────────
@@ -113,6 +116,7 @@ class ProprioceptiveLoop(BasePhase):
                 mods = homeo.get_modifiers()
                 new_state.cognition.modifiers = asdict(mods)
         except Exception as e:
+            record_degradation('proprioceptive_loop', e)
             logger.debug("Proprioception homeostatic probe failed: %s", e)
             
         soma.updated_at = time.time()
@@ -138,6 +142,7 @@ class ProprioceptiveLoop(BasePhase):
                         f"{latest.handler_name}:{latest.result_summary}"[:60]
                     )
         except Exception as _mc_exc:
+            record_degradation('proprioceptive_loop', _mc_exc)
             logger.debug("Proprioception motor cortex drain failed: %s", _mc_exc)
 
         # ── 4c. [RUBICON] Limb Health Summary ──────────────────
@@ -152,6 +157,7 @@ class ProprioceptiveLoop(BasePhase):
                     soma.hardware["unhealthy_limbs"] = unhealthy
                     soma.hardware["unhealthy_limb_count"] = len(unhealthy)
         except Exception as _fp_exc:
+            record_degradation('proprioceptive_loop', _fp_exc)
             logger.debug("Proprioception limb health probe failed: %s", _fp_exc)
 
         logger.debug(
@@ -184,6 +190,7 @@ class ProprioceptiveLoop(BasePhase):
                     await inhibition.inhibit("world_decay", duration=15.0, reason="High Neural Tension")
                     await inhibition.inhibit("memory_hygiene", duration=10.0, reason="High Neural Tension")
         except Exception as e:
+            record_degradation('proprioceptive_loop', e)
             logger.debug("Reflex tension check failed: %s", e)
 
         # B. Hardware Stress Reflex

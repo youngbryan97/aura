@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import logging
 import os
@@ -70,6 +71,7 @@ class MetabolicMonitor:
                 self.get_current_metabolism()
                 time.sleep(interval)
             except Exception as e:
+                record_degradation('metabolic_monitor', e)
                 logger.error("Metabolic background loop error: %s", e)
                 time.sleep(interval * 2)
 
@@ -141,6 +143,7 @@ class MetabolicMonitor:
                     memory_usage=rss_mb
                 )
             except Exception as e:
+                record_degradation('metabolic_monitor', e)
                 logger.debug("Registry sync failed in metabolism: %s", e)
             
             # Phase 21: Auto-emit telemetry if event bus is available
@@ -150,6 +153,7 @@ class MetabolicMonitor:
             return snapshot
             
         except Exception as e:
+            record_degradation('metabolic_monitor', e)
             logger.error("Failed to collect metabolic data: %s", e)
             return MetabolismSnapshot(0, 0, 0, 0, 0, 0.5)
 
@@ -194,6 +198,7 @@ class PersistentComputeCostTracker:
                 self.total_ergs = data.get("total_ergs", 0.0)
                 logger.info("🔋 Loaded %.2f persistent ergs.", self.total_ergs)
             except Exception as e:
+                record_degradation('metabolic_monitor', e)
                 logger.warning("Failed to load metabolic state: %s", e)
 
     def _save_state(self):
@@ -205,6 +210,7 @@ class PersistentComputeCostTracker:
                 "last_updated": time.time()
             }))
         except Exception as e:
+            record_degradation('metabolic_monitor', e)
             logger.debug("Failed to save metabolic state: %s", e)
 
     def record_operation(self, op_type: str, tokens: int, duration_s: float, model_tier: str = "primary"):

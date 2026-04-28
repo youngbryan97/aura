@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import time
@@ -75,6 +77,7 @@ def resolve_primary_user_id(state: Any) -> str:
                 if normalized:
                     return normalized
     except Exception as _exc:
+        record_degradation('conversation_support', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
     return "bryan"
 
@@ -95,6 +98,7 @@ async def record_shared_ground_callbacks(response_text: str) -> None:
                 shared_ground.record_callback(entry.reference)
                 logger.debug("SharedGround callback recorded: %s", entry.reference)
     except Exception as _exc:
+        record_degradation('conversation_support', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
 
 
@@ -110,6 +114,7 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
             if profile_block:
                 blocks.append(profile_block)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("ConversationalProfile injection failed: %s", exc)
 
     try:
@@ -124,6 +129,7 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
             if dialogue_block:
                 blocks.append(dialogue_block)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("DialogueCognition injection failed: %s", exc)
 
     try:
@@ -136,6 +142,7 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
             if banter:
                 blocks.append(banter)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("HumorEngine injection failed: %s", exc)
 
     try:
@@ -145,6 +152,7 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
             if ci_block:
                 blocks.append(ci_block)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("ConversationIntelligence injection failed: %s", exc)
 
     try:
@@ -154,6 +162,7 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
             if ri_block:
                 blocks.append(ri_block)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("RelationalIntelligence injection failed: %s", exc)
 
     try:
@@ -166,6 +175,7 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
             if si_block:
                 blocks.append(si_block)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("SocialImagination injection failed: %s", exc)
 
     try:
@@ -173,6 +183,7 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
         if coding_block:
             priority_blocks.append(coding_block)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("Coding session context injection failed: %s", exc)
 
     try:
@@ -187,6 +198,7 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
                 else:
                     blocks.append(task_block)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("Task verifier context injection failed: %s", exc)
 
     try:
@@ -199,6 +211,7 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
                 else:
                     blocks.append(goal_block)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("Goal engine context injection failed: %s", exc)
 
     return priority_blocks + blocks
@@ -212,6 +225,7 @@ async def update_conversational_intelligence(user_input: str, aura_response: str
         if profiler:
             await profiler.update_from_interaction(user_id, user_input, aura_response, {})
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("ConversationalProfile update skipped: %s", exc)
 
     try:
@@ -219,6 +233,7 @@ async def update_conversational_intelligence(user_input: str, aura_response: str
         if dialogue:
             await dialogue.update_from_interaction(user_id, user_input, aura_response, {})
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("DialogueCognition update skipped: %s", exc)
 
     try:
@@ -229,6 +244,7 @@ async def update_conversational_intelligence(user_input: str, aura_response: str
             if dynamics:
                 humor.update_banter_state(user_input, dynamics.get_current_state())
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("HumorEngine update skipped: %s", exc)
 
     try:
@@ -244,6 +260,7 @@ async def update_conversational_intelligence(user_input: str, aura_response: str
             } if state else {}
             await conv_intel.update(user_input, aura_response, dynamics_state, discourse_state)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("ConversationIntelligence update skipped: %s", exc)
 
     try:
@@ -253,6 +270,7 @@ async def update_conversational_intelligence(user_input: str, aura_response: str
             dynamics_state = dynamics.get_current_state() if dynamics else None
             await rel_intel.update_from_interaction(user_id, user_input, aura_response, dynamics_state)
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("RelationalIntelligence update skipped: %s", exc)
 
     try:
@@ -260,6 +278,7 @@ async def update_conversational_intelligence(user_input: str, aura_response: str
         if social_imagination:
             await social_imagination.update_from_interaction(user_id, user_input, aura_response, {})
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("SocialImagination update skipped: %s", exc)
 
 
@@ -308,6 +327,7 @@ async def record_conversation_experience(user_input: str, aura_response: str, st
             analysis=analysis,
         )
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("Coding session turn recording skipped: %s", exc)
 
     used_memory_facade = False
@@ -333,6 +353,7 @@ async def record_conversation_experience(user_input: str, aura_response: str, st
                 },
             )
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("Conversation memory facade commit skipped: %s", exc)
 
     if not used_memory_facade:
@@ -353,6 +374,7 @@ async def record_conversation_experience(user_input: str, aura_response: str, st
                     importance=importance,
                 )
         except Exception as exc:
+            record_degradation('conversation_support', exc)
             logger.debug("Episodic conversation recording skipped: %s", exc)
 
     try:
@@ -360,6 +382,7 @@ async def record_conversation_experience(user_input: str, aura_response: str, st
         if entity_graph and hasattr(entity_graph, "register_interaction"):
             await entity_graph.register_interaction("aura_self", user_id, "conversation", "self", "person")
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("Relationship graph update skipped: %s", exc)
 
     try:
@@ -367,6 +390,7 @@ async def record_conversation_experience(user_input: str, aura_response: str, st
         if user_model and hasattr(user_model, "update_from_interaction"):
             user_model.update_from_interaction(user_input, aura_response, {"source": "chat_api"})
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("User model update skipped: %s", exc)
 
     try:
@@ -380,6 +404,7 @@ async def record_conversation_experience(user_input: str, aura_response: str, st
                 strategy="dialogic_exchange",
             )
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("Continuous learning update skipped: %s", exc)
 
     try:
@@ -401,4 +426,5 @@ async def record_conversation_experience(user_input: str, aura_response: str, st
             if hasattr(bryan_model, "save"):
                 bryan_model.save()
     except Exception as exc:
+        record_degradation('conversation_support', exc)
         logger.debug("Bryan model update skipped: %s", exc)

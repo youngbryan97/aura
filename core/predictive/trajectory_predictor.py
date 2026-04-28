@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -85,6 +86,7 @@ class TrajectoryPredictor:
                 
                 return traj
         except Exception as e:
+            record_degradation('trajectory_predictor', e)
             logger.warning(f"Trajectory prediction failed: {e}")
             
         return Trajectory(objective=objective)

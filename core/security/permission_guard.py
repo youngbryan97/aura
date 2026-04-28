@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -116,6 +117,7 @@ class PermissionGuard(AuraBaseModule):
                     "guidance": "" if granted else self.get_guidance(PermissionType.SCREEN),
                 }
         except Exception as exc:
+            record_degradation('permission_guard', exc)
             self.logger.debug("Quartz screen preflight unavailable: %s", exc)
         return None
 
@@ -135,6 +137,7 @@ class PermissionGuard(AuraBaseModule):
                 "guidance": "" if granted else self.get_guidance(PermissionType.ACCESSIBILITY),
             }
         except Exception as exc:
+            record_degradation('permission_guard', exc)
             self.logger.debug("Accessibility preflight unavailable: %s", exc)
         return None
 
@@ -149,6 +152,7 @@ class PermissionGuard(AuraBaseModule):
                 timeout=5,
             )
         except Exception as exc:
+            record_degradation('permission_guard', exc)
             return {
                 "granted": False,
                 "status": "error",
@@ -208,6 +212,7 @@ class PermissionGuard(AuraBaseModule):
         try:
             return {"granted": True, "status": "active", "guidance": ""}
         except Exception as e:
+            record_degradation('permission_guard', e)
             return {"granted": False, "status": "error", "guidance": f"Mic check failed: {e}"}
 
     async def _check_accessibility_permission(self) -> Dict[str, Any]:

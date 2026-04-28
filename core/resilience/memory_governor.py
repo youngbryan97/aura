@@ -1,6 +1,7 @@
 """Aura Zenith Memory Governor.
 Enforces resource constraints for 64GB M5 Pro stability.
 """
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -58,6 +59,7 @@ class MemoryGovernor:
                 if getattr(proc, "pid", None) is not None
             }
         except Exception as exc:
+            record_degradation('memory_governor', exc)
             logger.debug("Memory Governor: could not inspect child process tree: %s", exc)
             descendant_pids = set()
 
@@ -118,6 +120,7 @@ class MemoryGovernor:
             await self._critical_cleanup()
             logger.info("🛡️ Memory Governor shutdown complete. All worker handles purged.")
         except Exception as e:
+            record_degradation('memory_governor', e)
             logger.error(f"Error during Memory Governor shutdown: {e}")
 
     async def _run_loop(self):
@@ -131,6 +134,7 @@ class MemoryGovernor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('memory_governor', e)
                 logger.error("Memory Governor loop error: %s", e)
                 await asyncio.sleep(10)
 
@@ -256,6 +260,7 @@ class MemoryGovernor:
                     if pruned > 0:
                         logger.info("✅ Pruned %d low-salience vectors.", pruned)
         except Exception as e:
+            record_degradation('memory_governor', e)
             logger.error("Failed to prune memory: %s", e)
 
     async def _unload_models(self):
@@ -272,6 +277,7 @@ class MemoryGovernor:
                 if gate and hasattr(gate, "_shed_background_workers_for_memory_pressure"):
                     await gate._shed_background_workers_for_memory_pressure()
             except Exception as e:
+                record_degradation('memory_governor', e)
                 logger.debug("InferenceGate background shed skipped: %s", e)
 
             try:
@@ -295,6 +301,7 @@ class MemoryGovernor:
                 if unloaded:
                     logger.info("✅ Local runtime lanes unloaded: %d", unloaded)
             except Exception as e:
+                record_degradation('memory_governor', e)
                 logger.debug("Local runtime unload skipped: %s", e)
             
             # v50: Aggressive MLX VRAM Purge
@@ -313,6 +320,7 @@ class MemoryGovernor:
                         finally:
                             sentinel.release()
                 except Exception as e:
+                    record_degradation('memory_governor', e)
                     logger.debug(f"[MLX] Cache clear skipped: {e}")
             except ImportError as _e:
                 logger.debug('Ignored ImportError in memory_governor.py: %s', _e)
@@ -323,6 +331,7 @@ class MemoryGovernor:
                  if ce and hasattr(ce, "nucleus") and ce.nucleus:
                       await ce.nucleus.unload_models()
         except Exception as e:
+            record_degradation('memory_governor', e)
             logger.error("Failed to unload models: %s", e)
 
     async def _periodic_db_vacuum(self):
@@ -337,6 +346,7 @@ class MemoryGovernor:
                 await asyncio.to_thread(db_coord.vacuum_all_databases)
                 self._last_vacuum_time = time.monotonic()
         except Exception as e:
+            record_degradation('memory_governor', e)
             logger.error(f"VACUUM Failed: {e}")
 
     async def _periodic_vector_prune(self):
@@ -347,6 +357,7 @@ class MemoryGovernor:
             await self._prune_memory()
             self._last_vector_prune_time = time.monotonic()
         except Exception as e:
+            record_degradation('memory_governor', e)
             logger.error(f"Periodic vector prune failed: {e}")
 
     async def _critical_cleanup(self):
@@ -365,6 +376,7 @@ class MemoryGovernor:
                                    proc.info['pid'], proc.info['name'])
                     proc.kill()
         except Exception as e:
+            record_degradation('memory_governor', e)
             logger.error("Failed to kill heavy processes: %s", e)
 
         # Integrated Adrenaline Surge: Signal distress to AffectEngine
@@ -374,6 +386,7 @@ class MemoryGovernor:
             if affect and hasattr(affect, "react"):
                 get_task_tracker().create_task(affect.react("critical_resource_exhaustion", {"intensity": 1.0}))
         except Exception as e:
+            record_degradation('memory_governor', e)
             logger.debug("Failed to trigger adrenaline surcharge: %s", e)
 
         await self._prune_memory()
@@ -389,6 +402,7 @@ class MemoryGovernor:
             if metabolism and hasattr(metabolism, "force_rest"):
                 await metabolism.force_rest(duration=300)
         except Exception as e:
+            record_degradation('memory_governor', e)
             capture_and_log(e, {'module': __name__})
 
         # v50 Hardening: Reclaim Metal Compiler Context immediately after purge
@@ -399,4 +413,5 @@ class MemoryGovernor:
                 logger.info("🌿 [MEMORY GOVERNOR] Reclaiming Metal context post-purge...")
                 root.force_compiler_wake()
         except Exception as e:
+            record_degradation('memory_governor', e)
             logger.error(f"Failed to pulse platform root: {e}")

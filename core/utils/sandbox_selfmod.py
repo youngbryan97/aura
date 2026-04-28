@@ -7,6 +7,7 @@ Safe Self-Modification Sandbox:
 - return result, logs, and optionally a patch verdict
 """
 
+from core.runtime.errors import record_degradation
 import subprocess
 import tempfile
 import os
@@ -69,6 +70,7 @@ def test_patch_in_sandbox(repo_root: str, patch_text: str, test_cmd: str = "pyte
         ok = rc == 0
         return {"ok": ok, "stage": "test", "rc": rc, "out": out, "err": err, "sandbox": tmpdir}
     except Exception as e:
+        record_degradation('sandbox_selfmod', e)
         logger.exception("Sandbox exception")
         return {"ok": False, "stage": "exception", "err": str(e), "sandbox": tmpdir}
     finally:
@@ -76,6 +78,7 @@ def test_patch_in_sandbox(repo_root: str, patch_text: str, test_cmd: str = "pyte
         try:
             _run_cmd(f"git worktree remove {tmpdir} --force", cwd=repo_root, timeout=10)
         except Exception as _e:
+            record_degradation('sandbox_selfmod', _e)
             logger.debug('Ignored Exception in sandbox_selfmod.py: %s', _e)
         # Remove any remaining dir
         if os.path.exists(tmpdir):

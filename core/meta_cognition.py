@@ -3,6 +3,7 @@
 Orchestrates the 'Self-Evolution Loop' by coordinating audit, 
 patch generation, and safe application of core logic improvements.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -172,6 +173,7 @@ class MetaEvolutionEngine(AuraBaseModule):
             return {"ok": True, "applied": False, "message": "Cycle complete."}
 
         except Exception as e:
+            record_degradation('meta_cognition', e)
             self.logger.error("Meta-Evolution cycle failed: %s", e)
             return {"ok": False, "error": str(e)}
         finally:
@@ -210,6 +212,7 @@ class MetaEvolutionEngine(AuraBaseModule):
             
             return result
         except Exception as e:
+            record_degradation('meta_cognition', e)
             self.logger.error("Skill optimization failed: %s", e)
             return {"ok": False, "error": str(e)}
         finally:

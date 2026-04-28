@@ -4,6 +4,7 @@ and wrap its `think` method so that persona system prompts are injected.
 This is intentionally lightweight: it prepends persona instructions into the
 objective/context so downstream LLM calls receive persona conditioning.
 """
+from core.runtime.errors import record_degradation
 import logging
 import traceback
 
@@ -23,6 +24,7 @@ def initialize_persona_integration(persona_name: str = "aura"):
         try:
             from .cognitive_engine import cognitive_engine
         except Exception as e:
+            record_degradation('persona_integration', e)
             logger.info("cognitive_engine not available at import time; persona adapter ready for later use")
             return True
 
@@ -61,6 +63,7 @@ def initialize_persona_integration(persona_name: str = "aura"):
 
         return True
     except Exception as e:
+        record_degradation('persona_integration', e)
         logger.error("Failed to initialize persona_integration: %s", e)
         return False
 

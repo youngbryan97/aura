@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import signal
@@ -62,6 +63,7 @@ class GracefulShutdown:
                         await res
                 logger.info(f"   [✓] Shutdown hook completed.")
             except Exception as e:
+                record_degradation('graceful_shutdown', e)
                 logger.error(f"   [!] Shutdown hook failed: {e}")
 
         # Also trigger ServiceContainer shutdown if it exists
@@ -70,6 +72,7 @@ class GracefulShutdown:
             container = get_container()
             await container.shutdown()
         except Exception as e:
+            record_degradation('graceful_shutdown', e)
             logger.error(f"Error during container shutdown: {e}")
 
         logger.info("✅ All Aura core services gracefully terminated. Goodbye.")

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import sqlite3
 import requests
@@ -57,6 +58,7 @@ class SQLiteMemoryHandler(logging.Handler):
             finally:
                 conn.close()
         except Exception as e:
+            record_degradation('aura_logging', e)
             # Prevent logging loops if the DB handler fails
             import sys
             print(f"FAILED TO WRITE TO MEMORY DB: {e}", file=sys.stderr)
@@ -81,6 +83,7 @@ class WebhookAlertHandler(logging.Handler):
             # Short timeout to avoid hanging the main loop
             requests.post(self.webhook_url, json=payload, timeout=2.0)
         except Exception as e:
+            record_degradation('aura_logging', e)
             import sys
             print(f"FAILED TO SEND WEBHOOK ALERT: {e}", file=sys.stderr)
 

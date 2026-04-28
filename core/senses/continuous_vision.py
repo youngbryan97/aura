@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -104,6 +105,7 @@ class ContinuousSensoryBuffer:
                 self._screen_permission_notice_at = 0.0
             return granted
         except Exception as exc:
+            record_degradation('continuous_vision', exc)
             logger.debug("ContinuousSensoryBuffer permission probe failed: %s", exc)
             return False
 
@@ -129,6 +131,7 @@ class ContinuousSensoryBuffer:
             logger.info("👁️ [VISION] Continuous screen capture backend initialized.")
             return True
         except Exception as exc:
+            record_degradation('continuous_vision', exc)
             self._screen_probe_cooldown_until = time.monotonic() + 15.0
             logger.warning("👁️ [VISION] Continuous screen capture backend unavailable: %s", exc)
             return False
@@ -166,6 +169,7 @@ class ContinuousSensoryBuffer:
                             _, jpeg_bytes = cv2.imencode('.jpg', frame)
                             self.frame_buffer.append(("image/jpeg", jpeg_bytes.tobytes()))
             except Exception as e:
+                record_degradation('continuous_vision', e)
                 logger.error(f"Sensory Buffer capture failed: {e}")
 
             await asyncio.sleep(2.0)
@@ -206,5 +210,6 @@ class ContinuousSensoryBuffer:
             else:
                 return "My cognitive systems are not equipped for that visual request."
         except Exception as e:
+            record_degradation('continuous_vision', e)
             logger.error(f"Visual reasoning failed: {e}")
             return f"I had an error analyzing my vision: {e}"

@@ -7,6 +7,8 @@ LLM speaks from computed pragmatic state, not just raw text.
 Position in pipeline: after SensoryIngestion, before CognitiveRouting.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import time
@@ -43,6 +45,7 @@ class ConversationalDynamicsPhase(Phase):
                 from core.conversational.dynamics import get_dynamics_engine
                 self._engine = get_dynamics_engine()
             except Exception as e:
+                record_degradation('conversational_dynamics_phase', e)
                 logger.warning("ConversationalDynamics: Engine init failed: %s", e)
         return self._engine
 
@@ -107,6 +110,7 @@ class ConversationalDynamicsPhase(Phase):
                     cog.modifiers["interaction_pacing"] = str(fused.get("pacing") or "steady")
                     cog.modifiers["interaction_verbosity_bias"] = str(fused.get("verbosity_bias") or "balanced")
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: interaction signal integration skipped: %s", exc)
 
             # Store callback topics in discourse_branches
@@ -156,6 +160,7 @@ class ConversationalDynamicsPhase(Phase):
                 if divergence > 0.15:
                     cog.modifiers["draft_divergence"] = f"{divergence:.2f}"
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: multiple drafts skipped: %s", exc)
 
             # ── Higher-Order Thought (Rosenthal): thought about the thought ──
@@ -188,6 +193,7 @@ class ConversationalDynamicsPhase(Phase):
                     new_state.response_modifiers["higher_order_thought"] = hot_block
                     cog.modifiers["higher_order_thought"] = hot_block
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: HOT engine skipped: %s", exc)
 
             # ── Wire dormant personhood modules into the foreground path ──
@@ -205,6 +211,7 @@ class ConversationalDynamicsPhase(Phase):
                     if guidance or banter:
                         new_state.response_modifiers["humor_guidance"] = f"{guidance}\n{banter}".strip()
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: humor engine skipped: %s", exc)
 
             # Conversation Intelligence: rhythm, pacing, arc awareness
@@ -216,6 +223,7 @@ class ConversationalDynamicsPhase(Phase):
                     if ci_block:
                         new_state.response_modifiers["conversation_intelligence"] = ci_block
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: conversation intelligence skipped: %s", exc)
 
             # Relational Intelligence: social modeling of this specific person
@@ -227,6 +235,7 @@ class ConversationalDynamicsPhase(Phase):
                     if ri_block:
                         new_state.response_modifiers["relational_intelligence"] = ri_block
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: relational intelligence skipped: %s", exc)
 
             # MetaCognition: reasoning strategy selection for this turn
@@ -243,6 +252,7 @@ class ConversationalDynamicsPhase(Phase):
                         if strategy:
                             new_state.response_modifiers["metacognitive_strategy"] = strategy
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: metacognition skipped: %s", exc)
 
             # Credit Assignment: outcome-aware context from prior actions
@@ -254,6 +264,7 @@ class ConversationalDynamicsPhase(Phase):
                     if ca_block:
                         new_state.response_modifiers["credit_assignment"] = ca_block
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: credit assignment skipped: %s", exc)
 
             # Agency Comparator: sense of authorship over recent actions
@@ -264,6 +275,7 @@ class ConversationalDynamicsPhase(Phase):
                 if agency_block:
                     new_state.response_modifiers["agency_comparator"] = agency_block
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: agency comparator skipped: %s", exc)
 
             # Narrative Memory: autobiographical narrative context from journal/arcs
@@ -275,6 +287,7 @@ class ConversationalDynamicsPhase(Phase):
                     if nm_block:
                         new_state.response_modifiers["narrative_context"] = nm_block
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: narrative memory skipped: %s", exc)
 
             # Natural Follow-up: whether Aura should ask a follow-up, make a statement, or stay quiet
@@ -306,6 +319,7 @@ class ConversationalDynamicsPhase(Phase):
                                 "reason": decision.reason,
                             }
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: natural followup skipped: %s", exc)
 
             # Intersubjectivity: constitutive other-perspective modeling (Husserl/Zahavi)
@@ -343,6 +357,7 @@ class ConversationalDynamicsPhase(Phase):
                 except Exception:
                     pass
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: intersubjectivity skipped: %s", exc)
 
             # Narrative Gravity: autobiographical self-narrative (Gazzaniga/Dennett)
@@ -360,6 +375,7 @@ class ConversationalDynamicsPhase(Phase):
                 if ng_block:
                     new_state.response_modifiers["narrative_gravity"] = ng_block
             except Exception as exc:
+                record_degradation('conversational_dynamics_phase', exc)
                 logger.debug("ConversationalDynamics: narrative gravity skipped: %s", exc)
 
             logger.debug(
@@ -374,5 +390,6 @@ class ConversationalDynamicsPhase(Phase):
             return new_state
 
         except Exception as e:
+            record_degradation('conversational_dynamics_phase', e)
             logger.warning("ConversationalDynamics phase failed: %s", e)
             return state

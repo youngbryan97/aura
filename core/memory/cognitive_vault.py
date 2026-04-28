@@ -9,6 +9,7 @@ ZENITH Protocol compliance:
   - Zero raw disk writes in the hot path.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import sqlite3
@@ -120,6 +121,7 @@ class CognitiveVault:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('cognitive_vault', e)
                 logger.error("Vault worker error: %s", e)
 
     def _execute_tx(self, tx: VaultTransaction):
@@ -142,6 +144,7 @@ class CognitiveVault:
             conn.execute(query, values + [tx.timestamp])
             conn.commit()
         except Exception as e:
+            record_degradation('cognitive_vault', e)
             logger.error("Database commit failure: %s", e)
         finally:
             conn.close()

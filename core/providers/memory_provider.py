@@ -1,6 +1,7 @@
 """core/providers/memory_provider.py — Memory & Storage Registration
 """
 
+from core.runtime.errors import record_degradation
 import logging
 from core.container import ServiceLifetime
 
@@ -34,6 +35,7 @@ def register_memory_services(container):
             vault_path.mkdir(parents=True, exist_ok=True)
             return BlackHoleVault(data_dir=str(vault_path))
         except Exception as e:
+            record_degradation('memory_provider', e)
             logger.warning("BlackHoleVault registration failed: %s", e)
             return None
     container.register('memory_vector', create_vector_memory, lifetime=ServiceLifetime.SINGLETON, required=False)

@@ -35,6 +35,8 @@ file satisfies the system's load-bearing invariants:
 The verifier is *fail-closed*: any unverifiable claim blocks the mutation.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import ast
@@ -311,6 +313,7 @@ def verify_mutation(
         try:
             res.diagnostics.append(_z3_certificate(before, after))
         except Exception as exc:
+            record_degradation('formal_verifier', exc)
             res.diagnostics.append(f"z3 certificate error: {exc}")
 
     res.ok = not res.invariants_violated

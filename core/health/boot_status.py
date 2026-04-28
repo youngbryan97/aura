@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import time
 from datetime import datetime, timezone
@@ -96,6 +98,7 @@ def build_boot_health_snapshot(
         try:
             healthy = bool(orchestrator.health_check())
         except Exception as exc:
+            record_degradation('boot_status', exc)
             healthy = False
             health_check_error = str(exc)
 

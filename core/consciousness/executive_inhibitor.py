@@ -16,6 +16,7 @@ Key behaviors:
 3. VETO LOGGING: All vetoed actions are logged for debugging/telemetry.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Any, Callable, Dict, List, Optional
@@ -137,6 +138,7 @@ class ExecutiveInhibitor:
                     )
                     return False
         except Exception as e:
+            record_degradation('executive_inhibitor', e)
             logger.debug("Field coherence check failed (allowing): %s", e)
 
         # ── HIGH-Φ INTEGRATION PROTECTION ────────────────────────────

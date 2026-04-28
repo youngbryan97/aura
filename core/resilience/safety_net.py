@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import datetime
 import logging
 import sys
@@ -35,6 +36,7 @@ def panic_handler(exc_type, exc_value, exc_traceback):
         
         logger.info("Crash report saved to %s", report_path)
     except Exception as e:
+        record_degradation('safety_net', e)
         logger.critical("Failed to write crash report: %s", e)
 
     # 3. (Optional) Emergency Memory Dump could go here

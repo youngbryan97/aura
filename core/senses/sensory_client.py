@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import multiprocessing as mp
@@ -110,6 +111,7 @@ class SensoryLocalClient:
                     registry.update_task(task_id, status=TaskStatus.FAILED, error=res.get("msg"))
                     return False
             except Exception as e:
+                record_degradation('sensory_client', e)
                 logger.error("🛑 Sensory Client Command [%s] failed: %s", cmd, e)
                 registry.update_task(task_id, status=TaskStatus.FAILED, error=str(e))
                 return False
@@ -123,6 +125,7 @@ class SensoryLocalClient:
             try:
                 self._req_q.put({"command": "exit"})
             except Exception as _exc:
+                record_degradation('sensory_client', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             # Issue 26: Use asyncio.to_thread for blocking process join
             await asyncio.to_thread(self._process.join, timeout=2.0)

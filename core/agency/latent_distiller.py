@@ -9,6 +9,7 @@ running them through a distillation process to extract permanent
 insights, beliefs, and vector memories.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -49,6 +50,7 @@ class LatentSpaceDistiller:
                             f"Summarize the key insights and decisions from this conversation in 2-3 sentences:\n\n{full_text[:3000]}"
                         )
                 except Exception as e:
+                    record_degradation('latent_distiller', e)
                     logger.debug("MIST: LLM distillation unavailable: %s", e)
 
                 # Extractive fallback if LLM unavailable
@@ -64,6 +66,7 @@ class LatentSpaceDistiller:
                     )
                     logger.info("MIST: Distilled session into permanent memory.")
         except Exception as e:
+            record_degradation('latent_distiller', e)
             logger.error("❌ MIST: Distillation failed: %s", e)
         finally:
             self._is_distilling = False

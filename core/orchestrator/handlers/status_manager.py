@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import time
 import asyncio
@@ -70,6 +71,7 @@ class StatusManagerMixin:
                         status_report["initialized"] = status_report["status"]["initialized"]
                         status_report["cycle_count"] = getattr(self.status, "cycle_count", status_report["status"].get("cycle_count", 0))
                     except Exception as e:
+                        record_degradation('status_manager', e)
                         capture_and_log(e, {'module': __name__})
                 else:
                     status_report["running"] = bool(getattr(self.status, "running", True))
@@ -92,6 +94,7 @@ class StatusManagerMixin:
                 if evidence and hasattr(evidence, "snapshot"):
                     status_report["consciousness_evidence"] = evidence.snapshot()
             except Exception as exc:
+                record_degradation('status_manager', exc)
                 logger.debug("Consciousness evidence unavailable for status: %s", exc)
 
             try:
@@ -99,6 +102,7 @@ class StatusManagerMixin:
                 if executive_closure and hasattr(executive_closure, "get_status"):
                     status_report["executive_closure"] = executive_closure.get_status()
             except Exception as exc:
+                record_degradation('status_manager', exc)
                 logger.debug("Executive closure unavailable for status: %s", exc)
 
             try:
@@ -106,11 +110,13 @@ class StatusManagerMixin:
                 if executive_authority and hasattr(executive_authority, "get_status"):
                     status_report["executive_authority"] = executive_authority.get_status()
             except Exception as exc:
+                record_degradation('status_manager', exc)
                 logger.debug("Executive authority unavailable for status: %s", exc)
 
             try:
                 status_report["organism"] = get_organism_status(self)
             except Exception as exc:
+                record_degradation('status_manager', exc)
                 logger.debug("Organism status unavailable for status report: %s", exc)
 
             return status_report
@@ -140,6 +146,7 @@ class StatusManagerMixin:
                         "link_thickness": 5.0
                     })
         except Exception as exc:
+            record_degradation('status_manager', exc)
             logger.error("Telemetry pulse failure: %s", exc)
             if hasattr(self, "_recover_from_stall"):
                 from core.utils.task_tracker import get_task_tracker
@@ -152,4 +159,5 @@ class StatusManagerMixin:
             cycle = self.status.cycle_count if hasattr(self, 'status') else 0
             get_emitter().emit(flow, text, level="info", category="Cognition", cycle=cycle)
         except Exception as e:
+            record_degradation('status_manager', e)
             logger.debug("Telemetry emit failed: %s", e)

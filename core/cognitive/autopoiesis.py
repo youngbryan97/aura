@@ -33,6 +33,8 @@ Design invariants:
     - Escalation path: repeated failures surface to the human operator.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -412,6 +414,7 @@ class AutopoiesisEngine:
             if adaptive_immune and hasattr(adaptive_immune, "observe_signature"):
                 adaptive_immune.observe_signature(component, exception_type)
         except Exception as exc:
+            record_degradation('autopoiesis', exc)
             logger.debug("Adaptive immune signature feed skipped: %s", exc)
 
     def record_interaction_success(self) -> None:
@@ -544,6 +547,7 @@ class AutopoiesisEngine:
                 raw = fn()
                 health = max(0.0, min(1.0, float(raw)))
             except Exception as exc:
+                record_degradation('autopoiesis', exc)
                 # If the health function itself fails, the component is in
                 # bad shape.  Record a zero and log the error.
                 logger.warning(
@@ -802,6 +806,7 @@ class AutopoiesisEngine:
                     await ret
                 success = True
             except Exception as exc:
+                record_degradation('autopoiesis', exc)
                 error_msg = f"{type(exc).__name__}: {exc}"
                 logger.error(
                     "Repair handler failed: %s / %s -- %s",
@@ -898,6 +903,7 @@ class AutopoiesisEngine:
             )
             return decision.is_approved()
         except Exception as exc:
+            record_degradation('autopoiesis', exc)
             # If the governance system is unavailable, allow the repair.
             # A living system must be able to heal itself even when parts
             # of its brain are offline.

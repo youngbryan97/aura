@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import hashlib
@@ -196,6 +198,7 @@ def activate_cheat_code(code: str, *, silent: bool = False, source: str = "setti
                 },
             )
         except Exception as exc:
+            record_degradation('cheat_codes', exc)
             logger.debug("Cheat code telemetry emit skipped: %s", exc)
 
     return {

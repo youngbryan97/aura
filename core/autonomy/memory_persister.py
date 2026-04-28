@@ -25,6 +25,8 @@ Public API:
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import json
@@ -211,6 +213,7 @@ class MemoryPersister:
                 elif kind == "belief":
                     ok, _, _ = self._commit_belief(title, BeliefUpdate(**_only_keys(payload, BeliefUpdate)))
             except Exception as e:
+                record_degradation('memory_persister', e)
                 logger.debug("replay record kind=%s failed: %s", kind, e)
                 ok = False
 
@@ -234,6 +237,7 @@ class MemoryPersister:
                 Intent, IntentSource, ActionType,
             )
         except Exception as e:
+            record_degradation('memory_persister', e)
             return False, f"executive import: {e}", None
 
         intent = Intent(
@@ -275,6 +279,7 @@ class MemoryPersister:
                         },
                     })
             except Exception as e:
+                record_degradation('memory_persister', e)
                 logger.debug("episodic.add fallback failed: %s", e)
 
         return True, "", intent.intent_id
@@ -283,6 +288,7 @@ class MemoryPersister:
         try:
             from core.executive.executive_core import Intent, IntentSource, ActionType
         except Exception as e:
+            record_degradation('memory_persister', e)
             return False, f"executive import: {e}", None
 
         intent = Intent(
@@ -311,6 +317,7 @@ class MemoryPersister:
         try:
             from core.executive.executive_core import Intent, IntentSource, ActionType
         except Exception as e:
+            record_degradation('memory_persister', e)
             return False, f"executive import: {e}", None
 
         intent = Intent(
@@ -355,6 +362,7 @@ class MemoryPersister:
                 return True, ""
             return False, f"executive_outcome={outcome_str}"
         except Exception as e:
+            record_degradation('memory_persister', e)
             return False, str(e)
 
     # ── Queue + dedup helpers ────────────────────────────────────────────

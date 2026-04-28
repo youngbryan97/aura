@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import json
@@ -180,6 +182,7 @@ class GoalEngine:
             self._conn.executescript(_SCHEMA)
             self._conn.commit()
         except Exception as exc:
+            record_degradation('goal_engine', exc)
             logger.error("GoalEngine initialization failed: %s", exc)
             self._conn = None
 
@@ -310,6 +313,7 @@ class GoalEngine:
         try:
             snapshot = list(task_engine.get_active_plans() or [])
         except Exception as exc:
+            record_degradation('goal_engine', exc)
             logger.debug("GoalEngine task-engine plan snapshot skipped: %s", exc)
             return None
 
@@ -432,6 +436,7 @@ class GoalEngine:
             self._reconcile_duplicate_active_records()
             self._last_reconcile_at = now
         except Exception as exc:
+            record_degradation('goal_engine', exc)
             logger.debug("GoalEngine reconciliation skipped: %s", exc)
         finally:
             self._reconciling = False
@@ -744,6 +749,7 @@ class GoalEngine:
             try:
                 self.gbm.reinforce_goal(objective_text, "Direct goal registration.")
             except Exception as exc:
+                record_degradation('goal_engine', exc)
                 logger.debug("Goal belief reinforcement skipped: %s", exc)
         self._sync_state_view()
         return record.to_dict()
@@ -1219,6 +1225,7 @@ class GoalEngine:
             elif not active and is_intrinsic_goal_text(current_objective):
                 cognition.current_objective = None
         except Exception as exc:
+            record_degradation('goal_engine', exc)
             logger.debug("GoalEngine state sync skipped: %s", exc)
 
     def _external_goal_items(self) -> List[Dict[str, Any]]:
@@ -1347,6 +1354,7 @@ class GoalEngine:
                     }
                 )
         except Exception as exc:
+            record_degradation('goal_engine', exc)
             logger.debug("Strategic project snapshot skipped: %s", exc)
         return items
 

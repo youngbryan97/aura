@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import subprocess
 
@@ -41,6 +42,7 @@ class DesktopNotifier:
             )
             logger.debug(f"Pushed macOS notification: {title} | {message}")
         except Exception as e:
+            record_degradation('notifications', e)
             logger.error(f"Failed to send desktop notification: {e}")
 
     @staticmethod

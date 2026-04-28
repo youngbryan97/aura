@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import os
 import platform

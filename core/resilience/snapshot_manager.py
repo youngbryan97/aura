@@ -13,6 +13,7 @@ Features:
 - Coordinates extracting state from deeply entangled subsystems
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -99,6 +100,7 @@ class SnapshotManager:
             return True
 
         except Exception as e:
+            record_degradation('snapshot_manager', e)
             logger.error("Failed to freeze state: %s", e, exc_info=True)
             return False
 
@@ -142,6 +144,7 @@ class SnapshotManager:
                 )
             return approved
         except Exception as exc:
+            record_degradation('snapshot_manager', exc)
             # During early boot, governance may not be available.
             # Log and permit — the system needs state to function.
             logger.warning(
@@ -241,6 +244,7 @@ class SnapshotManager:
                     if "voice_mode" in c_state:
                         voice_ctx.mode = ConversationMode(c_state["voice_mode"])
                 except Exception as e:
+                    record_degradation('snapshot_manager', e)
                     logger.debug("Could not fully restore conversation enums: %s", e)
 
             # 4. Orchestrator Volatiles
@@ -255,5 +259,6 @@ class SnapshotManager:
             return True
 
         except Exception as e:
+            record_degradation('snapshot_manager', e)
             logger.error("Failed to thaw state: %s", e, exc_info=True)
             return False

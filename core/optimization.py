@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -53,6 +54,7 @@ class StrategyMetaOptimizer:
                 logger.info("💡 Learned Strategy: %s", st['description'])
                 
         except Exception as e:
+            record_degradation('optimization', e)
             logger.error("Meta-optimization loop failed: %s", e, exc_info=True)
 
     async def _extract_memories_from_turn(self, turn: Dict[str, Any]) -> Dict[str, Any]:
@@ -122,6 +124,7 @@ TURN:
                 
             return json.loads(clean_json)
         except Exception as e:
+            record_degradation('optimization', e)
             logger.warning("Failed to extract memories: %s", e)
             return {"user_memories": [], "strategies": []}
 

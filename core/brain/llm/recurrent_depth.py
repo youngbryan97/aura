@@ -42,6 +42,8 @@ Per-Lane Configuration:
   - Reflex (1.5B):  1 loop — too small, looping would slow without benefit
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import copy
 import logging
@@ -159,6 +161,7 @@ def _self_test_cache_snapshot() -> None:
         import mlx.core as mx
         from mlx_lm.models.cache import KVCache
     except Exception as exc:
+        record_degradation('recurrent_depth', exc)
         raise CacheSnapshotError(f"mlx_lm.models.cache.KVCache unavailable: {exc}") from exc
 
     c = KVCache()

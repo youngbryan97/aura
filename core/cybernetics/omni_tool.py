@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 import time
@@ -67,6 +68,7 @@ class OmniTool:
             return result
             
         except Exception as e:
+            record_degradation('omni_tool', e)
             logger.error("💥 [OMNI] Action '%s' FAILED: %s", action_name, e)
             # Log Failure
             logs = self._execution_logs.setdefault(action_name, [])

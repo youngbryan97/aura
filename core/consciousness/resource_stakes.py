@@ -20,6 +20,8 @@ Integration:
 - Persists across restarts via state file
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -96,6 +98,7 @@ class ResourceStakesEngine:
                 self._state.lifetime_successes = int(data.get("lifetime_successes", 0))
                 self._state.lifetime_failures = int(data.get("lifetime_failures", 0))
         except Exception as exc:
+            record_degradation('resource_stakes', exc)
             logger.debug("ResourceStakes: state load failed: %s", exc)
 
     def _save_state(self):
@@ -111,6 +114,7 @@ class ResourceStakesEngine:
                 "last_save": time.time(),
             }))
         except Exception as exc:
+            record_degradation('resource_stakes', exc)
             logger.debug("ResourceStakes: state save failed: %s", exc)
 
     def record_prediction_success(self, source: str = "general"):

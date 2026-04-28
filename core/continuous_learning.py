@@ -3,6 +3,7 @@
 Bridges experience logging, pattern extraction, and autonomous research 
 to ensure Aura progressively evolves from every interaction.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import hashlib
@@ -203,6 +204,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                         "response": aura_response
                     })
                 except Exception as e:
+                    record_degradation('continuous_learning', e)
                     self.logger.debug("Failed to update person context: %s", e)
 
             # Immediate knowledge extraction if possible
@@ -250,6 +252,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                         source="conversation_learning",
                     )
         except Exception as e:
+            record_degradation('continuous_learning', e)
             self.logger.debug("Knowledge extraction failed: %s", e)
 
     async def get_relevant_context(self, current_input: str, user_name: Optional[str] = None) -> str:
@@ -272,6 +275,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                     count = person_info.get("interaction_count", 0)
                     context_parts.append(f"[Identity] User is {user_name}. We have had {count} interactions.")
             except Exception as e:
+                record_degradation('continuous_learning', e)
                 self.logger.debug("Identity retrieval failed: %s", e)
 
         # 2. Pattern context
@@ -355,6 +359,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                 
                 return {"ok": True, "patterns_found": len(patterns)}
         except Exception as e:
+            record_degradation('continuous_learning', e)
             self.logger.error("Consolidation failed: %s", e)
             return {"ok": False, "error": str(e)}
 
@@ -408,6 +413,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                 return {"ok": True, "compressed_count": len(ids_to_delete)}
                 
         except Exception as e:
+            record_degradation('continuous_learning', e)
             self.logger.error("Metabolic compression failed: %s", e)
             return {"ok": False, "error": str(e)}
 

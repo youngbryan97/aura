@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict, Optional
 
@@ -25,6 +26,7 @@ class DynamicContextBuilder:
             if liquid_state:
                 rich_context["liquid_state"] = liquid_state.get_status()
         except Exception as e:
+            record_degradation('context_builder', e)
             logger.debug("LiquidState unavailable: %s", e)
 
         # 2. User Traits (PersonalityEngine)
@@ -39,6 +41,7 @@ class DynamicContextBuilder:
                     logger.debug("aura_persona not available for OCEAN traits")
                 personality.respond_to_event("user_message", {"message": message})
         except Exception as e:
+            record_degradation('context_builder', e)
             logger.debug("PersonalityEngine unavailable: %s", e)
 
         # 3. Episodic Memory Retrieval
@@ -52,6 +55,7 @@ class DynamicContextBuilder:
                         f"- {m.get('text', m) if isinstance(m, dict) else m}" for m in memories
                     )
         except Exception as e:
+            record_degradation('context_builder', e)
             logger.debug("Episodic memory retrieval failed: %s", e)
 
         # 4. Semantic Memory Retrieval (Vector Search)
@@ -62,6 +66,7 @@ class DynamicContextBuilder:
                 if formatted_memories:
                     rich_context["semantic_context"] = formatted_memories
         except Exception as e:
+            record_degradation('context_builder', e)
             logger.debug("Semantic memory retrieval failed: %s", e)
 
         # 5. Theory of Mind (Intent detection)
@@ -70,6 +75,7 @@ class DynamicContextBuilder:
             if tom:
                 rich_context["user_intent"] = await tom.infer_intent(message, rich_context)
         except Exception as e:
+            record_degradation('context_builder', e)
             logger.debug("Theory of Mind unavailable: %s", e)
 
         # 6. Global Workspace Theory — last N competition winners
@@ -81,6 +87,7 @@ class DynamicContextBuilder:
                 if stream:
                     rich_context["gwt_stream"] = stream
         except Exception as e:
+            record_degradation('context_builder', e)
             logger.debug("GlobalWorkspace stream unavailable: %s", e)
 
         # 7. Temporal Binding — autobiographical present-window narrative
@@ -92,6 +99,7 @@ class DynamicContextBuilder:
                 if narrative:
                     rich_context["temporal_narrative"] = narrative
         except Exception as e:
+            record_degradation('context_builder', e)
             logger.debug("TemporalBinding narrative unavailable: %s", e)
 
         # 10. Spiritual Spine — ideological stability
@@ -102,6 +110,7 @@ class DynamicContextBuilder:
                 if check.has_prior_position or check.conflict_severity > 0.4:
                     rich_context["spine_check"] = check.injection
         except Exception as e:
+            record_degradation('context_builder', e)
             logger.debug("SpiritualSpine check failed: %s", e)
 
         # 11. Social Modeling (Ava) — user relationship alignment
@@ -110,6 +119,7 @@ class DynamicContextBuilder:
             if ava and hasattr(ava, "get_context_injection"):
                 rich_context["social_context"] = ava.get_context_injection()
         except Exception as e:
+            record_degradation('context_builder', e)
             logger.debug("Ava social context injection failed: %s", e)
 
         return rich_context

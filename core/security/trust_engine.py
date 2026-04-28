@@ -34,6 +34,8 @@ The philosophy Bryan described:
   Trust is earned. It starts at GUEST and moves in both directions.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -406,6 +408,7 @@ class TrustEngine:
                            f"Trust engine detected {self._context.hostile_signals} hostile signals. "
                            f"Suspicious signals: {self._context.suspicious_signals}.")
         except Exception as e:
+            record_degradation('trust_engine', e)
             logger.debug("Emergency notification failed: %s", e)
 
     def _log_event(self, event_type: str, data: Dict):
@@ -414,6 +417,7 @@ class TrustEngine:
             with open(TRUST_LOG_PATH, "a") as f:
                 f.write(json.dumps(entry) + "\n")
         except Exception as _exc:
+            record_degradation('trust_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
 

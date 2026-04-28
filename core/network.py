@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -100,6 +101,7 @@ class RobustHTTP:
                 self.stats.failed_requests += 1
             return response
         except Exception as e:
+            record_degradation('network', e)
             self.stats.failed_requests += 1
             logger.error("GET %s failed: %s", url, e)
             raise
@@ -119,6 +121,7 @@ class RobustHTTP:
                 self.stats.failed_requests += 1
             return response
         except Exception as e:
+            record_degradation('network', e)
             self.stats.failed_requests += 1
             logger.error("POST %s failed: %s", url, e)
             raise

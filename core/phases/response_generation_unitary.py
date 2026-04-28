@@ -147,6 +147,7 @@ class UnitaryResponsePhase(Phase):
                     return True
         except Exception as exc:
             record_degradation('response_generation_unitary', exc)
+            record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: skill relevance detection skipped for %s: %s", resolved_skill, exc)
 
         return cls._objective_heuristically_targets_skill(objective, resolved_skill)
@@ -272,6 +273,7 @@ class UnitaryResponsePhase(Phase):
                 ServiceContainer.register_instance("phenomenal_now_engine", engine, required=False)
         except Exception as exc:
             record_degradation('response_generation_unitary', exc)
+            record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: phenomenal-now engine unavailable: %s", exc)
 
         try:
@@ -286,12 +288,14 @@ class UnitaryResponsePhase(Phase):
             }
         except Exception as exc:
             record_degradation('response_generation_unitary', exc)
+            record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: integrated coherence refresh skipped: %s", exc)
             try:
                 engine = ServiceContainer.get("phenomenal_now_engine", default=None)
                 if engine and hasattr(engine, "tick"):
                     await asyncio.wait_for(engine.tick(), timeout=0.75)
             except Exception as inner_exc:
+                record_degradation('response_generation_unitary', inner_exc)
                 record_degradation('response_generation_unitary', inner_exc)
                 logger.debug("UnitaryResponse: phenomenal-now fallback skipped: %s", inner_exc)
 
@@ -302,6 +306,7 @@ class UnitaryResponsePhase(Phase):
                 state.cognition.phenomenal_state = claim
                 state.response_modifiers["integrated_present_claim"] = claim
         except Exception as exc:
+            record_degradation('response_generation_unitary', exc)
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: integrated present publish skipped: %s", exc)
 
@@ -408,6 +413,7 @@ class UnitaryResponsePhase(Phase):
                     )
         except Exception as _exc:
             record_degradation('response_generation_unitary', _exc)
+            record_degradation('response_generation_unitary', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Neurochemical and phi influence on compact prompt
@@ -486,6 +492,7 @@ class UnitaryResponsePhase(Phase):
                 if normalized_block:
                     parts.append(f"Conversation context: {normalized_block}")
         except Exception as exc:
+            record_degradation('response_generation_unitary', exc)
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: compact conversational context skipped: %s", exc)
         if skill_line:
@@ -667,6 +674,7 @@ class UnitaryResponsePhase(Phase):
                     parts.append(f"- What I feel pulled toward doing: {action}")
         except Exception as exc:
             record_degradation('response_generation_unitary', exc)
+            record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: free-energy self-expression block skipped: %s", exc)
 
         try:
@@ -678,6 +686,7 @@ class UnitaryResponsePhase(Phase):
                     if tone:
                         parts.append(f"- Speaking tone: {tone}")
         except Exception as exc:
+            record_degradation('response_generation_unitary', exc)
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: personality self-expression block skipped: %s", exc)
 
@@ -716,6 +725,7 @@ class UnitaryResponsePhase(Phase):
                     parts.append("- Neurochemical influence (shape tone, don't narrate): " + " ".join(chem_cues))
         except Exception as exc:
             record_degradation('response_generation_unitary', exc)
+            record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: neurochemical block skipped: %s", exc)
 
         # Phi integration level — shapes confidence and depth of response
@@ -730,6 +740,7 @@ class UnitaryResponsePhase(Phase):
                 elif phi_val > 0:
                     parts.append("- Integration is low — keep it simple, don't try to be profound.")
         except Exception as exc:
+            record_degradation('response_generation_unitary', exc)
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: phi block skipped: %s", exc)
 
@@ -808,6 +819,7 @@ class UnitaryResponsePhase(Phase):
                 if interaction_signals and hasattr(interaction_signals, "get_status"):
                     signal_status = interaction_signals.get_status() or {}
             except Exception as exc:
+                record_degradation('response_generation_unitary', exc)
                 record_degradation('response_generation_unitary', exc)
                 logger.debug("UnitaryResponse: interaction signal block skipped: %s", exc)
                 signal_status = {}
@@ -1023,6 +1035,7 @@ class UnitaryResponsePhase(Phase):
                     if isinstance(styled, str) and styled.strip():
                         shaped = styled.strip()
         except Exception as exc:
+            record_degradation('response_generation_unitary', exc)
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: response shaping skipped: %s", exc)
         return shaped
@@ -1252,6 +1265,7 @@ class UnitaryResponsePhase(Phase):
             return list(matches or [])
         except Exception as exc:
             record_degradation('response_generation_unitary', exc)
+            record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: direct episodic grounding failed: %s", exc)
             return []
 
@@ -1271,6 +1285,7 @@ class UnitaryResponsePhase(Phase):
                 return []
             return list(matches or [])
         except Exception as exc:
+            record_degradation('response_generation_unitary', exc)
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: recent episodic recall failed: %s", exc)
             return []
@@ -1406,6 +1421,7 @@ class UnitaryResponsePhase(Phase):
                     parts.append(f"Emotional arc: {arc or emotion}")
         except Exception as exc:
             record_degradation('response_generation_unitary', exc)
+            record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: idle trace unavailable: %s", exc)
 
         pending: list[str] = []
@@ -1514,6 +1530,7 @@ class UnitaryResponsePhase(Phase):
                 working_memory=state.cognition.working_memory
             )
         except Exception as _exc:
+            record_degradation('response_generation_unitary', _exc)
             record_degradation('response_generation_unitary', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
@@ -1856,6 +1873,7 @@ class UnitaryResponsePhase(Phase):
                 return cls._normalize_text(reply, 700)
         except Exception as exc:
             record_degradation('response_generation_unitary', exc)
+            record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: deterministic task reply skipped: %s", exc)
         return ""
 
@@ -1905,6 +1923,7 @@ class UnitaryResponsePhase(Phase):
                     continue
                 except Exception as exc:
                     record_degradation('response_generation_unitary', exc)
+                    record_degradation('response_generation_unitary', exc)
                     logger.debug("UnitaryResponse: %s grounded search attempt failed: %s", tool_name, exc)
                     continue
 
@@ -1926,6 +1945,7 @@ class UnitaryResponsePhase(Phase):
                             "attempted": attempted,
                         }
         except Exception as exc:
+            record_degradation('response_generation_unitary', exc)
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: grounded search execution failed: %s", exc)
         return {"reply": "", "payload": None, "skill_name": "", "attempted": attempted}
@@ -1957,6 +1977,7 @@ class UnitaryResponsePhase(Phase):
                 dominant_action = str(getattr(fe_state, "dominant_action", dominant_action) or dominant_action)
                 free_energy = getattr(fe_state, "free_energy", None)
         except Exception as exc:
+            record_degradation('response_generation_unitary', exc)
             record_degradation('response_generation_unitary', exc)
             logger.debug("Subjective recovery FE read failed: %s", exc)
 
@@ -2291,6 +2312,7 @@ class UnitaryResponsePhase(Phase):
                         )
                 except Exception as quiet_exc:
                     record_degradation('response_generation_unitary', quiet_exc)
+                    record_degradation('response_generation_unitary', quiet_exc)
                     logger.debug("UnitaryResponse: early deep-probe foreground quiet failed: %s", quiet_exc)
             if is_user_facing:
                 await self._refresh_integrated_present(new_state)
@@ -2363,6 +2385,7 @@ class UnitaryResponsePhase(Phase):
                             except asyncio.TimeoutError:
                                 logger.warning("🌐 URL fetch timed out after 30s: %s", str(url)[:80])
                             except Exception as url_exc:
+                                record_degradation('response_generation_unitary', url_exc)
                                 record_degradation('response_generation_unitary', url_exc)
                                 logger.warning("🌐 URL fetch error: %s → %s", str(url)[:80], url_exc)
 
@@ -2484,6 +2507,7 @@ class UnitaryResponsePhase(Phase):
                                                         logger.warning("🌐 HTTP fallback returned empty Reddit JSON for: %s", str(url)[:80])
                                                 except Exception as e:
                                                     record_degradation('response_generation_unitary', e)
+                                                    record_degradation('response_generation_unitary', e)
                                                     logger.warning("🌐 Failed to parse Reddit JSON: %s", e)
                                                     
                                             else:
@@ -2519,13 +2543,16 @@ class UnitaryResponsePhase(Phase):
                                             logger.warning("🌐 HTTP fallback got status %d for: %s", resp.status_code, fetch_url[:80])
                                 except Exception as http_exc:
                                     record_degradation('response_generation_unitary', http_exc)
+                                    record_degradation('response_generation_unitary', http_exc)
                                     logger.warning("🌐 HTTP fallback error for %s: %s", str(url)[:80], http_exc)
                         except ImportError:
                             logger.warning("🌐 httpx not available for lightweight fallback")
                         except Exception as fallback_exc:
                             record_degradation('response_generation_unitary', fallback_exc)
+                            record_degradation('response_generation_unitary', fallback_exc)
                             logger.warning("🌐 HTTP fallback failed: %s", fallback_exc)
                 except Exception as browse_exc:
+                    record_degradation('response_generation_unitary', browse_exc)
                     record_degradation('response_generation_unitary', browse_exc)
                     logger.warning("🌐 Auto-browse orchestrator error: %s", browse_exc)
 
@@ -2565,6 +2592,7 @@ class UnitaryResponsePhase(Phase):
                         )
                         logger.info("📚 Background formalization task spawned for '%s'", page_title[:60])
                     except Exception as formal_exc:
+                        record_degradation('response_generation_unitary', formal_exc)
                         record_degradation('response_generation_unitary', formal_exc)
                         logger.debug("Formalization task spawn skipped: %s", formal_exc)
 
@@ -2789,6 +2817,7 @@ class UnitaryResponsePhase(Phase):
                     _prepend_system_guidance(deep_probe_prompt_block())
                 except Exception as exc:
                     record_degradation('response_generation_unitary', exc)
+                    record_degradation('response_generation_unitary', exc)
                     logger.debug("UnitaryResponse: deep probe guidance skipped: %s", exc)
             if live_grounding_required:
                 self_expression_block = self._build_live_self_expression_block(new_state, contract)
@@ -2820,6 +2849,7 @@ class UnitaryResponsePhase(Phase):
                         decision_pkg.latency_ms,
                     )
             except Exception as pl_exc:
+                record_degradation('response_generation_unitary', pl_exc)
                 record_degradation('response_generation_unitary', pl_exc)
                 logger.debug("[RUBICON] PreLinguistic injection skipped: %s", pl_exc)
 
@@ -3070,6 +3100,7 @@ class UnitaryResponsePhase(Phase):
             raise
         except Exception as e:
             record_degradation('response_generation_unitary', e)
+            record_degradation('response_generation_unitary', e)
             error_str = str(e).lower()
             # Reactive auto-compact: if the error is a context overflow,
             # compact the state and retry once instead of failing.
@@ -3091,6 +3122,7 @@ class UnitaryResponsePhase(Phase):
                         _retry_after_compact=True, **{k: v for k, v in kwargs.items() if k != "_retry_after_compact"},
                     )
                 except Exception as compact_err:
+                    record_degradation('response_generation_unitary', compact_err)
                     record_degradation('response_generation_unitary', compact_err)
                     logger.error("Reactive compaction retry also failed: %s", compact_err)
 
@@ -3142,6 +3174,7 @@ class UnitaryResponsePhase(Phase):
                 user_profile_block = f"## USER COMMUNICATION DNA\n{cached_profile}\n\n"
         except Exception as _exc:
             record_degradation('response_generation_unitary', _exc)
+            record_degradation('response_generation_unitary', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Live skill list — so Aura knows exactly what she can do right now
@@ -3152,6 +3185,7 @@ class UnitaryResponsePhase(Phase):
                 skill_names = sorted(cap.skills.keys())[:30]  # Cap to avoid token bloat
                 live_skills_block = f"## YOUR ACTIVE SKILLS RIGHT NOW\n{', '.join(skill_names)}\n\n"
         except Exception as _exc:
+            record_degradation('response_generation_unitary', _exc)
             record_degradation('response_generation_unitary', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
@@ -3172,6 +3206,7 @@ class UnitaryResponsePhase(Phase):
                     f"Axes: {axes_summary}\n\n"
                 )
         except Exception as _exc:
+            record_degradation('response_generation_unitary', _exc)
             record_degradation('response_generation_unitary', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
@@ -3238,6 +3273,7 @@ class UnitaryResponsePhase(Phase):
                     + "\nDo not use these labels in ordinary self-report.\n\n"
                 )
         except Exception as _exc:
+            record_degradation('response_generation_unitary', _exc)
             record_degradation('response_generation_unitary', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
@@ -3322,6 +3358,7 @@ class UnitaryResponsePhase(Phase):
                     f"Word budget: {int(_voice.get('word_budget', 0) or 0)}.\n\n"
                 )
         except Exception as _exc:
+            record_degradation('response_generation_unitary', _exc)
             record_degradation('response_generation_unitary', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 

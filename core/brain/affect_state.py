@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -56,6 +57,7 @@ class AffectStateManager(AuraBaseModule):
                 self.metrics["calls"] += 1
                 await asyncio.sleep(10) # Update the internal state every 10 seconds
             except Exception as e:
+                record_degradation('affect_state', e)
                 self.metrics["errors"] += 1
                 self.logger.error(f"Affect autonomic cycle error: {e}")
                 await asyncio.sleep(5)

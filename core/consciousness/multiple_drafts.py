@@ -30,6 +30,8 @@ Integration:
   - Draft competition history is kept for "why did I say that?" debugging
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import hashlib
@@ -257,6 +259,7 @@ class MultipleDraftsEngine:
                 mesh_energy = float(np.mean(energies)) if energies else 0.0
                 association_pattern = np.array(patterns, dtype=np.float32)
             except Exception as exc:
+                record_degradation('multiple_drafts', exc)
                 logger.debug("MultipleDrafts: mesh read failed for stream %d: %s", stream_index, exc)
 
         # Compute draft properties influenced by mesh state and text features

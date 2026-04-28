@@ -14,6 +14,7 @@ This system is the primary driver of 'Dialectical Growth' — finding truth
 through the tension of opposites.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -58,6 +59,7 @@ class BeliefChallenger:
                 "hooks_into": ["belief_revision_engine", "epistemic_tracker", "api_adapter"]
             })
         except Exception as _e:
+            record_degradation('belief_challenger', _e)
             logger.error("🛑 BeliefChallenger: Failed to register with event bus: %s", _e)
 
         logger.info("✅ BeliefChallenger ONLINE — stress testing the worldview.")
@@ -87,6 +89,7 @@ class BeliefChallenger:
                 logger.debug("BeliefChallenger loop cancelled")
                 break
             except Exception as e:
+                record_degradation('belief_challenger', e)
                 logger.error("Error in BeliefChallenger loop: %s", e)
                 await asyncio.sleep(60) # Back off on error
 
@@ -140,6 +143,7 @@ Response format: Synthesis focused on resolving the logical tension."""
             if synthesis and self._beliefs:
                 await self._beliefs.process_new_claim(claim=synthesis, confidence=0.7, domain="logic", source="dialectical_synthesis")
         except Exception as e:
+            record_degradation('belief_challenger', e)
             logger.warning("Contradiction resolution failed: %s", e)
 
     async def _perform_dialectical_pass(self, belief_text: str):
@@ -204,6 +208,7 @@ Be intellectually honest. Growth requires being wrong sometimes."""
                             tags=["belief_revision", "growth"],
                         )
                 except Exception as persist_err:
+                    record_degradation('belief_challenger', persist_err)
                     logger.debug("Belief revision persistence failed: %s", persist_err)
             else:
                 # Belief survived!
@@ -212,6 +217,7 @@ Be intellectually honest. Growth requires being wrong sometimes."""
                 logger.info("🛡️ Belief survived challenge. Conviction increased.")
 
         except Exception as e:
+            record_degradation('belief_challenger', e)
             logger.warning("Dialectical pass failed: %s", e)
 
     def get_status(self) -> Dict:

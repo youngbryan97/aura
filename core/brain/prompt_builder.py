@@ -2,6 +2,7 @@
 core/brain/prompt_builder.py — Dynamic Prompt Construction
 """
 
+from core.runtime.errors import record_degradation
 import logging
 from core.container import ServiceContainer
 
@@ -82,6 +83,7 @@ def build_system_prompt(orchestrator=None) -> str:
             except RuntimeError as _e:
                 logger.debug('Ignored RuntimeError in prompt_builder.py: %s', _e)
         except Exception as _e:
+            record_degradation('prompt_builder', _e)
             logger.debug('Ignored Exception in prompt_builder.py: %s', _e)
 
     return "\n\n".join(sections)

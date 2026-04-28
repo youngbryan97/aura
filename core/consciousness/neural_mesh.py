@@ -14,6 +14,8 @@ The mesh feeds a 64-dimensional *projection* back into the existing LiquidSubstr
 so the original 64-neuron core becomes the executive summary of a much larger field.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -396,6 +398,7 @@ class NeuralMesh:
                 try:
                     await asyncio.to_thread(self._tick)
                 except Exception as e:
+                    record_degradation('neural_mesh', e)
                     logger.error("NeuralMesh tick error: %s", e, exc_info=True)
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))

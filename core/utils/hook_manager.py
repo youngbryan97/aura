@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import threading
@@ -43,6 +44,7 @@ class HookManager:
                     res = cb(*args, **kwargs)
                 results.append(res)
             except Exception as e:
+                record_degradation('hook_manager', e)
                 logger.error("Error in hook %s: %s", event, e, exc_info=True)
                 results.append(None)
         return results

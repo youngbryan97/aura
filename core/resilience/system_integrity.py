@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import os
 import shutil
@@ -55,6 +56,7 @@ class SafetyGate:
         except SyntaxError as e:
             return False, f"{e.msg} line {e.lineno}"
         except Exception as e:
+            record_degradation('system_integrity', e)
             return False, f"Unexpected validation error: {str(e)}"
 
     @classmethod
@@ -96,6 +98,7 @@ class SafetyGate:
                 os.execv(sys.executable, ['python'] + sys.argv)
                 return True
             except Exception as e:
+                record_degradation('system_integrity', e)
                 logger.critical("Fatal: Restart failed during rollback: %s", e)
                 return False
         else:

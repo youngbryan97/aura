@@ -2,6 +2,7 @@
 Agency Coordinator for the RobustOrchestrator.
 Handles skill dispatch, task execution, and agentic loop management.
 """
+from core.runtime.errors import record_degradation
 import logging
 import asyncio
 from typing import Any, Dict, Optional
@@ -70,6 +71,7 @@ class AgencyCoordinator:
                 return await engine.execute_skill(skill_name, params, ctx)
             return await engine.execute(skill_name, params, ctx)
         except Exception as e:
+            record_degradation('agency', e)
             logger.error(f"Skill execution failed for {skill_name}: {e}")
             record_degraded_event(
                 "agency_coordinator",

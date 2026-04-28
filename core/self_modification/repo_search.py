@@ -1,6 +1,7 @@
 """InternalRepositorySearch: Deep Technical Navigation for Aura
 Allows Aura to grep her own source code and map dependencies autonomously.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import os
 import re
@@ -65,6 +66,7 @@ class InternalRepositorySearch:
                                         "snippet": self._get_sync_snippet(file_path, i)
                                     })
                     except Exception as e:
+                        record_degradation('repo_search', e)
                         logger.debug("Grepping failed for %s: %s", file_path, e)
 
         await asyncio.to_thread(_sync_search)

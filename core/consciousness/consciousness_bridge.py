@@ -31,6 +31,8 @@ After boot, a continuous integration loop runs at 10 Hz that:
   - Pushes neurochemical mood into the substrate's VAD indices
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -97,6 +99,7 @@ class ConsciousnessBridge:
             ServiceContainer.register_instance("neural_mesh", self.neural_mesh)
             logger.info("🧬 Bridge Layer 1: NeuralMesh ONLINE (4096 neurons)")
         except Exception as e:
+            record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot NeuralMesh: %s", e, exc_info=True)
             self._boot_errors.append(("neural_mesh", str(e)))
 
@@ -116,6 +119,7 @@ class ConsciousnessBridge:
             ServiceContainer.register_instance("neurochemical_system", self.neurochemical)
             logger.info("🧬 Bridge Layer 2: NeurochemicalSystem ONLINE (8 modulators)")
         except Exception as e:
+            record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot NeurochemicalSystem: %s", e, exc_info=True)
             self._boot_errors.append(("neurochemical", str(e)))
 
@@ -132,6 +136,7 @@ class ConsciousnessBridge:
             ServiceContainer.register_instance("embodied_interoception", self.interoception)
             logger.info("🧬 Bridge Layer 3: EmbodiedInteroception ONLINE (8 channels)")
         except Exception as e:
+            record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot EmbodiedInteroception: %s", e, exc_info=True)
             self._boot_errors.append(("interoception", str(e)))
 
@@ -143,6 +148,7 @@ class ConsciousnessBridge:
             ServiceContainer.register_instance("oscillatory_binding", self.oscillatory_binding)
             logger.info("🧬 Bridge Layer 4: OscillatoryBinding ONLINE (γ=40Hz, θ=8Hz)")
         except Exception as e:
+            record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot OscillatoryBinding: %s", e, exc_info=True)
             self._boot_errors.append(("oscillatory_binding", str(e)))
 
@@ -159,6 +165,7 @@ class ConsciousnessBridge:
             ServiceContainer.register_instance("somatic_marker_gate", self.somatic_gate)
             logger.info("🧬 Bridge Layer 5: SomaticMarkerGate ONLINE")
         except Exception as e:
+            record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot SomaticMarkerGate: %s", e, exc_info=True)
             self._boot_errors.append(("somatic_gate", str(e)))
 
@@ -172,6 +179,7 @@ class ConsciousnessBridge:
             ServiceContainer.register_instance("unified_field", self.unified_field)
             logger.info("🧬 Bridge Layer 6: UnifiedField ONLINE (256-d experiential field)")
         except Exception as e:
+            record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot UnifiedField: %s", e, exc_info=True)
             self._boot_errors.append(("unified_field", str(e)))
 
@@ -197,6 +205,7 @@ class ConsciousnessBridge:
             logger.info("🧬 Bridge Layer 7: SubstrateEvolution ONLINE (pop=%d)",
                         self.substrate_evolution.cfg.population_size)
         except Exception as e:
+            record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot SubstrateEvolution: %s", e, exc_info=True)
             self._boot_errors.append(("substrate_evolution", str(e)))
 
@@ -215,6 +224,7 @@ class ConsciousnessBridge:
             ServiceContainer.register_instance("substrate_authority", self.substrate_authority)
             logger.info("🧬 Bridge Layer 8: SubstrateAuthority ONLINE (mandatory gate)")
         except Exception as e:
+            record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot SubstrateAuthority: %s", e, exc_info=True)
             self._boot_errors.append(("substrate_authority", str(e)))
             self.substrate_authority = None
@@ -226,6 +236,7 @@ class ConsciousnessBridge:
             await self.unified_will.start()
             logger.info("🧬 Bridge Layer 9: UnifiedWill ONLINE (single locus of authority)")
         except Exception as e:
+            record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot UnifiedWill: %s", e, exc_info=True)
             self._boot_errors.append(("unified_will", str(e)))
 
@@ -271,6 +282,7 @@ class ConsciousnessBridge:
                 try:
                     await component.stop()
                 except Exception as e:
+                    record_degradation('consciousness_bridge', e)
                     logger.debug("Error stopping %s: %s", name, e)
 
         logger.info("🧬 ConsciousnessBridge OFFLINE")
@@ -291,6 +303,7 @@ class ConsciousnessBridge:
                 try:
                     await asyncio.to_thread(self._integration_tick)
                 except Exception as e:
+                    record_degradation('consciousness_bridge', e)
                     logger.error("Bridge integration error: %s", e, exc_info=True)
 
                 self._tick_count += 1
@@ -317,6 +330,7 @@ class ConsciousnessBridge:
                         -1.0, 1.0
                     ).astype(np.float64)
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Mesh→Substrate integration failed: %s", e)
 
         # ── 2. Substrate → UnifiedField ──────────────────────────────
@@ -325,6 +339,7 @@ class ConsciousnessBridge:
                 state = substrate.x.copy()
                 self.unified_field.receive_substrate(state[:64].astype(np.float32))
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Substrate→Field failed: %s", e)
 
         # ── 3. Mesh → UnifiedField ───────────────────────────────────
@@ -333,6 +348,7 @@ class ConsciousnessBridge:
                 proj = self.neural_mesh.get_executive_projection()
                 self.unified_field.receive_mesh(proj)
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Mesh→Field failed: %s", e)
 
         # ── 4. Chemicals → UnifiedField ──────────────────────────────
@@ -347,6 +363,7 @@ class ConsciousnessBridge:
                 ], dtype=np.float32)
                 self.unified_field.receive_chemicals(chem_vec)
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Chemicals→Field failed: %s", e)
 
         # ── 5. Binding → UnifiedField ────────────────────────────────
@@ -360,6 +377,7 @@ class ConsciousnessBridge:
                 ], dtype=np.float32)
                 self.unified_field.receive_binding(bind_vec)
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Binding→Field failed: %s", e)
 
         # ── 6. Interoception → UnifiedField ──────────────────────────
@@ -369,6 +387,7 @@ class ConsciousnessBridge:
                 intero_vec = np.array(list(intero.values()), dtype=np.float32)
                 self.unified_field.receive_interoception(intero_vec)
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Interoception→Field failed: %s", e)
 
         # ── 7. Phase reports to OscillatoryBinding ───────────────────
@@ -425,6 +444,7 @@ class ConsciousnessBridge:
                         self.unified_field.get_coherence(), "unified_field"
                     )
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Phase reporting failed: %s", e)
 
         # ── 8. Chemicals → Substrate VAD (strong coupling) ────────────
@@ -448,6 +468,7 @@ class ConsciousnessBridge:
                         substrate.x[substrate.idx_frustration] * 0.75 + stress * 0.25
                     )
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Chemicals→Substrate VAD failed: %s", e)
 
         # ── 9. Field back-pressure (ENFORCEABLE) ─────────────────────
@@ -488,6 +509,7 @@ class ConsciousnessBridge:
                         substrate.v *= 0.99   # reduce velocity
 
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Back-pressure application failed: %s", e)
 
         # ── 10. Mesh LLM output injection ────────────────────────────
@@ -507,6 +529,7 @@ class ConsciousnessBridge:
                         expanded[i:end] = velocity[:end - i]
                     self.neural_mesh.inject_association(expanded * 0.3)
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("LLM→Mesh association injection failed: %s", e)
 
         # ── 11. Online micro-evolution triggers ─────────────────────
@@ -533,6 +556,7 @@ class ConsciousnessBridge:
                     self._prev_phi_for_evolution = current_phi
 
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Micro-evolution trigger failed: %s", e)
 
     # ── Somatic gating hook ──────────────────────────────────────────────
@@ -601,6 +625,7 @@ class ConsciousnessBridge:
                     candidate.priority = max(0.05, candidate.priority * 0.5)
 
             except Exception as e:
+                record_degradation('consciousness_bridge', e)
                 logger.debug("Substrate gate error (allowing through): %s", e)
 
             return await original_submit(candidate)

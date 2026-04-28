@@ -20,6 +20,7 @@ Algorithm:
      - Alpha decays with distance (far memories attract less)
   3. Re-normalize embeddings after nudging to maintain unit sphere.
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from collections import defaultdict
@@ -128,6 +129,7 @@ class ConceptualGravitationEngine:
                 memory_store.set_embedding(id_b, emb_b_new)
                 nudged += 1
             except Exception as e:
+                record_degradation('conceptual_gravitation', e)
                 logger.debug("Gravitation nudge failed for %s: %s", pair, e)
 
             pairs_processed += 1

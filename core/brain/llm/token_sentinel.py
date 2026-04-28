@@ -52,6 +52,8 @@ Integration:
   created before generation starts and fed tokens as they're produced.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import re
@@ -308,6 +310,7 @@ class TokenSentinel:
             self._affect_pulses += 1
 
         except Exception as e:
+            record_degradation('token_sentinel', e)
             logger.debug("Affect pulse failed: %s", e)
 
     def get_diagnostics(self) -> dict:

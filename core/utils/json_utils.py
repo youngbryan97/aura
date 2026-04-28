@@ -1,6 +1,7 @@
 """core/utils/json_utils.py
 Robust JSON utilities for Sovereign local models.
 """
+from core.runtime.errors import record_degradation
 import ast
 from core.utils.exceptions import capture_and_log
 import json
@@ -85,6 +86,7 @@ class SelfHealingJSON:
             try:
                 return await self._llm_repair(self._strip_markdown(raw_text))
             except Exception as e:
+                record_degradation('json_utils', e)
                 capture_and_log(e, {"module": __name__})
 
         return {}

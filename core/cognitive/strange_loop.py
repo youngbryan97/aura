@@ -43,6 +43,8 @@ References:
 Dependencies: numpy (pure numerical, no LLM calls).
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 __all__ = [
@@ -889,6 +891,7 @@ class StrangeLoop:
                 "StrangeLoop: persisted weights at tick %d", self._tick_count,
             )
         except Exception as exc:
+            record_degradation('strange_loop', exc)
             logger.warning("StrangeLoop: weight persistence failed: %s", exc)
 
     def _load_weights(self) -> None:
@@ -922,6 +925,7 @@ class StrangeLoop:
                 "StrangeLoop: restored weights from tick %d", self._tick_count,
             )
         except Exception as exc:
+            record_degradation('strange_loop', exc)
             logger.warning("StrangeLoop: weight restore failed: %s -- starting fresh", exc)
 
 

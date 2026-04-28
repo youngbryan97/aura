@@ -7,6 +7,7 @@ Updated incrementally from every interaction via exponential moving averages,
 with periodic deep LLM analysis for pattern refinement.
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -174,11 +175,13 @@ class ConversationalProfiler:
                 try:
                     self._profiles[uid] = ConversationalProfile.from_dict(data)
                 except Exception as exc:
+                    record_degradation('conversational_profile', exc)
                     logger.warning("Skipping corrupt profile for '%s': %s", uid, exc)
             # Restore phrase counters if present
             for uid, phrases in raw.get("phrase_counters", {}).items():
                 self._phrase_counter[uid] = defaultdict(int, phrases)
         except Exception as exc:
+            record_degradation('conversational_profile', exc)
             logger.error("Failed to load conversational profiles: %s", exc)
 
     def save(self) -> None:
@@ -194,6 +197,7 @@ class ConversationalProfiler:
             os.replace(tmp, self._storage_path)
             logger.debug("Conversational profiles saved (%d users)", len(self._profiles))
         except Exception as exc:
+            record_degradation('conversational_profile', exc)
             logger.error("Failed to save conversational profiles: %s", exc)
 
     # ------------------------------------------------------------------
@@ -675,6 +679,7 @@ class ConversationalProfiler:
                     user_id,
                 )
         except Exception as exc:
+            record_degradation('conversational_profile', exc)
             logger.debug("Deep profile analysis failed for '%s': %s", user_id, exc)
 
     # ------------------------------------------------------------------
@@ -749,5 +754,6 @@ def get_conversational_profiler() -> ConversationalProfiler:
                     "conversational_profiler", _profiler_instance
                 )
         except Exception as _exc:
+            record_degradation('conversational_profile', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
     return _profiler_instance

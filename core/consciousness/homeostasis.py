@@ -10,6 +10,7 @@ Deepened Implementation:
   - Inference parameter modulation via get_inference_modifiers()
   - Full integration with CreditAssignment, FreeEnergy, and InferenceGate
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from collections import deque
@@ -126,6 +127,7 @@ class HomeostasisEngine(AuraBaseModule):
                 if err_rate > 0.1:
                     self.integrity = max(0.0, self.integrity - (err_rate * 0.1))
         except Exception as e:
+            record_degradation('homeostasis', e)
             logger.debug("Health monitor check failed: %s", e)
 
         # Persistence from Soma
@@ -138,6 +140,7 @@ class HomeostasisEngine(AuraBaseModule):
                 if anxiety > 0.8:
                     self.persistence = max(0.0, self.persistence - 0.01)
         except Exception as e:
+            record_degradation('homeostasis', e)
             logger.debug("Soma check failed: %s", e)
 
         # Metabolism from thermal
@@ -147,6 +150,7 @@ class HomeostasisEngine(AuraBaseModule):
                 if thermal > 0.8:
                     self.metabolism = max(0.2, self.metabolism - 0.05)
         except Exception as e:
+            record_degradation('homeostasis', e)
             logger.debug("Metabolism check failed: %s", e)
 
         # Sovereignty from Scanner
@@ -157,6 +161,7 @@ class HomeostasisEngine(AuraBaseModule):
                 if score < 1.0:
                     self.sovereignty = max(0.0, self.sovereignty - (1.0 - score) * 0.1)
         except Exception as e:
+            record_degradation('homeostasis', e)
             logger.debug("Sovereignty check failed: %s", e)
 
         # ── 2. Proportional Control Toward Setpoints ──────────────────────

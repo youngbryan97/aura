@@ -25,6 +25,8 @@ Design:
   - Scars publish events so the consciousness stream can reflect on them
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -324,6 +326,7 @@ class ScarFormationSystem:
                 except Exception:
                     pass
         except Exception as exc:
+            record_degradation('scar_formation', exc)
             logger.debug("Scar persistence failed: %s", exc)
 
     def _load(self) -> None:
@@ -340,6 +343,7 @@ class ScarFormationSystem:
                 "Loaded %d scar(s) from disk", len(self._scars),
             )
         except Exception as exc:
+            record_degradation('scar_formation', exc)
             logger.debug("Scar load failed (starting fresh): %s", exc)
 
     # ── Events ──────────────────────────────────────────────────────────

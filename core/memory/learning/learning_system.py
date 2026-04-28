@@ -1,4 +1,5 @@
 """core/memory/learning/learning_system.py — Canonical location for LearningSystem"""
+from core.runtime.errors import record_degradation
 import json
 import logging
 import asyncio

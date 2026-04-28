@@ -1,6 +1,7 @@
 """Belief Graph v6.0 - Unified Probabilistic World Model & Epistemic State.
 Combines Bayesian-ish updates, time-decay, and cognitive dissonance resolution.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -185,6 +186,7 @@ class BeliefGraph:
                             context={"reason": reason},
                         )
                     except Exception as degraded_exc:
+                        record_degradation('belief_graph', degraded_exc)
                         logger.debug("BeliefGraph degraded-event logging failed: %s", degraded_exc)
                     logger.debug(  # Reduced from info to avoid log flooding
                         "Belief update deferred by executive: %s -[%s]-> %s (%s)",
@@ -204,6 +206,7 @@ class BeliefGraph:
                     note=f"confidence={confidence_score:.3f}; centrality={centrality:.3f}; is_goal={is_goal}",
                 )
         except Exception as exc:
+            record_degradation('belief_graph', exc)
             if constitutional_runtime_live:
                 try:
                     from core.health.degraded_events import record_degraded_event
@@ -218,6 +221,7 @@ class BeliefGraph:
                         exc=exc,
                     )
                 except Exception as degraded_exc:
+                    record_degradation('belief_graph', degraded_exc)
                     logger.debug("BeliefGraph degraded-event logging failed: %s", degraded_exc)
                 return
             logger.debug("BeliefAuthority audit skipped for belief graph update: %s", exc)
@@ -519,6 +523,7 @@ class BeliefGraph:
             with open(self._persist_path, "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
+            record_degradation('belief_graph', e)
             logger.error("Failed to save world model: %s", e)
 
     def _load(self):
@@ -539,6 +544,7 @@ class BeliefGraph:
                     
                 logger.info("Loaded %d beliefs from disk", self.graph.number_of_edges())
         except Exception as e:
+            record_degradation('belief_graph', e)
             logger.warning("Failed to load world model: %s", e)
 
     # ── Causal Engine (Merged from ACG) ───────────────────────
@@ -568,6 +574,7 @@ class BeliefGraph:
                 # In Phase 16, this will be matched with the prediction from predict_outcome.
                 calibrator.record_prediction(confidence=0.5, actual_correctness=1.0 if success else 0.0)
         except Exception as e:
+            record_degradation('belief_graph', e)
             logger.debug("BeliefGraph: Metacognitive feedback failed: %s", e)
 
         # Goal Reinforcement
@@ -582,6 +589,7 @@ class BeliefGraph:
             else:
                 goals.challenge_goal(action_name, f"Failed execution of {action_name} in context: {context[:50]}")
         except Exception as g_err:
+            record_degradation('belief_graph', g_err)
             logger.debug("Goal reinforcement failed: %s", g_err)
 
         self._save_causal()
@@ -616,6 +624,7 @@ class BeliefGraph:
             with open(self._causal_path, "w") as f:
                 json.dump(self.causal_links, f, indent=2)
         except Exception as e:
+            record_degradation('belief_graph', e)
             logger.error("Failed to save ACG: %s", e)
 
     def _load_causal(self):
@@ -625,6 +634,7 @@ class BeliefGraph:
                     self.causal_links = json.load(f)
                 logger.info("Loaded %d causal links from disk", len(self.causal_links))
         except Exception as e:
+            record_degradation('belief_graph', e)
             logger.debug("BeliefGraph: Failed to load causal links: %s", e)
 
     # ── Expectation Engine (Merged from ExpectationEngine) ────
@@ -635,6 +645,7 @@ class BeliefGraph:
             response = await brain.think(prompt, mode=ThinkingMode.FAST)
             return response.content
         except Exception as e:
+            record_degradation('belief_graph', e)
             logger.debug("BeliefGraph: Prediction failed: %s", e)
             return "Unknown"
 
@@ -646,6 +657,7 @@ class BeliefGraph:
             match = re.search(r"(\d+(\.\d+)?)", response.content)
             return float(match.group(1)) if match else 0.5
         except Exception as e:
+            record_degradation('belief_graph', e)
             logger.debug("BeliefGraph: Surprise calculation failed: %s", e)
             return 0.5
 

@@ -2,6 +2,8 @@
 Extracted shutdown orchestration from RobustOrchestrator.stop().
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import inspect
@@ -42,6 +44,7 @@ async def _gracefully_stop_actor_via_bus(
             timeout=timeout,
         )
     except Exception as exc:
+        record_degradation('shutdown', exc)
         logger.debug("Graceful stop request failed for %s: %s", actor_name, exc)
         return
 
@@ -57,6 +60,7 @@ async def _gracefully_stop_actor_via_bus(
             if not is_actor_running(actor_name):
                 return
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.debug("Supervisor liveness probe failed for %s: %s", actor_name, exc)
             return
         await asyncio.sleep(0.05)
@@ -80,6 +84,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         except asyncio.TimeoutError:
             logger.error("Substrate failed to stop within timeout")
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.debug("Substrate stop error: %s", exc)
 
     if hasattr(orch, 'mind_tick') and orch.mind_tick:
@@ -89,6 +94,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         except asyncio.TimeoutError:
             logger.error("MindTick: Failed to stop within timeout")
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.error("MindTick: Failed to stop: %s", exc)
 
     # 2. Flush memory buffers / Snapshot management
@@ -97,11 +103,13 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         snapshot_mgr = SnapshotManager(orch)
         snapshot_mgr.freeze()
     except Exception as exc:
+        record_degradation('shutdown', exc)
         logger.error("Failed to freeze cognitive snapshot: %s", exc)
 
     try:
         orch._save_state("shutdown")
     except Exception as exc:
+        record_degradation('shutdown', exc)
         logger.debug("Final state save failed: %s", exc)
 
     try:
@@ -116,6 +124,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         else:
             logger.info("💾 UPSO: Skipping shutdown state commit; state transport unavailable.")
     except Exception as exc:
+        record_degradation('shutdown', exc)
         logger.error("UPSO: Failed to commit shutdown state: %s", exc)
 
     # 3. Release service locks / Graceful shutdown of subsystems
@@ -131,6 +140,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
             if inspect.isawaitable(res):
                 await res
         except Exception as exc:
+            record_degradation('shutdown', exc)
             capture_and_log(exc, {'module': __name__})
 
     if hasattr(orch, 'conversation_loop') and orch.conversation_loop:
@@ -139,6 +149,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         except asyncio.TimeoutError as _exc:
             logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.debug("Conversation loop stop error: %s", exc)
 
     if orch.kernel_interface and hasattr(orch.kernel_interface, "shutdown"):
@@ -147,6 +158,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         except asyncio.TimeoutError:
             logger.error("KernelInterface shutdown timed out")
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.error("KernelInterface shutdown failed: %s", exc)
 
     if hasattr(orch, '_actor_bus') and orch._actor_bus:
@@ -156,6 +168,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         except asyncio.TimeoutError as _exc:
             logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.debug("ActorBus stop error: %s", exc)
 
     if hasattr(orch, '_supervisor_tree') and orch._supervisor_tree:
@@ -164,6 +177,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         except asyncio.TimeoutError:
             logger.error("Supervisor tree failed to stop within timeout")
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.error("Supervisor tree shutdown failed: %s", exc)
 
     if hasattr(orch, "state_repo") and orch.state_repo:
@@ -172,6 +186,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         except asyncio.TimeoutError:
             logger.error("StateRepository close timed out")
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.error("StateRepository close failed: %s", exc)
 
     sensory = getattr(orch, '_sensory_actor', None)
@@ -188,6 +203,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         except asyncio.TimeoutError as _exc:
             logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.debug("Swarm stop error: %s", exc)
 
     try:
@@ -196,6 +212,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
     except asyncio.TimeoutError:
         logger.error("ServiceContainer shutdown timed out")
     except Exception as exc:
+        record_degradation('shutdown', exc)
         logger.error("Error during ServiceContainer shutdown: %s", exc)
 
     if hasattr(orch, '_event_loop_monitor') and orch._event_loop_monitor:
@@ -204,12 +221,14 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         except asyncio.TimeoutError as _exc:
             logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
         except Exception as exc:
+            record_degradation('shutdown', exc)
             logger.debug("Event loop monitor stop error: %s", exc)
 
     try:
         from core.event_bus import get_event_bus
         await get_event_bus().shutdown()
     except Exception as exc:
+        record_degradation('shutdown', exc)
         logger.debug("Event bus shutdown skipped: %s", exc)
 
     from core.utils.task_tracker import get_task_tracker

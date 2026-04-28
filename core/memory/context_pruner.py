@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
@@ -68,6 +69,7 @@ DENSE MEMORY SPORES:
             return new_history
             
         except Exception as e:
+            record_degradation('context_pruner', e)
             logger.error("Pruning failed: %s", e)
             # Fallback: Just drop some messages if LLM pruning fails
             return history[-min(len(history), 80):]

@@ -42,6 +42,8 @@ The system runs at 2 Hz and pushes modulatory state into the NeuralMesh and
 other consciousness subsystems every tick.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -346,6 +348,7 @@ class NeurochemicalSystem:
                     self._metabolic_tick()
                     self._push_modulation()
                 except Exception as e:
+                    record_degradation('neurochemical_system', e)
                     logger.error("Neurochemical tick error: %s", e, exc_info=True)
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
@@ -387,6 +390,7 @@ class NeurochemicalSystem:
             try:
                 self._mesh_ref.set_modulatory_state(gain, plasticity, noise)
             except Exception as e:
+                record_degradation('neurochemical_system', e)
                 logger.debug("Failed to push mesh modulation: %s", e)
 
         # GWT threshold modulation
@@ -399,6 +403,7 @@ class NeurochemicalSystem:
                     0.3, min(0.9, base_threshold + threshold_adj)
                 )
             except Exception as e:
+                record_degradation('neurochemical_system', e)
                 logger.debug("Failed to push GWT modulation: %s", e)
 
     # ── Event triggers ───────────────────────────────────────────────────

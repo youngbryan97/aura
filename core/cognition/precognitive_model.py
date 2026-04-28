@@ -27,6 +27,8 @@ Design invariants:
   4. Privacy-aware: patterns are statistical, not verbatim user messages.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json
@@ -769,6 +771,7 @@ class PrecognitiveEngine:
                     context_key = suggestion.split(":", 1)[1]
                     self._warm_context(context_key)
             except Exception as e:
+                record_degradation('precognitive_model', e)
                 logger.debug("Pre-fetch failed for %s: %s", suggestion, e)
 
     def _warm_memory(self, query: str) -> None:
@@ -785,6 +788,7 @@ class PrecognitiveEngine:
                 # Note: actual search is sync in most Aura memory implementations
                 # For async stores, this would need to be dispatched to the event loop
         except Exception as e:
+            record_degradation('precognitive_model', e)
             logger.debug("Memory pre-warm failed: %s", e)
 
     def _warm_context(self, context_key: str) -> None:
@@ -802,6 +806,7 @@ class PrecognitiveEngine:
                 if temporal and hasattr(temporal, "get_narrative"):
                     logger.debug("Pre-warming session narrative")
         except Exception as e:
+            record_degradation('precognitive_model', e)
             logger.debug("Context pre-warm failed: %s", e)
 
     # ------------------------------------------------------------------
@@ -819,6 +824,7 @@ class PrecognitiveEngine:
                     self._db.total_observations, self._data_path,
                 )
         except Exception as e:
+            record_degradation('precognitive_model', e)
             logger.warning("Failed to load precognitive patterns: %s", e)
             self._db = PatternDatabase()
 
@@ -832,6 +838,7 @@ class PrecognitiveEngine:
             self._db.last_saved = self._last_save
             logger.debug("Saved precognitive patterns to %s", self._data_path)
         except Exception as e:
+            record_degradation('precognitive_model', e)
             logger.warning("Failed to save precognitive patterns: %s", e)
 
     # ------------------------------------------------------------------

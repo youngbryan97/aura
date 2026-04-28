@@ -6,6 +6,7 @@ and merges them into a single, strengthened memory.
 Prevents memory bloat and mimics biological long-term potentiation.
 Runs as the final maintenance step in the Dreamer sleep cycle.
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 import asyncio
@@ -72,6 +73,7 @@ class MemoryConsolidator:
             for cluster in clusters:
                 self._merge_cluster(cluster, report)
         except Exception as exc:
+            record_degradation('memory_management', exc)
             msg = f"Consolidation error: {exc}"
             logger.error(msg, exc_info=True)
             report.errors.append(msg)
@@ -83,6 +85,7 @@ class MemoryConsolidator:
             from core.thought_stream import get_emitter
             get_emitter().emit("Memory Consolidation 🧠", str(report), level="info")
         except Exception as exc:
+            record_degradation('memory_management', exc)
             logger.debug("Suppressed thought-stream emit: %s", exc)
 
         return report
@@ -117,6 +120,7 @@ class MemoryConsolidator:
                     for mid, data in items
                 ]
         except Exception as exc:
+            record_degradation('memory_management', exc)
             logger.warning("Failed to fetch memories: %s", exc)
         return []
 
@@ -148,6 +152,7 @@ class MemoryConsolidator:
                         clusters.append(cluster)
                 return clusters
             except Exception as e:
+                record_degradation('memory_management', e)
                 logger.debug("Vectorized similarity check failed: %s", e)
 
         # Fallback to existing search_similar path (O(n) search calls)
@@ -170,6 +175,7 @@ class MemoryConsolidator:
                             cluster.append(result)
                             merged_ids.add(result_id)
             except Exception as exc:
+                record_degradation('memory_management', exc)
                 logger.debug("Similarity search failed for %s: %s", mem["id"], exc)
             if len(cluster) > 1:
                 merged_ids.add(mem["id"])
@@ -200,6 +206,7 @@ class MemoryConsolidator:
                     metadatas=[new_meta]
                 )
             except Exception as _e:
+                record_degradation('memory_management', _e)
                 logger.debug('Ignored Exception in memory_management.py: %s', _e)
 
         for loser in cluster[1:]:
@@ -216,4 +223,5 @@ class MemoryConsolidator:
                 report.duplicates_merged += 1
                 logger.debug("Merged memory %s into %s", loser_id[:12], winner_id[:12])
             except Exception as exc:
+                record_degradation('memory_management', exc)
                 report.errors.append(f"merge delete {loser_id}: {exc}")

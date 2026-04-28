@@ -11,6 +11,7 @@ This is both for safety (post-incident review) and transparency
 (showing the user exactly what Aura did and when).
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import sqlite3
@@ -131,6 +132,7 @@ class AuditTrail:
                     )
                     conn.commit()
             except Exception as e:
+                record_degradation('audit_trail', e)
                 logger.error("Audit trail write failed: %s", e)
                 return ""
 

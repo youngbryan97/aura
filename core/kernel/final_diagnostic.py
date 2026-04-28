@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import sys
@@ -45,6 +46,7 @@ async def diagnostic():
             
         await kernel.stop()
     except Exception as e:
+        record_degradation('final_diagnostic', e)
         logger.error(f"❌ DIAGNOSTIC FAILED: {e}", exc_info=True)
     finally:
         logger.info("Diagnostic complete.")

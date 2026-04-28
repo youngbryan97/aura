@@ -5,6 +5,7 @@ Runs endlessly when Aura is idle, generating insights, reviewing logs,
 and experimenting in the sandbox.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -77,6 +78,7 @@ class SubconsciousLoop:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('subconscious_loop', e)
                 logger.error(f"Subconscious loop fault: {e}")
 
     async def _perform_subconscious_beat(self):
@@ -92,6 +94,7 @@ class SubconsciousLoop:
                     await dreaming.dream()
                     self.last_dream_cycle = now
             except Exception as e:
+                record_degradation('subconscious_loop', e)
                 logger.debug(f"Subconscious dreaming failed: {e}")
                 self.last_dream_cycle = now + 60.0  # Back off a bit
 
@@ -103,6 +106,7 @@ class SubconsciousLoop:
                 await self._run_proactive_sandbox()
                 self.last_sandbox_experiment = now
             except Exception as e:
+                record_degradation('subconscious_loop', e)
                 logger.debug(f"Subconscious sandbox beat failed: {e}")
                 self.last_sandbox_experiment = now + 120.0
 
@@ -148,6 +152,7 @@ except Exception as e:
                 )
                 return
         except Exception as e:
+            record_degradation('subconscious_loop', e)
             logger.debug("Subconscious constitutional gate failed: %s", e)
 
         try:
@@ -177,6 +182,7 @@ except Exception as e:
                 else:
                     logger.debug(f"Subconscious Sandbox Result: {result}")
         except Exception as e:
+            record_degradation('subconscious_loop', e)
             logger.debug(f"Subconscious sandbox run failed: {e}")
             error_text = f"{type(e).__name__}: {e}"
         finally:
@@ -191,6 +197,7 @@ except Exception as e:
                         error=error_text,
                     )
                 except Exception as finish_exc:
+                    record_degradation('subconscious_loop', finish_exc)
                     logger.debug("Subconscious sandbox finish skipped: %s", finish_exc)
 
 def register_subconscious_loop(orchestrator):

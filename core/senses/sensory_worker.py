@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import multiprocessing as mp
 import logging
 import time
@@ -19,6 +20,7 @@ def _screen_capture_preflight_allowed() -> bool:
         if callable(preflight):
             return bool(preflight())
     except Exception as exc:
+        record_degradation('sensory_worker', exc)
         logger.debug("Sensory worker Quartz preflight unavailable: %s", exc)
     return os.getenv("AURA_ASSUME_SCREEN_PERMISSION", "0") == "1"
 
@@ -55,6 +57,7 @@ def sensory_worker_loop(request_queue, response_queue):
                     cv2, mss = _cv2, _mss
                     response_queue.put({"status": "ok"})
                 except Exception as e:
+                    record_degradation('sensory_worker', e)
                     response_queue.put({"status": "error", "msg": str(e)})
                 
             elif cmd == "capture_screen":
@@ -76,6 +79,7 @@ def sensory_worker_loop(request_queue, response_queue):
                     sd = _sd
                     response_queue.put({"status": "ok"})
                 except Exception as e:
+                    record_degradation('sensory_worker', e)
                     response_queue.put({"status": "error", "msg": str(e)})
 
             elif cmd == "ping":

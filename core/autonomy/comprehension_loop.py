@@ -29,6 +29,8 @@ Public API:
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import json
@@ -220,6 +222,7 @@ class ComprehensionLoop:
                     cp.thinking_trace = thinking
                     break
             except Exception as e:
+                record_degradation('comprehension_loop', e)
                 logger.debug("chunk extract attempt %d failed: %s", attempt, e)
 
         if last_extraction is not None:
@@ -238,6 +241,7 @@ class ComprehensionLoop:
                     if critique.get("revised_summary"):
                         cp.summary = str(critique["revised_summary"])
             except Exception as e:
+                record_degradation('comprehension_loop', e)
                 logger.debug("self-critique failed: %s", e)
 
         cp.elapsed_seconds = time.time() - t0
@@ -326,6 +330,7 @@ class ComprehensionLoop:
                 if isinstance(res, dict):
                     return str(res.get("content", res.get("text", "")) or "")
             except Exception as e:
+                record_degradation('comprehension_loop', e)
                 logger.debug("inference %s failed: %s", fn_name, e)
                 continue
         return ""

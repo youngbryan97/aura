@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import inspect
@@ -32,6 +34,7 @@ def _schedule_awaitable(awaitable: Any, *, label: str) -> None:
             try:
                 asyncio.run(awaitable)
             except Exception as exc:
+                record_degradation('degraded_events', exc)
                 logger.debug("%s async forward failed: %s", label, exc)
 
         threading.Thread(target=_runner, name=f"aura_{label}", daemon=True).start()
@@ -43,6 +46,7 @@ def _schedule_awaitable(awaitable: Any, *, label: str) -> None:
         try:
             done.result()
         except Exception as exc:
+            record_degradation('degraded_events', exc)
             logger.debug("%s async forward failed: %s", label, exc)
 
     task.add_done_callback(_consume_result)
@@ -202,6 +206,7 @@ def _forward_to_terminal_monitor(event: Dict[str, Any]) -> None:
         if monitor and hasattr(monitor, "ingest_degraded_event"):
             monitor.ingest_degraded_event(event)
     except Exception as exc:
+        record_degradation('degraded_events', exc)
         logger.debug("Terminal monitor degraded event forward failed: %s", exc)
 
 
@@ -247,4 +252,5 @@ def _forward_to_error_intelligence(
         if inspect.isawaitable(result):
             _schedule_awaitable(result, label="degraded_event_forward")
     except Exception as forward_exc:
+        record_degradation('degraded_events', forward_exc)
         logger.debug("Error intelligence degraded event forward failed: %s", forward_exc)

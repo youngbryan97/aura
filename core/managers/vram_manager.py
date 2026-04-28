@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import gc
 import logging
@@ -53,12 +54,14 @@ class VRAMManager:
 
                     get_task_tracker().track_task(task)
                 except Exception as _exc:
+                    record_degradation('vram_manager', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 logger.info("🗜️ VRAMManager: pre-purge context summarization hook fired.")
             else:
                 asyncio.run(self._pre_purge_hook())
                 logger.info("🗜️ VRAMManager: pre-purge context summarization hook fired synchronously.")
         except Exception as exc:
+            record_degradation('vram_manager', exc)
             logger.debug("pre-purge hook error (non-fatal): %s", exc)
 
     async def acquire(self, model_name: str):

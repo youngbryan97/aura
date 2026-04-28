@@ -4,6 +4,7 @@ Somatic Hardware Link — Monitors the 'physical' health of the machine.
 Maps hardware telemetry (Thermal, RAM, GPU) to affective discomfort.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import psutil
 import time
@@ -56,6 +57,7 @@ class SystemSoma(AuraBaseModule):
                 self.logger.warning("🩸 CRITICAL RESOURCE ANXIETY: RAM at %.1f%%", ram_pct * 100)
                 
         except Exception as e:
+            record_degradation('soma', e)
             self.logger.error("Somatic pulse failed: %s", e)
             
         return self._somatic_state

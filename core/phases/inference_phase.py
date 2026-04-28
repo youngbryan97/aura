@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import logging
 from typing import Any, Optional
 from core.kernel.bridge import Phase
@@ -73,6 +75,7 @@ class InferencePhase(Phase):
                 logger.info(f"Deep Inference: Intent='{data.get('implicit_intent')}', Subtext='{data.get('user_subtext')}'")
             
         except Exception as e:
+            record_degradation('inference_phase', e)
             logger.warning("InferencePhase failed: %s", e)
             
         return state

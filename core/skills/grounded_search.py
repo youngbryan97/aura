@@ -5,6 +5,7 @@ Uses google-genai SDK to perform real Google Search queries with
 grounding metadata, providing inline citations and reducing hallucinations.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import os
 from typing import Any, Dict
@@ -77,5 +78,6 @@ class GroundedSearchSkill(BaseSkill):
         except ImportError:
             return {"ok": False, "error": "google-genai package not installed (pip install google-genai)"}
         except Exception as e:
+            record_degradation('grounded_search', e)
             logger.error("Grounded Search failed: %s", e)
             return {"ok": False, "error": str(e)}

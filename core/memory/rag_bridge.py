@@ -3,6 +3,7 @@
 The Invisible RAG Bridge. Runs parallel to the main cognitive pipeline
 to fetch semantic context from the BlackHoleVault/MemoryFacade before inference.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Optional
@@ -50,6 +51,7 @@ async def fetch_deep_context(user_query: str, threshold_words: int = 4) -> str:
             if orchestrator and hasattr(orchestrator, "_current_ecosystem_context"):
                 ecosystem_context = orchestrator._current_ecosystem_context
         except Exception as _e:
+            record_degradation('rag_bridge', _e)
             logger.debug('Ignored Exception in rag_bridge.py: %s', _e)
 
         final_context = temporal_context
@@ -61,5 +63,6 @@ async def fetch_deep_context(user_query: str, threshold_words: int = 4) -> str:
         return ""
             
     except Exception as e:
+        record_degradation('rag_bridge', e)
         logger.debug("Temporal RAG Bridge failed: %s", e)
         return ""

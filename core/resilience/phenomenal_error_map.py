@@ -25,6 +25,8 @@ maps the envelope to a 200-with-status response so the chat UI never sees
 a non-200 unless something truly catastrophic is happening.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -242,6 +244,7 @@ def _notify_substrate(state: PhenomenalState, *, source: str = "phenomenal_error
                 except Exception:
                     continue
     except Exception as exc:
+        record_degradation('phenomenal_error_map', exc)
         logger.debug("phenomenal substrate notify failed: %s", exc)
 
 

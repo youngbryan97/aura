@@ -4,6 +4,7 @@ Part of Aura's Immune System 2.0. Hardwired exception matching
 and repair for known common failure signatures.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import sys
 import os
@@ -120,6 +121,7 @@ class SignatureRepairRegistry:
                     logger.info("✅ [IMMUNE] Deterministic repair successful: %s", sig["name"])
                     return True
                 except Exception as e:
+                    record_degradation('immunity_hyphae', e)
                     logger.error("❌ [IMMUNE] Repair failed for %s: %s", sig["name"], e)
         return False
 
@@ -162,6 +164,7 @@ class SignatureRepairRegistry:
                 logger.warning("💉 [IMMUNE] Found zombie process %s on port %s. Cleaning up...", zombie_pid, port)
                 subprocess.run(["kill", "-9", zombie_pid])
         except Exception as e:
+            record_degradation('immunity_hyphae', e)
             logger.debug("Port repair probe failed: %s", e)
 
     def _repair_lock_cleanup(self):
@@ -176,6 +179,7 @@ class SignatureRepairRegistry:
                     logger.info("💉 Removing stale SQLite file: %s", ext_path)
                     ext_path.unlink()
         except Exception as e:
+            record_degradation('immunity_hyphae', e)
             logger.error("💉 Lock cleanup failed: %s", e)
 
     def log_sieve(self, log_files: List[Path]) -> List[str]:
@@ -202,6 +206,7 @@ class SignatureRepairRegistry:
                         if any(p in line for p in critical_patterns):
                             hidden_bugs.append(f"[{log_path.name}] {line.strip()}")
             except Exception as e:
+                record_degradation('immunity_hyphae', e)
                 logger.error("💉 Log Sieve failed for %s: %s", log_path, e)
         
         if hidden_bugs:
@@ -269,6 +274,7 @@ class ImmunityHyphae:
                     "stack_trace": traceback.format_exc(),
                 })
         except Exception as exc:
+            record_degradation('immunity_hyphae', exc)
             logger.debug("Adaptive immune escalation skipped: %s", exc)
 
         repaired = self.registry.match_and_repair(error_msg)

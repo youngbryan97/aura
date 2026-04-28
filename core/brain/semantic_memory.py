@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -151,6 +152,7 @@ class SemanticMemory:
             logger.info("🧠 Semantic Memory Upgraded: VECTOR MODE READY ⚡")
 
         except Exception as e:
+            record_degradation('semantic_memory', e)
             logger.error("Background Vector Init Failed: %s", e, exc_info=True)
             self._init_error = str(e)
             logger.info("Continuing in Lite Mode (Keyword Search).")
@@ -186,9 +188,11 @@ class SemanticMemory:
                     self.index.add(vector.astype("float32"))
                     _faiss.write_index(self.index, self.index_path)
                 except Exception as ve:
+                    record_degradation('semantic_memory', ve)
                     logger.warning("Vector add failed (data saved to JSON): %s", ve)
 
         except Exception as e:
+            record_degradation('semantic_memory', e)
             logger.error("Failed to add memory: %s", e)
 
     # ── Read ────────────────────────────────────────────────────────
@@ -213,6 +217,7 @@ class SemanticMemory:
                             results.append(self.metadata[idx])
                 return results
             except Exception as e:
+                record_degradation('semantic_memory', e)
                 logger.error("Vector search error, falling back: %s", e)
 
         # Keyword fallback
@@ -254,4 +259,5 @@ class SemanticMemory:
                 logger.info("Consolidating Memory: %s", summary[:80])
                 self.add_memory(summary, context_tags={"source": "consolidation"})
         except Exception as e:
+            record_degradation('semantic_memory', e)
             logger.error("Memory consolidation failed: %s", e)

@@ -2,6 +2,7 @@
 Force-disables networking and restricts resources.
 """
 
+from core.runtime.errors import record_degradation
 import io
 import logging
 import os
@@ -23,6 +24,7 @@ class SecureDockerSandbox:
             self.client = docker.from_env()
             self.image_name = image_name
         except Exception as e:
+            record_degradation('secure_sandbox', e)
             logger.error("Docker initialization failed: %s", e)
             self.client = None
 
@@ -59,10 +61,12 @@ class SecureDockerSandbox:
                     "output": logs
                 }
             except Exception as e:
+                record_degradation('secure_sandbox', e)
                 container.kill()
                 return {"ok": False, "error": f"Execution timeout or error: {str(e)}"}
 
         except Exception as e:
+            record_degradation('secure_sandbox', e)
             logger.error("Sandbox execution fatal error: %s", e)
             return {"ok": False, "error": str(e)}
         finally:
@@ -70,6 +74,7 @@ class SecureDockerSandbox:
                 try:
                     container.remove(force=True)
                 except Exception as exc:
+                    record_degradation('secure_sandbox', exc)
                     logger.debug("Suppressed: %s", exc)
 
     def verify_safety(self) -> bool:

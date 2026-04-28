@@ -84,6 +84,7 @@ class CognitiveCoordinator:
                         
             except Exception as e:
                 record_degradation('cognitive_coordinator', e)
+                record_degradation('cognitive_coordinator', e)
                 logger.debug("Epistemic humility gate skipped: %s", e)
         # ── End Epistemic Humility Gate ──────────────────────────────────────
         if hasattr(orch, 'meta_learning') and orch.meta_learning and successful_tools:
@@ -96,6 +97,7 @@ class CognitiveCoordinator:
                 orch.social.update_after_interaction(message, response)
             except Exception as _e:
                 record_degradation('cognitive_coordinator', _e)
+                record_degradation('cognitive_coordinator', _e)
                 logger.error("Social model update failed: %s", _e)
         if origin in ("user", "voice") and hasattr(orch, 'self_modifier') and orch.self_modifier:
             orch.self_modifier.on_success(message, response, successful_tools)
@@ -103,6 +105,7 @@ class CognitiveCoordinator:
             try:
                 orch.affect_engine.process_response(message, response)
             except Exception as e:
+                record_degradation('cognitive_coordinator', e)
                 record_degradation('cognitive_coordinator', e)
                 logger.error("Affect processing failed: %s", e)
         if origin in ("user", "voice"):
@@ -113,6 +116,7 @@ class CognitiveCoordinator:
              try:
                  orch.cognition.record_interaction(message, response, domain="general")
              except Exception as e:
+                 record_degradation('cognitive_coordinator', e)
                  record_degradation('cognitive_coordinator', e)
                  logger.error("Failed to record interaction in cognitive layer: %s", e)
         trace.record_step("end", {"response": (response or "")[:100]})
@@ -158,6 +162,7 @@ class CognitiveCoordinator:
             return pe.filter_response(text)
         except Exception as e:
             record_degradation('cognitive_coordinator', e)
+            record_degradation('cognitive_coordinator', e)
             logger.debug("Output filter failed: %s", e)
             return text
 
@@ -189,6 +194,7 @@ class CognitiveCoordinator:
             return await orch.execute_tool("web_search", {"query": query})
         except Exception as e:
             record_degradation('cognitive_coordinator', e)
+            record_degradation('cognitive_coordinator', e)
             logger.debug("Direct search failed: %s", e)
             return None
 
@@ -199,6 +205,7 @@ class CognitiveCoordinator:
             orch._emit_telemetry("Skill: self_diagnosis 🔧", "Running diagnostics...")
             return await orch.execute_tool("self_diagnosis", {})
         except Exception as e:
+            record_degradation('cognitive_coordinator', e)
             record_degradation('cognitive_coordinator', e)
             logger.debug("Direct diag failed: %s", e)
             return None
@@ -250,6 +257,7 @@ class CognitiveCoordinator:
                 return True
         except Exception as _macro_exc:
             record_degradation('cognitive_coordinator', _macro_exc)
+            record_degradation('cognitive_coordinator', _macro_exc)
             import logging; logging.getLogger("Aura.Critical").error("Suppressed Exception: %s", _macro_exc)
         return analyze_turn(message).everyday_chat_safe
 
@@ -294,6 +302,7 @@ class CognitiveCoordinator:
                 ctx["emotional_state"] = affect_state
             except Exception as e:
                 record_degradation('cognitive_coordinator', e)
+                record_degradation('cognitive_coordinator', e)
                 logger.error("Affect extraction failed: %s", e)
         if orch.mind_model:
             ctx["theory_of_mind"] = orch.mind_model.get_context_for_brain()
@@ -316,12 +325,14 @@ class CognitiveCoordinator:
                     logger.debug("Strategic context injected for project: %s", proj.name)
             except Exception as e:
                 record_degradation('cognitive_coordinator', e)
+                record_degradation('cognitive_coordinator', e)
                 logger.error("Failed to inject strategic context: %s", e)
         if getattr(orch, 'drive_engine', None):
             try:
                 drives = orch.drive_engine.get_drives() if hasattr(orch.drive_engine, 'get_drives') else {"curiosity": 0.5, "energy": 0.8}
                 ctx["metabolic_drives"] = drives
             except Exception as e:
+                record_degradation('cognitive_coordinator', e)
                 record_degradation('cognitive_coordinator', e)
                 logger.error("Drive extraction failed: %s", e)
         cog_integration = ServiceContainer.get("cognitive_integration", default=None)
@@ -335,6 +346,7 @@ class CognitiveCoordinator:
                     ctx["advanced_cognition"] = enhanced_ctx_str
             except Exception as e:
                 record_degradation('cognitive_coordinator', e)
+                record_degradation('cognitive_coordinator', e)
                 logger.debug("Enhanced context unavailable: %s", e)
         try:
             from core.memory.learning.tool_learning import tool_learner
@@ -347,6 +359,7 @@ class CognitiveCoordinator:
                 }
                 logger.info("🛠️ Tool Recommendations: %s -> %s", category, recommendations)
         except Exception as e:
+            record_degradation('cognitive_coordinator', e)
             record_degradation('cognitive_coordinator', e)
             logger.debug("Tool recommendations failed: %s", e)
         return ctx
@@ -394,6 +407,7 @@ class CognitiveCoordinator:
             successful_tools.append(tool_name)
         except Exception as e:
             record_degradation('cognitive_coordinator', e)
+            record_degradation('cognitive_coordinator', e)
             await orch._record_reliability(tool_name, False, str(e))
             result = f"Error: {e}"
         orch._record_action_in_history(tool_name, result)
@@ -418,6 +432,7 @@ class CognitiveCoordinator:
                 logger.warning("🛑 Simulation block: %s", sim.get('risk_reason'))
             return is_safe
         except Exception as e:
+            record_degradation('cognitive_coordinator', e)
             record_degradation('cognitive_coordinator', e)
             logger.warning("Safety validation error (fail-closed): %s", e)
             return False
@@ -446,6 +461,7 @@ class CognitiveCoordinator:
                 return True
         except Exception as exc:
             record_degradation('cognitive_coordinator', exc)
+            record_degradation('cognitive_coordinator', exc)
             logger.debug("Suppressed: %s", exc)
             return False
 
@@ -465,6 +481,7 @@ class CognitiveCoordinator:
             return t.content
         except Exception as e:
             record_degradation('cognitive_coordinator', e)
+            record_degradation('cognitive_coordinator', e)
             logger.warning("Fallback generation also failed: %s", e)
             try:
                 from core.health.degraded_events import record_degraded_event
@@ -480,6 +497,7 @@ class CognitiveCoordinator:
                 )
             except Exception as degraded_exc:
                 record_degradation('cognitive_coordinator', degraded_exc)
+                record_degradation('cognitive_coordinator', degraded_exc)
                 logger.debug("CognitiveCoordinator degraded-event logging failed: %s", degraded_exc)
             return "I'm having trouble processing that right now — my cognitive engine hit an error. Could you try rephrasing?"
 
@@ -489,6 +507,7 @@ class CognitiveCoordinator:
             if not constitutional_guard.check_output(response):
                 return "My safety filters blocked the formulated response. How else can I help?"
         except Exception as exc:
+            record_degradation('cognitive_coordinator', exc)
             record_degradation('cognitive_coordinator', exc)
             logger.error("Constitutional guard evaluation failed, failing closed: %s", exc)
             return "My safety filters encountered an error and blocked the response as a precaution."
@@ -545,6 +564,7 @@ class CognitiveCoordinator:
                             emitter.emit("Sleep Complete 🌙", "Maintenance done. Dream drifted — no new insights.", level="info")
                 except Exception as dream_err:
                     record_degradation('cognitive_coordinator', dream_err)
+                    record_degradation('cognitive_coordinator', dream_err)
                     logger.error("Sleep cycle failed: %s", dream_err)
                     emitter.emit("Sleep Error", str(dream_err)[:100], level="warning")
                 if hasattr(orch, 'liquid_state'):
@@ -566,6 +586,7 @@ class CognitiveCoordinator:
                 time_context = personality.get_time_context()
             except Exception as _e:
                 record_degradation('cognitive_coordinator', _e)
+                record_degradation('cognitive_coordinator', _e)
                 logger.debug("Personality context fetch failed: %s", _e)
             context = {
                 "system_status": orch.status.__dict__,
@@ -580,6 +601,7 @@ class CognitiveCoordinator:
                 if reflection_ctx:
                     context["recent_reflections"] = reflection_ctx
             except Exception as _e:
+                record_degradation('cognitive_coordinator', _e)
                 record_degradation('cognitive_coordinator', _e)
                 logger.debug("Reflection context fetch failed (autonomous): %s", _e)
             try:
@@ -635,8 +657,10 @@ class CognitiveCoordinator:
                                  )
                          except Exception as _e:
                              record_degradation('cognitive_coordinator', _e)
+                             record_degradation('cognitive_coordinator', _e)
                              logger.debug("Knowledge graph store failed (autonomous): %s", _e)
                 except Exception as e:
+                    record_degradation('cognitive_coordinator', e)
                     record_degradation('cognitive_coordinator', e)
                     logger.error("Autonomous thinking cycle failed: %s", e)
                     orch._emit_thought_stream("[Cognitive Stall] My background thoughts are hazy...")
@@ -678,11 +702,13 @@ class CognitiveCoordinator:
                                     logger.debug("Exception caught during execution", exc_info=True)
                                 except Exception as emit_exc:
                                     record_degradation('cognitive_coordinator', emit_exc)
+                                    record_degradation('cognitive_coordinator', emit_exc)
                                     logger.debug("Spontaneous speech routing failed: %s", emit_exc)
                                 orch._emit_thought_stream(f"Speaking: {message}")
                         else:
                             await orch.execute_tool(name, args)
         except Exception as e:
+            record_degradation('cognitive_coordinator', e)
             record_degradation('cognitive_coordinator', e)
             logger.error("Autonomous thought failed: %s", e)
 
@@ -728,6 +754,7 @@ class CognitiveCoordinator:
                 logger.info("\U0001f4da Autonomous insight stored: [%s] %s", thought_type, (response or '')[:80])
         except Exception as e:
             record_degradation('cognitive_coordinator', e)
+            record_degradation('cognitive_coordinator', e)
             logger.debug("Autonomous insight storage failed: %s", e)
 
     async def _legacy_learn_from_exchange(self, user_message: str, aura_response: str):
@@ -751,6 +778,7 @@ class CognitiveCoordinator:
                     orch.knowledge_graph = PersistentKnowledgeGraph(db_path)
                     kg = orch.knowledge_graph
                 except Exception as e:
+                    record_degradation('cognitive_coordinator', e)
                     record_degradation('cognitive_coordinator', e)
                     logger.debug("Knowledge graph unavailable: %s", e)
                     return
@@ -796,6 +824,7 @@ class CognitiveCoordinator:
                                     logger.info("📚 Learned: %s", (item.get('content') or "")[:80])
                 except Exception as e:
                     record_degradation('cognitive_coordinator', e)
+                    record_degradation('cognitive_coordinator', e)
                     logger.debug("Knowledge extraction failed: %s", e)
             lower_msg = user_message.lower()
             for trigger in ["my name is ", "i'm ", "i am ", "call me "]:
@@ -817,6 +846,7 @@ class CognitiveCoordinator:
                             kg.ask_question(sentence + "?", importance=0.5)
                             break
         except Exception as e:
+            record_degradation('cognitive_coordinator', e)
             record_degradation('cognitive_coordinator', e)
             logger.debug("Learning from exchange failed: %s", e)
 
@@ -903,6 +933,7 @@ class CognitiveCoordinator:
                     orch.tool_learner.record_usage(tool_name, category, success, elapsed_ms)
                 except Exception as _e:
                     record_degradation('cognitive_coordinator', _e)
+                    record_degradation('cognitive_coordinator', _e)
                     logger.debug("Tool learning record failed: %s", _e)
             if hasattr(orch, 'memory') and orch.memory:
                 try:
@@ -915,6 +946,7 @@ class CognitiveCoordinator:
                     )
                 except Exception as _e:
                     record_degradation('cognitive_coordinator', _e)
+                    record_degradation('cognitive_coordinator', _e)
                     logger.debug("Unified memory record failed: %s", _e)
             try:
                 _acg_module.record_outcome(
@@ -925,9 +957,11 @@ class CognitiveCoordinator:
                 )
             except Exception as _e:
                 record_degradation('cognitive_coordinator', _e)
+                record_degradation('cognitive_coordinator', _e)
                 logger.debug("ACG record failed: %s", _e)
             return result
         except Exception as e:
+            record_degradation('cognitive_coordinator', e)
             record_degradation('cognitive_coordinator', e)
             logger.error("Execution Jolt (Pain): Tool %s crashed: %s", tool_name, e)
             if hasattr(orch, 'memory') and orch.memory:
@@ -941,6 +975,7 @@ class CognitiveCoordinator:
                         importance=0.9,
                     )
                 except Exception as _e:
+                    record_degradation('cognitive_coordinator', _e)
                     record_degradation('cognitive_coordinator', _e)
                     logger.debug("Unified memory record failed (crash path): %s", _e)
             return {"ok": False, "error": "execution_jolt", "message": str(e)}
@@ -969,5 +1004,6 @@ class CognitiveCoordinator:
                 if response and hasattr(response, "content"):
                     orch._emit_thought_stream(response.content)
         except Exception as e:
+            record_degradation('cognitive_coordinator', e)
             record_degradation('cognitive_coordinator', e)
             logger.error("Autonomous thought generation failed: %s", e)

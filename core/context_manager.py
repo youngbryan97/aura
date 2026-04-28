@@ -3,6 +3,7 @@ Context window budget manager.
 Tracks token usage and prunes the lowest-value content to stay within limits.
 v2.0: Integrated ChatCompressionService for intelligent history management.
 """
+from core.runtime.errors import record_degradation
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -210,6 +211,7 @@ class ContextWindowManager:
                 # Insert after system prompt (index 1)
                 messages.insert(1, {"role": "system", "content": f"[RECENT CONVERSATION]\n{recent}"})
         except Exception as e:
+            record_degradation('context_manager', e)
             logger.debug("Failed to inject UnifiedTranscript: %s", e)
 
         total_used = budget - remaining

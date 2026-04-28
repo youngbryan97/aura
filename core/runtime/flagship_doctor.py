@@ -10,6 +10,8 @@ checks are green", not "Aura is proven conscious" or "the whole product is
 perfect".
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -95,6 +97,7 @@ def _run(cmd: list[str], root: Path, timeout: float = 45.0) -> dict[str, Any]:
             "duration_s": round(time.time() - started, 3),
         }
     except Exception as exc:
+        record_degradation('flagship_doctor', exc)
         return {
             "cmd": cmd,
             "error": f"{type(exc).__name__}: {exc}",

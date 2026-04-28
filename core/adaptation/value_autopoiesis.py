@@ -18,6 +18,8 @@ Key design decisions:
 Wired into the DreamerV2 sleep cycle as step 5.8.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -404,6 +406,7 @@ class ValueAutopoiesis:
             hv._adjust(shift.value_name, shift.delta)
             return True
         except Exception as exc:
+            record_degradation('value_autopoiesis', exc)
             logger.error("Failed to apply shift %s: %s", shift.value_name, exc)
             return False
 
@@ -439,6 +442,7 @@ class ValueAutopoiesis:
                 except Exception:
                     pass
         except Exception as exc:
+            record_degradation('value_autopoiesis', exc)
             logger.debug("Autopoiesis state save failed: %s", exc)
 
     def _load_state(self) -> None:
@@ -454,6 +458,7 @@ class ValueAutopoiesis:
                 self._cycle_count, len(self._origin_values),
             )
         except Exception as exc:
+            record_degradation('value_autopoiesis', exc)
             logger.debug("Autopoiesis state load failed: %s", exc)
 
     def _log_shift(self, shift: ValueShift) -> None:
@@ -463,6 +468,7 @@ class ValueAutopoiesis:
             with open(_EVOLUTION_LOG_PATH, "a", encoding="utf-8") as f:
                 f.write(json.dumps(shift.to_dict(), default=str) + "\n")
         except Exception as exc:
+            record_degradation('value_autopoiesis', exc)
             logger.debug("Evolution log write failed: %s", exc)
 
     # ── Events ──────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ Connects Liquid Substrate (Existence), Global Workspace (Awareness), and Predict
 Implements 'Attractor Volition' - autonomous will emerges from substrate dynamics.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
@@ -161,10 +162,12 @@ class ConsciousnessCore:
                                     loop
                                 )
                         except Exception as dispatch_error:
+                            record_degradation('conscious_core', dispatch_error)
                             logger.error("Failed to dispatch impulse: %s", dispatch_error)
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('conscious_core', e)
                 logger.error("CRITICAL error in Consciousness _volition_loop: %s", e)
                 await asyncio.sleep(5.0) # Backoff on error
 
@@ -178,6 +181,7 @@ class ConsciousnessCore:
             with open(log_path, "a") as f:
                 f.write(json.dumps(data) + "\n")
         except Exception as e:
+            record_degradation('conscious_core', e)
             logger.debug("Failed to write behavior telemetry: %s", e)
 
     def on_input_received(self, text: str) -> None:

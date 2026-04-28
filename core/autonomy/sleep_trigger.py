@@ -15,6 +15,7 @@ Guards:
 
 This is what makes idle time productive instead of dead time.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -63,6 +64,7 @@ class AutonomousSleepTrigger:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('sleep_trigger', e)
                 logger.debug("SleepTrigger eval error (non-fatal): %s", e)
 
     async def _evaluate(self):
@@ -89,6 +91,7 @@ class AutonomousSleepTrigger:
             try:
                 orch._last_user_interaction_time = seeded
             except Exception as _exc:
+                record_degradation('sleep_trigger', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             logger.debug("SleepTrigger: Primed last-user baseline at %.3f.", seeded)
             return
@@ -104,6 +107,7 @@ class AutonomousSleepTrigger:
                 logger.debug("SleepTrigger: CPU %.0f%% > threshold, deferring.", cpu)
                 return
         except Exception as _exc:
+            record_degradation('sleep_trigger', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # All guards passed — initiate sleep
@@ -124,6 +128,7 @@ class AutonomousSleepTrigger:
                 category="SleepCycle",
             )
         except Exception as _exc:
+            record_degradation('sleep_trigger', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -143,10 +148,12 @@ class AutonomousSleepTrigger:
                         category="SleepCycle",
                     )
                 except Exception as _exc:
+                    record_degradation('sleep_trigger', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             else:
                 logger.warning("SleepTrigger: DreamerV2 not found — skipping cycle.")
         except Exception as e:
+            record_degradation('sleep_trigger', e)
             logger.error("SleepTrigger: Sleep cycle failed: %s", e)
         finally:
             self._last_sleep_time = time.time()
@@ -172,6 +179,7 @@ class AutonomousSleepTrigger:
             if dreamer:
                 return dreamer
         except Exception as _exc:
+            record_degradation('sleep_trigger', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Fallback: build one from orchestrator's sub-systems
@@ -191,6 +199,7 @@ class AutonomousSleepTrigger:
             if brain and kg:
                 return DreamerV2(brain=brain, knowledge_graph=kg, vector_memory=vm, belief_graph=bg)
         except Exception as e:
+            record_degradation('sleep_trigger', e)
             logger.debug("SleepTrigger: could not instantiate DreamerV2: %s", e)
 
         return None

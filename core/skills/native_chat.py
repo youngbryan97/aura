@@ -1,4 +1,5 @@
 # skills/native_chat.py
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any, Dict, Optional
@@ -27,6 +28,7 @@ def _schedule_background_task(coro: Any, *, name: str) -> None:
     try:
         get_task_tracker().create_task(coro, name=name)
     except Exception as exc:
+        record_degradation('native_chat', exc)
         try:
             coro.close()
         except Exception:
@@ -103,6 +105,7 @@ class NativeChatSkill(BaseSkill):
                     name="native_chat.momentum",
                 )
         except Exception as _e:
+            record_degradation('native_chat', _e)
             logger.debug('Ignored Exception in native_chat.py: %s', _e)
 
         # 3. Understand Intent (ToM)
@@ -169,6 +172,7 @@ class NativeChatSkill(BaseSkill):
                     logger.info("Emitting chat response to ThoughtStream: %s...", response[:50])
                     emitter.emit("AURA", response, level="chat")
                 except Exception as e:
+                    record_degradation('native_chat', e)
                     logger.error("Failed to emit chat response: %s", e)
             else:
                 logger.warning("No ThoughtStream emitter found in NativeChatSkill!")
@@ -191,6 +195,7 @@ class NativeChatSkill(BaseSkill):
                         name="native_chat.remember_aura",
                     )
             except Exception as e:
+                record_degradation('native_chat', e)
                 logger.warning("Memory storage failed: %s", e)
 
             # BIORHYTHM: mark interaction
@@ -199,6 +204,7 @@ class NativeChatSkill(BaseSkill):
                 if orchestrator and hasattr(orchestrator, "biorhythm"):
                     orchestrator.biorhythm.mark_interaction()
             except Exception as exc:
+                record_degradation('native_chat', exc)
                 logger.debug("Suppressed: %s", exc)
 
             return {
@@ -208,5 +214,6 @@ class NativeChatSkill(BaseSkill):
             }
             
         except Exception as e:
+            record_degradation('native_chat', e)
             logger.error("Cognitive failure: %s", e, exc_info=True)
             return {"ok": False, "error": f"Cognitive failure: {e}"}

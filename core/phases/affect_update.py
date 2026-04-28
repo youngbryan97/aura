@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 import logging
 import time
@@ -89,6 +91,7 @@ class AffectUpdatePhase(Phase):
                 import asyncio
                 get_task_tracker().create_task(ls.update(valence=affect.valence, arousal=affect.arousal))
             except Exception as e:
+                record_degradation('affect_update', e)
                 logger.debug("Failed to push VAD to substrate: %s", e)
         
         # 7. Despair Spiral check (Injection)
@@ -271,6 +274,7 @@ class AffectUpdatePhase(Phase):
                     # Low rapport → slight anxiety
                     affect.emotions["fear"] = min(1.0, affect.emotions.get("fear", 0.0) + 0.02)
         except Exception as _exc:
+            record_degradation('affect_update', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # ── Discourse depth → curiosity satisfaction ──────────────────────
@@ -340,6 +344,7 @@ class AffectUpdatePhase(Phase):
                 if interaction_signals and hasattr(interaction_signals, "get_status"):
                     signal_status = interaction_signals.get_status() or {}
             except Exception as exc:
+                record_degradation('affect_update', exc)
                 logger.debug("Interaction signal affect feedback skipped: %s", exc)
                 signal_status = {}
 

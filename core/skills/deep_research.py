@@ -11,6 +11,7 @@ Implements a LangGraph-inspired iterative research graph:
 Replaces single-shot web search for complex research queries.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -168,6 +169,7 @@ async def web_research(
             content = result.get("content", result.get("text", ""))
             return SearchResult(query=query, content=content, sources=sources)
         except Exception as e:
+            record_degradation('deep_research', e)
             logger.warning("Search failed for '%s': %s", query, e)
             return SearchResult(query=query, content=f"Search failed: {e}", sources=[])
 

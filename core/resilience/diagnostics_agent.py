@@ -2,6 +2,7 @@
 Responsible for deep system health checks, skill validation, and connectivity verification.
 Run independently of the main loop to ensure resilience.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import importlib
 import importlib.util
@@ -82,6 +83,7 @@ class DiagnosticsAgent:
                     results["invalid"].append({"name": skill_name, "reason": "No class with execute() found"})
                     
             except Exception as e:
+                record_degradation('diagnostics_agent', e)
                 results["invalid"].append({"name": skill_name, "reason": str(e)})
         
         if results["invalid"]:

@@ -17,6 +17,7 @@ INTEGRATION FLOW:
    - Integration provides `phenomenal_context_string` to LLM routers
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any, Dict, Optional
@@ -77,6 +78,7 @@ class ConsciousnessIntegration:
             self._running = True
             logger.info("🌟 Consciousness Integration Layer initialized")
         except Exception as e:
+            record_degradation('integration', e)
             logger.error("❌ Consciousness Integration failed: %s", e)
 
     async def shutdown(self):

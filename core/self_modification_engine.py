@@ -1,6 +1,7 @@
 """[DEPRECATED] Legacy Autonomous Self-Modification Engine.
 Superseded by core/self_modification/self_modification_engine.py (inside package).
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import warnings
 
@@ -165,6 +166,7 @@ class SelfModificationEngine:
             }
             
         except Exception as e:
+            record_degradation('self_modification_engine', e)
             logger.error("File analysis failed: %s", e)
             return {"allowed": False, "reason": f"analysis_error: {e}"}
     
@@ -215,6 +217,7 @@ class SelfModificationEngine:
             return {"success": True}
             
         except Exception as e:
+            record_degradation('self_modification_engine', e)
             logger.error("Verification process failed: %s", e)
             return {"success": False, "error": str(e)}
 
@@ -290,6 +293,7 @@ class SelfModificationEngine:
             }
             
         except Exception as e:
+            record_degradation('self_modification_engine', e)
             logger.error("Proposal application failed: %s", e, exc_info=True)
             self.state = ModificationState.IDLE
             return {"success": False, "error": f"application_exception: {e}"}
@@ -312,6 +316,7 @@ class SelfModificationEngine:
             return backup_path
             
         except Exception as e:
+            record_degradation('self_modification_engine', e)
             logger.error("Backup creation failed: %s", e)
             return None
     
@@ -326,6 +331,7 @@ class SelfModificationEngine:
                     shutil.copy2(item, target)
             return True
         except Exception as e:
+            record_degradation('self_modification_engine', e)
             logger.error("Rollback failed: %s", e)
             return False
 
@@ -363,6 +369,7 @@ class SelfModificationEngine:
             }
             
         except Exception as e:
+            record_degradation('self_modification_engine', e)
             logger.error("Change application failed: %s", e)
             return {
                 "success": False,

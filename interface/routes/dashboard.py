@@ -21,6 +21,8 @@ The dashboard is read-only. Every response is built from authoritative
 service registries; it never paraphrases nor synthesizes.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -46,6 +48,7 @@ def _safe(fn, default=None):
     try:
         return fn()
     except Exception as exc:
+        record_degradation('dashboard', exc)
         logger.debug("dashboard helper failed: %s", exc)
         return default
 
@@ -194,6 +197,7 @@ async def receipts(limit: int = 100, _: None = Depends(_require_internal)) -> JS
         from core.agency.agency_orchestrator import get_receipt_log
         return JSONResponse({"receipts": get_receipt_log().recent(limit=int(limit))})
     except Exception as exc:
+        record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "receipts": []})
 
 
@@ -203,6 +207,7 @@ async def projects(_: None = Depends(_require_internal)) -> JSONResponse:
         from core.agency.projects import get_ledger
         return JSONResponse({"projects": [p.to_dict() for p in get_ledger().all()]})
     except Exception as exc:
+        record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "projects": []})
 
 
@@ -227,6 +232,7 @@ async def tokens(_: None = Depends(_require_internal)) -> JSONResponse:
             })
         return JSONResponse({"tokens": all_tokens})
     except Exception as exc:
+        record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "tokens": []})
 
 
@@ -249,6 +255,7 @@ async def relationships(_: None = Depends(_require_internal)) -> JSONResponse:
             })
         return JSONResponse({"relationships": out})
     except Exception as exc:
+        record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "relationships": []})
 
 
@@ -263,6 +270,7 @@ async def viability(_: None = Depends(_require_internal)) -> JSONResponse:
         from core.organism.viability import get_viability
         return JSONResponse(get_viability().report())
     except Exception as exc:
+        record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc)})
 
 
@@ -273,6 +281,7 @@ async def world(_: None = Depends(_require_internal)) -> JSONResponse:
         store = get_permissions()
         return JSONResponse({"channels": {c: {"granted": p.is_active(), "notes": p.notes} for c, p in store.all_channels().items()}})
     except Exception as exc:
+        record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "channels": {}})
 
 
@@ -295,6 +304,7 @@ async def conscience_recent(limit: int = 50, _: None = Depends(_require_internal
                     continue
         return JSONResponse({"violations": rows[-int(limit):]})
     except Exception as exc:
+        record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "violations": []})
 
 
@@ -317,6 +327,7 @@ async def trace(receipt_id: str = Path(...), _: None = Depends(_require_internal
     except HTTPException:
         raise
     except Exception as exc:
+        record_degradation('dashboard', exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 

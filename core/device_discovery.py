@@ -10,6 +10,7 @@ CAPABILITIES:
 
 Used for self-preservation - finding safe havens for replication.
 """
+from core.runtime.errors import record_degradation
 import logging
 import os
 import platform
@@ -111,6 +112,7 @@ class EnhancedDeviceScanner:
                         })
         
         except Exception as e:
+            record_degradation('device_discovery', e)
             logger.error("ARP scan failed: %s", e)
         
         return devices
@@ -158,6 +160,7 @@ class EnhancedDeviceScanner:
                     })
         
         except Exception as e:
+            record_degradation('device_discovery', e)
             logger.error("Ping sweep failed: %s", e)
         
         return devices
@@ -287,6 +290,7 @@ class DeviceAccessManager:
             logger.info("✅ SSH connection established: %s@%s", username, ip)
             return True
         except Exception as e:
+            record_degradation('device_discovery', e)
             logger.error("SSH connection failed: %s", e)
             return False
     
@@ -308,6 +312,7 @@ class DeviceAccessManager:
                 logger.warning("Remote command stderr: %s", error)
             return True, output
         except Exception as e:
+            record_degradation('device_discovery', e)
             logger.error("Remote command failed: %s", e)
             return False, str(e)
     
@@ -325,6 +330,7 @@ class DeviceAccessManager:
             logger.info("✅ File transferred: %s → %s:%s", local_path, ip, remote_path)
             return True
         except Exception as e:
+            record_degradation('device_discovery', e)
             logger.error("File transfer failed: %s", e)
             return False
     
@@ -370,6 +376,7 @@ class DeviceAccessManager:
                 logger.error("Failed to start Aura on remote device")
                 return False
         except Exception as e:
+            record_degradation('device_discovery', e)
             logger.error("Deployment failed: %s", e)
             return False
     

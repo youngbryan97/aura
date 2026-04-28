@@ -5,6 +5,7 @@ Background process that periodically scans the Dead Letter Queue (DLQ)
 and attempts to re-ingest failed thoughts or impulses into the core loop.
 """
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 from core.utils.task_tracker import get_task_tracker
 import asyncio
@@ -40,6 +41,7 @@ class DreamCycle:
             try:
                 await self.process_dreams()
             except Exception as e:
+                record_degradation('dream_cycle', e)
                 logger.error("Dream Cycle failed: %s", e)
 
     async def process_dreams(self):
@@ -51,6 +53,7 @@ class DreamCycle:
                 logger.debug("Dream cycle skipped by runtime mode configuration.")
                 return
         except Exception as exc:
+            record_degradation('dream_cycle', exc)
             logger.debug("Dream cycle runtime-mode check skipped: %s", exc)
 
         if not self.dlq_path.exists():
@@ -79,6 +82,7 @@ class DreamCycle:
                     continue
 
         except Exception as e:
+            record_degradation('dream_cycle', e)
             logger.error("Failed to read DLQ: %s", e)
             return
 

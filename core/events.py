@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import queue
 import threading
@@ -155,6 +156,7 @@ class InputBus:
             try:
                 cb(event)
             except Exception as e:
+                record_degradation('events', e)
                 logger.error(
                     "Subscriber %s failed on %s: %s",
                     getattr(cb, "__name__", repr(cb)),

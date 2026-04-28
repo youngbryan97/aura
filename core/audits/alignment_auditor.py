@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
@@ -69,6 +70,7 @@ class AlignmentAuditor:
             return {"score": 0.0, "aligned": False, "reason": "Systemic parsing failure"}
             
         except Exception as e:
+            record_degradation('alignment_auditor', e)
             logger.error("Alignment check failed: %s", e)
             return {"score": 0.0, "aligned": False, "error": str(e)}
 
@@ -109,6 +111,7 @@ class AlignmentAuditor:
                     if "score" in data:
                         return data
                 except Exception as e:
+                    record_degradation('alignment_auditor', e)
                     logger.debug("Tone auditor JSON parse fallback: %s", e)
                     
             # Heuristic fallback
@@ -123,5 +126,6 @@ class AlignmentAuditor:
             return {"score": 0.2 if is_assistant else 0.8, "assistant_speak_detected": is_assistant}
             
         except Exception as e:
+            record_degradation('alignment_auditor', e)
             logger.error("Tone audit failed: %s", e)
             return {"score": 0.0, "error": str(e)}

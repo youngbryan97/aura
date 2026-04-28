@@ -19,6 +19,7 @@ for injection into the LLM context so Aura can answer questions like:
   "Walk me through how a user message becomes a reply."
 """
 
+from core.runtime.errors import record_degradation
 import ast
 import logging
 import os
@@ -90,6 +91,7 @@ class ArchitectureIndex:
             logger.info("🧠 ArchitectureIndex: indexed %d modules", count)
             return count
         except Exception as e:
+            record_degradation('architecture_index', e)
             logger.error("ArchitectureIndex build failed: %s", e)
             return 0
         finally:
@@ -176,6 +178,7 @@ class ArchitectureIndex:
                         self._index[rel] = rec
                         count += 1
                 except Exception as e:
+                    record_degradation('architecture_index', e)
                     logger.debug("Index skip %s: %s", rel, e)
         return count
 

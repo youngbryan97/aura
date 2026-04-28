@@ -10,6 +10,8 @@ maintains a registry of active tensions sorted by severity.
 Persists to disk so tensions survive restarts.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json
@@ -101,9 +103,11 @@ class TensionEngine:
                         t = Tension.from_dict(entry)
                         self._tensions[t.id] = t
                     except Exception as exc:
+                        record_degradation('tension_engine', exc)
                         logger.debug("Skipping malformed tension entry: %s", exc)
                 logger.info("TensionEngine loaded %d tensions from disk.", len(self._tensions))
             except Exception as exc:
+                record_degradation('tension_engine', exc)
                 logger.warning("TensionEngine failed to load persisted tensions: %s", exc)
         else:
             self._persist_path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,6 +118,7 @@ class TensionEngine:
             payload = [t.to_dict() for t in self._tensions.values()]
             atomic_write_text(self._persist_path, json.dumps(payload, indent=2))
         except Exception as exc:
+            record_degradation('tension_engine', exc)
             logger.error("TensionEngine failed to persist tensions: %s", exc)
 
     # -- Public API -----------------------------------------------------------
@@ -179,30 +184,35 @@ class TensionEngine:
         try:
             self._scan_belief_contradictions()
         except Exception as exc:
+            record_degradation('tension_engine', exc)
             logger.debug("TensionEngine: belief scan failed: %s", exc)
 
         # 2. Goal conflicts
         try:
             self._scan_goal_conflicts(state)
         except Exception as exc:
+            record_degradation('tension_engine', exc)
             logger.debug("TensionEngine: goal conflict scan failed: %s", exc)
 
         # 3. Stale curiosity questions
         try:
             self._scan_curiosity_gaps(now)
         except Exception as exc:
+            record_degradation('tension_engine', exc)
             logger.debug("TensionEngine: curiosity gap scan failed: %s", exc)
 
         # 4. Broken expectations (recent failed actions)
         try:
             self._scan_broken_expectations(state)
         except Exception as exc:
+            record_degradation('tension_engine', exc)
             logger.debug("TensionEngine: broken expectation scan failed: %s", exc)
 
         # 5. Identity drift signals
         try:
             self._scan_identity_drift()
         except Exception as exc:
+            record_degradation('tension_engine', exc)
             logger.debug("TensionEngine: identity drift scan failed: %s", exc)
 
         # 6. Age all unresolved tensions

@@ -4,6 +4,8 @@ Extracted from server.py — WebSocket connection management,
 broadcast infrastructure, and UI event normalization.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import collections
@@ -104,6 +106,7 @@ class MessageBroadcastBus:
                     try:
                         await self._replace_lowest_priority_item(q, item)
                     except Exception as _exc:
+                        record_degradation('websocket_manager', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
 
 
@@ -235,11 +238,13 @@ class WebSocketManager:
                     except Exception:
                         break
                 except Exception as e:
+                    record_degradation('websocket_manager', e)
                     logger.error("Error in WS pump loop: %s", e)
                     break
         except (WebSocketDisconnect, ConnectionClosed):
             pass
         except Exception as e:
+            record_degradation('websocket_manager', e)
             logger.error("Error pumping messages to client: %s", e)
         finally:
             await self.disconnect(websocket)

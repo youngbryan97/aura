@@ -22,6 +22,8 @@ Influence map:
   - EpisodicMemory     → organ stabilisation events trigger memory consolidation
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -51,6 +53,7 @@ def register_stability_guardian_check() -> bool:
         logger.info("🧬 Morphogenesis health check registered with StabilityGuardian.")
         return True
     except Exception as exc:
+        record_degradation('hooks', exc)
         logger.debug("StabilityGuardian hook skipped: %s", exc)
         return False
 
@@ -131,6 +134,7 @@ def _morphogenesis_health_check():
             severity=severity,
         )
     except Exception as exc:
+        record_degradation('hooks', exc)
         from core.resilience.stability_guardian import HealthCheckResult
         return HealthCheckResult(
             name="morphogenesis",
@@ -170,6 +174,7 @@ def register_self_healing_watch() -> bool:
         logger.info("🧬 Morphogenesis registered with SelfHealing watchdog.")
         return True
     except Exception as exc:
+        record_degradation('hooks', exc)
         logger.debug("SelfHealing hook skipped: %s", exc)
         return False
 
@@ -226,6 +231,7 @@ def modulate_metabolic_energy() -> Optional[float]:
 
         return modifier
     except Exception as exc:
+        record_degradation('hooks', exc)
         logger.debug("Metabolic modulation skipped: %s", exc)
         return None
 
@@ -294,6 +300,7 @@ def get_morphogenesis_routing_advice() -> Dict[str, Any]:
             "field_snapshot": field_state,
         }
     except Exception as exc:
+        record_degradation('hooks', exc)
         logger.debug("Routing advice skipped: %s", exc)
         return default
 
@@ -404,6 +411,7 @@ async def record_organ_formation_episode(organ_data: Dict[str, Any]) -> None:
         )
         logger.debug("🧬 Organ formation episode recorded: %s", organ_name)
     except Exception as exc:
+        record_degradation('hooks', exc)
         logger.debug("Organ formation episode recording failed: %s", exc)
 
 

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import ipaddress
 import itertools
@@ -40,6 +41,7 @@ class SovereignNetworkSkill(BaseSkill):
             try:
                 params = NetworkInput(**params)
             except Exception as e:
+                record_degradation('sovereign_network', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         mode = params.mode
@@ -59,6 +61,7 @@ class SovereignNetworkSkill(BaseSkill):
             else:
                 return {"ok": False, "error": f"Unsupported network mode: {mode}"}
         except Exception as e:
+            record_degradation('sovereign_network', e)
             logger.error("Network skill failed: %s", e)
             return {"ok": False, "error": str(e)}
 
@@ -101,6 +104,7 @@ class SovereignNetworkSkill(BaseSkill):
                 if match:
                     devices.append({"ip": match.group(1), "mac": match.group(2), "source": "arp"})
         except Exception as e:
+            record_degradation('sovereign_network', e)
             logger.debug("ARP discovery failed: %s", e)
         
         return {
@@ -172,6 +176,7 @@ class SovereignNetworkSkill(BaseSkill):
             logger.info("nmap unavailable; falling back to bounded TCP peer discovery.")
             return await self._perform_tcp_peer_discovery(target, ports)
         except Exception as e:
+            record_degradation('sovereign_network', e)
             return {"ok": False, "error": str(e)}
 
         return {"ok": True, "peers": peers, "count": len(peers)}
@@ -200,11 +205,13 @@ class SovereignNetworkSkill(BaseSkill):
                     try:
                         await writer.wait_closed()
                     except Exception as close_exc:
+                        record_degradation('sovereign_network', close_exc)
                         logger.debug("TCP peer writer close failed for %s:%s: %s", host, first_port, close_exc)
                     return {"address": host, "rpc_port": first_port, "source": "tcp_connect"}
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
+                    record_degradation('sovereign_network', e)
                     logger.debug("TCP peer probe failed for %s:%s: %s", host, first_port, e)
                     return None
 
@@ -268,6 +275,7 @@ class SovereignNetworkSkill(BaseSkill):
             s.close()
             return ip
         except Exception as e:
+            record_degradation('sovereign_network', e)
             logger.debug("Primary IP discovery failed, defaulting to localhost: %s", e)
             return "127.0.0.1"
 
@@ -277,6 +285,7 @@ class SovereignNetworkSkill(BaseSkill):
             await asyncio.to_thread(socket.create_connection, ("8.8.8.8", 53), 3)
             return True
         except Exception as e:
+            record_degradation('sovereign_network', e)
             logger.debug("Internet connectivity check failed: %s", e)
             return False
 

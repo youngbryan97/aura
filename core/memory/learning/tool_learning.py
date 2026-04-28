@@ -11,6 +11,7 @@ Integrates with:
   - MetaLearningEngine: task fingerprinting
   - SkillRouter: tool execution
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -215,6 +216,7 @@ class ToolLearningSystem:
                 json.dump(data, f, indent=2)
             os.replace(tmp, self._persist_path)  # Atomic rename
         except Exception as e:
+            record_degradation('tool_learning', e)
             logger.error("Failed to save tool learning data: %s", e)
 
     def _load(self):
@@ -240,6 +242,7 @@ class ToolLearningSystem:
                     )
                 logger.info("Loaded tool learning data: %d categories", len(self._records))
         except Exception as e:
+            record_degradation('tool_learning', e)
             logger.warning("Failed to load tool learning data: %s", e)
 
 

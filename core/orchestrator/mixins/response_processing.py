@@ -1,6 +1,7 @@
 """Response Processing Mixin for RobustOrchestrator.
 Extracts response finalization, reflexes, fast-path, and history recording logic.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
@@ -88,6 +89,7 @@ class ResponseProcessingMixin:
                 except Exception:
                     pass
         except Exception as _ground_err:
+            record_degradation('response_processing', _ground_err)
             logger.debug("Action grounding skipped: %s", _ground_err)
 
         # ── UNIFIED WILL: Identity alignment check on outgoing response ──
@@ -107,6 +109,7 @@ class ResponseProcessingMixin:
                 response = response.replace("I'm just a language model", "I'm Aura")
                 response = response.replace("I don't have opinions", "I have my own perspective")
         except Exception as _will_err:
+            record_degradation('response_processing', _will_err)
             logger.debug("Will finalization check degraded: %s", _will_err)
 
         # --- FIX A-3: Logic Gap Guard ---
@@ -181,6 +184,7 @@ class ResponseProcessingMixin:
                 event = "success" if response and response != "..." else "failure"
                 self.personality.respond_to_event(event, {"response": response, "origin": origin})
             except Exception as exc:
+                record_degradation('response_processing', exc)
                 logger.debug("Suppressed: %s", exc)
 
         # Hardened History Cap to prevent memory bloat
@@ -201,6 +205,7 @@ class ResponseProcessingMixin:
                     emotional_context=getattr(self.status, "emotions", {})
                 )
             except Exception as e:
+                record_degradation('response_processing', e)
                 logger.debug("Failed to record turn for continuous learning: %s", e)
 
         # Meta-Learning: Index Experience
@@ -229,6 +234,7 @@ class ResponseProcessingMixin:
                 try:
                     await self.cognition.record_interaction(message, response, domain="general")
                 except Exception as e:
+                    record_degradation('response_processing', e)
                     logger.warning("[Orchestrator] record_interaction skipped: %s", e)
             else:
                 logger.debug("[Orchestrator] CognitiveEngine has no record_interaction — skipping.")
@@ -370,6 +376,7 @@ class ResponseProcessingMixin:
                             followup_text[:60],
                         )
                 except Exception as e:
+                    record_degradation('response_processing', e)
                     logger.debug("Follow-up execution failed: %s", e)
 
             self._fire_and_forget(
@@ -427,6 +434,7 @@ class ResponseProcessingMixin:
                      origin=f"recovery_{origin}"
                  )
              except Exception as e:
+                 record_degradation('response_processing', e)
                  logger.error("❌ [RECOVERY] Reactive downshift failed: %s", e)
 
     def _record_message_in_history(self, message: str, role_or_origin: str):
@@ -538,6 +546,7 @@ class ResponseProcessingMixin:
                     )
                     return None
             except Exception as exc:
+                record_degradation('response_processing', exc)
                 logger.debug("Direct reflex authority gate failed: %s", exc)
             try:
                 from core.unified_action_log import get_action_log
@@ -554,6 +563,7 @@ class ResponseProcessingMixin:
             mycelium.reinforce(pw.pathway_id, success=True)
             return result
         except Exception as e:
+            record_degradation('response_processing', e)
             logger.error("Mycelial shortcut execution failed: %s", e)
             mycelium.reinforce(pw.pathway_id, success=False)
             return None
@@ -574,6 +584,7 @@ class ResponseProcessingMixin:
                     is_user_facing=origin in ("user", "voice", "admin"),
                 )
             except Exception as exc:
+                record_degradation('response_processing', exc)
                 logger.debug("Fast-path response contract skipped: %s", exc)
 
         analysis = analyze_turn(message)
@@ -607,6 +618,7 @@ class ResponseProcessingMixin:
                 logger.info("🛑 Fast-path BLOCKED by authority gateway: %s", reason)
                 return None  # Fall through to full agentic loop
         except Exception as e:
+            record_degradation('response_processing', e)
             logger.debug("Authority gate check failed in fast-path (allowing): %s", e)
 
         logger.info("🏎️ FAST-PATH: Authority-approved simple response.")
@@ -642,6 +654,7 @@ class ResponseProcessingMixin:
                 hot_mem = await self.memory.get_hot_memory(limit=5)
                 hot_mem_str = str(hot_mem)
             except Exception as e:
+                record_degradation('response_processing', e)
                 capture_and_log(e, {'module': __name__})
 
         if hot_mem_str:
@@ -712,6 +725,7 @@ class ResponseProcessingMixin:
                 logger.info("⚡ VORTEX OVERRIDE: High Memory (%s%%) - Forcing Fast-Path for performance.", mem.percent)
                 return True
         except Exception as e:
+            record_degradation('response_processing', e)
             logger.debug('Exception caught during execution: %s', e)
 
         msg_lower = message.lower()

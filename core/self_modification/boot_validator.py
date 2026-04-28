@@ -1,6 +1,7 @@
 """GhostBoot: Shadow Boot-Path Validation
 Verifies that Aura can still initialize after code modifications.
 """
+from core.runtime.errors import record_degradation
 import os
 import sys
 import subprocess
@@ -86,6 +87,7 @@ class GhostBootValidator:
                 return False, f"Boot failure: {error_msg}"
 
         except Exception as e:
+            record_degradation('boot_validator', e)
             logger.error("Ghost Boot execution error: %s", e)
             return False, str(e)
         finally:
@@ -96,11 +98,13 @@ class GhostBootValidator:
                     elif overlay_target.exists():
                         overlay_target.unlink()
                 except Exception as e:
+                    record_degradation('boot_validator', e)
                     logger.debug("Failed to restore ghost boot overlay: %s", e)
             if boot_script.exists():
                 try:
                     boot_script.unlink()
                 except Exception as e:
+                    record_degradation('boot_validator', e)
                     logger.debug("Failed to unlink ghost boot script: %s", e)
 
     def _create_minimal_boot_script(self, script_path: Path):

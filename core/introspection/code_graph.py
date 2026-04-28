@@ -17,6 +17,7 @@ Usage:
     graph.dependents_of("core/affect/damasio_v2.py")
     graph.search_symbols("phi")
 """
+from core.runtime.errors import record_degradation
 import ast
 import asyncio
 import logging
@@ -246,6 +247,7 @@ class CodeGraph:
             except SyntaxError:
                 self._stats["errors"] += 1
             except Exception as e:
+                record_degradation('code_graph', e)
                 self._stats["errors"] += 1
                 logger.debug("CodeGraph parse error in %s: %s", rel_path, e)
 

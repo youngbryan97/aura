@@ -10,6 +10,7 @@ Design principles:
   3. Cost-aware: Tracks estimated costs per request
   4. Graceful fallback: If cloud fails, queue for local
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -134,6 +135,7 @@ class ComputeRouter:
                 estimated_cost_usd=0.0,
             )
         except Exception as e:
+            record_degradation('compute_router', e)
             logger.debug("Local inference failed: %s", e)
             return InferenceResult(error=f"Local: {e}")
 

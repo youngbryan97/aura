@@ -6,6 +6,7 @@ The brain is a prediction machine. It constantly generates expectations about th
 Minimizing surprise is the core drive of the system.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 from dataclasses import dataclass, field
@@ -67,6 +68,7 @@ class PredictiveEngine:
                 elif action_type == "apply_fix":
                     prediction.expected_changes["strong"] = current_summary.get("strong", 0) + 1
             except Exception as e:
+                record_degradation('predictive_engine', e)
                 logger.debug("World model prediction failed: %s", e)
 
         # Substrate prediction (momentum heuristic)
@@ -185,6 +187,7 @@ class PredictiveEngine:
             if fe and hasattr(fe, "accept_surprise_signal"):
                 fe.accept_surprise_signal(surprise)
         except Exception as e:
+            record_degradation('predictive_engine', e)
             logger.debug("accept_feedback → free_energy_engine: %s", e)
 
     def get_context_block(self) -> str:

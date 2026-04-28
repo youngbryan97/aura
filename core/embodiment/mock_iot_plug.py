@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import aiohttp
 import asyncio
 import logging
@@ -41,6 +42,7 @@ class RestSmartPlug(BaseHardwareDevice):
                         self.is_connected = True
                         return True
         except Exception as e:
+            record_degradation('mock_iot_plug', e)
             logger.error("❌ Failed to connect to IoT endpoint %s: %s", self.endpoint_url, e)
             return False
 
@@ -61,6 +63,7 @@ class RestSmartPlug(BaseHardwareDevice):
                         self.power_state = data.get("state") == "on"
                         self.current_draw_watts = float(data.get("power_draw_watts", 0.0))
         except Exception as e:
+            record_degradation('mock_iot_plug', e)
             logger.debug("IoT Status fetch failed, using cached state: %s", e)
             
         return {
@@ -100,5 +103,6 @@ class RestSmartPlug(BaseHardwareDevice):
                         logger.error("❌ [%s] Hardware dispatch failed with HTTP %d", self.device_name, resp.status)
                         return {"ok": False, "error": f"HTTP {resp.status}"}
         except Exception as e:
+            record_degradation('mock_iot_plug', e)
             logger.error("❌ [%s] Network failure instructing hardware: %s", self.device_name, e)
             return {"ok": False, "error": str(e)}

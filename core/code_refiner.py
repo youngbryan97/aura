@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import ast
@@ -90,6 +91,7 @@ class CodeRefinerService:
                                 ))
 
         except Exception as e:
+            record_degradation('code_refiner', e)
             logger.error(f"Failed to analyze {file_path}: {e}")
             
         return proposals

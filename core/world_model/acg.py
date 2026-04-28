@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -51,6 +52,7 @@ class ActionConsequenceGraph:
                 logger.warning("🚫 ACG write blocked: %s", reason)
                 return
         except Exception as exc:
+            record_degradation('acg', exc)
             logger.debug("ACG constitutional gate skipped: %s", exc)
             runtime_live = bool(
                 getattr(ServiceContainer, "_registration_locked", False)
@@ -121,6 +123,7 @@ class ActionConsequenceGraph:
             with open(self.persist_path, "w") as f:
                 json.dump(self.links, f, indent=2)
         except Exception as e:
+            record_degradation('acg', e)
             logger.error("Failed to save ACG: %s", e)
 
     def _load(self):
@@ -130,6 +133,7 @@ class ActionConsequenceGraph:
                     self.links = json.load(f)
                 logger.info("Loaded %d causal links from disk", len(self.links))
         except Exception as e:
+            record_degradation('acg', e)
             logger.warning("Failed to load ACG: %s", e)
 
 # Global Instance

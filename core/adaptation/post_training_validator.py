@@ -18,6 +18,8 @@ Design principles:
     - Quarantined adapters are never deleted — only moved aside for review
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import json
@@ -560,6 +562,7 @@ class PostTrainingValidator:
                     logger.debug("Probe passed: %s (score: %.3f)", probe.name, result.score)
 
             except Exception as e:
+                record_degradation('post_training_validator', e)
                 logger.error("Probe execution error for '%s': %s", probe.name, e)
                 probe_results.append(ProbeResult(
                     probe_name=probe.name,
@@ -742,6 +745,7 @@ class PostTrainingValidator:
             )
             return None
         except Exception as e:
+            record_degradation('post_training_validator', e)
             logger.error("Failed to load model with adapter: %s", e, exc_info=True)
             return None
 
@@ -758,6 +762,7 @@ class PostTrainingValidator:
                     messages, tokenize=False, add_generation_prompt=True,
                 )
         except Exception as _exc:
+            record_degradation('post_training_validator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Fallback: simple concatenation
@@ -775,6 +780,7 @@ class PostTrainingValidator:
             logger.error("Model generation timed out for prompt: %s", user_prompt[:80])
             return ""
         except Exception as e:
+            record_degradation('post_training_validator', e)
             logger.error("Generation error: %s", e)
             return ""
 
@@ -816,6 +822,7 @@ class PostTrainingValidator:
                 "Adapter quarantined: %s -> %s", adapter_path, quarantine_dest
             )
         except Exception as e:
+            record_degradation('post_training_validator', e)
             logger.error("Failed to move adapter to quarantine: %s", e)
             return self.quarantine_dir
 
@@ -837,6 +844,7 @@ class PostTrainingValidator:
                 with open(str(quarantine_dest) + "_manifest.json", "w") as f:
                     json.dump(manifest, f, indent=2)
         except Exception as e:
+            record_degradation('post_training_validator', e)
             logger.warning("Could not write quarantine manifest: %s", e)
 
         # Restore previous known-good adapter
@@ -876,6 +884,7 @@ class PostTrainingValidator:
                     backup_ref.symlink_to(previous_target)
                     logger.info("Previous active adapter backed up: %s", previous_target)
                 except Exception as e:
+                    record_degradation('post_training_validator', e)
                     logger.warning("Could not back up previous adapter ref: %s", e)
 
                 active_link.unlink()
@@ -889,6 +898,7 @@ class PostTrainingValidator:
             return True
 
         except Exception as e:
+            record_degradation('post_training_validator', e)
             logger.error("Failed to promote adapter: %s", e)
             return False
 
@@ -908,6 +918,7 @@ class PostTrainingValidator:
                     active_link.unlink()
                     logger.info("Active adapter link removed — falling back to base model.")
                 except Exception as e:
+                    record_degradation('post_training_validator', e)
                     logger.error("Failed to remove active adapter link: %s", e)
             return
 
@@ -927,6 +938,7 @@ class PostTrainingValidator:
             logger.info("Previous adapter restored as active: %s", previous_target)
 
         except Exception as e:
+            record_degradation('post_training_validator', e)
             logger.error("Failed to restore previous adapter: %s", e)
 
     # ── Logging ──────────────────────────────────────────────────────────────
@@ -942,6 +954,7 @@ class PostTrainingValidator:
                 json.dump(result.to_dict(), f, indent=2)
             logger.info("Validation log written: %s", log_file)
         except Exception as e:
+            record_degradation('post_training_validator', e)
             logger.error("Failed to write validation log: %s", e)
 
     # ── Utility ──────────────────────────────────────────────────────────────

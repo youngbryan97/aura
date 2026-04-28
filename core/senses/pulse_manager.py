@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import os
@@ -97,6 +98,7 @@ class PulseManager:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('pulse_manager', e)
                 logger.debug("Audio pulse error: %s", e)
 
     async def _vision_pulse_loop(self):
@@ -124,6 +126,7 @@ class PulseManager:
                                 try:
                                     soma.update_sensory_imprint("vision", description)
                                 except Exception as soma_err:
+                                    record_degradation('pulse_manager', soma_err)
                                     logger.debug("Soma update failed: %s", soma_err)
                             
                             await self._process_visual_stimulus(description)
@@ -133,6 +136,7 @@ class PulseManager:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('pulse_manager', e)
                 logger.debug("Vision pulse error: %s", e)
 
     async def _system_pulse_loop(self):
@@ -155,6 +159,7 @@ class PulseManager:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('pulse_manager', e)
                 logger.debug("System pulse error: %s", e)
 
     async def _distributed_pulse_loop(self):
@@ -178,6 +183,7 @@ class PulseManager:
         try:
             listen_sock.bind(('', port))
         except Exception as e:
+            record_degradation('pulse_manager', e)
             logger.warning("Could not bind to pulse port %d: %s", port, e)
             return
         listen_sock.setblocking(False)
@@ -223,6 +229,7 @@ class PulseManager:
                         except (BlockingIOError, socket.error):
                             break
                         except Exception as e:
+                            record_degradation('pulse_manager', e)
                             logger.debug("Error receiving peer pulse: %s", e)
                             break
 
@@ -238,6 +245,7 @@ class PulseManager:
                 except asyncio.CancelledError:
                     break
         except Exception as e:
+            record_degradation('pulse_manager', e)
             logger.debug("Distributed pulse cycle error: %s", e)
             await asyncio.sleep(5)
         finally:

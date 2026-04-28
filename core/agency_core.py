@@ -26,6 +26,7 @@ Human Agency Aspects Modeled:
   - Embodied presence (camera/mic awareness)
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 from core.agency.canvas_manager import CanvasManager
@@ -78,6 +79,7 @@ class SovereignSwarm:
         try:
             get_task_tracker().create_task(get_registry().update(active_shards=len(self.active_shards)))
         except Exception as e:
+            record_degradation('agency_core', e)
             from core.utils.exceptions import capture_and_log
             capture_and_log(e, {"context": "AgencyCore.spawn_shard"})
             
@@ -234,6 +236,7 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                     crucible = get_crucible()
                     get_task_tracker().create_task(crucible.run_crucible(concept=output_text, context=goal))
                 except Exception as e:
+                    record_degradation('agency_core', e)
                     identity = ServiceContainer.get("identity", default=None)
                     if identity:
                         identity.add_insight(
@@ -248,6 +251,7 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                 if h: h.pulse(success=True)
                 
         except Exception as e:
+            record_degradation('agency_core', e)
             from core.utils.exceptions import capture_and_log
             capture_and_log(e, {'module': 'SovereignSwarm', 'goal': goal})
 
@@ -433,6 +437,7 @@ class AgencyCore:
                         logger.debug("👀 Spatial Empathy: Screen read returned empty/irrelevant context.")
                         
                 except Exception as e:
+                    record_degradation('agency_core', e)
                     logger.error("👀 Spatial Empathy Failed: %s", e)
 
         # Register handler with GWT
@@ -485,6 +490,7 @@ class AgencyCore:
                     )
                 return None
         except Exception as _vexc:
+            record_degradation('agency_core', _vexc)
             logger.debug("viability gate skipped: %s", _vexc)
 
         # Sync state from orchestrator subsystems
@@ -509,6 +515,7 @@ class AgencyCore:
                 if action:
                     proposed_actions.append(action)
             except Exception as e:
+                record_degradation('agency_core', e)
                 logger.debug("Agency pathway %s failed: %s", name, e)
                 # Individual pathway failure does NOT kill agency
                 continue
@@ -566,6 +573,7 @@ class AgencyCore:
                                 else:
                                     virtual_body.__dict__.update(snapshot)
                             except Exception as _e:
+                                record_degradation('agency_core', _e)
                                 logger.debug("virtual_body restore failed: %s", _e)
 
             # Phase 40: ResilienceEngine veto is *causal*. If the effort
@@ -621,6 +629,7 @@ class AgencyCore:
                     curiosity_pressure=self.state.curiosity_pressure,
                 ))
             except Exception as e:
+                record_degradation('agency_core', e)
                 capture_and_log(e, {"context": "AgencyCore.InnerMonologueThink"})
                 
             # Trigger Continuous Self-Play (Phase 13.4)
@@ -665,6 +674,7 @@ class AgencyCore:
             
             get_task_tracker().create_task(self.phenomenology.reflect(pad, recent_events))
         except Exception as e:
+            record_degradation('agency_core', e)
             logger.debug("Failed to trigger phenomenology pulse: %s", e)
 
     def heartbeat(self) -> None:
@@ -703,6 +713,7 @@ class AgencyCore:
                     self.state.curiosity_pressure = getattr(curr, 'curiosity', 0.5)
                     self.state.frustration_level = getattr(curr, 'frustration', 0.0)
         except Exception as e:
+            record_degradation('agency_core', e)
             logger.debug("Failed to sync agency state: %s", e)
         
         try:
@@ -716,6 +727,7 @@ class AgencyCore:
             else:
                 logger.debug("🧠 AgencyCore: Personality engine traits unavailable for modulation.")
         except Exception as e:
+            record_degradation('agency_core', e)
             logger.debug("Failed to sync personality_engine: %s", e)
 
     def _update_social_dynamics(self, idle_seconds: float):
@@ -735,6 +747,7 @@ class AgencyCore:
                 jitter = entropy.get_curiosity_jitter(intensity=1.0)
                 increment = max(0.0, 0.00005 + jitter)  # Base + jitter, clamped non-negative
             except Exception as e:
+                record_degradation('agency_core', e)
                 # capture_and_log is in core.utils.exceptions
                 from core.utils.exceptions import capture_and_log
                 capture_and_log(e, {"context": "AgencyCore.update_social_dynamics.entropy"})
@@ -846,9 +859,11 @@ class AgencyCore:
                     context={"reason": reason},
                 )
             except Exception as degraded_exc:
+                record_degradation('agency_core', degraded_exc)
                 logger.debug("AgencyCore degraded-event logging failed: %s", degraded_exc)
             return False
         except Exception as exc:
+            record_degradation('agency_core', exc)
             try:
                 from core.health.degraded_events import record_degraded_event
 
@@ -862,6 +877,7 @@ class AgencyCore:
                     exc=exc,
                 )
             except Exception as degraded_exc:
+                record_degradation('agency_core', degraded_exc)
                 logger.debug("AgencyCore degraded-event logging failed: %s", degraded_exc)
             return False
     
@@ -1025,6 +1041,7 @@ class AgencyCore:
                     idx = int(seed * len(sparse)) % len(sparse)
                     topic = f"Explore and deepen my understanding of: {sparse[idx][:100]}"
         except Exception as e:
+            record_degradation('agency_core', e)
             capture_and_log(e, {'module': __name__})
         
         if not topic:
@@ -1095,6 +1112,7 @@ class AgencyCore:
                 if sparse:
                     topic = random.choice(sparse)[:100]
         except Exception as e:
+            record_degradation('agency_core', e)
             capture_and_log(e, {'module': __name__})
             
         if not topic:
@@ -1128,6 +1146,7 @@ class AgencyCore:
                     "priority": 0.1
                 }
         except Exception as e:
+            record_degradation('agency_core', e)
             logger.debug("Goal audit failed (continuing with caution): %s", e)
 
         # 1. Goal Scoring: Align with Ego-Model
@@ -1647,6 +1666,7 @@ class AgencyCore:
                 recent = kg.get_recent_nodes(limit=5, type="interest")
                 interests = [n.get("content", "") for n in (recent or [])]
         except Exception as e:
+            record_degradation('agency_core', e)
             capture_and_log(e, {"context": "AgencyCore.update_world_knowledge.knowledge_graph"})
             interests = []
 
@@ -1659,6 +1679,7 @@ class AgencyCore:
                 hypha = mycelium.get_hypha("agency", "internet")
                 if hypha: hypha.pulse(success=True)
         except Exception as e:
+            record_degradation('agency_core', e)
             capture_and_log(e, {'module': __name__})
         
         return {
@@ -1695,6 +1716,7 @@ class AgencyCore:
 
             targeted_initiatives = _derive_initiatives_from_audit()
         except Exception as exc:
+            record_degradation('agency_core', exc)
             logger.debug("Self-development audit targeting unavailable: %s", exc)
 
         if targeted_initiatives:
@@ -1819,6 +1841,7 @@ class AgencyCore:
                 if last_user and (now - last_user) < 300.0:
                     return None
         except Exception as _exc:
+            record_degradation('agency_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         if self.state.curiosity_pressure < 0.7:
             return None
@@ -1879,6 +1902,7 @@ class AgencyCore:
                         )
                         logger.info("Spawning background shard for Creative Canvas update.")
         except Exception as e:
+            record_degradation('agency_core', e)
             logger.debug("Creative canvas evaluation failed: %s", e)
 
         if self.state.curiosity_pressure < 0.8 or self.state.initiative_energy < 0.6:

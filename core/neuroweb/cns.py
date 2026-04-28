@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -128,6 +129,7 @@ class CentralNervousSystem:
             except asyncio.TimeoutError:
                 logger.debug("CNS: GW competition timed out - proceeding with stimulus.")
             except Exception as e:
+                record_degradation('cns', e)
                 logger.error("CNS GW bottleneck error: %s", e)
 
         # 3. Forge Synapse (via GlueFactory - now using semantic search)

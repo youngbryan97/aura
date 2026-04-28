@@ -9,6 +9,7 @@ Integrates with:
   - ReliabilityTracker: records tool outcomes alongside episodes
   - BeliefGraph: episodes can update beliefs
 """
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import json
@@ -202,6 +203,7 @@ class EpisodicMemory:
                 conn.execute("PRAGMA wal_checkpoint(FULL)")
                 conn.commit()
             except Exception as checkpoint_exc:
+                record_degradation('episodic_memory', checkpoint_exc)
                 logger.debug("EpisodicMemory WAL checkpoint skipped after init: %s", checkpoint_exc)
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -306,6 +308,7 @@ class EpisodicMemory:
                 return approved, decision
             return approved
         except Exception as exc:
+            record_degradation('episodic_memory', exc)
             if self._constitutional_runtime_live():
                 record_degraded_event(
                     "episodic_memory",
@@ -390,6 +393,7 @@ class EpisodicMemory:
             if qualia:
                 qualia_snapshot = qualia.get_qualia_for_memory()
         except Exception as e:
+            record_degradation('episodic_memory', e)
             capture_and_log(e, {'module': __name__})
 
         tools = tools_used or []
@@ -444,6 +448,7 @@ class EpisodicMemory:
                                 },
                             )
                         except Exception as e:
+                            record_degradation('episodic_memory', e)
                             logger.warning("Failed to index episode in vector memory: %s", e)
 
                     self._maybe_prune()
@@ -490,6 +495,7 @@ class EpisodicMemory:
                             },
                         )
                     except Exception as e:
+                        record_degradation('episodic_memory', e)
                         logger.warning("Failed to index episode in vector memory: %s", e)
                 self._maybe_prune()
 
@@ -585,6 +591,7 @@ class EpisodicMemory:
                 # In 2026 Aura, we assume event bus is non-blocking or we spawn task
                     
         except Exception as e:
+            record_degradation('episodic_memory', e)
             logger.error("Consolidation failed: %s", e)
         
         return {"pruned": pruned, "boosted": boosted}
@@ -653,6 +660,7 @@ class EpisodicMemory:
                                 }
                             )
                     except Exception as store_err:
+                        record_degradation('episodic_memory', store_err)
                         logger.debug("Episodic compaction: vector store skipped: %s", store_err)
 
                     # Delete compacted episodes
@@ -668,6 +676,7 @@ class EpisodicMemory:
                 logger.info("Episodic compaction: %d weak episodes compressed to semantic summary.", compacted)
 
         except Exception as e:
+            record_degradation('episodic_memory', e)
             logger.error("Episodic compaction failed: %s", e)
 
         return {"compacted": compacted}
@@ -723,6 +732,7 @@ class EpisodicMemory:
                             seen_ids.add(ep.episode_id)
                             combined.append(ep)
             except Exception as e:
+                record_degradation('episodic_memory', e)
                 logger.debug("Vector recall failed: %s", e)
 
         # 2. Keyword search only when vector recall is insufficient or the user
@@ -735,6 +745,7 @@ class EpisodicMemory:
                         seen_ids.add(ep.episode_id)
                         combined.append(ep)
             except Exception as e:
+                record_degradation('episodic_memory', e)
                 logger.debug("Keyword recall failed: %s", e)
 
         # 3. Sort by importance + recency blend
@@ -767,6 +778,7 @@ class EpisodicMemory:
 
             episodes.sort(key=congruence_score, reverse=True)
         except Exception as e:
+            record_degradation('episodic_memory', e)
             capture_and_log(e, {'module': __name__})
         return episodes
 
@@ -1013,10 +1025,12 @@ class EpisodicMemory:
                     try:
                         self._vector_memory.delete_memories(filter_metadata={"episode_id": episode_ids})
                     except Exception as e:
+                        record_degradation('episodic_memory', e)
                         logger.debug("Vector deletion failed during episode prune: %s", e)
                 
                 logger.info("🗑️ Deleted %d episodes from storage.", len(episode_ids))
             except Exception as e:
+                record_degradation('episodic_memory', e)
                 logger.error("Failed to delete episodes: %s", e)
 
 

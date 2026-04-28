@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import time
@@ -82,6 +83,7 @@ async def main():
         print("-" * 30)
         print("🏆 FINAL VERDICT: 10/10 PERFORMANCE COMPLIANCE")
     except Exception as e:
+        record_degradation('zenith_v2_benchmark', e)
         print(f"❌ Benchmark failed: {e}")
         import traceback
         traceback.print_exc()

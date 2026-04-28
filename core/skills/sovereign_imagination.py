@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -67,6 +68,7 @@ class SovereignImaginationSkill(BaseSkill):
             logger.info("✅ FLUX.1-schnell loaded successfully.")
             return True
         except Exception as e:
+            record_degradation('sovereign_imagination', e)
             logger.error(f"Model load failed: {e}")
             return False
 
@@ -75,6 +77,7 @@ class SovereignImaginationSkill(BaseSkill):
             try:
                 params = ImageInput(**params)
             except Exception as e:
+                record_degradation('sovereign_imagination', e)
                 return {"ok": False, "error": f"Invalid parameters: {e}"}
 
         if not self._load_model():
@@ -123,6 +126,7 @@ class SovereignImaginationSkill(BaseSkill):
             }
 
         except Exception as e:
+            record_degradation('sovereign_imagination', e)
             logger.error(f"Generation failed: {e}")
             return {"ok": False, "error": f"Generation failed: {e}"}
 

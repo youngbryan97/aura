@@ -15,6 +15,8 @@ Based on:
   - Attardo & Raskin (1991) — General Theory of Verbal Humor
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
@@ -195,6 +197,7 @@ class HumorEngine:
                          len(self._profiles),
                          sum(len(v) for v in self._attempts.values()))
         except Exception as e:
+            record_degradation('humor_engine', e)
             logger.warning("HumorEngine: load failed (%s), starting fresh", e)
 
     def _save(self):
@@ -213,6 +216,7 @@ class HumorEngine:
                 json.dump(payload, f, indent=2)
             os.replace(tmp, self._data_path)
         except Exception as e:
+            record_degradation('humor_engine', e)
             logger.error("HumorEngine: save failed: %s", e)
 
     # ── Recording ────────────────────────────────────────────────────────
@@ -653,6 +657,7 @@ class HumorEngine:
             if top:
                 return top[0].reference
         except Exception as _exc:
+            record_degradation('humor_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return ""
 
@@ -689,6 +694,7 @@ def register_humor_engine() -> None:
         )
         logger.info("HumorEngine registered in ServiceContainer.")
     except Exception as e:
+        record_degradation('humor_engine', e)
         logger.error("Failed to register HumorEngine: %s", e, exc_info=True)
 
 
@@ -706,6 +712,7 @@ def get_humor_engine() -> HumorEngine:
         try:
             _instance = ServiceContainer.get("humor_engine", default=None)
         except Exception as _exc:
+            record_degradation('humor_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     if _instance is None:
@@ -715,5 +722,6 @@ def get_humor_engine() -> HumorEngine:
                 try:
                     ServiceContainer.register_instance("humor_engine", _instance)
                 except Exception as e:
+                    record_degradation('humor_engine', e)
                     logger.warning("Failed to register HumorEngine in container: %s", e)
     return _instance

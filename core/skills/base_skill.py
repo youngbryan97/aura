@@ -9,6 +9,7 @@ All Aura skills inherit from this class. It provides:
   - Metabolic cost tagging for resource management
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -203,6 +204,7 @@ class BaseSkill(ABC):
             try:
                 params = self.input_model(**params)
             except Exception as e:
+                record_degradation('base_skill', e)
                 return self._error_result(
                     f"Invalid input: {e}",
                     time.monotonic() - start
@@ -245,6 +247,7 @@ class BaseSkill(ABC):
                 logger.warning("🔒 Skill '%s' permission denied: %s", self.name, e)
 
             except Exception as e:
+                record_degradation('base_skill', e)
                 error_class = self._classify_error(e)
                 last_err = e
                 if error_class == "permanent":

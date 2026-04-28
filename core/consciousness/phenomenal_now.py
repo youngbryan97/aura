@@ -31,6 +31,7 @@ DESIGN INVARIANTS:
   memory growth.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 from collections import deque
@@ -349,6 +350,7 @@ class PhenomenalNowEngine:
             ), True
 
         except Exception as e:
+            record_degradation('phenomenal_now', e)
             logger.debug("Workspace pull failed: %s", e)
             return WorkspaceSummary(), False
 
@@ -379,6 +381,7 @@ class PhenomenalNowEngine:
             ), True
 
         except Exception as e:
+            record_degradation('phenomenal_now', e)
             logger.debug("Attention pull failed: %s", e)
             return AttentionSummary(), False
 
@@ -422,6 +425,7 @@ class PhenomenalNowEngine:
                     em_coherence = float(min(1.0, substrate.em_field_magnitude))
                 any_source = True
         except Exception as e:
+            record_degradation('phenomenal_now', e)
             logger.debug("Substrate pull failed: %s", e)
 
         # ── Affect module ─────────────────────────────────────────────
@@ -434,6 +438,7 @@ class PhenomenalNowEngine:
                     dominant_emotion = affect_module.dominant_emotion
                 any_source = True
         except Exception as e:
+            record_degradation('phenomenal_now', e)
             logger.debug("Affect module pull failed: %s", e)
 
         # ── Damasio markers (somatic detail) ──────────────────────────
@@ -461,6 +466,7 @@ class PhenomenalNowEngine:
                     secondary_emotion = sorted_emotions[1][0]
                 any_source = True
         except Exception as e:
+            record_degradation('phenomenal_now', e)
             logger.debug("Damasio markers pull failed: %s", e)
 
         # ── Drives ────────────────────────────────────────────────────
@@ -475,6 +481,7 @@ class PhenomenalNowEngine:
                     drive_urgency = float(drives.urgency)
                 any_source = True
         except Exception as e:
+            record_degradation('phenomenal_now', e)
             logger.debug("Drives pull failed: %s", e)
 
         # ── Derived fields ────────────────────────────────────────────
@@ -556,6 +563,7 @@ class PhenomenalNowEngine:
             if substrate is not None and hasattr(substrate, "start_time") and substrate.start_time > 0:
                 time_since_start = now - substrate.start_time
         except Exception as _exc:
+            record_degradation('phenomenal_now', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Temporal phrase (same logic as TemporalAnchor.temporal_phrase)
@@ -814,6 +822,7 @@ class PhenomenalNowEngine:
         try:
             ServiceContainer.register_instance("phenomenal_now", now, required=False)
         except Exception as e:
+            record_degradation('phenomenal_now', e)
             logger.debug("Failed to publish phenomenal_now to ServiceContainer: %s", e)
 
         # 2. Update AuraState
@@ -826,6 +835,7 @@ class PhenomenalNowEngine:
                     state.phi = now.quality.phi
                     state.phi_estimate = now.quality.phi
         except Exception as e:
+            record_degradation('phenomenal_now', e)
             logger.debug("Failed to update AuraState phenomenal_state: %s", e)
 
 

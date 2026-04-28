@@ -4,6 +4,7 @@ Analyzes errors, locates the source file, reads the code, asks the LLM
 for a targeted fix, and saves a repair proposal. Integrates with the
 learning system to remember what worked.
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import logging
 import re
@@ -69,6 +70,7 @@ class SelfRepairSkill(BaseSkill):
         try:
             source_code = Path(target_path).read_text(errors="replace")
         except Exception as e:
+            record_degradation('self_repair', e)
             return {"ok": False, "error": f"Could not read {target_path}: {e}"}
 
         # 3. Get the LLM to diagnose and propose a fix
@@ -97,6 +99,7 @@ class SelfRepairSkill(BaseSkill):
             result = await brain.think(prompt, mode=ThinkingMode.CRITICAL)
             fix_content = getattr(result, "content", str(result))
         except Exception as e:
+            record_degradation('self_repair', e)
             return {"ok": False, "error": f"Diagnosis failed: {e}"}
 
         # 4. Check for dependency requirements

@@ -1,4 +1,5 @@
 # core/brain/execution.py
+from core.runtime.errors import record_degradation
 import asyncio
 import time
 from typing import Callable, Any, Optional, Dict
@@ -55,6 +56,7 @@ class ExecutionManager:
                 last_err = "timeout"
                 self.trace.log({"type": "execution_timeout", "action": action_name, "attempt": attempt, "timeout": timeout})
             except Exception as e:
+                record_degradation('execution', e)
                 last_err = str(e)
                 self.trace.log({"type": "execution_exception", "action": action_name, "attempt": attempt, "error": last_err})
             # retry backoff

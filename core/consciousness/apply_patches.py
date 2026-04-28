@@ -5,6 +5,8 @@ live natively in their primary modules. This entry point remains so older boot
 paths can keep calling it safely; it only starts the loop monitor.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import logging
@@ -29,6 +31,7 @@ def apply_consciousness_patches(orchestrator: Any) -> None:
         monitor.start()
         orchestrator.loop_monitor = monitor
     except Exception as exc:
+        record_degradation('apply_patches', exc)
         logger.error("ConsciousnessPatches: loop monitor failed — %s", exc, exc_info=True)
 
     orchestrator._consciousness_patches_applied = True

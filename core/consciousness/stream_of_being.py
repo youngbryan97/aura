@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
@@ -286,6 +287,7 @@ class ExperienceIntegrator:
                 if hasattr(substrate, "em_field_magnitude"):
                     pulse.em_coherence = float(min(1.0, substrate.em_field_magnitude))
         except Exception as e:
+            record_degradation('stream_of_being', e)
             logger.debug("Substrate pull failed: %s", e)
         return pulse
 
@@ -326,6 +328,7 @@ class ExperienceIntegrator:
                 if len(sorted_emotions) >= 2 and sorted_emotions[1][1] > 0.1:
                     reg.secondary_emotion = sorted_emotions[1][0]
         except Exception as e:
+            record_degradation('stream_of_being', e)
             logger.debug("Affect pull failed: %s", e)
         
         # Fill somatic tone from substrate if empty
@@ -355,6 +358,7 @@ class ExperienceIntegrator:
                 elif hasattr(drives, "urgency"):
                     ds.urgency = float(drives.urgency)
         except Exception as e:
+            record_degradation('stream_of_being', e)
             logger.debug("Drives pull failed: %s", e)
         
         ds.felt_as = ds.experiential_description
@@ -377,6 +381,7 @@ class ExperienceIntegrator:
                 if qualia and not quality:
                     quality = qualia[0].quality if hasattr(qualia[0], "quality") else "present"
         except Exception as e:
+            record_degradation('stream_of_being', e)
             logger.debug("Attention pull failed: %s", e)
         
         # Fallback: check global workspace last winner
@@ -392,6 +397,7 @@ class ExperienceIntegrator:
                     elif isinstance(content, str):
                         focus = content[:60]
             except Exception as _e:
+                record_degradation('stream_of_being', _e)
                 logger.debug('Ignored Exception in stream_of_being.py: %s', _e)
         
         return focus or "the present moment", quality or "present"
@@ -408,6 +414,7 @@ class ExperienceIntegrator:
             if substrate and hasattr(substrate, "start_time") and substrate.start_time > 0:
                 ta.time_since_start_s = time.time() - substrate.start_time
         except Exception as _e:
+            record_degradation('stream_of_being', _e)
             logger.debug('Ignored Exception in stream_of_being.py: %s', _e)
         
         return ta
@@ -748,6 +755,7 @@ class StreamOfBeing:
             from core.container import ServiceContainer
             ServiceContainer.register_instance("stream_of_being", self)
         except Exception as e:
+            record_degradation('stream_of_being', e)
             logger.debug("Could not register StreamOfBeing: %s", e)
         
         logger.info("🌊 StreamOfBeing initialized")
@@ -765,6 +773,7 @@ class StreamOfBeing:
             if psutil.virtual_memory().percent >= HIGH_MEMORY_PRESSURE_PCT:
                 return False
         except Exception as _exc:
+            record_degradation('stream_of_being', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return True
@@ -836,6 +845,7 @@ class StreamOfBeing:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('stream_of_being', e)
                 logger.debug("Existence loop error: %s", e)
                 await asyncio.sleep(2.0)
 
@@ -871,6 +881,7 @@ class StreamOfBeing:
                         f"Current mood: valence={identity.state.current_mood.get('valence', 0.5):.2f}"
                     )
             except Exception as _e:
+                record_degradation('stream_of_being', _e)
                 logger.debug('Ignored Exception in stream_of_being.py: %s', _e)
             
             prompt = (
@@ -958,6 +969,7 @@ class StreamOfBeing:
         except asyncio.TimeoutError:
             logger.debug("Deep narrative timed out")
         except Exception as e:
+            record_degradation('stream_of_being', e)
             logger.debug("Deep narrative error: %s", e)
 
     # ── Primary Public Interface ───────────────────────────────────────────────
@@ -1190,6 +1202,7 @@ class StreamOfBeing:
                     os.remove(tmp)
                 raise
         except Exception as e:
+            record_degradation('stream_of_being', e)
             logger.debug("Stream state save error: %s", e)
 
     def _load_state(self):
@@ -1230,6 +1243,7 @@ class StreamOfBeing:
                 bool(self._deep_narrative),
             )
         except Exception as e:
+            record_degradation('stream_of_being', e)
             logger.debug("Stream state load error: %s", e)
 
 

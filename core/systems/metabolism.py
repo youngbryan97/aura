@@ -7,6 +7,7 @@ Periodically scans the project tree and purges:
 Returns a report of bytes reclaimed and files removed.
 Runs as the first maintenance step in DreamerV2.engage_sleep_cycle().
 """
+from core.runtime.errors import record_degradation
 import logging
 import os
 import shutil
@@ -67,6 +68,7 @@ class MetabolismEngine:
             self._purge_waste(report)
             self._purge_stale_logs(report)
         except Exception as exc:
+            record_degradation('metabolism', exc)
             msg = f"Metabolism sweep error: {exc}"
             logger.error(msg, exc_info=True)
             report.errors.append(msg)
@@ -88,6 +90,7 @@ class MetabolismEngine:
                         report.bytes_reclaimed += size
                         dirnames.remove(dname)
                     except Exception as exc:
+                        record_degradation('metabolism', exc)
                         report.errors.append(f"rmdir {target}: {exc}")
             for fname in filenames:
                 fpath = dp / fname
@@ -98,6 +101,7 @@ class MetabolismEngine:
                         report.files_removed += 1
                         report.bytes_reclaimed += size
                     except Exception as exc:
+                        record_degradation('metabolism', exc)
                         report.errors.append(f"unlink {fpath}: {exc}")
 
     def _purge_stale_logs(self, report: PurgeReport) -> None:
@@ -115,6 +119,7 @@ class MetabolismEngine:
                             report.files_removed += 1
                             report.bytes_reclaimed += size
                     except Exception as exc:
+                        record_degradation('metabolism', exc)
                         report.errors.append(f"stale log {fpath}: {exc}")
 
     @staticmethod
@@ -125,5 +130,6 @@ class MetabolismEngine:
                 if entry.is_file():
                     total += entry.stat().st_size
         except Exception as exc:
+            record_degradation('metabolism', exc)
             logger.debug("Suppressed: %s", exc)
         return total

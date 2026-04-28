@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import ast
 import re
@@ -107,6 +108,7 @@ Expected Outcome:
             response = response.content
             return response
         except Exception as e:
+            record_degradation('expectation_engine', e)
             logger.error("Prediction failed: %s", e)
             return "Unknown"
 
@@ -137,6 +139,7 @@ Return ONLY the number.
                 return float(match.group(1))
             return 0.5 # Default uncertainty
         except Exception as e:
+            record_degradation('expectation_engine', e)
             logger.error("Surprise calc failed: %s", e)
             return 0.0
 
@@ -194,4 +197,5 @@ Return ONLY the pipes data, one per line.
                     belief_graph.update_belief(parts[0], parts[1], parts[2], confidence_score=confidence)
                     
         except Exception as e:
+            record_degradation('expectation_engine', e)
             logger.error("Belief update extraction failed: %s", e)

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -164,6 +165,7 @@ class SensoryMotorCortex:
 
             cap.release()
         except Exception as e:
+            record_degradation('sensory_motor_cortex', e)
             logger.error(f"Visual cortex exception: {e}")
 
     def _trigger_visual_cognition(self, frame_data):
@@ -322,6 +324,7 @@ class SensoryMotorCortex:
                 emit_thoughts=True,
             )
         except Exception as ef_err:
+            record_degradation('sensory_motor_cortex', ef_err)
             logger.debug("EpistemicFilter ingest failed: %s", ef_err)
 
         return semantic[:max_chars]
@@ -337,12 +340,14 @@ class SensoryMotorCortex:
                 self._playwright_fetch(query), timeout=20.0
             )
         except Exception as e:
+            record_degradation('sensory_motor_cortex', e)
             logger.debug("Playwright fetch failed (%s), trying requests fallback", e)
 
         # Fallback: lightweight requests
         try:
             return await asyncio.to_thread(self._requests_fetch, query)
         except Exception as e:
+            record_degradation('sensory_motor_cortex', e)
             logger.warning("Browser actuation fetch failed entirely: %s", e)
             return ""
 
@@ -411,6 +416,7 @@ class SensoryMotorCortex:
             parser.feed(resp.text)
             return " ".join(parser.snippets[:8])
         except Exception as e:
+            record_degradation('sensory_motor_cortex', e)
             logger.debug("requests_fetch failed: %s", e)
             return ""
 
@@ -445,5 +451,6 @@ class SensoryMotorCortex:
             )
             return result or raw_text[:1200]
         except Exception as e:
+            record_degradation('sensory_motor_cortex', e)
             logger.debug("Semantic parsing failed: %s", e)
             return raw_text[:1200]

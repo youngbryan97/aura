@@ -3,6 +3,8 @@ Deterministic classification gateway for all user inputs.
 Replaces the open-ended "Cognitive Engine" ReAct loop.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import logging
 import re
 from enum import Enum
@@ -90,6 +92,7 @@ class IntentRouter:
             if cap and hasattr(cap, "detect_intent"):
                 matched_skills = bool(cap.detect_intent(user_input))
         except Exception as exc:
+            record_degradation('router', exc)
             logger.debug("IntentRouter: capability pre-check failed: %s", exc)
 
         analysis = analyze_turn(user_input, matched_skills=matched_skills)

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import List, Dict, Any, Optional
@@ -67,5 +68,6 @@ class ParallelThoughtStream:
             
             return branches[:3]
         except Exception as e:
+            record_degradation('parallel_thought', e)
             logger.warning(f"Parallel thought branching failed: {e}")
             return []

@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import inspect
 import logging
@@ -106,6 +108,7 @@ async def queue_governed_initiative(
             if inspect.isawaitable(state):
                 state = await state
         except Exception as exc:
+            record_degradation('proposal_governance', exc)
             logger.debug("ProposalGovernance get_current failed: %s", exc)
             state = None
     if state is None:
@@ -129,6 +132,7 @@ async def queue_governed_initiative(
                 if inspect.isawaitable(result):
                     await result
             except Exception as exc:
+                record_degradation('proposal_governance', exc)
                 record_degraded_event(
                     "proposal_governance",
                     "state_commit_failed",

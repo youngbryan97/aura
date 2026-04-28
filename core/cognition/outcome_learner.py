@@ -13,6 +13,7 @@ These outcomes are fed back into:
   - Response style calibration
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import sqlite3
@@ -123,6 +124,7 @@ class OutcomeLearner:
                     )
                     conn.commit()
             except Exception as e:
+                record_degradation('outcome_learner', e)
                 logger.debug("Outcome recording failed: %s", e)
 
         if success:
@@ -168,6 +170,7 @@ class OutcomeLearner:
                         )
                     conn.commit()
             except Exception as e:
+                record_degradation('outcome_learner', e)
                 logger.debug("Strategy score update failed: %s", e)
 
     def record_metric(self, name: str, value: float, window_minutes: int = 60):
@@ -188,6 +191,7 @@ class OutcomeLearner:
                     )
                     conn.commit()
             except Exception as e:
+                record_degradation('outcome_learner', e)
                 logger.debug("Metric recording failed: %s", e)
 
     def get_success_rate(self, category: Optional[str] = None, hours: int = 24) -> float:

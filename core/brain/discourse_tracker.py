@@ -16,6 +16,7 @@ Register in ServiceContainer as "discourse_tracker".
 Call update(state, user_message) after each incoming message.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Optional
@@ -163,6 +164,7 @@ class DiscourseTracker:
                         state.cognition.user_emotional_trend = trend
 
         except Exception as e:
+            record_degradation('discourse_tracker', e)
             logger.debug("DiscourseTracker deep update failed: %s", e)
 
     # ── Public API ────────────────────────────────────────────────────────
@@ -180,6 +182,7 @@ class DiscourseTracker:
             try:
                 await self._deep_update(state, message)
             except Exception as e:
+                record_degradation('discourse_tracker', e)
                 logger.debug("DiscourseTracker async deep update failed: %s", e)
 
     def _record_unresolved_topic(self, topic: str, depth: int) -> None:
@@ -199,6 +202,7 @@ class DiscourseTracker:
                 discourse_depth=depth,
             )
         except Exception as e:
+            record_degradation('discourse_tracker', e)
             logger.debug("Failed to record unresolved topic tension: %s", e)
 
     def get_status(self) -> dict:

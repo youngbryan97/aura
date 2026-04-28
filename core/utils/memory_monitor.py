@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import psutil
@@ -65,6 +66,7 @@ class AppleSiliconMemoryMonitor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('memory_monitor', e)
                 logger.error(f"Memory monitor error: {e}")
                 await asyncio.sleep(5)
 

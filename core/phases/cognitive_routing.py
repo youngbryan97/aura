@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -184,6 +185,7 @@ class CognitiveRoutingPhase(BasePhase):
                         )
                         return new_state
         except Exception as exc:
+            record_degradation('cognitive_routing', exc)
             logger.debug("🧭 Routing: detect_intent fast path failed: %s", exc)
 
         # ── URL Auto-Detection ────────────────────────────────────────
@@ -293,6 +295,7 @@ class CognitiveRoutingPhase(BasePhase):
                 if cap and hasattr(cap, "detect_intent"):
                     new_state.response_modifiers["matched_skills"] = list(cap.detect_intent(input_text) or [])
             except Exception as exc:
+                record_degradation('cognitive_routing', exc)
                 logger.debug("🧭 Routing: matched_skills cache skipped: %s", exc)
         if not is_autonomous and routing_origin in user_origins:
             get_executive_authority().record_user_objective(
@@ -438,6 +441,7 @@ class CognitiveRoutingPhase(BasePhase):
                 return True
 
         except Exception as exc:
+            record_degradation('cognitive_routing', exc)
             logger.debug("Substrate routing check failed, falling back to keywords: %s", exc)
 
         # ── Keyword fallback (still useful for explicit requests) ──────

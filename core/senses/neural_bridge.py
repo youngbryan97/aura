@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import threading
@@ -205,8 +206,10 @@ class NeuralBridge:
                         else:
                             logger.debug("⚠️ [NEURAL] Main loop unavailable. Skipping broadcast.")
                     except Exception as loop_error:
+                        record_degradation('neural_bridge', loop_error)
                         logger.debug("Neural loop broadcast failure: %s", loop_error)
             except Exception as exc:
+                record_degradation('neural_bridge', exc)
                 logger.error("Neural loop error: %s", exc)
                 if self._stop_event.wait(timeout=1.0):
                     break

@@ -1,6 +1,7 @@
 """Dead Letter Queue (DLQ) Service
 Captures and analyzes failed cognitive cycles.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -57,6 +58,7 @@ class DeadLetterQueue:
                 os.fsync(f.fileno())
             logger.info("💀 DLQ: Captured cognitive failure (%s)", err_key)
         except Exception as e:
+            record_degradation('dlq_service', e)
             logger.error("Failed to write to DLQ: %s", e)
 
     def get_failure_report(self) -> Dict[str, Any]:

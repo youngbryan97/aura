@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import time
@@ -171,6 +173,7 @@ def background_activity_reason(
         if memory_pct >= max_memory_percent:
             return f"memory_pressure_{memory_pct:.1f}"
     except Exception as _exc:
+        record_degradation('background_policy', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
 
     try:
@@ -179,6 +182,7 @@ def background_activity_reason(
         if pressure >= max_failure_pressure:
             return f"failure_lockdown_{pressure:.2f}"
     except Exception as _exc:
+        record_degradation('background_policy', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
 
     orch = orchestrator
@@ -209,6 +213,7 @@ def background_activity_reason(
                 if not bool(lane.get("conversation_ready", False)):
                     return f"conversation_lane_{str(lane.get('state', 'unready') or 'unready').lower()}"
         except Exception as _exc:
+            record_degradation('background_policy', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     return ""

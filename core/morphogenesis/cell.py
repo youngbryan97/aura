@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import inspect
@@ -241,6 +243,7 @@ class MorphogenCell:
                 self.state.last_error = error
                 actions.append({"kind": "handler_timeout", "timeout_s": self.manifest.timeout_s})
             except Exception as exc:
+                record_degradation('cell', exc)
                 success = False
                 error = f"{type(exc).__name__}: {exc}"
                 self.state.last_error = error

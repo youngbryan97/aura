@@ -1,5 +1,6 @@
 """core/maintenance/dream_cycle.py — Memory Consolidation & Pruning.
 """
+from core.runtime.errors import record_degradation
 import logging
 import asyncio
 import time
@@ -33,6 +34,7 @@ async def run_dream_cycle():
             coordinator.checkpoint_wal()
             logger.info("  - WAL checkpoint completed.")
         except Exception as e:
+            record_degradation('dream_cycle', e)
             logger.debug("WAL checkpoint skipped: %s", e)
 
         logger.info("✓ Dream Cycle complete. System stability restored.")
@@ -42,7 +44,9 @@ async def run_dream_cycle():
             from core.thought_stream import get_emitter
             get_emitter().emit("Stability 🌙", "Dream cycle complete. Cognitive debt cleared.", level="info")
         except Exception as _exc:
+            record_degradation('dream_cycle', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
             
     except Exception as e:
+        record_degradation('dream_cycle', e)
         logger.error("Dream Cycle encountered an error: %s", e)

@@ -1,6 +1,7 @@
 """BootManager service for Aura - Full Extraction.
 Handles the procedural initialization of subsystems, decoupling the boot sequence from the core orchestrator.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -127,6 +128,7 @@ class BootManager:
             self.orchestrator.status.initialized = True
             return True
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.error("BOOT FAILED: %s", e, exc_info=True)
             self.orchestrator.status.add_error(str(e))
             self.orchestrator.status.initialized = False
@@ -153,6 +155,7 @@ class BootManager:
             watchdog.start()
             self.orchestrator._watchdog = watchdog
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.warning("Failed to initialize System Watchdog: %s", e)
 
     def _init_skill_system(self):
@@ -183,6 +186,7 @@ class BootManager:
             from core.brain.reasoning_queue import get_reasoning_queue
             self.orchestrator.reasoning_queue = get_reasoning_queue()
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.error("Senses init failed: %s", e)
 
     def _init_autonomous_evolution(self):
@@ -196,6 +200,7 @@ class BootManager:
             if config.security.auto_fix_enabled:
                 self.orchestrator.self_modifier.start_monitoring()
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.error("Self-mod failed: %s", e)
 
     def _init_metabolism(self):
@@ -205,6 +210,7 @@ class BootManager:
             monitor.start()
             ServiceContainer.register_instance("metabolic_monitor", monitor)
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.error("Metabolism init failed: %s", e)
 
     def _init_strategic_planning(self):
@@ -218,6 +224,7 @@ class BootManager:
             planner = StrategicPlanner(self.orchestrator.cognitive_engine, store)
             ServiceContainer.register_instance("strategic_planner", planner)
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.error("Strategy init failed: %s", e)
 
     async def _integrate_systems(self):
@@ -226,6 +233,7 @@ class BootManager:
             from core.master_moral_integration import integrate_complete_moral_and_sensory_systems
             integrate_complete_moral_and_sensory_systems(self.orchestrator)
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.error("Moral integration failed: %s", e)
 
         # Autonomic Core
@@ -234,6 +242,7 @@ class BootManager:
             core = AutonomicCore(self.orchestrator)
             ServiceContainer.register_instance("autonomic_core", core)
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.error("Autonomic Core failed: %s", e)
             
         # Advanced Cognition Layer
@@ -244,6 +253,7 @@ class BootManager:
             ServiceContainer.register_instance("cognitive_integration", cognition)
             self.orchestrator.cognition = cognition
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.error("Advanced cognition failed: %s", e)
 
     async def _recover_wal_state(self):
@@ -253,6 +263,7 @@ class BootManager:
             if pending:
                 self.logger.info("💾 WAL: Found %d interrupted thoughts", len(pending))
         except Exception as e:
+            record_degradation('boot_manager', e)
             self.logger.error("WAL recovery failed: %s", e)
 
     def _calculate_temporal_drift(self):
@@ -263,5 +274,6 @@ class BootManager:
                 drift = time.time() - last_heartbeat
                 self.orchestrator.status.temporal_drift_s = drift
         except Exception as _exc:
+            record_degradation('boot_manager', _exc)
             import logging
             logger.debug("Exception caught during execution", exc_info=True)

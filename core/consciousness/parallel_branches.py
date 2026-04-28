@@ -29,6 +29,8 @@ Invariants:
     4. A branch without a WillReceipt is invalid and will not run
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -375,6 +377,7 @@ class BranchManager:
                     branch.name, candidate.priority,
                 )
         except Exception as e:
+            record_degradation('parallel_branches', e)
             logger.warning("Failed to merge branch '%s' into workspace: %s", branch.name, e)
 
         self._cleanup_branch(branch_id)
@@ -466,6 +469,7 @@ class BranchManager:
             logger.debug("Branch cancelled: '%s'", branch.name)
 
         except Exception as e:
+            record_degradation('parallel_branches', e)
             branch.state = BranchState.FAILED
             self._total_failed += 1
             self._publish_event("branch.failed", {
@@ -559,6 +563,7 @@ class BranchManager:
                 return decision.receipt_id
             return ""
         except Exception as e:
+            record_degradation('parallel_branches', e)
             logger.debug("BranchManager: Will consultation failed (degraded): %s", e)
             # Degrade gracefully -- allow spawn without Will if Will is unavailable
             return f"degraded_{int(time.time())}"

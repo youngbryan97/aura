@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import mlx.core as mx
 from dataclasses import dataclass, field
 import psutil
@@ -36,6 +37,7 @@ class MemoryBudget:
                     finally:
                         sentinel.release()
             except Exception as e:
+                record_degradation('governor', e)
                 logger.debug(f"[MLX] Cache clear skipped in governor: {e}")
             
             # 2. Evict Episodic Memory
@@ -58,6 +60,7 @@ class MemoryBudget:
                         # No loop running, just run it
                         asyncio.run(dual_memory.episodic.evict_oldest(0.3))
             except Exception as e:
+                record_degradation('governor', e)
                 logger.error("Failed to evict episodic memory: %s", e)
             
             # 3. GC

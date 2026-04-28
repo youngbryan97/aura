@@ -1,6 +1,7 @@
 """Sensory Integration System
 Gives Aura access to cameras, microphones, speakers, and A/V production tools
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import base64
 import logging
@@ -75,6 +76,7 @@ class SensorySystem:
             return perception
             
         except Exception as e:
+            record_degradation('sensory_integration', e)
             logger.error("Perception failed: %s", e)
             perception["error"] = str(e)
             return perception
@@ -97,6 +99,7 @@ class SensorySystem:
             return expression
             
         except Exception as e:
+            record_degradation('sensory_integration', e)
             logger.error("Expression failed: %s", e)
             expression["error"] = str(e)
             return expression
@@ -190,6 +193,7 @@ class VisionSystem:
                     out.release()
                     return {"type": "video", "path": path, "duration": duration, "timestamp": time.time()}
             except Exception as e:
+                record_degradation('sensory_integration', e)
                 return {"error": str(e)}
 
         result = await asyncio.to_thread(_do_capture)
@@ -240,6 +244,7 @@ class VisionSystem:
                         "faces_detected": 0,
                     }
         except Exception as e:
+            record_degradation('sensory_integration', e)
             logger.debug("Vision analysis via brain failed: %s", e)
 
         # Fallback: no vision model available
@@ -312,6 +317,7 @@ class HearingSystem:
                 
                 return {"type": "audio", "path": path, "duration": duration, "timestamp": time.time()}
             except Exception as e:
+                record_degradation('sensory_integration', e)
                 return {"error": str(e)}
 
         result = await asyncio.to_thread(_do_listen)
@@ -340,6 +346,7 @@ class HearingSystem:
                     text = recognizer.recognize_google(audio)
                     return {"text": text, "confidence": 0.8, "language": "en"}
             except Exception as e:
+                record_degradation('sensory_integration', e)
                 return {"text": "[Transcription failed]", "error": str(e)}
 
         result = await asyncio.to_thread(_do_transcribe)
@@ -395,6 +402,7 @@ class SpeechSystem:
                         engine.runAndWait()
                         return {"success": True}
             except Exception as e:
+                record_degradation('sensory_integration', e)
                 return {"success": False, "error": str(e)}
 
         result = await asyncio.to_thread(_do_speak)
@@ -426,6 +434,7 @@ class AVProductionSystem:
                 if result:
                     return {"path": result, "description": description, "timestamp": time.time()}
         except Exception as e:
+            record_degradation('sensory_integration', e)
             logger.debug("Image generation via brain failed: %s", e)
 
         return {"error": "no_image_model", "description": description}
@@ -456,6 +465,7 @@ class AVProductionSystem:
                     return {"error": proc.stderr.decode()[:200]}
             return {"error": "no_supported_edits", "supported": ["trim"]}
         except Exception as e:
+            record_degradation('sensory_integration', e)
             return {"error": str(e)}
 
 
@@ -476,6 +486,7 @@ def get_sensory_system() -> SensorySystem:
                 return res
             return SensorySystem()
     except Exception as e:
+        record_degradation('sensory_integration', e)
         logger.debug("ServiceContainer unavailable or failed: %s. Using transient SensorySystem.", e)
         return SensorySystem()
 

@@ -3,6 +3,7 @@ Grok-Level Mixture-of-Experts Dynamic Router for Aura
 Real-time model selection with learning, confidence override, and self-awareness.
 """
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
@@ -60,6 +61,7 @@ class DynamicRouter:
                 "hooks_into": ["cognitive_engine", "planner", "critic_engine", "belief_revision"]
             })
         except Exception as e:
+            record_degradation('dynamic_router', e)
             logger.debug(f"Event bus publish missed for Mycelium hook: {e}")
 
     async def stop(self):
@@ -73,6 +75,7 @@ class DynamicRouter:
             try:
                 self.performance_history = json.loads(self.db_path.read_text())
             except Exception as _e:
+                record_degradation('dynamic_router', _e)
                 logger.debug('Ignored Exception in dynamic_router.py: %s', _e)
 
     def _save_history(self):
@@ -80,6 +83,7 @@ class DynamicRouter:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_text(self.db_path, json.dumps(self.performance_history, indent=2))
         except Exception as e:
+            record_degradation('dynamic_router', e)
             logger.error(f"Router history save failed: {e}")
 
     async def route(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> RouteDecision:
@@ -127,6 +131,7 @@ class DynamicRouter:
                     "origin": "dynamic_router"
                 })
             except Exception as _e:
+                record_degradation('dynamic_router', _e)
                 logger.debug('Ignored Exception in dynamic_router.py: %s', _e)
         
         logger.debug(f"DynamicRouter → {best_model} | confidence {confidence:.2f}")

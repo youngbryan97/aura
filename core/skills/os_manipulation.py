@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import List, Optional, Union, Dict, Any
@@ -59,6 +60,7 @@ class DesktopControlSkill(BaseSkill):
             try:
                 params = OSManipulationInput(**params)
             except Exception as e:
+                record_degradation('os_manipulation', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         action = params.action

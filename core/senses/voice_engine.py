@@ -16,6 +16,7 @@ Architecture:
 TTS uses pyttsx3 (macOS native NSSpeechSynthesizer under the hood).
 """
 
+from core.runtime.errors import record_degradation
 import base64
 
 from core.utils.exceptions import capture_and_log
@@ -75,6 +76,7 @@ def _get_whisper_model_class():
     except ImportError:
         logger.error("❌ faster-whisper not installed — STT unavailable")
     except Exception as exc:
+        record_degradation('voice_engine', exc)
         logger.error("❌ faster-whisper import failed — STT unavailable: %s", exc)
     return _WhisperModel
 
@@ -236,6 +238,7 @@ class SovereignVoiceEngine:
                 from core.container import ServiceContainer
                 self._mycelium = ServiceContainer.get("mycelial_network", default=None)
             except Exception as e:
+                record_degradation('voice_engine', e)
                 capture_and_log(e, {'module': __name__})
         return self._mycelium
 
@@ -246,6 +249,7 @@ class SovereignVoiceEngine:
                 from core.container import ServiceContainer
                 self._homeostasis = ServiceContainer.get("homeostatic_coupling", default=None)
             except Exception as e:
+                record_degradation('voice_engine', e)
                 capture_and_log(e, {'module': __name__})
         return self._homeostasis
 
@@ -256,6 +260,7 @@ class SovereignVoiceEngine:
                 from core.container import ServiceContainer
                 self._substrate = ServiceContainer.get("liquid_substrate", default=None)
             except Exception as e:
+                record_degradation('voice_engine', e)
                 capture_and_log(e, {'module': __name__})
         return self._substrate
 
@@ -271,6 +276,7 @@ class SovereignVoiceEngine:
                     # Auto-establish if missing
                     mycelium.establish_connection(source, target, priority=1.0)
             except Exception as e:
+                record_degradation('voice_engine', e)
                 capture_and_log(e, {'module': __name__})
 
     def _signal_mycelium(self, source: str, target: str, payload: dict):
@@ -280,6 +286,7 @@ class SovereignVoiceEngine:
             try:
                 mycelium.route_signal(source, target, payload)
             except Exception as e:
+                record_degradation('voice_engine', e)
                 capture_and_log(e, {'module': __name__})
 
     async def _pulse_presence(self):
@@ -297,6 +304,7 @@ class SovereignVoiceEngine:
                 # Also pulse a hypha if mycelium is ready
                 self._pulse_hypha("voice_engine", "orchestrator", success=True)
             except Exception as e:
+                record_degradation('voice_engine', e)
                 logger.debug("VoiceEngine: presence pulse failed: %s", e)
             await asyncio.sleep(30) # Pulse every 30s
 
@@ -343,6 +351,7 @@ class SovereignVoiceEngine:
                         prosody["instability"] = max(prosody["instability"], 0.5)
                 
             except Exception as e:
+                record_degradation('voice_engine', e)
                 capture_and_log(e, {'module': __name__})
                 
         # Signal Mycelial Roots about the expressive state shift
@@ -459,6 +468,7 @@ class SovereignVoiceEngine:
                     compute_type=compute_type
                 )
             except Exception as e:
+                record_degradation('voice_engine', e)
                 logger.warning("Primary STT init failed on %s, falling back to CPU: %s", device, e)
                 actual_device = "cpu"  # UPDATE: track the fallback
                 self.stt_model = whisper_model_cls(
@@ -470,6 +480,7 @@ class SovereignVoiceEngine:
             self._pulse_hypha("voice_engine", "cognition", success=True)
             logger.info("✅ Whisper STT online (model=%s, device=%s)", self.whisper_model_name, actual_device)
         except Exception as e:
+            record_degradation('voice_engine', e)
             logger.error("Failed to init STT: %s", e)
             self._pulse_hypha("voice_engine", "cognition", success=False)
 
@@ -479,6 +490,7 @@ class SovereignVoiceEngine:
                 self._init_xtts()
                 return
             except Exception as e:
+                record_degradation('voice_engine', e)
                 logger.error("Failed to init XTTS: %s", e)
 
         if self.use_piper and PiperVoice:
@@ -497,6 +509,7 @@ class SovereignVoiceEngine:
                 self._pulse_hypha("cognition", "voice_engine", success=True)
                 return
             except Exception as e:
+                record_degradation('voice_engine', e)
                 logger.warning("Failed to init Piper: %s. Falling back to pyttsx3.", e)
 
         if pyttsx3 is None:
@@ -508,6 +521,7 @@ class SovereignVoiceEngine:
             self._pulse_hypha("cognition", "voice_engine", success=True)
             logger.info("✅ pyttsx3 TTS online (macOS NSSpeechSynthesizer)")
         except Exception as e:
+            record_degradation('voice_engine', e)
             logger.error("Failed to init TTS: %s", e)
             self._pulse_hypha("cognition", "voice_engine", success=False)
 
@@ -620,6 +634,7 @@ class SovereignVoiceEngine:
             return success
 
         except Exception as e:
+            record_degradation('voice_engine', e)
             logger.error("Failed to start mic capture: %s", e, exc_info=True)
             self._pulse_hypha("voice_engine", "cognition", success=False)
             return False
@@ -634,6 +649,7 @@ class SovereignVoiceEngine:
                 self._mic_stream.stop()
                 self._mic_stream.close()
             except Exception as e:
+                record_degradation('voice_engine', e)
                 capture_and_log(e, {'module': __name__})
             self._mic_stream = None
 
@@ -838,6 +854,7 @@ class SovereignVoiceEngine:
             self._dispatch_transcript(text)
 
         except Exception as e:
+            record_degradation('voice_engine', e)
             logger.error("Transcription error: %s", e)
             self._pulse_hypha("voice_engine", "cognition", success=False)
 
@@ -863,6 +880,7 @@ class SovereignVoiceEngine:
             bus.publish_threadsafe("user_input", {"message": text, "source": "voice"})
             logger.info("🍄 Transcript routed via EventBus: %s", text[:60])
         except Exception as e:
+            record_degradation('voice_engine', e)
             logger.error("EventBus dispatch failed: %s", e)
 
         # Pulse the mycelial connection
@@ -882,6 +900,7 @@ class SovereignVoiceEngine:
                     await res
                 logger.debug("Transcript successfully routed.")
         except Exception as e:
+            record_degradation('voice_engine', e)
             logger.error("Direct transcript callback failed: %s", e, exc_info=True)
         finally:
             await self._set_state(VoiceState.IDLE)
@@ -926,6 +945,7 @@ class SovereignVoiceEngine:
                 self._pulse_hypha("cognition", "voice_engine", success=True)
                 logger.debug("🗣️ Speech complete: %s", text[:60])
             except Exception as e:
+                record_degradation('voice_engine', e)
                 logger.error("❌ TTS Synthesis failed: %s", e)
                 self._pulse_hypha("cognition", "voice_engine", success=False)
             finally:
@@ -953,6 +973,7 @@ class SovereignVoiceEngine:
                         break
                     time.sleep(0.05)
             except Exception as e:
+                record_degradation('voice_engine', e)
                 logger.error("Local playback failed: %s", e)
 
         loop = getattr(self, "loop", None) or asyncio.get_running_loop()
@@ -985,6 +1006,7 @@ class SovereignVoiceEngine:
             except asyncio.QueueFull:
                 stale_queues.append(queue_ref)
             except Exception as exc:
+                record_degradation('voice_engine', exc)
                 logger.debug("Voice SSE delivery failed: %s", exc)
                 stale_queues.append(queue_ref)
 
@@ -1057,6 +1079,7 @@ class SovereignVoiceEngine:
                     except StopAsyncIteration:
                         break
                     except Exception as e:
+                        record_degradation('voice_engine', e)
                         logger.error(f"Error in voice stream: {e}")
                         break
 
@@ -1073,6 +1096,7 @@ class SovereignVoiceEngine:
                     spoken_text_buffer.append(text_chunk)
 
             except Exception as e:
+                record_degradation('voice_engine', e)
                 logger.error(f"Playback error in stream: {e}")
                 self._pulse_hypha("cognition", "voice_engine", success=False)
             finally:

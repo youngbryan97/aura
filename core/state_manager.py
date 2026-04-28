@@ -1,6 +1,7 @@
 """core/state_manager.py
 Atomic snapshots and state restoration.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -36,6 +37,7 @@ class StateManager:
             logger.debug("StateManager: Snapshot saved.")
             return snapshot
         except Exception as e:
+            record_degradation('state_manager', e)
             logger.error("StateManager: Failed to save snapshot: %s", e)
             return {}
 
@@ -59,6 +61,7 @@ class StateManager:
                     stats[store_name] = count
             return stats if len(stats) > 1 else {"status": "no_stores"}
         except Exception as e:
+            record_degradation('state_manager', e)
             logger.debug("Could not read memory stats: %s", e)
             return {"status": "error", "detail": str(e)}
 

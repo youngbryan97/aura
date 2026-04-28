@@ -23,6 +23,8 @@ Design invariants:
   5. Every completed action emits a MotorReceipt for audit + awareness.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -168,6 +170,7 @@ async def _reflex_screen_capture(payload: Dict[str, Any]) -> Dict[str, Any]:
             return {"success": True, "summary": "screen_captured", "frame_size": len(frame) if frame else 0}
         return {"success": False, "summary": "no_vision_service"}
     except Exception as exc:
+        record_degradation('motor_cortex', exc)
         return {"success": False, "summary": f"capture_failed: {exc}"}
 
 
@@ -216,6 +219,7 @@ async def _reflex_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
     except ImportError:
         return {"success": False, "summary": "psutil_not_available"}
     except Exception as exc:
+        record_degradation('motor_cortex', exc)
         return {"success": False, "summary": f"health_check_failed: {exc}"}
 
 
@@ -234,6 +238,7 @@ async def _reflex_file_reaction(payload: Dict[str, Any]) -> Dict[str, Any]:
         )
         return {"success": True, "summary": f"file_{event_type}_logged", "path": path}
     except Exception as exc:
+        record_degradation('motor_cortex', exc)
         return {"success": False, "summary": f"file_reaction_failed: {exc}"}
 
 
@@ -249,6 +254,7 @@ async def _reflex_metric_sample(payload: Dict[str, Any]) -> Dict[str, Any]:
             "timestamp": time.time(),
         }
     except Exception as exc:
+        record_degradation('motor_cortex', exc)
         return {"success": False, "summary": f"metric_sample_failed: {exc}"}
 
 
@@ -488,6 +494,7 @@ class MotorCortex:
                     ))
 
             except Exception as exc:
+                record_degradation('motor_cortex', exc)
                 logger.error("MotorCortex: loop error: %s", exc, exc_info=True)
 
             # Sleep to maintain target cycle time
@@ -537,6 +544,7 @@ class MotorCortex:
         except asyncio.TimeoutError:
             result = {"success": False, "summary": "handler_timeout"}
         except Exception as exc:
+            record_degradation('motor_cortex', exc)
             result = {"success": False, "summary": f"handler_error: {exc}"}
 
         latency_ms = (time.monotonic() - t0) * 1000

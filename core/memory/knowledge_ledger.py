@@ -14,6 +14,7 @@ Format: List of natural-language entries like:
   "I asked myself: what makes a conversation feel genuine?"
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import time
 from datetime import datetime
@@ -75,6 +76,7 @@ class KnowledgeLedger:
                 metadata={"success": success, "timestamp": time.time()}
             )
         except Exception as e:
+            record_degradation('knowledge_ledger', e)
             logger.debug("log_interaction failed: %s", e)
     
     def _get_kg(self):
@@ -86,6 +88,7 @@ class KnowledgeLedger:
                 db_path = str(getattr(config.paths, 'data_dir', 'data') / 'knowledge.db')
                 self._kg = PersistentKnowledgeGraph(db_path)
             except Exception as e:
+                record_degradation('knowledge_ledger', e)
                 logger.warning("Knowledge graph not available: %s", e)
                 # Try default path
                 try:
@@ -94,6 +97,7 @@ class KnowledgeLedger:
                     _fallback = str(getattr(_cfg.paths, "data_dir", str(config.paths.home_dir / "data")) / "knowledge.db") if hasattr(getattr(_cfg.paths, "data_dir", None), "__truediv__") else str(config.paths.home_dir / "data/knowledge.db")
                     self._kg = PersistentKnowledgeGraph(_fallback)
                 except Exception as exc:
+                    record_degradation('knowledge_ledger', exc)
                     logger.debug("Suppressed: %s", exc)
 
         return self._kg
@@ -148,6 +152,7 @@ class KnowledgeLedger:
                 stats["questions_asked"] = kg_stats.get("unanswered_questions", 0) + kg_stats.get("answered_questions", 0)
                 stats["active_goals"] = kg_stats.get("active_learning_goals", 0)
             except Exception as exc:
+                record_degradation('knowledge_ledger', exc)
                 logger.debug("Suppressed: %s", exc)        
         # 6. Reflections (in-memory)
         entries.extend(self._get_reflection_entries())
@@ -215,6 +220,7 @@ class KnowledgeLedger:
                     "icon": "📚",
                 })
         except Exception as e:
+            record_degradation('knowledge_ledger', e)
             logger.warning("Failed to read knowledge entries: %s", e)
         
         return entries
@@ -260,6 +266,7 @@ class KnowledgeLedger:
                     "icon": "🎓",
                 })
         except Exception as e:
+            record_degradation('knowledge_ledger', e)
             logger.warning("Failed to read skills: %s", e)
         
         return entries
@@ -286,6 +293,7 @@ class KnowledgeLedger:
                         "icon": "👤",
                     })
         except Exception as e:
+            record_degradation('knowledge_ledger', e)
             logger.warning("Failed to read people: %s", e)
         
         return entries
@@ -335,6 +343,7 @@ class KnowledgeLedger:
                         "icon": "💡",
                     })
         except Exception as e:
+            record_degradation('knowledge_ledger', e)
             logger.warning("Failed to read questions: %s", e)
         
         return entries
@@ -359,6 +368,7 @@ class KnowledgeLedger:
                     "icon": "🎯",
                 })
         except Exception as e:
+            record_degradation('knowledge_ledger', e)
             logger.warning("Failed to read goals: %s", e)
         
         return entries
@@ -384,6 +394,7 @@ class KnowledgeLedger:
                     "icon": "🪞",
                 })
         except Exception as exc:
+            record_degradation('knowledge_ledger', exc)
             logger.debug("Suppressed: %s", exc)
 
         return entries
@@ -411,6 +422,7 @@ class KnowledgeLedger:
                         "icon": "🔍",
                     })
         except Exception as exc:
+            record_degradation('knowledge_ledger', exc)
             logger.debug("Suppressed: %s", exc)
 
         return entries

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import psutil
@@ -64,6 +65,7 @@ class AutonomicCore:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('core_monitor', e)
                 logger.error("Autonomic Core heartbeat error: %s", e)
                 await asyncio.sleep(10.0)
                 
@@ -116,6 +118,7 @@ class AutonomicCore:
                     self.orchestrator.status.memory_pressure = False
 
         except Exception as e:
+            record_degradation('core_monitor', e)
             logger.debug("Vitals check failed: %s", e)
 
     async def _substrate_defrag(self):
@@ -132,6 +135,7 @@ class AutonomicCore:
                     mx.metal.clear_cache()
                     logger.info("Substrate Defrag: MLX metal cache cleared.")
             except Exception as e:
+                record_degradation('core_monitor', e)
                 logger.debug("Substrate Defrag: MLX cache clear skipped: %s", e)
 
             # 2. SnapKV eviction — compress the KV cache
@@ -143,6 +147,7 @@ class AutonomicCore:
                     if evictor.check_memory_pressure(current_gb):
                         logger.info("Substrate Defrag: SnapKV eviction triggered at %.1fGB.", current_gb)
             except Exception as e:
+                record_degradation('core_monitor', e)
                 logger.debug("Substrate Defrag: SnapKV eviction skipped: %s", e)
 
             # 3. Episodic memory compaction: compress weak episodes into semantic
@@ -160,6 +165,7 @@ class AutonomicCore:
                         await dual_memory.episodic.evict_oldest(0.2)
                         logger.info("Substrate Defrag: Evicted oldest 20%% of episodic memories.")
             except Exception as e:
+                record_degradation('core_monitor', e)
                 logger.debug("Substrate Defrag: Episodic compaction skipped: %s", e)
 
             # 4. Force garbage collection
@@ -167,6 +173,7 @@ class AutonomicCore:
             logger.info("Substrate Defrag: GC complete. RAM now at %.1f%%.", psutil.virtual_memory().percent)
 
         except Exception as e:
+            record_degradation('core_monitor', e)
             logger.error("Substrate Defrag failed: %s", e)
 
     async def _auto_cognitive_recovery(self):
@@ -189,6 +196,7 @@ class AutonomicCore:
                 await self._emit_status("Auto-recovery attempted but cortex remains offline.")
 
         except Exception as e:
+            record_degradation('core_monitor', e)
             logger.error("Zero-Touch auto-recovery error: %s", e)
 
     async def _check_idle_model_swap(self):
@@ -248,12 +256,14 @@ class AutonomicCore:
                     await brainstem.warmup()
                     logger.info("Idle model swap: 7B brainstem warmed up.")
             except Exception as bs_err:
+                record_degradation('core_monitor', bs_err)
                 logger.debug("Brainstem warmup after idle swap skipped: %s", bs_err)
 
             self._idle_swap_done = True
             await self._emit_status("Cortex hibernated (idle). Brainstem active.")
 
         except Exception as e:
+            record_degradation('core_monitor', e)
             logger.debug("Idle model swap check failed: %s", e)
 
     def _reset_idle_swap(self):
@@ -270,6 +280,7 @@ class AutonomicCore:
                 if self.orchestrator:
                     self.orchestrator.status.memory_pressure = True
         except Exception as e:
+            record_degradation('core_monitor', e)
             logger.debug("Governance check failed: %s", e)
         
     async def _unload_llm(self):
@@ -286,6 +297,7 @@ class AutonomicCore:
             import gc
             gc.collect()
         except Exception as e:
+            record_degradation('core_monitor', e)
             logger.debug("Model unload failed: %s", e)
 
     async def _check_survival(self):
@@ -296,6 +308,7 @@ class AutonomicCore:
             if imperative:
                 self.survival_driver.publish_threat(imperative)
         except Exception as e:
+            record_degradation('core_monitor', e)
             logger.debug("Survival check error: %s", e)
 
     def get_survival_report(self) -> Dict[str, Any]:

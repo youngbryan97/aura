@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import inspect
@@ -195,6 +197,7 @@ class GlobalWorkspace:
                         if h: h.strength = 10.0 # Thicken the visual noise
                         get_task_tracker().create_task(mycelium.emit_reflex("NEURAL_FLOOD", {"source": candidate.source}))
                 except Exception as _e:
+                    record_degradation('global_workspace', _e)
                     logger.debug('Ignored Exception in global_workspace.py: %s', _e)
                 return False
 
@@ -236,6 +239,7 @@ class GlobalWorkspace:
                 hypha = mycelium.get_hypha("consciousness", "workspace")
                 if hypha: hypha.pulse(success=True)
         except Exception as _e:
+            record_degradation('global_workspace', _e)
             logger.debug('Ignored Exception in global_workspace.py: %s', _e)
 
         async with self._lock:
@@ -288,6 +292,7 @@ class GlobalWorkspace:
                 all_candidates=all_candidates_data,
             )
         except Exception as _pa_exc:
+            record_degradation('global_workspace', _pa_exc)
             logger.debug("GW peripheral awareness feed skipped: %s", _pa_exc)
 
         # --- Ignition Detection ---
@@ -340,6 +345,7 @@ class GlobalWorkspace:
                     }
                 )
         except Exception as e:
+            record_degradation('global_workspace', e)
             logger.debug("Failed to emit Neural Feed match: %s", e)
 
         # Update attention schema with winner (outside lock)
@@ -371,6 +377,7 @@ class GlobalWorkspace:
             if res is not None and inspect.isawaitable(res):
                 await res
         except Exception as e:
+            record_degradation('global_workspace', e)
             logger.error("GW processor error: %s", e)
 
     # ------------------------------------------------------------------

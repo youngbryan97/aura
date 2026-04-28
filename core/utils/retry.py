@@ -5,6 +5,7 @@ Provides exponential backoff with jitter, error classification,
 and telemetry integration. Replaces all ad-hoc retry loops.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import random
@@ -102,6 +103,7 @@ async def retry_with_backoff(
         try:
             return await fn(*args, **kwargs)
         except Exception as e:
+            record_degradation('retry', e)
             last_error = e
 
             if attempt >= max_retries:
@@ -146,6 +148,7 @@ def retry_with_backoff_sync(
         try:
             return fn(*args, **kwargs)
         except Exception as e:
+            record_degradation('retry', e)
             last_error = e
             if attempt >= max_retries or not is_retryable(e):
                 break

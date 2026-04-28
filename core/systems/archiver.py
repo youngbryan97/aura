@@ -4,6 +4,7 @@ Compresses designated log files into timestamped ZIP archives
 *before* Metabolism purges them, ensuring a permanent history.
 Runs as the very first step in the Dreamer sleep cycle.
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 import zipfile
@@ -68,8 +69,10 @@ class ArchiveEngine:
                         zf.write(log_path, arcname=log_path.name)
                         archived_count += 1
                     except Exception as exc:
+                        record_degradation('archiver', exc)
                         logger.warning("Failed to archive %s: %s", log_path.name, exc)
         except Exception as exc:
+            record_degradation('archiver', exc)
             logger.error("Failed to create archive %s: %s", zip_path, exc)
             return {"archived": 0, "path": None, "error": str(exc)}
 
@@ -89,4 +92,5 @@ class ArchiveEngine:
                 oldest.unlink()
                 logger.debug("Pruned old archive: %s", oldest.name)
         except Exception as exc:
+            record_degradation('archiver', exc)
             logger.warning("Archive pruning failed: %s", exc)

@@ -19,6 +19,8 @@ Architecture:
                                       spontaneously share a position
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -113,6 +115,7 @@ Respond in JSON only:
             try:
                 data = json.loads(response)
             except Exception as e:
+                record_degradation('opinion_engine', e)
                 logger.debug("Failed to form opinion on segment: %s", e)
                 from core.utils.json_utils import SelfHealingJSON
                 data = await SelfHealingJSON(brain=brain).parse(response)
@@ -141,6 +144,7 @@ Respond in JSON only:
             return opinion
 
         except Exception as e:
+            record_degradation('opinion_engine', e)
             logger.debug("[Opinion] Formation failed for '%s': %s", topic, e)
             return None
 
@@ -233,6 +237,7 @@ Sound like yourself. Be direct. You can note if your thinking has evolved."""
             self._save()
             return response.strip()
         except Exception as e:
+            record_degradation('opinion_engine', e)
             logger.debug("[Opinion] Surface failed: %s", e)
             return None
 
@@ -318,6 +323,7 @@ Sound like yourself. Be direct. You can note if your thinking has evolved."""
                 json.dumps([asdict(o) for o in self._opinions.values()], indent=2)
             )
         except Exception as e:
+            record_degradation('opinion_engine', e)
             logger.debug("[Opinion] Save failed: %s", e)
 
     def _load(self):
@@ -330,6 +336,7 @@ Sound like yourself. Be direct. You can note if your thinking has evolved."""
                 self._opinions[o.topic] = o
             logger.info("[Opinion] Loaded %d opinions from disk.", len(self._opinions))
         except Exception as e:
+            record_degradation('opinion_engine', e)
             logger.debug("[Opinion] Load failed: %s", e)
 
     def get_status(self) -> Dict[str, Any]:

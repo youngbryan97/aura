@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -78,6 +79,7 @@ class AirlockProtocol:
             self._recover_state()
             return {"success": False, "reason": f"Git/Patch Error: {e.output}"}
         except Exception as e:
+            record_degradation('airlock', e)
             logger.error(f"Airlock Exception: {e}")
             self._recover_state()
             return {"success": False, "reason": str(e)}
@@ -101,6 +103,7 @@ class AirlockProtocol:
         try:
             self._run_git(["worktree", "remove", "--force", str(self.sandbox_dir)])
         except Exception as e:
+            record_degradation('airlock', e)
             logger.warning("Airlock worktree cleanup failed: %s", e)
         
     def _run_tests(self) -> bool:
@@ -124,4 +127,5 @@ class AirlockProtocol:
         try:
             self._cleanup_worktree()
         except Exception as e:
+            record_degradation('airlock', e)
             logger.critical(f"FATAL: Airlock failed to recover base state! {e}")

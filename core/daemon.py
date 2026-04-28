@@ -3,6 +3,8 @@
 Aura Cognitive Daemon — always-on process.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
@@ -81,6 +83,7 @@ class CognitiveDaemon:
             DAEMON_PID_FILE.unlink(missing_ok=True)
             DAEMON_SOCKET.unlink(missing_ok=True)
         except Exception as _e:
+            record_degradation('daemon', _e)
             logger.debug('Ignored Exception in daemon.py: %s', _e)
 
         logger.info("🧠 [DAEMON] Shutdown complete.")
@@ -110,6 +113,7 @@ class CognitiveDaemon:
                         writer.write(json.dumps({"type": "response", "content": resp}).encode() + b"\n")
                         await writer.drain()
                 except Exception as e:
+                    record_degradation('daemon', e)
                     logger.error("IPC error: %s", e)
         finally:
             writer.close()
@@ -160,6 +164,7 @@ class WorldFeed:
                  logger.warning("feedparser missing")
                  break
             except Exception as e:
+                record_degradation('daemon', e)
                 logger.debug("Feed error: %s", e)
             await asyncio.sleep(self.poll_interval)
 

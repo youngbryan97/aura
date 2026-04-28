@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -140,6 +141,7 @@ class CognitiveHeartbeat:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('heartbeat', e)
                 logger.error("Heartbeat tick error (tick=%d): %s", self.tick_count, e, exc_info=True)
                 # Never stop the heartbeat for a subsystem error
 
@@ -194,6 +196,7 @@ class CognitiveHeartbeat:
                 h_att = mycelium.get_hypha("consciousness", "attention")
                 if h_att: h_att.pulse(success=True)
         except Exception as _e:
+            record_degradation('heartbeat', _e)
             logger.debug('Ignored Exception in heartbeat.py: %s', _e)
 
         # ── 1. GATHER internal state ────────────────────────────────────
@@ -256,6 +259,7 @@ class CognitiveHeartbeat:
             ph_inputs = ph.gather_inputs_from_services()
             ph.tick(**ph_inputs)
         except Exception as e:
+            record_degradation('heartbeat', e)
             logger.debug("Predictive hierarchy tick failed: %s", e)
 
         # ── 5b. FREE ENERGY COMPUTATION ─────────────────────────────────
@@ -287,8 +291,10 @@ class CognitiveHeartbeat:
                     if drive_engine and hasattr(drive_engine, "tick_boredom"):
                         drive_engine.tick_boredom(fe_state.free_energy)
                 except Exception as be:
+                    record_degradation('heartbeat', be)
                     logger.debug("Boredom accumulator tick failed: %s", be)
         except Exception as e:
+            record_degradation('heartbeat', e)
             logger.debug("Free energy computation failed: %s", e)
 
         # ── 5c. CREDIT-WEIGHTED MODULATION ──────────────────────────────
@@ -303,6 +309,7 @@ class CognitiveHeartbeat:
                     if hg and hasattr(hg, 'accept_credit_signal'):
                         hg.accept_credit_signal(credit.get_influence_scores())
             except Exception as e:
+                record_degradation('heartbeat', e)
                 logger.debug("Credit modulation failed: %s", e)
 
         # ── 5d. WORLD MODEL CONSISTENCY CHECK (every 30 ticks) ──────────
@@ -321,6 +328,7 @@ class CognitiveHeartbeat:
                                 min(1.0, fe_engine._last_attention_complexity + contradiction_rate * 0.3)
                             )
             except Exception as e:
+                record_degradation('heartbeat', e)
                 logger.debug("World model consistency check failed: %s", e)
 
         # ── 6. HOMEOSTATIC COUPLING ─────────────────────────────────────
@@ -356,6 +364,7 @@ class CognitiveHeartbeat:
             if hasattr(self.workspace, 'update_phi'):
                 self.workspace.update_phi(phi)
         except Exception as e:
+            record_degradation('heartbeat', e)
             capture_and_log(e, {'module': __name__})
 
         # ── 8c. CONSTITUTIVE EXPRESSION (every Nth tick) ──────────────
@@ -366,6 +375,7 @@ class CognitiveHeartbeat:
                 if self._cel_bridge:
                     await self._cel_bridge.tick()
             except Exception as e:
+                record_degradation('heartbeat', e)
                 logger.debug("CEL tick error: %s", e, exc_info=True)
 
         # ── 8d. PARALLEL BRANCHES tick ────────────────────────────────
@@ -374,6 +384,7 @@ class CognitiveHeartbeat:
             if branch_mgr:
                 await branch_mgr.tick()
         except Exception as e:
+            record_degradation('heartbeat', e)
             logger.debug("Branch manager tick failed: %s", e)
 
         # ── 9. NARRATIVE INJECTION & Resource Throttling ───────────────
@@ -417,6 +428,7 @@ class CognitiveHeartbeat:
                 state["affect_engagement"] = affect.engagement
                 state["affect_emotion"] = affect.dominant_emotion
         except Exception as e:
+            record_degradation('heartbeat', e)
             # logger.debug("Affect gather failed: %s", e)
             state.setdefault("affect_valence", 0.0)
 
@@ -435,6 +447,7 @@ class CognitiveHeartbeat:
                     state["dominant_drive"] = ranked[0][0]   # Most depleted = most urgent
                     state["drive_urgency"] = max(0.0, 1.0 - (ranked[0][1] / 100.0))
         except Exception as e:
+            record_degradation('heartbeat', e)
             # logger.debug("Drive gather failed: %s", e)
             state.setdefault("dominant_drive", "curiosity")
             state.setdefault("drive_urgency", 0.3)
@@ -448,6 +461,7 @@ class CognitiveHeartbeat:
             state["body_heat"] = body.get("thermal_load", 0.0) * 100
             state["body_integrity"] = body.get("vitality", 1.0) * 100
         except Exception as e:
+            record_degradation('heartbeat', e)
             capture_and_log(e, {'module': __name__})
             
         # Qualia Metrics
@@ -576,6 +590,7 @@ class CognitiveHeartbeat:
                         affect_weight=affect_weight * 1.5,
                     ))
         except Exception as e:
+            record_degradation('heartbeat', e)
             logger.debug("Boredom candidate submission failed: %s", e)
 
         # --- Free Energy action tendency candidate ---
@@ -592,6 +607,7 @@ class CognitiveHeartbeat:
                     affect_weight=abs(fe.valence) * 0.3,
                 ))
         except Exception as e:
+            record_degradation('heartbeat', e)
             logger.debug("Free energy candidate submission failed: %s", e)
 
         # --- Attention Focus Bias ---
@@ -604,6 +620,7 @@ class CognitiveHeartbeat:
                     if bias > 0:
                         candidate.focus_bias = min(1.0, candidate.focus_bias + bias)
         except Exception as e:
+            record_degradation('heartbeat', e)
             logger.debug("Attention focus bias application failed: %s", e)
 
         # --- Baseline cognitive continuity candidate ---
@@ -642,6 +659,7 @@ class CognitiveHeartbeat:
                 level="info" if not mods.urgency_flag else "warning",
             )
         except Exception as e:
+            record_degradation('heartbeat', e)
             logger.debug("ThoughtStream emit failed: %s", e, exc_info=True)
 
     async def _emit_telemetry(
@@ -663,6 +681,7 @@ class CognitiveHeartbeat:
                 if qualia_synthesizer and hasattr(qualia_synthesizer, "get_snapshot"):
                     qualia_snapshot = qualia_synthesizer.get_snapshot()
             except Exception as qs_err:
+                record_degradation('heartbeat', qs_err)
                 logger.debug("Qualia snapshot failed: %s", qs_err)
 
             # Pull from orchestrator's liquid state for gauge consistency
@@ -725,6 +744,7 @@ class CognitiveHeartbeat:
             get_event_bus().publish_threadsafe("telemetry", payload.model_dump())
             
         except Exception as e:
+            record_degradation('heartbeat', e)
             logger.debug("Telemetry emission failed: %s", e)
 
     async def _seed_curiosity_from_surprise(self, surprise: float):
@@ -739,6 +759,7 @@ class CognitiveHeartbeat:
                     priority=min(0.9, surprise),
                 )
         except Exception as e:
+            record_degradation('heartbeat', e)
             capture_and_log(e, {'module': __name__})
 
     async def _inject_narrative(self):
@@ -756,6 +777,7 @@ class CognitiveHeartbeat:
 
             logger.debug("Autobiographical narrative injected into orchestrator context.")
         except Exception as e:
+            record_degradation('heartbeat', e)
             logger.debug("Narrative injection failed: %s", e)
 
     def _compute_significance(

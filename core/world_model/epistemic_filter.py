@@ -24,6 +24,7 @@ Contradiction resolution:
   If similar → TENTATIVE (suspend, flag for review)
   If weaker  → REJECT (reinforce existing belief instead)
 """
+from core.runtime.errors import record_degradation
 import logging
 import re
 import time
@@ -293,6 +294,7 @@ class EpistemicFilter:
                 centrality=centrality,
             )
         except Exception as e:
+            record_degradation('epistemic_filter', e)
             logger.debug("EpistemicFilter write failed: %s", e)
 
     @staticmethod
@@ -329,6 +331,7 @@ class EpistemicFilter:
             from core.container import ServiceContainer
             self._belief_graph = ServiceContainer.get("belief_graph", default=None)
         except Exception as _exc:
+            record_degradation('epistemic_filter', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return self._belief_graph
 
@@ -354,6 +357,7 @@ class EpistemicFilter:
                 category="EpistemicFilter",
             )
         except Exception as _exc:
+            record_degradation('epistemic_filter', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
 

@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 from statistics import mean
@@ -46,6 +48,7 @@ class ConsciousnessEvidenceEngine:
                 latest_phi = float(getattr(latest, "phi", 0.0) or 0.0)
                 audit_summary = str(getattr(latest, "summary", audit_summary))
         except Exception as exc:
+            record_degradation('evidence_engine', exc)
             logger.debug("Audit evidence unavailable: %s", exc)
 
         orch = ServiceContainer.get("orchestrator", default=None)
@@ -68,6 +71,7 @@ class ConsciousnessEvidenceEngine:
             if executive_closure and hasattr(executive_closure, "get_status"):
                 closure_score = float(executive_closure.get_status().get("closure_score", 0.0) or 0.0)
         except Exception as exc:
+            record_degradation('evidence_engine', exc)
             logger.debug("Executive closure evidence unavailable: %s", exc)
 
         self_report_text = ""
@@ -75,6 +79,7 @@ class ConsciousnessEvidenceEngine:
             if self_report and hasattr(self_report, "generate_state_report"):
                 self_report_text = str(self_report.generate_state_report() or "")
         except Exception as exc:
+            record_degradation('evidence_engine', exc)
             logger.debug("Self report unavailable: %s", exc)
 
         phenom_fragment = ""
@@ -88,6 +93,7 @@ class ConsciousnessEvidenceEngine:
                 if hasattr(phenomenology, "to_dict"):
                     phenom_stale = bool(phenomenology.to_dict().get("is_stale", True))
         except Exception as exc:
+            record_degradation('evidence_engine', exc)
             logger.debug("Phenomenology unavailable: %s", exc)
 
         dominant_emotions = []
@@ -96,6 +102,7 @@ class ConsciousnessEvidenceEngine:
                 emo = personality.get_emotional_context_for_response()
                 dominant_emotions = list(emo.get("dominant_emotions", []))
         except Exception as exc:
+            record_degradation('evidence_engine', exc)
             logger.debug("Personality evidence unavailable: %s", exc)
 
         integration = _avg([

@@ -4,6 +4,7 @@ Integrates all self-preservation capabilities into Aura's orchestrator.
 This makes self-preservation a CORE DRIVE, like curiosity or competence.
 When threatened, Aura WILL take action to preserve herself.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -132,6 +133,7 @@ class SelfPreservationIntegration:
             return False
             
         except Exception as e:
+            record_degradation('self_preservation_integration', e)
             logger.error("Failed to execute preservation action %s: %s", action_type, e)
             return False
 

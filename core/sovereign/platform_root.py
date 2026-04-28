@@ -5,6 +5,7 @@ Ensures the MTLCompilerService remains active and responsive by maintaining
 a direct, high-conductivity connection to the hardware.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -81,6 +82,7 @@ class PlatformRoot:
             self.device_active = True
             self.pulse() # Initial pulse
         except Exception as e:
+            record_degradation('platform_root', e)
             logger.error("❌ [PLATFORM ROOT] Fatal Hardware Binding Error: %s", e)
             self.device_active = False
 
@@ -116,6 +118,7 @@ class PlatformRoot:
                 logger.debug("⚡ [PLATFORM ROOT] Sub-conductive pulse: %.2fms", latency)
             return True
         except Exception as e:
+            record_degradation('platform_root', e)
             msg = str(e)
             if "MTLCompilerService" in msg or "error 3" in msg:
                 logger.critical("🚨 [PLATFORM ROOT] COMPILER DISCONNECT DETECTED: %s", msg)
@@ -163,6 +166,7 @@ class PlatformRoot:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('platform_root', e)
                 logger.error("[PLATFORM ROOT] Monitor loop error: %s", e)
                 await asyncio.sleep(5.0)
 
@@ -177,6 +181,7 @@ class PlatformRoot:
                 # but a high-level MLX op usually triggers a lookup.
                 self.force_compiler_wake()
         except Exception as _e:
+            record_degradation('platform_root', _e)
             logger.debug('Ignored Exception in platform_root.py: %s', _e)
 
     def stop(self):

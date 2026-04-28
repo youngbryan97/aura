@@ -6,6 +6,7 @@ then refines based on the critique. Can run multiple rounds.
 This implements a "generate → critique → refine" loop that
 significantly improves output quality for complex tasks.
 """
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Callable, Optional
 
@@ -92,6 +93,7 @@ Do NOT mention the critique process — just deliver the refined answer."""
             try:
                 critique = await self.think_fn(critique_prompt)
             except Exception as exc:
+                record_degradation('critic', exc)
                 logger.warning("Critique failed (round %d): %s", round_num + 1, exc)
                 break
 
@@ -111,6 +113,7 @@ Do NOT mention the critique process — just deliver the refined answer."""
                 current = refined
                 logger.info("🔍 Response refined (round %d, %d chars)", round_num + 1, len(current))
             except Exception as exc:
+                record_degradation('critic', exc)
                 logger.warning("Refinement failed (round %d): %s", round_num + 1, exc)
                 break
 

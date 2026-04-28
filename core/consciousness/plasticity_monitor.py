@@ -44,6 +44,8 @@ Pure numpy.
 """
 
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -124,6 +126,7 @@ class PlasticityMonitor:
         try:
             mat = np.asarray(W, dtype=np.float64)
         except Exception as e:
+            record_degradation('plasticity_monitor', e)
             logger.debug("plasticity: cast failed: %s", e)
             return None
         if mat.ndim != 2:

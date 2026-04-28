@@ -9,6 +9,7 @@ Sits between the LLM response and the user to catch:
 This is the last line of defense before the user sees Aura's output.
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import re
 from typing import Any, Dict, Tuple
@@ -125,6 +126,7 @@ class OutputGuardrails:
                 issues.extend(f"ontological_overclaim:{issue}" for issue in assessment.issues)
                 sanitized = assessment.sanitized
         except Exception as exc:
+            record_degradation('output_guardrails', exc)
             logger.debug("Ontological boundary guard skipped: %s", exc)
 
         # 4. Detect ReAct/prompt echoing

@@ -20,6 +20,7 @@ LLM parameter mapping:
   Low valence   → higher rep_penalty (avoids rumination spirals)
   High arousal  → higher rep_penalty floor (prevents excited mantra loops)
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Dict, Any, Optional, Tuple
@@ -149,6 +150,7 @@ class AffectiveCircumplex:
                 max_tokens = int(max_tokens - max(0.0, cort - 0.5) * 80)
                 max_tokens = max(_TOKENS_MIN, min(_TOKENS_MAX, max_tokens))
             except Exception as exc:
+                record_degradation('affective_circumplex', exc)
                 logger.debug("Circumplex: neurochemical modulation skipped: %s", exc)
 
         narrative = self._make_narrative(valence, arousal)
@@ -212,6 +214,7 @@ class AffectiveCircumplex:
                 stress  = affects.get("stress",  0.0)
                 fatigue = affects.get("fatigue", 0.0)
         except Exception as e:
+            record_degradation('affective_circumplex', e)
             logger.debug("Circumplex: soma read failed: %s", e)
 
         # Homeostasis — integrity / psychological valence
@@ -220,6 +223,7 @@ class AffectiveCircumplex:
             if homeostasis:
                 integrity = float(getattr(homeostasis, "integrity", 0.85))
         except Exception as e:
+            record_degradation('affective_circumplex', e)
             logger.debug("Circumplex: homeostasis read failed: %s", e)
 
         # Swap pressure (if psutil available) — elevated swap = RAM duress
@@ -237,6 +241,7 @@ class AffectiveCircumplex:
                 mood_valence = float(mood.get("valence", 0.0))
                 mood_arousal = float(mood.get("arousal", 0.0))
             except Exception as exc:
+                record_degradation('affective_circumplex', exc)
                 logger.debug("Circumplex: mood coupling failed: %s", exc)
 
         # ── Arousal: neutral by default, then nudged by live load + chemistry ──
@@ -315,6 +320,7 @@ class AffectiveCircumplex:
             elif cpu > 60:
                 cpu_note = f" (CPU at {cpu:.0f}%)"
         except Exception as _exc:
+            record_degradation('affective_circumplex', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return f"Somatically {mood}{cpu_note}."

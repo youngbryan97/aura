@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 import asyncio
 import logging
 import time
@@ -103,10 +105,12 @@ class LegacyPhase(Phase):
             try:
                 ServiceContainer.register_instance("affect_engine", self.legacy_orchestrator._affect_engine_override)
             except Exception as _reg_err:
+                record_degradation('bridge', _reg_err)
                 logger.debug("Bridge: affect_engine already registered, skipping: %s", _reg_err)
             try:
                 ServiceContainer.register_instance("motivation_engine", self.legacy_orchestrator._motivation_engine_override)
             except Exception as _reg_err:
+                record_degradation('bridge', _reg_err)
                 logger.debug("Bridge: motivation_engine already registered, skipping: %s", _reg_err)
             logger.info("Bridge: Legacy engines registered in ServiceContainer.")
             try:
@@ -121,6 +125,7 @@ class LegacyPhase(Phase):
                     context={"phase": "legacy_bridge"},
                 )
             except Exception as exc:
+                record_degradation('bridge', exc)
                 logger.debug("Bridge: legacy activation degraded-event logging failed: %s", exc)
             
         logger.debug("Delegating objective '%s' to Legacy Bridge...", objective)

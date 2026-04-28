@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import random
 from typing import Dict, Any, Optional
@@ -68,5 +69,6 @@ class LazarusBrainstem:
             return True
             
         except Exception as e:
+            record_degradation('lazarus_brainstem', e)
             logger.error("LAZARUS: Recovery failed: %s", e)
         return False

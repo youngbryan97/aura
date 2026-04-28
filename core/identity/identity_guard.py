@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 import re
@@ -73,6 +74,7 @@ class PersonaEnforcementGate:
                             self._emit_identity_reflex("IDENTITY_BREACH", content[:50])
                             return False, "IDENTITY_BREACH", 0.0
         except Exception as e:
+            record_degradation('identity_guard', e)
             logger.debug("Identity Guard validation error (non-critical): %s", e)
 
         # 2.5 Task Supervision check (BUG-047)
@@ -88,6 +90,7 @@ class PersonaEnforcementGate:
                 # In strict mode, we might block this.
                 logger.warning("⚠️ Identity Guard: Output from unsupervised task '%s'.", current_task.get_name())
         except Exception as _e:
+            record_degradation('identity_guard', _e)
             logger.debug('Ignored Exception in identity_guard.py: %s', _e)
 
         # 3. Alignment Score (Heuristic)
@@ -107,6 +110,7 @@ class PersonaEnforcementGate:
                 ))
                 task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
         except Exception as _e:
+            record_degradation('identity_guard', _e)
             logger.debug('Ignored Exception in identity_guard.py: %s', _e)
 
     def sanitize(self, content: str) -> str:

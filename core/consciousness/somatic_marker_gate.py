@@ -29,6 +29,8 @@ The gate produces a SomaticVerdict that modifies the decision's priority,
 confidence, and adds a somatic annotation visible to downstream processing.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import logging
@@ -309,6 +311,7 @@ class SomaticMarkerGate:
             )
             self._outcome_patterns.append(record)
         except Exception as e:
+            record_degradation('somatic_marker_gate', e)
             logger.debug("Failed to record somatic outcome: %s", e)
 
     # ── Helpers ──────────────────────────────────────────────────────────

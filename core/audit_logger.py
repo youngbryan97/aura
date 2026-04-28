@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import os
 import sqlite3
 import hmac
@@ -48,6 +49,7 @@ class AuditLogger:
                 """)
                 self._conn.commit()
         except Exception as e:
+            record_degradation('audit_logger', e)
             logger.error(f"Failed to initialize Audit DB: {e}", exc_info=True)
 
     def _sign(self, timestamp: float, actor: str, action: str, target: str, context_str: str) -> str:
@@ -78,6 +80,7 @@ class AuditLogger:
                 self._conn.commit()
                 logger.debug(f"Audit event recorded: [{action}] by [{actor}] on [{target}]")
         except Exception as e:
+            record_degradation('audit_logger', e)
             logger.error(f"CRITICAL: Failed to write to audit log: {e}", exc_info=True)
 
     def verify_integrity(self) -> bool:
@@ -94,6 +97,7 @@ class AuditLogger:
             logger.info("Audit log integrity verified: SUCCESS")
             return True
         except Exception as e:
+            record_degradation('audit_logger', e)
             logger.error(f"Failed to verify audit log integrity: {e}")
             return False
 

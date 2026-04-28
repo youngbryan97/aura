@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import sqlite3
 import json
 import logging
@@ -53,6 +54,7 @@ class AuraCoreDB:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_vfallback_coll ON vector_fallback(collection)")
             logger.info("✓ Aura Core DB Initialized at %s", self.db_path)
         except Exception as e:
+            record_degradation('core_db', e)
             logger.error("Failed to initialize core DB: %s", e)
         finally:
             conn.close()

@@ -34,6 +34,8 @@ How it works
    be answered accurately from stored state rather than guessed.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 from core.utils.task_tracker import get_task_tracker
 
@@ -653,6 +655,7 @@ class TaskCommitmentVerifier:
                 elapsed_ms=elapsed,
             )
         except Exception as e:
+            record_degradation('task_commitment_verifier', e)
             self._update_task_entry(task_id, status="failed", error=str(e))
             await self._update_goal_dispatch(
                 task_id=task_id,
@@ -790,6 +793,7 @@ class TaskCommitmentVerifier:
             )
             return commitment.id
         except Exception as ex:
+            record_degradation('task_commitment_verifier', ex)
             logger.debug("TaskCommitmentVerifier: CommitmentEngine registration failed: %s", ex)
             return None
 
@@ -857,6 +861,7 @@ class TaskCommitmentVerifier:
                     quick_win=quick_win,
                 )
             except Exception as exc:
+                record_degradation('task_commitment_verifier', exc)
                 logger.debug("TaskCommitmentVerifier: goal dispatch tracking failed: %s", exc)
 
     async def _update_goal_dispatch(
@@ -879,6 +884,7 @@ class TaskCommitmentVerifier:
                     evidence=evidence,
                 )
             except Exception as exc:
+                record_degradation('task_commitment_verifier', exc)
                 logger.debug("TaskCommitmentVerifier: goal lifecycle update failed: %s", exc)
 
     async def _finalize_background_task(
@@ -913,6 +919,7 @@ class TaskCommitmentVerifier:
                     evidence=evidence,
                 )
             except Exception as goal_exc:
+                record_degradation('task_commitment_verifier', goal_exc)
                 logger.error("TaskCommitmentVerifier: goal dispatch failed for %s: %s", task_id, goal_exc)
             if commitment_id:
                 try:
@@ -927,6 +934,7 @@ class TaskCommitmentVerifier:
                             progress=0.0,
                         )
                 except Exception as exc:
+                    record_degradation('task_commitment_verifier', exc)
                     logger.debug("TaskCommitmentVerifier: commitment settlement failed: %s", exc)
             logger.info(
                 "TaskCommitmentVerifier: async task %s %s: %s",
@@ -955,9 +963,11 @@ class TaskCommitmentVerifier:
                         progress=0.0,
                     )
                 except Exception as exc:
+                    record_degradation('task_commitment_verifier', exc)
                     logger.debug("TaskCommitmentVerifier: cancelled commitment settlement failed: %s", exc)
             logger.warning("TaskCommitmentVerifier: async task %s was cancelled", task_id)
         except Exception as e:
+            record_degradation('task_commitment_verifier', e)
             self._update_task_entry(
                 task_id,
                 status="failed",
@@ -972,6 +982,7 @@ class TaskCommitmentVerifier:
                     error=str(e),
                 )
             except Exception as goal_exc:
+                record_degradation('task_commitment_verifier', goal_exc)
                 logger.error("TaskCommitmentVerifier: goal dispatch failed during error handling for %s: %s", task_id, goal_exc)
             if commitment_id:
                 try:
@@ -983,6 +994,7 @@ class TaskCommitmentVerifier:
                         progress=0.0,
                     )
                 except Exception as exc:
+                    record_degradation('task_commitment_verifier', exc)
                     logger.debug("TaskCommitmentVerifier: exception commitment settlement failed: %s", exc)
             logger.warning("TaskCommitmentVerifier: async task %s failed: %s", task_id, e)
         finally:
@@ -1016,6 +1028,7 @@ class TaskCommitmentVerifier:
         try:
             snapshot = list(task_engine.get_active_plans() or [])
         except Exception as exc:
+            record_degradation('task_commitment_verifier', exc)
             logger.debug("TaskCommitmentVerifier: task engine snapshot skipped: %s", exc)
             return []
 
@@ -1257,6 +1270,7 @@ class TaskCommitmentVerifier:
                 return
             raw = json.loads(self.persist_path.read_text(encoding="utf-8"))
         except Exception as exc:
+            record_degradation('task_commitment_verifier', exc)
             logger.debug("TaskCommitmentVerifier: state load skipped: %s", exc)
             return
 

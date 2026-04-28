@@ -4,6 +4,7 @@ Unified facade for Aura's multi-layered memory systems.
 Implements pruning, consolidation, and retrieval-confidence gating.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -41,6 +42,7 @@ class MemoryManager:
             try:
                 self._mycelium = ServiceContainer.get("mycelial_network", default=None)
             except Exception as e:
+                record_degradation('memory_manager', e)
                 capture_and_log(e, {'module': __name__})
         return self._mycelium
 
@@ -52,6 +54,7 @@ class MemoryManager:
                 if hypha:
                     hypha.pulse(success=success)
             except Exception as e:
+                record_degradation('memory_manager', e)
                 capture_and_log(e, {'module': __name__})
 
     async def _approve_memory_write(self, content: str, importance: float, tags: Optional[List[str]] = None) -> bool:
@@ -82,6 +85,7 @@ class MemoryManager:
                 )
             return approved
         except Exception as exc:
+            record_degradation('memory_manager', exc)
             if constitutional_runtime_live:
                 record_degraded_event(
                     "memory_manager",
@@ -121,6 +125,7 @@ class MemoryManager:
             # Pulse mycelial root: memory → cognition
             self._pulse_hypha("memory", "cognition", success=True)
         except Exception as e:
+            record_degradation('memory_manager', e)
             logger.error("Failed to store memory: %s", e)
             self._pulse_hypha("memory", "cognition", success=False)
             if audit:
@@ -138,6 +143,7 @@ class MemoryManager:
                 results = [r for r in raw_results if r.get("score", 0) >= min_confidence]
             self._pulse_hypha("cognition", "memory", success=True)
         except Exception as e:
+            record_degradation('memory_manager', e)
             logger.error("Failed to retrieve memory: %s", e)
             self._pulse_hypha("cognition", "memory", success=False)
         return results
@@ -149,6 +155,7 @@ class MemoryManager:
             if vector and hasattr(vector, 'search_similar'):
                 return vector.search_similar(query, limit=limit, **kwargs)
         except Exception as e:
+            record_degradation('memory_manager', e)
             logger.error("search_similar delegation failed: %s", e)
         return []
 
@@ -173,6 +180,7 @@ class MemoryManager:
             if episodic:
                 await episodic.consolidate()
         except Exception as e:
+            record_degradation('memory_manager', e)
             logger.error("Memory consolidation failed: %s", e)
 
     async def log_event(self, event_type: str, content: Any, metadata: Dict[str, Any] = None):
@@ -189,6 +197,7 @@ class MemoryManager:
             await self.store(content, importance=importance, tags=tags)
             logger.info("📝 Event logged: %s (%d chars)", event_type, len(str(content)[:200]))
         except Exception as e:
+            record_degradation('memory_manager', e)
             logger.error("Failed to log event '%s': %s", event_type, e)
 
     def get_status(self) -> Dict[str, Any]:

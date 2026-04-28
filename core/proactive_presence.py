@@ -11,6 +11,8 @@ module now treats the primary chat lane as a scarce channel:
   - background reflections stay in the neural feed
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -217,6 +219,7 @@ class ProactivePresence:
                     )
 
             except Exception as e:
+                record_degradation('proactive_presence', e)
                 logger.debug("[ProactivePresence] Loop error: %s", e)
 
     def _should_speak_now(self, *, queued: bool = False, allow_during_away: bool = False) -> bool:
@@ -398,6 +401,7 @@ class ProactivePresence:
                 return None
             return (content, selected_source, True, selected_initiative_activity)
         except Exception as e:
+            record_degradation('proactive_presence', e)
             logger.debug("[ProactivePresence] Generation failed (%s): %s",
                         getattr(selected_fn, "__name__", "unknown"), e)
             return None
@@ -496,6 +500,7 @@ class ProactivePresence:
                 if result and hasattr(result, "content"):
                     news = str(result.content)[:200]
         except Exception as e:
+            record_degradation('proactive_presence', e)
             logger.debug("[ProactivePresence] Stimulus fetch failed: %s", e)
         if not news:
             # No external news — skip rather than inject generic noise
@@ -515,6 +520,7 @@ class ProactivePresence:
         try:
             return await brain.generate(prompt, temperature=0.8, max_tokens=100)
         except Exception as e:
+            record_degradation('proactive_presence', e)
             logger.debug("Prompt generation (reaction) failed: %s", e)
             return None
 
@@ -551,6 +557,7 @@ class ProactivePresence:
         try:
             return await brain.generate(prompt, temperature=0.8, max_tokens=100)
         except Exception as e:
+            record_degradation('proactive_presence', e)
             logger.debug("Prompt generation (goal) failed: %s", e)
             return None
 
@@ -597,6 +604,7 @@ class ProactivePresence:
         try:
             return await brain.generate(prompt, temperature=0.9, max_tokens=100)
         except Exception as e:
+            record_degradation('proactive_presence', e)
             logger.debug("Prompt generation (reflection) failed: %s", e)
             return None
 
@@ -613,6 +621,7 @@ class ProactivePresence:
             if jarvis and hasattr(jarvis, "_unresolved_topics"):
                 unresolved_topics = [t["topic"] for t in jarvis._unresolved_topics if not t.get("reminder_fired")]
         except Exception as e:
+            record_degradation('proactive_presence', e)
             logger.debug("[ProactivePresence] JARVIS topic fetch failed: %s", e)
 
         recent_ctx = self._get_recent_conversation_context()
@@ -625,6 +634,7 @@ class ProactivePresence:
             dyn_state = get_dynamics_engine().get_current_state()
             dynamics_threads = [t.content[:80] for t in dyn_state.open_threads if t.age_turns < 4]
         except Exception as _exc:
+            record_degradation('proactive_presence', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         all_threads = unresolved_topics + dynamics_threads
@@ -647,6 +657,7 @@ class ProactivePresence:
         try:
             return await brain.generate(prompt, temperature=0.9, max_tokens=100)
         except Exception as e:
+            record_degradation('proactive_presence', e)
             logger.debug("Prompt generation (topic) failed: %s", e)
             return None
 
@@ -685,6 +696,7 @@ class ProactivePresence:
             if result and len(result.strip()) > 5:
                 return result.strip()
         except Exception as e:
+            record_degradation('proactive_presence', e)
             logger.debug("[ProactivePresence] Check-in generation failed: %s", e)
 
         # Fallback to a static variant
@@ -856,6 +868,7 @@ class ProactivePresence:
                     )
                     return
             except Exception as e:
+                record_degradation('proactive_presence', e)
                 logger.debug("[ProactivePresence] Visible emission failed: %s", e)
 
         try:
@@ -872,6 +885,7 @@ class ProactivePresence:
                 self._consecutive_unprompted, content[:80],
             )
         except Exception as e:
+            record_degradation('proactive_presence', e)
             logger.debug("[ProactivePresence] Neural feed emit failed: %s", e)
 
         # Also queue for terminal fallback in case UI is gone.
@@ -881,6 +895,7 @@ class ProactivePresence:
             from core.terminal_chat import get_terminal_fallback
             get_terminal_fallback().queue_autonomous_message(content)
         except Exception as _exc:
+            record_degradation('proactive_presence', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def _get_brain(self):

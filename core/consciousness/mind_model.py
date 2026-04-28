@@ -2,6 +2,7 @@
 Theory of Mind (ToM) Engine.
 Tracks the system's internal model of the user's beliefs, intents, and feelings.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -50,6 +51,7 @@ class MindModel(AuraBaseModule):
                     self.user_state.confidence_in_projection = data.get("confidence", 0.5)
                     self.user_state.last_updated = data.get("last_updated", time.time())
             except Exception as e:
+                record_degradation('mind_model', e)
                 self.logger.error("Failed to load mind model: %s", e)
 
     def save(self):
@@ -57,6 +59,7 @@ class MindModel(AuraBaseModule):
             with open(self.data_path, 'w') as f:
                 json.dump(self.user_state.to_dict(), f, indent=2)
         except Exception as e:
+            record_degradation('mind_model', e)
             self.logger.error("Failed to save mind model: %s", e)
 
     def update_projection(self, interaction_summary: str, current_mood: str):

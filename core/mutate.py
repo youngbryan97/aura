@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import ast
 import asyncio
@@ -21,6 +22,7 @@ async def _run_tests_async() -> tuple[bool, str]:
             return True, stdout.decode().strip()
         return False, (stderr.decode().strip() or stdout.decode().strip())
     except Exception as e:
+        record_degradation('mutate', e)
         return False, f"pytest failed to run: {e}"
 
 async def apply_mutation(target_path: str, new_code: str) -> bool:
@@ -51,6 +53,7 @@ async def apply_mutation(target_path: str, new_code: str) -> bool:
         )
         await proc2.communicate()
     except Exception as e:
+        record_degradation('mutate', e)
         logger.error("Failed to create pre-mutation checkpoint: %s", e)
         return False
 
@@ -84,6 +87,7 @@ async def apply_mutation(target_path: str, new_code: str) -> bool:
         return True
 
     except Exception as e:
+        record_degradation('mutate', e)
         logger.exception("Critical error during mutation: %s", e)
         # Emergency Rollback
         proc_emerg = await asyncio.create_subprocess_exec("git", "reset", "--hard", "HEAD", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)

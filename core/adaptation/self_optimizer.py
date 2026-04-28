@@ -4,6 +4,7 @@ Orchestrates on-device LoRA fine-tuning for Aura's internal Nucleus models.
 This allows Aura to update her own weights based on captured experiences.
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import os
 import json
@@ -150,6 +151,7 @@ class SelfOptimizer:
                     with open(log_file, "r") as f:
                         error_msg = f.read().strip()[-500:] # Get last 500 chars
                 except Exception as _e:
+                    record_degradation('self_optimizer', _e)
                     logger.debug('Ignored Exception in self_optimizer.py: %s', _e)
                 
                 if self.event_bus:
@@ -161,6 +163,7 @@ class SelfOptimizer:
                 return {"ok": False, "error": error_msg}
                 
         except Exception as e:
+            record_degradation('self_optimizer', e)
             logger.error("❌ Nucleus: Critical optimizer failure: %s", e)
             return {"ok": False, "error": str(e)}
         finally:
@@ -182,6 +185,7 @@ class SelfOptimizer:
                         finally:
                             sentinel.release()
                 except Exception as e:
+                    record_degradation('self_optimizer', e)
                     logger.debug(f"[MLX] Cache clear skipped: {e}")
             except ImportError as _e:
                 logger.debug('Ignored ImportError in self_optimizer.py: %s', _e)
@@ -193,6 +197,7 @@ class SelfOptimizer:
                 shutil.rmtree(temp_dir)
                 logger.debug("🧠 Nucleus: Temporary training data cleaned.")
         except Exception as e:
+            record_degradation('self_optimizer', e)
             logger.warning(f"Failed to cleanup optimizer temp dir: {e}")
 
 

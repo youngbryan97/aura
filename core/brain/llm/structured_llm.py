@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 from typing import Type, TypeVar, Optional, Any, Dict, List
@@ -93,6 +94,7 @@ class StructuredLLM:
                             context={"model_class": self.model_class.__name__, "attempt": attempt + 1},
                         )
                     except Exception as _exc:
+                        record_degradation('structured_llm', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     # [STABILITY v54.1] Escalation Strategy:
                     # 1. First Technical Failure -> Try PRIMARY (32B Local)
@@ -134,6 +136,7 @@ class StructuredLLM:
                         context={"model_class": self.model_class.__name__, "attempt": attempt + 1},
                     )
                 except Exception as _exc:
+                    record_degradation('structured_llm', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
                 
                 # 4. Autonomous Correction: Feed the error back

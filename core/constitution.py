@@ -6,6 +6,8 @@ tool execution, belief mutation, state mutation, and continuity restoration
 can all flow through one constitutional service.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -150,6 +152,7 @@ class BeliefAuthority:
                     status = "trusted"
                     confidence = 0.98
             except Exception as exc:
+                record_degradation('constitution', exc)
                 logger.debug("BeliefAuthority state-authority lookup skipped: %s", exc)
 
         belief_id = f"{namespace}:{normalized_key or key}"
@@ -318,6 +321,7 @@ class ConstitutionalCore:
                 payload["result"] = result
             get_event_bus().publish_threadsafe("telemetry", payload)
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("ConstitutionalCore tool event emission skipped: %s", exc)
 
     async def begin_tool_execution(
@@ -416,6 +420,7 @@ class ConstitutionalCore:
                             plan=[f"Invoke {tool_name}", "Observe result", "Revise if needed"],
                         )
                     except Exception as exc:
+                        record_degradation('constitution', exc)
                         logger.debug("IntentionLoop begin skipped: %s", exc)
 
             outcome = {
@@ -499,6 +504,7 @@ class ConstitutionalCore:
                     success=success,
                 )
             except Exception as exc:
+                record_degradation('constitution', exc)
                 logger.debug("IntentionLoop completion skipped: %s", exc)
 
         gateway = self._get_authority_gateway()
@@ -514,6 +520,7 @@ class ConstitutionalCore:
                 try:
                     exec_core.complete_intent(handle.executive_intent_id, success=success)
                 except Exception as exc:
+                    record_degradation('constitution', exc)
                     logger.debug("Executive intent completion skipped: %s", exc)
         tool_name = str(handle.proposal.payload.get("tool_name", "unknown") or "unknown")
         self._emit_tool_event(
@@ -777,6 +784,7 @@ class ConstitutionalCore:
                 metadata=metadata,
             )
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("ConstitutionalCore sync memory approval failed: %s", exc)
             if self._strict_enforcement_active():
                 recorded = self._record_decision(
@@ -898,6 +906,7 @@ class ConstitutionalCore:
                 priority=max(0.0, min(1.0, float(importance or 0.0))),
             )
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("ConstitutionalCore sync belief approval failed: %s", exc)
             if self._strict_enforcement_active():
                 recorded = self._record_decision(
@@ -1003,6 +1012,7 @@ class ConstitutionalCore:
                 priority=max(0.0, min(1.0, float(urgency or 0.0))),
             )
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("ConstitutionalCore sync state approval failed: %s", exc)
             if self._strict_enforcement_active():
                 self._record_decision(
@@ -1170,6 +1180,7 @@ class ConstitutionalCore:
                 priority=max(0.0, min(1.0, float(urgency or 0.0))),
             )
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("ConstitutionalCore sync initiative approval failed: %s", exc)
             if self._strict_enforcement_active():
                 self._record_decision(
@@ -1285,6 +1296,7 @@ class ConstitutionalCore:
                 urgency=max(0.0, min(1.0, float(urgency or 0.0))),
             )
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("ConstitutionalCore sync expression approval failed: %s", exc)
             if self._strict_enforcement_active():
                 self._record_decision(
@@ -1374,6 +1386,7 @@ class ConstitutionalCore:
                 temporal_state = exec_core._get_temporal_identity_context()
                 identity_integrity = bool(exec_core._identity_integrity_available())
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("ConstitutionalCore status enrichment skipped: %s", exc)
         return {
             "recent_decisions": [decision.to_dict() for decision in list(self._decision_history)[-20:]],
@@ -1431,6 +1444,7 @@ class ConstitutionalCore:
 
             return get_executive_core()
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("ExecutiveCore resolution failed: %s", exc)
             return None
 
@@ -1440,6 +1454,7 @@ class ConstitutionalCore:
 
             return get_authority_gateway()
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("AuthorityGateway resolution failed: %s", exc)
             return None
 
@@ -1449,6 +1464,7 @@ class ConstitutionalCore:
 
             return ServiceContainer.get("intention_loop", default=None) or get_intention_loop()
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("IntentionLoop resolution failed: %s", exc)
             return None
 
@@ -1470,6 +1486,7 @@ def get_constitutional_core(orchestrator: Any = None) -> ConstitutionalCore:
             ServiceContainer.register_instance("constitutional_core", _instance, required=False)
             ServiceContainer.register_instance("belief_authority", _instance.belief_authority, required=False)
         except Exception as exc:
+            record_degradation('constitution', exc)
             logger.debug("ConstitutionalCore registration skipped: %s", exc)
     else:
         _instance.bind(orchestrator)

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import os
 import time
 import json
@@ -92,6 +93,7 @@ class BlackHoleVault:
                 self._init_error = "Horcrux initialization returned False"
                 logger.warning("BlackHoleVault running in degraded mode: %s", self._init_error)
         except Exception as exc:
+            record_degradation('black_hole_vault', exc)
             self._init_error = str(exc)
             logger.warning("BlackHoleVault initialization degraded: %s", exc)
             
@@ -202,6 +204,7 @@ class BlackHoleVault:
                             hypha = mycelium.get_hypha("memory", "vault")
                             if hypha: hypha.pulse(success=True)
                     except Exception as _e:
+                        record_degradation('black_hole_vault', _e)
                         logger.debug('Ignored Exception in black_hole_vault.py: %s', _e)
             
             formatted.append({
@@ -276,6 +279,7 @@ class BlackHoleVault:
                     hypha.log("EVAPORATION: Qualitative shift in history.")
                     hypha.pulse(success=True)
         except Exception as _e:
+            record_degradation('black_hole_vault', _e)
             logger.debug('Ignored Exception in black_hole_vault.py: %s', _e)
 
         sorted_mems = grav_queue_sort(self.memories)

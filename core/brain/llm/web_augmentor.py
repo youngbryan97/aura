@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -85,6 +86,7 @@ Internet Awareness:
                 else:
                     logger.warning("WebSearchSkill not available for augmentor.")
             except Exception as e:
+                record_degradation('web_augmentor', e)
                 logger.error("Error refreshing world state: %s", e)
             finally:
                 self._is_updating = False

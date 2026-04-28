@@ -4,6 +4,8 @@ Extracted from server.py — Privacy toggles, voice endpoints,
 and source download.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import json
@@ -178,6 +180,7 @@ async def api_source_download(
             filename=f"aura_source_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
         )
     except Exception as exc:
+        record_degradation('privacy', exc)
         logger.error("Source download failed: %s", exc)
         raise HTTPException(status_code=500, detail="Source bundle generation failed")
 

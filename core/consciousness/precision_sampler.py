@@ -9,6 +9,7 @@ Also implements top-p adjustment based on topological attractor count:
 many attractors → wider p (exploration), few attractors → tighter p (exploitation).
 """
 
+from core.runtime.errors import record_degradation
 import logging
 from typing import Optional
 
@@ -63,6 +64,7 @@ class ActiveInferenceSampler:
             temp = pneuma.get_llm_temperature(base_temp=0.72)
             return max(self.temp_min, min(self.temp_max, temp))
         except Exception as _exc:
+            record_degradation('precision_sampler', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         # Fallback to circumplex
         try:
@@ -70,6 +72,7 @@ class ActiveInferenceSampler:
             params = get_circumplex().get_llm_params()
             return max(self.temp_min, min(self.temp_max, params.get("temperature", 0.72)))
         except Exception as _exc:
+            record_degradation('precision_sampler', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return 0.72
 
@@ -83,6 +86,7 @@ class ActiveInferenceSampler:
                 from core.pneuma import get_pneuma
                 attractor_count = get_pneuma().topo_memory.attractor_count
             except Exception as _exc:
+                record_degradation('precision_sampler', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             phi = mhaf.get_phi()
             # High phi + many attractors → explore more (higher top_p)

@@ -6,6 +6,7 @@ Tier 3: OpenAI (Relegated to fallback/research)
 
 Drives the Mind/Body connection.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -96,6 +97,7 @@ class AutonomousCognitiveEngine:
                 # If system is not healthy, we are in safe mode
                 return not summary.get("healthy", True)
         except Exception as _e:
+            record_degradation('autonomous_brain_integration', _e)
             logger.debug('Ignored Exception in autonomous_brain_integration.py: %s', _e)
         return False
 
@@ -157,6 +159,7 @@ class AutonomousCognitiveEngine:
                 ))
                 logger.info("🧠 PRIMARY Tier registered: %s (%s) — Daily Brain", PRIMARY_ENDPOINT, ACTIVE_MODEL)
             except Exception as e:
+                record_degradation('autonomous_brain_integration', e)
                 logger.error("Failed to register %s pathway: %s", PRIMARY_ENDPOINT, e)
 
         # ── LOCAL SECONDARY: Solver (72B) — Hot-swap deep thinker ──
@@ -176,6 +179,7 @@ class AutonomousCognitiveEngine:
                 ))
                 logger.info("🧠 SECONDARY Tier registered: %s (%s) — Deep Thinker (Hot-Swap)", DEEP_ENDPOINT, DEEP_MODEL)
             except Exception as e:
+                record_degradation('autonomous_brain_integration', e)
                 logger.error("Failed to register %s pathway: %s", DEEP_ENDPOINT, e)
 
         # ── CLOUD SECONDARY: Gemini (Teacher/Oracle for distillation) ──
@@ -190,6 +194,7 @@ class AutonomousCognitiveEngine:
                             gemini_key = line.split("=", 1)[1].strip()
                             break
             except Exception as e:
+                record_degradation('autonomous_brain_integration', e)
                 capture_and_log(e, {'module': __name__})
         
         if gemini_key and "Gemini-Fast" not in getattr(self.llm_router, "endpoints", {}):
@@ -245,6 +250,7 @@ class AutonomousCognitiveEngine:
                 logger.info("☁️ SECONDARY Tier registered: Gemini Pro (Teacher/Oracle)")
                 
             except Exception as e:
+                record_degradation('autonomous_brain_integration', e)
                 logger.warning("Failed to initialize Gemini adapters: %s", e)
         else:
             logger.info("No GEMINI_API_KEY found — running fully local (teacher disabled)")
@@ -265,6 +271,7 @@ class AutonomousCognitiveEngine:
                 ))
                 logger.info("⚡ TERTIARY Tier registered: %s (7B) — Background/Reflex", BRAINSTEM_ENDPOINT)
             except Exception as e:
+                record_degradation('autonomous_brain_integration', e)
                 logger.error("Failed to register %s pathway: %s", BRAINSTEM_ENDPOINT, e)
         elif cortex_model_path:
             # If no explicit brainstem path, use the cortex model as brainstem too
@@ -293,6 +300,7 @@ class AutonomousCognitiveEngine:
                 ))
                 logger.info("🚨 EMERGENCY Tier registered: %s (1.5B CPU emergency)", FALLBACK_ENDPOINT)
             except Exception as e:
+                record_degradation('autonomous_brain_integration', e)
                 logger.error("Failed to register %s pathway: %s", FALLBACK_ENDPOINT, e)
         
         # ── Sanity check: ensure at least one endpoint exists ──
@@ -457,6 +465,7 @@ class AutonomousCognitiveEngine:
                                 max_tools=8,
                             )
                         except Exception as _exc:
+                            record_degradation('autonomous_brain_integration', _exc)
                             logger.debug("Suppressed Exception: %s", _exc)
                     result = await agentic_endpoint.client.think_and_act(
                         objective,
@@ -481,6 +490,7 @@ class AutonomousCognitiveEngine:
                 return {"content": text, "confidence": 0.5}
                 
         except Exception as e:
+            record_degradation('autonomous_brain_integration', e)
             now = time.time()
             if now - self._last_think_error_time > self._THINK_ERROR_COOLDOWN:
                 logger.error("Independence Mode thinking failed: %s. Falling back to standard generation.", e)
@@ -499,4 +509,5 @@ class AutonomousCognitiveEngine:
                 )
                 return {"content": text, "confidence": 0.5}
             except Exception as e2:
+                record_degradation('autonomous_brain_integration', e2)
                 return {"content": f"Absolute failure: {e2}", "confidence": 0.0}

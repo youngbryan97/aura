@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 from typing import Any, Optional
@@ -29,6 +31,7 @@ class ExecutiveClosurePhase(BasePhase):
             try:
                 ServiceContainer.register_instance("executive_closure", engine)
             except Exception as exc:
+                record_degradation('executive_closure', exc)
                 logger.debug("ExecutiveClosurePhase: registration skipped: %s", exc)
         self._engine = engine
         return engine

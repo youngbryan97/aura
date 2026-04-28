@@ -3,6 +3,7 @@
 Automates the synthesis, validation, and registration of new Python skills 
 to expand Aura's capabilities autonomously.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
@@ -37,6 +38,7 @@ class {class_name}(BaseSkill):
         except asyncio.TimeoutError:
             return {{"ok": False, "error": "Execution timed out (30s limit)"}}
         except Exception as e:
+            record_degradation('hephaestus', e)
             return {{"ok": False, "error": str(e)}}
 """
 
@@ -235,6 +237,7 @@ class HephaestusEngine(AuraBaseModule):
                 except ImportError:
                     self.logger.debug("Shadow runtime not available — skipping soak test")
                 except Exception as shadow_err:
+                    record_degradation('hephaestus', shadow_err)
                     self.logger.warning("Shadow test error (non-blocking): %s", shadow_err)
                 
                 # Create a CodeFix compatible structure for SME
@@ -251,6 +254,7 @@ class HephaestusEngine(AuraBaseModule):
                 
                 return {"ok": True, "fix": fix}
             except Exception as e:
+                record_degradation('hephaestus', e)
                 self.logger.error("Patch generation error: %s", e)
                 return {"ok": False, "error": f"Patch generation failed: {e}"}
 
@@ -298,6 +302,7 @@ class HephaestusEngine(AuraBaseModule):
                 "logic_description": objective
             }
         except Exception as e:
+            record_degradation('hephaestus', e)
             return {"ok": False, "error": f"LLM logic generation failed: {e}"}
 
     async def refine_skill(self, skill_name: str, objective: str) -> Dict[str, Any]:

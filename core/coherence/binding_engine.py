@@ -6,6 +6,8 @@ Runs every cognitive tick. Orchestrates all convergence systems and computes
 a unified CoherenceReport that tells the rest of the organism how unified it is.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -103,12 +105,14 @@ class BindingEngine:
             from core.consciousness.phenomenal_now import PhenomenalNowEngine
             self._phenomenal_engine = ServiceContainer.get("phenomenal_now_engine", default=None)
         except Exception as _exc:
+            record_degradation('binding_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
             from core.self.canonical_self import CanonicalSelfEngine
             self._self_engine = ServiceContainer.get("canonical_self_engine", default=None)
         except Exception as _exc:
+            record_degradation('binding_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -117,6 +121,7 @@ class BindingEngine:
             if not self._arbiter:
                 self._arbiter = get_initiative_arbiter()
         except Exception as _exc:
+            record_degradation('binding_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -125,6 +130,7 @@ class BindingEngine:
             if not self._tension_engine:
                 self._tension_engine = get_tension_engine()
         except Exception as _exc:
+            record_degradation('binding_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
@@ -133,6 +139,7 @@ class BindingEngine:
             if not self._intention_loop:
                 self._intention_loop = get_intention_loop()
         except Exception as _exc:
+            record_degradation('binding_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         self._engines_initialized = True
@@ -166,6 +173,7 @@ class BindingEngine:
                     else:
                         report.phenomenal_coherence = 0.5
             except Exception as e:
+                record_degradation('binding_engine', e)
                 logger.debug("BindingEngine: PhenomenalNow tick failed: %s", e)
 
         # 2. Assemble the self
@@ -188,6 +196,7 @@ class BindingEngine:
                         report.threats.extend(threats)
                         report.self_continuity = min(report.self_continuity, 0.6)
             except Exception as e:
+                record_degradation('binding_engine', e)
                 logger.debug("BindingEngine: CanonicalSelf tick failed: %s", e)
 
         # 3. Scan for tensions
@@ -201,6 +210,7 @@ class BindingEngine:
                     if highest:
                         report.threats.append(f"High tension: {highest.description[:60]}")
             except Exception as e:
+                record_degradation('binding_engine', e)
                 logger.debug("BindingEngine: TensionEngine tick failed: %s", e)
 
         # 4. Arbitrate initiatives (choose what to do next)
@@ -215,6 +225,7 @@ class BindingEngine:
                     cont_score = scores.get("continuity", 0.5)
                     report.initiative_alignment = (id_score * 0.6 + cont_score * 0.4)
             except Exception as e:
+                record_degradation('binding_engine', e)
                 logger.debug("BindingEngine: InitiativeArbiter tick failed: %s", e)
 
         # 5. Review intention integrity
@@ -234,6 +245,7 @@ class BindingEngine:
                     report.threats.append(f"{len(stale)} stale intentions (>5min)")
                     report.intention_integrity = max(0.3, report.intention_integrity - len(stale) * 0.1)
             except Exception as e:
+                record_degradation('binding_engine', e)
                 logger.debug("BindingEngine: IntentionLoop review failed: %s", e)
 
         # ── Compute overall coherence ────────────────────────────────────────
@@ -260,6 +272,7 @@ class BindingEngine:
                         "threats": report.threats,
                     })
             except Exception as _exc:
+                record_degradation('binding_engine', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
         elif report.tension_pressure > 0.7:
             report.recommended_action = "consolidate"
@@ -321,6 +334,7 @@ class BindingEngine:
                     if not self._self_engine.assert_identity(action_description):
                         return False, "Action conflicts with core identity."
             except Exception as _exc:
+                record_degradation('binding_engine', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         return True, "Action is coherent."

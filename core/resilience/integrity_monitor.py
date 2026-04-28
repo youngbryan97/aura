@@ -8,6 +8,7 @@ try:
 except ImportError:
     def capture_and_log(e, ctx=None):
         logging.getLogger("Aura.IntegrityMonitor").error(f"Integrity Error: {e} | Context: {ctx}")
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -57,6 +58,7 @@ class SystemIntegrityMonitor:
             import psutil
             self._proc = psutil.Process(os.getpid())
         except Exception as e:
+            record_degradation('integrity_monitor', e)
             capture_and_log(e, {'module': __name__})
 
         # Critical services that must exist
@@ -103,6 +105,7 @@ class SystemIntegrityMonitor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('integrity_monitor', e)
                 logger.error("Integrity monitor error: %s", e)
 
             await asyncio.sleep(self._interval)
@@ -187,6 +190,7 @@ class SystemIntegrityMonitor:
                     report.db_checks[db_name] = f"error: {e}"
                     report.errors.append(f"DB check failed: {db_name} — {e}")
             except Exception as e:
+                record_degradation('integrity_monitor', e)
                 report.db_checks[db_name] = f"error: {e}"
                 report.warnings.append(f"DB check skipped: {db_name} — {e}")
 
@@ -225,6 +229,7 @@ class SystemIntegrityMonitor:
                 if not exists:
                     report.warnings.append(f"Expected service missing: {svc}")
         except Exception as e:
+            record_degradation('integrity_monitor', e)
             report.errors.append(f"Service check failed: {e}")
 
     def _check_resources(self, report: IntegrityReport):
@@ -272,10 +277,12 @@ class SystemIntegrityMonitor:
                             thermal_level=report.thermal_level
                         )
                 except Exception as e:
+                    record_degradation('integrity_monitor', e)
                     capture_and_log(e, {'module': __name__})
         except ImportError:
             report.warnings.append("psutil not available for resource checks")
         except Exception as e:
+            record_degradation('integrity_monitor', e)
             report.warnings.append(f"Resource check failed: {e}")
 
     def _get_thermal_level(self) -> int:

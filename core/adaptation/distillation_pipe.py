@@ -10,6 +10,7 @@ runtime produces a low-confidence response, this pipeline:
 This is the path from "local model that struggles" to "local model that learns
 from stronger or more stable supervisory passes over time."
 """
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 from core.health.degraded_events import record_degraded_event
 import asyncio
@@ -75,6 +76,7 @@ class DistillationPipe:
             if content:
                 return content, teacher, "configured_deep_teacher"
         except Exception as exc:
+            record_degradation('distillation_pipe', exc)
             record_degraded_event(
                 "distillation_pipe",
                 "teacher_think_failed",
@@ -100,6 +102,7 @@ class DistillationPipe:
                 if content:
                     return content, "local_secondary_teacher", "local_secondary_fallback"
         except Exception as exc:
+            record_degradation('distillation_pipe', exc)
             record_degraded_event(
                 "distillation_pipe",
                 "local_teacher_fallback_failed",
@@ -175,6 +178,7 @@ class DistillationPipe:
                             h = mycelium.get_hypha("adaptation", "memory")
                             if h: h.pulse(success=True)
                     except Exception as e:
+                        record_degradation('distillation_pipe', e)
                         capture_and_log(e, {'module': __name__})
                 else:
                     record_degraded_event(
@@ -187,6 +191,7 @@ class DistillationPipe:
                     failed_count += 1
 
             except Exception as e:
+                record_degradation('distillation_pipe', e)
                 logger.error("Distillation failed for item: %s", e)
                 failed_count += 1
 

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -84,6 +85,7 @@ class TestGeneratorSkill(BaseSkill):
             try:
                 params = TestGeneratorParams(**params)
             except Exception as e:
+                record_degradation('test_generator', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         target_file = params.target_file
@@ -141,6 +143,7 @@ class TestGeneratorSkill(BaseSkill):
                     test_code = re.sub(r"```python\n|```", "", test_code).strip()
                     generated_with_brain = bool(test_code)
                 except Exception as e:
+                    record_degradation('test_generator', e)
                     logger.warning("LLM-based test generation unavailable for %s: %s", target_file, e)
 
             if not test_code:
@@ -193,6 +196,7 @@ class TestGeneratorSkill(BaseSkill):
                     "fallback_used": used_fallback_rerun,
                 }
             except Exception as sandbox_err:
+                record_degradation('test_generator', sandbox_err)
                 logger.error("Sandbox execution failed: %s", sandbox_err)
                 return {"ok": False, "error": f"Sandbox error: {sandbox_err}"}
             finally:
@@ -202,5 +206,6 @@ class TestGeneratorSkill(BaseSkill):
                     except Exception:
                         logger.debug("Sandbox cleanup skipped for %s", target_file)
         except Exception as e:
+            record_degradation('test_generator', e)
             logger.error("Test generation/execution failed: %s", e)
             return {"ok": False, "error": str(e)}

@@ -8,6 +8,7 @@ to navigate the full spectrum of human relational dynamics — not just what the
 user said, but how they relate, what engages them, where they're vulnerable,
 and how they handle friction.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -213,6 +214,7 @@ class RelationalIntelligence:
                 self._entertainment[uid] = self._hydrate(EntertainmentProfile, blob.get("entertainment", {}))
             logger.debug("RelationalIntelligence: loaded %d profiles.", len(raw))
         except Exception as e:
+            record_degradation('relational_intelligence', e)
             logger.warning("RelationalIntelligence: load failed (%s), starting fresh.", e)
 
     @staticmethod
@@ -238,6 +240,7 @@ class RelationalIntelligence:
                 json.dump(payload, f, indent=2)
             os.replace(tmp, self._data_path)
         except Exception as e:
+            record_degradation('relational_intelligence', e)
             logger.error("RelationalIntelligence: save failed: %s", e)
 
     # ------------------------------------------------------------------
@@ -861,5 +864,6 @@ def get_relational_intelligence() -> RelationalIntelligence:
             if not ServiceContainer.has("relational_intelligence"):
                 ServiceContainer.register_instance("relational_intelligence", _instance)
         except Exception as e:
+            record_degradation('relational_intelligence', e)
             logger.debug("Could not register in ServiceContainer: %s", e)
     return _instance

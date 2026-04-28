@@ -32,6 +32,7 @@ Integration points:
     to adjust its behavior (requires a small patch to cognitive_engine.py)
 """
 
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -106,6 +107,7 @@ class HomeostaticCoupling:
             from core.consciousness.liquid_substrate import LiquidSubstrate
             self.substrate = ServiceContainer.get("liquid_substrate", default=None)
         except Exception as e:
+            record_degradation('homeostatic_coupling', e)
             logger.debug("Substrate link unavailable: %s", e)
             
         # v1.1: Mycelial Network link
@@ -119,6 +121,7 @@ class HomeostaticCoupling:
             try:
                 self._mycelium = ServiceContainer.get("mycelial_network", default=None)
             except Exception as e:
+                record_degradation('homeostatic_coupling', e)
                 capture_and_log(e, {'module': __name__})
         return self._mycelium
 
@@ -133,6 +136,7 @@ class HomeostaticCoupling:
                 else:
                     mycelium.establish_connection("homeostasis", target, priority=1.0)
             except Exception as e:
+                record_degradation('homeostatic_coupling', e)
                 capture_and_log(e, {'module': __name__})
 
     # ------------------------------------------------------------------
@@ -163,6 +167,7 @@ class HomeostaticCoupling:
                     if phi > 0.6:
                         affect.setdefault('integration', phi)
                 except Exception as e:
+                    record_degradation('homeostatic_coupling', e)
                     logger.debug("Substrate blending failed: %s", e)
 
             mods = self._compute_modifiers(drives, affect, attention_modifier)
@@ -294,6 +299,7 @@ class HomeostaticCoupling:
                 if phenom:
                     parts.append(f"[PHENOMENAL STATE: {phenom}]")
         except Exception as e:
+            record_degradation('homeostatic_coupling', e)
             capture_and_log(e, {'module': __name__})
 
         return "\n".join(parts)
@@ -310,6 +316,7 @@ class HomeostaticCoupling:
                 return homeostasis.get_status()
             return {}
         except Exception as e:
+            record_degradation('homeostatic_coupling', e)
             logger.debug("Could not read homeostasis drives: %s", e)
             return {}
 
@@ -330,6 +337,7 @@ class HomeostaticCoupling:
                 }
             return {}
         except Exception as e:
+            record_degradation('homeostatic_coupling', e)
             logger.debug("Could not read affect: %s", e)
             return {}
 

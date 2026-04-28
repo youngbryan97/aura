@@ -4,6 +4,7 @@ core/resilience/cognitive_wal.py
 Ensures Aura never loses her train of thought during a power loss or system crash.
 Implements a Write-Ahead Log (WAL) for cognitive intents.
 """
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 from pathlib import Path
 import json
@@ -41,6 +42,7 @@ class CognitiveWAL:
             with open(self.filepath, "a") as f:
                 f.write(json.dumps(entry) + "\n")
         except Exception as e:
+            record_degradation('cognitive_wal', e)
             logger.error("Failed to write to WAL: %s", e)
 
     def mark_complete(self, turn_id: str):
@@ -54,6 +56,7 @@ class CognitiveWAL:
                 with open(self.filepath, "a") as f:
                     f.write(json.dumps(entry) + "\n")
             except Exception as e:
+                record_degradation('cognitive_wal', e)
                 logger.error("Failed to commit WAL entry: %s", e)
 
     def recover_state(self) -> List[Dict]:
@@ -78,6 +81,7 @@ class CognitiveWAL:
                     except json.JSONDecodeError:
                         continue
         except Exception as e:
+            record_degradation('cognitive_wal', e)
             logger.error("Failed to read WAL during recovery: %s", e)
             return []
 
@@ -114,6 +118,7 @@ class CognitiveWAL:
                         except json.JSONDecodeError:
                             continue
             except Exception as e:
+                record_degradation('cognitive_wal', e)
                 capture_and_log(e, {'module': __name__})
             
             # Atomic rewrite with only pending entries
@@ -127,6 +132,7 @@ class CognitiveWAL:
             logger.info("💾 WAL: Pruned successfully. %d pending intents preserved.", len(pending_entries))
             
         except Exception as e:
+            record_degradation('cognitive_wal', e)
             logger.error("WAL clear failed: %s", e)
 
 # Singleton instance

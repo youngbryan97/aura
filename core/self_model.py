@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -69,6 +71,7 @@ class SelfModel:
                     pending_updates=list(raw.get("pending_updates", []) or []),
                 )
             except Exception as e:
+                record_degradation('self_model', e)
                 logger.error("Failed to load self model: %s", e)
                 
         return cls(id=str(uuid4()))
@@ -90,6 +93,7 @@ class SelfModel:
                 }
                 atomic_write_text(DATA_FILE, json.dumps(data, indent=2))
             except Exception as e:
+                record_degradation('self_model', e)
                 logger.error("Failed to persist self model: %s", e)
 
     async def _persist_with_decision(self, decision: Any = None) -> None:
@@ -140,6 +144,7 @@ class SelfModel:
                 return True, str(reason or ""), False, decision
             return False, str(reason or "executive_deferred"), gate_failed, decision
         except Exception as exc:
+            record_degradation('self_model', exc)
             if constitutional_runtime_live:
                 return False, f"executive_gate_failed:{type(exc).__name__}", True, None
             logger.debug("Executive belief gate skipped: %s", exc)
@@ -263,6 +268,7 @@ class SelfModel:
                 bsummary = self._belief_graph.get_summary()
                 prompt += f"BELIEFS: {bsummary['total_beliefs']} beliefs.\n"
             except Exception as e:
+                record_degradation('self_model', e)
                 logger.debug("Belief graph summary unavailable: %s", e)
 
         if self._episodic_memory:
@@ -270,6 +276,7 @@ class SelfModel:
                 msummary = self._episodic_memory.get_summary()
                 prompt += f"MEMORY: {msummary['total_episodes']} episodes, mood={msummary['avg_emotional_valence']:+.2f}.\n"
             except Exception as e:
+                record_degradation('self_model', e)
                 logger.debug("Episodic memory summary unavailable: %s", e)
 
         if self._goal_hierarchy:
@@ -277,6 +284,7 @@ class SelfModel:
                 gsummary = self._goal_hierarchy.get_summary()
                 prompt += f"GOALS: {gsummary['pending']} pending, {gsummary['completed']} units achieved.\n"
             except Exception as e:
+                record_degradation('self_model', e)
                 logger.debug("Goal hierarchy summary unavailable: %s", e)
 
         return prompt
@@ -302,6 +310,7 @@ class SelfModel:
             else:
                 note = reviewed.reason
         except Exception as exc:
+            record_degradation('self_model', exc)
             logger.debug("BeliefAuthority review skipped: %s", exc)
 
         approved, reason, gate_failed, decision = self._unpack_belief_update_result(
@@ -321,6 +330,7 @@ class SelfModel:
                         context={"reason": reason},
                     )
                 except Exception as degraded_exc:
+                    record_degradation('self_model', degraded_exc)
                     logger.debug("Self-model degraded-event logging failed: %s", degraded_exc)
             else:
                 logger.info("SelfModel: deferring belief update %s: %s", key, reason)

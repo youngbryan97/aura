@@ -1,6 +1,7 @@
 """ASTAnalyzer: Structural Self-Awareness for Aura
 Provides deep analysis of Python source code via Abstract Syntax Trees.
 """
+from core.runtime.errors import record_degradation
 import ast
 import logging
 from pathlib import Path
@@ -27,6 +28,7 @@ class ASTAnalyzer:
             tree = ast.parse(source)
             self._build_parent_map(tree) # SM-02: Build map once per file
         except Exception as e:
+            record_degradation('ast_analyzer', e)
             logger.error("Failed to parse %s: %s", file_path, e)
             return {"error": str(e)}
 

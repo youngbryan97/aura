@@ -5,6 +5,8 @@ Eliminates the previous 3x duplication across server.py broadcast_telemetry(),
 _event_bridge(), and orchestrator _publish_telemetry().
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import time
@@ -64,6 +66,7 @@ def enrich_telemetry(data: Dict[str, Any]) -> Dict[str, Any]:
             else:
                 data["p_core_usage"] = data["cpu_usage"]
         except Exception as _exc:
+            record_degradation('telemetry_enrichment', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     # ── Liquid State Gauges ───────────────────────────────────────────
@@ -91,6 +94,7 @@ def enrich_telemetry(data: Dict[str, Any]) -> Dict[str, Any]:
                     if confidence is not None:
                         data.setdefault("confidence", round(confidence, 1))
         except Exception as _exc:
+            record_degradation('telemetry_enrichment', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     # ── LLM Tier ──────────────────────────────────────────────────────
@@ -110,6 +114,7 @@ def enrich_telemetry(data: Dict[str, Any]) -> Dict[str, Any]:
                 if tier:
                     data["llm_tier"] = str(tier)
         except Exception as _exc:
+            record_degradation('telemetry_enrichment', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     return data

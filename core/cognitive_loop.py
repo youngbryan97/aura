@@ -1,6 +1,7 @@
 """Aura Zenith Cognitive Loop Service.
 Decouples the cognitive cycle from the Orchestrator.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -70,6 +71,7 @@ class CognitiveLoop:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('cognitive_loop', e)
                 logger.error(f"Error in Cognitive Loop cycle: {e}", exc_info=True)
                 await asyncio.sleep(1.0) # Error backoff
 
@@ -201,6 +203,7 @@ class CognitiveLoop:
             
             return {"content": str(payload), "origin": origin or "raw"}
         except Exception as e:
+            record_degradation('cognitive_loop', e)
             logger.error("Failed to acquire message from queue: %s", e)
             return None
 
@@ -258,4 +261,5 @@ class CognitiveLoop:
                        try:
                            await ce.unload_models()
                        except Exception as e:
+                           record_degradation('cognitive_loop', e)
                            logger.error(f"Failed to unload models during recovery: {e}")

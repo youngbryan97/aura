@@ -4,6 +4,7 @@ This module implements the See -> Think -> Act loop using PyAutoGUI.
 It allows the LLM to control the local UI by asking for visual bounding boxes.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import Dict, Any, Tuple, Optional
@@ -82,6 +83,7 @@ class VisionActorSkill(BaseSkill):
             img_b64 = _process_image_for_vlm(image)
             return img_b64
         except Exception as e:
+            record_degradation('vision_actor', e)
             logger.error("Screen capture failed: %s", e)
             return None
 
@@ -109,6 +111,7 @@ class VisionActorSkill(BaseSkill):
                 if data.get("found"):
                     return (data.get("x", 0), data.get("y", 0))
         except Exception as e:
+            record_degradation('vision_actor', e)
             logger.error("Vision location failed: %s", e)
         return None
 
@@ -140,6 +143,7 @@ class VisionActorSkill(BaseSkill):
             await asyncio.to_thread(self._physical_click, x, y, pyautogui)
             return {"ok": True, "summary": f"Successfully clicked '{target_desc}' at ({x}, {y})."}
         except Exception as e:
+            record_degradation('vision_actor', e)
             failsafe_exc = getattr(pyautogui, "FailSafeException", None)
             if failsafe_exc and isinstance(e, failsafe_exc):
                 return {"ok": False, "summary": "Failsafe triggered. Mouse moving to corner aborted action."}
@@ -156,6 +160,7 @@ class VisionActorSkill(BaseSkill):
                 await asyncio.to_thread(pyautogui.press, "enter")
             return {"ok": True, "summary": f"Successfully typed text (enter={enter})."}
         except Exception as e:
+            record_degradation('vision_actor', e)
             return {"ok": False, "summary": f"Typing failed: {e}"}
 
 

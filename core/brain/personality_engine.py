@@ -1,6 +1,7 @@
 """Emotional State System - Aura's Personality Engine
 Creates fluctuating emotional states that drive spontaneous behavior
 """
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import logging
 import random
@@ -135,6 +136,7 @@ class PersonalityEngine:
                             baselines[e]["volatility"] = max(0.1, data.get("volatility", baselines[e]["volatility"]))
                             
             except Exception as e:
+                record_degradation('personality_engine', e)
                 logger.error("Failed to load evolved persona: %s", e)
 
         def _bl(name, default_base, default_vol):
@@ -210,6 +212,7 @@ class PersonalityEngine:
             self.key_file.write_bytes(key)
             os.chmod(self.key_file, 0o600)
         except Exception as e:
+            record_degradation('personality_engine', e)
             logger.error("Failed to write identity key: %s", e)
         return key
 
@@ -272,6 +275,7 @@ class PersonalityEngine:
                 self.profiles = json.load(f)
             logger.info("PersonalityEngine: Loaded %d persona profiles", len(self.profiles))
         except Exception as e:
+            record_degradation('personality_engine', e)
             logger.error("Failed to load profiles: %s", e)
 
     def apply_lexical_style(self, text: str) -> str:
@@ -639,6 +643,7 @@ class PersonalityEngine:
             logger.info("✅ Evolved persona persisted to %s", evolved_path)
             return True
         except Exception as e:
+            record_degradation('personality_engine', e)
             logger.error("Failed to persist evolved persona: %s", e)
             return False
 
@@ -870,6 +875,7 @@ def register_personality_service() -> None:
         )
         logger.info("PersonalityEngine registered.")
     except Exception as e:
+        record_degradation('personality_engine', e)
         logger.error("Failed to register PersonalityEngine: %s", e, exc_info=True)
         raise  # QUAL-05: Let caller decide whether to continue
 
@@ -887,6 +893,7 @@ def get_personality_engine() -> PersonalityEngine:
             from core.container import ServiceContainer
             _personality_engine = ServiceContainer.get("personality_engine", default=None)
         except Exception as _exc:
+            record_degradation('personality_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
             
     if _personality_engine is None:
@@ -897,6 +904,7 @@ def get_personality_engine() -> PersonalityEngine:
                     from core.container import ServiceContainer
                     ServiceContainer.register_instance("personality_engine", _personality_engine)
                 except Exception as e:
+                    record_degradation('personality_engine', e)
                     logger.warning("Failed to register PersonalityEngine in container: %s", e)
     return _personality_engine
 

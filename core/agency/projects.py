@@ -26,6 +26,8 @@ without artifacts and acceptance-criteria checks is rejected by
 ``mark_completed()``.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import json
@@ -265,6 +267,7 @@ class ProjectLedger:
                         continue
                     self._cache[snap["project_id"]] = self._project_from_snap(snap)
         except Exception as exc:
+            record_degradation('projects', exc)
             logger.warning("project ledger load failed: %s", exc)
 
     @staticmethod

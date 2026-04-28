@@ -20,6 +20,8 @@ Key rules:
     the failure so no "I did X" belief can silently propagate.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -192,6 +194,7 @@ class NeuralIntentRouter:
                 approve_reason = str(getattr(decision, "reason", "")) or "will_decided"
                 will_receipt = str(getattr(decision, "receipt_id", ""))
             except Exception as exc:
+                record_degradation('neural_intent_router', exc)
                 approved = False
                 approve_reason = f"will_error:{type(exc).__name__}"
 
@@ -260,6 +263,7 @@ class NeuralIntentRouter:
             )
             return outcome
         except Exception as exc:
+            record_degradation('neural_intent_router', exc)
             self._block_count += 1
             self._record_life_trace(
                 "initiative_blocked",
@@ -344,6 +348,7 @@ class NeuralIntentRouter:
                 },
             )
         except Exception as exc:
+            record_degradation('neural_intent_router', exc)
             logger.debug("LifeTrace write from neural router failed: %s", exc)
 
 

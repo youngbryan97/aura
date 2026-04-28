@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import logging
 import random
@@ -53,6 +54,7 @@ class Soul:
             if spl and hasattr(spl, "get_surprise_signal"):
                 surprise_boost = spl.get_surprise_signal() * 0.5 # Boost curiosity by 50% of surprise
         except Exception as e:
+            record_degradation('soul', e)
             capture_and_log(e, {'module': __name__})
 
         curiosity_score = max(0.1, boredom + surprise_boost)
@@ -119,6 +121,7 @@ class Soul:
                     self.orchestrator.volition.last_speak_time = 0
                     logger.info("✨ SOUL: Signaled Volition to prioritize connection (fallback).")
             except Exception as e:
+                record_degradation('soul', e)
                 logger.error("✨ SOUL: Error satisfying connection drive: %s", e)
             
         elif drive.name == "competence":

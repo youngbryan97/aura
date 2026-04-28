@@ -47,6 +47,8 @@ conversational memory, learning loops, and the narrative engine.
 Persists to ``data/absorbed_voices.json`` on change.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import json
@@ -196,8 +198,10 @@ class AbsorbedVoices:
                 try:
                     self._voices[vid] = Voice.from_dict(d)
                 except Exception as exc:
+                    record_degradation('absorbed_voices', exc)
                     logger.debug("Failed to load voice %s: %s", vid, exc)
         except Exception as exc:
+            record_degradation('absorbed_voices', exc)
             logger.debug("Failed to load absorbed_voices: %s", exc)
 
     def save(self) -> None:
@@ -209,6 +213,7 @@ class AbsorbedVoices:
                 json.dump(data, f, indent=2)
             os.replace(tmp, self._storage_path)
         except Exception as exc:
+            record_degradation('absorbed_voices', exc)
             logger.debug("Failed to save absorbed_voices: %s", exc)
 
     # ── voice management ───────────────────────────────────────────────────

@@ -29,6 +29,8 @@ The engine never reverts memory contents — only structural / policy state.
 That keeps autobiographical continuity intact across organ resets.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import hmac
@@ -248,6 +250,7 @@ class StemCellRegistry:
                 signature=bytes.fromhex(header["signature_hex"]),
             )
         except Exception as exc:
+            record_degradation('stem_cell', exc)
             logger.debug("stem cell read failed for %s: %s", path, exc)
             return None
 

@@ -4,6 +4,7 @@ The Sovereign Watchdog is the final layer of Aura's resilience. It monitors
 the Orchestrator's heartbeat and the availability of critical services. 
 If a deadlock or cognitive stall is detected, it triggers a recovery sequence.
 """
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker
 import asyncio
@@ -84,6 +85,7 @@ class SovereignWatchdog:
                             "metadata": {"system": True},
                         })
                     except Exception as _exc:
+                        record_degradation('sovereign_watchdog', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
 
                     # ── BACKPRESSURE: Suppress non-critical work during lag ──
@@ -103,11 +105,13 @@ class SovereignWatchdog:
                                 suppress_duration, loop_elapsed,
                             )
                     except Exception as _bp_exc:
+                        record_degradation('sovereign_watchdog', _bp_exc)
                         logger.debug("Backpressure application failed: %s", _bp_exc)
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('sovereign_watchdog', e)
                 logger.error("Watchdog loop error: %s", e)
 
     async def _execute_recovery(self):
@@ -130,6 +134,7 @@ class SovereignWatchdog:
                 # If we acquired it, it wasn't deadlocked (at least not by this lock), so release it back.
                 sentinel._lock.release()
         except Exception as e:
+            record_degradation('sovereign_watchdog', e)
             capture_and_log(e, {'module': __name__})
 
         # 2. Reset Heartbeat to give time for recovery
@@ -150,6 +155,7 @@ class SovereignWatchdog:
                 }
             })
         except Exception as e:
+            record_degradation('sovereign_watchdog', e)
             capture_and_log(e, {'module': __name__})
 
         # 4. Signal Orchestrator to reset internal state if supported
@@ -157,6 +163,7 @@ class SovereignWatchdog:
             try:
                 await self._orchestrator.reset_internal_state()
             except Exception as e:
+                record_degradation('sovereign_watchdog', e)
                 logger.error("Failed to reset orchestrator state: %s", e)
 
         logger.info("🛠️ Recovery sequence complete. Monitoring for stabilization.")

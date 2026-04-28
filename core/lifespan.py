@@ -3,6 +3,7 @@ Ensures every service starts and stops in correct order with zero resource leaks
 No more dangling tasks, queues, or VRAM holds.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import List, Callable, Optional
@@ -38,6 +39,7 @@ class LifespanManager:
                     await svc.start()
                     logger.info(f"✅ {name} started")
             except Exception as e:
+                record_degradation('lifespan', e)
                 logger.critical(f"❌ {name} failed to start: {e}")
                 await self.emergency_shutdown()
                 raise
@@ -65,6 +67,7 @@ class LifespanManager:
             except asyncio.TimeoutError:
                 logger.error(f"⏰ {name} shutdown timeout — force cancelling")
             except Exception as e:
+                record_degradation('lifespan', e)
                 logger.error(f"⚠️ {name} shutdown error: {e}")
 
         self._running = False

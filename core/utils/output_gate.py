@@ -3,6 +3,7 @@
 Standardizes which messages reach the User (Primary) vs. Background (Secondary).
 Prevents "Autonomous Pollution" where background search results flood the chat.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
 import asyncio
@@ -106,6 +107,7 @@ class AutonomousOutputGate:
             )
             await asyncio.to_thread(get_receipt_store().emit, receipt)
         except Exception as exc:
+            record_degradation('output_gate', exc)
             logger.debug("OutputGate: output receipt emit skipped: %s", exc)
         
     async def emit(self, content: str,
@@ -147,6 +149,7 @@ class AutonomousOutputGate:
                 metadata["will_receipt_id"] = _decision.receipt_id
                 _primary_governance_decision = _decision
             except Exception as _will_err:
+                record_degradation('output_gate', _will_err)
                 logger.debug("OutputGate: Will gate degraded: %s", _will_err)
 
         current_task = asyncio.current_task()
@@ -154,6 +157,7 @@ class AutonomousOutputGate:
             try:
                 setattr(current_task, "_aura_supervised", True)
             except Exception as _exc:
+                record_degradation('output_gate', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         # v30 Hardening: Unified sanitization gate
@@ -167,6 +171,7 @@ class AutonomousOutputGate:
 
             notify_closed_loop_output(content)
         except Exception as exc:
+            record_degradation('output_gate', exc)
             logger.debug("OutputGate: Closed-loop notification skipped: %s", exc)
 
         # Bridge 3: Identity Enforcment
@@ -202,6 +207,7 @@ class AutonomousOutputGate:
                             homeostasis.integrity = max(0.0, homeostasis.integrity - 0.15)
                         return # Reject entirely if alignment is too low
             except Exception as e:
+                record_degradation('output_gate', e)
                 logger.warning("IdentityGuard evaluation failed: %s", e)
 
         # v40: Identity Drift Monitor
@@ -283,6 +289,7 @@ class AutonomousOutputGate:
                     context={"origin": origin, "target": "primary"},
                 )
             except Exception as exc:
+                record_degradation('output_gate', exc)
                 logger.debug("OutputGate: degraded-event routing note failed: %s", exc)
 
         if is_autonomous and target == "primary" and not (is_spontaneous or force_user):
@@ -335,8 +342,10 @@ class AutonomousOutputGate:
                         except TypeError:
                             orch.reply_queue.put_nowait(content)
                     except Exception as _exc:
+                        record_degradation('output_gate', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                 except Exception as e:
+                    record_degradation('output_gate', e)
                     logger.warning("OutputGate: Failed to feed reply_queue: %s", e)
 
             # 2. Add to Conversation History
@@ -375,6 +384,7 @@ class AutonomousOutputGate:
                 bus.publish_threadsafe("aura_message", aura_message_payload)
                 bus.publish_threadsafe("log", f"PRIMARY_OUT: {content[:100]}")
             except Exception as e:
+                record_degradation('output_gate', e)
                 logger.error("EventBus failure in _send_to_primary: %s. Falling back to Mycelial fail-safe.", e)
                 try:
                     from core.mycelium import MycelialNetwork
@@ -391,6 +401,7 @@ class AutonomousOutputGate:
                     else:
                         logger.warning("OutputGate: Mycelial UI callback is NOT set.")
                 except Exception as e2:
+                    record_degradation('output_gate', e2)
                     logger.critical("Final fail-safe failed: %s", e2)
 
         await self._emit_output_receipt(content, origin=origin, target="primary", metadata=metadata)
@@ -402,6 +413,7 @@ class AutonomousOutputGate:
             try:
                 track_output_task(get_task_tracker().create_task(renderer.render(content, metadata)))
             except Exception as e:
+                record_degradation('output_gate', e)
                 logger.debug("Multimodal rendering failed: %s", e)
         else:
             voice = ServiceContainer.get("voice_engine", default=None)
@@ -412,6 +424,7 @@ class AutonomousOutputGate:
                 try:
                     track_output_task(get_task_tracker().create_task(voice.speak(content)))
                 except Exception as e:
+                    record_degradation('output_gate', e)
                     logger.debug("Legacy Voice trigger failed: %s", e)
 
     async def _send_to_secondary(self, content: str, origin: str, metadata: Optional[Dict[str, Any]], timeout: float = 5.0):
@@ -423,6 +436,7 @@ class AutonomousOutputGate:
                 "metadata": metadata or {}
             }), timeout=timeout)
         except Exception as e:
+            record_degradation('output_gate', e)
             logger.error("Failed to put in secondary_queue: %s", e)
             
         logger.info("📡 [AUTONOMOUS] %s: %s", origin, content)
@@ -458,6 +472,7 @@ def track_output_task(task: asyncio.Task):
         setattr(task, "_aura_supervised", True)
         setattr(task, "_aura_task_tracker", "OutputGate")
     except Exception as _exc:
+        record_degradation('output_gate', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
@@ -466,6 +481,7 @@ def track_output_task(task: asyncio.Task):
         try:
             t.result()
         except Exception as e:
+            record_degradation('output_gate', e)
             logging.getLogger("Aura.OutputGate").error("Output task failed: %s", e)
             
     task.add_done_callback(_handle_result)

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import hashlib
 import hmac
 import logging
@@ -40,9 +41,11 @@ def append_audit(entry: str):
             f.write(f"{line} | HM:{sig}\n")
             
     except Exception as e:
+        record_degradation('logging_hmac', e)
         logger.error("AUDIT LOG FAILURE: %s", e)
         try:
             with open(LOG_PATH, "a") as f:
                 f.write(f"{ts}|LOG_FAILURE|{e}\n")
         except Exception as exc:
+            record_degradation('logging_hmac', exc)
             logger.debug("Suppressed: %s", exc)

@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import multiprocessing
 import multiprocessing.connection
 import time
@@ -199,6 +200,7 @@ class SupervisionTree:
             try:
                 actor.process.kill()  # Immediate kill, no graceful shutdown
             except Exception as e:
+                record_degradation('tree', e)
                 logger.debug(f"Error stopping actor {name}: {e}")
             finally:
                 self._close_pipe(actor.pipe)
@@ -306,6 +308,7 @@ class SupervisionTree:
             try:
                 callback(name, new_pipe)
             except Exception as e:
+                record_degradation('tree', e)
                 logger.error(f"❌ Restart callback failed for {name}: {e}")
 
     def stop_all(self):

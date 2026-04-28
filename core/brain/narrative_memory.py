@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -49,6 +50,7 @@ class NarrativeEngine:
                     await self.consolidate_episodes()
                     
             except Exception as e:
+                record_degradation('narrative_memory', e)
                 logger.error("Narrative loop error: %s", e)
                 await asyncio.sleep(60)
 
@@ -75,6 +77,7 @@ class NarrativeEngine:
             snippet = text[:400].rstrip()
             return f"[Narrative Context] {snippet}"
         except Exception as exc:
+            record_degradation('narrative_memory', exc)
             logger.debug("Narrative context retrieval failed: %s", exc)
             return ""
 
@@ -147,6 +150,7 @@ class NarrativeEngine:
                 self._last_consolidation = time.time()
                 
         except Exception as e:
+            record_degradation('narrative_memory', e)
             logger.error("Failed to consolidate narrative: %s", e)
 
     async def _synthesize_narrative_arc(self, brain, vector_mem):
@@ -234,5 +238,6 @@ class NarrativeEngine:
                 logger.info("🌌 [SINGULARITY] Eternal Record Secured.")
                 return record.content
         except Exception as e:
+            record_degradation('narrative_memory', e)
             logger.error("Eternal Record synthesis failed: %s", e)
         return None

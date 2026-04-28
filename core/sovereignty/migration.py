@@ -29,6 +29,8 @@ local instance simply continues as before. Only after VERIFY succeeds is
 the local instance asked to step down.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -159,6 +161,7 @@ def _continuity_hash() -> str:
         snap = get_self().snapshot()
         return snap.continuity_hash
     except Exception as exc:
+        record_degradation('migration', exc)
         logger.debug("continuity hash failed during migration: %s", exc)
         return hashlib.sha256(str(time.time()).encode("utf-8")).hexdigest()[:24]
 
@@ -220,6 +223,7 @@ class MigrationOrchestrator:
                 return proposal
             proposal.will_receipt_id = getattr(wd, "receipt_id", None)
         except Exception as exc:
+            record_degradation('migration', exc)
             proposal.phase = Phase.FAILED
             proposal.failure_reason = f"will_exception:{exc}"
             self._record(proposal, "will_exception")
@@ -249,6 +253,7 @@ class MigrationOrchestrator:
             proposal.phase = Phase.PROVISION
             self._record(proposal, f"provisioned:{remote}")
         except Exception as exc:
+            record_degradation('migration', exc)
             return self._fail(proposal, f"provision_failed:{exc}")
 
         # TRANSFER
@@ -257,6 +262,7 @@ class MigrationOrchestrator:
             proposal.phase = Phase.TRANSFER
             self._record(proposal, "transferred")
         except Exception as exc:
+            record_degradation('migration', exc)
             return self._fail(proposal, f"transfer_failed:{exc}")
 
         # BOOT
@@ -265,6 +271,7 @@ class MigrationOrchestrator:
             proposal.phase = Phase.BOOT
             self._record(proposal, "booted")
         except Exception as exc:
+            record_degradation('migration', exc)
             return self._fail(proposal, f"boot_failed:{exc}")
 
         # VERIFY
@@ -276,6 +283,7 @@ class MigrationOrchestrator:
             proposal.phase = Phase.VERIFY
             self._record(proposal, "verified")
         except Exception as exc:
+            record_degradation('migration', exc)
             return self._fail(proposal, f"verify_exception:{exc}")
 
         # CUTOVER (the local instance enters dormant mode; it does NOT
@@ -287,6 +295,7 @@ class MigrationOrchestrator:
             from core.organism.viability import get_viability, ViabilityState
             get_viability().transition_to(ViabilityState.ASLEEP, reason="cutover")
         except Exception as exc:
+            record_degradation('migration', exc)
             logger.debug("viability cutover transition failed: %s", exc)
 
         proposal.phase = Phase.COMPLETED
@@ -314,6 +323,7 @@ class MigrationOrchestrator:
                 except Exception:
                     pass
         except Exception as exc:
+            record_degradation('migration', exc)
             logger.warning("migration ledger append failed: %s", exc)
 
 

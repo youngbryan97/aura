@@ -9,6 +9,7 @@ Handles:
 - Question extraction from responses
 - LLM-based fact/preference extraction
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Any
@@ -51,6 +52,7 @@ class KnowledgeExtractor:
                     (response or "")[:80],
                 )
         except Exception as e:
+            record_degradation('knowledge_extractor', e)
             logger.debug("Autonomous insight storage failed: %s", e)
 
     async def learn_from_exchange(self, user_message: str, aura_response: str) -> None:
@@ -90,6 +92,7 @@ class KnowledgeExtractor:
             self._extract_questions(kg, aura_response)
 
         except Exception as e:
+            record_degradation('knowledge_extractor', e)
             logger.debug("Learning from exchange failed: %s", e)
 
     # ── Private helpers ────────────────────────────────────────────
@@ -119,6 +122,7 @@ class KnowledgeExtractor:
             self.orch.knowledge_graph = PersistentKnowledgeGraph(db_path)
             return self.orch.knowledge_graph
         except Exception as e:
+            record_degradation('knowledge_extractor', e)
             logger.debug("Knowledge graph unavailable: %s", e)
             return None
 
@@ -157,6 +161,7 @@ class KnowledgeExtractor:
                             )
                             logger.info("📚 Learned: %s", (item.get("content") or "")[:80])
         except Exception as e:
+            record_degradation('knowledge_extractor', e)
             logger.debug("Knowledge extraction failed: %s", e)
 
     @staticmethod

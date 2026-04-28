@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -93,6 +94,7 @@ class StateVaultActor:
                         {"pid": os.getpid(), "ts": time.time(), "status": "healthy"},
                     )
             except Exception as e:
+                record_degradation('vault', e)
                 logger.debug("StateVault heartbeat failed: %s", e)
             await asyncio.sleep(self._heartbeat_interval)
 
@@ -147,6 +149,7 @@ class StateVaultActor:
 
             return {"version": committed_state.version, "state_id": committed_state.state_id}
         except Exception as e:
+            record_degradation('vault', e)
             logger.error(f"Commit failed: {e}")
             raise
 
@@ -166,6 +169,7 @@ class StateVaultActor:
                 mode = await self.repo._sync_to_shm(state, serialized_state)
             logger.debug("SHM Updated: Version %s (%s)", state.version, mode)
         except Exception as e:
+            record_degradation('vault', e)
             logger.error(f"SHM Update Failed: {e}")
 
     def _update_shared_memory(self, state: AuraState):
@@ -194,6 +198,7 @@ def vault_process_entry(db_path: str, pipe):
             loop.close()
         logger.debug("StateVaultActor asyncio loop exited gracefully.")
     except Exception as e:
+        record_degradation('vault', e)
         logger.critical(f"Vault process CRASHED: {e}")
         import traceback
         traceback.print_exc(file=sys.stderr)

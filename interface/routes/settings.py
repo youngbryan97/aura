@@ -14,6 +14,8 @@ Endpoints:
                                     (used by Conscience for destructive ops)
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import json
@@ -118,6 +120,7 @@ class SettingsStore:
             if isinstance(data, dict):
                 self._data.update({k: v for k, v in data.items() if k in self._data})
         except Exception as exc:
+            record_degradation('settings', exc)
             logger.warning("settings load failed: %s", exc)
 
     def _save(self) -> None:
@@ -244,6 +247,7 @@ async def patch_settings(
         try:
             applied[k] = store.set(k, v)
         except Exception as exc:
+            record_degradation('settings', exc)
             errors[k] = str(exc)
     return JSONResponse({"applied": applied, "errors": errors, "values": store.all()})
 
@@ -274,6 +278,7 @@ async def acknowledge_fresh_auth(_: None = Depends(_require_internal)) -> JSONRe
         get_conscience().acknowledge_user_authorization()
         return JSONResponse({"ok": True, "when": time.time()})
     except Exception as exc:
+        record_degradation('settings', exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 

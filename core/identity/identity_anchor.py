@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import uuid
 import logging
 from typing import Optional
@@ -32,6 +33,7 @@ class IdentityAnchor:
                 self._aura_id = state.identity.name + "-" + state.state_id[:8]
                 return self._aura_id
         except Exception as e:
+            record_degradation('identity_anchor', e)
             logger.warning("Failed to resolve identity anchor from state: %s", e)
         
         # Fallback to a temporary ID if state is offline

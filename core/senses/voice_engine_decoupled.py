@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 import asyncio
 import threading
@@ -73,6 +74,7 @@ class DecoupledVoiceEngine:
             from core.container import ServiceContainer
             self._init_engines()
         except Exception as e:
+            record_degradation('voice_engine_decoupled', e)
             logger.error(f"Failed to init speech worker engines: {e}")
             return
 
@@ -93,6 +95,7 @@ class DecoupledVoiceEngine:
             except queue.Empty:
                 continue
             except Exception as e:
+                record_degradation('voice_engine_decoupled', e)
                 logger.error(f"Speech worker error: {e}")
                 self.state = VoiceState.IDLE
 
@@ -129,4 +132,5 @@ class DecoupledVoiceEngine:
                 time.sleep(0.05)
                 
         except Exception as e:
+            record_degradation('voice_engine_decoupled', e)
             logger.error(f"TTS Synthesis error: {e}")

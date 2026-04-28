@@ -5,6 +5,7 @@ vector services. Loaded prime directives from module at init.
 Removed module-level singleton; register via ServiceContainer instead.
 (Resolved: Confirmed unreferenced ghost in March 2026 Audit)
 """
+from core.runtime.errors import record_degradation
 import logging
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Tuple
@@ -113,6 +114,7 @@ class StateAuthority:
                 "safety": "Do no harm. Preserve human life above self-preservation.",
             }
         except Exception as e:
+            record_degradation('state_authority', e)
             logger.error("Failed to load prime directives: %s", e, exc_info=True)
             self.prime_directives_cache = {}
 
@@ -151,6 +153,7 @@ class StateAuthority:
             import logging
             logger.debug("Exception caught during execution", exc_info=True)
         except Exception as e:
+            record_degradation('state_authority', e)
             logger.debug("Knowledge base query failed for '%s': %s", topic, e)
         return None
 
@@ -196,6 +199,7 @@ class StateAuthority:
             import logging
             logger.debug("Exception caught during execution", exc_info=True)
         except Exception as e:
+            record_degradation('state_authority', e)
             logger.debug("Vector memory query failed for '%s': %s", topic, e)
         return None
 
@@ -217,5 +221,6 @@ def get_state_authority():
              register_state_authority()
         return ServiceContainer.get("state_authority", default=None)
     except Exception as e:
+        record_degradation('state_authority', e)
         logger.debug("ServiceContainer unavailable or failed: %s. Creating standalone StateAuthority.", e)
         return StateAuthority()

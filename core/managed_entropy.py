@@ -11,6 +11,7 @@ Injection points:
 
 All entropy is budgeted per tick to prevent chaotic system state.
 """
+from core.runtime.errors import record_degradation
 import math
 from core.utils.exceptions import capture_and_log
 import logging
@@ -61,6 +62,7 @@ class ManagedEntropy:
             qe = get_quantum_entropy()
             return qe.get_quantum_float()
         except Exception as e:
+            record_degradation('managed_entropy', e)
             capture_and_log(e, {'module': __name__})
         
         # Priority 2: Hardware entropy anchor

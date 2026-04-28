@@ -34,6 +34,8 @@ anywhere in the codebase:
     state = ki.loop_state()      # dict with phi, valence, mood, etc.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -164,6 +166,7 @@ class KernelInterface:
             await ki.boot(vault=vault, config=config)
             _bind()
         except Exception as e:
+            record_degradation('kernel_interface', e)
             logger.error("KernelInterface.attach_to_orchestrator failed: %s", e)
 
         return ki
@@ -259,6 +262,7 @@ class KernelInterface:
             logger.warning("KernelInterface.process() foreground timeout for origin=%s", origin)
             raise
         except Exception as e:
+            record_degradation('kernel_interface', e)
             logger.error("KernelInterface.process() tick failed: %s", e, exc_info=True)
 
         return "Something went wrong in my thinking. Please try again."

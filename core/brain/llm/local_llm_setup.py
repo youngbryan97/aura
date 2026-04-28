@@ -2,6 +2,7 @@
 Sets up and manages local LLM servers for complete autonomy.
 Includes failsafes to ensure the "Titan" model is pulled and loaded.
 """
+from core.runtime.errors import record_degradation
 import logging
 import os
 import subprocess
@@ -56,6 +57,7 @@ class OllamaManager(LocalLLMServer):
                 subprocess.run(["ollama", "pull", self.model_name], check=True)
             return True
         except Exception as e:
+            record_degradation('local_llm_setup', e)
             logger.error("Failed to ensure model %s: %s", self.model_name, e)
             return False
 
@@ -76,6 +78,7 @@ class OllamaManager(LocalLLMServer):
                     return self.ensure_model()
             logger.error("Ollama did not become ready within 10s")
         except Exception as e:
+            record_degradation('local_llm_setup', e)
             logger.error("Failed to start Ollama: %s", e)
         return False
 

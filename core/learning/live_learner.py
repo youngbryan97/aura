@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -131,6 +133,7 @@ class AdapterRegistry:
             try:
                 return json.loads(self._registry_path.read_text())
             except Exception as _e:
+                record_degradation('live_learner', _e)
                 logger.debug('Ignored Exception in live_learner.py: %s', _e)
         return []
 
@@ -455,6 +458,7 @@ class LiveLearner:
             return True
 
         except Exception as e:
+            record_degradation('live_learner', e)
             logger.error("LiveLearner: training cycle error: %s", e, exc_info=True)
             return False
         finally:
@@ -501,6 +505,7 @@ class LiveLearner:
         except subprocess.TimeoutExpired:
             return False, "timeout after 30 minutes"
         except Exception as e:
+            record_degradation('live_learner', e)
             return False, str(e)
 
     async def _run_benchmark(self, adapter_dir: Path) -> Tuple[bool, List[str]]:
@@ -539,6 +544,7 @@ class LiveLearner:
         except ImportError:
             logger.warning("mlx_lm not available for benchmark. Passing by default.")
         except Exception as e:
+            record_degradation('live_learner', e)
             logger.warning("Benchmark inference failed: %s. Passing by default.", e)
 
         return len(failures) == 0, failures
@@ -569,6 +575,7 @@ class LiveLearner:
                 return False
 
         except Exception as e:
+            record_degradation('live_learner', e)
             logger.error("Hot-swap failed: %s", e)
 
         return False
@@ -632,6 +639,7 @@ class LiveLearner:
                         continue
             logger.debug("LiveLearner: loaded %d buffered examples from disk.", count)
         except Exception as e:
+            record_degradation('live_learner', e)
             logger.warning("LiveLearner: failed to load buffer: %s", e)
 
 
@@ -676,6 +684,7 @@ async def patch_mlx_client_for_hot_swap():
         logger.info("MLX client patched for adapter hot-swap.")
 
     except Exception as e:
+        record_degradation('live_learner', e)
         logger.debug("Could not patch MLX client for hot-swap: %s", e)
 
 

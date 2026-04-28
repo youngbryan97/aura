@@ -2,6 +2,7 @@
 Executes specific paths based on the IntentRouter classification.
 Replaces the fuzzy, open-ended cognitive loops.
 """
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 import asyncio
@@ -104,6 +105,7 @@ class StateMachine:
                 if tone_hints:
                     blocks.append("CURRENT EMOTIONAL TONE:\n" + ". ".join(tone_hints) + ".\n")
         except Exception as e:
+            record_degradation('state_machine', e)
             capture_and_log(e, {'module': __name__})
         
         # 2. Memory → Relevance injection
@@ -121,6 +123,7 @@ class StateMachine:
                             mem_block += f"- {str(content)[:120]}\n"
                         blocks.append(mem_block)
         except Exception as e:
+            record_degradation('state_machine', e)
             capture_and_log(e, {'module': __name__})
         
         # 3. Attention → Focus biasing
@@ -131,6 +134,7 @@ class StateMachine:
                 if focus and isinstance(focus, str) and focus.lower() != 'idle':
                     blocks.append(f"CURRENT ATTENTION FOCUS: {focus}\n")
         except Exception as e:
+            record_degradation('state_machine', e)
             capture_and_log(e, {'module': __name__})
         
         return "\n".join(blocks) if blocks else ""
@@ -213,6 +217,7 @@ class StateMachine:
                 repo = resolve_state_repository(self.orchestrator, default=None)
                 runtime_state = getattr(repo, "_current", None) if repo is not None else None
             except Exception as exc:
+                record_degradation('state_machine', exc)
                 logger.debug("StateMachine runtime state lookup skipped: %s", exc)
 
             if runtime_state is not None:
@@ -271,6 +276,7 @@ class StateMachine:
                                 self._emit_telemetry({"type": "chat_stream_end"})
                                 return direct_reply
                 except Exception as exc:
+                    record_degradation('state_machine', exc)
                     logger.debug("StateMachine direct live-voice reply skipped: %s", exc)
 
             if not self.llm:
@@ -332,6 +338,7 @@ class StateMachine:
                             + "\n"
                         )
                 except Exception as exc:
+                    record_degradation('state_machine', exc)
                     logger.debug("StateMachine conversational context injection skipped: %s", exc)
             compressed_history = compress_history_block(history_block) if history_block else ""
             system_prompt = compress_system_prompt(
@@ -464,6 +471,7 @@ class StateMachine:
                                 try:
                                     await voice_engine.speak_stream(queue_sentence_generator(tts_queue))
                                 except Exception as e:
+                                    record_degradation('state_machine', e)
                                     logger.debug("Background TTS failed: %s", e)
 
                             tts_task = get_task_tracker().create_task(_speak_task())
@@ -561,6 +569,7 @@ class StateMachine:
                         response = "My thoughts are processing a bit slowly right now. Can we try that again?"
                         break
                 except Exception as e:
+                    record_degradation('state_machine', e)
                     logger.error("Chat attempt %d failed: %s", attempt + 1, e)
                     if attempt < max_retries:
                         attempt += 1
@@ -596,6 +605,7 @@ class StateMachine:
                     if voice_engine and hasattr(voice_engine, 'synthesize_speech') and response:
                         get_task_tracker().create_task(voice_engine.synthesize_speech(response))
             except Exception as tts_err:
+                record_degradation('state_machine', tts_err)
                 logger.debug("TTS for chat response skipped: %s", tts_err)
             
             # v49: Store true semantic memory (Episodic Storage)
@@ -617,6 +627,7 @@ class StateMachine:
                         tags=["conversation", "response"]
                     ))
             except Exception as store_err:
+                record_degradation('state_machine', store_err)
                 logger.debug("Semantic memory storage failed: %s", store_err)
             
             return response
@@ -719,6 +730,7 @@ class StateMachine:
                             self.llm
                         )
                 except Exception as eval_err:
+                    record_degradation('state_machine', eval_err)
                     logger.warning("Param validation failed for %s: %s", tool_name, eval_err)
                     # Fallback to raw params
                     validated_params = params
@@ -745,6 +757,7 @@ class StateMachine:
                 return res, []
 
         except Exception as e:
+            record_degradation('state_machine', e)
             logger.error("Skill routing failed: %s", e, exc_info=True)
             self._emit("State: ERROR", f"Skill routing exception: {str(e)[:50]}")
             return f"I encountered a core error (Cognitive Stall: {str(e)[:40]}). Try rephrasing.", []
@@ -831,6 +844,7 @@ class StateMachine:
                     final_response = final_response.strip()
                     logger.debug("SKILL: LLM Summary success.")
                 except Exception as e:
+                    record_degradation('state_machine', e)
                     logger.warning("LLM Summary failed, using skill fallback: %s", e)
                     if isinstance(result, dict) and result.get("message"):
                         final_response = result["message"]
@@ -845,6 +859,7 @@ class StateMachine:
             return final_response, ([tool_name] if success else [])
             
         except Exception as e:
+            record_degradation('state_machine', e)
             logger.error("Skill execution logic failed for %s: %s", tool_name, e, exc_info=True)
             self._emit("State: ERROR", "Skill execution failed.")
             return f"I encountered an error while processing the result of {tool_name}.", []
@@ -891,4 +906,5 @@ class StateMachine:
                 {"component": status, "status": detail}
             )
         except Exception as e:
+            record_degradation('state_machine', e)
             logger.debug("Failed to emit status: %s", e)

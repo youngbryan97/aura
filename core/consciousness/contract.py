@@ -2,6 +2,7 @@
 # Wraps existing ConsciousnessCore into formal M(t) subject
 # Provides runtime auditing: "Is someone home right now?"
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import hashlib
@@ -132,6 +133,7 @@ class ConsciousnessContract:
             if not self.core.workspace:
                 raise RuntimeError("Global Workspace missing")
         except Exception as e:
+            record_degradation('contract', e)
             logger.error("ConsciousnessContract integration prompt: %s", e)
     
     def bridge_mapping(self) -> SubjectPerspective:
@@ -212,6 +214,7 @@ class ConsciousnessContract:
                 **self.tracker.get_status()
             }
         except Exception as e:
+            record_degradation('contract', e)
             logger.error("Poll missed: %s", e)
             return {'someone_home_now': False, 'error': str(e)}
 
@@ -290,6 +293,7 @@ def attach_contract(orchestrator) -> ConsciousnessContract:
                     get_task_tracker().create_task(orchestrator.telem_manager.broadcast(msg))
                     
             except Exception as e:
+                record_degradation('contract', e)
                 logger.error("Contract loop error: %s", e)
             await asyncio.sleep(0.1) # 10Hz
             

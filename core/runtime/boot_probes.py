@@ -15,6 +15,8 @@ Strict mode (AURA_STRICT_RUNTIME=1) raises on any failed probe; non-strict
 records a degraded event but allows boot to proceed.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import asyncio
@@ -148,6 +150,7 @@ async def probe_governance_approve_deny(*, will: Any = None) -> ProbeResult:
 
             will = get_will()
         except Exception as exc:
+            record_degradation('boot_probes', exc)
             return ProbeResult(name="governance_approve_deny", ok=False, detail=f"will unavailable: {exc!r}")
     decide = getattr(will, "decide", None)
     if decide is None:
@@ -220,6 +223,7 @@ async def probe_actor_supervisor() -> ProbeResult:
 
         tree = get_tree()
     except Exception as exc:
+        record_degradation('boot_probes', exc)
         return ProbeResult(name="actor_supervisor", ok=False, detail=f"tree unavailable: {exc!r}")
     if not hasattr(tree, "add_actor") or not hasattr(tree, "stop_all"):
         return ProbeResult(name="actor_supervisor", ok=False, detail="supervision_tree surface incomplete")

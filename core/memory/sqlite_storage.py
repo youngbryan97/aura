@@ -8,6 +8,7 @@ H-11 FIX: Consistent log formatting using %s placeholders.
 H-04 FIX: Thread-safe synchronous wrappers using threading.Lock.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -164,6 +165,7 @@ class SQLiteMemory:
                 return approved, decision
             return approved
         except Exception as exc:
+            record_degradation('sqlite_storage', exc)
             if self._constitutional_runtime_live():
                 record_degraded_event(
                     "sqlite_memory",
@@ -218,6 +220,7 @@ class SQLiteMemory:
             await conn.commit()
             return True
         except Exception as e:
+            record_degradation('sqlite_storage', e)
             logger.error("Failed to log event asynchronously: %s", e)
             return False
 
@@ -257,6 +260,7 @@ class SQLiteMemory:
             
             return list(reversed(events)) # Return chronological order
         except Exception as e:
+            record_degradation('sqlite_storage', e)
             logger.error("Failed to get events asynchronously: %s", e)
             return []
 
@@ -291,6 +295,7 @@ class SQLiteMemory:
                 await conn.commit()
             return True
         except Exception as e:
+            record_degradation('sqlite_storage', e)
             logger.error("Failed to update semantic asynchronously: %s", e)
             return False
 
@@ -304,6 +309,7 @@ class SQLiteMemory:
                     return json.loads(row[0])
                 return default
         except Exception as e:
+            record_degradation('sqlite_storage', e)
             logger.error("Failed to get semantic asynchronously: %s", e)
             return default
 
@@ -387,6 +393,7 @@ class SQLiteMemory:
                 row = await cursor.fetchone()
                 return row[0] if row else 0
         except Exception as e:
+            record_degradation('sqlite_storage', e)
             logger.error("Failed to record episode: %s", e)
             return 0
 
@@ -433,6 +440,7 @@ class SQLiteMemory:
             logger.info("Pruned %d low-salience memories from episodic store.", count)
             return count
         except Exception as e:
+            record_degradation('sqlite_storage', e)
             logger.error("Failed to prune low salience memory: %s", e)
             return 0
 
@@ -467,6 +475,7 @@ class SQLiteMemory:
                 else:
                     return asyncio.run(coro)
             except Exception as e:
+                record_degradation('sqlite_storage', e)
                 logger.error("Error in _run_sync: %s", e)
                 return None
 

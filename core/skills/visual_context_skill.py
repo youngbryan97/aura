@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict
 from core.skills.base_skill import BaseSkill
@@ -35,5 +36,6 @@ class VisualContextSkill(BaseSkill):
                 "message": f"I've analyzed my visual field: {analysis}"
             }
         except Exception as e:
+            record_degradation('visual_context_skill', e)
             logger.error(f"VisualContextSkill failed: {e}")
             return {"ok": False, "error": str(e)}

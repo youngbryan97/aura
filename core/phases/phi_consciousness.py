@@ -32,6 +32,8 @@ The causal chain is now:
   affect → phi → mode → phenomenal_state → system_prompt → response → affect
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import logging
@@ -403,6 +405,7 @@ class PhiConsciousnessPhase(Phase):
                     if phi_val > 0.001:
                         return float(f"{phi_val:.4f}")
             except Exception as e:
+                record_degradation('phi_consciousness', e)
                 logger.debug("PhiCore IIT 4.0 compute failed: %s", e)
 
             # Fall back to PhiCore surrogate if full compute not ready yet
@@ -411,6 +414,7 @@ class PhiConsciousnessPhase(Phase):
                 if surrogate > 0.001:
                     return float(f"{surrogate:.4f}")
             except Exception as e:
+                record_degradation('phi_consciousness', e)
                 logger.debug("PhiCore surrogate failed: %s", e)
 
         # Fallback: lightweight approximation (always produces a value)
@@ -427,6 +431,7 @@ class PhiConsciousnessPhase(Phase):
             from core.container import ServiceContainer
             self._phi_core = ServiceContainer.get("phi_core", default=None)
         except Exception as e:
+            record_degradation('phi_consciousness', e)
             logger.debug("PhiCore not available: %s", e)
         return self._phi_core
 
@@ -444,6 +449,7 @@ class PhiConsciousnessPhase(Phase):
                 ServiceContainer.register_instance("riiu", riiu)
             self._riiu = riiu
         except Exception as e:
+            record_degradation('phi_consciousness', e)
             logger.debug("RIIU not available: %s", e)
         return self._riiu
 
@@ -458,6 +464,7 @@ class PhiConsciousnessPhase(Phase):
             if state and hasattr(state, "free_energy"):
                 return float(state.free_energy)
         except Exception as e:
+            record_degradation('phi_consciousness', e)
             logger.debug("Free energy read failed: %s", e)
         return None
 
@@ -469,6 +476,7 @@ class PhiConsciousnessPhase(Phase):
             from core.container import ServiceContainer
             self._fe_engine = ServiceContainer.get("free_energy_engine", default=None)
         except Exception as _e:
+            record_degradation('phi_consciousness', _e)
             logger.debug('Ignored Exception in phi_consciousness.py: %s', _e)
         return self._fe_engine
 

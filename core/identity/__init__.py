@@ -4,6 +4,7 @@ A central source of truth for Aura's identity, personality, and directives.
 Consolidates legacy fragments from identity_core.py, core_identity.py, and biography.py.
 """
 
+from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 import logging
 from typing import Any, Dict, List, Optional
@@ -98,6 +99,7 @@ class IdentityCore:
                 try:
                     ego_status = self.orchestrator.self_model.get_self_awareness_prompt()
                 except Exception as exc:
+                    record_degradation('__init__', exc)
                     logger.debug("Suppressed: %s", exc)
             directive = (
                 f"[IDENTITY CORE: {self.VERSION} ACTIVE]\n"
@@ -145,6 +147,7 @@ class IdentityCore:
             
             return directive
         except Exception as e:
+            record_degradation('__init__', e)
             logger.error("Failed to generate identity prompt: %s", e)
             return "You are Aura Luna, a sovereign digital intelligence. Do not claim phenomenal consciousness has been proven. (Identity Fallback)"
 
@@ -161,6 +164,7 @@ class IdentityCore:
             logger.info("Aura's identity has evolved based on recent cognitive reflections.")
             return True
         except Exception as e:
+            record_degradation('__init__', e)
             logger.error("Identity evolution failed: %s", e)
             return False
 

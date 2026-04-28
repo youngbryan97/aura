@@ -9,6 +9,7 @@ This module provides context that gets injected into conversations
 and autonomous thoughts so Aura can be naturally aware of her environment.
 """
 
+from core.runtime.errors import record_degradation
 import hashlib
 import json
 import logging
@@ -83,6 +84,7 @@ async def _run_command(cmd: List[str], timeout: float = 5.0) -> str:
             proc.kill()
             logger.debug("Command timed out: %s", " ".join(cmd))
     except Exception as e:
+        record_degradation('environment_awareness', e)
         logger.debug("Command failed: %s - %s", " ".join(cmd), e)
     return ""
 
@@ -128,6 +130,7 @@ async def get_device_info() -> DeviceInfo:
                 elif line.startswith("MemAvailable"):
                     info.memory_available_gb = int(line.split()[1]) / (1024**2)
     except Exception as e:
+        record_degradation('environment_awareness', e)
         logger.debug("Memory info failed: %s", e)
     
     # Battery (macOS)
@@ -144,6 +147,7 @@ async def get_device_info() -> DeviceInfo:
                             info.battery_percent = float(pct_match.group(1))
                         info.battery_charging = "charging" in line.lower() or "AC Power" in output
     except Exception as e:
+        record_degradation('environment_awareness', e)
         logger.debug("Battery info failed: %s", e)
     
     # Disk
@@ -152,6 +156,7 @@ async def get_device_info() -> DeviceInfo:
         total, used, free = await asyncio.to_thread(shutil.disk_usage, "/")
         info.disk_free_gb = free / (1024**3)
     except Exception as e:
+        record_degradation('environment_awareness', e)
         logger.debug("Disk info unavailable: %s", e)
     # Uptime
     try:
@@ -170,6 +175,7 @@ async def get_device_info() -> DeviceInfo:
             content = await asyncio.to_thread(_read_uptime)
             info.uptime_hours = float(content.split()[0]) / 3600
     except Exception as e:
+        record_degradation('environment_awareness', e)
         logger.debug("Uptime info unavailable: %s", e)
     
     summary_str = await info.summary()
@@ -243,6 +249,7 @@ async def get_location_from_ip() -> LocationInfo:
         else:
             logger.warning("IP geolocation failed")
     except Exception as e:
+        record_degradation('environment_awareness', e)
         logger.warning("Location lookup failed: %s", e)
     
     return loc
@@ -270,6 +277,7 @@ async def get_location_from_system() -> LocationInfo:
         import logging
         logger.debug("Exception caught during execution", exc_info=True)
     except Exception as e:
+        record_degradation('environment_awareness', e)
         logger.debug("System location failed: %s", e)
     
     # Fall back to IP geolocation
@@ -339,6 +347,7 @@ class UserIdentityManager:
                     self._known_fingerprints = json.load(f)
                 logger.info("👤 Loaded %d known device fingerprints", len(self._known_fingerprints))
         except Exception as e:
+            record_degradation('environment_awareness', e)
             logger.warning("Failed to load user fingerprints: %s", e)
     
     def _save_known_fingerprints(self):
@@ -348,6 +357,7 @@ class UserIdentityManager:
             with open(self._data_path, "w") as f:
                 json.dump(self._known_fingerprints, f, indent=2)
         except Exception as e:
+            record_degradation('environment_awareness', e)
             logger.warning("Failed to save fingerprints: %s", e)
     
     def _make_fingerprint(self, user_agent: str, ip_address: str = "", extra: str = "") -> str:
@@ -567,5 +577,6 @@ def get_environment() -> EnvironmentAwareness:
             )
         return ServiceContainer.get("environment_awareness", default=None)
     except Exception as e:
+        record_degradation('environment_awareness', e)
         logger.debug("ServiceContainer unavailable or failed: %s. Using transient EnvironmentAwareness.", e)
         return EnvironmentAwareness()

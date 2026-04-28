@@ -2,6 +2,7 @@
 Safe dynamic loading mechanism for agent skills.
 Replaces insecure 'Genetic Mutation' self-modification.
 """
+from core.runtime.errors import record_degradation
 import importlib.util
 import logging
 import os
@@ -66,6 +67,7 @@ class PluginManager:
                             
             return True
         except Exception as e:
+            record_degradation('plugin_loader', e)
             logger.error("Validation failed for %s: %s", file_path, e)
             return False
 
@@ -90,6 +92,7 @@ class PluginManager:
                 logger.info("Plugin %s loaded successfully.", plugin_name)
                 return True
         except Exception as e:
+            record_degradation('plugin_loader', e)
             logger.error("Failed to load plugin %s: %s", plugin_name, e)
             return False
         return False

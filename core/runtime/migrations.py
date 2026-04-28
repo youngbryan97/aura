@@ -6,6 +6,8 @@ upgrade ``schema_version=N-1`` records to ``schema_version=N`` and keep
 a migration log so partial migrations can resume.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 
 import json
@@ -74,6 +76,7 @@ def run_migrations(*, target_version: Optional[int] = None, dry_run: bool = Fals
             try:
                 env = read_json_envelope(jf)
             except Exception as exc:
+                record_degradation('migrations', exc)
                 failed.append({"path": str(jf), "error": repr(exc)})
                 continue
             current = env.get("schema_version", 1)
@@ -83,6 +86,7 @@ def run_migrations(*, target_version: Optional[int] = None, dry_run: bool = Fals
             try:
                 migrated_payload = migrate_payload(env.get("payload") or {}, current, target)
             except Exception as exc:
+                record_degradation('migrations', exc)
                 failed.append({"path": str(jf), "error": repr(exc)})
                 continue
             if not dry_run:

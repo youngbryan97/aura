@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -59,6 +60,7 @@ class ActorBus:
                 )
                 supervisor.record_activity(name)
         except Exception as e:
+            record_degradation('actor_bus', e)
             logger.debug("ActorBus activity monitor hookup failed for %s: %s", name, e)
         transport.start()
         self._transports[name] = transport
@@ -112,6 +114,7 @@ class ActorBus:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                record_degradation('actor_bus', e)
                 logger.error(f"Telemetry broadcast error: {e}")
                 await asyncio.sleep(0.1)
 
@@ -131,6 +134,7 @@ class ActorBus:
                 self._telemetry_queue.get_nowait()
                 self._telemetry_queue.put_nowait((topic, payload))
             except Exception as _exc:
+                record_degradation('actor_bus', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
     async def publish(self, topic: str, payload: Any):
@@ -153,6 +157,7 @@ class ActorBus:
             except asyncio.CancelledError as _exc:
                 logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
             except Exception as e:
+                record_degradation('actor_bus', e)
                 logger.debug("ActorBus telemetry shutdown failed: %s", e)
         for name, transport in self._transports.items():
             await transport.stop()
@@ -170,6 +175,7 @@ class ActorBus:
         try:
             await inst.stop()
         except Exception as e:
+            record_degradation('actor_bus', e)
             logger.debug("ActorBus reset encountered a shutdown error: %s", e)
         inst._initialized = False
 

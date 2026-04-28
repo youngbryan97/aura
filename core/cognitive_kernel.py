@@ -16,6 +16,7 @@ Integration:
     # brief.stance, brief.strategy, brief.key_points → feed to LanguageCenter
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import re
@@ -238,6 +239,7 @@ class CognitiveKernel:
                 "hooks_into": ["belief_revision_engine", "memory_facade", "inner_monologue"]
             })
         except Exception as e:
+            record_degradation('cognitive_kernel', e)
             logger.debug("CognitiveKernel: Mycelium registration failed: %s", e)
 
         logger.info("✅ CognitiveKernel ONLINE — reasoning without LLM active.")
@@ -293,6 +295,7 @@ class CognitiveKernel:
                 if guidance.get("tone_hint"):
                     framing.append(f"Tone: {guidance['tone_hint']}")
         except Exception as _tom_e:
+            record_degradation('cognitive_kernel', _tom_e)
             logger.debug("CognitiveKernel: ToM framing failed: %s", _tom_e)
 
         # 5. Key points Aura should make (from beliefs + worldview)
@@ -399,6 +402,7 @@ class CognitiveKernel:
                 frustration = state.frustration
                 curiosity = state.curiosity
             except Exception as e:
+                record_degradation('cognitive_kernel', e)
                 logger.debug("CognitiveKernel: LiquidState access failed: %s", e)
 
         # ── CONSCIOUSNESS-DRIVEN STRATEGY MODULATION ──
@@ -444,6 +448,7 @@ class CognitiveKernel:
                 if in_flow and domain != InputDomain.GREETING:
                     return ResponseStrategy.SYNTHESIZE
         except Exception as e:
+            record_degradation('cognitive_kernel', e)
             logger.debug("CognitiveKernel: Consciousness modulation failed: %s", e)
 
         # High frustration / Low curiosity -> Bias towards REFLECT, reduce CHALLENGE
@@ -526,10 +531,12 @@ class CognitiveKernel:
                         if belief_str not in beliefs_from_engine:
                             beliefs_from_engine.append(belief_str)
             except Exception as _wb_e:
+                record_degradation('cognitive_kernel', _wb_e)
                 logger.debug("WorldModel belief retrieval failed: %s", _wb_e)
 
             return beliefs_from_engine[:5]
         except Exception as e:
+            record_degradation('cognitive_kernel', e)
             logger.debug("Belief retrieval error: %s", e)
             return self._get_axiom_beliefs(domain)
 

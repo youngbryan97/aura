@@ -4,6 +4,7 @@ Spawned before the Kernel. Survives SIGKILL of the Kernel.
 Performs post-mortem cleanup when the Kernel disappears.
 """
 
+from core.runtime.errors import record_degradation
 import os
 import signal
 import time
@@ -71,6 +72,7 @@ class ReaperManifest:
                     os.remove(temp_path)
                 raise
         except Exception as e:
+            record_degradation('reaper', e)
             logger.error(f"[REAPER] Manifest save failed: {e}")
 
     def _load(self):
@@ -78,6 +80,7 @@ class ReaperManifest:
             if self.path.exists():
                 self._data = json.loads(self.path.read_text())
         except Exception as _e:
+            record_degradation('reaper', _e)
             # If corrupt or missing, start fresh
             logger.debug('Ignored Exception in reaper.py: %s', _e)
 
@@ -103,6 +106,7 @@ def reaper_loop(kernel_pid: int, manifest_path: Path):
         except PermissionError as _e:
             logger.debug('Ignored PermissionError in reaper.py: %s', _e)
         except Exception as e:
+            record_degradation('reaper', e)
             logger.debug(f"[REAPER] Existence check failed (non-fatal): {e}")
             
         time.sleep(POLL_INTERVAL)
@@ -130,6 +134,7 @@ def _execute_cleanup(manifest: ReaperManifest):
         except ProcessLookupError as _e:
             logger.debug('Ignored ProcessLookupError in reaper.py: %s', _e)
         except Exception as e:
+            record_degradation('reaper', e)
             logger.error("[REAPER] Failed to kill PID %d: %s", pid, e)
         manifest.deregister_pid(pid)
 
@@ -148,6 +153,7 @@ def _execute_cleanup(manifest: ReaperManifest):
             except FileNotFoundError as _e:
                 logger.debug('Ignored FileNotFoundError in reaper.py: %s', _e)
         except Exception as e:
+            record_degradation('reaper', e)
             logger.error("[REAPER] Failed to unlink SHM %s: %s", name, e)
         manifest.deregister_shm(name)
 
@@ -155,6 +161,7 @@ def _execute_cleanup(manifest: ReaperManifest):
     try:
         manifest.path.unlink(missing_ok=True)
     except Exception as _e:
+        record_degradation('reaper', _e)
         logger.debug('Ignored Exception in reaper.py: %s', _e)
 
     logger.info("[REAPER] Cleanup complete.")

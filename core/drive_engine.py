@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import random
@@ -201,6 +202,7 @@ class DriveEngine:
             if ncs and hasattr(ncs, "on_boredom"):
                 ncs.on_boredom(self.boredom_level)
         except Exception as e:
+            record_degradation('drive_engine', e)
             logger.debug("Boredom neurochemical notify failed: %s", e)
 
     async def consume(self, name: str, amount: float) -> bool:

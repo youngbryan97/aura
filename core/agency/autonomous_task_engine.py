@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import inspect
@@ -283,6 +285,7 @@ class AutonomousTaskEngine:
             if callable(callback):
                 callback(**kwargs)
         except Exception as exc:
+            record_degradation('autonomous_task_engine', exc)
             logger.debug("TaskEngine: coding execution recording skipped (%s): %s", callback_name, exc)
 
     @staticmethod
@@ -332,6 +335,7 @@ class AutonomousTaskEngine:
             }
             atomic_write_json(str(self._persist_path), payload)
         except Exception as exc:
+            record_degradation('autonomous_task_engine', exc)
             logger.debug("TaskEngine: active plan persistence skipped: %s", exc)
 
     def _persist_plan_state(self, plan: TaskPlan) -> None:
@@ -364,6 +368,7 @@ class AutonomousTaskEngine:
                 return
             raw = json.loads(self._persist_path.read_text(encoding="utf-8"))
         except Exception as exc:
+            record_degradation('autonomous_task_engine', exc)
             logger.debug("TaskEngine: persisted active plan load skipped: %s", exc)
             return
 
@@ -374,6 +379,7 @@ class AutonomousTaskEngine:
             try:
                 plan = TaskPlan.from_runtime_dict(item)
             except Exception as exc:
+                record_degradation('autonomous_task_engine', exc)
                 logger.debug("TaskEngine: persisted plan decode skipped: %s", exc)
                 continue
             if not plan.plan_id or not plan.goal:
@@ -390,6 +396,7 @@ class AutonomousTaskEngine:
             try:
                 self._update_state_goals(plan)
             except Exception as exc:
+                record_degradation('autonomous_task_engine', exc)
                 logger.debug("TaskEngine: recovered plan state sync skipped: %s", exc)
         self._persist_active_plans()
 
@@ -472,6 +479,7 @@ class AutonomousTaskEngine:
                 kwargs = {"origin": origin} if origin else {}
                 return await orchestrator.execute_tool(tool_name, args, **kwargs)
         except Exception as e:
+            record_degradation('autonomous_task_engine', e)
             logger.debug("Orchestrator tool fallback failed: %s", e)
 
         raise RuntimeError(f"Tool '{tool_name}' not found in registry or orchestrator")
@@ -641,6 +649,7 @@ class AutonomousTaskEngine:
                         # and records learning signal. The counterfactual record will
                         # accumulate regret/relief after the fact.
             except Exception as e:
+                record_degradation('autonomous_task_engine', e)
                 logger.debug("TaskEngine: counterfactual deliberation failed (non-critical): %s", e)
 
         # 2. Execute steps
@@ -673,8 +682,10 @@ class AutonomousTaskEngine:
                             evidence=result.evidence or [],
                         )
                 except Exception as _lc_err:
+                    record_degradation('autonomous_task_engine', _lc_err)
                     logger.debug("TaskEngine: goal lifecycle completion failed for plan %s: %s", plan.plan_id, _lc_err)
         except Exception as exc:
+            record_degradation('autonomous_task_engine', exc)
             logger.error("TaskEngine: goal state sync failed for plan %s: %s", plan.plan_id, exc)
         finally:
             self._active_plans.pop(plan.plan_id, None)
@@ -844,6 +855,7 @@ Respond ONLY with a JSON array, no other text:
             return TaskPlan(plan_id=plan_id, goal=goal, steps=steps, trace_id="", context=dict(context or {}))
 
         except Exception as e:
+            record_degradation('autonomous_task_engine', e)
             logger.error("TaskEngine: decomposition failed: %s", e)
             if self._requires_grounded_action(goal, context):
                 fallback = self._build_grounded_fallback_plan(goal, plan_id, context)
@@ -963,6 +975,7 @@ Respond ONLY with a JSON array, no other text:
                 else:
                     selected_defs = list(cap.get_tool_definitions() or [])
             except Exception as exc:
+                record_degradation('autonomous_task_engine', exc)
                 logger.debug("TaskEngine: planning tool selection skipped: %s", exc)
                 selected_defs = []
 
@@ -976,6 +989,7 @@ Respond ONLY with a JSON array, no other text:
                     if name:
                         by_name[name] = entry
             except Exception as exc:
+                record_degradation('autonomous_task_engine', exc)
                 logger.debug("TaskEngine: planning tool catalog skipped: %s", exc)
 
             if self._looks_like_desktop_goal(goal):
@@ -1520,6 +1534,7 @@ Respond ONLY with a JSON array, no other text:
         try:
             on_progress(step.to_dict())
         except Exception as e:
+            record_degradation('autonomous_task_engine', e)
             logger.debug("Ignored Exception in autonomous_task_engine.py: %s", e)
 
     async def _fail_plan(self, plan: TaskPlan, completed_ids: Set[str], reason: str) -> None:
@@ -1725,6 +1740,7 @@ Respond ONLY with a JSON array, no other text:
                 logger.warning("TaskEngine: step '%s' timed out (attempt %d)", step.description[:40], attempt + 1)
                 self._persist_plan_state(plan)
             except Exception as e:
+                record_degradation('autonomous_task_engine', e)
                 step.error = str(e)
                 self._record_coding_execution(
                     "record_execution_step",
@@ -1819,6 +1835,7 @@ Respond ONLY with a JSON array, no other text:
             logger.debug("Verification: %s → %s", step.description[:40], verdict[:50])
             return passed
         except Exception as e:
+            record_degradation('autonomous_task_engine', e)
             logger.debug("Verification LLM call failed: %s. Assuming pass.", e)
             return bool(result_str.strip())
 
@@ -1853,6 +1870,7 @@ Respond ONLY with a JSON array, no other text:
                     return new_args
                 logger.debug("Alternative approach returned identical args for '%s'", step.description[:40])
         except Exception as e:
+            record_degradation('autonomous_task_engine', e)
             logger.debug("Alternative approach generation failed: %s", e)
 
         # Signal exhaustion rather than silently looping identically
@@ -1878,6 +1896,7 @@ Respond ONLY with a JSON array, no other text:
                 )
                 step.status = StepStatus.ROLLED_BACK
             except Exception as e:
+                record_degradation('autonomous_task_engine', e)
                 logger.warning("Rollback failed for step '%s': %s", step.description[:40], e)
 
     # ── Result synthesis ──────────────────────────────────────────────────────
@@ -1987,6 +2006,7 @@ Respond ONLY with a JSON array, no other text:
                         )
                     return
                 except Exception as exc:
+                    record_degradation('autonomous_task_engine', exc)
                     logger.debug("GoalEngine-backed state sync failed: %s", exc)
 
             if not hasattr(cognition, "active_goals") or cognition.active_goals is None:
@@ -2005,6 +2025,7 @@ Respond ONLY with a JSON array, no other text:
                     "steps_total": len(plan.steps),
                 })
         except Exception as e:
+            record_degradation('autonomous_task_engine', e)
             logger.debug("State goal update failed: %s", e)
 
     # ── Default tools ─────────────────────────────────────────────────────────
@@ -2034,6 +2055,7 @@ Respond ONLY with a JSON array, no other text:
                         return await orch.execute_tool("web_search", {"query": query}, origin=origin)
                     return await orch.execute_tool("web_search", {"query": query})
             except Exception as e:
+                record_degradation('autonomous_task_engine', e)
                 return f"Search failed: {e}"
             return f"Search tool not available for: {query}"
 
@@ -2050,6 +2072,7 @@ Respond ONLY with a JSON array, no other text:
                         result = await orch.execute_tool("run_python", {"code": code})
                     return str(result)
             except Exception as e:
+                record_degradation('autonomous_task_engine', e)
                 return f"Python execution failed: {e}"
             return "Python execution not available"
 
@@ -2061,6 +2084,7 @@ Respond ONLY with a JSON array, no other text:
                     await f.write(content)
                 return f"Written to {path}"
             except Exception as e:
+                record_degradation('autonomous_task_engine', e)
                 return f"Write failed: {e}"
 
         async def _read_file(path: str, **kwargs) -> str:
@@ -2070,6 +2094,7 @@ Respond ONLY with a JSON array, no other text:
                 async with aiofiles.open(path) as f:
                     return await f.read()
             except Exception as e:
+                record_degradation('autonomous_task_engine', e)
                 return f"Read failed: {e}"
 
         async def _remember(
@@ -2094,6 +2119,7 @@ Respond ONLY with a JSON array, no other text:
                     )
                     return f"Remembered: {content[:80]}"
             except Exception as e:
+                record_degradation('autonomous_task_engine', e)
                 return f"Remember failed: {e}"
             return "Memory not available"
 

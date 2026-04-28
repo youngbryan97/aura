@@ -4,6 +4,7 @@ Proactive analyzer for the CognitiveKernel.
 Hunts for bottlenecks, redundant logic, and regex ulcers.
 """
 
+from core.runtime.errors import record_degradation
 import ast
 import logging
 import time
@@ -66,6 +67,7 @@ class KernelRefiner:
             self._last_audit_time = mtime
             return content
         except Exception as e:
+            record_degradation('kernel_refiner', e)
             logger.error("Failed to read kernel: %s", e)
             return None
 
@@ -161,6 +163,7 @@ If no refinement is needed, return {{"found": false}}.
                     "priority": "high"
                 }]
         except Exception as e:
+            record_degradation('kernel_refiner', e)
             logger.error("Deep audit failed: %s", e)
             
         return []
@@ -194,5 +197,6 @@ If no refinement is needed, return {{"found": false}}.
                 
             return success
         except Exception as e:
+            record_degradation('kernel_refiner', e)
             logger.error("Critical error during kernel refinement: %s", e)
             return False

@@ -16,6 +16,8 @@ All external lookups are wrapped in try/except so the governor itself
 never crashes the kernel.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import gc
@@ -72,16 +74,19 @@ class ResourceGovernor:
             report["items_freed"] = freed
             self._total_freed += freed
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.warning("ResourceGovernor: _cap_collections error: %s", e)
 
         try:
             report["ledger_compacted"] = self._compact_ledger()
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.warning("ResourceGovernor: _compact_ledger error: %s", e)
 
         try:
             report["memory"] = self._check_memory_pressure()
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.warning("ResourceGovernor: _check_memory_pressure error: %s", e)
 
         try:
@@ -90,6 +95,7 @@ class ResourceGovernor:
                 if tasks_list is not None:
                     report["bg_tasks_cleaned"] = self._cleanup_background_tasks(tasks_list)
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.warning("ResourceGovernor: _cleanup_background_tasks error: %s", e)
 
         elapsed_ms = (time.monotonic() - t0) * 1000
@@ -179,6 +185,7 @@ class ResourceGovernor:
                 logger.info("ResourceGovernor: trimmed %d commitments", removed)
             return removed
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.debug("ResourceGovernor: commitment trim skipped: %s", e)
             return 0
 
@@ -219,6 +226,7 @@ class ResourceGovernor:
                 logger.info("ResourceGovernor: trimmed %d task records", removed)
             return removed
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.debug("ResourceGovernor: task verifier trim skipped: %s", e)
             return 0
 
@@ -235,6 +243,7 @@ class ResourceGovernor:
             logger.info("ResourceGovernor: trimmed %d counterfactual records", excess)
             return excess
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.debug("ResourceGovernor: counterfactual trim skipped: %s", e)
             return 0
 
@@ -253,6 +262,7 @@ class ResourceGovernor:
             logger.info("ResourceGovernor: trimmed %d confidence_history entries", excess)
             return excess
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.debug("ResourceGovernor: metacognitive trim skipped: %s", e)
             return 0
 
@@ -282,6 +292,7 @@ class ResourceGovernor:
                     wm._save_beliefs()
             return removed
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.debug("ResourceGovernor: world model trim skipped: %s", e)
             return 0
 
@@ -302,6 +313,7 @@ class ResourceGovernor:
             logger.info("ResourceGovernor: trimmed %d narrative chapters", excess)
             return excess
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.debug("ResourceGovernor: narrative trim skipped: %s", e)
             return 0
 
@@ -326,6 +338,7 @@ class ResourceGovernor:
                     conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
                     compacted = True
                 except Exception as e:
+                    record_degradation('resource_governor', e)
                     logger.debug("ResourceGovernor: WAL checkpoint failed: %s", e)
 
             # Prune transitions older than _LEDGER_PRUNE_DAYS (keep snapshots)
@@ -353,10 +366,12 @@ class ResourceGovernor:
                         )
                         compacted = True
                 except Exception as e:
+                    record_degradation('resource_governor', e)
                     logger.debug("ResourceGovernor: ledger prune failed: %s", e)
 
             return compacted
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.debug("ResourceGovernor: ledger compaction skipped: %s", e)
             return False
 
@@ -413,6 +428,7 @@ class ResourceGovernor:
                 result["status"] = "healthy"
 
         except Exception as e:
+            record_degradation('resource_governor', e)
             result["status"] = f"error: {e}"
             logger.debug("ResourceGovernor: memory check failed: %s", e)
 
@@ -442,9 +458,11 @@ class ResourceGovernor:
                 if hasattr(ContextAssembler, "_cache"):
                     ContextAssembler._cache.clear()
             except Exception as _exc:
+                record_degradation('resource_governor', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.debug("ResourceGovernor: cache clearing error: %s", e)
 
     def _emit_emergency_event(self, rss_pct: float):
@@ -469,6 +487,7 @@ class ResourceGovernor:
                 "ResourceGovernor: EMERGENCY EVENT emitted (RSS=%.1f%%)", rss_pct
             )
         except Exception as e:
+            record_degradation('resource_governor', e)
             logger.debug("ResourceGovernor: emergency event emission failed: %s", e)
 
     # ------------------------------------------------------------------

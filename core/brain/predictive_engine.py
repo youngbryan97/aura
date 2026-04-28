@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import time
 import logging
@@ -64,6 +65,7 @@ Prediction:"""
                 prefer_tier=kwargs.get("prefer_tier", LLMTier.TERTIARY)
             )
         except Exception as e:
+            record_degradation('predictive_engine', e)
             logger.error(f"Prediction failed: {e}")
             prediction_text = "I predict a continuation of the current thread."
         
@@ -141,6 +143,7 @@ Respond with only a float."""
                             lambda: get_task_tracker().create_task(affect.apply_stimulus(stimulus, intensity))
                         )
                 except Exception as _exc:
+                    record_degradation('predictive_engine', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
         return PredictionError(

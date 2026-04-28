@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -64,6 +65,7 @@ class ProactiveInitiativeEngine:
                     if "curiosity_metric" in self.affect._raw_state:
                          self.affect._raw_state["curiosity_metric"] += 1.5
             except Exception as e:
+                record_degradation('initiative_engine', e)
                 logger.error("Proactive loop error: %s", e)
                 # --- Neural Stream Integration ---
                 try:
@@ -72,6 +74,7 @@ class ProactiveInitiativeEngine:
                     if self_modifier:
                         self_modifier.on_error(e, {"source": "initiative_engine", "loop": "proactive_loop"})
                 except Exception as container_err:
+                    record_degradation('initiative_engine', container_err)
                     logger.debug(f"InitiativeEngine: Self-modification integration failed: {container_err}")
                 await asyncio.sleep(5)
 
@@ -105,6 +108,7 @@ class ProactiveInitiativeEngine:
                         last_aura_said = history[-1].get("content", "")[:120]
                         awaiting_user_response = True
         except Exception as _exc:
+            record_degradation('initiative_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         if not last_topic or last_topic == "nothing recently":
@@ -114,6 +118,7 @@ class ProactiveInitiativeEngine:
                     if last_memory:
                         last_topic = getattr(last_memory, "content", "nothing recently")
             except Exception as e:
+                record_degradation('initiative_engine', e)
                 logger.debug(f"InitiativeEngine: Last entry recall failed: {e}")
 
         # Personality Resonance (The Mind behind the choice)
@@ -213,6 +218,7 @@ class ProactiveInitiativeEngine:
                 )
                 delivered = bool(decision.get("ok"))
             except Exception as exc:
+                record_degradation('initiative_engine', exc)
                 logger.debug("Initiative engine executive routing failed: %s", exc)
 
             if not delivered and hasattr(self.voice, "speak_stream"):
@@ -232,4 +238,5 @@ class ProactiveInitiativeEngine:
                 self.affect._raw_state["curiosity_metric"] = 30.0 # Drop curiosity after speaking
             
         except Exception as e:
+            record_degradation('initiative_engine', e)
             logger.error(f"Proactive generation failed: {e}")

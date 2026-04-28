@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import asyncio.subprocess
 import logging
@@ -69,6 +70,7 @@ class SandboxSkill(BaseSkill):
             try:
                 params = SandboxInput(**params)
             except Exception as e:
+                record_degradation('internal_sandbox', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         code = params.code
@@ -116,6 +118,7 @@ class SandboxSkill(BaseSkill):
                     try:
                         process.kill()
                     except Exception as e:
+                        record_degradation('internal_sandbox', e)
                         logger.debug("Failed to kill sandboxed process: %s", e)
                     return {"ok": False, "error": f"Code execution timed out after {self.MAX_EXECUTION_TIME}s"}
 
@@ -137,7 +140,9 @@ class SandboxSkill(BaseSkill):
                 try:
                     os.unlink(temp_path)
                 except Exception as e:
+                    record_degradation('internal_sandbox', e)
                     logger.debug("Failed to delete temp sandbox file %s: %s", temp_path, e)
 
         except Exception as e:
+            record_degradation('internal_sandbox', e)
             return {"ok": False, "error": f"Sandbox Exception: {e}"}

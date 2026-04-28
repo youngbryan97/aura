@@ -28,6 +28,8 @@ points at ``~/.aura/data/releases/<channel>/`` so reviewers can stage a
 release without touching the public release pipeline.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import hmac
@@ -184,6 +186,7 @@ class UpdateManager:
             with tarfile.open(archive_path, "r:gz") as tar:
                 tar.extractall(staged)
         except Exception as exc:
+            record_degradation('update_manager', exc)
             attempt.failed_reason = f"unpack_failed:{exc}"
             self._record(attempt, "unpack_failed")
             return attempt
@@ -200,6 +203,7 @@ class UpdateManager:
                 shutil.move(str(_LIVE_LINK), str(_LIVE_LINK) + f".pre-{release.version}")
                 shutil.move(str(staged), str(_LIVE_LINK))
         except Exception as exc:
+            record_degradation('update_manager', exc)
             attempt.failed_reason = f"cutover_failed:{exc}"
             self._record(attempt, "cutover_failed")
             await self._rollback(attempt)
@@ -226,6 +230,7 @@ class UpdateManager:
                 tar.extractall(_LIVE_LINK.parent)
             self._record(attempt, "rolled_back")
         except Exception as exc:
+            record_degradation('update_manager', exc)
             self._record(attempt, f"rollback_failed:{exc}")
 
     @staticmethod

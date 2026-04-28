@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import inspect
@@ -206,6 +208,7 @@ async def prepare_runtime_payload(
             payload_state.cognition.current_objective = objective
             payload_state.cognition.current_origin = str(origin or "system")
         except Exception as _exc:
+            record_degradation('runtime_wiring', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         if not is_background:
@@ -218,12 +221,14 @@ async def prepare_runtime_payload(
                     origin=str(origin or "system"),
                 )
             except Exception as exc:
+                record_degradation('runtime_wiring', exc)
                 logger.debug("Substrate profile precompile skipped: %s", exc)
 
         if not is_background:
             try:
                 await _hydrate_runtime_memory(payload_state, objective)
             except Exception as _exc:
+                record_degradation('runtime_wiring', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         contract = build_response_contract(
@@ -281,6 +286,7 @@ def derive_substrate_generation_overrides(
             )
         return overrides
     except Exception as exc:
+        record_degradation('runtime_wiring', exc)
         logger.debug("Substrate generation override skipped: %s", exc)
         return {}
 

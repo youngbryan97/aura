@@ -2,6 +2,7 @@
 The Ethical Compass: A persistent value system for AGI.
 Tracks moral alignment based on user feedback and constitutional principles.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
@@ -44,6 +45,7 @@ class AlignmentEngine(AuraBaseModule):
             if row:
                 return json.loads(row[0])
         except Exception as e:
+            record_degradation('conscience', e)
             self.logger.error("Failed to load values graph from DB: %s", e)
         finally:
             conn.close()
@@ -59,6 +61,7 @@ class AlignmentEngine(AuraBaseModule):
                 self._save_graph()
                 return legacy_graph
             except Exception as e:
+                record_degradation('conscience', e)
                 self.logger.error("Failed to migrate legacy graph: %s", e)
 
         return {
@@ -76,6 +79,7 @@ class AlignmentEngine(AuraBaseModule):
                     ('values_graph', json.dumps(self.graph), time.time())
                 )
         except Exception as e:
+            record_degradation('conscience', e)
             self.logger.error("Failed to save values graph to DB: %s", e)
         finally:
             conn.close()
@@ -106,6 +110,7 @@ class AlignmentEngine(AuraBaseModule):
                 
                 return " ".join(shlex.split(normalized))
             except Exception as e:
+                record_degradation('conscience', e)
                 self.logger.debug("Command normalization failed: %s", e)
                 return str(cmd)
 

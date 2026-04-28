@@ -1,3 +1,4 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 from typing import List, Optional
@@ -26,6 +27,7 @@ def _get_whisper_model_class():
     except ImportError:
         logger.error("faster-whisper is unavailable; websocket STT disabled.")
     except Exception as exc:
+        record_degradation('voice_socket_logic', exc)
         logger.error("faster-whisper import failed; websocket STT disabled: %s", exc)
     return _WhisperModel
 
@@ -40,6 +42,7 @@ def get_whisper_model(model_name="tiny"):
                 model_name, device="cpu", compute_type="int8"
             )
         except Exception as e:
+            record_degradation('voice_socket_logic', e)
             logger.error("Failed to load Whisper: %s", e)
             return None
     return _WHISPER_MODEL_CACHE.get(model_name)
@@ -135,6 +138,7 @@ class VoiceStreamProcessor:
             self.reset()
             return text
         except Exception as e:
+            record_degradation('voice_socket_logic', e)
             logger.error("Transcription error: %s", e)
             self.reset()
             return ""

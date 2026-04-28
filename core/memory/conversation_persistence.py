@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
@@ -192,6 +194,7 @@ class ConversationPersistence:
             return messages
 
         except Exception as exc:
+            record_degradation('conversation_persistence', exc)
             logger.error("Could not load previous session: %s", exc)
             return []
 
@@ -244,6 +247,7 @@ class ConversationPersistence:
         try:
             await asyncio.get_running_loop().run_in_executor(None, self.save_sync)
         except Exception as exc:
+            record_degradation('conversation_persistence', exc)
             logger.error("Async save failed: %s", exc)
 
     def save_sync(self):
@@ -271,6 +275,7 @@ class ConversationPersistence:
             temp_path.replace(session_path)  # Atomic rename
             logger.debug("Session saved: %s (%d messages)", self.session_id, record.message_count)
         except Exception as exc:
+            record_degradation('conversation_persistence', exc)
             logger.error("Session save failed: %s", exc)
             try:
                 temp_path.unlink(missing_ok=True)
@@ -342,6 +347,7 @@ class ConversationPersistence:
                 logger.info("Session summary generated (%d chars)", len(summary))
                 return summary.strip()[:500]  # Cap summary length
         except Exception as exc:
+            record_degradation('conversation_persistence', exc)
             logger.warning("Summary generation failed: %s", exc)
 
         return None

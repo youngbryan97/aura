@@ -1,6 +1,8 @@
 """core/embodiment/voice_presence.py — Voice Presence.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import asyncio.subprocess
@@ -38,6 +40,7 @@ class MacOSTTS(TTSEngine):
                 if proc.returncode is None:
                     proc.terminate()
             except Exception as e:
+                record_degradation('voice_presence', e)
                 logger.debug(f"MacOSTTS: Cleanup of previous process failed: {e}")
             
         clean = self._clean(text)
@@ -48,6 +51,7 @@ class MacOSTTS(TTSEngine):
                 "say", clean, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
         except Exception as e:
+            record_degradation('voice_presence', e)
             logger.debug("🔊 MacOSTTS: Speak exec failed: %s", e)
 
     async def stop(self) -> None:
@@ -57,6 +61,7 @@ class MacOSTTS(TTSEngine):
                 if proc.returncode is None:
                     proc.terminate()
             except Exception as e:
+                record_degradation('voice_presence', e)
                 logger.debug(f"MacOSTTS: Stop failed: {e}")
 
     @staticmethod
@@ -82,6 +87,7 @@ class LinuxTTS(TTSEngine):
                     return
                 except Exception: continue
         except Exception as e:
+            record_degradation('voice_presence', e)
             logger.error("🔊 LinuxTTS: Speak failed: %s", e)
 
 class WindowsTTS(TTSEngine):
@@ -95,6 +101,7 @@ class WindowsTTS(TTSEngine):
             )
             await proc.wait()
         except Exception as e:
+            record_degradation('voice_presence', e)
             logger.error("🔊 WindowsTTS: Speak failed: %s", e)
 
 class DummyTTS(TTSEngine):
@@ -141,4 +148,5 @@ async def maybe_speak_response(response: str, state: Any) -> None:
         if voice:
             await voice.speak_response(response, phi=getattr(state, "phi", 0.0))
     except Exception as e:
+        record_degradation('voice_presence', e)
         logger.debug(f"maybe_speak_response failed: {e}")

@@ -1,4 +1,5 @@
 # core/brain/llm_interface.py
+from core.runtime.errors import record_degradation
 from typing import Any, Dict, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -45,6 +46,7 @@ async def call_llm_with_timeout(llm_call_coro, timeout: float = 10.0, fallback_f
     except asyncio.TimeoutError:
         logger.warning("LLM call timed out after %.1fs", timeout)
     except Exception as e:
+        record_degradation('llm_interface', e)
         logger.exception("LLM call exception: %s", e)
 
     # try fallback
