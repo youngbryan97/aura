@@ -320,13 +320,19 @@ class RecursiveSelfImprovementLoop:
             actions.append("collect_more_signal")
             rationale.append("no authorized improvement action has enough evidence yet")
 
+        requested_fine_tune = str(policy.get("fine_tune_type", "lora")).lower()
+        full_weights_unlocked = bool(policy.get("full_weights_unlocked", False)) and (
+            os.getenv("AURA_RSI_FULL_WEIGHTS_UNLOCKED", "0") == "1"
+        )
+        fine_tune_type = "full" if requested_fine_tune == "full" and full_weights_unlocked else "lora"
+
         return ImprovementPlan(
             objective=objective,
             actions=actions,
             rationale=rationale,
             depth=depth,
-            fine_tune_type=str(policy.get("fine_tune_type", "lora")),
-            full_weights_unlocked=bool(policy.get("full_weights_unlocked", False)),
+            fine_tune_type=fine_tune_type,
+            full_weights_unlocked=full_weights_unlocked,
         )
 
     def _authorize(self, plan: ImprovementPlan) -> tuple[bool, str]:
@@ -350,9 +356,9 @@ class RecursiveSelfImprovementLoop:
             return bool(decision.is_approved()), str(decision.reason)
         except Exception as exc:
             record_degradation("recursive_self_improvement", exc)
-            if os.getenv("AURA_RSI_FAIL_CLOSED", "0") == "1":
-                return False, f"authorization_unavailable:{type(exc).__name__}"
-            return True, f"authorization_degraded_open:{type(exc).__name__}"
+            if os.getenv("AURA_RSI_ALLOW_DEGRADED_OPEN", "0") == "1":
+                return True, f"authorization_degraded_open:{type(exc).__name__}"
+            return False, f"authorization_unavailable:{type(exc).__name__}"
 
     async def _run_weight_update(self) -> bool:
         if not self.live_learner or not hasattr(self.live_learner, "force_train"):

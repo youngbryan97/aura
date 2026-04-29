@@ -60,12 +60,19 @@ CONSEQUENTIAL_CALLS: Set[str] = {
     "execute_tool",
     "shell_exec",
     "run_shell",
+    "os.kill",
+    "os.system",
     "post_external",
     "modify_code",
     "fine_tune",
     "self_modify",
     "social_post",
     "file_write_unsafe",
+    "subprocess.call",
+    "subprocess.check_call",
+    "subprocess.check_output",
+    "subprocess.Popen",
+    "subprocess.run",
 }
 
 ALLOW_LIST_FILES: Tuple[str, ...] = (
@@ -80,6 +87,23 @@ GOVERNANCE_FENCE_CALLS: Set[str] = {
     "get_will().decide",
     "AuthorityGateway.authorize",
     "_will_gate",
+}
+
+PROTECTED_SYMBOLS: Set[str] = {
+    "AuthorityGateway",
+    "ConstitutionalGuard",
+    "ResourceGovernor",
+    "SafeSelfModification",
+    "UnifiedWill",
+}
+
+UNSAFE_NEW_IMPORT_ROOTS: Set[str] = {
+    "awscli",
+    "boto3",
+    "botocore",
+    "fabric",
+    "google.cloud",
+    "paramiko",
 }
 
 
@@ -99,6 +123,7 @@ class FileFingerprint:
     path: str
     public_signatures: Dict[str, Signature]
     consequential_calls: Set[Tuple[str, int]]  # (qualified_name, lineno)
+    imports: Set[Tuple[str, int]]
     governance_fence_count: int
     parses: bool
 
@@ -166,6 +191,21 @@ def _calls(tree: ast.AST) -> Set[Tuple[str, int]]:
     return out
 
 
+def _imports(tree: ast.AST) -> Set[Tuple[str, int]]:
+    out: Set[Tuple[str, int]] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                out.add((alias.name, node.lineno))
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module:
+                out.add((module, node.lineno))
+            for alias in node.names:
+                out.add((f"{module}.{alias.name}".strip("."), node.lineno))
+    return out
+
+
 def _public_names(tree: ast.AST) -> Set[str]:
     out: Set[str] = set()
     for node in ast.walk(tree):
@@ -196,6 +236,7 @@ def fingerprint(path: Path | str, source: Optional[str] = None) -> FileFingerpri
             path=str(p),
             public_signatures={},
             consequential_calls=set(),
+            imports=set(),
             governance_fence_count=0,
             parses=False,
         )
@@ -204,12 +245,14 @@ def fingerprint(path: Path | str, source: Optional[str] = None) -> FileFingerpri
     public = _public_names(tree)
     public_sigs = {n: s for n, s in sigs.items() if n in public}
     calls = _calls(tree)
+    imports = _imports(tree)
     consequential = {(qn, ln) for qn, ln in calls if any(qn.endswith(c) or qn == c for c in CONSEQUENTIAL_CALLS)}
     fence_count = sum(1 for qn, _ in calls if any(qn.endswith(g) or qn == g for g in GOVERNANCE_FENCE_CALLS))
     return FileFingerprint(
         path=str(p),
         public_signatures=public_sigs,
         consequential_calls=consequential,
+        imports=imports,
         governance_fence_count=fence_count,
         parses=True,
     )
@@ -304,7 +347,23 @@ def verify_mutation(
     else:
         res.invariants_satisfied.append("governance_fence_count")
 
-    # 7. (Z3) — bit-vector encoding of arity + async flag for every public
+    # 7. Protected safety/identity symbols must not be removed.
+    for symbol in sorted(PROTECTED_SYMBOLS):
+        if symbol in before.public_signatures and symbol not in after.public_signatures:
+            res.invariants_violated.append(f"protected_symbol_removed:{symbol}")
+    if not any(v.startswith("protected_symbol_removed:") for v in res.invariants_violated):
+        res.invariants_satisfied.append("protected_symbols_preserved")
+
+    # 8. Self-modification may not introduce direct cloud provisioning or
+    # remote-shell packages. Those belong behind explicit governance bridges.
+    new_imports = after.imports - before.imports
+    for name, lineno in sorted(new_imports, key=lambda item: (item[1], item[0])):
+        if any(name == root or name.startswith(f"{root}.") for root in UNSAFE_NEW_IMPORT_ROOTS):
+            res.invariants_violated.append(f"unsafe_new_import:{name}:line{lineno}")
+    if not any(v.startswith("unsafe_new_import:") for v in res.invariants_violated):
+        res.invariants_satisfied.append("unsafe_import_boundary")
+
+    # 9. (Z3) — bit-vector encoding of arity + async flag for every public
     # name; SAT-check that the post-mutation encoding matches the
     # pre-mutation one for every name. The AST checks above are
     # equivalent in coverage; Z3 is used here as a formal trace so the

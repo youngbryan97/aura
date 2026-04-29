@@ -103,7 +103,7 @@ class StructuredErrorLogger:
         file_path = None
         line_number = None
         for line in trace_lines:
-            if 'File "' in line and '/autonomy_engine/' in line:
+            if 'File "' in line and ('/aura/' in line or '/Desktop/aura/' in line):
                 # Parse: File "/path/to/file.py", line 123
                 try:
                     file_part = line.split('File "')[1].split('"')[0]

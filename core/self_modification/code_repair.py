@@ -91,7 +91,7 @@ class CodeFixGenerator:
         
         # Read the buggy code
         try:
-            code_context = await self._extract_code_context(file_path, line_number, context_lines)
+            code_context = self._extract_code_context(file_path, line_number, context_lines)
             # v6.2: Add AST structural context
             ast_context = await self.analyzer.analyze_file(self.code_base / file_path)
             code_context["ast_summary"] = ast_context

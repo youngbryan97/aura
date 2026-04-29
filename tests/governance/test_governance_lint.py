@@ -43,7 +43,4 @@ def test_lint_detects_forbidden_call(tmp_path: Path, monkeypatch):
         rc = _run_lint()
         assert rc == 0  # facade.write doesn't match because qn is "facade.write" — keeping the lint conservative
     finally:
-        try:
-            get_task_tracker().create_task(get_storage_gateway().delete(bad, cause='test_lint_detects_forbidden_call'))
-        except FileNotFoundError:
-            pass
+        bad.unlink(missing_ok=True)

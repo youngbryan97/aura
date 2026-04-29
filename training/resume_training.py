@@ -12,11 +12,7 @@ import sys
 from pathlib import Path
 import re
 
-BASE_MODEL = (
-    "/Users/bryan/.cache/huggingface/hub/"
-    "models--mlx-community--Qwen2.5-32B-Instruct-4bit/"
-    "snapshots/2938092373e5f97b95538884112085364c2da315"
-)
+BASE_MODEL = "/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-8bit"
 ADAPTER_PATH = Path("/Users/bryan/.aura/live-source/training/adapters/aura-personality")
 DATA_DIR = "/Users/bryan/.aura/live-source/training/data"
 LOG_PATH = Path("/Users/bryan/.aura/live-source/training/train_log.txt")
