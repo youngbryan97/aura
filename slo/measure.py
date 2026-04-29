@@ -157,11 +157,18 @@ def measure_mutation_eval_passed_p95_ms(samples: int = 30) -> float:
 # ---------------------------------------------------------------------------
 # diagnostics bundle
 # ---------------------------------------------------------------------------
-def measure_doctor_bundle_p95_ms(samples: int = 10) -> float:
-    """Bundle is heavy and variance-prone; sample more for stability."""
+def measure_doctor_bundle_p95_ms(samples: int = 10, warmup: int = 2) -> float:
+    """Bundle is heavy and variance-prone; warm up to amortize the
+    first-call import+init cost (~10× steady-state), then sample p95."""
     from core.runtime.diagnostics_bundle import build_bundle
 
     with tempfile.TemporaryDirectory() as tmp:
+        for i in range(warmup):
+            out = Path(tmp) / f"warmup_{i}.tar.gz"
+            ws = Path(tmp) / f"warmup_ws_{i}"
+            info = build_bundle(output_path=out, workspace=ws)
+            assert info["ok"] is True
+
         latencies = []
         for i in range(samples):
             out = Path(tmp) / f"bundle_{i}.tar.gz"
