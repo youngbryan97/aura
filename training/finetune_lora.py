@@ -91,12 +91,22 @@ def backup_existing_adapter():
         print(f"  Backup complete.")
 
 
+def _latest_checkpoint() -> Path | None:
+    """Find the highest-numbered ``NNNNNNN_adapters.safetensors`` checkpoint."""
+    if not ADAPTER_DIR.exists():
+        return None
+    candidates = sorted(ADAPTER_DIR.glob("[0-9]*_adapters.safetensors"))
+    return candidates[-1] if candidates else None
+
+
 def main():
     try:
         from mlx_lm import lora as mlx_lora
     except ImportError:
         print("ERROR: mlx-lm not installed. Run: pip install mlx-lm")
         sys.exit(1)
+
+    resume = "--resume" in sys.argv
 
     if not TRAIN_FILE.exists():
         print(f"Training data not found at {TRAIN_FILE}")
@@ -133,8 +143,12 @@ def main():
     print("=" * 60)
     print()
 
-    # Backup existing adapter
-    backup_existing_adapter()
+    # Backup existing adapter — skipped on resume so the partial
+    # checkpoints survive.
+    if not resume:
+        backup_existing_adapter()
+    else:
+        print("  --resume: skipping adapter backup; reusing existing checkpoints.")
 
     ADAPTER_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -205,6 +219,14 @@ def main():
 
     if GRAD_CHECKPOINT:
         cmd_parts.append("--grad-checkpoint")
+
+    if resume:
+        latest = _latest_checkpoint()
+        if latest is None:
+            print("  --resume requested but no checkpoint found; starting fresh.")
+        else:
+            print(f"  --resume: continuing from {latest.name}")
+            cmd_parts.extend(["--resume-adapter-file", str(latest)])
 
     cmd_display = " ".join(cmd_parts)
     print(f"Command: {cmd_display}")
