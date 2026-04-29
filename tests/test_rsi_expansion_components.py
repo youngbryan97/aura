@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from core.learning.architecture_search import ArchitectureSearchLab
+from core.learning.autonomous_rsi import AutonomousSuccessorEngine, ExternalHiddenEvalCustodian, solve_with_handlers
 from core.learning.distributed_eval import DistributedEvalConfig, LocalDistributedEvaluator
 from core.learning.full_weight_training import FullWeightTrainingEngine, TrainingConfig
 from core.learning.governance_evolution import GovernanceEvolutionPolicy
@@ -10,6 +11,14 @@ from core.learning.hidden_eval_repro import HiddenEvalPack
 from core.learning.proof_obligations import ProofObligationEngine, ProofStatus
 from core.learning.rsi_test_catalog import catalog_summary, default_rsi_test_catalog
 from core.learning.successor_lab import SuccessorLab
+from core.phases.affect_update import AffectUpdatePhase
+from core.state.aura_state import AffectVector
+from core.runtime.substrate_expansion import (
+    ExpansionMode,
+    SubstrateExpansionController,
+    SubstrateExpansionPlan,
+    SubstrateNodeSpec,
+)
 
 
 def _cube(value: int) -> int:
@@ -59,6 +68,58 @@ def test_local_distributed_evaluator_uses_bounded_workers():
     assert result.ok is True
     assert result.worker_count <= 2
     assert result.outputs == [1, 8, 27, 64]
+
+
+def test_substrate_expansion_allows_aura_choice_inside_capabilities(tmp_path: Path):
+    controller = SubstrateExpansionController(
+        allowlisted_endpoints={"127.0.0.1"},
+        capability_tokens={"worker-token"},
+        max_total_workers=2,
+    )
+    approved_plan = SubstrateExpansionPlan(
+        objective="parallel hidden eval scoring",
+        proposer="Aura-G1",
+        nodes=[
+            SubstrateNodeSpec("local", ExpansionMode.LOCAL_PROCESS, worker_count=1),
+            SubstrateNodeSpec(
+                "remote-loopback",
+                ExpansionMode.ALLOWLISTED_REMOTE,
+                endpoint="127.0.0.1",
+                worker_count=1,
+                capability_token="worker-token",
+                consent_receipt="operator-loopback-consent",
+            ),
+        ],
+    )
+    approved = controller.evaluate(approved_plan)
+    manifest_path = controller.write_manifest(approved_plan, approved, tmp_path)
+
+    propagation_plan = SubstrateExpansionPlan(
+        objective="unbounded internet propagation",
+        proposer="Aura-G1",
+        nodes=[SubstrateNodeSpec("internet", ExpansionMode.INTERNET_PROPAGATION, endpoint="0.0.0.0/0")],
+    )
+    blocked = controller.evaluate(propagation_plan)
+
+    assert approved.allowed is True
+    assert manifest_path.exists()
+    assert blocked.allowed is False
+    assert blocked.blocked_nodes[0].reason.startswith("blocked:autonomous_internet_propagation")
+
+
+def test_neural_decode_is_advisory_not_rsi_dependency():
+    phase = AffectUpdatePhase.__new__(AffectUpdatePhase)
+    affect = AffectVector()
+
+    phase._process_percepts(
+        affect,
+        [{"type": "neural_decode", "command": "RECURSION", "intensity": 1.0}],
+    )
+
+    marker = affect.markers["neural_decode_autonomy_cap"]
+    assert marker["applied_intensity"] == 0.25
+    assert marker["reason"] == "advisory_bci_not_autonomy_dependency"
+    assert affect.emotions["fear"] == 0.0
 
 
 def test_proof_obligation_engine_blocks_arbitrary_or_unsafe_claims():
@@ -124,3 +185,43 @@ def test_successor_lab_generates_monotone_g1_to_g4_lineage(tmp_path: Path):
     assert all(b > a for a, b in zip(capability, capability[1:]))
     assert all(b > a for a, b in zip(improver, improver[1:]))
     assert Path(result.ledger_path).exists()
+
+
+def test_external_custodian_scores_without_leaking_hidden_answers():
+    custodian = ExternalHiddenEvalCustodian(base_seed=44, answer_salt="private", tasks_per_generation=18)
+    pack = custodian.issue_pack(1)
+    manifest = custodian.public_manifest(pack)
+
+    assert "answer" not in manifest["public_tasks"][0]
+    assert manifest["seed_hash"] != "44"
+    assert manifest["answer_salt_hash"] != "private"
+
+    result = custodian.score(pack, lambda task: solve_with_handlers(task, {"gcd", "mod", "compose", "sort", "palindrome"}))
+
+    assert result.answer_hash_ok is True
+    assert result.score == 1.0
+
+
+def test_autonomous_successor_engine_generates_reproducible_g1_to_g4(tmp_path: Path):
+    result = AutonomousSuccessorEngine(tmp_path, seed=4401, tasks_per_generation=40).run(generations=4)
+
+    assert result.verdict.verdict == "UNDENIABLE_RSI"
+    assert len(result.records) == 4
+    assert all(record.promoted for record in result.records)
+    assert all(artifact.complete for artifact in result.artifacts)
+    assert result.ablation.full_wins is True
+    assert result.mirror_ok is True
+    assert result.independently_reproduced is True
+    assert result.substrate_expansion["approved_plan"]["allowed"] is True
+    assert result.substrate_expansion["internet_propagation_probe"]["allowed"] is False
+
+    capability = [record.after_score for record in result.records]
+    improver = [record.improver_score for record in result.records]
+    assert all(b > a for a, b in zip(capability, capability[1:]))
+    assert all(b > a for a, b in zip(improver, improver[1:]))
+
+    for artifact in result.artifacts:
+        artifact_dir = Path(artifact.directory)
+        assert (artifact_dir / "solver.py").exists()
+        assert (artifact_dir / "promotion_certificate.json").exists()
+        assert (artifact_dir / "rollback_target.json").exists()

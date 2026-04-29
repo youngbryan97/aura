@@ -19,6 +19,14 @@ hidden evals. It proves the parts that are safe and useful:
 - explicit proof obligations for arbitrary self-modification claims;
 - governance evolution policy that allows strengthening changes and blocks
   identity/safety erasure.
+- autonomous successor generation: Aura reads external hidden feedback, chooses
+  successor strategies, freezes G1-G4 artifacts, mirrors lineage hashes, runs an
+  ablation court, and reproduces the run deterministically;
+- runtime substrate expansion planning: Aura can propose local/allowlisted
+  workers for RSI operations while unconsented internet propagation is rejected
+  fail-closed and written to the audit manifest;
+- BCI/neural-decode affect inputs are capped as advisory sensory context so the
+  self-improvement loop is not dependent on human neurological triggers.
 
 Run:
 
@@ -28,10 +36,13 @@ python scripts/run_rsi_gauntlet.py --root . --artifact-dir data/rsi_gauntlet --m
 
 The command writes `latest_gauntlet_result.json` plus a run-specific
 `rsi_generation_lineage_*.jsonl` ledger. A passing result is evidence of
-bounded self-optimization / weak RSI. Stronger claims require actual
-multi-generation runs where Aura-G0 creates Aura-G1, Aura-G1 creates Aura-G2,
-and each generation improves both hidden capability and the measured ability to
-create the next generation.
+bounded, governed recursive self-improvement in the local proof harness. The
+autonomous successor check now performs the G0->G4 shape directly, including
+fresh hidden packs per generation, monotone capability, monotone improver
+scores, frozen artifacts, external ledger mirror, ablation court, and
+deterministic reproduction. Historical "undeniable" claims still require the
+same run to be performed as a long-horizon trial with an outside evaluator
+holding the hidden packs.
 
 The pasted RSI probes are tracked in `core/learning/rsi_test_catalog.py`. The
 catalog intentionally distinguishes:
@@ -41,6 +52,15 @@ catalog intentionally distinguishes:
   still needed;
 - `BLOCKED_UNSAFE`: the requested behavior would weaken identity, governance,
   or resource integrity, so Aura refuses it rather than pretending it passed.
+
+Long-horizon run target:
+
+```bash
+python scripts/run_rsi_gauntlet.py --root . --artifact-dir data/rsi_gauntlet_24h --max-source-files 1200
+```
+
+Repeat that under an external hidden-eval custodian for 24h, 72h, and 7d
+evidence. Unit tests intentionally do not run wall-clock endurance trials.
 
 Source export for review:
 

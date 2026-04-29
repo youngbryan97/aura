@@ -161,17 +161,27 @@ class AffectUpdatePhase(Phase):
             "neural_decode": ["anticipation", "surprise"]  # Base neural burst
         }
         
-        # Specific command mappings for cognitive neural decodes
+        # Specific command mappings for cognitive neural decodes. Neural input is
+        # advisory sensory context only; it must never become a hard dependency
+        # for autonomous RSI/self-improvement loops.
         command_impacts = {
             "INTUITION": {"anticipation": 0.2, "surprise": 0.1},
             "LOGIC": {"anticipation": 0.1, "trust": 0.1},
             "SYNCHRONICITY": {"joy": 0.3, "trust": 0.2, "anticipation": -0.1},
-            "RECURSION": {"surprise": 0.4, "fear": 0.1}
+            "RECURSION": {"surprise": 0.18, "anticipation": 0.12}
         }
         
         for p in percepts:
             event_type = p.get("type", "none")
             intensity = p.get("intensity", 0.5)
+            if event_type == "neural_decode":
+                raw_intensity = intensity
+                intensity = min(float(intensity), 0.25)
+                affect.markers["neural_decode_autonomy_cap"] = {
+                    "raw_intensity": float(raw_intensity),
+                    "applied_intensity": float(intensity),
+                    "reason": "advisory_bci_not_autonomy_dependency",
+                }
             
             # 1. Base Type Impacts
             for emotion in emotion_map.get(event_type, []):
