@@ -53,6 +53,16 @@ Every documented incident class has a runbook under
 diagnostics bundle emits, plus diagnosis, mitigation, rollback, and
 verification steps.
 
+## Self-improving research core
+Aura ships her own hybrid attention/SSM/MoE/world-head model and an
+autonomous research substrate that drives capability evaluation,
+algorithm discovery, semantic verification, and unknown-unknown test
+generation under a statistical promotion gate. The core registers
+itself in the `ServiceContainer` as `research_core` and runs cycles
+in process. Inspect via `aura doctor --bundle` — the bundle includes
+`research_core.json` with iteration count, last cycle time, model
+parameter count, vault size, and the most recent five cycle reports.
+
 ## Tamper-evident audit trail
 Every receipt the runtime emits is appended to a hash-chained ledger at
 `~/.aura/receipts/_chain.jsonl`. To verify the chain after an incident:

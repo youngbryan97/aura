@@ -241,6 +241,16 @@ def collect_gateway() -> Dict[str, Any]:
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 
+def collect_research_core() -> Dict[str, Any]:
+    """Snapshot the SelfImprovingResearchCore via its dedicated collector."""
+    try:
+        from core.research_core.doctor import collect_research_core_status
+
+        return collect_research_core_status()
+    except Exception as e:  # noqa: BLE001
+        return {"available": False, "_collector_error": f"{type(e).__name__}: {e}"}
+
+
 def collect_recent_receipts(per_kind_limit: int = 20) -> Dict[str, Any]:
     try:
         from core.runtime.receipts import _RECEIPT_CLASSES, get_receipt_store
@@ -359,6 +369,7 @@ def build_bundle(
     _step("memory", collect_memory, bundle_dir / "memory.json")
     _step("gateway", collect_gateway, bundle_dir / "gateway.json")
     _step("receipts", collect_recent_receipts, bundle_dir / "receipts.json")
+    _step("research_core", collect_research_core, bundle_dir / "research_core.json")
 
     audit_dir = bundle_dir / "audit_chain"
     audit_dir.mkdir(parents=True, exist_ok=True)

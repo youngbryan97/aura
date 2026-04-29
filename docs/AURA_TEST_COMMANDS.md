@@ -209,3 +209,36 @@ python -m pytest tests/test_slo_gate.py -q
 # Run the SLO gate locally (matches CI behaviour)
 python -m slo.check --baseline slo/baseline.json
 ```
+
+## Self-Improving Research Core Slice
+
+The Aura-owned research substrate (Lattice model, promotion gate,
+dynamic benchmarks, algorithm discovery, semantic verifier,
+unknown-unknown generator, distributed abstractions, autonomous
+driver). All CPU-only.
+
+```bash
+# Hybrid attention/SSM/MoE/world-head architecture
+python -m pytest tests/test_lattice_model.py tests/test_lattice_trainer.py -q
+
+# Promotion gate + dynamic benchmark + holdout vault
+python -m pytest tests/test_promotion_gate.py tests/test_dynamic_benchmark.py tests/test_holdout_vault.py -q
+
+# Algorithm discovery + AST-restricted sandbox
+python -m pytest tests/test_expression_evolver.py tests/test_safe_code_evaluator.py -q
+
+# Multi-channel semantic verifier
+python -m pytest tests/test_semantic_verifier.py -q
+
+# Unknown-unknown generation + entropy probe
+python -m pytest tests/test_unknown_generator.py -q
+
+# Distributed abstractions (compression + grad sync fallback)
+python -m pytest tests/test_distributed_substrate.py -q
+
+# Autonomous research-core driver (unit + integration)
+python -m pytest tests/test_research_core.py -q
+
+# Live end-to-end test: real cycles, real receipts, real bundle
+python -m pytest tests/test_research_core_live.py -q
+```
