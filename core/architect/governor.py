@@ -146,7 +146,17 @@ class AutonomousArchitectureGovernor:
         return decision
 
     def auto(self, *, tier_max: MutationTier | str = MutationTier.T1_CLEANUP) -> dict[str, Any]:
+        from core.architect.safety_gate import ASASafetyGate
+
         max_tier = MutationTier.parse(tier_max)
+        gate = ASASafetyGate(self.config)
+
+        # 1. Preflight: freeze, git clean, T3 observation, armed monitors
+        ok, reason = gate.preflight(monitor_fn=self.monitor.check_once)
+        if not ok:
+            return {"status": "gate_blocked", "reason": reason}
+
+        # 2. Find a candidate
         graph = self.build_graph()
         smells = self.detect_smells(graph)
         plan = self.planner.find_auto_cleanup_plan(graph, smells)
@@ -154,11 +164,37 @@ class AutonomousArchitectureGovernor:
             return {"status": "no_candidate", "smell_count": len(smells)}
         if plan.risk_tier > max_tier:
             return {"status": "candidate_above_tier", "plan": plan_to_dict(plan), "tier_max": max_tier.name}
+
+        # 3. Plan-level safety checks
+        ok, reason = gate.check_plan(plan)
+        if not ok:
+            gate.record_failure(plan.id, plan)
+            return {"status": "gate_blocked", "reason": reason, "plan": plan_to_dict(plan)}
+
+        # 4. Indirect T3 escalation: helper files used by sensitive surfaces
+        if gate.check_indirect_escalation(plan, graph):
+            return {
+                "status": "escalated_to_proposal",
+                "reason": "T3 plan indirectly touches training/model-routing/self-mod/governance via helper imports",
+                "plan": plan_to_dict(plan),
+            }
+
+        # 5. Shadow run
         shadow, ghost, rollback, proof = self.shadow_run(plan)
+
+        # 6. Promote
         decision = self.promote(plan, shadow, proof, rollback)
+
+        # 7. Record outcome
         observation = None
         if decision.status is PromotionStatus.PROMOTED:
+            gate.record_promotion(shadow.run_id, plan)
             observation = self.monitor.check_once(decision.run_id)
+            if observation.rollback_triggered:
+                gate.record_rollback(shadow.run_id, plan)
+        elif decision.status is PromotionStatus.REJECTED:
+            gate.record_failure(shadow.run_id, plan)
+
         return {
             "status": decision.status.value,
             "plan": plan_to_dict(plan),

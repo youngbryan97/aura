@@ -20,9 +20,11 @@ from core.architect.models import (
     RollbackPacket,
     SemanticSurface,
 )
+from core.architect.safety_gate import ASASafetyGate, FreezeAutopsy
 
 __all__ = [
     "ASAConfig",
+    "ASASafetyGate",
     "ArchitecturalSmell",
     "ArchitectureEdge",
     "ArchitectureGraph",
@@ -30,6 +32,7 @@ __all__ = [
     "AutonomousArchitectureGovernor",
     "BehaviorDelta",
     "BehaviorFingerprint",
+    "FreezeAutopsy",
     "MutationTier",
     "PromotionDecision",
     "PromotionStatus",
@@ -37,6 +40,6 @@ __all__ = [
     "RefactorPlan",
     "RefactorStep",
     "RollbackPacket",
-    "SemanticSurface",
     "SemanticBehaviorOracle",
+    "SemanticSurface",
 ]
