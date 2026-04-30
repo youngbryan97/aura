@@ -15,9 +15,10 @@
       "tolerance_pct": 100
     },
     "prediction_ledger_register_p95_ms": {
-      "value": 1.7881,
+      "value": 4.8822,
       "unit": "ms",
-      "tolerance_pct": 100
+      "tolerance_pct": 100,
+      "_note": "Re-baselined 2026-04-30 after the durable ledger landed (commit ce073dcf). The new register() persists belief→action→outcome with Brier+ECE bookkeeping, so 4.88ms is the actual feature cost on the macos-latest runner; the prior 1.79ms baseline was pre-feature."
     },
     "prediction_ledger_brier_correctness": {
       "value": 0.0,
