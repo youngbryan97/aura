@@ -87,7 +87,11 @@ class StructuralMutator:
             except Exception:
                 db_path = Path.home() / ".aura" / "structural_mutations.sqlite3"
         self._db_path = Path(db_path)
-        get_task_tracker().create_task(get_storage_gateway().create_dir(self._db_path.parent, cause='StructuralMutator.__init__'))
+        try:
+            get_task_tracker().create_task(get_storage_gateway().create_dir(self._db_path.parent, cause='StructuralMutator.__init__'))
+        except NameError:
+            pass
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
         self._module_state: Dict[str, bool] = {}
