@@ -68,6 +68,7 @@ class AutonomyConductor:
         self.register("caa_32b_validation", 6 * 3600.0, self._job_caa_32b_validation, run_immediately=True)
         self.register("proof_bundle", 12 * 3600.0, self._job_proof_bundle, run_immediately=False)
         self.register("self_test_synthesis", 24 * 3600.0, self._job_self_test_synthesis, run_immediately=False)
+        self.register("architecture_auto_cycle", 1800.0, self._job_architecture_auto, run_immediately=False)
 
     async def start(self) -> None:
         if self._task and not self._task.done():
@@ -166,6 +167,16 @@ class AutonomyConductor:
         synth = SelfTestSynthesizer()
         tests = synth.synthesize_tests([])
         return {"generated_tests": len(tests)}
+
+    async def _job_architecture_auto(self) -> dict[str, Any]:
+        from core.architect.config import ASAConfig
+        from core.architect.governor import AutonomousArchitectureGovernor
+
+        config = ASAConfig.from_env()
+        if not config.enabled or not config.autopromote:
+            return {"status": "disabled", "enabled": config.enabled, "autopromote": config.autopromote}
+        governor = AutonomousArchitectureGovernor(config)
+        return await asyncio.to_thread(governor.auto, tier_max=config.max_tier)
 
 
 _instance: AutonomyConductor | None = None
