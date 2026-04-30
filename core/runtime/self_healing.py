@@ -117,16 +117,46 @@ class SelfHealing:
             "restart_count": w.restarts,
         }
         try:
-            if w.restart_async is not None:
-                await w.restart_async()
-            elif w.container_key:
+            if w.restarts >= 3:
+                # Deep repair strategy using ReimplementationLab
                 from core.container import ServiceContainer
-                instance = ServiceContainer.get(w.container_key, default=None)
-                if instance is not None and hasattr(instance, "restart_async"):
-                    await instance.restart_async()
-            w.restarts += 1
-            w.last_heartbeat_at = time.time()
-            record["result"] = "restarted"
+                lab = ServiceContainer.get("reimplementation_lab", default=None)
+                if lab is not None:
+                    module_path = None
+                    if w.container_key:
+                        instance = ServiceContainer.get(w.container_key, default=None)
+                        if instance is not None:
+                            module_name = type(instance).__module__
+                            module_path = module_name.replace('.', '/') + '.py'
+                    
+                    if module_path:
+                        logger.warning("Deep repair triggered for %s (%s)", w.name, module_path)
+                        # We use asyncio.create_task to not block the healing loop indefinitely
+                        asyncio.create_task(
+                            lab.run_reconstruction(
+                                module_path, 
+                                metadata={"trigger": "self_healing", "watch_name": w.name}
+                            )
+                        )
+                        record["result"] = "deep_repair_triggered"
+                        w.restarts = 0  # Reset counter to wait and see if it recovers
+                        w.last_heartbeat_at = time.time()
+                    else:
+                        record["result"] = "deep_repair_failed_no_module_path"
+                else:
+                    record["result"] = "deep_repair_failed_no_lab"
+
+            if record.get("result") not in ("deep_repair_triggered", "deep_repair_failed_no_module_path", "deep_repair_failed_no_lab"):
+                if w.restart_async is not None:
+                    await w.restart_async()
+                elif w.container_key:
+                    from core.container import ServiceContainer
+                    instance = ServiceContainer.get(w.container_key, default=None)
+                    if instance is not None and hasattr(instance, "restart_async"):
+                        await instance.restart_async()
+                w.restarts += 1
+                w.last_heartbeat_at = time.time()
+                record["result"] = "restarted"
         except Exception as exc:
             record_degradation('self_healing', exc)
             record["result"] = f"restart_failed:{exc}"

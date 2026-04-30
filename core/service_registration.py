@@ -100,6 +100,17 @@ def register_all_services(is_proxy: bool = False):
         from core.identity.id_rag import get_identity_chronicle
         return get_identity_chronicle()
 
+    def create_reimplementation_lab():
+        from core.self_improvement.reimplementation_lab import ReimplementationLab
+        from core.self_improvement.llm_code_generator import LLMCodeGenerator
+        from core.config import config
+        # Use LLM generator configured for local primary tier
+        generator = LLMCodeGenerator(prefer_tier="primary")
+        return ReimplementationLab(
+            project_root=str(config.paths.base_dir),
+            generator=generator
+        )
+
     container.register('adaptive_mood', create_adaptive_mood, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('mesh_cognition', create_mesh_cognition, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('emergent_goal_engine', create_emergent_goal_engine, lifetime=ServiceLifetime.SINGLETON, required=False)
@@ -107,6 +118,7 @@ def register_all_services(is_proxy: bool = False):
     container.register('lineage_manager', create_lineage_manager, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('self_awareness_suite', create_self_awareness_suite, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('identity_chronicle', create_identity_chronicle, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('reimplementation_lab', create_reimplementation_lab, lifetime=ServiceLifetime.SINGLETON, required=False)
 
     def create_life_trace():
         from core.runtime.life_trace import get_life_trace
