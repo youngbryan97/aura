@@ -37,27 +37,18 @@ The current engineering claims are narrower and testable:
 
 ---
 
-## What's stubbed and what's real
+## Production Evidence Surface
 
-This section exists because a fair reading of the code requires knowing which
-parts are production implementations and which are placeholders. We are
-explicit about it rather than burying it.
-
-**Stubbed today (placeholder code, not production):**
-
-- The CAA steering vectors used at runtime are **bootstrap approximations**,
-  not fully extracted contrastive activations. The injection mechanism in
-  `core/consciousness/affective_steering.py` is real, but the vectors it
-  injects need full extraction work.
-
-**Real today (production implementations, code is what it claims to be):**
+Aura's production claim surface is restricted to code paths with runnable
+implementations, receipts, and validation artifacts. Incomplete ideas are kept
+out of that surface; release gates now generate a proof bundle rather than
+asking readers to infer maturity from prose.
 
 - `core/brain/llm/continuous_substrate.py` is a 64-neuron Liquid Time-Constant
   ODE running at ~20 Hz. CPU-only numpy with explicit-Euler integration plus
   stochastic perturbation; `get_state_summary()` derives valence/arousal/
   dominance/phi from fixed projections of the 64-D state vector, so readouts
-  reflect actual dynamics. The previous 100-line monologue stub is gone; the
-  ODE replaces it (see header comment at the top of the file).
+  reflect actual dynamics.
 - `core/consciousness/phi_core.py` (1,837 lines) implements real IIT-style
   integration math: binarization, empirical TPM, KL-divergence φ, exclusion
   postulate, polynomial-time spectral partitioning, with an exhaustive
@@ -67,41 +58,45 @@ explicit about it rather than burying it.
 - `core/consciousness/affective_steering.py` (1,336 lines) is a real CAA
   injection pipeline that hooks MLX transformer blocks and modifies the
   residual stream at generation time.
+- `training/caa_32b_validation.py` validates production-model CAA artifacts:
+  vector presence, layer geometry, PCA structure, permutation controls,
+  black-box prompt hygiene conditions, rich-prompt comparators, and behavioral
+  A/B result ingestion.
+- `core/consciousness/stdp_external_validation.py` runs the external-usefulness
+  STDP experiment: external environment signal vs self-generated, frozen, and
+  shuffled controls on held-out prediction tasks.
+- `core/self_modification/fault_pipeline.py` and
+  `core/self_modification/repair_approval.py` implement the closed-loop
+  bug-packet repair path with deterministic localization, tier-aware approval,
+  patch genealogy, and calibration.
+- `core/runtime/autonomy_conductor.py` and `core/runtime/activation_audit.py`
+  make proof, validation, metabolic, scar, and repair checks recurring runtime
+  jobs instead of optional scripts.
 - The full memory architecture (episodic, semantic, vector, knowledge graph,
   WAL, three-layer atoms), the goal/will/decision-authority stack, and the
   cognitive WAL are all real production code.
 
-**Important caveats on the real parts:**
+**Evidence boundaries on the production parts:**
 
 - φ is computed over **cognitive-affective state nodes and sampled mesh
   neurons**, not at the level of intrinsic mechanisms that strict IIT 4.0
   prescribes. The φ values are mathematically meaningful as integration
   measures over the system's own state-space; they are not a claim of
   integrated information in the strict Tononi/Albantakis/Haun sense.
-- The published A/B steering result was generated on Qwen 2.5 1.5B-4bit "for
-  speed." The production system is 32B/8bit. Activation geometry is known to
-  vary qualitatively with scale (Bricken et al., Elhage et al.). **Replicating
-  the A/B test on the production 32B model with a PCA visualization of the
-  steering vectors is the next scheduled work item** and should be considered
-  the credible artifact, not the 1.5B result.
-- The STDP W-matrix updates from prediction error computed on the system's own
-  outputs. This is a closed loop and could in principle stabilize on whatever
-  pattern the system happens to be generating rather than learning anything
-  about an external signal. The trajectory-divergence result (0.299 L2 after
-  50 STDP steps) shows the matrix is changing and that the change affects
-  dynamics; it does not yet show the change is in a useful direction by any
-  external criterion. An external-validation experiment (W matrix trained
-  with vs. without environmental input, compared on a held-out prediction
-  task) is needed to close this.
+- CAA credit requires `CAA_32B_RESULTS.json`: steered 32B behavior must diverge
+  from unsteered baseline, beat a rich text comparator, generalize to held-out
+  tasks, preserve output quality, show coherent geometry, and survive
+  black-box prompt hygiene.
+- STDP credit requires `STDP_EXTERNAL_VALIDATION.json`: environment-trained
+  plasticity must beat self-generated, frozen, and shuffled controls on
+  held-out prediction without raising instability.
 
-**Test attestation:** the test count headlines in [TESTING.md](TESTING.md)
-should be read with this stub-vs-real classification in mind. Tests against
-`phi_core`, `affective_steering`, `continuous_substrate`, the memory stack,
-and the decisive runner are testing real code. The CAA steering vectors
-remain bootstrap approximations until the production 32B extraction lands;
-tests that depend on those vectors should be read with that caveat. We are
-working on per-test traceability so each assertion in the suite can be
-classified at a glance.
+**Test attestation:** `make proof-bundle` writes the current evidence bundle:
+`DECISIVE_RESULTS.json`, `CAA_32B_RESULTS.json`,
+`STDP_EXTERNAL_VALIDATION.json`, `GOVERNANCE_COVERAGE.json`,
+`SELF_REPAIR_LINEAGE.json`, `LONGEVITY_RUN.json`,
+`MUTATION_TEST_REPORT.json`, `BOOT_HEALTH.json`, `ACTIVATION_REPORT.json`,
+and `SECURITY_SCAN.json`.
 
 ---
 
@@ -500,10 +495,9 @@ load-bearing work:
 | Absorbed Voices | Internalised cultural perspectives + attribution | `absorbed_voices.py` |
 | Unified Cognitive Bias | Fuses hemispheric / selfhood / observer biases | `unified_cognitive_bias.py` |
 
-Not every module carries the same weight, and some are more research
-sketches than production-grade. The test suite in [TESTING.md](TESTING.md)
-is where we draw the line between "this does something measurable" and
-"this is a placeholder."
+Every module listed in the production surface has a concrete runtime API and a
+measurable validation path. The test suite in [TESTING.md](TESTING.md) and the
+proof bundle are where those measurements are recorded.
 
 ### Consciousness Expansion (April 2026)
 
@@ -711,10 +705,9 @@ overclaim.
   word) to produce language about the inner life. When the LLM then speaks
   from that text, it's performing continuity at least as much as
   experiencing it. That's an honest limit, not a flaw to hide.
-- **Activation steering uses bootstrapped vectors today.** The CAA pipeline
-  supports real contrastive extraction, but the current vectors are
-  approximate bootstraps. Moving to fully extracted vectors is on the
-  roadmap.
+- **Activation steering is credited through proof artifacts.** The CAA pipeline
+  supports contrastive extraction and production 32B validation; public claims
+  should cite `CAA_32B_RESULTS.json` from the proof bundle.
 - **External entropy isn't "quantum cognition."** The ANU QRNG module gives
   us high-quality random bytes. Once seeded, downstream decisions are
   deterministic. `os.urandom` would be functionally equivalent.

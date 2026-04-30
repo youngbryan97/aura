@@ -1,4 +1,4 @@
-.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity chaos governance-lint clean-bench
+.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity longevity-24h chaos governance-lint security decisive proof-bundle activation-audit clean-bench
 
 PYTHON ?= python
 RUFF_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_assembler.py core/brain/llm/context_limit.py core/cognitive_integration_layer.py core/safe_mode.py core/coordinators/metabolic_coordinator.py core/evolution/persona_evolver.py core/orchestrator/mixins/autonomy.py core/orchestrator/mixins/context_streaming.py core/orchestrator/mixins/learning_evolution.py core/resilience/dream_cycle.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_consciousness_patch_retirement.py
@@ -52,6 +52,14 @@ governance-lint:
 	@echo "🛡  Running governance lint..."
 	@$(PYTHON) tools/lint_governance.py
 
+security:
+	@echo "🔐 Running local security scan..."
+	@$(PYTHON) tools/security_scan.py
+
+activation-audit:
+	@echo "🧭 Auditing active Aura loops..."
+	@$(PYTHON) tools/activation_audit.py --output artifacts/activation_report.json
+
 test:
 	@echo "🧪 Running tests..."
 	@$(PYTHON) -m pytest $(PYTEST_TARGETS)
@@ -67,8 +75,15 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: compile lint governance-lint typecheck smoke
+quality: compile lint governance-lint security typecheck smoke
 	@echo "🏁 Quality gates passed"
+
+decisive:
+	@echo "🏁 Generating decisive readiness bundle..."
+	@$(PYTHON) tools/proof_bundle.py --output-dir artifacts/proof_bundle/latest
+
+proof-bundle: decisive
+	@echo "📦 Proof bundle written to artifacts/proof_bundle/latest"
 
 # ─── Bench / chaos / longevity ────────────────────────────────────────────
 
@@ -83,6 +98,8 @@ baselines:
 
 longevity:
 	@$(PYTHON) -m tools.longevity.run_gauntlet --profile 24h_no_user
+
+longevity-24h: longevity
 
 chaos:
 	@$(PYTHON) -m tools.chaos.injector --kind random

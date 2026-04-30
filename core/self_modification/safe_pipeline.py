@@ -52,6 +52,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.self_modification.mutation_tiers import MutationTier, classify_mutation_path
+
 logger = logging.getLogger("Aura.SelfModSafePipeline")
 
 
@@ -125,6 +127,7 @@ class SafePipeline:
         file_path: str,
         before_source: str,
         after_source: str,
+        owner_approved: bool = False,
     ) -> PipelineProposal:
         proposal = PipelineProposal(
             proposal_id=f"SMP-{uuid.uuid4().hex[:10]}",
@@ -135,6 +138,21 @@ class SafePipeline:
             after_source=after_source,
         )
         _record(proposal, "proposal")
+
+        tier_decision = classify_mutation_path(file_path)
+        _record(proposal, "tier_classified", tier_decision.to_dict())
+        if tier_decision.tier is MutationTier.SEALED:
+            return self._block(
+                proposal,
+                Stage.APPROVAL,
+                f"{tier_decision.path} is sealed from runtime self-modification",
+            )
+        if tier_decision.tier is MutationTier.PROPOSE_ONLY and not owner_approved:
+            return self._block(
+                proposal,
+                Stage.APPROVAL,
+                f"{tier_decision.path} is proposal-only and requires explicit owner approval",
+            )
 
         # 2. SANDBOX_PATCH
         sandbox = Path(tempfile.mkdtemp(prefix="aura-selfmod-"))

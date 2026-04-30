@@ -135,9 +135,8 @@ logger = logging.getLogger("Aura.AffectiveSteering")
 #     Substrate signal still observable in responses but with even less risk
 #     of dominating generation on uncertainty-themed prompts.
 #
-# With bootstrap-quality CAA vectors (see README "What's stubbed and what's
-# real"), conservative α is the right operating point until the vectors are
-# fully extracted via the full CAA pipeline.
+# Conservative α is the right operating point while production CAA artifacts
+# are validated by `training/caa_32b_validation.py`.
 DEFAULT_ALPHA = 5.0
 
 # Fraction of model depth to target (lower bound, upper bound)

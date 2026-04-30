@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from .boot_validator import GhostBootValidator
+from .mutation_tiers import MutationTier, classify_mutation_path
 
 logger = logging.getLogger("SelfModification.SafeModification")
 
@@ -511,6 +512,8 @@ class SafeSelfModification:
     def is_protected_path(file_path: str) -> bool:
         """Check if a file path is inside a constitutionally protected area."""
         normalized = str(file_path).replace("\\", "/").lstrip("./")
+        if classify_mutation_path(normalized).tier is MutationTier.SEALED:
+            return True
         for prefix in config.modification.protected_paths:
             protected = str(prefix).replace("\\", "/").lstrip("./")
             if normalized == protected or normalized.startswith(protected.rstrip("/") + "/"):
@@ -559,9 +562,25 @@ class SafeSelfModification:
             return False, f"Path '{normalized_target}' is not in the allowed modification list."
 
         # 1b. Constitutional protected-path check
+        tier_decision = classify_mutation_path(normalized_target)
         if self.is_protected_path(normalized_target):
             self.stats["blocked_by_policy"] += 1
-            return False, f"Path '{normalized_target}' is constitutionally protected from autonomous modification."
+            return False, (
+                f"Path '{normalized_target}' is {tier_decision.tier.label} "
+                f"and is constitutionally protected from autonomous modification."
+            )
+
+        owner_approved = bool(
+            getattr(fix, "owner_approved", False)
+            or getattr(fix, "human_approved", False)
+            or getattr(fix, "explicit_owner_approval", False)
+        )
+        if tier_decision.tier is MutationTier.PROPOSE_ONLY and not owner_approved:
+            self.stats["blocked_by_policy"] += 1
+            return False, (
+                f"Path '{normalized_target}' is {tier_decision.tier.label}; "
+                "Aura may draft a patch, but runtime application requires explicit owner approval."
+            )
 
         # [Phase 14.3] Sepsis Loop Detection (Issue 77)
         try:

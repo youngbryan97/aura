@@ -6,7 +6,6 @@ so older boot paths can call it safely without mutating live classes.
 """
 from __future__ import annotations
 
-
 import logging
 from typing import Any
 

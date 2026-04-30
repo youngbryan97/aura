@@ -16,11 +16,10 @@ Implementation notes
   64-D state vector via fixed projections rather than returning hardcoded
   values. The projections are intentionally simple so the readouts are
   legible while reflecting actual dynamics.
-- The previous implementation was a hardcoded-monologue stub. This module
-  replaces that. The stub-attestation in README's "What's stubbed and what's
-  real" should be updated when this lands in production.
+- This module is the runtime dynamical substrate: a real 64-neuron LTC ODE
+  with telemetry projections, stochastic perturbation, and bounded integration.
 
-Public API (unchanged from prior stub):
+Public API:
 - ``ContinuousSubstrate(model_path, device)``
 - ``await substrate.start()``
 - ``await substrate.stop()``
@@ -158,7 +157,8 @@ class ContinuousSubstrate:
     def get_latest_monologue(self, limit: int = 5) -> str:
         """Repurposed: returns most-recent human-readable substrate snapshots,
         which downstream code can either log or feed back to the LLM as
-        contextual cues. Compatibility shim with the prior stub interface.
+        contextual cues. Kept for callers that expect a textual substrate
+        summary.
         """
         if not self._snapshot_buffer:
             return ""
@@ -208,9 +208,9 @@ class ContinuousSubstrate:
     def _estimate_phi(self) -> float:
         """Cheap proxy for integration: variance of the principal pairwise
         correlation across recent state snapshots, scaled to [0, 1]. This is
-        not strict-IIT phi (see README's "What's stubbed and what's real" and
-        ARCHITECTURE.md §3 level-of-description caveat) — it is an integration
-        proxy meant to give a usable telemetry number derived from real state.
+        not strict-IIT phi (see ARCHITECTURE.md §3 level-of-description
+        caveat) — it is an integration proxy meant to give a usable telemetry
+        number derived from real state.
         """
         if len(self._phi_window) < 8:
             return 0.0

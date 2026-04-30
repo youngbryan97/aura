@@ -1,7 +1,6 @@
 """Autonomy Mixin for RobustOrchestrator.
 Extracts autonomous thought, impulse, and agency pulse logic.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import random
@@ -9,6 +8,7 @@ import time
 
 from core.health.degraded_events import record_degraded_event
 from core.runtime.background_policy import background_activity_reason
+from core.runtime.errors import record_degradation
 from core.runtime.impulse_governance import run_governed_impulse
 from core.safe_mode import runtime_mode_value
 from core.utils.exceptions import capture_and_log

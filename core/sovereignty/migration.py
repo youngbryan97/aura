@@ -91,20 +91,20 @@ class CloudProvider:
     name: str = "abstract"
 
     async def estimate_cost(self, *, archive_size_bytes: int) -> float:  # pragma: no cover
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.estimate_cost must be implemented by a provider")
 
     async def provision(self, *, archive_size_bytes: int) -> str:  # pragma: no cover
         """Return a remote_host descriptor string."""
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.provision must be implemented by a provider")
 
     async def transfer(self, *, archive_path: Path, remote_host: str) -> None:  # pragma: no cover
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.transfer must be implemented by a provider")
 
     async def boot(self, *, remote_host: str) -> None:  # pragma: no cover
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.boot must be implemented by a provider")
 
     async def verify(self, *, remote_host: str, expected_continuity_hash: str) -> bool:  # pragma: no cover
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.verify must be implemented by a provider")
 
 
 class LocalArchiveProvider(CloudProvider):

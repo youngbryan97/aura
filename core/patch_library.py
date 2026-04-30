@@ -15,7 +15,7 @@ class PatchStrategy:
         
     async def apply(self, failure_reason: str) -> bool:
         """Applies the fix. Returns True if successful, False otherwise."""
-        raise NotImplementedError(f"{type(self).__name__} must implement apply()")
+        raise RuntimeError(f"{type(self).__name__} must implement apply()")
 
 class GitInitPatch(PatchStrategy):
     name = "git_init_fix"

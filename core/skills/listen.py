@@ -13,7 +13,12 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
 
 import numpy as np
-import sounddevice as sd
+try:
+    import sounddevice as sd
+    _SOUNDDEVICE_IMPORT_ERROR: Exception | None = None
+except Exception as exc:  # pragma: no cover - depends on host audio bindings
+    sd = None
+    _SOUNDDEVICE_IMPORT_ERROR = exc
 
 from core.skills.base_skill import BaseSkill
 
@@ -34,6 +39,11 @@ def _initialize_audio():
     global _AUDIO_INITIALIZED
     if _AUDIO_INITIALIZED:
         return
+    if sd is None:
+        error = RuntimeError(f"sounddevice unavailable: {_SOUNDDEVICE_IMPORT_ERROR}")
+        record_degradation('listen', error)
+        logger.error("Audio initialization failed: %s", error)
+        raise error
     try:
         # Pre-warm PortAudio
         sd.query_devices()
@@ -45,6 +55,11 @@ def _initialize_audio():
         raise
 
 def _get_default_input_device():
+    if sd is None:
+        error = RuntimeError(f"sounddevice unavailable: {_SOUNDDEVICE_IMPORT_ERROR}")
+        record_degradation('listen', error)
+        logger.error("Error querying audio devices: %s", error)
+        raise RuntimeError(f"No audio input device available. Ensure a microphone is connected. Details: {error}") from error
     try:
         devices = sd.query_devices()
         for i, device in enumerate(devices):

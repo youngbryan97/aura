@@ -2,9 +2,45 @@
  * Memory Engine for Aura's Black Hole Memory.
  */
 export const lz77Compress = (text) => {
-    // Pure JS simplified LZ77 stub for UI representation
     if (!text) return "";
-    return btoa(text).substring(0, text.length * 0.8); // Visual shorthand
+    const input = String(text);
+    const windowSize = 128;
+    const lookaheadSize = 32;
+    const tokens = [];
+    let i = 0;
+
+    while (i < input.length) {
+        const windowStart = Math.max(0, i - windowSize);
+        const window = input.slice(windowStart, i);
+        let bestOffset = 0;
+        let bestLength = 0;
+
+        for (let offset = 1; offset <= window.length; offset += 1) {
+            let length = 0;
+            while (
+                length < lookaheadSize &&
+                i + length < input.length &&
+                input[i + length] === input[i - offset + length]
+            ) {
+                length += 1;
+            }
+            if (length > bestLength) {
+                bestLength = length;
+                bestOffset = offset;
+            }
+        }
+
+        if (bestLength >= 3) {
+            const nextChar = input[i + bestLength] || "";
+            tokens.push(`${bestOffset}:${bestLength}:${nextChar}`);
+            i += bestLength + (nextChar ? 1 : 0);
+        } else {
+            tokens.push(`0:0:${input[i]}`);
+            i += 1;
+        }
+    }
+
+    return tokens.join("|");
 };
 
 export const cosineSim = (v1, v2) => {

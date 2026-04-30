@@ -1,12 +1,12 @@
 """Learning & Evolution Mixin for RobustOrchestrator.
 Extracts knowledge extraction, self-update, meta-evolution, and self-modification logic.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
 

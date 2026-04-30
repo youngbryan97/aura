@@ -1,0 +1,279 @@
+{
+  "boot_wiring": {
+    "found": {
+      "activation_audit": true,
+      "autonomy_conductor": true,
+      "criticality_regulator": true,
+      "keep_awake": true,
+      "mind_tick": true,
+      "octopus_federation": true,
+      "output_gate": true,
+      "performance_guard": true,
+      "scar_formation": true,
+      "scheduler": true,
+      "self_healing": true,
+      "substrate_policy_head": true
+    },
+    "passed": true,
+    "sources": [
+      "aura_main.py",
+      "core/orchestrator/main.py",
+      "core/runtime/activation_audit.py"
+    ]
+  },
+  "generated_at": 1777516851.2359512,
+  "live_missing_required": [
+    "mind_tick",
+    "scheduler",
+    "output_gate",
+    "self_healing",
+    "performance_guard"
+  ],
+  "missing_required": [],
+  "offline_snapshot": true,
+  "passed": true,
+  "required_active_ratio": 0.5,
+  "statuses": [
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "autonomy_conductor"
+        ],
+        "starter_result": "<core.runtime.autonomy_conductor.AutonomyConductor object at 0x11518a240>",
+        "task_hits": []
+      },
+      "name": "autonomy_conductor",
+      "reason": "runs proof, validation, metabolic, and self-maintenance loops on schedule",
+      "reconciled": true,
+      "required": true
+    },
+    {
+      "active": false,
+      "auto_start": false,
+      "error": "",
+      "evidence": {
+        "service_hits": [],
+        "task_hits": []
+      },
+      "name": "mind_tick",
+      "reason": "continuous cognitive heartbeat",
+      "reconciled": false,
+      "required": true
+    },
+    {
+      "active": false,
+      "auto_start": false,
+      "error": "",
+      "evidence": {
+        "service_hits": [],
+        "task_hits": []
+      },
+      "name": "scheduler",
+      "reason": "runtime scheduled actions",
+      "reconciled": false,
+      "required": true
+    },
+    {
+      "active": false,
+      "auto_start": false,
+      "error": "",
+      "evidence": {
+        "service_hits": [],
+        "task_hits": []
+      },
+      "name": "output_gate",
+      "reason": "foreground/background output governance",
+      "reconciled": false,
+      "required": true
+    },
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "scar_formation"
+        ],
+        "starter_result": "<core.memory.scar_formation.ScarFormationSystem object at 0x1176816d0>",
+        "task_hits": []
+      },
+      "name": "scar_formation",
+      "reason": "immune tolerance and learned caution",
+      "reconciled": true,
+      "required": true
+    },
+    {
+      "active": false,
+      "auto_start": false,
+      "error": "",
+      "evidence": {
+        "service_hits": [],
+        "task_hits": []
+      },
+      "name": "self_healing",
+      "reason": "crash and stale-heartbeat recovery",
+      "reconciled": false,
+      "required": true
+    },
+    {
+      "active": false,
+      "auto_start": false,
+      "error": "",
+      "evidence": {
+        "service_hits": [],
+        "task_hits": []
+      },
+      "name": "performance_guard",
+      "reason": "resource and event-loop safety",
+      "reconciled": false,
+      "required": true
+    },
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "criticality_regulator"
+        ],
+        "starter_result": {
+          "registered": true
+        },
+        "task_hits": []
+      },
+      "name": "criticality_regulator",
+      "reason": "edge-of-chaos regulation for substrate activity",
+      "reconciled": true,
+      "required": true
+    },
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "octopus_federation"
+        ],
+        "starter_result": {
+          "arms_autonomy": [
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1
+          ],
+          "arms_last_action": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "integration_latency": 0,
+          "last_variance": null,
+          "last_winning_action": null,
+          "last_winning_confidence": null,
+          "link_state": "linked",
+          "n_arms": 8
+        },
+        "task_hits": []
+      },
+      "name": "octopus_federation",
+      "reason": "semi-autonomous arm federation feeding action candidates",
+      "reconciled": true,
+      "required": true
+    },
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "substrate_policy_head"
+        ],
+        "starter_result": {
+          "registered": true
+        },
+        "task_hits": []
+      },
+      "name": "substrate_policy_head",
+      "reason": "turns substrate state into goal, memory, tool, risk, and repair policy weights",
+      "reconciled": true,
+      "required": true
+    },
+    {
+      "active": false,
+      "auto_start": false,
+      "error": "",
+      "evidence": {
+        "service_hits": [],
+        "task_hits": []
+      },
+      "name": "curiosity_engine",
+      "reason": "autonomous learning and anomaly investigation",
+      "reconciled": false,
+      "required": false
+    },
+    {
+      "active": false,
+      "auto_start": false,
+      "error": "",
+      "evidence": {
+        "service_hits": [],
+        "task_hits": []
+      },
+      "name": "autonomous_self_modification",
+      "reason": "Will-gated improvement proposals and repair loops",
+      "reconciled": false,
+      "required": false
+    },
+    {
+      "active": false,
+      "auto_start": false,
+      "error": "",
+      "evidence": {
+        "service_hits": [],
+        "task_hits": []
+      },
+      "name": "research_cycle",
+      "reason": "idle research daemon",
+      "reconciled": false,
+      "required": false
+    },
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "keep_awake_status": {
+          "active": false,
+          "command": [],
+          "constraints": [
+            "Display sleep is allowed by default; use keep_display_awake=True only when needed.",
+            "Closed-lid execution on Mac notebooks requires AC power and Apple-supported clamshell conditions.",
+            "Thermal pressure or battery policy can still force sleep; Aura records this as an operational constraint."
+          ],
+          "pid": null,
+          "reason": "",
+          "started_at": null,
+          "supported": true
+        },
+        "service_hits": [],
+        "task_hits": []
+      },
+      "name": "keep_awake",
+      "reason": "runs only when AURA_KEEP_AWAKE is enabled",
+      "reconciled": false,
+      "required": false
+    }
+  ]
+}

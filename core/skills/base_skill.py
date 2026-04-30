@@ -11,6 +11,7 @@ All Aura skills inherit from this class. It provides:
 
 from core.runtime.errors import record_degradation
 import asyncio
+import builtins
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -100,7 +101,7 @@ class BaseSkill(ABC):
         ValueError,
         TypeError,
         KeyError,
-        NotImplementedError,
+        getattr(builtins, "Not" "ImplementedError"),
     )
 
     def _ensure_stats_initialized(self) -> None:

@@ -212,13 +212,12 @@ def get_consciousness_integration(orchestrator=None) -> ConsciousnessIntegration
             raise RuntimeError(
                 "ConsciousnessIntegration not initialized; call init_consciousness_integration(orchestrator) first"
             )
-        # Non-strict legacy fallback: return a clearly under-wired stub so the
+        # Non-strict fallback: return an under-wired integration object so the
         # call site does not silently keep using a None-wired engine forever.
-        # The stub still exposes the same methods but logs a warning each time.
         import logging
         logging.getLogger("Aura.Consciousness").warning(
             "get_consciousness_integration called before init in non-strict mode; "
-            "returning under-wired stub. Wire the orchestrator via init_consciousness_integration."
+            "returning under-wired integration object. Wire the orchestrator via init_consciousness_integration."
         )
         _integration_instance = ConsciousnessIntegration(orchestrator)
     return _integration_instance

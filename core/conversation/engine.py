@@ -204,7 +204,6 @@ class ConversationEngine:
         
         # 1. Update State
         context.turn_count += 1
-        # [Audit-72] Intent detection placeholder (defaulting to 'chat')
         context.mode = context.detect_conversation_mode(message, "chat")
         
         # 2. Add to Rolling History

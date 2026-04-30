@@ -10,6 +10,8 @@ import asyncio
 import logging
 import tempfile
 import aiohttp
+import re
+from html import unescape
 from pathlib import Path
 from typing import Dict, Any, Tuple
 
@@ -107,8 +109,8 @@ class ToolOrchestrator:
 
     async def search_web(self, query: str) -> str:
         """
-        A lightweight, asynchronous web search to pull live data.
-        Currently a placeholder implementation for the search interface.
+        A lightweight, asynchronous web search to pull live data and return a
+        compact sanitized result list.
         """
         search_url = f"https://html.duckduckgo.com/html/?q={query}"
         headers = {"User-Agent": "Aura-Cognitive-Node/1.0"}
@@ -117,13 +119,34 @@ class ToolOrchestrator:
             async with aiohttp.ClientSession() as session:
                 async with session.get(search_url, headers=headers, timeout=10) as resp:
                     if resp.status == 200:
-                        # html = await resp.text()
-                        # Note: In a production scenario, we'd use BeautifulSoup to parse and clean this.
-                        return f"SUCCESS: Search results retrieved for: {query}. (Raw data pending parser integration)"
+                        html = await resp.text()
+                        results = self._parse_duckduckgo_html(html, limit=5)
+                        payload = "\n".join(
+                            f"{idx + 1}. {item['title']} — {item['url']}"
+                            for idx, item in enumerate(results)
+                        )
+                        return await self.sanitize_output(payload or f"No results parsed for {query}.")
                     return f"FAILED: Search status: {resp.status}"
         except Exception as e:
             record_degradation('tool_orchestrator', e)
             return f"ERROR: Network failure during search: {str(e)}"
+
+    @staticmethod
+    def _parse_duckduckgo_html(html: str, *, limit: int = 5) -> list[dict[str, str]]:
+        results: list[dict[str, str]] = []
+        pattern = re.compile(
+            r'<a[^>]+class="result__a"[^>]+href="(?P<href>[^"]+)"[^>]*>(?P<title>.*?)</a>',
+            re.IGNORECASE | re.DOTALL,
+        )
+        for match in pattern.finditer(html):
+            title = re.sub(r"<[^>]+>", "", match.group("title"))
+            title = unescape(re.sub(r"\s+", " ", title)).strip()
+            href = unescape(match.group("href")).strip()
+            if title and href:
+                results.append({"title": title, "url": href})
+            if len(results) >= limit:
+                break
+        return results
 
     async def sanitize_output(self, data: str) -> str:
         """

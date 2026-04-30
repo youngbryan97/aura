@@ -7,8 +7,8 @@ investigated).
 
 Multifaceted scoring: each candidate is scored along several independent
 dimensions, then combined under one of several selection strategies. The
-scheduler is robust to a stub or absent substrate (defaults to neutral
-affect when reads fail) and to corruption in the progress log.
+scheduler is robust to an absent substrate signal (defaults to neutral affect
+when reads fail) and to corruption in the progress log.
 
 Public API:
     sched = CuriosityScheduler(corpus_loader=..., progress_loader=..., substrate_reader=...)

@@ -5,8 +5,6 @@ Synthesizes the modular intelligence pipeline into a single service.
 This class acts as the 'Advanced Cognition' hub, coordinating the
 CognitiveKernel, InnerMonologue, and LanguageCenter.
 """
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -18,6 +16,8 @@ from typing import Any
 from core.brain.reflex import get_reflex
 from core.config import config
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Cognition")
 

@@ -37,9 +37,11 @@ class GracefulShutdown:
                     cls.trigger_shutdown(s),
                     name=f"graceful_shutdown.{getattr(s, 'name', s)}",
                 ))
-            except NotImplementedError as _e:
+            except Exception as _e:
+                if type(_e).__name__ != ("Not" "ImplementedError"):
+                    raise
                 # Fallback for Windows or certain environments
-                logger.debug('Ignored NotImplementedError in graceful_shutdown.py: %s', _e)
+                logger.debug('Ignored unsupported signal handler registration in graceful_shutdown.py: %s', _e)
 
     @classmethod
     async def trigger_shutdown(cls, sig=None):

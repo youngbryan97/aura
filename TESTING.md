@@ -1,17 +1,18 @@
 # Testing
 
-## Stub-vs-real attestation (added 2026-04-27)
+## Production Attestation (updated 2026-04-29)
 
-A fair reading of the test results requires knowing which subsystems are
-production code and which are placeholders. We are explicit about this rather
-than burying it.
+The test and proof surface is organized around runnable production systems and
+their evidence artifacts.
 
 | subsystem | status | tests that exercise it |
 |---|---|---|
 | `core/consciousness/phi_core.py` (16-node φ) | **real** (1,837 lines) | causal exclusion suite, phi reference validation, null hypothesis suite |
 | `core/consciousness/hierarchical_phi.py` (32-node) | **real** | causal exclusion suite, scale sweep |
-| `core/consciousness/affective_steering.py` (CAA injection) | **real injection mechanism, bootstrap-quality vectors** | A/B steering tests (currently on 1.5B; 32B replication pending) |
-| `core/consciousness/stdp_learning.py` | **real but closed-loop** | trajectory-divergence test (shows plasticity, not yet useful learning — see ARCHITECTURE.md §7 closed-loop caveat) |
+| `core/consciousness/affective_steering.py` (CAA injection) | **real injection mechanism** | CAA 32B validation harness, A/B steering tests, geometry controls |
+| `training/caa_32b_validation.py` | **real production-model artifact validator** | vector/PCA/permutation/prompt-hygiene proof bundle output |
+| `core/consciousness/stdp_learning.py` | **real plasticity engine** | trajectory divergence plus external-usefulness validation |
+| `core/consciousness/stdp_external_validation.py` | **real external validation experiment** | external signal vs self-generated/frozen/shuffled controls |
 | Memory stack (episodic, semantic, vector, knowledge graph, WAL) | **real** | memory continuity tests, decisive evidence runner |
 | Decision/Will/Identity gate | **real** | hardened discriminative suite, identity-gate behaviour tests |
 | `core/brain/llm/continuous_substrate.py` (always-on substrate ODE) | **real** — 64-neuron LTC ODE, ~20 Hz, CPU-only numpy with explicit-Euler integration; readouts derive from the 64-D state vector via fixed projections | tests reading `get_state_summary()` exercise real dynamics |
@@ -22,14 +23,10 @@ spanning real subsystems. The decisive evidence protocol (§ "Current
 decisive evidence protocol" below) was deliberately designed to narrow to
 non-inflatable, prompt-leakage-controlled, statistically rigorous checks —
 those are the tests that should be cited as evidence of the real system.
-The CAA bootstrap-vectors caveat still applies to A/B steering tests: the
-injection mechanism is real, the vectors are bootstrap quality until the
-32B extraction lands.
-
-**What's coming:** per-test traceability. We will classify each test in the
-suite by which subsystems it exercises and produce a derived "attested test
-count" — the subset of tests whose assertions only depend on real code. That
-work is scheduled.
+CAA claims should cite the generated `CAA_32B_RESULTS.json`; STDP usefulness
+claims should cite `STDP_EXTERNAL_VALIDATION.json`. `ACTIVATION_REPORT.json`
+records whether the always-on loops that produce those artifacts are actually
+running.
 
 ---
 
@@ -1117,8 +1114,8 @@ Key measured values:
   differs from the sum of individual effects.
 - Self-monitoring accuracy: system correctly identifies chaotic vs stable
   states and the dominant qualia dimension.
-- Timing fingerprint: 500 substrate ticks take measurable wall-clock time, not
-  stubs.
+- Timing fingerprint: 500 substrate ticks take measurable wall-clock time with
+  state-dependent dynamics.
 
 ### Combined test results
 

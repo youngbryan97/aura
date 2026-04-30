@@ -29,6 +29,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from core.runtime.atomic_writer import atomic_write_text
+from core.self_modification.mutation_tiers import MutationTier, classify_mutation_path
+
 logger = logging.getLogger("Aura.ShadowHealer")
 
 
@@ -129,6 +132,19 @@ class ShadowASTHealer:
                     file_path, self.root,
                 )
                 return False
+            try:
+                rel_path = file_path.resolve().relative_to(self.root).as_posix()
+            except ValueError:
+                rel_path = file_path.as_posix()
+            tier = classify_mutation_path(rel_path)
+            if tier.tier in {MutationTier.SEALED, MutationTier.PROPOSE_ONLY}:
+                logger.warning(
+                    "ShadowHealer: REFUSED — %s is %s (%s)",
+                    rel_path,
+                    tier.tier.label,
+                    tier.reason,
+                )
+                return False
 
             content = await asyncio.to_thread(file_path.read_text)
             content_hash_before = hashlib.sha256(content.encode()).hexdigest()[:16]
@@ -157,7 +173,7 @@ class ShadowASTHealer:
 
                 new_content = ast.unparse(tree)
                 content_hash_after = hashlib.sha256(new_content.encode()).hexdigest()[:16]
-                await asyncio.to_thread(file_path.write_text, new_content)
+                await asyncio.to_thread(atomic_write_text, file_path, new_content, encoding="utf-8")
                 logger.info(
                     "ShadowHealer: Repaired %s (before=%s after=%s)",
                     file_path.name, content_hash_before, content_hash_after,

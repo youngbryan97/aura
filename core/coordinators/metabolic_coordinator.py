@@ -3,7 +3,6 @@ autonomous thought triggers, RL training, and self-update.
 
 Extracted from orchestrator.py as part of the God Object decomposition.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import gc
 import json
@@ -16,6 +15,7 @@ from collections import deque
 from core.config import config
 from core.container import ServiceContainer
 from core.runtime.background_policy import background_activity_reason
+from core.runtime.errors import record_degradation
 from core.runtime.impulse_governance import run_governed_impulse
 from core.safe_mode import runtime_feature_enabled, runtime_mode_value
 from core.utils.task_tracker import get_task_tracker

@@ -19,7 +19,7 @@ Implements the polish-grade update flow:
                step down
   rollback:    if continuity verification fails, the symlink is reverted
                and the backup is restored
-  what_changed: every release ships a changelog stub the UI renders before
+  what_changed: every release ships a changelog artifact the UI renders before
                 the user confirms
 
 The actual delivery transport (HTTPS / OTA / private mirror) is
@@ -92,7 +92,7 @@ class UpdateTransport:
     name: str = "abstract"
 
     async def list_available(self, channel: Channel) -> List[Release]:  # pragma: no cover
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.list_available must be implemented by a transport")
 
 
 class LocalFileTransport(UpdateTransport):

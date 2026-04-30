@@ -942,6 +942,9 @@ class InferenceGate:
 
         # Brainstem
         try:
+            from core.brain.llm.mlx_client import get_mlx_client
+            from core.brain.llm.model_registry import get_brainstem_path
+
             brainstem = get_mlx_client(model_path=str(get_brainstem_path()))
             if brainstem and hasattr(brainstem, "is_alive"):
                 if brainstem.is_alive():
@@ -3246,6 +3249,9 @@ class InferenceGate:
         # model can still produce SOMETHING so the user isn't left hanging.
         if _is_user_facing and not is_background:
             try:
+                from core.brain.llm.mlx_client import get_mlx_client
+                from core.brain.llm.model_registry import get_fallback_path
+
                 reflex_client = get_mlx_client(model_path=str(get_fallback_path()), device="cpu")
                 if reflex_client:
                     logger.warning("🆘 [REFLEX] Cortex + Brainstem both failed. Trying 1.5B CPU Reflex...")

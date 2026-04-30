@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.container import ServiceContainer
+from core.memory.scar_court import get_scar_court
 
 logger = logging.getLogger("Aura.ScarFormation")
 
@@ -84,28 +85,80 @@ class BehavioralScar:
     trigger_count: int = 1        # How many times this scar was reinforced
     heal_rate: float = _DEFAULT_HEAL_RATE  # Severity reduction per hour without recurrence
     context: Dict[str, Any] = field(default_factory=dict)  # Extra data about the event
+    event_ids: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    evidence_count: int = 3
+    source_diversity: int = 2
+    confidence: float = 1.0
+    reversibility: bool = True
+    decay_half_life_s: float = 14 * 24 * 3600.0
+    appeal_status: str = "upheld"
+    latent_influence_cap: float = 1.0
+    maturity_status: str = "consolidated"
+    benign_alternatives: List[str] = field(default_factory=list)
+    verified_threat: bool = True
 
     def effective_severity(self) -> float:
         """Current severity accounting for time-based healing."""
         hours_since_trigger = (time.time() - self.last_triggered) / 3600.0
         healed = self.severity - (self.heal_rate * hours_since_trigger)
-        return max(0.0, healed)
+        return min(max(0.0, healed), max(0.0, self.latent_influence_cap))
 
     def is_active(self) -> bool:
         """Is this scar still influencing behavior?"""
         return self.effective_severity() > _HEALED_THRESHOLD
 
-    def reinforce(self, severity_boost: float = 0.2, context: Optional[Dict] = None) -> None:
+    def reinforce(
+        self,
+        severity_boost: float = 0.2,
+        context: Optional[Dict] = None,
+        event_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        confidence: Optional[float] = None,
+        verified_threat: Optional[bool] = None,
+        benign_alternatives: Optional[List[str]] = None,
+    ) -> None:
         """The threat recurred -- reinforce the scar."""
         self.severity = min(1.0, self.effective_severity() + severity_boost)
         self.last_triggered = time.time()
         self.trigger_count += 1
+        if event_id and event_id not in self.event_ids:
+            self.event_ids.append(event_id)
+        if source_id and source_id not in self.source_ids:
+            self.source_ids.append(source_id)
+        self.evidence_count = max(self.evidence_count + 1, len(self.event_ids), self.trigger_count)
+        self.source_diversity = max(self.source_diversity, len(set(self.source_ids)))
+        if confidence is not None:
+            self.confidence = max(0.0, min(1.0, (self.confidence + confidence) / 2.0))
+        if verified_threat is not None:
+            self.verified_threat = bool(verified_threat)
+        if benign_alternatives:
+            merged = list(dict.fromkeys([*self.benign_alternatives, *benign_alternatives]))
+            self.benign_alternatives = merged
         if context:
             self.context.update(context)
+        self.apply_court_decision()
         logger.info(
-            "Scar reinforced: %s (severity=%.3f, triggers=%d)",
-            self.avoidance_tag, self.severity, self.trigger_count,
+            "Scar reinforced: %s (severity=%.3f, effective=%.3f, triggers=%d, maturity=%s)",
+            self.avoidance_tag, self.severity, self.effective_severity(), self.trigger_count, self.maturity_status,
         )
+
+    def apply_court_decision(self) -> None:
+        decision = get_scar_court().assess(
+            scar_id=self.scar_id,
+            description=self.description,
+            evidence_count=self.evidence_count,
+            source_diversity=self.source_diversity,
+            confidence=self.confidence,
+            verified_threat=self.verified_threat,
+            benign_alternatives=self.benign_alternatives,
+        )
+        self.maturity_status = decision.status
+        self.appeal_status = decision.appeal_status
+        self.reversibility = decision.reversible
+        self.latent_influence_cap = min(self.latent_influence_cap, decision.latent_influence_cap)
+        if decision.consolidated:
+            self.latent_influence_cap = decision.latent_influence_cap
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -119,6 +172,18 @@ class BehavioralScar:
             "trigger_count": self.trigger_count,
             "heal_rate": self.heal_rate,
             "context": self.context,
+            "event_ids": self.event_ids,
+            "source_ids": self.source_ids,
+            "evidence_count": self.evidence_count,
+            "source_diversity": self.source_diversity,
+            "confidence": self.confidence,
+            "reversibility": self.reversibility,
+            "decay_half_life_s": self.decay_half_life_s,
+            "appeal_status": self.appeal_status,
+            "latent_influence_cap": self.latent_influence_cap,
+            "maturity_status": self.maturity_status,
+            "benign_alternatives": self.benign_alternatives,
+            "verified_threat": self.verified_threat,
         }
 
     @classmethod
@@ -139,6 +204,18 @@ class BehavioralScar:
             trigger_count=int(data.get("trigger_count", 1)),
             heal_rate=float(data.get("heal_rate", _DEFAULT_HEAL_RATE)),
             context=data.get("context", {}),
+            event_ids=list(data.get("event_ids", [])),
+            source_ids=list(data.get("source_ids", [])),
+            evidence_count=int(data.get("evidence_count", data.get("trigger_count", 1))),
+            source_diversity=int(data.get("source_diversity", max(1, len(set(data.get("source_ids", [])))))),
+            confidence=float(data.get("confidence", 1.0)),
+            reversibility=bool(data.get("reversibility", True)),
+            decay_half_life_s=float(data.get("decay_half_life_s", 14 * 24 * 3600.0)),
+            appeal_status=str(data.get("appeal_status", "upheld")),
+            latent_influence_cap=float(data.get("latent_influence_cap", 1.0)),
+            maturity_status=str(data.get("maturity_status", "consolidated")),
+            benign_alternatives=list(data.get("benign_alternatives", [])),
+            verified_threat=bool(data.get("verified_threat", True)),
         )
 
 
@@ -179,6 +256,11 @@ class ScarFormationSystem:
         severity: float = 0.5,
         heal_rate: float = _DEFAULT_HEAL_RATE,
         context: Optional[Dict[str, Any]] = None,
+        event_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        verified_threat: bool = False,
+        benign_alternatives: Optional[List[str]] = None,
+        confidence: float = 0.65,
     ) -> BehavioralScar:
         """Form a new behavioral scar or reinforce an existing one.
 
@@ -187,13 +269,26 @@ class ScarFormationSystem:
         """
         existing = self._scars.get(avoidance_tag)
         if existing is not None:
-            existing.reinforce(severity_boost=severity * 0.5, context=context)
+            existing.reinforce(
+                severity_boost=severity * 0.5,
+                context=context,
+                event_id=event_id,
+                source_id=source_id,
+                confidence=confidence,
+                verified_threat=verified_threat,
+                benign_alternatives=benign_alternatives,
+            )
             self._save()
             self._publish_event("scar.reinforced", existing)
             return existing
 
         now = time.time()
         scar_id = f"scar_{avoidance_tag}_{int(now)}"
+        scar_context = dict(context or {})
+        scar_context["reversible_trial"] = True
+        court = get_scar_court()
+        inferred_benign = list(court.search_benign_alternatives(description))
+        all_benign = list(dict.fromkeys([*(benign_alternatives or []), *inferred_benign]))
         scar = BehavioralScar(
             scar_id=scar_id,
             domain=domain,
@@ -204,8 +299,21 @@ class ScarFormationSystem:
             last_triggered=now,
             trigger_count=1,
             heal_rate=heal_rate,
-            context=context or {},
+            context=scar_context,
+            event_ids=[event_id] if event_id else [scar_id],
+            source_ids=[source_id] if source_id else ["local_runtime"],
+            evidence_count=1,
+            source_diversity=1,
+            confidence=max(0.0, min(1.0, confidence)),
+            reversibility=True,
+            decay_half_life_s=14 * 24 * 3600.0,
+            appeal_status="unreviewed",
+            latent_influence_cap=0.15,
+            maturity_status="provisional",
+            benign_alternatives=all_benign,
+            verified_threat=bool(verified_threat),
         )
+        scar.apply_court_decision()
         self._scars[avoidance_tag] = scar
 
         # Prune healed scars if we're over the limit
@@ -216,8 +324,8 @@ class ScarFormationSystem:
         self._publish_event("scar.formed", scar)
 
         logger.info(
-            "NEW SCAR formed: %s (domain=%s, severity=%.2f) -- %s",
-            avoidance_tag, domain.value, severity, description[:80],
+            "NEW SCAR formed: %s (domain=%s, severity=%.2f, effective=%.2f, maturity=%s) -- %s",
+            avoidance_tag, domain.value, severity, scar.effective_severity(), scar.maturity_status, description[:80],
         )
         return scar
 
@@ -281,10 +389,17 @@ class ScarFormationSystem:
                 f"{scar.description[:100]}"
             )
         lines.append(
-            "These scars represent real past harm. Factor them into planning "
-            "but do not let them prevent growth when evidence suggests safety."
+            "Treat provisional scars as reversible caution signals. Do not amplify "
+            "latent steering or consolidate training from a scar unless Scar Court "
+            "has upheld it with recurring, diverse evidence."
         )
         return "\n".join(lines)
+
+    def eligible_for_lora_consolidation(self, tag: str) -> bool:
+        scar = self._scars.get(tag)
+        if scar is None:
+            return False
+        return get_scar_court().eligible_for_lora_consolidation(scar)
 
     # ── Tick / Healing ──────────────────────────────────────────────────
 

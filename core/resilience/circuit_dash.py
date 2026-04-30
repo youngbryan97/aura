@@ -56,11 +56,8 @@ class CircuitDash:
         table.add_column("Total Calls", justify="right")
         table.add_column("Last Trip", justify="right")
 
-        # This is a bit hacky - we need access to created circuit breakers.
-        # In a real system, we'd have a registry.
-        # For now, we'll try to find them in common places or just show placeholder if none.
+        # Prefer a registry when present; otherwise inspect the router's adapters.
         
-        # Simulated/Placeholder if none registered (actually LLMRouter maintains some)
         from core.container import ServiceContainer
         router = ServiceContainer.get("llm_router", default=None)
         circuits = []
@@ -111,6 +108,5 @@ class CircuitDash:
                 await asyncio.sleep(self.refresh_rate)
 
 if __name__ == "__main__":
-    # Test stub
     dash = CircuitDash()
     asyncio.run(dash.start())

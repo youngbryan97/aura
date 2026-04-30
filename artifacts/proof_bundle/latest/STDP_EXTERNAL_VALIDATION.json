@@ -1,0 +1,41 @@
+{
+  "generated_at": 1777516851.176511,
+  "groups": [
+    {
+      "group": "external_environment",
+      "heldout_mse": 0.082547,
+      "instability": 0.06801,
+      "updates": 95,
+      "weight_norm": 1.088158
+    },
+    {
+      "group": "self_generated",
+      "heldout_mse": 0.102105,
+      "instability": 0.008848,
+      "updates": 95,
+      "weight_norm": 0.141568
+    },
+    {
+      "group": "frozen_matrix",
+      "heldout_mse": 0.102107,
+      "instability": 0.0,
+      "updates": 0,
+      "weight_norm": 0.0
+    },
+    {
+      "group": "shuffled_environment",
+      "heldout_mse": 0.103126,
+      "instability": 0.027453,
+      "updates": 95,
+      "weight_norm": 0.439255
+    }
+  ],
+  "margins": {
+    "frozen_matrix": 0.01956,
+    "self_generated": 0.019558,
+    "shuffled_environment": 0.02058
+  },
+  "passed": true,
+  "seed": 7,
+  "steps": 96
+}

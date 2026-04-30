@@ -1,9 +1,10 @@
 """Context Assembler - Constructs LLM prompts purely from AuraState.
 """
-from core.runtime.errors import record_degradation
 import logging
 import os
 import re
+
+from core.runtime.errors import record_degradation
 
 try:
     import psutil
@@ -815,9 +816,9 @@ class ContextAssembler:
         # constraint intact (they're appended last above, so tail-keeping is
         # the right move).  This prevents the "Cortex returned no text" loop
         # triggered by long prompt assembly on 32B.
-        CASUAL_CAP = 6000
-        DELIBERATE_CAP = 12000
-        cap = CASUAL_CAP if is_casual else DELIBERATE_CAP
+        casual_cap = 6000
+        deliberate_cap = 12000
+        cap = casual_cap if is_casual else deliberate_cap
         if len(base) > cap:
             trim_notice = "\n\n[... mid-prompt trimmed for latency ...]\n\n"
 
@@ -1099,7 +1100,7 @@ class ContextAssembler:
             # system prompt, escaping the earlier system cap.  Now we only
             # inject a compact delta summary when it fits within budget.
             try:
-                from core.brain.llm.context_gate import get_context_gate, estimate_tokens
+                from core.brain.llm.context_gate import estimate_tokens, get_context_gate
                 gate = get_context_gate()
 
                 # Build a compact delta block from affect
@@ -1113,7 +1114,7 @@ class ContextAssembler:
                     delta_lines.append(f"Curiosity pressure shifted: {affect.curiosity:.2f}")
 
                 if delta_lines and estimate_tokens(system_prompt) + len(delta_lines) * 8 < 2800:
-                    delta_text = "\n".join(f"- {l}" for l in delta_lines)
+                    delta_text = "\n".join(f"- {line}" for line in delta_lines)
                     dynamic_system = f"{system_prompt}\n\n## INTERNAL STATE DELTAS\n{delta_text}"
                 else:
                     dynamic_system = system_prompt

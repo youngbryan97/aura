@@ -75,10 +75,10 @@ class CommunityTransport:
     name: str = "abstract"
 
     async def send(self, msg: OutboundMessage) -> Dict[str, Any]:  # pragma: no cover
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.send must be implemented by a transport")
 
     async def receive(self) -> Optional[InboundMessage]:  # pragma: no cover
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.receive must be implemented by a transport")
 
 
 class LocalLogTransport(CommunityTransport):

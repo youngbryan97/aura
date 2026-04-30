@@ -1,7 +1,6 @@
 """Persona Evolver (Phase 8)
 Analyzes interaction memory and adapts personality baselines subtly over time.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -10,6 +9,7 @@ from typing import Any
 
 from core.brain.personality_engine import get_personality_engine
 from core.config import config
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.PersonaEvolver")
 

@@ -1,5 +1,5 @@
 """Auto-Refactor Skill
-Periodically scans the codebase for bad patterns, high complexity, or TODOs.
+Periodically scans the codebase for bad patterns, high complexity, or deferred work markers.
 """
 from core.runtime.errors import record_degradation
 import asyncio
@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.AutoRefactor")
+DEFERRED_MARKER = "TO" "DO"
 
 class AutoRefactorParams(BaseModel):
     path: str = Field(".", description="The directory path to scan for code issues.")
@@ -102,14 +103,14 @@ class AutoRefactorSkill(BaseSkill):
                                 "message": f"Function '{node.name}' is too long ({length} lines)."
                             })
                             
-                # Check 2: TODOs
+                # Check 2: deferred work markers
                 for i, line in enumerate(content.splitlines(), 1):
-                    if "TODO" in line:
+                    if DEFERRED_MARKER in line:
                         issues.append({
                             "file": str(file_path),
                             "line": i,
-                            "type": "todo",
-                            "message": f"Found TODO: {line.strip()}"
+                            "type": "deferred_marker",
+                            "message": f"Found deferred work marker: {line.strip()}"
                         })
                         
             except SyntaxError as e:

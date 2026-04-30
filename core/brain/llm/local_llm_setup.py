@@ -21,7 +21,7 @@ class LocalLLMServer:
         self.process = None
 
     def start(self):
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.start must be implemented by a local server adapter")
 
     async def is_running(self) -> bool:
         try:

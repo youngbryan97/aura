@@ -63,7 +63,7 @@ class EnhancedWebSearchSkill(BaseSkill):
     def __init__(self):
         super().__init__()
         self.pipeline = ResearchSearchPipeline()
-        self.browser = _StubBrowser()
+        self.browser = _DormantBrowser()
 
     def _normalize_deep_research_result(self, query: str, result: Dict[str, Any]) -> Dict[str, Any]:
         sources = list(result.get("sources") or [])
@@ -209,12 +209,12 @@ class EnhancedWebSearchSkill(BaseSkill):
         return result
 
     async def on_stop_async(self):
-        """Compatibility stub for legacy lifecycle hooks."""
+        """Lifecycle hook retained for skill manager shutdown symmetry."""
         pass  # no-op: intentional
 
 
-class _StubBrowser:
-    """Minimal browser stub kept for legacy tests that access skill.browser."""
+class _DormantBrowser:
+    """Dormant browser adapter used until a governed browser session is opened."""
 
     is_active = False
 

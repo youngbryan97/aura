@@ -81,6 +81,60 @@ class AutonomousOutputGate:
                 return True
         return False
 
+    def _foreground_policy(self, content: str, origin: str, target: str, metadata: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
+        """Route internal autonomy chatter away from the user-facing channel."""
+        import re
+
+        trusted_primary_origins = {"user", "voice", "admin", "api"}
+        explicit_user_visible = bool(metadata.get("user_visible") or metadata.get("foreground_receipt"))
+        executive_authority = bool(metadata.get("executive_authority"))
+        if origin in trusted_primary_origins or (explicit_user_visible and executive_authority):
+            return target, metadata
+
+        background_origin_terms = (
+            "system",
+            "cognitive",
+            "autonomous",
+            "motivation",
+            "intention",
+            "capability",
+            "neural",
+            "health",
+            "telemetry",
+            "mycelium",
+            "subconscious",
+            "dream",
+        )
+        background_content_patterns = (
+            r"Self-Initiated:",
+            r"Brief Curiosity Scan",
+            r"^Goal:\s",
+            r"Quietly consolidating memory",
+            r"Drive alert:",
+            r"Winner:\s*",
+            r"Cognitive baseline tick",
+            r"UNIFIED HEALTH PULSE",
+            r"System Active \(Mood:",
+            r"Pong \(Reflex path active\)",
+            r"Improvement proposal drafted",
+            r"Sandbox tests generated",
+            r"Top opportunity:",
+            r"Running a quiet codebase scan",
+            r"cognitive stall in my primary reasoning loop",
+        )
+        origin_text = str(origin or "").lower()
+        looks_background = any(term in origin_text for term in background_origin_terms) or any(
+            re.search(pattern, content or "", re.IGNORECASE) for pattern in background_content_patterns
+        )
+        if looks_background and target in {"primary", "both"}:
+            metadata = dict(metadata)
+            metadata["autonomous"] = True
+            metadata["authority_rerouted"] = True
+            metadata["voice"] = False
+            metadata["suppress_bus"] = True
+            return "secondary", metadata
+        return target, metadata
+
     async def _emit_output_receipt(
         self,
         content: str,
@@ -127,6 +181,8 @@ class AutonomousOutputGate:
         if not content:
             return
         _primary_governance_decision = None
+        metadata = dict(metadata or {})
+        target, metadata = self._foreground_policy(content, origin, target, metadata)
 
         # ── UNIFIED WILL HARD GATE ────────────────────────────────────
         # Nothing user-visible happens without a WillReceipt.
@@ -227,7 +283,6 @@ class AutonomousOutputGate:
             pass  # no-op: intentional
 
 
-        metadata = dict(metadata or {})
         is_autonomous = metadata.get("autonomous", False)
 
         # Auto-classify background/internal origins as autonomous.

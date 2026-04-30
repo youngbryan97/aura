@@ -60,10 +60,10 @@ class IoTTransport:
     name: str = "abstract"
 
     async def apply(self, effect: IoTEffect) -> Dict[str, Any]:  # pragma: no cover - interface
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.apply must be implemented by an IoT transport")
 
     async def observe(self) -> Optional[Dict[str, Any]]:  # pragma: no cover - interface
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.observe must be implemented by an IoT transport")
 
 
 class NoopTransport(IoTTransport):

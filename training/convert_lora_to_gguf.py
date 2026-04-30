@@ -14,6 +14,7 @@ Requires:
 import os
 import subprocess
 import sys
+import shutil
 from pathlib import Path
 
 TRAINING_DIR = Path(__file__).parent
@@ -67,8 +68,9 @@ def fuse_and_export():
         os.path.expanduser("~/llama.cpp/convert_lora_to_gguf.py"),
         "convert_lora_to_gguf",
     ]:
-        if os.path.exists(candidate) or os.system(f"which {candidate} > /dev/null 2>&1") == 0:
-            llama_convert = candidate
+        resolved = candidate if os.path.exists(candidate) else shutil.which(candidate)
+        if resolved:
+            llama_convert = resolved
             break
 
     if llama_convert:

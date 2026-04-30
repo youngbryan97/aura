@@ -211,10 +211,15 @@ class SafeModificationConfig(BaseModel):
     protected_paths: list[str] = Field(default_factory=lambda: [
         # Governance spine — cannot be modified at runtime
         "core/will.py",
+        "core/governance_context.py",
+        "core/governance/constitutional_amendment.py",
         "core/executive/authority_gateway.py",
         "core/executive/executive_core.py",
         # Runtime infrastructure
         "core/runtime/gateways.py",
+        "core/runtime/will_transaction.py",
+        "core/runtime/effect_boundary.py",
+        "core/runtime/security.py",
         "core/runtime/conformance.py",
         "core/runtime/executors.py",
         "core/runtime/errors.py",
@@ -222,10 +227,23 @@ class SafeModificationConfig(BaseModel):
         "core/runtime/atomic_writer.py",
         "core/runtime/boot_safety.py",
         "core/runtime/shutdown_coordinator.py",
+        "core/runtime/capability_tokens.py",
+        "core/runtime/causal_trace.py",
+        "core/runtime/consequential_primitives.py",
+        "core/runtime/autonomy_conductor.py",
+        "core/runtime/activation_audit.py",
         # Memory and state write authorities
         "core/memory/memory_write_gateway.py",
+        "core/memory/scar_formation.py",
+        "core/memory/scar_court.py",
         "core/state/state_gateway.py",
         "core/state/state_repository.py",
+        # Concurrency and substrate invariants
+        "core/bus/actor_bus.py",
+        "core/bus/shared_mem_bus.py",
+        "core/bus/local_pipe_bus.py",
+        "core/consciousness/phi_core.py",
+        "core/consciousness/hierarchical_phi.py",
         # Security modules
         "core/security/",
         "core/guardians/",
@@ -236,7 +254,16 @@ class SafeModificationConfig(BaseModel):
         # Self-modification engine (recursive safety)
         "core/self_modification/safe_modification.py",
         "core/self_modification/safe_pipeline.py",
+        "core/self_modification/self_modification_engine.py",
+        "core/self_modification/engine.py",
         "core/self_modification/boot_validator.py",
+        "core/self_modification/formal_verifier.py",
+        "core/self_modification/mutation_safety.py",
+        "core/self_modification/mutation_tiers.py",
+        "core/self_modification/fault_pipeline.py",
+        "core/self_modification/repair_approval.py",
+        "core/self_modification/repair_calibration.py",
+        "core/self_modification/patch_genealogy.py",
         # LLM routing (prevent self-lobotomy)
         "core/brain/llm/llm_router.py",
         "core/brain/llm/model_registry.py",

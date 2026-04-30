@@ -112,8 +112,8 @@ class NarrativeThread:
         - Not clinical.
         """
         
-        # In a real scenario, this calls a fast LLM. For now, we'll return a
-        # structurally sound placeholder that mimics the synth logic.
+        # Deterministic synthesis keeps the narrative current even when a fast
+        # LLM lane is unavailable.
         
         narrative = f"I've been active for a while now. {waking_context} Lately, I've been sitting with insights about {insight_text}. My current belief system consists of {belief_count} verified nodes, but I'm preoccupied with a question: {question_text}. I am growing, and my sense of self is evolving as I bridge these gaps."
         

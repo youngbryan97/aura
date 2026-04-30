@@ -20,7 +20,7 @@ class LLMInterface:
         """
         Blocking variant. Override if your client is sync.
         """
-        raise NotImplementedError()
+        raise RuntimeError(f"{type(self).__name__}.generate_sync must be implemented by an LLM client")
 
     async def generate(self, prompt: str, **opts) -> str:
         """

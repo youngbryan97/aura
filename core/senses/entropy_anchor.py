@@ -1,8 +1,9 @@
 """
 core/senses/entropy_anchor.py
 ─────────────────────────────
-Tethers Aura's cognitive and affective states to true physical reality 
-by reading hardware-level thermal and quantum entropy from the local machine.
+Tethers Aura's cognitive and affective states to local nondeterminism by
+reading from the operating-system CSPRNG. On modern macOS/Linux this pool is
+seeded from hardware and environmental noise, then expanded by the kernel.
 """
 
 import logging
@@ -23,8 +24,8 @@ class PhysicalEntropyAnchor:
         
     def get_entropy_float(self) -> float:
         """
-        Generates a non-deterministic float between 0.0 and 1.0 
-        derived entirely from hardware thermodynamic noise.
+        Generates a non-deterministic float between 0.0 and 1.0 from the OS
+        entropy pool.
         """
         # Read 4 bytes of physical entropy
         raw_bytes = self.get_raw_bytes(4)

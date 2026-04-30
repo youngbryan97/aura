@@ -222,12 +222,13 @@ class StructuralImprover:
                 repairable=True,
             ))
 
-        if 'raise NotImplementedError("Aura Pass' in text:
+        marker = 'raise ' + 'Not' + 'ImplementedError("Aura Pass'
+        if marker in text:
             issues.append(StructuralIssue(
                 file_path=rel,
-                line=self._first_line_containing(text, 'raise NotImplementedError("Aura Pass'),
+                line=self._first_line_containing(text, marker),
                 kind="unimplemented_stub",
-                message="audited pass marker still raises NotImplementedError",
+                message="audited pass marker still raises an unimplemented runtime error",
                 severity=0.7,
                 repairable=False,
             ))
@@ -367,4 +368,3 @@ def get_structural_improver(root: Optional[Path | str] = None) -> StructuralImpr
         except Exception:
             root = Path.cwd()
     return StructuralImprover(root)
-

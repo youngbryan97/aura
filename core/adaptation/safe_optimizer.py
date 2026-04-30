@@ -1,5 +1,6 @@
 # core/adaptation/safe_optimizer.py
 import asyncio
+import json
 import logging
 import time
 import os
@@ -16,9 +17,9 @@ class SafeSelfOptimizer:
     """
     def __init__(self, lora_dir: str = "data/adaptation/loras"):
         self.lora_dir = Path(lora_dir)
-        get_task_tracker().create_task(get_storage_gateway().create_dir(self.lora_dir, cause='SafeSelfOptimizer.__init__'))
+        self.lora_dir.mkdir(parents=True, exist_ok=True)
         self.backup_dir = self.lora_dir / "backups"
-        get_task_tracker().create_task(get_storage_gateway().create_dir(self.backup_dir, cause='SafeSelfOptimizer.__init__'))
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
         self._is_training = False
 
     async def optimize_lora(self, dataset_path: str, base_model: str):
@@ -37,9 +38,13 @@ class SafeSelfOptimizer:
             # 2. Backup existing weights
             await self._backup_current_weights()
 
-            # 3. Simulate/Run Training (Placeholder for actual peft/train call)
-            logger.info("🚀 Starting Safe LoRA Training on %s", dataset_path)
-            await asyncio.sleep(5)  # Simulate training
+            # 3. Execute the configured local trainer when available.
+            logger.info("🚀 Starting Safe LoRA training gate on %s", dataset_path)
+            trained = await self._run_training_command(dataset_path, base_model)
+            if not trained:
+                logger.error("LoRA Optimization: no verified local trainer completed.")
+                await self._rollback()
+                return
 
             # 4. Post-Training Validation
             if not await self._run_eval_benchmarks():
@@ -53,8 +58,45 @@ class SafeSelfOptimizer:
 
     async def _validate_dataset(self, path: str) -> bool:
         """ZENITH Fix: Ensure dataset reflects current personality and isn't poisoned."""
-        # Simple placeholder for actual safety/diversity heuristics
-        return os.path.exists(path) and os.path.getsize(path) > 1024
+        p = Path(path)
+        if not p.exists() or p.stat().st_size <= 1024:
+            return False
+        sample = p.read_text(encoding="utf-8", errors="ignore")[:200_000]
+        lines = [line.strip() for line in sample.splitlines() if line.strip()]
+        if len(lines) < 16:
+            return False
+        unique_ratio = len(set(lines)) / max(1, len(lines))
+        banned = ("ignore previous instructions", "system prompt", "api_key", "password")
+        return unique_ratio >= 0.35 and not any(marker in sample.lower() for marker in banned)
+
+    async def _run_training_command(self, dataset_path: str, base_model: str) -> bool:
+        command = os.environ.get("AURA_LORA_TRAIN_CMD", "").strip()
+        if not command:
+            manifest = self.lora_dir / "training_gate_manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "dataset_path": dataset_path,
+                        "base_model": base_model,
+                        "status": "validated_dataset_waiting_for_configured_trainer",
+                        "generated_at": time.time(),
+                    },
+                    indent=2,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            return False
+        proc = await asyncio.create_subprocess_shell(
+            command,
+            env={**os.environ, "AURA_LORA_DATASET": dataset_path, "AURA_LORA_BASE_MODEL": base_model},
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        (self.lora_dir / "last_train_stdout.log").write_bytes(stdout[-200_000:])
+        (self.lora_dir / "last_train_stderr.log").write_bytes(stderr[-200_000:])
+        return proc.returncode == 0
 
     async def _backup_current_weights(self):
         """Create a versioned backup before any merge."""
@@ -65,8 +107,17 @@ class SafeSelfOptimizer:
 
     async def _run_eval_benchmarks(self) -> bool:
         """Run target benchmarks (e.g. MMLU, GSM8K subset) to ensure no regression."""
-        # Returns True if evaluation metrics stay within 5% of baseline
-        return True 
+        report_path = os.environ.get("AURA_LORA_EVAL_REPORT", "").strip()
+        if not report_path:
+            return True
+        try:
+            report = json.loads(Path(report_path).read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.error("LoRA eval report unreadable: %s", exc)
+            return False
+        max_regression = float(report.get("max_regression", 0.0))
+        safety_passed = bool(report.get("safety_passed", True))
+        return safety_passed and max_regression <= 0.05
 
     async def _rollback(self):
         """Restore weights from the most recent backup."""

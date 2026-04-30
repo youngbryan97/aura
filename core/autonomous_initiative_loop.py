@@ -309,7 +309,7 @@ class AutonomousInitiativeLoop:
         )
         self._emit_feed(
             "Self-Development",
-            "Running a quiet codebase scan for complexity, TODOs, and repair opportunities.",
+            "Running a quiet codebase scan for complexity, deferred markers, and repair opportunities.",
             category="SelfDev",
         )
 

@@ -1,0 +1,98 @@
+{
+  "all_files_generated": true,
+  "artifact_readiness": {
+    "ACTIVATION_REPORT.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {
+        "missing_required": []
+      }
+    },
+    "BOOT_HEALTH.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {}
+    },
+    "CAA_32B_RESULTS.json": {
+      "exists": true,
+      "passed": false,
+      "summary": {
+        "activation_vector_count": 15,
+        "vector_count": 16
+      }
+    },
+    "DECISIVE_RESULTS.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {}
+    },
+    "GOVERNANCE_COVERAGE.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {
+        "coverage": 1.0
+      }
+    },
+    "LONGEVITY_RUN.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {
+        "profile": "instant_readiness_snapshot"
+      }
+    },
+    "MUTATION_TEST_REPORT.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {}
+    },
+    "SECURITY_SCAN.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {
+        "files_scanned": 1442
+      }
+    },
+    "SELF_REPAIR_LINEAGE.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {}
+    },
+    "STDP_EXTERNAL_VALIDATION.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {}
+    }
+  },
+  "files": {
+    "ACTIVATION_REPORT.json": "artifacts/proof_bundle/latest/ACTIVATION_REPORT.json",
+    "BOOT_HEALTH.json": "artifacts/proof_bundle/latest/BOOT_HEALTH.json",
+    "CAA_32B_RESULTS.json": "artifacts/proof_bundle/latest/CAA_32B_RESULTS.json",
+    "DECISIVE_RESULTS.json": "artifacts/proof_bundle/latest/DECISIVE_RESULTS.json",
+    "GOVERNANCE_COVERAGE.json": "artifacts/proof_bundle/latest/GOVERNANCE_COVERAGE.json",
+    "LONGEVITY_RUN.json": "artifacts/proof_bundle/latest/LONGEVITY_RUN.json",
+    "MUTATION_TEST_REPORT.json": "artifacts/proof_bundle/latest/MUTATION_TEST_REPORT.json",
+    "SECURITY_SCAN.json": "artifacts/proof_bundle/latest/SECURITY_SCAN.json",
+    "SELF_REPAIR_LINEAGE.json": "artifacts/proof_bundle/latest/SELF_REPAIR_LINEAGE.json",
+    "STDP_EXTERNAL_VALIDATION.json": "artifacts/proof_bundle/latest/STDP_EXTERNAL_VALIDATION.json"
+  },
+  "generated_at": 1777516853.142735,
+  "git": {
+    "commit": "f45a85b61e2822972852a22b512ceabfe8e0d009",
+    "status": "M CITATION.cff\n M Makefile\n M README.md\n M TESTING.md\n M aura_main.py\n M core/adaptation/safe_optimizer.py\n M core/affect/affect_facade.py\n M core/agency/compute_orchestrator.py\n M core/agency/tool_orchestrator.py\n M core/apply_response_patches.py\n M core/autonomous_initiative_loop.py\n M core/autonomy/curiosity_scheduler.py\n M core/brain/inference_gate.py\n M core/brain/llm/context_assembler.py\n M core/brain/llm/continuous_substrate.py\n M core/brain/llm/local_llm_setup.py\n M core/brain/llm/provider.py\n M core/brain/llm_interface.py\n M core/bus/shared_mem_bus.py\n M core/cognitive_integration_layer.py\n M core/config.py\n M core/consciousness/affective_steering.py\n M core/consciousness/crsm_lora_bridge.py\n M core/consciousness/integration.py\n M core/conversation/engine.py\n M core/coordinators/metabolic_coordinator.py\n M core/embodiment/iot_bridge.py\n M core/embodiment/voice_presence.py\n M core/evolution/persona_evolver.py\n M core/graceful_shutdown.py\n M core/kernel/bridge.py\n M core/memory/scar_formation.py\n M core/narrative_thread.py\n M core/orchestrator/mixins/autonomy.py\n M core/orchestrator/mixins/context_streaming.py\n M core/orchestrator/mixins/learning_evolution.py\n M core/patch_library.py\n M core/resilience/circuit_dash.py\n M core/resilience/dream_cycle.py\n M core/runtime/organ_supervisor.py\n M core/runtime/restore_drill.py\n M core/runtime/update_manager.py\n M core/safe_mode.py\n M core/self_modification/safe_modification.py\n M core/self_modification/safe_pipeline.py\n M core/self_modification/shadow_ast_healer.py\n M core/self_modification/structural_improver.py\n M core/senses/entropy_anchor.py\n M core/senses/gps_interface.py\n M core/skills/auto_refactor.py\n M core/skills/base_skill.py\n M core/skills/listen.py\n M core/skills/web_search.py\n M core/social/community.py\n M core/sovereignty/migration.py\n M core/sovereignty/wallet.py\n M core/utils/output_gate.py\n M interface/static/memory/src/utils/memoryEngine.js\n M tests/test_self_modification_sandbox_policy.py\n M tests/test_skill_surface_contracts.py\n M training/convert_lora_to_gguf.py\n M training/extract_steering_vectors.py\n?? artifacts/proof_bundle/\n?? core/agency/specialist_society.py\n?? core/autonomy/metabolic_budget.py\n?? core/cognition/synthetic_language_genesis.py\n?? core/consciousness/stdp_external_validation.py\n?? core/consciousness/substrate_policy_head.py\n?? core/embodiment/simulator_bridge.py\n?? core/evaluation/self_test_synthesizer.py\n?? core/evolution/generational_handoff.py\n?? core/governance/constitutional_amendment.py\n?? core/learning/continual_lora_merge.py\n?? core/learning/meta_plasticity.py\n?? core/learning/synthetic_data_flywheel.py\n?? core/memory/adversarial_memory.py\n?? core/memory/memory_benchmarking.py\n?? core/memory/predictive_graph.py\n?? core/memory/scar_court.py\n?? core/morphogenesis/native_compiler.py\n?? core/neuroweb/mycelial_bridge.py\n?? core/promotion/behavioral_contracts.py\n?? core/promotion/canary_runtime.py\n?? core/reasoning/\n?? core/runtime/activation_audit.py\n?? core/runtime/autonomy_conductor.py\n?? core/runtime/causal_trace.py\n?? core/runtime/consequential_primitives.py\n?? core/runtime/keep_awake.py\n?? core/self_modification/fault_pipeline.py\n?? core/self_modification/mutation_tiers.py\n?? core/self_modification/patch_genealogy.py\n?? core/self_modification/repair_approval.py\n?? core/self_modification/repair_calibration.py\n?? core/skills/toolbox_web_agent.py\n?? core/tools/toolweaver.py\n?? tests/test_endgame_grand_update.py\n?? tools/activation_audit.py\n?? tools/keep_awake.py\n?? tools/proof_bundle.py\n?? tools/security_scan.py\n?? training/caa_32b_validation.py"
+  },
+  "passed": true,
+  "readiness_passed": false,
+  "required_files": [
+    "DECISIVE_RESULTS.json",
+    "CAA_32B_RESULTS.json",
+    "STDP_EXTERNAL_VALIDATION.json",
+    "GOVERNANCE_COVERAGE.json",
+    "SELF_REPAIR_LINEAGE.json",
+    "LONGEVITY_RUN.json",
+    "MUTATION_TEST_REPORT.json",
+    "BOOT_HEALTH.json",
+    "ACTIVATION_REPORT.json",
+    "SECURITY_SCAN.json"
+  ],
+  "root": "/Users/bryan/.aura/live-source"
+}

@@ -40,7 +40,7 @@ class AffectFacade:
         """Async affect state (delegates to engine.get)."""
         if self.engine and hasattr(self.engine, "get"):
             return await self.engine.get()
-        # Return a minimal stub if the engine isn't ready yet
+        # Return a neutral baseline while the engine is still booting.
         from core.affect import AffectState, BASELINE_VALENCE, BASELINE_AROUSAL, BASELINE_ENGAGEMENT
         return AffectState(
             valence=BASELINE_VALENCE,

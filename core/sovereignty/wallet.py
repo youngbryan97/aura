@@ -102,11 +102,11 @@ class WalletAdapter:
     native_unit: str = "?"
 
     async def balance(self) -> float:  # pragma: no cover
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.balance must be implemented by a wallet adapter")
 
     async def submit_spend(self, intent: SpendIntent) -> str:  # pragma: no cover
         """Returns a transaction id."""
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.submit_spend must be implemented by a wallet adapter")
 
 
 class InMemoryAdapter(WalletAdapter):

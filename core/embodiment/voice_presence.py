@@ -20,8 +20,7 @@ logger = logging.getLogger("Aura.VoicePresence")
 class TTSEngine:
     async def speak(self, text: str) -> None:
         """Speak the given text. Subclasses must implement."""
-        logger.warning("TTSEngine.speak: Not implemented in base class.")
-        raise NotImplementedError
+        raise RuntimeError(f"{type(self).__name__}.speak must be implemented by a TTS engine")
 
     async def stop(self) -> None:
         """Stop any ongoing speech."""

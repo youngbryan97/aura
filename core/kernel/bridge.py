@@ -28,7 +28,7 @@ class Phase(ABC):
     @abstractmethod
     async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         """Run this phase against the given state and return the updated state."""
-        raise NotImplementedError("Phases must implement execute()")
+        raise RuntimeError(f"{type(self).__name__}.execute must be implemented by a phase")
 
     async def __call__(self, state: AuraState) -> AuraState:
         """Execute the phase, pulling the current objective from state if available."""

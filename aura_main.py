@@ -144,6 +144,15 @@ try:
     # Centralized logging setup - always include log_dir for persistence
     setup_logging(log_dir=config.paths.log_dir)
     logger = logging.getLogger("Aura.Main")
+    try:
+        from core.runtime.keep_awake import start_from_environment
+
+        _keep_awake_status = start_from_environment()
+        if _keep_awake_status.active:
+            logger.info("Aura keep-awake assertion active: pid=%s", _keep_awake_status.pid)
+    except Exception as _keep_awake_exc:
+        record_degradation("aura_main", _keep_awake_exc)
+        logger.warning("Aura keep-awake setup failed: %s", _keep_awake_exc)
 except Exception as e:
     # Minimal fallback logging if core is broken
     import traceback
@@ -568,6 +577,34 @@ async def _boot_runtime_orchestrator(
     except Exception as exc:
         record_degradation('aura_main', exc)
         logger.debug("performance guard start skipped: %s", exc)
+
+    try:
+        from core.runtime.autonomy_conductor import start_default_conductor
+
+        conductor = await start_default_conductor()
+        ServiceContainer.register_instance("autonomy_conductor", conductor, required=False)
+        logger.info("🧭 AutonomyConductor online — proof, validation, and maintenance loops scheduled.")
+    except Exception as exc:
+        record_degradation("aura_main", exc)
+        logger.warning("AutonomyConductor start failed: %s", exc)
+
+    try:
+        from core.runtime.activation_audit import get_activation_auditor
+
+        auditor = get_activation_auditor()
+        report = await auditor.audit(orchestrator, reconcile=True)
+        auditor.write_report(report, config.paths.data_dir / "runtime" / "activation_report.json")
+        ServiceContainer.register_instance("activation_auditor", auditor, required=False)
+        if report.missing_required:
+            logger.warning(
+                "Activation audit missing required loops: %s",
+                ", ".join(status.name for status in report.missing_required),
+            )
+        else:
+            logger.info("Activation audit passed: %.0f%% required loops active.", report.required_active_ratio * 100)
+    except Exception as exc:
+        record_degradation("aura_main", exc)
+        logger.warning("Activation audit failed: %s", exc)
 
     # Capture stem-cell snapshots for the load-bearing organs so the
     # immune layer has something to revert to if a future mutation

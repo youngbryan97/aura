@@ -98,8 +98,8 @@ def _seed_synthetic_home(home: Path) -> Dict[str, str]:
         "receipts/turn/turn-aaa.json": '{"kind": "turn", "id": "aaa"}',
         "receipts/governance/gov-bbb.json": '{"kind": "governance", "id": "bbb"}',
         "workflows/q1.jsonl": '{"step": 1}\n{"step": 2}\n',
-        "data/prediction_ledger.db": "binary placeholder for the ledger db",
-        "data/curriculum_lessons.db": "binary placeholder for lessons db",
+        "data/prediction_ledger.db": "restore-drill ledger fixture",
+        "data/curriculum_lessons.db": "restore-drill lesson fixture",
     }
     for rel, body in layout.items():
         target = home / rel

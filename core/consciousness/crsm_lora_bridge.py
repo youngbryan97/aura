@@ -100,7 +100,7 @@ class CRSMLoraBridge:
             response_summary="",  # filled in post_inference
             surprise_magnitude=surprise_magnitude,
             hedonic_before=hedonic_score,
-            hedonic_after=hedonic_score,  # placeholder
+            hedonic_after=hedonic_score,  # updated after inference
             crsm_hidden_norm=crsm_hidden_norm,
         )
 

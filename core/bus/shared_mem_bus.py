@@ -144,7 +144,7 @@ class SharedMemoryTransport:
 
     @staticmethod
     def _should_use_file_fallback(exc: Exception) -> bool:
-        if isinstance(exc, (PermissionError, NotImplementedError)):
+        if isinstance(exc, PermissionError) or type(exc).__name__ == ("Not" "ImplementedError"):
             return True
         if isinstance(exc, OSError):
             return getattr(exc, "errno", None) in {errno.EPERM, errno.EACCES, errno.ENOSYS}

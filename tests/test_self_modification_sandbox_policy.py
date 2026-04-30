@@ -31,7 +31,7 @@ class TestAllowedPaths:
         assert safe_mod.is_allowed_path("plugins/generated/my_plugin.py")
 
     def test_core_cognitive_allowed(self, safe_mod):
-        assert safe_mod.is_allowed_path("core/consciousness/phi_core.py")
+        assert safe_mod.is_allowed_path("core/consciousness/endogenous_fitness.py")
 
     def test_core_brain_allowed(self, safe_mod):
         assert safe_mod.is_allowed_path("core/brain/inference_gate.py")
@@ -112,6 +112,24 @@ class TestProtectedPaths:
     def test_aura_main_protected(self, safe_mod):
         assert safe_mod.is_protected_path("aura_main.py")
 
+    def test_phi_core_protected(self, safe_mod):
+        assert safe_mod.is_protected_path("core/consciousness/phi_core.py")
+
+    def test_hierarchical_phi_protected(self, safe_mod):
+        assert safe_mod.is_protected_path("core/consciousness/hierarchical_phi.py")
+
+    def test_actor_bus_protected(self, safe_mod):
+        assert safe_mod.is_protected_path("core/bus/actor_bus.py")
+
+    def test_shared_memory_bus_protected(self, safe_mod):
+        assert safe_mod.is_protected_path("core/bus/shared_mem_bus.py")
+
+    def test_scar_formation_protected(self, safe_mod):
+        assert safe_mod.is_protected_path("core/memory/scar_formation.py")
+
+    def test_self_modification_tier_policy_protected(self, safe_mod):
+        assert safe_mod.is_protected_path("core/self_modification/mutation_tiers.py")
+
 
 class TestAllowedButNotProtected:
     """Cognitive modules that ARE in allowed_paths but NOT in protected_paths.
@@ -142,7 +160,7 @@ class TestAllowedButNotProtected:
         assert safe_mod.is_allowed_path(path)
         assert not safe_mod.is_protected_path(path)
 
-    def test_phi_core_modifiable(self, safe_mod):
+    def test_phi_core_sealed_not_modifiable(self, safe_mod):
         path = "core/consciousness/phi_core.py"
         assert safe_mod.is_allowed_path(path)
-        assert not safe_mod.is_protected_path(path)
+        assert safe_mod.is_protected_path(path)

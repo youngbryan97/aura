@@ -15,7 +15,7 @@ The supervisor offers:
   * watchdog_loop() — restarts unhealthy organs subject to the
                       restart policy (max_restarts_per_window, window_s)
   * ipc_call(organ_name, payload, timeout) — request/response over a
-    framed pipe to the organ's controller stub
+    framed pipe to the organ's controller entry point
 
 Organs are launched with stdin/stdout closed; they communicate over a
 unix domain socket created by the supervisor at boot in
@@ -23,9 +23,9 @@ unix domain socket created by the supervisor at boot in
 length prefix.
 
 This module provides the *supervisor* and the *health/restart* layer.
-The organ-side controller stub is a small entry-point that knows how to
-open its socket, accept requests, and dispatch to the local handler;
-each organ ships its own stub (e.g. ``core/brain/llm/mlx_controller.py``).
+The organ-side controller entry point opens its socket, accepts requests,
+and dispatches to the local handler; each organ ships its own controller
+(e.g. ``core/brain/llm/mlx_controller.py``).
 """
 from __future__ import annotations
 from core.runtime.errors import record_degradation

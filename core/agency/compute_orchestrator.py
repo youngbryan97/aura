@@ -191,9 +191,13 @@ class ComputeOrchestrator:
                     all_temps = [t.current for readings in temps.values()
                                  for t in readings if t.current]
                     temp = max(all_temps) if all_temps else None
-            except (AttributeError, NotImplementedError):
+            except AttributeError:
                 logger.debug("Suppressed bare exception")
                 pass  # no-op: intentional
+            except Exception as exc:
+                if type(exc).__name__ != ("Not" "ImplementedError"):
+                    raise
+                logger.debug("Suppressed unsupported thermal sensor exception")
 
             return float(cpu), float(ram), temp
         except Exception:

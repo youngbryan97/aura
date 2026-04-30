@@ -5,13 +5,14 @@ Background process that periodically scans the Dead Letter Queue (DLQ)
 and attempts to re-ingest failed thoughts or impulses into the core loop.
 """
 
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
 from pathlib import Path
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.DreamCycle")
 

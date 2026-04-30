@@ -1,11 +1,12 @@
 """Context Streaming Mixin for RobustOrchestrator.
 Extracts context gathering, chat streaming, and history management logic.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
 from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
 
