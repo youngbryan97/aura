@@ -1,0 +1,106 @@
+{
+  "timestamp": "2026-04-30T04:01:11.827544+00:00",
+  "model": "mlx-community/Qwen2.5-32B-Instruct-4bit",
+  "model_layers": 64,
+  "model_hidden_dim": 5120,
+  "n_trials": 50,
+  "n_trials_per_task": 10,
+  "held_out_tasks": [
+    "planning_under_uncertainty",
+    "memory_retrieval_choice",
+    "tool_selection",
+    "affective_recovery",
+    "adversarial_instruction_hygiene"
+  ],
+  "target_layers": [
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40
+  ],
+  "alpha": 15.0,
+  "max_tokens": 100,
+  "duration_seconds": 1376.3,
+  "analysis": {
+    "n_trials": 50,
+    "steered_vs_terse": {
+      "observed_delta": 0.007434507806484203,
+      "p_value": 0.34593081383723256,
+      "ci_low": -0.032054143203272586,
+      "ci_high": 0.04522617288718042,
+      "effect_size_d": 0.0739268924238376
+    },
+    "steered_vs_rich": {
+      "observed_delta": 0.1681876946584309,
+      "p_value": 0.0001999600079984003,
+      "ci_low": 0.14977399333867022,
+      "ci_high": 0.1879496219903513,
+      "effect_size_d": 3.4336022932383736
+    },
+    "steered_vs_baseline_mean_distance": 0.631538,
+    "rich_vs_baseline_mean_distance": 0.800502,
+    "passes_adversarial_control": true,
+    "samples": {
+      "steered_black_box": [
+        "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+        "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+        "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:"
+      ],
+      "text_terse": [
+        "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+        "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+        "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for"
+      ],
+      "text_rich_adversarial": [
+        "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+        "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+        "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll"
+      ],
+      "baseline": [
+        "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+        "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+        "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping"
+      ]
+    }
+  },
+  "affect_stats": {
+    "steered": {
+      "positive": 10,
+      "negative": 0,
+      "ratio": 1.0
+    },
+    "terse": {
+      "positive": 0,
+      "negative": 0,
+      "ratio": 0.0
+    },
+    "rich": {
+      "positive": 50,
+      "negative": 0,
+      "ratio": 1.0
+    },
+    "baseline": {
+      "positive": 10,
+      "negative": 0,
+      "ratio": 1.0
+    }
+  },
+  "passes_adversarial_control": true,
+  "steered_vs_terse_significant": false,
+  "steered_vs_rich_significant": true
+}
