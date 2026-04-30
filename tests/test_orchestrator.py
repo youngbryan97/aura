@@ -146,7 +146,8 @@ async def test_process_user_input_complex(orchestrator):
     # Use the hardened tracker patch
     with patch("core.utils.task_tracker.get_task_tracker") as mock_get_tracker:
         mock_tt = MagicMock()
-        mock_tt.track_task.side_effect = lambda t, *args, **kwargs: t
+        mock_tt.track_task.side_effect = lambda t, *args, **kwargs: asyncio.create_task(t)
+        mock_tt.create_task.side_effect = lambda t, *args, **kwargs: asyncio.create_task(t)
         mock_get_tracker.return_value = mock_tt
         
         # Ensure intent_router is truthy for the call
@@ -229,10 +230,12 @@ async def test_trigger_background_learning(orchestrator):
     orchestrator.curiosity = MagicMock()
     with patch("core.utils.task_tracker.get_task_tracker") as mock_get_tracker:
         mock_track = mock_get_tracker.return_value.track_task
+        mock_create = mock_get_tracker.return_value.create_task
+        mock_create.side_effect = lambda t, *args, **kwargs: asyncio.create_task(t)
         with patch.object(orchestrator, "_learn_from_exchange", new_callable=AsyncMock) as mock_learn:
             RobustOrchestrator._trigger_background_learning(orchestrator, "What is fire?", "Fire is hot.")
             await asyncio.sleep(0)
-            assert mock_track.called
+            assert mock_track.called or mock_create.called
             assert mock_learn.await_count == 1
             orchestrator.curiosity.extract_curiosity_from_conversation.assert_called_with("What is fire?")
 
@@ -590,8 +593,10 @@ async def test_trigger_autonomous_thought(orchestrator):
     orchestrator._singularity_monitor_override = MagicMock(acceleration_factor=1.0)
 
     orchestrator._current_thought_task = None
-    orchestrator._last_thought_time = time.time() - 100
-    await orchestrator._trigger_autonomous_thought(False)
+    orchestrator._last_thought_time = time.time() - 200
+    orchestrator._last_user_interaction_time = time.time() - 200
+    with patch("core.orchestrator.mixins.autonomy.background_activity_reason", return_value=None):
+        await orchestrator._trigger_autonomous_thought(False)
     assert orchestrator._perform_autonomous_thought.called
 
 @pytest.mark.asyncio
@@ -1945,11 +1950,17 @@ async def test_perform_autonomous_thought_goal(orchestrator):
     hierarchy_mock.get_next_goal.return_value = goal_mock
 
     orchestrator._handle_incoming_message = AsyncMock()
+    orchestrator.process_user_input_priority = AsyncMock()
+    orchestrator._last_user_interaction_time = time.time() - 400
+    approval = MagicMock()
+    approval.approve_initiative = AsyncMock(return_value=(True, "approved", None))
     with patch.object(RobustOrchestrator, 'goal_hierarchy', new_callable=PropertyMock, return_value=hierarchy_mock, create=True):
         with patch("core.thought_stream.get_emitter"):
-            await orchestrator._perform_autonomous_thought()
-            hierarchy_mock.mark_complete.assert_called_with("g1")
-            assert orchestrator.boredom == 0
+            with patch("core.orchestrator.mixins.autonomy.background_activity_reason", return_value=None):
+                with patch("core.constitution.get_constitutional_core", return_value=approval):
+                    await orchestrator._perform_autonomous_thought()
+                    hierarchy_mock.mark_complete.assert_called_with("g1")
+                    assert orchestrator.boredom == 0
 
 @pytest.mark.asyncio
 async def test_perform_autonomous_thought_dream(orchestrator):
@@ -1961,6 +1972,7 @@ async def test_perform_autonomous_thought_dream(orchestrator):
     liquid_mock = MagicMock(current=MagicMock(curiosity=0.2))
     kg_mock = MagicMock()
     ce_mock = MagicMock()
+    orchestrator._last_user_interaction_time = time.time() - 400
 
     with patch.object(RobustOrchestrator, 'goal_hierarchy', new_callable=PropertyMock, return_value=hierarchy_mock, create=True):
         with patch.object(RobustOrchestrator, 'liquid_state', new_callable=PropertyMock, return_value=liquid_mock, create=True):
@@ -1972,8 +1984,9 @@ async def test_perform_autonomous_thought_dream(orchestrator):
                         mock_dreamer_class.return_value = mock_instance
 
                         with patch("core.thought_stream.get_emitter"):
-                            await orchestrator._perform_autonomous_thought()
-                            assert mock_instance.engage_sleep_cycle.called
+                            with patch("core.orchestrator.mixins.autonomy.background_activity_reason", return_value=None):
+                                await orchestrator._perform_autonomous_thought()
+                                assert mock_instance.engage_sleep_cycle.called
 
 @pytest.mark.asyncio
 async def test_perform_autonomous_thought_reflect(orchestrator):

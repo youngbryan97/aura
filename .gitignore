@@ -63,6 +63,7 @@ build/
 dist/
 .aura_runtime/
 .aura_snapshots/
+.aura_architect/
 .aura_test.log
 
 # Icons and screenshots (kept locally, not in repo)

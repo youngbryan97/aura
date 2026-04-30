@@ -43,6 +43,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.runtime.atomic_writer import atomic_write_text
+
 logger = logging.getLogger("Aura.ContentFetcher")
 
 CACHE_DIR = Path.home() / ".aura/content_cache"

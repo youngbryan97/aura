@@ -36,7 +36,7 @@ from core.brain.llm.context_assembler import ContextAssembler
 from core.container import ServiceContainer
 from core.kernel.bridge import Phase
 from core.phases.dialogue_policy import enforce_dialogue_contract, validate_dialogue_response
-from core.phases.response_contract import build_response_contract, extract_search_query_focus
+from core.phases.response_contract import ResponseContract, build_response_contract, extract_search_query_focus
 from core.runtime import background_policy, response_policy
 from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState
@@ -1073,7 +1073,12 @@ class UnitaryResponsePhase(Phase):
             return
         for msg in messages:
             if isinstance(msg, dict) and str(msg.get("role", "") or "").strip().lower() == "system":
-                msg["content"] = prompt
+                existing = str(msg.get("content", "") or "").strip()
+                if existing and prompt not in existing:
+                    preserved_tail = existing[-4000:].strip()
+                    msg["content"] = f"{prompt}\n\n{preserved_tail}" if preserved_tail else prompt
+                else:
+                    msg["content"] = prompt
                 return
         messages.insert(0, {"role": "system", "content": prompt})
 

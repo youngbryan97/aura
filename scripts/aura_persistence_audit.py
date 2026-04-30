@@ -1,4 +1,3 @@
-from __future__ import annotations
 #!/usr/bin/env python3
 """Audit direct persistence writes in Aura.
 
@@ -88,8 +87,9 @@ def scan_file(root: Path, path: Path) -> list[PersistenceFinding]:
         line = getattr(node, "lineno", 0)
         text = lines[line - 1].strip() if 0 < line <= len(lines) else name
 
-        if name.endswith(".write_text") or name.endswith(".write_bytes"):
-            findings.append(PersistenceFinding(rel, line, name, text))
+        if name in {"write_text", "write_bytes"} or name.endswith((".write_text", ".write_bytes")):
+            kind = f"path.{name}" if name in {"write_text", "write_bytes"} else name
+            findings.append(PersistenceFinding(rel, line, kind, text))
         elif name in {"json.dump", "yaml.dump", "toml.dump"}:
             findings.append(PersistenceFinding(rel, line, name, text))
         elif is_open_write_call(node):

@@ -1,4 +1,3 @@
-from __future__ import annotations
 #!/usr/bin/env python3
 # Conservative task ownership scanner/codemod.
 #

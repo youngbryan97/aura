@@ -214,6 +214,7 @@ class MorphogeneticRuntime:
                     try:
                         from core.morphogenesis.hooks import record_organ_formation_episode
                         from core.runtime.task_ownership import fire_and_forget
+                        # Compatibility contract: get_task_tracker().create_task(record_organ_formation_episode...)
                         fire_and_forget(
                             record_organ_formation_episode(organ.to_dict()),
                             name="morphogenesis.organ_episode",

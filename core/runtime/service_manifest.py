@@ -23,9 +23,7 @@ lock_registration() gate.
 """
 from __future__ import annotations
 
-
 from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, List, Optional, Set
 
 # ---------------------------------------------------------------------------
 # Manifest data
@@ -40,14 +38,14 @@ class ServiceRole:
     description: str
     critical: bool
     canonical_owner: str
-    aliases: FrozenSet[str] = field(default_factory=frozenset)
+    aliases: frozenset[str] = field(default_factory=frozenset)
     duplicate_owner_is_fatal: bool = True
 
 
 # Canonical roles that the audits identified as load-bearing for runtime
 # invariants. The names match service registry keys / aliases used in the
 # rest of the codebase.
-SERVICE_MANIFEST: Dict[str, ServiceRole] = {
+SERVICE_MANIFEST: dict[str, ServiceRole] = {
     "runtime": ServiceRole(
         name="runtime",
         description="Single canonical AuraRuntime / orchestrator owner",
@@ -127,6 +125,20 @@ SERVICE_MANIFEST: Dict[str, ServiceRole] = {
         critical=True,
         canonical_owner="shutdown_coordinator",
     ),
+    "agent_workspace": ServiceRole(
+        name="agent_workspace",
+        description="Single governed Aura workspace for agent-authored artifacts, evidence, plans, and audit notes",
+        critical=True,
+        canonical_owner="aura_workspace",
+        aliases=frozenset({"agent_workspace"}),
+    ),
+    "architecture_governor": ServiceRole(
+        name="architecture_governor",
+        description="Optional audit-first Autonomous Architecture Governor service",
+        critical=False,
+        canonical_owner="architecture_governor",
+        aliases=frozenset({"autonomous_architecture_governor"}),
+    ),
 }
 
 
@@ -143,11 +155,11 @@ class ManifestViolation:
 
 
 def verify_manifest(
-    registered: Dict[str, object],
+    registered: dict[str, object],
     *,
     strict: bool = False,
-    manifest: Optional[Dict[str, ServiceRole]] = None,
-) -> List[ManifestViolation]:
+    manifest: dict[str, ServiceRole] | None = None,
+) -> list[ManifestViolation]:
     """Check the manifest against a snapshot of the live service registry.
 
     Args:
@@ -161,9 +173,9 @@ def verify_manifest(
     """
     if manifest is None:
         manifest = SERVICE_MANIFEST
-    violations: List[ManifestViolation] = []
+    violations: list[ManifestViolation] = []
     for role_name, role in manifest.items():
-        candidates: Set[str] = set()
+        candidates: set[str] = set()
         if role.canonical_owner in registered:
             candidates.add(role.canonical_owner)
         for alias in role.aliases:
@@ -195,7 +207,7 @@ def verify_manifest(
     return violations
 
 
-def critical_violations(violations: List[ManifestViolation]) -> List[ManifestViolation]:
+def critical_violations(violations: list[ManifestViolation]) -> list[ManifestViolation]:
     return [v for v in violations if v.severity == "critical"]
 
 
@@ -204,9 +216,9 @@ def critical_violations(violations: List[ManifestViolation]) -> List[ManifestVio
 # ---------------------------------------------------------------------------
 
 
-def required_role_names() -> Set[str]:
+def required_role_names() -> set[str]:
     return {role.name for role in SERVICE_MANIFEST.values() if role.critical}
 
 
-def all_role_names() -> Set[str]:
+def all_role_names() -> set[str]:
     return set(SERVICE_MANIFEST.keys())

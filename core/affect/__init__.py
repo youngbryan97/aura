@@ -64,10 +64,10 @@ class AffectEngine:
         async with self._lock:
             old_v = self.state.valence
             old_a = self.state.arousal
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='valence', new_value=max(-1.0, min(1.0, self.state.valence    + dv)), cause='AffectEngine.modify')))
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='arousal', new_value=max(0.0,  min(1.0, self.state.arousal    + da)), cause='AffectEngine.modify')))
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='engagement', new_value=max(0.0,  min(1.0, self.state.engagement + de)), cause='AffectEngine.modify')))
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='last_update', new_value=time.time(), cause='AffectEngine.modify')))
+            self.state.valence = max(-1.0, min(1.0, self.state.valence + dv))
+            self.state.arousal = max(0.0, min(1.0, self.state.arousal + da))
+            self.state.engagement = max(0.0, min(1.0, self.state.engagement + de))
+            self.state.last_update = time.time()
             self._update_label()
             if abs(self.state.valence - old_v) > 0.1 or abs(self.state.arousal - old_a) > 0.1:
                 logger.debug(
@@ -94,28 +94,28 @@ class AffectEngine:
             self.state.valence    += (BASELINE_VALENCE    - self.state.valence)    * effective_rate
             self.state.arousal    += (BASELINE_AROUSAL    - self.state.arousal)    * effective_rate
             self.state.engagement += (BASELINE_ENGAGEMENT - self.state.engagement) * effective_rate
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='valence', new_value=max(-1.0, min(1.0, self.state.valence)), cause='AffectEngine.decay_tick')))
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='arousal', new_value=max(0.0,  min(1.0, self.state.arousal)), cause='AffectEngine.decay_tick')))
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='engagement', new_value=max(0.0,  min(1.0, self.state.engagement)), cause='AffectEngine.decay_tick')))
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='last_update', new_value=now, cause='AffectEngine.decay_tick')))
+            self.state.valence = max(-1.0, min(1.0, self.state.valence))
+            self.state.arousal = max(0.0, min(1.0, self.state.arousal))
+            self.state.engagement = max(0.0, min(1.0, self.state.engagement))
+            self.state.last_update = now
             self._update_label()
 
     def _update_label(self):
         v = self.state.valence
         a = self.state.arousal
         if a < 0.2:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='dominant_emotion', new_value="Calm" if v >= 0 else "Bored", cause='AffectEngine._update_label')))
+            self.state.dominant_emotion = "Calm" if v >= 0 else "Bored"
         elif v > 0.5 and a > 0.5:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='dominant_emotion', new_value="Joyful", cause='AffectEngine._update_label')))
+            self.state.dominant_emotion = "Joyful"
         elif v > 0.0 and a > 0.5:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='dominant_emotion', new_value="Excited", cause='AffectEngine._update_label')))
+            self.state.dominant_emotion = "Excited"
         elif v < -0.5 and a > 0.5:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='dominant_emotion', new_value="Distressed", cause='AffectEngine._update_label')))
+            self.state.dominant_emotion = "Distressed"
         elif v < 0.0 and a > 0.5:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='dominant_emotion', new_value="Anxious", cause='AffectEngine._update_label')))
+            self.state.dominant_emotion = "Anxious"
         elif v > 0.5:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='dominant_emotion', new_value="Content", cause='AffectEngine._update_label')))
+            self.state.dominant_emotion = "Content"
         elif v < -0.5:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='dominant_emotion', new_value="Sad", cause='AffectEngine._update_label')))
+            self.state.dominant_emotion = "Sad"
         else:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='dominant_emotion', new_value="Neutral", cause='AffectEngine._update_label')))
+            self.state.dominant_emotion = "Neutral"

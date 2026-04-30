@@ -22,18 +22,20 @@ Repair actions:
   * record an action receipt + a phenomenal envelope (severity = 0.5)
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
+import inspect
 import json
 import logging
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SelfHealing")
 
@@ -47,15 +49,16 @@ class WatchEntry:
     name: str
     last_heartbeat_at: float = field(default_factory=time.time)
     expected_interval_s: float = 30.0
-    restart_async: Optional[Callable[[], Awaitable[None]]] = None
-    container_key: Optional[str] = None
+    restart_async: Callable[[], Awaitable[None]] | None = None
+    container_key: str | None = None
     restarts: int = 0
 
 
 class SelfHealing:
     def __init__(self) -> None:
-        self._watches: Dict[str, WatchEntry] = {}
-        self._task: Optional[asyncio.Task] = None
+        self._watches: dict[str, WatchEntry] = {}
+        self._deep_repairs: dict[str, asyncio.Task] = {}
+        self._task: asyncio.Task | None = None
         self._running = False
 
     def watch(
@@ -63,8 +66,8 @@ class SelfHealing:
         name: str,
         *,
         expected_interval_s: float = 30.0,
-        restart_async: Optional[Callable[[], Awaitable[None]]] = None,
-        container_key: Optional[str] = None,
+        restart_async: Callable[[], Awaitable[None]] | None = None,
+        container_key: str | None = None,
     ) -> None:
         self._watches[name] = WatchEntry(
             name=name,
@@ -118,35 +121,27 @@ class SelfHealing:
         }
         try:
             if w.restarts >= 3:
-                # Deep repair strategy using ReimplementationLab
-                from core.container import ServiceContainer
-                lab = ServiceContainer.get("reimplementation_lab", default=None)
-                if lab is not None:
-                    module_path = None
-                    if w.container_key:
-                        instance = ServiceContainer.get(w.container_key, default=None)
-                        if instance is not None:
-                            module_name = type(instance).__module__
-                            module_path = module_name.replace('.', '/') + '.py'
-                    
-                    if module_path:
-                        logger.warning("Deep repair triggered for %s (%s)", w.name, module_path)
-                        # We use asyncio.create_task to not block the healing loop indefinitely
-                        asyncio.create_task(
-                            lab.run_reconstruction(
-                                module_path, 
-                                metadata={"trigger": "self_healing", "watch_name": w.name}
-                            )
-                        )
-                        record["result"] = "deep_repair_triggered"
-                        w.restarts = 0  # Reset counter to wait and see if it recovers
-                        w.last_heartbeat_at = time.time()
-                    else:
-                        record["result"] = "deep_repair_failed_no_module_path"
+                module_path = self._module_path_for_watch(w)
+                if module_path:
+                    logger.warning("Deep repair triggered for %s (%s)", w.name, module_path)
+                    scheduled = self.schedule_deep_repair(
+                        module_path,
+                        reason="watchdog_restart_exhausted",
+                        watch_name=w.name,
+                        metadata={"stale_for_s": age, "restart_count": w.restarts},
+                    )
+                    record.update(scheduled)
+                    w.restarts = 0
+                    w.last_heartbeat_at = time.time()
                 else:
-                    record["result"] = "deep_repair_failed_no_lab"
+                    record["result"] = "deep_repair_failed_no_module_path"
 
-            if record.get("result") not in ("deep_repair_triggered", "deep_repair_failed_no_module_path", "deep_repair_failed_no_lab"):
+            if record.get("result") not in (
+                "deep_repair_scheduled",
+                "deep_repair_already_running",
+                "deep_repair_failed_no_module_path",
+                "deep_repair_failed_no_lab",
+            ):
                 if w.restart_async is not None:
                     await w.restart_async()
                 elif w.container_key:
@@ -160,6 +155,130 @@ class SelfHealing:
         except Exception as exc:
             record_degradation('self_healing', exc)
             record["result"] = f"restart_failed:{exc}"
+        self._append_record(record)
+
+    def _module_path_for_watch(self, w: WatchEntry) -> str | None:
+        if not w.container_key:
+            return None
+        try:
+            from core.config import config
+            from core.container import ServiceContainer
+
+            instance = ServiceContainer.get(w.container_key, default=None)
+            if instance is None:
+                return None
+
+            source_file = inspect.getsourcefile(type(instance)) or inspect.getfile(type(instance))
+            if source_file:
+                source_path = Path(source_file).resolve()
+                try:
+                    return str(source_path.relative_to(config.paths.base_dir))
+                except ValueError:
+                    pass
+
+            module_name = type(instance).__module__
+            candidate = module_name.replace(".", "/") + ".py"
+            if (config.paths.base_dir / candidate).exists():
+                return candidate
+        except Exception as exc:
+            record_degradation('self_healing', exc)
+            logger.debug("Could not resolve watched module path for %s: %s", w.name, exc)
+        return None
+
+    def schedule_deep_repair(
+        self,
+        module_path: str,
+        *,
+        reason: str,
+        watch_name: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        max_attempts: int | None = None,
+    ) -> dict[str, Any]:
+        """Schedule a ReimplementationLab repair without blocking the watchdog."""
+
+        key = str(module_path)
+        existing = self._deep_repairs.get(key)
+        if existing is not None and not existing.done():
+            return {
+                "result": "deep_repair_already_running",
+                "module_path": key,
+                "reason": reason,
+            }
+
+        async def _runner() -> None:
+            await self.request_deep_repair(
+                key,
+                reason=reason,
+                watch_name=watch_name,
+                metadata=metadata,
+                max_attempts=max_attempts,
+            )
+
+        try:
+            task = get_task_tracker().create_task(_runner(), name=f"SelfHealing.deep_repair.{key}")
+        except Exception:
+            task = asyncio.create_task(_runner())
+        self._deep_repairs[key] = task
+        task.add_done_callback(lambda _task: self._deep_repairs.pop(key, None))
+        return {
+            "result": "deep_repair_scheduled",
+            "module_path": key,
+            "reason": reason,
+        }
+
+    async def request_deep_repair(
+        self,
+        module_path: str,
+        *,
+        reason: str,
+        watch_name: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        max_attempts: int | None = None,
+    ) -> dict[str, Any]:
+        """Run ReimplementationLab as a deep repair strategy.
+
+        This is intentionally separate from restart healing so patch-based
+        repair systems can call the same hardened path when local diffs fail.
+        """
+
+        record: dict[str, Any] = {
+            "when": time.time(),
+            "name": watch_name or "deep_repair",
+            "module_path": str(module_path),
+            "reason": reason,
+            "metadata": metadata or {},
+        }
+        try:
+            from core.container import ServiceContainer
+
+            lab = ServiceContainer.get("reimplementation_lab", default=None)
+            if lab is None:
+                record["result"] = "deep_repair_failed_no_lab"
+                return record
+
+            lab_metadata = {
+                "trigger": "self_healing",
+                "reason": reason,
+                "watch_name": watch_name,
+                **(metadata or {}),
+            }
+            result = await lab.run_reconstruction(
+                str(module_path),
+                max_attempts=max_attempts,
+                metadata=lab_metadata,
+            )
+            result_dict = result.to_dict() if hasattr(result, "to_dict") else {"success": False}
+            record["result"] = "deep_repair_succeeded" if result_dict.get("success") else "deep_repair_rejected"
+            record["lab_result"] = result_dict
+            return record
+        except Exception as exc:
+            record_degradation('self_healing', exc)
+            record["result"] = f"deep_repair_failed:{exc}"
+            return record
+        finally:
+            self._append_record(record)
+
+    def _append_record(self, record: dict[str, Any]) -> None:
         try:
             with open(_LEDGER, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record, default=str) + "\n")
@@ -172,7 +291,7 @@ class SelfHealing:
             pass  # no-op: intentional
 
 
-_HEALER: Optional[SelfHealing] = None
+_HEALER: SelfHealing | None = None
 
 
 def get_healer() -> SelfHealing:

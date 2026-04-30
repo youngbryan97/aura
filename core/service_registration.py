@@ -3,23 +3,26 @@
 Refactored into a modular provider system for Digital Metabolism.
 """
 
-from core.runtime.errors import record_degradation
 import logging
-from .container import ServiceContainer, ServiceLifetime, get_container
+
+from core.runtime.errors import record_degradation
+
 from .config import config
+from .container import ServiceLifetime, get_container
+from .control.dynamic_router import DynamicRouter
 
 # Providers
 from .providers.cognitive_provider import register_cognitive_services
-from .providers.memory_provider import register_memory_services
-from .providers.sensory_provider import register_sensory_services
 from .providers.consciousness_provider import register_consciousness_services
+from .providers.memory_provider import register_memory_services
 from .providers.ops_provider import register_ops_services
+from .providers.sensory_provider import register_sensory_services
+
+# Patch 28: Runtime & Control
+from .runtime.loop_guard import LoopLagMonitor
 
 # Patch 8: Metabolism
 from .services.metabolism import MetabolismService
-# Patch 28: Runtime & Control
-from .runtime.loop_guard import LoopLagMonitor
-from .control.dynamic_router import DynamicRouter
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +104,9 @@ def register_all_services(is_proxy: bool = False):
         return get_identity_chronicle()
 
     def create_reimplementation_lab():
-        from core.self_improvement.reimplementation_lab import ReimplementationLab
-        from core.self_improvement.llm_code_generator import LLMCodeGenerator
         from core.config import config
+        from core.llm.code_generator import LLMCodeGenerator
+        from core.self_improvement.reimplementation_lab import ReimplementationLab
         # Use LLM generator configured for local primary tier
         generator = LLMCodeGenerator(prefer_tier="primary")
         return ReimplementationLab(
@@ -119,6 +122,13 @@ def register_all_services(is_proxy: bool = False):
     container.register('self_awareness_suite', create_self_awareness_suite, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('identity_chronicle', create_identity_chronicle, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('reimplementation_lab', create_reimplementation_lab, lifetime=ServiceLifetime.SINGLETON, required=False)
+    try:
+        # Materialize during boot registration so deep repair is available even
+        # before another subsystem lazily asks for it.
+        container.get("reimplementation_lab", default=None)
+    except Exception as exc:
+        record_degradation('service_registration', exc)
+        logger.warning("ReimplementationLab boot singleton unavailable: %s", exc)
 
     def create_life_trace():
         from core.runtime.life_trace import get_life_trace
@@ -128,8 +138,36 @@ def register_all_services(is_proxy: bool = False):
         from core.evaluation.evidence_mode import get_evidence_mode
         return get_evidence_mode()
 
+    def create_markdown_workspace():
+        from core.workspace.markdown_workspace import MarkdownWorkspace
+        return MarkdownWorkspace()
+
+    def create_aura_workspace():
+        from core.workspace.aura_workspace import AuraWorkspace
+        return AuraWorkspace(store=container.get("markdown_workspace"))
+
+    def create_simulation_well():
+        from core.data.simulation_well import default_simulation_well
+        return default_simulation_well()
+
+    def create_temporal_atlas_factory():
+        from core.media.temporal_atlas import TemporalAtlas
+        return lambda duration_s, **kwargs: TemporalAtlas(duration_s, **kwargs)
+
+    def create_architecture_governor():
+        from core.architect.config import ASAConfig
+        from core.architect.governor import AutonomousArchitectureGovernor
+        return AutonomousArchitectureGovernor(ASAConfig.from_env(config.paths.base_dir))
+
     container.register('life_trace', create_life_trace, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('evidence_mode', create_evidence_mode, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('markdown_workspace', create_markdown_workspace, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('aura_workspace', create_aura_workspace, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('agent_workspace', lambda: container.get("aura_workspace"), lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('simulation_well', create_simulation_well, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('temporal_atlas_factory', create_temporal_atlas_factory, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('architecture_governor', create_architecture_governor, lifetime=ServiceLifetime.SINGLETON, required=False)
+    container.register('autonomous_architecture_governor', lambda: container.get("architecture_governor"), lifetime=ServiceLifetime.SINGLETON, required=False)
 
     def create_neural_intent_router():
         from core.agency.neural_intent_router import get_neural_intent_router
@@ -151,8 +189,8 @@ def register_all_services(is_proxy: bool = False):
 
     # Patch 49: Core state binding
     def create_state_repo():
-        from .state.state_repository import StateRepository
         from .config import config
+        from .state.state_repository import StateRepository
         db_path = config.paths.data_dir / "state" / "aura_state.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return StateRepository(db_path=str(db_path), is_vault_owner=not is_proxy)
@@ -251,10 +289,9 @@ def _finalize_wiring(container):
     try:
         mycelial = container.get("mycelial_network")
         if mycelial:
-            from .runtime.desktop_boot_safety import inprocess_mlx_metal_enabled
-
             # Link major layers
             from .meta_cognition import MetaEvolutionEngine
+            from .runtime.desktop_boot_safety import inprocess_mlx_metal_enabled
             mycelial.link_layer("meta_cognition", MetaEvolutionEngine)
             
             # Establish base hyphae

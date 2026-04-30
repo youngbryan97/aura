@@ -55,6 +55,7 @@ from core.autonomy.content_progress_tracker import (
     load as load_progress,
     DEFAULT_PROGRESS_PATH,
 )
+from core.runtime.atomic_writer import atomic_write_text
 
 logger = logging.getLogger("Aura.AutonomousResearchOrchestrator")
 

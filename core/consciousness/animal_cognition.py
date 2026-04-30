@@ -350,16 +350,14 @@ class EmotionalStateTracker:
         neg_count = len(words & self._NEGATIVE_MARKERS)
         frust_count = len(words & self._FRUSTRATION_MARKERS)
 
-        self.state.valence += pos_count * 0.15 - neg_count * 0.2
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='valence', new_value=max(-1.0, min(1.0, self.state.valence)), cause='EmotionalStateTracker.update')))
+        self.state.valence = max(-1.0, min(1.0, self.state.valence + pos_count * 0.15 - neg_count * 0.2))
 
-        self.state.frustration += frust_count * 0.2
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='frustration', new_value=max(0.0, min(1.0, self.state.frustration)), cause='EmotionalStateTracker.update')))
+        self.state.frustration = max(0.0, min(1.0, self.state.frustration + frust_count * 0.2))
 
         # Arousal from punctuation density
         excl_count = text.count("!") + text.count("?")
         caps_ratio = sum(1 for c in user_message if c.isupper()) / max(1, len(user_message))
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='arousal', new_value=min(1.0, 0.3 + excl_count * 0.1 + caps_ratio * 2.0), cause='EmotionalStateTracker.update')))
+        self.state.arousal = min(1.0, 0.3 + excl_count * 0.1 + caps_ratio * 2.0)
 
         # Engagement from message length trend
         self._message_lengths.append(len(text))
@@ -367,14 +365,14 @@ class EmotionalStateTracker:
             recent_avg = sum(list(self._message_lengths)[-3:]) / 3
             older_avg = sum(list(self._message_lengths)[:3]) / max(1, min(3, len(self._message_lengths)))
             if recent_avg > older_avg * 1.3:
-                get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='engagement', new_value=min(1.0, self.state.engagement + 0.1), cause='EmotionalStateTracker.update')))
+                self.state.engagement = min(1.0, self.state.engagement + 0.1)
             elif recent_avg < older_avg * 0.5:
-                get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='engagement', new_value=max(0.0, self.state.engagement - 0.15), cause='EmotionalStateTracker.update')))
+                self.state.engagement = max(0.0, self.state.engagement - 0.15)
 
         # Response time (user taking longer may indicate frustration or disengagement)
         self._message_times.append(now)
 
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='last_updated', new_value=now, cause='EmotionalStateTracker.update')))
+        self.state.last_updated = now
 
     def get_response_guidance(self) -> Dict[str, Any]:
         """Get guidance for response generation based on user emotional state."""

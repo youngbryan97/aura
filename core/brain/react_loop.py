@@ -6,11 +6,50 @@ import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from html.parser import HTMLParser
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.runtime.governance_policy import allow_simple_query_bypass
 
 logger = logging.getLogger("Aura.ReActLoop")
+
+
+class _ParagraphTextExtractor(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self._capture = False
+        self._chunks: list[str] = []
+        self._current: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in {"p", "article", "main", "section", "li"}:
+            self._capture = True
+            self._current = []
+
+    def handle_endtag(self, tag):
+        if tag in {"p", "article", "main", "section", "li"} and self._capture:
+            text = " ".join("".join(self._current).split())
+            if len(text) > 30:
+                self._chunks.append(text)
+            self._capture = False
+            self._current = []
+
+    def handle_data(self, data):
+        if self._capture:
+            self._current.append(data)
+
+    def text(self) -> str:
+        return "\n\n".join(self._chunks)
+
+
+def _html_text_fallback(raw_html: str) -> str:
+    parser = _ParagraphTextExtractor()
+    parser.feed(raw_html)
+    text = parser.text()
+    if text.strip():
+        return text
+    without_tags = re.sub(r"<[^>]+>", " ", raw_html)
+    return " ".join(without_tags.split())
 
 
 def _thinking_mode_default():
@@ -360,7 +399,6 @@ class ActionExecutor:
             
             def _deep_crawl():
                 import httpx
-                from bs4 import BeautifulSoup
                 from core.search.research_pipeline import ResearchSearchPipeline
                 
                 try:
@@ -372,6 +410,23 @@ class ActionExecutor:
                             or pipeline._legacy_html_search(query, 2)
                         )
                     ]
+                except (ImportError, ModuleNotFoundError) as sc_err:
+                    record_degradation('react_loop', sc_err)
+                    try:
+                        from urllib.parse import quote_plus
+
+                        search_url = f"https://duckduckgo.com/html/?q={quote_plus(query)}"
+                        resp = httpx.get(search_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10.0, follow_redirects=True)
+                        text = _html_text_fallback(resp.text)
+                        if text.strip():
+                            return Observation(
+                                content=f"Search page fallback for {query}:\n\n{text[:2500]}",
+                                success=True,
+                                source="web_ddgs_snippets",
+                            )
+                    except (httpx.HTTPError, ValueError, OSError) as html_err:
+                        record_degradation('react_loop', html_err)
+                    return Observation(content=f"Search index dependency unavailable: {sc_err}", success=False)
                 except Exception as sc_err:
                     record_degradation('react_loop', sc_err)
                     return Observation(content=f"Search index completely blocked: {sc_err}", success=False)
@@ -396,15 +451,16 @@ class ActionExecutor:
                 # Fetch specific page
                 try:
                     resp = httpx.get(target_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}, timeout=15.0, follow_redirects=True)
-                    soup = BeautifulSoup(resp.text, "html.parser")
-                    
-                    # Extract only the "meat" of the page (paragraphs)
-                    paragraphs = soup.find_all("p")
-                    content_body = "\n\n".join([p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 30])
-                    
-                    if not content_body.strip():
-                        # Fallback to whole text if no paragraphs
-                        content_body = soup.get_text(separator=' ', strip=True)
+                    try:
+                        from bs4 import BeautifulSoup
+
+                        soup = BeautifulSoup(resp.text, "html.parser")
+                        paragraphs = soup.find_all("p")
+                        content_body = "\n\n".join([p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 30])
+                        if not content_body.strip():
+                            content_body = soup.get_text(separator=' ', strip=True)
+                    except (ImportError, ModuleNotFoundError):
+                        content_body = _html_text_fallback(resp.text)
 
                     return Observation(
                         content=f"Title: {chosen_title}\nSource: {target_url}\n\nContent:\n{content_body[:4500]}",

@@ -26,6 +26,8 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import List, Optional
 
+from core.runtime.atomic_writer import atomic_write_text
+
 DEFAULT_PROGRESS_PATH = Path.home() / ".aura/live-source/aura/knowledge/curated-media-progress.json"
 
 SCHEMA_VERSION = 1

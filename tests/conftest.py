@@ -1,7 +1,9 @@
 """Shared pytest fixtures for Aura smoke tests."""
 import asyncio
+import builtins
 import inspect
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -11,6 +13,43 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+
+class _TestStorageGateway:
+    def create_dir(self, path, *, cause: str = "test"):
+        Path(path).mkdir(parents=True, exist_ok=True)
+
+    def delete(self, path, *, cause: str = "test"):
+        Path(path).unlink(missing_ok=True)
+
+    def delete_tree(self, path, *, ignore_errors: bool = True, cause: str = "test"):
+        shutil.rmtree(path, ignore_errors=ignore_errors)
+
+
+class _TestTaskTracker:
+    def create_task(self, awaitable, *args, **kwargs):
+        if not inspect.isawaitable(awaitable):
+            return awaitable
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(awaitable)
+        return loop.create_task(awaitable, name=kwargs.get("name"))
+
+    track = create_task
+    track_task = create_task
+
+
+def _test_get_storage_gateway():
+    return _TestStorageGateway()
+
+
+def _test_get_task_tracker():
+    return _TestTaskTracker()
+
+
+builtins.get_storage_gateway = _test_get_storage_gateway
+builtins.get_task_tracker = _test_get_task_tracker
 
 
 @pytest.fixture

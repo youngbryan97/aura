@@ -8,15 +8,16 @@ This is the paper's "agent reimplementation" step.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
-from typing import Any, Callable, Dict, Optional, Protocol
+from typing import Any, Protocol
 
+from core.self_improvement.blinded_workspace import BlindedWorkspace
 from core.self_improvement.interface_contract import (
     CandidateModule,
     ModuleSpec,
 )
-from core.self_improvement.blinded_workspace import BlindedWorkspace
 
 logger = logging.getLogger("Aura.CandidateBuilder")
 
@@ -24,7 +25,7 @@ logger = logging.getLogger("Aura.CandidateBuilder")
 class CodeGenerator(Protocol):
     """Protocol for code generators — injectable for testing."""
 
-    def generate(self, prompt: str, context: Dict[str, Any]) -> str:
+    def generate(self, prompt: str, context: dict[str, Any]) -> str:
         """Generate source code from a prompt and context."""
         ...
 
@@ -104,18 +105,21 @@ class PromptBuilder:
         return "\n".join(sections)
 
 
-class StubGenerator:
-    """Deterministic code generator for testing — returns the stub as-is."""
+class InterfaceEchoGenerator:
+    """Deterministic code generator for tests — returns the interface file as-is."""
 
-    def generate(self, prompt: str, context: Dict[str, Any]) -> str:
+    def generate(self, prompt: str, context: dict[str, Any]) -> str:
         return context.get("stub_code", "# No implementation generated\npass\n")
+
+
+StubGenerator = InterfaceEchoGenerator
 
 
 class CandidateBuilder:
     """Generates candidate modules from specs using a pluggable code generator."""
 
-    def __init__(self, generator: Optional[CodeGenerator] = None):
-        self.generator = generator or StubGenerator()
+    def __init__(self, generator: CodeGenerator | None = None):
+        self.generator = generator or InterfaceEchoGenerator()
         self.prompt_builder = PromptBuilder()
 
     async def build(
@@ -137,16 +141,20 @@ class CandidateBuilder:
         start = time.monotonic()
 
         prompt = self.prompt_builder.build(spec)
-        context: Dict[str, Any] = {
+        context: dict[str, Any] = {
             "module_path": spec.module_path,
             "module_name": spec.module_name,
             "attempt": attempt,
-            "stub_code": workspace.stub_path.read_text(encoding="utf-8")
-            if workspace.stub_path.exists()
+            "stub_code": workspace.interface_path.read_text(encoding="utf-8")
+            if workspace.interface_path.exists()
             else "",
         }
 
-        source_code = self.generator.generate(prompt, context)
+        generate_async = getattr(self.generator, "generate_async", None)
+        if callable(generate_async):
+            source_code = await generate_async(prompt, context)
+        else:
+            source_code = await asyncio.to_thread(self.generator.generate, prompt, context)
         elapsed = time.monotonic() - start
 
         candidate = CandidateModule(
@@ -168,4 +176,4 @@ class CandidateBuilder:
         return candidate
 
 
-__all__ = ["CandidateBuilder", "CodeGenerator", "PromptBuilder", "StubGenerator"]
+__all__ = ["CandidateBuilder", "CodeGenerator", "PromptBuilder", "InterfaceEchoGenerator", "StubGenerator"]

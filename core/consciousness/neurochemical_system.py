@@ -147,6 +147,11 @@ class Chemical:
         session. Fixed 2026-04-27 by adding the homeostatic baseline
         return term so chemicals decay TOWARD baseline rather than zero.
         """
+        expected_level = min(1.0, self.tonic_level + self.phasic_burst)
+        external_level = max(0.0, min(1.0, self.level))
+        if external_level > expected_level + 1e-6:
+            self.tonic_level = max(0.0, min(1.0, external_level - self.phasic_burst))
+
         # Tonic level: production + homeostatic return + uptake
         self.tonic_level += (
             self.production_rate
@@ -266,7 +271,7 @@ class NeurochemicalSystem:
             ),
             # Modulatory neurotransmitters (slower, diffuse, tonic + phasic)
             "dopamine": Chemical(
-                "dopamine", level=0.5, baseline=0.5, uptake_rate=0.03,
+                "dopamine", level=0.5, baseline=0.5, uptake_rate=0.03, adaptation_rate=0.03,
                 subtypes={
                     "d1": ReceptorSubtype("D1-like", effect_sign=1.0, weight=0.5,
                                           adaptation_rate=0.003),  # excitatory — working memory, reward

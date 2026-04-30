@@ -1,19 +1,20 @@
 """Autonomous Code Repair System
 Generates, validates, and applies fixes to detected bugs.
 """
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
 import ast
+import asyncio
 import difflib
-import json
 import logging
 import shutil
 import subprocess
-import asyncio
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
+
 from .ast_analyzer import ASTAnalyzer
 
 logger = logging.getLogger("SelfModification.CodeRepair")
@@ -72,9 +73,9 @@ class CodeFixGenerator:
         self,
         file_path: str,
         line_number: int,
-        diagnosis: Dict[str, Any],
+        diagnosis: dict[str, Any],
         context_lines: int = 10
-    ) -> Optional[CodeFix]:
+    ) -> CodeFix | None:
         """Generate a code fix for a diagnosed bug.
         
         Args:
@@ -143,7 +144,7 @@ class CodeFixGenerator:
         file_path: str,
         line_number: int,
         context_lines: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Extract code context around the bug location.
         
         Returns:
@@ -152,7 +153,7 @@ class CodeFixGenerator:
         """
         full_path = self.code_base / file_path
         
-        with open(full_path, 'r') as f:
+        with open(full_path) as f:
             lines = f.readlines()
         
         # Calculate range
@@ -180,9 +181,9 @@ class CodeFixGenerator:
         self,
         file_path: str,
         line_number: int,
-        code_context: Dict[str, Any],
-        hypothesis: Dict[str, Any]
-    ) -> Optional[str]:
+        code_context: dict[str, Any],
+        hypothesis: dict[str, Any]
+    ) -> str | None:
         """Use LLM to generate fixed code.
         
         Returns:
@@ -250,7 +251,7 @@ class CodeValidator:
     def __init__(self):
         logger.info("CodeValidator initialized")
     
-    def validate_fix(self, fix: CodeFix, full_file_content: str) -> Tuple[bool, str]:
+    def validate_fix(self, fix: CodeFix, full_file_content: str) -> tuple[bool, str]:
         """Comprehensive validation of a proposed fix.
         
         Args:
@@ -285,7 +286,7 @@ class CodeValidator:
         logger.info("Fix passed all validation layers")
         return True, "All validations passed"
     
-    def _validate_syntax(self, code: str) -> Tuple[bool, str]:
+    def _validate_syntax(self, code: str) -> tuple[bool, str]:
         """Check if code has valid Python syntax"""
         try:
             ast.parse(code)
@@ -293,7 +294,7 @@ class CodeValidator:
         except SyntaxError as e:
             return False, f"Line {e.lineno}: {e.msg}"
     
-    def _validate_structure(self, fix: CodeFix, full_file: str) -> Tuple[bool, str]:
+    def _validate_structure(self, fix: CodeFix, full_file: str) -> tuple[bool, str]:
         """Ensure fix doesn't break structural invariants.
         
         Checks:
@@ -327,7 +328,7 @@ class CodeValidator:
             record_degradation('code_repair', e)
             return False, f"AST analysis failed: {e}"
     
-    def _validate_imports(self, code: str) -> Tuple[bool, str]:
+    def _validate_imports(self, code: str) -> tuple[bool, str]:
         """Check for dangerous or suspicious imports.
         
         Blacklist:
@@ -374,7 +375,7 @@ class CodeValidator:
             logger.error("Import validation failed: %s", e)
             return True, "Import validation inconclusive"
     
-    def _check_code_smells(self, code: str) -> Tuple[bool, str]:
+    def _check_code_smells(self, code: str) -> tuple[bool, str]:
         """Detect code smells that might indicate problems.
         
         These don't fail validation but generate warnings.
@@ -412,7 +413,7 @@ class SandboxTester:
         self.code_base = Path(code_base_path)
         logger.info("SandboxTester initialized")
     
-    async def test_fix(self, fix: CodeFix) -> Tuple[bool, Dict[str, Any]]:
+    async def test_fix(self, fix: CodeFix) -> tuple[bool, dict[str, Any]]:
         """Test a fix in sandboxed environment.
         
         Args:
@@ -491,7 +492,7 @@ class SandboxTester:
         modified_content = content.replace(fix.original_code, fix.fixed_code)
         await asyncio.to_thread(sandbox_file.write_text, modified_content, encoding='utf-8')
     
-    async def _run_tests_in_sandbox(self, sandbox_path: Path, fix: CodeFix) -> Dict[str, Any]:
+    async def _run_tests_in_sandbox(self, sandbox_path: Path, fix: CodeFix) -> dict[str, Any]:
         """Run tests in sandbox with enhanced safety (Async)."""
         results = {
             "success": False,
@@ -506,8 +507,7 @@ class SandboxTester:
         
         # Test 1: Syntax check (Static)
         try:
-            with open(sandbox_file, 'r') as f:
-                code = f.read()
+            code = await asyncio.to_thread(sandbox_file.read_text, encoding="utf-8")
             ast.parse(code)
             results["syntax_test"] = True
         except SyntaxError as e:
@@ -538,7 +538,7 @@ class SandboxTester:
                 results["errors"].append(f"Import failed: {result.stderr}")
                 return results
                 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             results["errors"].append("Import test timeout")
             return results
         except Exception as e:
@@ -607,7 +607,9 @@ class SandboxTester:
         # e.g., core/memory.py -> tests/core/test_memory.py or same dir test_memory.py
         try:
             # Simple heuristic for test discovery
-            test_files = list(sandbox_path.rglob(f"test_{sandbox_file.name}"))
+            test_files = await asyncio.to_thread(
+                lambda: list(sandbox_path.rglob(f"test_{sandbox_file.name}"))
+            )
             
             if test_files:
                 logger.info("Running tests: %s", test_files)
@@ -645,9 +647,10 @@ class SandboxTester:
         code_patch: str,
         probe_code: str,
         expect_pass: bool = False
-    ) -> Tuple[bool, Dict[str, Any]]:
+    ) -> tuple[bool, dict[str, Any]]:
         """Run a custom reproduction probe against a patched version of a file."""
-        import tempfile, shutil
+        import shutil
+        import tempfile
         results = {"success": False, "error": None}
         
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -663,21 +666,6 @@ class SandboxTester:
             sandbox_file.parent.mkdir(parents=True, exist_ok=True)
             
             # Write the PATCHED version
-            # Use original file as base, replace buggy section
-            with open(target_abs, 'r') as f:
-                content = f.read()
-            
-            # Simple replacement (matches _apply_fix_in_sandbox logic)
-            # This 'code_patch' is the CodeFix.original_code or CodeFix.fixed_code
-            # Wait, the 'code_patch' here should be the WHOLE file content for simplicity,
-            # but let's stick to the replacement logic for consistency with previous tools.
-            # Actually, let's just write the modified content passed in.
-            
-            # We'll assume the caller (EvaluationHarness) handles the replacement if needed,
-            # or we do it here. Let's do it here.
-            # No, EvaluationHarness passed 'code_patch' which is the section.
-            # Actually, I'll change the caller to pass modified_content.
-            
             atomic_write_text(sandbox_file, code_patch, encoding="utf-8")
             
             # Copy siblings for imports
@@ -735,13 +723,55 @@ class AutonomousCodeRepair:
         self.harness = EvaluationHarness(cognitive_engine, self.tester, code_base_path)
         
         logger.info("AutonomousCodeRepair system initialized with EvaluationHarness")
+
+    async def _deep_repair_after_patch_failure(
+        self,
+        file_path: str,
+        line_number: int,
+        diagnosis: dict[str, Any],
+        *,
+        stage: str,
+        detail: Any = None,
+        fix: CodeFix | None = None,
+    ) -> dict[str, Any]:
+        """Invoke module reconstruction when localized patch repair fails."""
+
+        metadata: dict[str, Any] = {
+            "trigger": "patch_repair_failed",
+            "stage": stage,
+            "target_line": line_number,
+            "diagnosis_summary": diagnosis.get("summary") or diagnosis.get("error") or "unknown",
+        }
+        if detail is not None:
+            metadata["detail"] = detail
+        if fix is not None:
+            metadata["failed_patch"] = fix.to_dict()
+
+        try:
+            from core.runtime.self_healing import get_healer
+
+            healer = get_healer()
+            return await healer.request_deep_repair(
+                file_path,
+                reason="patch_repair_failed",
+                metadata=metadata,
+                max_attempts=1,
+            )
+        except Exception as exc:
+            record_degradation('code_repair', exc)
+            logger.warning("Deep repair fallback failed for %s: %s", file_path, exc)
+            return {
+                "result": f"deep_repair_failed:{exc}",
+                "module_path": file_path,
+                "metadata": metadata,
+            }
     
     async def repair_bug(
         self,
         file_path: str,
         line_number: int,
-        diagnosis: Dict[str, Any]
-    ) -> Tuple[bool, Optional[CodeFix], Dict[str, Any]]:
+        diagnosis: dict[str, Any]
+    ) -> tuple[bool, CodeFix | None, dict[str, Any]]:
         """Attempt to repair a bug autonomously.
         
         Args:
@@ -775,18 +805,31 @@ class AutonomousCodeRepair:
         # v29.1: Mechanical Repair Layer (Ruff)
         logger.info("🔧 [NEURO] Attempting mechanical repair with Ruff...")
         try:
-            from core.resilience.diagnostic_hub import get_diagnostic_hub
-            hub = get_diagnostic_hub()
             # If it's a simple syntax or style issue, ruff might fix it
-            cmd = ["ruff", "check", "--fix", file_path]
-            subprocess.run(cmd, capture_output=True, text=True, cwd=self.generator.code_base)
+            ruff_bin = shutil.which("ruff") or "ruff"
+            cmd = [ruff_bin, "check", "--fix", file_path]
+            await asyncio.to_thread(
+                subprocess.run,
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=self.generator.code_base,
+                timeout=30,
+            )
         except Exception as e:
             record_degradation('code_repair', e)
             logger.warning("Mechanical repair failed: %s", e)
 
         fix = await self.generator.generate_fix(file_path, line_number, diagnosis)
         if not fix:
-            return False, None, {"error": "Fix generation failed"}
+            deep_repair = await self._deep_repair_after_patch_failure(
+                file_path,
+                line_number,
+                diagnosis,
+                stage="fix_generation",
+                detail="CodeFixGenerator returned no fix",
+            )
+            return False, None, {"error": "Fix generation failed", "deep_repair": deep_repair}
         
         logger.info("Generated fix:\n%s", fix.generate_diff())
         
@@ -801,7 +844,18 @@ class AutonomousCodeRepair:
         valid, validation_msg = self.validator.validate_fix(fix, modified_content)
         if not valid:
             logger.warning("Fix validation failed: %s", validation_msg)
-            return False, fix, {"error": f"Validation failed: {validation_msg}"}
+            deep_repair = await self._deep_repair_after_patch_failure(
+                file_path,
+                line_number,
+                diagnosis,
+                stage="validation",
+                detail=validation_msg,
+                fix=fix,
+            )
+            return False, fix, {
+                "error": f"Validation failed: {validation_msg}",
+                "deep_repair": deep_repair,
+            }
         
         logger.info("Fix passed validation")
         
@@ -809,6 +863,14 @@ class AutonomousCodeRepair:
         test_success, test_results = await self.tester.test_fix(fix)
         if not test_success:
             logger.warning("Fix failed sandbox tests: %s", test_results.get('errors'))
+            test_results["deep_repair"] = await self._deep_repair_after_patch_failure(
+                file_path,
+                line_number,
+                diagnosis,
+                stage="sandbox_tests",
+                detail=test_results.get("errors"),
+                fix=fix,
+            )
             return False, fix, test_results
         
         logger.info("Fix passed sandbox testing")
@@ -819,7 +881,15 @@ class AutonomousCodeRepair:
         
         if not eval_success:
             logger.warning("Fix failed Evaluation Harness: %s", eval_msg)
-            return False, fix, {"error": eval_msg}
+            deep_repair = await self._deep_repair_after_patch_failure(
+                file_path,
+                line_number,
+                diagnosis,
+                stage="evaluation_harness",
+                detail=eval_msg,
+                fix=fix,
+            )
+            return False, fix, {"error": eval_msg, "deep_repair": deep_repair}
             
         logger.info("✅ Fix passed Evaluation Harness")
         

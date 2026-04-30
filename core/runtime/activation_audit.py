@@ -10,9 +10,10 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
@@ -132,6 +133,42 @@ async def _register_substrate_policy(orchestrator: Any) -> Any:
     return {"registered": True}
 
 
+async def _register_aura_workspace(orchestrator: Any) -> Any:
+    from core.container import ServiceContainer
+    from core.workspace.aura_workspace import AuraWorkspace
+    from core.workspace.markdown_workspace import MarkdownWorkspace
+
+    store = ServiceContainer.get("markdown_workspace", default=None)
+    if store is None:
+        store = MarkdownWorkspace()
+        ServiceContainer.register_instance("markdown_workspace", store, required=False)
+    workspace = ServiceContainer.get("aura_workspace", default=None)
+    if workspace is None:
+        workspace = AuraWorkspace(store=store)
+        ServiceContainer.register_instance("aura_workspace", workspace, required=False)
+    if not ServiceContainer.has("agent_workspace"):
+        ServiceContainer.register_instance("agent_workspace", workspace, required=False)
+    return {"registered": True, "storage_path": str(store.storage_path)}
+
+
+async def _register_architecture_governor(orchestrator: Any) -> Any:
+    from core.architect.config import ASAConfig
+    from core.architect.governor import AutonomousArchitectureGovernor
+    from core.container import ServiceContainer
+
+    governor = ServiceContainer.get("architecture_governor", default=None)
+    if governor is None:
+        governor = AutonomousArchitectureGovernor(ASAConfig.from_env())
+        ServiceContainer.register_instance("architecture_governor", governor, required=False)
+    if not ServiceContainer.has("autonomous_architecture_governor"):
+        ServiceContainer.register_instance("autonomous_architecture_governor", governor, required=False)
+    return {
+        "registered": True,
+        "mode": "autopromote" if governor.config.autopromote else "audit_only",
+        "max_tier": governor.config.max_tier.name,
+    }
+
+
 DEFAULT_SPECS: tuple[ActivationSpec, ...] = (
     ActivationSpec(
         name="autonomy_conductor",
@@ -205,6 +242,14 @@ DEFAULT_SPECS: tuple[ActivationSpec, ...] = (
         reason="turns substrate state into goal, memory, tool, risk, and repair policy weights",
     ),
     ActivationSpec(
+        name="agent_workspace",
+        service_keys=("aura_workspace", "agent_workspace"),
+        required=True,
+        auto_start=True,
+        starter=_register_aura_workspace,
+        reason="governed durable workspace for evidence, memory, decisions, repairs, and versioned artifacts",
+    ),
+    ActivationSpec(
         name="curiosity_engine",
         service_keys=("curiosity_engine", "curiosity"),
         required=False,
@@ -216,6 +261,14 @@ DEFAULT_SPECS: tuple[ActivationSpec, ...] = (
         task_name_contains=("safe_self_modification_loop", "AutonomousSelfModification"),
         required=False,
         reason="Will-gated improvement proposals and repair loops",
+    ),
+    ActivationSpec(
+        name="architecture_governor",
+        service_keys=("architecture_governor", "autonomous_architecture_governor"),
+        required=False,
+        auto_start=True,
+        starter=_register_architecture_governor,
+        reason="audit-first autonomous software architect with shadow proof, rollback, and monitor gates",
     ),
     ActivationSpec(
         name="research_cycle",

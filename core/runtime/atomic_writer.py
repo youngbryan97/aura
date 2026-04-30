@@ -112,6 +112,7 @@ def atomic_write_json(
         raise AtomicWriteError("schema_version must be a positive int")
     envelope = {
         "schema": schema_name or path.__class__.__name__,
+        "schema_name": schema_name or path.__class__.__name__,
         "schema_version": schema_version,
         "payload": obj,
     }

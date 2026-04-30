@@ -37,6 +37,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+from core.runtime.atomic_writer import atomic_write_text
+
 logger = logging.getLogger("Aura.MemoryPersister")
 
 QUEUE_PATH = Path.home() / ".aura/live-source/aura/knowledge/persist-retry-queue.jsonl"

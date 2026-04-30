@@ -24,6 +24,8 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.runtime.atomic_writer import atomic_write_text
+
 DEFAULT_TRIGGER_PATH = Path.home() / ".aura/live-source/aura/knowledge/research-triggers.jsonl"
 RING_LIMIT = 500
 

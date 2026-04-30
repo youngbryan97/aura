@@ -687,6 +687,55 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
         record_degradation('aura_main', exc)
         logger.debug("orchestrator registration skipped: %s", exc)
 
+    try:
+        lab = ServiceContainer.get("reimplementation_lab", default=None)
+        if lab is None:
+            from core.config import config
+            from core.llm.code_generator import LLMCodeGenerator
+            from core.self_improvement.reimplementation_lab import ReimplementationLab
+
+            lab = ReimplementationLab(
+                project_root=str(config.paths.base_dir),
+                generator=LLMCodeGenerator(prefer_tier="primary"),
+            )
+            ServiceContainer.register_instance("reimplementation_lab", lab, required=False)
+    except Exception as exc:
+        record_degradation('aura_main', exc)
+        logger.warning("reimplementation_lab boot singleton unavailable: %s", exc)
+
+    try:
+        store = ServiceContainer.get("markdown_workspace", default=None)
+        if store is None:
+            from core.workspace.markdown_workspace import MarkdownWorkspace
+
+            store = MarkdownWorkspace()
+            ServiceContainer.register_instance("markdown_workspace", store, required=False)
+        workspace = ServiceContainer.get("aura_workspace", default=None)
+        if workspace is None:
+            from core.workspace.aura_workspace import AuraWorkspace
+
+            workspace = AuraWorkspace(store=store)
+            ServiceContainer.register_instance("aura_workspace", workspace, required=False)
+        if not ServiceContainer.has("agent_workspace"):
+            ServiceContainer.register_instance("agent_workspace", workspace, required=False)
+    except Exception as exc:
+        record_degradation('aura_main', exc)
+        logger.warning("agent workspace boot singleton unavailable: %s", exc)
+
+    try:
+        governor = ServiceContainer.get("architecture_governor", default=None)
+        if governor is None:
+            from core.architect.config import ASAConfig
+            from core.architect.governor import AutonomousArchitectureGovernor
+
+            governor = AutonomousArchitectureGovernor(ASAConfig.from_env(PROJECT_ROOT))
+            ServiceContainer.register_instance("architecture_governor", governor, required=False)
+        if not ServiceContainer.has("autonomous_architecture_governor"):
+            ServiceContainer.register_instance("autonomous_architecture_governor", governor, required=False)
+    except Exception as exc:
+        record_degradation('aura_main', exc)
+        logger.warning("architecture_governor boot singleton unavailable: %s", exc)
+
 
 async def _enforce_boot_probes(ready_label: str) -> None:
     """Run behavioral boot probes. In strict mode any failure aborts boot.

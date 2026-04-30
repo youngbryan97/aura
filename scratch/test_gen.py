@@ -1,9 +1,14 @@
 import asyncio
 import logging
 import sys
+
+import pytest
+
 from core.container import ServiceContainer
 from core.brain.llm.llm_router import IntelligentLLMRouter
 from core.brain.inference_gate import InferenceGate
+
+pytestmark = pytest.mark.skip(reason="manual LLM smoke test requires a live inference stack")
 
 async def test_generation():
     logging.basicConfig(level=logging.INFO)

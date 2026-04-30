@@ -3614,6 +3614,7 @@ def test_service_manifest_lists_all_critical_runtime_roles():
         "governance",
         "task_supervisor",
         "shutdown_coordinator",
+        "agent_workspace",
     }
     assert expected_critical.issubset(required_role_names())
     # Every role must have a canonical owner declared

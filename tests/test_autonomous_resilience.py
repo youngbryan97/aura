@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 
 from core.adaptation.autonomous_resilience import (
@@ -46,7 +45,7 @@ class _ContainerStub:
 
 def test_static_fault_auditor_detects_zero_division_and_async_blocking(tmp_path):
     source = tmp_path / "core" / "demo_async.py"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(source.parent, cause='test_static_fault_auditor_detects_zero_division_and_async_blocking'))
+    source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text(
         "import time\n\n"
         "def ratio(total):\n"
@@ -115,7 +114,7 @@ class _SelfModifierStub:
 
 def test_verifier_guided_patch_pipeline_uses_self_modifier(tmp_path):
     target = tmp_path / "core" / "module.py"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(target.parent, cause='test_verifier_guided_patch_pipeline_uses_self_modifier'))
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("value = 1\n", encoding="utf-8")
 
     modifier = _SelfModifierStub()

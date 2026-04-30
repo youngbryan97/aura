@@ -1286,22 +1286,6 @@ class HealthAwareLLMRouter:
             kwargs["prefer_endpoint"] = prefer_endpoint
 
         if is_bg:
-            if self._foreground_quiet_window_active():
-                return {
-                    "ok": False,
-                    "text": "",
-                    "endpoint": "suppressed",
-                    "tokens": 0,
-                    "error": "background_deferred:foreground_quiet_window",
-                }
-            if getattr(self, "high_pressure_mode", False):
-                return {
-                    "ok": False,
-                    "text": "",
-                    "endpoint": "suppressed",
-                    "tokens": 0,
-                    "error": "background_deferred:memory_pressure",
-                }
             try:
                 from core.container import ServiceContainer
 
@@ -1319,6 +1303,22 @@ class HealthAwareLLMRouter:
             except Exception as exc:
                 record_degradation('llm_health_router', exc)
                 logger.debug("Background router deferral probe failed: %s", exc)
+            if self._foreground_quiet_window_active():
+                return {
+                    "ok": False,
+                    "text": "",
+                    "endpoint": "suppressed",
+                    "tokens": 0,
+                    "error": "background_deferred:foreground_quiet_window",
+                }
+            if getattr(self, "high_pressure_mode", False):
+                return {
+                    "ok": False,
+                    "text": "",
+                    "endpoint": "suppressed",
+                    "tokens": 0,
+                    "error": "background_deferred:memory_pressure",
+                }
 
         foreground_owned = False
         if is_bg:

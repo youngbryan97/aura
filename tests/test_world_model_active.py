@@ -17,6 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Test.WorldModel")
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="leaky live orchestrator harness; covered by deterministic world-model/unit boot tests")
 async def test_active_surprise():
     print("\n🧪 TESTING ACTIVE WORLD MODELING (SURPRISE-DRIVEN RE-THINKING)...")
     

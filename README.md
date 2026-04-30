@@ -69,6 +69,11 @@ asking readers to infer maturity from prose.
   `core/self_modification/repair_approval.py` implement the closed-loop
   bug-packet repair path with deterministic localization, tier-aware approval,
   patch genealogy, and calibration.
+- `core/architect/` implements the Autonomous Architecture Governor: a
+  shadow-workspace software architect that builds architecture graphs, detects
+  smells, generates staged cleanup/refactor plans, requires proof receipts and
+  rollback packets before promotion, and monitors promoted changes. See
+  [`docs/AUTONOMOUS_ARCHITECTURE_GOVERNOR.md`](docs/AUTONOMOUS_ARCHITECTURE_GOVERNOR.md).
 - `core/runtime/autonomy_conductor.py` and `core/runtime/activation_audit.py`
   make proof, validation, metabolic, scar, and repair checks recurring runtime
   jobs instead of optional scripts.

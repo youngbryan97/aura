@@ -1683,12 +1683,6 @@ class MLXLocalClient:
                         self._set_lane_state("failed", msg)
                         raise RuntimeError(msg)
                 except asyncio.TimeoutError:
-                    if handshake_attempt == 0:
-                        logger.warning("⏳ [MLX] Init timeout on attempt 1. Retrying spawn...")
-                        await self.reboot_worker(reason="init_timeout_retry", mark_failed=False)
-                        fut = self._init_future
-                        if not fut: break
-                        continue
                     if soft_timeout and self._process and self._process.is_alive():
                         logger.warning(
                             "⏳ [MLX] Init handshake exceeded request budget (%.1fs) for %s. Keeping worker alive to continue warming.",
@@ -1703,6 +1697,12 @@ class MLXLocalClient:
                             foreground_request=foreground_request,
                         )
                         raise
+                    if handshake_attempt == 0:
+                        logger.warning("⏳ [MLX] Init timeout on attempt 1. Retrying spawn...")
+                        await self.reboot_worker(reason="init_timeout_retry", mark_failed=False)
+                        fut = self._init_future
+                        if not fut: break
+                        continue
                     logger.error("🛑 [MLX] Init handshake TIMED OUT. Force killing process.")
                     self._set_lane_state("failed", "init_timeout")
                     if self._process:

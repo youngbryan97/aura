@@ -188,9 +188,9 @@ class MorphogenCell:
                 activation_score=score,
             )
 
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='lifecycle', new_value=CellLifecycle.ACTIVE, cause='MorphogenCell.tick')))
+        self.state.lifecycle = CellLifecycle.ACTIVE
         self.state.activation_count += 1
-        get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='last_activation_at', new_value=time.time(), cause='MorphogenCell.tick')))
+        self.state.last_activation_at = time.time()
         energy_cost = min(0.18, 0.04 + score * 0.12)
         self.state.energy = clamp01(self.state.energy - energy_cost)
 
@@ -267,8 +267,8 @@ class MorphogenCell:
     def apply_feedback(self, *, success: bool) -> None:
         if success:
             self.state.success_count += 1
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='confidence', new_value=clamp01(self.state.confidence + 0.025), cause='MorphogenCell.apply_feedback')))
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='health', new_value=clamp01(self.state.health + 0.025), cause='MorphogenCell.apply_feedback')))
+            self.state.confidence = clamp01(self.state.confidence + 0.025)
+            self.state.health = clamp01(self.state.health + 0.025)
         else:
             self.state.failure_count += 1
             self.state.confidence = clamp01(self.state.confidence - 0.06)
@@ -289,15 +289,15 @@ class MorphogenCell:
 
     def hibernate(self, reason: str = "") -> None:
         if self.protected:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='lifecycle', new_value=CellLifecycle.DORMANT, cause='MorphogenCell.hibernate')))
+            self.state.lifecycle = CellLifecycle.DORMANT
         else:
             self.state.lifecycle = CellLifecycle.HIBERNATING
         self.state.last_error = reason
 
     def quarantine(self, reason: str = "", seconds: float = 300.0) -> None:
         if self.protected:
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='lifecycle', new_value=CellLifecycle.DORMANT, cause='MorphogenCell.quarantine')))
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='last_error', new_value=f"protected_quarantine_blocked:{reason}", cause='MorphogenCell.quarantine')))
+            self.state.lifecycle = CellLifecycle.DORMANT
+            self.state.last_error = f"protected_quarantine_blocked:{reason}"
             return
         self.state.lifecycle = CellLifecycle.QUARANTINED
         self.state.quarantined_until = time.time() + max(1.0, seconds)
@@ -306,8 +306,8 @@ class MorphogenCell:
     def apoptosis(self, reason: str = "") -> None:
         if self.protected:
             self.state.lifecycle = CellLifecycle.QUARANTINED
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='quarantined_until', new_value=time.time() + 60.0, cause='MorphogenCell.apoptosis')))
-            get_task_tracker().create_task(get_state_gateway().mutate(StateMutationRequest(key='last_error', new_value=f"protected_apoptosis_blocked:{reason}", cause='MorphogenCell.apoptosis')))
+            self.state.quarantined_until = time.time() + 60.0
+            self.state.last_error = f"protected_apoptosis_blocked:{reason}"
             return
         self.state.lifecycle = CellLifecycle.APOPTOTIC
         self.state.last_error = reason

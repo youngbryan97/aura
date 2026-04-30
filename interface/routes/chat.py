@@ -1670,6 +1670,21 @@ def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
             analysis=analysis,
             route_meta=route_meta,
         )
+        lower = text.lower()
+        deep_handoff = deep_handoff or any(
+            marker in lower
+            for marker in (
+                "debug the failing pytest",
+                "fix the failing pytest",
+                "root cause analysis",
+                "multi-file",
+                "deep dive",
+                "mathematical proof",
+                "formal proof",
+                "security audit",
+                "vulnerability scan",
+            )
+        )
     except Exception as exc:
         record_degradation('chat', exc)
         record_degradation('chat', exc)
@@ -4954,6 +4969,7 @@ async def api_chat(
         record_degradation('chat', e)
         logger.error("Chat error: %s", e, exc_info=True)
         error_reply = "I lost my train of thought for a second. Try me again?"
+        status_code=200
         if pending_exchange_id:
             await _complete_logged_exchange(
                 pending_exchange_id,
@@ -4967,7 +4983,7 @@ async def api_chat(
             "response": error_reply,
             "status": "error",
             "response_confidence": "degraded",
-        }, status_code=200)
+        }, status_code=status_code)
     finally:
         if foreground_slot_acquired and _foreground_chat_lock.locked():
             _foreground_chat_lock.release()

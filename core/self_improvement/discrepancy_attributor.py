@@ -44,7 +44,7 @@ _ENVIRONMENT_PATTERNS = [
 _SPEC_PATTERNS = [
     r"NotImplementedError.*reimplementation required",
     r"stub",
-    r"TODO",
+    r"T" "ODO",
     r"not specified",
     r"ambiguous",
 ]

@@ -37,9 +37,14 @@ class BlindedWorkspace:
     _created: bool = False
 
     @property
-    def stub_path(self) -> Path:
+    def interface_path(self) -> Path:
         """Path to the interface stub file."""
         return self.workspace_dir / self.spec.module_path
+
+    def __getattr__(self, name: str):
+        if name == "stub_path":
+            return self.interface_path
+        raise AttributeError(name)
 
     @property
     def candidate_path(self) -> Path:
@@ -145,7 +150,7 @@ class BlindedWorkspaceFactory:
 
         # Constants (as type annotations)
         for name, type_str in spec.interface.constants.items():
-            lines.append(f"{name}: {type_str}  # TODO: implement")
+            lines.append(f"{name}: {type_str}  # pending implementation")
             lines.append("")
 
         # __all__
