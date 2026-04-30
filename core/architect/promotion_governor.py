@@ -26,7 +26,12 @@ class PromotionGovernor:
         if plan.risk_tier > self.config.max_tier:
             return self._decision(plan, proof, PromotionStatus.REJECTED, f"plan tier {plan.risk_tier.name} exceeds configured max {self.config.max_tier.name}")
         if not proof.passed:
-            failed = [result.obligation_id for result in proof.results if not result.passed and result.status != "BOOT_HARNESS_UNAVAILABLE"]
+            failed = [
+                result.obligation_id
+                for result in proof.results
+                if not result.passed
+                and not (plan.risk_tier <= MutationTier.T1_CLEANUP and result.status == "BOOT_HARNESS_UNAVAILABLE")
+            ]
             return self._decision(plan, proof, PromotionStatus.REJECTED, f"proof failed: {failed[:8]}")
         if not rollback_packet.dry_run_passed:
             return self._decision(plan, proof, PromotionStatus.REJECTED, "rollback dry-run did not pass")

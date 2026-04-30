@@ -9,8 +9,10 @@ when delayed regression appears.
 
 The implementation lives in `core/architect/` and is registered as the optional
 `architecture_governor` / `autonomous_architecture_governor` service. Boot mode
-is conservative: audit-only unless configuration enables autonomous promotion.
-CLI `auto` can still run the full loop in test or temp repositories.
+is active but conservative: ASA registers at boot, schedules an audit-first
+background pass, writes high-risk proposal artifacts, and does not autopromote
+unless configuration explicitly permits it. CLI `auto` can still run the full
+loop in test or temp repositories.
 
 ## Mutation Tiers
 
@@ -49,7 +51,9 @@ The graph records:
   consciousness, LLM routing, identity, self-modification, tests/proofs, UI/API,
   training, and utility/peripheral.
 - Ownership rows parsed from `OWNERSHIP.md`.
-- Runtime receipt ingestion for current and future JSONL receipts.
+- Runtime receipt ingestion from repo-local receipt folders, canonical
+  `~/.aura/receipts` JSON envelopes, `data/traces/*.jsonl`, `life_trace`
+  SQLite ledgers, coverage JSON/SQLite artifacts, and ASA symbol-hit telemetry.
 
 ## Smells
 
@@ -81,12 +85,15 @@ Ghost boot attempts, in order:
 5. Relevant pytest subset by changed path when discoverable.
 6. Critical runtime/self-modification subset when present.
 7. Optional broader pytest when configured.
-8. Safe boot command if `AURA_ASA_SAFE_BOOT_COMMAND` is configured.
+8. Safe skeletal Aura boot using `python -m core.architect.safe_boot_harness`
+   by default, or `AURA_ASA_SAFE_BOOT_COMMAND` when explicitly overridden.
 9. Minimal live harness if a safe harness exists.
 
-If a full boot harness is unavailable, the proof records
-`BOOT_HARNESS_UNAVAILABLE`. That is tolerated for `T0/T1` cleanup, but higher
-tiers must prove more.
+The default safe boot harness compiles `aura_main.py`, enters skeletal mode,
+registers proxy-safe services, wires `architecture_governor` and its alias,
+verifies the ServiceManifest role, and runs temp memory/state gateway probes.
+For non-Aura temp repositories where that harness is absent, proof records
+`BOOT_HARNESS_UNAVAILABLE`. That is tolerated for `T0/T1` cleanup only.
 
 ## Proof Obligations
 
@@ -97,11 +104,12 @@ receipt generation, and signed/hash-stamped decision data.
 
 `T1` adds static cleanup proof and minimal ghost/import proof.
 
-`T2` adds relevant tests, behavior fingerprint equivalence, service graph
-validity, public API compatibility, no new authority/memory/state/tool bypasses,
-and rollback dry-run.
+`T2` adds relevant tests, behavior fingerprint equivalence, semantic behavior
+oracle equivalence, service graph validity, public API compatibility, no new
+authority/memory/state/tool bypasses, safe skeletal boot, and rollback dry-run.
 
-`T3` adds declared improvement proof and monitor requirements.
+`T3` adds declared improvement proof, semantic oracle checks that protected
+surfaces and receipts do not regress, and monitor requirements.
 
 `T4/T5` produce proposal and proof artifacts only.
 
@@ -167,9 +175,14 @@ candidates, creates a staged plan, applies it in shadow, runs ghost proof,
 creates and dry-runs rollback, promotes when proof passes, records a receipt,
 and immediately performs a lightweight monitor pass.
 
+Dead-code findings are coverage-backed: ASA suppresses dead-symbol candidates
+when runtime receipts, trace payloads, coverage artifacts, or symbol-hit
+telemetry show that a path or symbol is active. Uncertain deletion remains a
+quarantine/proposal workflow until observation windows prove zero hits.
+
 ## Configuration
 
-- `AURA_ASA_ENABLED`: register/run background audit mode.
+- `AURA_ASA_ENABLED`: register/run background audit mode (`true` by default).
 - `AURA_ASA_AUTOPROMOTE`: allow boot/background autonomous promotion when a
   caller uses the governor service.
 - `AURA_ASA_MAX_TIER`: maximum autonomous tier (`T1` by default).
@@ -178,6 +191,10 @@ and immediately performs a lightweight monitor pass.
 - `AURA_ASA_PROTECTED_PATHS`: additional protected path patterns separated by
   the platform path separator.
 - `AURA_ASA_SAFE_BOOT_COMMAND`: explicit safe boot command for ghost boot.
+  Defaults to `python -m core.architect.safe_boot_harness`; set to `off` only
+  for non-Aura fixture repositories.
+- `AURA_ASA_RECEIPT_LIMIT`: maximum runtime receipts ingested per graph.
+- `AURA_ASA_COVERAGE_HIT_LIMIT`: maximum coverage/symbol hits ingested.
 
 ## Failure Modes
 

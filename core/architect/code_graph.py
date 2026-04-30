@@ -192,44 +192,216 @@ class LiveArchitectureGraphBuilder:
         return rows
 
     def _load_receipts(self, root: Path) -> list[RuntimeReceipt]:
-        receipts: list[RuntimeReceipt] = []
-        candidates = [
+        local_receipts: list[RuntimeReceipt] = []
+        external_receipts: list[RuntimeReceipt] = []
+        local_candidates = [
             root / ".aura_architect" / "receipts",
             root / "logs" / "receipts",
             root / "data" / "receipts",
         ]
-        for directory in candidates:
+        external_candidates = [
+            Path.home() / ".aura" / "receipts",
+            Path.home() / ".aura" / "logs" / "receipts",
+        ]
+        for directory in local_candidates:
             if not directory.exists() or not directory.is_dir():
                 continue
-            for path in sorted(directory.rglob("*.jsonl"))[:200]:
-                try:
-                    lines = path.read_text(encoding="utf-8").splitlines()
-                except OSError:
+            local_receipts.extend(self._load_jsonl_receipts(directory))
+            local_receipts.extend(self._load_json_receipts(directory))
+        for directory in external_candidates:
+            if not directory.exists() or not directory.is_dir():
+                continue
+            external_receipts.extend(self._load_jsonl_receipts(directory))
+            external_receipts.extend(self._load_json_receipts(directory))
+        local_receipts.extend(self._load_trace_receipts(root / "data" / "traces"))
+        local_receipts.extend(self._load_life_trace_receipts(root / "data" / "life_trace.sqlite3"))
+        local_receipts.extend(self._load_coverage_receipts(root))
+        external_receipts.extend(self._load_life_trace_receipts(Path.home() / ".aura" / "life_trace.sqlite3"))
+        local_receipts.sort(key=lambda receipt: receipt.timestamp, reverse=True)
+        external_receipts.sort(key=lambda receipt: receipt.timestamp, reverse=True)
+        return (local_receipts + external_receipts)[: self.config.runtime_receipt_limit]
+
+    def _load_jsonl_receipts(self, directory: Path) -> list[RuntimeReceipt]:
+        receipts: list[RuntimeReceipt] = []
+        files = sorted(directory.rglob("*.jsonl"), key=_safe_mtime, reverse=True)[:200]
+        for path in files:
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            for line in lines[-500:]:
+                if not line.strip():
                     continue
-                for line in lines[-500:]:
-                    if not line.strip():
-                        continue
-                    try:
-                        payload = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if isinstance(payload, dict):
-                        receipts.append(
-                            RuntimeReceipt(
-                                source=str(payload.get("source", payload.get("event", path.stem))),
-                                path=str(payload.get("path", "")),
-                                timestamp=float(payload.get("timestamp", payload.get("when", time.time()))),
-                                kind=str(payload.get("kind", payload.get("type", "runtime"))),
-                                payload=payload,
-                            )
-                        )
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                receipt = self._receipt_from_payload(payload, source_hint=path.stem)
+                if receipt is not None:
+                    receipts.append(receipt)
         return receipts
+
+    def _load_json_receipts(self, directory: Path) -> list[RuntimeReceipt]:
+        receipts: list[RuntimeReceipt] = []
+        files = sorted(directory.rglob("*.json"), key=_safe_mtime, reverse=True)[: self.config.runtime_receipt_limit]
+        for path in files:
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
+                payload = dict(payload["payload"])
+            receipt = self._receipt_from_payload(payload, source_hint=path.stem)
+            if receipt is not None:
+                receipts.append(receipt)
+        return receipts
+
+    def _load_trace_receipts(self, directory: Path) -> list[RuntimeReceipt]:
+        if not directory.exists() or not directory.is_dir():
+            return []
+        receipts: list[RuntimeReceipt] = []
+        files = sorted(directory.glob("*.jsonl"), key=_safe_mtime, reverse=True)[:100]
+        for path in files:
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            for line in lines[-200:]:
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                receipt = self._receipt_from_payload(payload, source_hint=f"trace:{path.stem}")
+                if receipt is not None:
+                    receipts.append(receipt)
+        return receipts
+
+    def _load_life_trace_receipts(self, db_path: Path) -> list[RuntimeReceipt]:
+        if not db_path.exists():
+            return []
+        receipts: list[RuntimeReceipt] = []
+        try:
+            conn = sqlite3.connect(db_path)
+        except sqlite3.Error:
+            return receipts
+        try:
+            rows = conn.execute(
+                "SELECT event_type, payload, timestamp FROM life_trace ORDER BY timestamp DESC LIMIT ?",
+                (min(self.config.runtime_receipt_limit, 500),),
+            ).fetchall()
+        except sqlite3.Error:
+            return receipts
+        finally:
+            conn.close()
+        for event_type, payload_text, timestamp in rows:
+            try:
+                payload = json.loads(payload_text)
+            except (TypeError, json.JSONDecodeError):
+                payload = {}
+            if not isinstance(payload, dict):
+                payload = {}
+            payload.setdefault("kind", str(event_type or "life_trace"))
+            payload.setdefault("timestamp", float(timestamp or time.time()))
+            receipt = self._receipt_from_payload(payload, source_hint="life_trace")
+            if receipt is not None:
+                receipts.append(receipt)
+        return receipts
+
+    def _load_coverage_receipts(self, root: Path) -> list[RuntimeReceipt]:
+        receipts: list[RuntimeReceipt] = []
+        receipts.extend(self._coverage_json_receipts(root / "coverage.json"))
+        receipts.extend(self._coverage_sqlite_receipts(root / ".coverage"))
+        receipts.extend(self._symbol_hit_receipts(root / ".aura_architect" / "telemetry" / "symbol_hits.jsonl"))
+        return receipts[: self.config.coverage_hit_limit]
+
+    def _coverage_json_receipts(self, path: Path) -> list[RuntimeReceipt]:
+        if not path.exists():
+            return []
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        files = payload.get("files") if isinstance(payload, dict) else None
+        if not isinstance(files, dict):
+            return []
+        receipts: list[RuntimeReceipt] = []
+        for file_path, file_payload in list(files.items())[: self.config.coverage_hit_limit]:
+            rel = self._normalize_receipt_path(file_path)
+            receipts.append(RuntimeReceipt(source="coverage.json", path=rel, timestamp=_safe_mtime(path), kind="coverage", payload={"path": rel, "coverage": file_payload}))
+        return receipts
+
+    def _coverage_sqlite_receipts(self, path: Path) -> list[RuntimeReceipt]:
+        if not path.exists():
+            return []
+        try:
+            conn = sqlite3.connect(path)
+        except sqlite3.Error:
+            return []
+        try:
+            rows = conn.execute("SELECT path FROM file LIMIT ?", (self.config.coverage_hit_limit,)).fetchall()
+        except sqlite3.Error:
+            return []
+        finally:
+            conn.close()
+        receipts: list[RuntimeReceipt] = []
+        for (file_path,) in rows:
+            rel = self._normalize_receipt_path(str(file_path))
+            receipts.append(RuntimeReceipt(source=".coverage", path=rel, timestamp=_safe_mtime(path), kind="coverage", payload={"path": rel}))
+        return receipts
+
+    def _symbol_hit_receipts(self, path: Path) -> list[RuntimeReceipt]:
+        if not path.exists():
+            return []
+        receipts: list[RuntimeReceipt] = []
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return receipts
+        for line in lines[-self.config.coverage_hit_limit:]:
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            receipt = self._receipt_from_payload(payload, source_hint="symbol_hits")
+            if receipt is not None:
+                receipts.append(receipt)
+        return receipts
+
+    def _receipt_from_payload(self, payload: Any, *, source_hint: str) -> RuntimeReceipt | None:
+        if not isinstance(payload, dict):
+            return None
+        timestamp = payload.get("created_at", payload.get("timestamp", payload.get("when", time.time())))
+        try:
+            timestamp_f = float(timestamp)
+        except (TypeError, ValueError):
+            timestamp_f = time.time()
+        return RuntimeReceipt(
+            source=str(payload.get("source", payload.get("event", source_hint))),
+            path=self._normalize_receipt_path(_path_from_payload(payload)),
+            timestamp=timestamp_f,
+            kind=str(payload.get("kind", payload.get("type", payload.get("event_type", "runtime")))),
+            payload=payload,
+        )
+
+    def _normalize_receipt_path(self, value: str) -> str:
+        raw = str(value or "").replace("\\", "/")
+        if not raw:
+            return ""
+        path = Path(raw)
+        if path.is_absolute():
+            try:
+                return path.resolve().relative_to(self.config.repo_root).as_posix()
+            except ValueError:
+                return raw
+        return raw[2:] if raw.startswith("./") else raw
 
     def _finalize_metrics(self, graph: ArchitectureGraph, parse_errors: list[str]) -> None:
         kind_counts = Counter(node.kind for node in graph.nodes.values())
         edge_counts = Counter(edge.kind for edge in graph.edges)
         surface_counts = Counter(surface.value for surfaces in graph.semantic_surfaces.values() for surface in surfaces)
         effect_counts = Counter(effect for node in graph.nodes.values() for effect in node.metadata.get("effects", ()))
+        receipt_kinds = Counter(receipt.kind for receipt in graph.runtime_receipts)
+        receipt_paths = {receipt.path for receipt in graph.runtime_receipts if receipt.path}
         graph.metrics.update(
             {
                 "files": kind_counts.get("file", 0),
@@ -241,6 +413,8 @@ class LiveArchitectureGraphBuilder:
                 "effects": dict(effect_counts),
                 "parse_errors": parse_errors,
                 "runtime_receipts": len(graph.runtime_receipts),
+                "runtime_receipts_by_kind": dict(receipt_kinds),
+                "runtime_receipt_paths": len(receipt_paths),
             }
         )
 
@@ -524,3 +698,41 @@ class _FileVisitor(ast.NodeVisitor):
 
 def _strip_ticks(value: str) -> str:
     return value.strip().strip("`").strip()
+
+
+def _safe_mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def _path_from_payload(payload: dict[str, Any]) -> str:
+    direct_keys = (
+        "path",
+        "file",
+        "file_path",
+        "source_path",
+        "target_path",
+        "target_module",
+        "module",
+    )
+    for key in direct_keys:
+        value = payload.get(key)
+        if isinstance(value, str) and _looks_like_source_path(value):
+            return value
+    for container_key in ("metadata", "context", "action_taken", "result", "memory_update", "verification_evidence"):
+        nested = payload.get(container_key)
+        if isinstance(nested, dict):
+            found = _path_from_payload(nested)
+            if found:
+                return found
+    target = payload.get("target")
+    if isinstance(target, str) and _looks_like_source_path(target):
+        return target
+    return ""
+
+
+def _looks_like_source_path(value: str) -> bool:
+    lowered = value.lower()
+    return lowered.endswith(".py") or "/" in lowered or lowered.startswith("core.") or lowered.startswith("tests.")

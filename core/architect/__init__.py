@@ -1,6 +1,7 @@
 """Autonomous Architecture Governor for Aura."""
 from __future__ import annotations
 
+from core.architect.behavior_oracle import SemanticBehaviorOracle
 from core.architect.config import ASAConfig
 from core.architect.governor import AutonomousArchitectureGovernor
 from core.architect.models import (
@@ -37,4 +38,5 @@ __all__ = [
     "RefactorStep",
     "RollbackPacket",
     "SemanticSurface",
+    "SemanticBehaviorOracle",
 ]

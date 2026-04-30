@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from core.architect.behavior_fingerprint import BehaviorFingerprinter
+from core.architect.behavior_oracle import SemanticBehaviorOracle
 from core.architect.code_graph import LiveArchitectureGraphBuilder
 from core.architect.config import ASAConfig
 from core.architect.ghost_boot import GhostBootRunner
@@ -172,6 +173,22 @@ def test_ghost_boot_fails_closed_on_unavailable_boot(tiny_repo: Path) -> None:
     shadow = ShadowWorkspaceManager(cfg).create(plan)
     report = GhostBootRunner(cfg).run(plan, shadow)
     assert report.result_map()["safe_boot"].status == "BOOT_HARNESS_UNAVAILABLE"
+    assert "not present" in report.result_map()["safe_boot"].evidence["reason"]
+
+
+def test_default_safe_boot_harness_runs_in_aura_repo() -> None:
+    proc = subprocess.run(
+        [sys.executable, "-B", "-m", "core.architect.safe_boot_harness"],
+        cwd=Path(__file__).resolve().parents[2],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout.splitlines()[-1])
+    assert payload["checks"]["architecture_governor_singleton"] is True
+    assert payload["checks"]["architecture_manifest"] is True
 
 
 def test_ghost_boot_succeeds_on_safe_import_smoke(tiny_repo: Path) -> None:
@@ -190,6 +207,74 @@ def test_behavior_fingerprint_compares_before_after(tiny_repo: Path) -> None:
     delta = fp.compare(before, after)
     assert isinstance(delta, BehaviorDelta)
     assert delta.equivalent
+
+
+def test_semantic_oracle_rejects_t2_public_api_removal(tmp_path: Path) -> None:
+    write(tmp_path / "pkg" / "__init__.py", "")
+    write(tmp_path / "pkg" / "mod.py", "def public_api(value):\n    return value\n")
+    cfg = config(tmp_path)
+    before = LiveArchitectureGraphBuilder(cfg).build(persist=False)
+    write(tmp_path / "pkg" / "mod.py", "VALUE = 1\n")
+    after = LiveArchitectureGraphBuilder(cfg).build(persist=False)
+    plan = RefactorPlan(
+        id="t2-api-removal",
+        objective="remove api",
+        risk_tier=MutationTier.T2_REFACTOR,
+        affected_files=("pkg/mod.py",),
+        affected_symbols=("public_api",),
+        semantic_surfaces=(SemanticSurface.UTILITY_PERIPHERAL,),
+        steps=(RefactorStep(id="s", description="edit", operation="replace_file", target_path="pkg/mod.py", new_content="VALUE = 1\n"),),
+        proof_obligations=("behavior_equivalence",),
+        expected_smell_reduction=(),
+        expected_behavior_delta="equivalent",
+        promotion_eligible=True,
+    )
+    result = SemanticBehaviorOracle().evaluate(
+        plan,
+        before,
+        after,
+        {"safe_boot": "passed", "changed_modules_import": "passed", "critical_tests": "passed"},
+    ).as_proof_result()
+    assert not result.passed
+    assert "public symbols removed" in result.evidence["regressions"][0]
+
+
+def test_runtime_receipt_ingestion_from_live_receipt_envelope(tmp_path: Path) -> None:
+    write(tmp_path / "pkg" / "__init__.py", "")
+    write(tmp_path / "pkg" / "mod.py", "def f():\n    return 1\n")
+    receipt = {
+        "schema_version": 1,
+        "payload": {
+            "kind": "tool_execution",
+            "created_at": 123.0,
+            "source": "test",
+            "metadata": {"path": "pkg/mod.py"},
+        },
+    }
+    write(tmp_path / "data" / "receipts" / "tool_execution" / "tool-1.json", json.dumps(receipt))
+    graph = LiveArchitectureGraphBuilder(config(tmp_path)).build(persist=False)
+    assert graph.metrics["runtime_receipts"] >= 1
+    assert graph.metrics["runtime_receipts_by_kind"]["tool_execution"] == 1
+    assert any(receipt.path == "pkg/mod.py" for receipt in graph.runtime_receipts)
+
+
+def test_coverage_backed_dead_code_telemetry_suppresses_dead_symbol(tmp_path: Path) -> None:
+    write(tmp_path / "pkg" / "__init__.py", "")
+    write(tmp_path / "pkg" / "mod.py", "def maybe_runtime_only():\n    return 1\n")
+    write(tmp_path / "coverage.json", json.dumps({"files": {"pkg/mod.py": {"executed_lines": [1, 2]}}}))
+    graph = LiveArchitectureGraphBuilder(config(tmp_path)).build(persist=False)
+    smells = SmellDetector(config(tmp_path)).detect(graph)
+    assert not any(smell.kind == "dead_symbol_candidate" and smell.symbol == "maybe_runtime_only" for smell in smells)
+
+
+def test_boot_audit_writes_high_risk_t4_proposals(tmp_path: Path) -> None:
+    write(tmp_path / "pkg" / "__init__.py", "")
+    write(tmp_path / "pkg" / "tool.py", "def f():\n    return execute_tool('x')\n")
+    cfg = config(tmp_path)
+    report = AutonomousArchitectureGovernor(cfg).boot_audit(proposal_limit=2)
+    assert report["high_risk_proposals"]
+    proposal_id = report["high_risk_proposals"][0]["plan_id"]
+    assert (tmp_path / ".aura_architect" / "proposals" / f"{proposal_id}.json").exists()
 
 
 def test_proof_obligation_rejects_missing_rollback(tiny_repo: Path) -> None:

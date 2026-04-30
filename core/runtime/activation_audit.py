@@ -162,10 +162,23 @@ async def _register_architecture_governor(orchestrator: Any) -> Any:
         ServiceContainer.register_instance("architecture_governor", governor, required=False)
     if not ServiceContainer.has("autonomous_architecture_governor"):
         ServiceContainer.register_instance("autonomous_architecture_governor", governor, required=False)
+    boot_audit_scheduled = False
+    if getattr(governor.config, "enabled", False):
+        try:
+            from core.utils.task_tracker import get_task_tracker
+
+            get_task_tracker().create_task(
+                governor.boot_background_audit(),
+                name="ArchitectureGovernorBootAudit",
+            )
+            boot_audit_scheduled = True
+        except (ImportError, AttributeError, RuntimeError):
+            boot_audit_scheduled = False
     return {
         "registered": True,
         "mode": "autopromote" if governor.config.autopromote else "audit_only",
         "max_tier": governor.config.max_tier.name,
+        "boot_audit_scheduled": boot_audit_scheduled,
     }
 
 

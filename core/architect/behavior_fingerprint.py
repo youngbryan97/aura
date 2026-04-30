@@ -45,6 +45,8 @@ class BehaviorFingerprinter:
                 high_fan_in=self.config.high_fan_in,
                 high_fan_out=self.config.high_fan_out,
                 safe_boot_command=self.config.safe_boot_command,
+                runtime_receipt_limit=self.config.runtime_receipt_limit,
+                coverage_hit_limit=self.config.coverage_hit_limit,
                 broader_pytest=self.config.broader_pytest,
                 env=self.config.env,
             )
@@ -70,14 +72,20 @@ class BehaviorFingerprinter:
                 if node.kind == "file" and "service_container_register" in node.metadata.get("effects", ())
             )
         )
+        receipt_kinds = graph.metrics.get("runtime_receipts_by_kind", {})
         optional = {
             "phi": "not_available",
             "gwt": "not_available",
             "affect_neurochemical": "not_available",
-            "memory_consolidation_receipts": "not_available",
-            "tool_capability_receipts": "not_available",
+            "memory_consolidation_receipts": receipt_kinds.get("memory_write", 0),
+            "tool_capability_receipts": {
+                "tool_execution": receipt_kinds.get("tool_execution", 0),
+                "capability": receipt_kinds.get("capability", 0),
+            },
             "identity_consistency": "not_available",
             "response_fingerprints": "not_available",
+            "runtime_receipts_by_kind": receipt_kinds,
+            "runtime_receipt_paths": graph.metrics.get("runtime_receipt_paths", 0),
         }
         fingerprint_id = hashlib.sha256(
             f"{cfg.repo_root}:{graph.metrics.get('nodes')}:{graph.metrics.get('edges')}:{changed_files}".encode("utf-8")

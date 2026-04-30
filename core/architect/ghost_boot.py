@@ -11,7 +11,7 @@ from typing import Any
 
 from core.architect.code_graph import LiveArchitectureGraphBuilder
 from core.architect.config import ASAConfig
-from core.architect.models import ProofResult, RefactorPlan
+from core.architect.models import MutationTier, ProofResult, RefactorPlan
 from core.architect.shadow_workspace import ShadowRun, ShadowWorkspaceManager, python_executable
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -49,7 +49,11 @@ class GhostBootRunner:
             results.append(self._broader_pytest(manager, shadow))
         results.append(self._safe_boot_check(manager, shadow))
         results.append(self._minimal_runtime_simulation(manager, shadow))
-        passed = all(result.passed or result.status == "BOOT_HARNESS_UNAVAILABLE" for result in results)
+        passed = all(
+            result.passed
+            or (plan.risk_tier <= MutationTier.T1_CLEANUP and result.status == "BOOT_HARNESS_UNAVAILABLE")
+            for result in results
+        )
         report = GhostBootReport(
             run_id=shadow.run_id,
             passed=passed,
@@ -114,6 +118,8 @@ class GhostBootRunner:
             high_fan_in=self.config.high_fan_in,
             high_fan_out=self.config.high_fan_out,
             safe_boot_command=self.config.safe_boot_command,
+            runtime_receipt_limit=self.config.runtime_receipt_limit,
+            coverage_hit_limit=self.config.coverage_hit_limit,
             broader_pytest=self.config.broader_pytest,
             env=self.config.env,
         )
@@ -208,6 +214,16 @@ class GhostBootRunner:
                 passed=False,
                 status="BOOT_HARNESS_UNAVAILABLE",
                 evidence={"reason": "AURA_ASA_SAFE_BOOT_COMMAND is not configured"},
+            )
+        if (
+            "core.architect.safe_boot_harness" in " ".join(self.config.safe_boot_command)
+            and not (Path(shadow.shadow_root) / "core" / "architect" / "safe_boot_harness.py").exists()
+        ):
+            return ProofResult(
+                obligation_id="safe_boot",
+                passed=False,
+                status="BOOT_HARNESS_UNAVAILABLE",
+                evidence={"reason": "default Aura safe boot harness is not present in this repository"},
             )
         result = manager.run_command(shadow, self.config.safe_boot_command, timeout=self.config.shadow_timeout)
         return ProofResult(

@@ -191,6 +191,7 @@ class SmellDetector:
 
     def _dead_symbols(self, graph: ArchitectureGraph) -> list[ArchitecturalSmell]:
         inbound: Counter[str] = Counter(edge.target for edge in graph.edges if edge.kind in {"calls", "inherits", "tests"})
+        runtime_hits = _runtime_hit_index(graph)
         smells: list[ArchitecturalSmell] = []
         for node in graph.nodes.values():
             if node.kind not in {"function", "async_function", "class"}:
@@ -201,6 +202,8 @@ class SmellDetector:
                 continue
             if self.config.is_protected(node.path) or node.path.startswith("tests/"):
                 continue
+            if _has_runtime_hit(runtime_hits, node):
+                continue
             smells.append(
                 ArchitecturalSmell(
                     id=f"dead-symbol-{_slug(node.qualified_name)}",
@@ -208,10 +211,10 @@ class SmellDetector:
                     severity=SmellSeverity.LOW,
                     path=node.path,
                     symbol=node.name,
-                    evidence=("zero static inbound call/test/inheritance edges",),
+                    evidence=("zero static inbound call/test/inheritance edges", "zero runtime receipt or coverage hits"),
                     graph_refs=(node.id,),
                     suggested_tier=MutationTier.T1_CLEANUP,
-                    proof_obligations=("static_reachability_proof", "shadow_imports_pass", "quarantine_manifest"),
+                    proof_obligations=("static_reachability_proof", "coverage_backed_deadness", "shadow_imports_pass", "quarantine_manifest"),
                     auto_fixable=False,
                 )
             )
@@ -383,6 +386,29 @@ def _approved_subprocess_path(path: str) -> bool:
 
 def _has_receipt(graph: ArchitectureGraph, path: str) -> bool:
     return any(receipt.path == path or path in str(receipt.payload) for receipt in graph.runtime_receipts)
+
+
+def _runtime_hit_index(graph: ArchitectureGraph) -> dict[str, set[str]]:
+    hits: dict[str, set[str]] = {"paths": set(), "symbols": set(), "payload_text": set()}
+    for receipt in graph.runtime_receipts:
+        if receipt.path:
+            hits["paths"].add(receipt.path)
+        symbol = receipt.payload.get("symbol") or receipt.payload.get("qualified_name") or receipt.payload.get("function")
+        if isinstance(symbol, str) and symbol:
+            hits["symbols"].add(symbol)
+        payload_text = str(receipt.payload)
+        if len(payload_text) <= 12000:
+            hits["payload_text"].add(payload_text)
+    return hits
+
+
+def _has_runtime_hit(hits: dict[str, set[str]], node) -> bool:
+    if node.path in hits["paths"]:
+        return True
+    if node.qualified_name in hits["symbols"] or node.name in hits["symbols"]:
+        return True
+    needles = (node.qualified_name, node.name, node.path)
+    return any(any(needle and needle in payload for needle in needles) for payload in hits["payload_text"])
 
 
 def _resolve_import_path(target: str, module_paths: dict[str, str]) -> str:

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import shlex
+import sys
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
@@ -82,6 +84,10 @@ DEFAULT_EXCLUDES: tuple[str, ...] = (
 )
 
 
+def default_safe_boot_command() -> tuple[str, ...]:
+    return (sys.executable or "python3", "-B", "-m", "core.architect.safe_boot_harness")
+
+
 @dataclass(frozen=True)
 class ASAConfig:
     repo_root: Path
@@ -99,7 +105,9 @@ class ASAConfig:
     god_class_lines: int = 300
     high_fan_in: int = 25
     high_fan_out: int = 35
-    safe_boot_command: tuple[str, ...] = ()
+    safe_boot_command: tuple[str, ...] = field(default_factory=default_safe_boot_command)
+    runtime_receipt_limit: int = 2000
+    coverage_hit_limit: int = 20000
     broader_pytest: bool = False
     env: dict[str, str] = field(default_factory=dict)
 
@@ -114,13 +122,15 @@ class ASAConfig:
             or os.environ.get("AURA_ASA_REPO_ROOT")
             or os.getcwd()
         ).resolve()
-        enabled = _env_bool("AURA_ASA_ENABLED", False)
+        enabled = _env_bool("AURA_ASA_ENABLED", True)
         autopromote = _env_bool("AURA_ASA_AUTOPROMOTE", False)
         max_tier = MutationTier.parse(os.environ.get("AURA_ASA_MAX_TIER", "T1"))
         timeout = float(os.environ.get("AURA_ASA_SHADOW_TIMEOUT", "30"))
         observation = float(os.environ.get("AURA_ASA_OBSERVATION_WINDOW", "10"))
         protected = _merge_patterns(DEFAULT_PROTECTED_PATHS, os.environ.get("AURA_ASA_PROTECTED_PATHS", ""))
-        safe_boot = tuple(part for part in os.environ.get("AURA_ASA_SAFE_BOOT_COMMAND", "").split(" ") if part)
+        safe_boot = _safe_boot_command_from_env(os.environ.get("AURA_ASA_SAFE_BOOT_COMMAND", ""))
+        runtime_receipt_limit = int(os.environ.get("AURA_ASA_RECEIPT_LIMIT", "2000"))
+        coverage_hit_limit = int(os.environ.get("AURA_ASA_COVERAGE_HIT_LIMIT", "20000"))
         return cls(
             repo_root=root,
             enabled=enabled,
@@ -130,6 +140,8 @@ class ASAConfig:
             observation_window=observation,
             protected_paths=protected,
             safe_boot_command=safe_boot,
+            runtime_receipt_limit=runtime_receipt_limit,
+            coverage_hit_limit=coverage_hit_limit,
             env=dict(os.environ),
         )
 
@@ -167,6 +179,15 @@ def _env_bool(name: str, default: bool) -> bool:
 def _merge_patterns(base: tuple[str, ...], extra: str) -> tuple[str, ...]:
     additions = tuple(part.strip() for part in extra.split(os.pathsep) if part.strip())
     return tuple(dict.fromkeys(base + additions))
+
+
+def _safe_boot_command_from_env(raw: str) -> tuple[str, ...]:
+    value = raw.strip()
+    if not value:
+        return default_safe_boot_command()
+    if value.lower() in {"0", "false", "off", "disabled", "none"}:
+        return ()
+    return tuple(shlex.split(value))
 
 
 def _clean_rel(path: str) -> str:

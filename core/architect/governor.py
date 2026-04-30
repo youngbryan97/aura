@@ -1,6 +1,7 @@
 """Top-level Autonomous Architecture Governor orchestration."""
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import asdict
 from pathlib import Path
@@ -58,6 +59,54 @@ class AutonomousArchitectureGovernor:
         reports.mkdir(parents=True, exist_ok=True)
         atomic_write_text(reports / "audit-latest.json", json.dumps(report, indent=2, sort_keys=True, default=str))
         return report
+
+    async def boot_background_audit(self, *, proposal_limit: int = 5) -> dict[str, Any]:
+        return await asyncio.to_thread(self.boot_audit, proposal_limit=proposal_limit)
+
+    def boot_audit(self, *, proposal_limit: int = 5) -> dict[str, Any]:
+        graph = self.build_graph()
+        smells = self.detect_smells(graph)
+        proposals = self.write_high_risk_proposals(graph, smells, limit=proposal_limit)
+        report = {
+            "repo_root": str(self.config.repo_root),
+            "enabled": self.config.enabled,
+            "mode": "autopromote" if self.config.autopromote else "audit_only",
+            "max_tier": self.config.max_tier.name,
+            "graph_metrics": graph.metrics,
+            "smell_count": len(smells),
+            "high_risk_proposals": proposals,
+        }
+        reports = self.config.artifacts / "reports"
+        reports.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(reports / "boot-audit-latest.json", json.dumps(report, indent=2, sort_keys=True, default=str))
+        return report
+
+    def write_high_risk_proposals(
+        self,
+        graph: ArchitectureGraph,
+        smells: list[ArchitecturalSmell],
+        *,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        selected = [
+            smell for smell in smells
+            if smell.suggested_tier >= MutationTier.T4_GOVERNANCE_SENSITIVE
+        ][: max(0, limit)]
+        proposals: list[dict[str, Any]] = []
+        for smell in selected:
+            plan = self.planner.plan_for_smell(smell, graph)
+            self.planner.persist_plan(plan)
+            proposals.append(
+                {
+                    "smell_id": smell.id,
+                    "kind": smell.kind,
+                    "path": smell.path,
+                    "plan_id": plan.id,
+                    "tier": plan.risk_tier.name,
+                    "proposal_only": plan.risk_tier.proposal_only,
+                }
+            )
+        return proposals
 
     def plan(self, target: str) -> RefactorPlan:
         graph = self.build_graph()

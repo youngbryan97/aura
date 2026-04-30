@@ -5,7 +5,9 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from core.architect.behavior_oracle import SemanticBehaviorOracle
 from core.architect.behavior_fingerprint import BehaviorFingerprinter
+from core.architect.code_graph import LiveArchitectureGraphBuilder
 from core.architect.config import ASAConfig
 from core.architect.ghost_boot import GhostBootReport
 from core.architect.models import (
@@ -27,6 +29,7 @@ class ProofVerifier:
         self.config = config or ASAConfig.from_env()
         self.classifier = MutationClassifier(self.config)
         self.fingerprinter = BehaviorFingerprinter(self.config)
+        self.semantic_oracle = SemanticBehaviorOracle()
 
     def verify(
         self,
@@ -48,14 +51,25 @@ class ProofVerifier:
             results.append(ProofResult("declared_improvement_target", "improved" in plan.expected_behavior_delta.lower(), "passed" if "improved" in plan.expected_behavior_delta.lower() else "failed"))
         else:
             results.append(ProofResult("proposal_only_for_t4_t5", True, "proposal_only", {"tier": plan.risk_tier.name}))
-        before = self.fingerprinter.capture(root=baseline_root or self.config.repo_root, changed_files=plan.changed_files)
+        baseline = baseline_root or self.config.repo_root
+        candidate = candidate_root or self.config.repo_root
+        before_graph = self._graph_for_root(baseline)
+        after_graph = self._graph_for_root(candidate, artifact_root=Path(ghost.artifact_path).parent / "semantic_oracle")
+        before = self.fingerprinter.capture(root=baseline, changed_files=plan.changed_files)
         after = self.fingerprinter.capture(
-            root=candidate_root or self.config.repo_root,
+            root=candidate,
             proof_results=tuple(ghost.results),
             changed_files=plan.changed_files,
             artifact_root=Path(ghost.artifact_path).parent / "fingerprint",
         )
         delta = self.fingerprinter.compare(before, after)
+        oracle_result = self.semantic_oracle.evaluate(
+            plan,
+            before_graph,
+            after_graph,
+            {result.obligation_id: result.status for result in ghost.results},
+        ).as_proof_result()
+        results.append(oracle_result)
         if not delta.equivalent:
             results.append(ProofResult("behavior_fingerprint_equivalent", False, "failed", {"regressions": list(delta.regressions)}))
         else:
@@ -72,6 +86,31 @@ class ProofVerifier:
         receipt_path = Path(ghost.artifact_path).parent / "proof_receipt.json"
         atomic_write_text(receipt_path, json.dumps(asdict(receipt), indent=2, sort_keys=True, default=str))
         return receipt
+
+    def _graph_for_root(self, root: Path, *, artifact_root: Path | None = None):
+        cfg = ASAConfig(
+            repo_root=root,
+            enabled=self.config.enabled,
+            autopromote=self.config.autopromote,
+            max_tier=self.config.max_tier,
+            shadow_timeout=self.config.shadow_timeout,
+            observation_window=self.config.observation_window,
+            artifact_root=artifact_root or self.config.artifacts,
+            protected_paths=self.config.protected_paths,
+            sealed_paths=self.config.sealed_paths,
+            excludes=self.config.excludes,
+            retain_shadow_runs=self.config.retain_shadow_runs,
+            god_file_lines=self.config.god_file_lines,
+            god_class_lines=self.config.god_class_lines,
+            high_fan_in=self.config.high_fan_in,
+            high_fan_out=self.config.high_fan_out,
+            safe_boot_command=self.config.safe_boot_command,
+            runtime_receipt_limit=self.config.runtime_receipt_limit,
+            coverage_hit_limit=self.config.coverage_hit_limit,
+            broader_pytest=self.config.broader_pytest,
+            env=self.config.env,
+        )
+        return LiveArchitectureGraphBuilder(cfg).build(persist=False)
 
     def _universal(self, plan: RefactorPlan, ghost: GhostBootReport, rollback_packet: RollbackPacket | None) -> list[ProofResult]:
         changed = set(plan.changed_files)
