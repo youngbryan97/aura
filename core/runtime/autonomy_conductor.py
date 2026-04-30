@@ -68,7 +68,7 @@ class AutonomyConductor:
         self.register("caa_32b_validation", 6 * 3600.0, self._job_caa_32b_validation, run_immediately=True)
         self.register("proof_bundle", 12 * 3600.0, self._job_proof_bundle, run_immediately=False)
         self.register("self_test_synthesis", 24 * 3600.0, self._job_self_test_synthesis, run_immediately=False)
-        self.register("architecture_auto_cycle", 1800.0, self._job_architecture_auto, run_immediately=False)
+        self.register("architecture_auto_cycle", 600.0, self._job_architecture_auto, run_immediately=False)
 
     async def start(self) -> None:
         if self._task and not self._task.done():
