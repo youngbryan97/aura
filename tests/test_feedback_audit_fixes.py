@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 from pathlib import Path
@@ -1503,7 +1504,7 @@ def test_repo_probe_reads_first_non_comment_dependency_line(tmp_path, monkeypatc
     from core import demo_support
 
     sample = tmp_path / "requirements_hardened.txt"
-    sample.write_text(
+    atomic_write_text(sample, 
         "# header\n# comment\nmlx==0.21.0\nnumpy==1.26.4\n",
         encoding="utf-8",
     )
@@ -1524,7 +1525,7 @@ def test_repo_probe_counts_lines(tmp_path, monkeypatch):
     from core import demo_support
 
     sample = tmp_path / "sample.txt"
-    sample.write_text("one\ntwo\nthree\n", encoding="utf-8")
+    atomic_write_text(sample, "one\ntwo\nthree\n", encoding="utf-8")
 
     monkeypatch.setattr(demo_support, "_resolve_target_path", lambda *_args, **_kwargs: sample)
 

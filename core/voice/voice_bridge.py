@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import Optional, AsyncGenerator
@@ -33,7 +34,7 @@ class VoiceConversationBridge:
             self._active_utterance_task.cancel()
             
         # 2. Process through the full cognitive pipeline
-        self._active_utterance_task = asyncio.create_task(
+        self._active_utterance_task = get_task_tracker().create_task(
             self._orch.process_user_input(text, origin="voice")
         )
         
@@ -89,14 +90,14 @@ class VoiceConversationBridge:
                             voice_engine.speak_nonblocking(chunk)
                         elif hasattr(voice_engine, "speak"):
                             # If it's pure async we schedule it
-                            asyncio.create_task(voice_engine.speak(chunk))
+                            get_task_tracker().create_task(voice_engine.speak(chunk))
                             
             # Flush any remaining text in the buffer
             if buffer.strip():
                 if hasattr(voice_engine, "speak_nonblocking"):
                     voice_engine.speak_nonblocking(buffer.strip())
                 elif hasattr(voice_engine, "speak"):
-                    asyncio.create_task(voice_engine.speak(buffer.strip()))
+                    get_task_tracker().create_task(voice_engine.speak(buffer.strip()))
                     
         except Exception as e:
             logger.error("VoiceBridge Stream Error: %s", e)

@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 from collections import deque
 import logging
@@ -27,7 +28,7 @@ class SystemGovernor:
     async def start(self):
         self._is_running = True
         logger.info("🛡️ SystemGovernor online. Monitoring autonomic thresholds.")
-        asyncio.create_task(self._health_check_loop())
+        get_task_tracker().create_task(self._health_check_loop())
         
     async def stop(self):
         self._is_running = False

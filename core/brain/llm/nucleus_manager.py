@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 import logging
 import asyncio
@@ -50,7 +51,7 @@ class NucleusManager(LLMProvider):
     async def ensure_listener_started(self):
         """Start the event listener if not already running. Call from async context."""
         if self._listener_task is None and self.bus is not None:
-            self._listener_task = asyncio.create_task(self._listen_for_updates())
+            self._listener_task = get_task_tracker().create_task(self._listen_for_updates())
 
     async def _listen_for_updates(self):
         """Listens for LoRA optimization successes and flags for reload."""

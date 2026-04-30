@@ -143,7 +143,7 @@ class StatusManagerMixin:
             logger.error("Telemetry pulse failure: %s", exc)
             if hasattr(self, "_recover_from_stall"):
                 from core.utils.task_tracker import get_task_tracker
-                get_task_tracker().track(asyncio.create_task(self._recover_from_stall()))
+                get_task_tracker().track(self._recover_from_stall())
 
     def _emit_telemetry(self, flow: str, text: str):
         """Helper to send updates to Thought Stream UI."""

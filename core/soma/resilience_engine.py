@@ -15,8 +15,9 @@ Three states:
     STRAIN     — Sustained frustration, requires strategy change.
     DEPLETION  — Deep exhaustion, requires rest, not more effort.
 """
-
 from __future__ import annotations
+
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -86,7 +87,7 @@ class ResilienceEngine:
         }
 
     async def start(self):
-        self._update_task = asyncio.create_task(
+        self._update_task = get_task_tracker().create_task(
             self._decay_loop(), name="resilience_decay"
         )
         logger.info("💪 [Resilience] Spinal cord online.")

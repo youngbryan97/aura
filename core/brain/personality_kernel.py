@@ -1,6 +1,7 @@
 """core/personality_kernel.py - Immutable Identity Core
 Enforces immutability and cryptographic integrity for Aura's identity.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import hashlib
 import hmac
 import json
@@ -55,7 +56,7 @@ class PersonalityKernel:
             # First boot: write the seal to lock the core
             try:
                 self.seal_file.parent.mkdir(parents=True, exist_ok=True)
-                self.seal_file.write_text(signature)
+                atomic_write_text(self.seal_file, signature)
                 logger.info("Identity seal initialized and locked: %s...", signature[:16])
                 return True
             except Exception as e:

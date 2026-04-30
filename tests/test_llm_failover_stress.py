@@ -13,8 +13,8 @@ Mocks actual LLM calls but exercises the full routing logic including:
 
 No live LLM or network calls required.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import sys

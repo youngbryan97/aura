@@ -10,8 +10,8 @@ Tuning constants that REPLACE the old suppression values:
     IDLE_THRESHOLD_SECONDS  = 12    (was 45)
     DREAM_SUPPRESSION       = False (was 60s cooldown)
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

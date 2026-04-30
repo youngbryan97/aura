@@ -25,8 +25,8 @@ References:
   - Clark, A. (2013). Whatever next? Predictive brains, situated agents.
   - Hohwy, J. (2013). The Predictive Mind.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

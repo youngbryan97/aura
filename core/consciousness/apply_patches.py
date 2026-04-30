@@ -4,8 +4,8 @@ The continuity persistence and audit-driven self-development behaviors now
 live natively in their primary modules. This entry point remains so older boot
 paths can keep calling it safely; it only starts the loop monitor.
 """
-
 from __future__ import annotations
+
 
 import logging
 from typing import Any

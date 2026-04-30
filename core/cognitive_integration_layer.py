@@ -5,6 +5,7 @@ Synthesizes the modular intelligence pipeline into a single service.
 This class acts as the 'Advanced Cognition' hub, coordinating the
 CognitiveKernel, InnerMonologue, and LanguageCenter.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -322,7 +323,7 @@ class CognitiveIntegrationLayer:
             return "Cognitive kernel offline."
 
         history = await _extract_history(context)
-        inference_task = asyncio.create_task(_run_inline_inference(message, history))
+        inference_task = get_task_tracker().create_task(_run_inline_inference(message, history))
 
         # 1. Evaluate (Kernel reasoning)
         # kernel.evaluate returns a CognitiveBrief

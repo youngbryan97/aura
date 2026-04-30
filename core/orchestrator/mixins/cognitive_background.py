@@ -75,7 +75,7 @@ class CognitiveBackgroundMixin:
                 time_str=self._get_current_time_str(),
             )
             try:
-                reflect_task = asyncio.create_task(reflect_coro)
+                reflect_task = get_task_tracker().create_task(reflect_coro)
             except RuntimeError:
                 _dispose_awaitable(reflect_coro)
             else:
@@ -103,7 +103,7 @@ class CognitiveBackgroundMixin:
             from core.utils.task_tracker import get_task_tracker
             learn_coro = self._learn_from_exchange(original_msg, response)
             try:
-                learn_task = asyncio.create_task(learn_coro)
+                learn_task = get_task_tracker().create_task(learn_coro)
             except RuntimeError:
                 _dispose_awaitable(learn_coro)
             else:
@@ -124,7 +124,7 @@ class CognitiveBackgroundMixin:
                 curiosity_result = self.curiosity.extract_curiosity_from_conversation(original_msg)
                 if inspect.isawaitable(curiosity_result):
                     try:
-                        curiosity_task = asyncio.create_task(curiosity_result)
+                        curiosity_task = get_task_tracker().create_task(curiosity_result)
                     except RuntimeError:
                         _dispose_awaitable(curiosity_result)
                     else:
@@ -143,7 +143,7 @@ class CognitiveBackgroundMixin:
                     context={"world_state": self._get_world_context()}
                 )
                 try:
-                    belief_task = asyncio.create_task(belief_coro)
+                    belief_task = get_task_tracker().create_task(belief_coro)
                 except RuntimeError:
                     _dispose_awaitable(belief_coro)
                 else:

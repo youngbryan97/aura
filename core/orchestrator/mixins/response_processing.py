@@ -1,6 +1,7 @@
 """Response Processing Mixin for RobustOrchestrator.
 Extracts response finalization, reflexes, fast-path, and history recording logic.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import inspect
 import logging
@@ -407,7 +408,7 @@ class ResponseProcessingMixin:
 
                 # Fire the reflex asynchronously since we are in a sync generator
                 import asyncio
-                asyncio.create_task(self.reflex_engine.process_emergency_interrupt(clean_msg, context="text_chat"))
+                get_task_tracker().create_task(self.reflex_engine.process_emergency_interrupt(clean_msg, context="text_chat"))
 
                 if clean_msg == "SAFEMODE_ENGAGE":
                     return "Safemode engaged. All autonomous cognitive pathways suspended."

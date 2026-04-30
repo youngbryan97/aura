@@ -4,6 +4,7 @@ Asynchronous Tool Execution Environment.
 Grants Aura the ability to run Python scripts and search the web to resolve 
 knowledge gaps dynamically.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
 import tempfile
@@ -56,7 +57,7 @@ class ToolOrchestrator:
         import tempfile, json
         
         tmp_path = self.sandbox_dir / "temp_validation.py"
-        await asyncio.to_thread(lambda: tmp_path.write_text(script_content)) or None
+        await asyncio.to_thread(lambda: atomic_write_text(tmp_path, script_content)) or None
         report = CodeGuardian.validate_code(tmp_path)
         await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
         

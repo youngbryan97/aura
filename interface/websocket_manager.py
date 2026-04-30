@@ -4,6 +4,7 @@ Extracted from server.py — WebSocket connection management,
 broadcast infrastructure, and UI event normalization.
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import collections
@@ -319,7 +320,7 @@ class WebSocketManager:
                     except Exception:
                         disconnect_later.append(websocket)
         for websocket in disconnect_later:
-            asyncio.create_task(self.disconnect(websocket))
+            get_task_tracker().create_task(self.disconnect(websocket))
 
     def count(self) -> int:
         return len(self.active_connections)

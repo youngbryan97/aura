@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import psutil
 try:
@@ -57,7 +58,7 @@ class CoreRuntime:
                     
                     cls._instance = instance
                     # Start the eternal loop
-                    asyncio.create_task(eternal_lifecycle())
+                    get_task_tracker().create_task(eternal_lifecycle())
         return cls._instance
 
     @classmethod

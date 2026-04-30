@@ -153,6 +153,54 @@ def register_all_services(is_proxy: bool = False):
     container.register('tension_engine', _create_tension_engine, lifetime=ServiceLifetime.SINGLETON)
     container.register('initiative_arbiter', _create_initiative_arbiter, lifetime=ServiceLifetime.SINGLETON)
 
+    # ── Round-3 active modules: Sentrux-equivalent + Kame tandem ────────
+    # These are wired here so they're reachable from the live runtime as
+    # named services. Sentrux: architecture-quality gate (gates self-mods
+    # that would regress the score). Kame: opt-in fast/slow tandem with
+    # oracle injection (attach_tandem at first router resolve).
+    def _create_architecture_quality_gate():
+        from pathlib import Path
+        from core.architecture_quality import (
+            ArchitectureQualityGate,
+            install_gate,
+        )
+        repo_root = Path(__file__).resolve().parent.parent
+        gate = ArchitectureQualityGate(root=repo_root)
+        try:
+            install_gate(gate)
+        except Exception as exc:
+            logger.debug("Architecture-quality gate install non-fatal failure: %s", exc)
+        return gate
+
+    container.register(
+        'architecture_quality_gate',
+        _create_architecture_quality_gate,
+        lifetime=ServiceLifetime.SINGLETON,
+        required=False,
+    )
+
+    def _create_tandem_kame():
+        try:
+            from core.brain.llm.tandem_router import attach_tandem
+            router = container.get("llm_router", default=None)
+            if router is None:
+                router = container.get("llm_health_router", default=None)
+            if router is None:
+                return None
+            fast = getattr(router, "fast_client", None) or router
+            slow = getattr(router, "deep_client", None) or router
+            return attach_tandem(router, fast=fast, slow=slow)
+        except Exception as exc:
+            logger.debug("Kame tandem attach skipped: %s", exc)
+            return None
+
+    container.register(
+        'tandem_kame',
+        _create_tandem_kame,
+        lifetime=ServiceLifetime.SINGLETON,
+        required=False,
+    )
+
     # Patch 27: Container lock deferred to aura_main.py after all top-level components register
     logger.info("✅ All modular services registered and validated (Lock deferred).")
     return container

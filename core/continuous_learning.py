@@ -3,6 +3,7 @@
 Bridges experience logging, pattern extraction, and autonomous research 
 to ensure Aura progressively evolves from every interaction.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import hashlib
 import json
@@ -206,7 +207,7 @@ class ContinuousLearningEngine(AuraBaseModule):
 
             # Immediate knowledge extraction if possible
             if self.orchestrator and hasattr(self.orchestrator, "cognitive_engine"):
-                asyncio.create_task(self._extract_knowledge_async(user_input, aura_response))
+                get_task_tracker().create_task(self._extract_knowledge_async(user_input, aura_response))
             
             return exp_id
             

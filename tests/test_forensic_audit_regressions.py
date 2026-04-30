@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import importlib.util
 import os
@@ -82,7 +83,7 @@ def test_plugin_manager_allows_normal_dunder_init_and_blocks_dangerous_dunder_ac
     manager = PluginManager(plugin_dir=str(tmp_path))
 
     ok_file = tmp_path / "ok.py"
-    ok_file.write_text(
+    atomic_write_text(ok_file, 
         "class MyPlugin:\n"
         "    def __init__(self):\n"
         "        self.value = 1\n",
@@ -91,7 +92,7 @@ def test_plugin_manager_allows_normal_dunder_init_and_blocks_dangerous_dunder_ac
     assert manager.validate_plugin(str(ok_file)) is True
 
     bad_file = tmp_path / "bad.py"
-    bad_file.write_text(
+    atomic_write_text(bad_file, 
         "class MyPlugin:\n"
         "    def leak(self, obj):\n"
         "        return obj.__subclasses__()\n",

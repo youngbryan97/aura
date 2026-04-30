@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from core.consciousness.executive_authority import get_executive_authority
 from core.container import ServiceContainer
+from core.utils.task_tracker import get_task_tracker
 from core.kernel.bridge import LegacyPhase
 from core.kernel.organs import OrganStub
 from core.kernel.upgrades_10x import (
@@ -241,7 +242,7 @@ class AuraKernel:
 
             task = get_task_tracker().create_task(coro, name=name)
         except Exception:
-            task = asyncio.create_task(coro, name=name)
+            task = get_task_tracker().create_task(coro, name=name)
             try:
                 task._aura_supervised = True
                 task._aura_task_tracker = "AuraKernel"
@@ -677,7 +678,7 @@ class AuraKernel:
                 # so phases will complete or fail on their own without kernel-level
                 # cancellation.
                 try:
-                    phase_task = asyncio.create_task(
+                    phase_task = get_task_tracker().create_task(
                         wrap_phase(
                             phase_name,
                             phase.execute,

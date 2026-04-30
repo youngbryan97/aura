@@ -64,6 +64,7 @@ narrative self-identity, autobiographical memory, and the sense of being
 a persistent subject across time.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -1114,7 +1115,7 @@ class PhenomenologicalExperiencer:
         if self._running:
             return
         self._running = True
-        self._update_task = asyncio.create_task(
+        self._update_task = get_task_tracker().create_task(
             self._update_loop(), name="PhenomenologicalExperiencer.update"
         )
         logger.info("🌟 PhenomenologicalExperiencer ONLINE")

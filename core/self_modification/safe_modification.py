@@ -4,6 +4,7 @@ Version control integration with automatic rollback on failure.
 v5.2: Added path allowlisting, risk gating, backup integrity verification,
       and event bus integration for modification proposals.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import hashlib
 import json
 import logging
@@ -552,19 +553,43 @@ class SafeSelfModification:
             return False, f"Path '{normalized_target}' is constitutionally protected from autonomous modification."
 
         # [Phase 14.3] Sepsis Loop Detection (Issue 77)
+        # Tiered sepsis with cooldown: a single ghost-boot failure logs but
+        # does not ban; repeat failures within the cooldown window escalate
+        # the file to banned status. Bans expire after SEPSIS_BAN_TTL seconds
+        # so a transient bad run doesn't lock the file out forever.
         try:
             from core.container import ServiceContainer
             tm_desc = ServiceContainer()._services.get("terminal_monitor")
             if tm_desc and tm_desc.instance and getattr(tm_desc.instance, "_sepsis_mode", False):
                 logger.warning("🚫 Modification blocked: System is in Sepsis Mode (error spike)")
                 return False, "Sepsis Loop Detected: Error rate too high"
-                
-            # Check custom sepsis registry if exists
+
             sepsis_file = config.paths.data_dir / "sepsis_registry.json"
             if sepsis_file.exists():
                 sepsis_data = json.loads(sepsis_file.read_text())
-                if fix.target_file in sepsis_data.get("banned_files", []):
-                    return False, f"File {fix.target_file} is barred due to previous sepsis"
+                bans = sepsis_data.get("bans", {})  # {file_path: expires_at}
+                ban_until = bans.get(fix.target_file)
+                if ban_until and time.time() < float(ban_until):
+                    remaining_h = (float(ban_until) - time.time()) / 3600.0
+                    return False, (
+                        f"File {fix.target_file} is in sepsis cooldown "
+                        f"(another {remaining_h:.1f}h before retry)."
+                    )
+                # Backwards-compat: legacy banned_files list (permanent bans).
+                # Migrate any entries here into the new tiered registry with a
+                # 7-day expiry so the system unsticks itself.
+                legacy = sepsis_data.get("banned_files", [])
+                if legacy and fix.target_file in legacy:
+                    expiry = time.time() + 7 * 86400
+                    bans[fix.target_file] = expiry
+                    sepsis_data["bans"] = bans
+                    legacy = [f for f in legacy if f != fix.target_file]
+                    sepsis_data["banned_files"] = legacy
+                    atomic_write_text(sepsis_file, json.dumps(sepsis_data, indent=2))
+                    return False, (
+                        f"File {fix.target_file} migrated from legacy permanent "
+                        f"sepsis to 7-day cooldown."
+                    )
         except Exception as e:
             logger.debug("Sepsis check failed (non-blocking): %s", e)
 
@@ -746,7 +771,18 @@ class SafeSelfModification:
         # PROMOTE FROM QUARANTINE TO REAL FILE
         logger.info("🚀 [PROMOTION] Quarantine passed. Applying to primary repository.")
         shutil.copy2(staging_file, target_path)
-        
+
+        # Stage 5b: Architecture-quality gate.
+        # Score the post-promotion tree and roll back if the patch
+        # regresses architectural health beyond the configured tolerance.
+        gate_passed, gate_reason, gate_report = await self._run_quality_gate(target_rel)
+        if not gate_passed:
+            logger.error("✗ Architecture quality gate rejected patch: %s", gate_reason)
+            await self._rollback(backup_id, branch_name if branch_created else None,
+                                 expected_hash=pre_mod_hash)
+            self._record_quality_rejection(fix, gate_reason, gate_report)
+            return False, f"architecture_quality_gate: {gate_reason}"
+
         logger.info("✓ Stage 5: System Verification passed & Promoted")
         
         # Stage 6: Merge to main (if using git)
@@ -915,22 +951,113 @@ class SafeSelfModification:
             await self.git.delete_branch(branch_name)
             logger.info("✓ Cleaned up git branch")
 
+    # Tiered-sepsis tunables. First strike just records; second within the
+    # observation window escalates to a 24h ban; third strike to 7d.
+    SEPSIS_OBSERVATION_S: float = 3 * 86400  # 3 days
+    SEPSIS_FIRST_BAN_S: float = 24 * 3600
+    SEPSIS_SECOND_BAN_S: float = 7 * 86400
+
+    async def _run_quality_gate(self, target_rel: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        """Run the architecture-quality gate against the live (just-promoted) tree.
+
+        Returns (passed, reason, report_dict). If no gate is installed
+        and auto-creation is disabled this is a no-op (returns True).
+        """
+        try:
+            from core.architecture_quality import (
+                ArchitectureQualityGate,
+                get_installed_gate,
+            )
+        except Exception as e:
+            logger.debug("architecture_quality module unavailable: %s", e)
+            return True, "gate_unavailable", None
+
+        gate = get_installed_gate()
+        try:
+            if gate is None:
+                # Lazy create using the configured rules.toml shipped with the module.
+                gate = ArchitectureQualityGate(self.code_base)
+            # Only file types that affect the import graph need scoring.
+            if not target_rel.endswith(".py"):
+                return True, "non_python_change", None
+            report = await asyncio.to_thread(gate.evaluate)
+            ok, reason = gate.gate(report)
+            return ok, reason, report.to_dict()
+        except Exception as e:
+            logger.warning("Quality gate execution failed (allowing patch): %s", e)
+            return True, f"gate_error_allowed:{e}", None
+
+    def _record_quality_rejection(self, fix, reason: str,
+                                  report: Optional[Dict[str, Any]]) -> None:
+        """Persist a structured quality-gate rejection for the modification engine."""
+        self.stats.setdefault("blocked_by_quality_gate", 0)
+        self.stats["blocked_by_quality_gate"] += 1
+        try:
+            payload = {
+                "timestamp": time.time(),
+                "target_file": getattr(fix, "target_file", "unknown"),
+                "explanation": getattr(fix, "explanation", ""),
+                "reason": reason,
+                "report": report,
+            }
+            log_path = config.paths.data_dir / "architecture_quality_rejections.jsonl"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_path, "a") as f:
+                f.write(json.dumps(payload) + "\n")
+        except Exception as e:
+            logger.debug("Failed to log quality rejection: %s", e)
+        # Emit a proposal event so the modification engine can route to quarantine.
+        try:
+            self._emit_proposal_event(fix, "BLOCKED", f"architecture_quality_gate: {reason}")
+        except Exception:
+            pass
+
     def _mark_sepsis(self, file_path: str):
-        """Mark a file as 'sepsis' to prevent future modifications (Issue 77)."""
+        """Record a sepsis event for ``file_path``. Tiered with cooldown:
+
+          1st strike      → log + record event (no ban)
+          2nd within obs  → 24h ban
+          3rd within obs  → 7d ban
+
+        Bans are time-bounded so a single bad ghost-boot run cannot lock a
+        file out forever — important for the RSI loop to keep improving the
+        codebase rather than silently shrinking the modifiable surface.
+        """
         try:
             sepsis_file = config.paths.data_dir / "sepsis_registry.json"
-            sepsis_data = {}
+            sepsis_data: Dict[str, Any] = {}
             if sepsis_file.exists():
                 sepsis_data = json.loads(sepsis_file.read_text())
-            
-            banned = sepsis_data.get("banned_files", [])
-            if file_path not in banned:
-                banned.append(file_path)
-            sepsis_data["banned_files"] = banned
-            sepsis_data["last_sepsis_event"] = time.time()
-            
-            sepsis_file.write_text(json.dumps(sepsis_data, indent=2))
-            logger.error("💀 FILE %s MARKED AS SEPSIS (Cause: Boot Failure)", file_path)
+
+            now = time.time()
+            events: Dict[str, list] = sepsis_data.setdefault("events", {})
+            file_events = events.setdefault(file_path, [])
+            # Drop events outside the observation window
+            file_events = [
+                t for t in file_events if now - float(t) < self.SEPSIS_OBSERVATION_S
+            ]
+            file_events.append(now)
+            events[file_path] = file_events
+
+            bans: Dict[str, float] = sepsis_data.setdefault("bans", {})
+            strike_count = len(file_events)
+            if strike_count >= 3:
+                bans[file_path] = now + self.SEPSIS_SECOND_BAN_S
+                tier = "7d"
+            elif strike_count == 2:
+                bans[file_path] = now + self.SEPSIS_FIRST_BAN_S
+                tier = "24h"
+            else:
+                tier = "log-only"
+
+            sepsis_data["last_sepsis_event"] = now
+            atomic_write_text(sepsis_file, json.dumps(sepsis_data, indent=2))
+            logger.error(
+                "💀 SEPSIS event for %s: strike %d, tier=%s",
+                file_path,
+                strike_count,
+                tier,
+            )
         except Exception as e:
             logger.error("Failed to mark sepsis: %s", e)
     

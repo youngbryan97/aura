@@ -1,4 +1,5 @@
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import multiprocessing
@@ -43,7 +44,7 @@ class SensoryGateActor:
         self.bus.start()
         
         # Start heartbeat loop after bus is active
-        asyncio.create_task(self._heartbeat_loop())
+        get_task_tracker().create_task(self._heartbeat_loop())
         
         logger.info("👁️ SensoryGate Actor ready.")
         

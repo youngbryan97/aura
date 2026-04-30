@@ -2,6 +2,8 @@
 Phase 16.4: Ghost Deployment - Resource Monitoring Probes.
 Spawns and manages lightweight monitoring scripts.
 """
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import os
@@ -55,7 +57,7 @@ except Exception as e:
     print(f"ghost_error:{{e}}")
 """
         probe_path = Path(tempfile.gettempdir()) / f"aura_probe_{probe_id}.py"
-        probe_path.write_text(probe_script)
+        atomic_write_text(probe_path, probe_script)
         
         try:
             # Spawn in background with asyncio
@@ -76,7 +78,7 @@ except Exception as e:
             }
             
             # Start a background listener for this probe
-            asyncio.create_task(self._listen_to_probe(probe_id))
+            get_task_tracker().create_task(self._listen_to_probe(probe_id))
             
             logger.info("👻 Ghost Probe '%s' deployed to watch %s.", probe_id, target)
             return True

@@ -122,7 +122,7 @@ class MessagePipelineMixin:
             if _belief_update_allowed:
                 from core.utils.task_tracker import get_task_tracker
                 # Recursive Learning task
-                get_task_tracker().track_task(asyncio.create_task(ee.update_beliefs_from_result(tool_name, str(result)[:1000])))
+                get_task_tracker().track_task(ee.update_beliefs_from_result(tool_name, str(result)[:1000]))
             
             if surprise > 0.7:
                 logger.info("😲 HIGH SURPRISE: Triggering re-think.")

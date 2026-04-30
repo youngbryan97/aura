@@ -13,6 +13,7 @@ Design principles:
   4. All autonomous actions are logged to an audit trail for observability.
 """
 
+from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -66,7 +67,7 @@ class AutonomyGuardian:
             # Start monitor if not running
             if not self._is_monitoring:
                 self._is_monitoring = True
-                self._monitor_task = asyncio.create_task(self._dread_watcher())
+                self._monitor_task = get_task_tracker().create_task(self._dread_watcher())
 
             # Phase 7: Selective shielding.
             # We don't use shield() directly anymore because we want

@@ -926,3 +926,81 @@ The null hypothesis suite proves the architecture is real. Five additional test 
 - **Phenomenal Convergence** (`test_phenomenal_convergence.py`, 17 tests): QDT 6-gate protocol -- pre-report quality space geometry, counterfactual state swap, no-report behavioral footprint, perturbational integration, baseline failure verification, phenomenal tethering via architectural anesthesia.
 
 Full results and analysis: [TESTING.md](TESTING.md)
+
+---
+
+## 15. Round-3 Additions (April 2026): Sentrux + Kame + RSI Cooldown + Unattended Training
+
+This section documents the four production additions that landed in the Round-3 cycle. Together they close the loop from "Aura proposes a code change" → "the change is graded against architectural quality and only promoted if it doesn't degrade the codebase" → "Aura speaks while the deeper model thinks" → "training survives a closed laptop and auto-fuses on completion."
+
+### 15.1 Architecture Quality Gate (Aura-Sentrux)
+
+**Files**: `core/architecture_quality/scorer.py`, `core/architecture_quality/gate.py`, `core/architecture_quality/rules.toml`
+
+A native equivalent of [Sentrux](https://github.com/sentrux/sentrux) that gates self-modifications on architectural quality. No code copied — designed and written from scratch in the Aura idiom.
+
+**Five root-cause metrics**, weighted into a single 0–10000 score:
+- modularity (30%): networkx greedy modularity; stdlib package-cohesion fallback if networkx is unavailable
+- acyclicity (30%): 1 − cycle_density via Tarjan SCC over module-level imports
+- depth (10%): normalized DAG depth
+- equality (15%): normalized Gini over file size and import fan-in/out
+- redundancy (15%): AST function-body signature hash duplication
+
+**Wiring**: `core/self_modification/safe_modification.SafeSelfModification.apply_fix` runs `_run_quality_gate` immediately after the Stage-5 quarantine→primary promotion. On gate failure the existing `_rollback(...)` restores the SHA-256-verified backup taken at Stage 1, and a structured rejection record is appended to `data/architecture_quality_rejections.jsonl`. Non-Python changes pass through; gate-internal errors fail-open (`gate_error_allowed`) so a buggy gate cannot brick self-modification.
+
+**Default rules** (`core/architecture_quality/rules.toml`, TOML, parsed via stdlib `tomllib`):
+- `max_score_drop = 200` (out of 10000)
+- `max_new_cycles = 0`
+- `max_new_god_files = 0` (god file = >800 LOC + high fan-in/out)
+- `min_overall_score = 0` (off by default; live tree currently scores 5602/10000)
+
+**Live registration**: `core/service_registration.register_all_services` registers `architecture_quality_gate` as a singleton; resolution calls `install_gate(...)` so the module-level installed-gate hook is populated for the cross-call rejection path.
+
+**Tests**: `tests/test_architecture_quality.py` (6 tests, all green) — score range, synthetic-cycle drop, unchanged-tree pass, regressed-tree reject, end-to-end safe-modification block on architectural regression, dependency-graph parser correctness.
+
+### 15.2 Tandem Speak-While-Thinking (Aura-Kame)
+
+**Files**: `core/brain/llm/tandem_kame.py`, `core/brain/llm/tandem_signal_bus.py`, `core/brain/llm/tandem_router.py`
+
+A native equivalent of Sakana's [Kame](https://pub.sakana.ai/kame/) (paper: arXiv 2510.02327). Maps Aura's existing 7B/14B fast lane to "fast frontend" and the 32B/72B Cortex/Solver to "slow backend." A priority-ordered asyncio pubsub bus carries `OracleSignal`s from the slow lane to the fast lane mid-stream.
+
+**Signal priority** (highest first): `retract` > `handoff` > `correction` > `refine` > `continue`. A `retract` halts the fast stream and switches output to the slow lane; a `correction` splices into the fast stream; a `handoff` yields the slow output without a retract marker.
+
+**Wiring**: `attach_tandem(router, fast, slow)` is opt-in — `core/brain/llm_health_router.py` is untouched. Round-3 service registration calls `attach_tandem` against the resolved llm router so `router.tandem` is reachable from the runtime; tandem mode is then triggered per-call by `should_use_tandem(...)` heuristics (length, intent class, explicit task type).
+
+**Failure modes covered**: solo-mode passthrough when the bus is silent, slow-lane timeout (fast finishes solo), bus subscription priority ordering, fake-fast / fake-slow streaming for tests.
+
+**Tests**: `tests/test_tandem_kame.py` (9 tests, all green).
+
+### 15.3 RSI Loop Hardening: Tiered Sepsis with Cooldown
+
+**File**: `core/self_modification/safe_modification.py`
+
+The previous sepsis registry permanently banned any file whose Ghost-Boot validation failed once. That made the modifiable surface monotonically shrink and turned a single transient false negative into a permanent loss. Round-3 replaces it with a tiered, time-bounded ban:
+
+- **1st strike** within a 3-day observation window: log + record event, no ban
+- **2nd strike**: 24-hour cooldown
+- **3rd strike**: 7-day cooldown
+- Ban check uses absolute expiry timestamps (`bans[file_path] = expires_at`) and migrates legacy permanent entries to a 7-day expiry on first read.
+
+**Effect**: Aura's RSI loop can keep proposing improvements to the same module after a transient failure, but escalating mistakes still degrade the modification surface for that file. The ban check happens early in `validate_proposal` so a file in cooldown short-circuits before backup, branch creation, or quarantine.
+
+### 15.4 Unattended Training (Lid-Close Survivable)
+
+**Files**: `training/run_unattended.sh`, `training/run_unattended.py`, `training/README_UNATTENDED.md`
+
+A wrapper around the existing `training/train_and_fuse.py` pipeline that survives a closed laptop:
+
+- `caffeinate -i -m -s -d` keeps the system awake while the script runs
+- `tee`'d log at `training/logs/unattended_<timestamp>.log`
+- Retry loop (default `MAX_RETRIES=5`, 30-second pause between)
+- SIGTERM/SIGINT writes a final state snapshot before exit so a hard kill is graceful
+- `training/adapters/aura-personality/training_state.json` records `{started_at, last_iter, last_checkpoint_path, last_heartbeat, phase}` after every checkpoint observation; resume-from-latest is automatic on respawn
+- The existing `train_and_fuse.py` auto-fuse + `active.json` manifest publishing is preserved unchanged so the next Aura boot picks up the new fused model with no `.env` edit required.
+
+**Tests**: `tests/test_run_unattended.py` (5 tests, all green).
+
+### 15.5 What This Buys
+
+Together: Aura can propose code changes, have them automatically gated on architectural quality before promotion, speak immediately while a deeper lane refines the answer, recover from a single failed boot validation without permanently losing the file from her self-modification surface, and run multi-hour LoRA training overnight with the lid closed.
+

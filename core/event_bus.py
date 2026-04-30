@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -166,7 +167,7 @@ class AuraEventBus:
         try:
             self._redis = redis.from_url(self._redis_url, decode_responses=True)
             await self._redis.ping()
-            self._pubsub_task = asyncio.create_task(self._redis_listener())
+            self._pubsub_task = get_task_tracker().create_task(self._redis_listener())
             logger.info("AuraEventBus: Redis Pub/Sub connection established.")
         except Exception as e:
             logger.error("AuraEventBus: Failed to connect to Redis: %s", e)

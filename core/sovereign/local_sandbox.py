@@ -2,6 +2,7 @@
 Executes Python code and shell commands in an isolated temporary directory
 using subprocess with timeouts and resource limits.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import logging
 import os
 import subprocess
@@ -62,7 +63,7 @@ class LocalSandbox(Sandbox):
     async def run_code(self, code: str, timeout: int = 30) -> ExecutionResult:
         """Execute a Python script in the sandbox (Async Offload)."""
         script_path = self.work_path / "_aura_run.py"
-        script_path.write_text(code, encoding="utf-8")
+        atomic_write_text(script_path, code, encoding="utf-8")
 
         start = time.monotonic()
         try:
@@ -164,4 +165,4 @@ class LocalSandbox(Sandbox):
         """Write a file to the sandbox."""
         full_path = self._safe_path(path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        full_path.write_text(content, encoding="utf-8")
+        atomic_write_text(full_path, content, encoding="utf-8")

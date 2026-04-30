@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import os
 import logging
@@ -46,19 +47,19 @@ class PulseManager:
             return
         self.running = True
         
-        self._sampling_tasks.append(asyncio.create_task(self._audio_pulse_loop()))
+        self._sampling_tasks.append(get_task_tracker().create_task(self._audio_pulse_loop()))
         if self.enable_proactive_vision:
-            self._sampling_tasks.append(asyncio.create_task(self._vision_pulse_loop()))
+            self._sampling_tasks.append(get_task_tracker().create_task(self._vision_pulse_loop()))
         else:
             logger.info("👁️ PulseManager vision sampling disabled by default. Set AURA_ENABLE_PROACTIVE_VISION=1 to enable it.")
-        self._sampling_tasks.append(asyncio.create_task(self._system_pulse_loop()))
-        self._sampling_tasks.append(asyncio.create_task(self._distributed_pulse_loop()))
+        self._sampling_tasks.append(get_task_tracker().create_task(self._system_pulse_loop()))
+        self._sampling_tasks.append(get_task_tracker().create_task(self._distributed_pulse_loop()))
         
         if getattr(self, "continuous_engine", None):
             await self.continuous_engine.start()
             
         # Start Hive Node (Issue 22: Track task for clean shutdown)
-        self._sampling_tasks.append(asyncio.create_task(self.hive_node.start()))
+        self._sampling_tasks.append(get_task_tracker().create_task(self.hive_node.start()))
             
         logger.info("💓 Pulse loops started")
 

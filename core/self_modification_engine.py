@@ -1,6 +1,7 @@
 """[DEPRECATED] Legacy Autonomous Self-Modification Engine.
 Superseded by core/self_modification/self_modification_engine.py (inside package).
 """
+from core.runtime.atomic_writer import atomic_write_text
 import warnings
 
 warnings.warn("core/self_modification_engine.py is deprecated. Use core/self_modification package.", DeprecationWarning)
@@ -353,7 +354,7 @@ class SelfModificationEngine:
                     lines.pop(change.target_line - 1)
             
             # Write back
-            change.target_file.write_text(''.join(lines), encoding='utf-8')
+            atomic_write_text(change.target_file, ''.join(lines), encoding='utf-8')
             
             return {
                 "success": True,

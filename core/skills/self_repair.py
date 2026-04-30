@@ -4,6 +4,7 @@ Analyzes errors, locates the source file, reads the code, asks the LLM
 for a targeted fix, and saves a repair proposal. Integrates with the
 learning system to remember what worked.
 """
+from core.runtime.atomic_writer import atomic_write_text
 import logging
 import re
 import time
@@ -115,7 +116,7 @@ class SelfRepairSkill(BaseSkill):
         patch_dir = config.paths.data_dir / "repairs"
         patch_dir.mkdir(parents=True, exist_ok=True)
         patch_path = patch_dir / f"repair_{component}_{int(time.time())}.patch"
-        patch_path.write_text(fix_content)
+        atomic_write_text(patch_path, fix_content)
 
         # 6. Record in learning system
         try:

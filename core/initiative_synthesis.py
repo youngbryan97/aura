@@ -31,6 +31,7 @@ Not:
     pathway C acts
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import hashlib
 import json
@@ -568,7 +569,7 @@ class InitiativeSynthesizer:
                 for t in self._unresolved_tensions
                 if not t.resolved  # only persist unresolved
             ]
-            path.write_text(json.dumps(data, indent=2))
+            atomic_write_text(path, json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("Tension save failed: %s", e)
 

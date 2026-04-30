@@ -17,8 +17,8 @@ This module:
 This makes the system FALSIFIABLE. It can fail. That's what makes it
 scientifically serious rather than infinitely accommodating.
 """
-
 from __future__ import annotations
+
 
 import logging
 import time

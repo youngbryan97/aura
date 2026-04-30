@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import time
 from types import SimpleNamespace
@@ -251,7 +252,7 @@ def test_task_commitment_verifier_context_block_surfaces_relevant_status(tmp_pat
 
 def test_task_commitment_verifier_persistence_marks_running_tasks_interrupted(tmp_path):
     path = tmp_path / "task_commitment_state.json"
-    path.write_text(
+    atomic_write_text(path, 
         """
 {
   "updated_at": 10.0,

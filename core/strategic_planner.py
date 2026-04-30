@@ -206,7 +206,7 @@ Return as JSON as before:
         if not project:
             return "Project not found."
             
-        tasks = self.store.get_tasks_for_project(project_id)
+        tasks = self.store.get_tasks_for_project(project_id, include_done=True)
         completed = sum(1 for t in tasks if t.status == "completed")
         total = len(tasks)
         

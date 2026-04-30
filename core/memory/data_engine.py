@@ -13,8 +13,8 @@ Changes from previous version:
   - Added `max_examples` cap to prevent unbounded file growth
   - Added type annotations
 """
-
 from __future__ import annotations
+
 
 import json
 import logging

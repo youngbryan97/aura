@@ -24,6 +24,7 @@ Architecture:
 No torch dependency: pure numpy GRU cell for stability.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -291,7 +292,7 @@ class ContinuousRecurrentSelfModel:
                 "tick_count": self._tick_count,
                 "error_ema": self._error_ema,
             }
-            PERSIST_PATH.write_text(json.dumps(data))
+            atomic_write_text(PERSIST_PATH, json.dumps(data))
         except Exception as e:
             logger.debug("CRSM save failed: %s", e)
 

@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -47,7 +48,7 @@ def test_unified_action_log_rehydrates_from_disk(tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
         log_path = data_dir / "unified_action_log.jsonl"
-        log_path.write_text(
+        atomic_write_text(log_path, 
             '\n'.join([
                 json.dumps({"t": 1, "action": "alpha", "source": "test", "gen": "reflex", "gate": "approved", "outcome": "ok"}),
                 json.dumps({"t": 2, "action": "beta", "source": "test", "gen": "gen3_constitutional", "gate": "released", "outcome": "primary"}),

@@ -4,6 +4,7 @@ The Sovereign Watchdog is the final layer of Aura's resilience. It monitors
 the Orchestrator's heartbeat and the availability of critical services. 
 If a deadlock or cognitive stall is detected, it triggers a recovery sequence.
 """
+from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -32,7 +33,7 @@ class SovereignWatchdog:
             return
         self._running = True
         self._last_heartbeat = time.monotonic()
-        self._task = asyncio.create_task(self._watch_loop())
+        self._task = get_task_tracker().create_task(self._watch_loop())
         logger.info("🛡️ Sovereign Watchdog ACTIVE (Timeout: %.1fs)", self._timeout)
 
     async def stop(self):

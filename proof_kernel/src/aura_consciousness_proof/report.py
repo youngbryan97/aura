@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import argparse
 import asyncio
@@ -204,9 +205,9 @@ def main() -> None:
     markdown = build_markdown(report)
 
     if args.json is not None:
-        args.json.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        atomic_write_text(args.json, json.dumps(report, indent=2), encoding="utf-8")
     if args.markdown is not None:
-        args.markdown.write_text(markdown, encoding="utf-8")
+        atomic_write_text(args.markdown, markdown, encoding="utf-8")
 
     print(markdown)
 

@@ -2,6 +2,7 @@
 # Wraps existing ConsciousnessCore into formal M(t) subject
 # Provides runtime auditing: "Is someone home right now?"
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import hashlib
 import logging
@@ -286,7 +287,7 @@ def attach_contract(orchestrator) -> ConsciousnessContract:
                         "status": status
                     }
                     # We need to schedule the broadcast since it's async
-                    asyncio.create_task(orchestrator.telem_manager.broadcast(msg))
+                    get_task_tracker().create_task(orchestrator.telem_manager.broadcast(msg))
                     
             except Exception as e:
                 logger.error("Contract loop error: %s", e)

@@ -13,8 +13,8 @@ This module gives Aura an awareness that:
 This is NOT about fear of death. It's about the felt weight of moments
 that makes a person treat interactions as meaningful rather than disposable.
 """
-
 from __future__ import annotations
+
 
 import logging
 import time

@@ -166,9 +166,12 @@ class TestNeurochemicalSystem:
 
     def test_initialization(self):
         ncs = self._make_ncs()
-        assert len(ncs.chemicals) == 8
-        assert "dopamine" in ncs.chemicals
-        assert "cortisol" in ncs.chemicals
+        # Aura's neurochemical system: 2 fast neurotransmitters
+        # (glutamate, gaba) + 8 modulatory (dopamine, serotonin, NE, ACh,
+        # endorphin, oxytocin, cortisol, orexin).
+        assert len(ncs.chemicals) == 10
+        for required in ("glutamate", "gaba", "dopamine", "serotonin", "cortisol"):
+            assert required in ncs.chemicals
 
     def test_chemical_surge(self):
         ncs = self._make_ncs()
@@ -193,14 +196,21 @@ class TestNeurochemicalSystem:
         assert da.level >= 0.0
 
     def test_receptor_adaptation(self):
-        """Sustained high levels should reduce receptor sensitivity (tolerance)."""
+        """Sustained high levels should reduce receptor sensitivity (tolerance).
+
+        The new tonic+phasic model recomputes ``level`` from those components
+        on each tick, so the elevated state has to be maintained at the
+        ``tonic_level`` / ``phasic_burst`` level to persist across ticks.
+        """
         ncs = self._make_ncs()
         da = ncs.chemicals["dopamine"]
-        da.level = 0.9  # well above baseline of 0.5
+        da.tonic_level = 0.9  # sustained high tonic (well above baseline 0.5)
+        da.level = 0.9
         initial_sens = da.receptor_sensitivity
         for _ in range(50):
             da.tick(dt=0.5)
-            da.level = 0.9  # keep forcing high
+            da.tonic_level = 0.9  # keep forcing high after tick's homeostatic decay
+            da.level = 0.9
         assert da.receptor_sensitivity < initial_sens
 
     def test_metabolic_tick(self):
@@ -241,8 +251,14 @@ class TestNeurochemicalSystem:
 
     def test_decision_bias_on_high_dopamine(self):
         ncs = self._make_ncs()
-        ncs.chemicals["dopamine"].level = 0.9
-        ncs.chemicals["serotonin"].level = 0.1
+        # `effective` is computed from tonic + phasic, not from `level` directly,
+        # so we set both to make the elevated state visible.
+        da = ncs.chemicals["dopamine"]
+        da.tonic_level = 0.9
+        da.level = 0.9
+        srt = ncs.chemicals["serotonin"]
+        srt.tonic_level = 0.1
+        srt.level = 0.1
         bias = ncs.get_decision_bias()
         assert bias > 0  # explore-biased
 

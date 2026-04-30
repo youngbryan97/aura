@@ -31,8 +31,8 @@ integration step.
 Intensity is configurable and defaults to low -- just enough to break
 perfect determinism without destabilizing the substrate.
 """
-
 from __future__ import annotations
+
 
 import hashlib
 import logging

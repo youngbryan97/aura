@@ -4,6 +4,7 @@ This component activation during 'low pulse' periods to process recent interacti
 summarize them using the Language Center (Narrator), and update the Ego-Model (Identity).
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import re
@@ -53,7 +54,7 @@ class DreamingProcess:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._run_loop())
+        self._task = get_task_tracker().create_task(self._run_loop())
         logger.info("🌙 Dreaming Process active (Interval: %ds)", self.interval)
 
     async def stop(self):

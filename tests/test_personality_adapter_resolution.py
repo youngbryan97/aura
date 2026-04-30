@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import json
 
 from core.brain.llm.model_registry import resolve_personality_adapter
@@ -6,8 +7,9 @@ from core.brain.llm.model_registry import resolve_personality_adapter
 def test_mlx_personality_adapter_requires_compatible_model(monkeypatch, tmp_path):
     adapter_dir = tmp_path / "aura-personality"
     adapter_dir.mkdir()
-    (adapter_dir / "adapters.safetensors").write_text("stub")
-    (adapter_dir / "adapter_config.json").write_text(
+    atomic_write_text(adapter_dir / "adapters.safetensors", "stub")
+    atomic_write_text(
+        adapter_dir / "adapter_config.json",
         json.dumps({"model": "models/Qwen2.5-32B-Instruct-8bit"})
     )
 
@@ -23,7 +25,7 @@ def test_mlx_personality_adapter_requires_compatible_model(monkeypatch, tmp_path
 
 def test_gguf_personality_adapter_can_be_hard_pinned_to_target_model(monkeypatch, tmp_path):
     adapter_file = tmp_path / "aura-personality-lora.gguf"
-    adapter_file.write_text("stub")
+    atomic_write_text(adapter_file, "stub")
 
     monkeypatch.setenv("AURA_GGUF_LORA_PATH", str(adapter_file))
     monkeypatch.setenv("AURA_GGUF_LORA_TARGET_MODEL", "Qwen2.5-32B-Instruct-8bit")

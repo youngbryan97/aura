@@ -16,8 +16,8 @@ Implemented strategies:
 
 Scientific basis for each is documented inline.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

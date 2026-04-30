@@ -73,14 +73,14 @@ class ContinuousPerceptionEngine:
 
         tracker = get_task_tracker()
         self._audio_task = tracker.track_task(
-            asyncio.create_task(self._continuous_audio_loop(), name="continuous_perception.audio")
+            get_task_tracker().create_task(self._continuous_audio_loop(), name="continuous_perception.audio")
         )
         if self.enable_proactive_vision:
             self._vision_task = tracker.track_task(
-                asyncio.create_task(self._continuous_vision_loop(), name="continuous_perception.vision")
+                get_task_tracker().create_task(self._continuous_vision_loop(), name="continuous_perception.vision")
             )
             self._ambient_task = tracker.track_task(
-                asyncio.create_task(self._continuous_ambient_loop(), name="continuous_perception.ambient")
+                get_task_tracker().create_task(self._continuous_ambient_loop(), name="continuous_perception.ambient")
             )
         else:
             self._vision_task = None

@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import errno
 import json
@@ -753,7 +754,7 @@ async def test_robust_lock_cancellation_clears_watchdog_entry(monkeypatch):
     lock = RobustLock("ServerRuntime.CancellationLock")
     assert lock._lock.acquire(timeout=0.0) is True
 
-    task = asyncio.create_task(lock.acquire_robust(timeout=0.05, max_retries=1))
+    task = get_task_tracker().create_task(lock.acquire_robust(timeout=0.05, max_retries=1))
     await asyncio.sleep(0)
     task.cancel()
 
@@ -921,7 +922,7 @@ async def test_state_repository_repair_runtime_restarts_consumer_and_coalesces_q
     repo._current = AuraState()
     repo._is_processing = True
 
-    finished = asyncio.create_task(asyncio.sleep(0))
+    finished = get_task_tracker().create_task(asyncio.sleep(0))
     await finished
     repo._consumer_task = finished
 
@@ -1234,7 +1235,7 @@ async def test_motivation_engine_tracks_autonomous_intention(monkeypatch):
     import core.motivation.engine as motivation_module
 
     def _record_create_task(coro, name=None):
-        task = asyncio.create_task(coro, name=name)
+        task = get_task_tracker().create_task(coro, name=name)
         calls["name"] = name
         calls["task"] = task
         return task

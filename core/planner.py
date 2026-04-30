@@ -8,6 +8,7 @@ Features:
 5. Structured logging and metrics
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import hashlib
 import json
@@ -542,7 +543,7 @@ class Planner:
                 self.planning_stats["successful_plans"] += 1
                 
                 # Background the blocking disk operation
-                t = asyncio.create_task(asyncio.to_thread(self.save_to_disk, plan))
+                t = get_task_tracker().create_task(asyncio.to_thread(self.save_to_disk, plan))
                 t.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
                 
                 return plan
@@ -660,7 +661,7 @@ OUTPUT JSON:
                         new_plan.metadata["critic_warning"] = judgment.evidence
             
             # Persist revision (Offloaded)
-            t = asyncio.create_task(asyncio.to_thread(self.save_to_disk, new_plan))
+            t = get_task_tracker().create_task(asyncio.to_thread(self.save_to_disk, new_plan))
             t.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
             return new_plan
             

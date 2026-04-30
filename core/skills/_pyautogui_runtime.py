@@ -3,8 +3,8 @@
 Avoid importing PyAutoGUI at module import time so skills can be registered,
 listed, and instantiated even when display access is unavailable.
 """
-
 from __future__ import annotations
+
 
 from typing import Any
 

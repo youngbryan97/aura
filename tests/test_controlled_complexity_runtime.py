@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -99,7 +100,7 @@ async def test_local_pipe_bus_dispatch_loop_preserves_arrival_order():
             await asyncio.sleep(0.05)
         calls.append(("end", payload))
 
-    task = asyncio.create_task(bus._dispatch_loop())
+    task = get_task_tracker().create_task(bus._dispatch_loop())
     try:
         await bus._dispatch_queue.put((handler, {"payload": 1, "trace_id": "a"}))
         await bus._dispatch_queue.put((handler, {"payload": 2, "trace_id": "b"}))

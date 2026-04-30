@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
@@ -310,8 +311,8 @@ class TestMetabolicCoordinatorGuards(unittest.IsolatedAsyncioTestCase):
                 lock_dir.mkdir(parents=True, exist_ok=True)
                 live_lock = lock_dir / "orchestrator.lock"
                 stale_lock = lock_dir / "stale.lock"
-                live_lock.write_text(str(metabolic_module.os.getpid()), encoding="utf-8")
-                stale_lock.write_text("999999", encoding="utf-8")
+                atomic_write_text(live_lock, str(metabolic_module.os.getpid()), encoding="utf-8")
+                atomic_write_text(stale_lock, "999999", encoding="utf-8")
 
                 MetabolicCoordinator()
 

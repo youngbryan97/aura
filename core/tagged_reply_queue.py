@@ -5,8 +5,8 @@ This replaces the old "shared reply queue + global flush" pattern with a queue
 that preserves reply ownership across overlapping user, voice, and autonomous
 flows. It remains compatible with the plain queue interface most of Aura uses.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import contextvars

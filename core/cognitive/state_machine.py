@@ -2,6 +2,7 @@
 Executes specific paths based on the IntentRouter classification.
 Replaces the fuzzy, open-ended cognitive loops.
 """
+from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
@@ -465,7 +466,7 @@ class StateMachine:
                                 except Exception as e:
                                     logger.debug("Background TTS failed: %s", e)
 
-                            tts_task = asyncio.create_task(_speak_task())
+                            tts_task = get_task_tracker().create_task(_speak_task())
                             
                             # Single consumer loop for the LLM stream
                             async for token in stream_and_ui():
@@ -593,7 +594,7 @@ class StateMachine:
                 if not hasattr(self.llm, "generate_stream"):
                     voice_engine = resolve_voice_engine(default=None)
                     if voice_engine and hasattr(voice_engine, 'synthesize_speech') and response:
-                        asyncio.create_task(voice_engine.synthesize_speech(response))
+                        get_task_tracker().create_task(voice_engine.synthesize_speech(response))
             except Exception as tts_err:
                 logger.debug("TTS for chat response skipped: %s", tts_err)
             
@@ -608,7 +609,7 @@ class StateMachine:
                         emotional_context = affect.get_state_sync()
 
                     # Non-blocking store
-                    asyncio.create_task(vector_mem.store(
+                    get_task_tracker().create_task(vector_mem.store(
                         content=response,
                         memory_type="episodic",
                         emotional_context=emotional_context,
@@ -857,7 +858,7 @@ class StateMachine:
             self._emit("State: SYSTEM", "Initiating system reboot...")
             if self.orchestrator:
                 # We will trigger the restart asynchronously to allow the message to return
-                asyncio.create_task(self._trigger_restart())
+                get_task_tracker().create_task(self._trigger_restart())
             return "Initiating complete system reboot. I will be back online shortly."
             
         elif "sleep" in lower_input:

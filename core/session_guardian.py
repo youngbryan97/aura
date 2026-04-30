@@ -15,8 +15,9 @@ What it does:
 Install: instantiate in orchestrator_boot.py after the orchestrator is created,
 call guardian.attach(orchestrator). Then call guardian.start() in the run loop.
 """
-
 from __future__ import annotations
+
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -353,7 +354,7 @@ class SessionGuardian:
     def start(self):
         """Start the background monitor loop."""
         self._running = True
-        self._monitor_task = asyncio.create_task(
+        self._monitor_task = get_task_tracker().create_task(
             self._monitor_loop(), name="session_guardian"
         )
         logger.info("SessionGuardian started")

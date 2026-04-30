@@ -17,8 +17,8 @@ Operations:
   7. Acknowledgment-only reduction
   8. Filler/hedge injection (post-hoc naturalization)
 """
-
 from __future__ import annotations
+
 
 import logging
 import random

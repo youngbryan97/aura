@@ -97,7 +97,7 @@ class MemoryGovernor:
                 name="aura.memory_governor",
             )
         except Exception:
-            self._task = asyncio.create_task(self._run_loop(), name="aura.memory_governor")
+            self._task = get_task_tracker().create_task(self._run_loop(), name="aura.memory_governor")
         logger.info("🛡️ Memory Governor active. Thresholds: Prune=%dMB, Unload=%dMB, Critical=%dMB", 
                     self.threshold_prune, self.threshold_unload, self.threshold_critical)
 
@@ -372,7 +372,7 @@ class MemoryGovernor:
             from core.container import ServiceContainer
             affect = ServiceContainer.get("affect", default=None)
             if affect and hasattr(affect, "react"):
-                asyncio.create_task(affect.react("critical_resource_exhaustion", {"intensity": 1.0}))
+                get_task_tracker().create_task(affect.react("critical_resource_exhaustion", {"intensity": 1.0}))
         except Exception as e:
             logger.debug("Failed to trigger adrenaline surcharge: %s", e)
 

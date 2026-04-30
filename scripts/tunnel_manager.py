@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import os
 import sys
 import time
@@ -59,7 +60,7 @@ class TunnelManager:
             )
             
             # Start background task to monitor output
-            asyncio.create_task(self._monitor_logs())
+            get_task_tracker().create_task(self._monitor_logs())
             
             # Wait for URL to be detected
             timeout = 30

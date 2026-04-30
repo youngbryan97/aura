@@ -39,8 +39,8 @@ Integration points:
   - Tool execution checks before dispatching
   - Executive closure reads authority state for pressure computation
 """
-
 from __future__ import annotations
+
 
 import logging
 import time

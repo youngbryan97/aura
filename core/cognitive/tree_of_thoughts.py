@@ -16,8 +16,8 @@ Flow:
 The class never calls an LLM directly.  It receives an ``llm_fn`` callback
 at construction time, making it backend-agnostic and trivially testable.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import hashlib

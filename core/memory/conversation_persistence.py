@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -266,7 +267,7 @@ class ConversationPersistence:
         temp_path = session_path.with_suffix(".json.tmp")
 
         try:
-            temp_path.write_text(json.dumps(record.to_dict(), indent=2))
+            atomic_write_text(temp_path, json.dumps(record.to_dict(), indent=2))
             temp_path.replace(session_path)  # Atomic rename
             logger.debug("Session saved: %s (%d messages)", self.session_id, record.message_count)
         except Exception as exc:
@@ -302,7 +303,7 @@ class ConversationPersistence:
 
         session_path = self.persist_dir / f"session_{self.session_id}.json"
         temp_path = session_path.with_suffix(".json.tmp")
-        temp_path.write_text(json.dumps(record.to_dict(), indent=2))
+        atomic_write_text(temp_path, json.dumps(record.to_dict(), indent=2))
         temp_path.replace(session_path)
 
         logger.info(

@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import json
 import uuid
 import logging
@@ -98,8 +99,8 @@ class LocalPipeBus:
         self._is_running = True
         if self.start_reader:
             self._dispatch_queue = asyncio.Queue(maxsize=256)
-            self._dispatcher_task = asyncio.create_task(self._dispatch_loop())
-            self._reader_task = asyncio.create_task(self._read_loop())
+            self._dispatcher_task = get_task_tracker().create_task(self._dispatch_loop())
+            self._reader_task = get_task_tracker().create_task(self._read_loop())
             logger.info("📡 LocalPipeBus reader ACTIVE (Child: %s)", self.is_child)
         else:
             logger.info("📡 LocalPipeBus ACTIVE (Manual Polling mode)")

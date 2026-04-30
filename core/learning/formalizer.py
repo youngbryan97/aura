@@ -8,6 +8,7 @@ page content, extracting structured facts and relationships without
 blocking the user-facing response.
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import hashlib
@@ -137,7 +138,7 @@ class KnowledgeFormalizer:
         """Formalize raw content into knowledge graph entries.
 
         This is the main entry point, designed to be called via
-        asyncio.create_task() from the response pipeline.
+        get_task_tracker().create_task() from the response pipeline.
 
         Returns:
             Summary dict with counts of facts and relationships committed.

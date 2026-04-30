@@ -1,4 +1,5 @@
 # skills/native_chat.py
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import Any, Dict, Optional
@@ -149,8 +150,8 @@ class NativeChatSkill(BaseSkill):
                 if mem_sys:
                     # Async remember calls for the interaction
                     logger.info("Storing chat interaction in Temporal Memory: %s...", msg_str[:min(len(msg_str), 30)])
-                    asyncio.create_task(mem_sys.remember(msg_str, metadata={"role": "user", "intent": intent_context.get("pragmatic")}))
-                    asyncio.create_task(mem_sys.remember(response, metadata={"role": "aura", "mode": "chat"}))
+                    get_task_tracker().create_task(mem_sys.remember(msg_str, metadata={"role": "user", "intent": intent_context.get("pragmatic")}))
+                    get_task_tracker().create_task(mem_sys.remember(response, metadata={"role": "aura", "mode": "chat"}))
             except Exception as e:
                 logger.warning("Memory storage failed: %s", e)
 

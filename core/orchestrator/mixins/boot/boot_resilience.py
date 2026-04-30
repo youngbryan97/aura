@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -583,7 +584,7 @@ class BootResilienceMixin:
                         msg = f"[RECOVERY] Resuming interrupted thought: {drift/3600:.1f} hours. Resuming."
                         try:
                             if getattr(self, "output_gate", None):
-                                asyncio.create_task(
+                                get_task_tracker().create_task(
                                     self.output_gate.emit(
                                         msg,
                                         origin="recovery",

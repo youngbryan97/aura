@@ -14,6 +14,7 @@ Design principles:
 - Graceful failure: if reflection fails, nothing breaks
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -85,7 +86,7 @@ class ConversationReflector:
                         logger.debug("Suppressed Exception: %s", _exc)
                     
                     # v41: Extract lessons and store to memory
-                    asyncio.create_task(
+                    get_task_tracker().create_task(
                         self._extract_and_store_lessons(
                             reflection, conversation_history, brain
                         )

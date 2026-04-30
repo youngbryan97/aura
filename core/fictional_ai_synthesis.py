@@ -43,6 +43,7 @@ Wire all six from orchestrator._init_autonomous_evolution():
     register_all_fictional_engines(orchestrator=self)
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 import logging
@@ -508,7 +509,7 @@ class ProgressiveAutonomySystem:
     def _save_state(self):
         try:
             data = {"trust_score": self._trust_score, "tier": self._tier.value, "last_saved": time.time()}
-            self.persist_path.write_text(json.dumps(data, indent=2))
+            atomic_write_text(self.persist_path, json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("EDI: Failed to save trust state: %s", e)
 
@@ -658,7 +659,7 @@ class SocialModelingEngine:
         # Save every 5 turns
         if self.model.total_interactions % 5 == 0:
             try: 
-                self.persist_path.write_text(json.dumps(asdict(self.model), indent=2))
+                atomic_write_text(self.persist_path, json.dumps(asdict(self.model), indent=2))
             except Exception as e:
                 logger.debug("Failed to save user model: %s", e)
 
@@ -894,11 +895,11 @@ def register_all_fictional_engines(orchestrator=None) -> Dict[str, Any]:
             logger.error("Fictional engine '%s' task crashed: %s", name, e, exc_info=True)
 
     tracker.track(
-        asyncio.create_task(_safe_start("jarvis", engines["jarvis"].start()), name="jarvis.start"),
+        get_task_tracker().create_task(_safe_start("jarvis", engines["jarvis"].start()), name="jarvis.start"),
         name="jarvis.start"
     )
     tracker.track(
-        asyncio.create_task(_safe_start("skynet", engines["skynet"].start_monitoring()), name="skynet.monitor"),
+        get_task_tracker().create_task(_safe_start("skynet", engines["skynet"].start_monitoring()), name="skynet.monitor"),
         name="skynet.monitor"
     )
     async def _start_mist_deferred():
@@ -910,7 +911,7 @@ def register_all_fictional_engines(orchestrator=None) -> Dict[str, Any]:
         logger.warning("MIST: brain never became available, idle loop not started")
 
     tracker.track(
-        asyncio.create_task(
+        get_task_tracker().create_task(
             _safe_start("mist", _start_mist_deferred()),
             name="mist.idle"
         ),

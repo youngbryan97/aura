@@ -46,7 +46,7 @@ class LockWatchdog:
                 name="aura.lock_watchdog",
             )
         except Exception:
-            self._task = asyncio.create_task(self._monitor_loop(), name="aura.lock_watchdog")
+            self._task = get_task_tracker().create_task(self._monitor_loop(), name="aura.lock_watchdog")
         logger.info(f"🛡️ LockWatchdog ACTIVE (Threshold: {self._threshold}s).")
 
     async def stop(self):

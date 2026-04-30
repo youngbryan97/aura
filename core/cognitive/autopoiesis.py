@@ -33,6 +33,7 @@ Design invariants:
     - Escalation path: repeated failures surface to the human operator.
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import hashlib
@@ -319,7 +320,7 @@ class AutopoiesisEngine:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._run_loop(), name="autopoiesis-loop")
+        self._task = get_task_tracker().create_task(self._run_loop(), name="autopoiesis-loop")
         logger.info("Autopoiesis background loop STARTED")
 
     async def stop(self) -> None:

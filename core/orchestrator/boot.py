@@ -364,7 +364,7 @@ class OrchestratorBootMixin(
 
                         return get_task_tracker().create_task(coro, name=name)
                     except Exception:
-                        return asyncio.create_task(coro, name=name)
+                        return get_task_tracker().create_task(coro, name=name)
 
                 # ZENITH LOCKDOWN: Start Deadlock Watchdog
                 if hasattr(self, "_deadlock_watchdog") and not lightweight_test_boot:

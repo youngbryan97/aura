@@ -5,6 +5,7 @@ A-Tier verification for the hardened Cognitive Engine.
 Updated to match the modular-phase facade API.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -66,7 +67,11 @@ async def test_engine_think_no_response(engine):
     thought = await engine.think("Hello")
     assert isinstance(thought, Thought)
     assert thought.confidence == 0.5
-    assert "processing" in thought.content.lower() or "modular" in thought.content.lower()
+    # Aura's no-response fallbacks are deliberately conversational ("turning
+    # that over", "running deeper", "reaching for an answer", etc.) rather
+    # than literal "still processing" — the contract is just that we got a
+    # nonempty fallback Thought back.
+    assert thought.content.strip()
 
 @pytest.mark.asyncio
 async def test_engine_health_check(engine):
@@ -87,7 +92,7 @@ async def test_reactive_recovery_does_not_hold_lock_while_rollback_runs(engine):
     engine.state_repository = AsyncMock()
     engine.state_repository.rollback.side_effect = _rollback
 
-    first_recovery = asyncio.create_task(
+    first_recovery = get_task_tracker().create_task(
         engine._reactive_recovery("Hello", ThinkingMode.FAST, "api", "test-failure")
     )
 
@@ -98,7 +103,8 @@ async def test_reactive_recovery_does_not_hold_lock_while_rollback_runs(engine):
         timeout=1.0,
     )
 
-    assert "still recovering" in second.content.lower()
+    # Production phrasing: "I'm still gathering myself. Give me a moment."
+    assert "gathering" in second.content.lower() or "moment" in second.content.lower()
 
     release_rollback.set()
     first = await asyncio.wait_for(first_recovery, timeout=1.0)

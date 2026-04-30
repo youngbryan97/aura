@@ -122,9 +122,7 @@ class ProactiveCommunicationManager:
     async def start(self):
         if self._background_task: return
         self._stop_event.clear()
-        self._background_task = get_task_tracker().track_task(
-            asyncio.create_task(self._process_messages(), name="proactive_communication.process_messages")
-        )
+        self._background_task = get_task_tracker().track_task(self._process_messages(), name="proactive_communication.process_messages")
 
     async def stop(self):
         if self._background_task:

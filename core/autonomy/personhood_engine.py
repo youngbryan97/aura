@@ -2,6 +2,7 @@
 Spontaneous speech based on internal state triggers.
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -50,7 +51,7 @@ class PersonhoodEngine:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._daemon(), name="aura.personhood")
+        self._task = get_task_tracker().create_task(self._daemon(), name="aura.personhood")
         logger.info("PersonhoodEngine started.")
 
     async def stop(self) -> None:

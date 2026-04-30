@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import Any, Dict
@@ -47,7 +48,7 @@ class DreamSkill(BaseSkill):
         try:
             orchestrator = ServiceContainer.get("orchestrator", default=None)
             if orchestrator and hasattr(orchestrator, "semantic_defrag") and getattr(orchestrator.semantic_defrag, "run_defrag_cycle", None):
-                asyncio.create_task(orchestrator.semantic_defrag.run_defrag_cycle())
+                get_task_tracker().create_task(orchestrator.semantic_defrag.run_defrag_cycle())
                 results["semantic_defrag"] = "queued"
             else:
                 results["semantic_defrag"] = "unavailable"
@@ -57,7 +58,7 @@ class DreamSkill(BaseSkill):
         # 3. Dream Cycle (DLQ Re-ingestion)
         try:
             if orchestrator and hasattr(orchestrator, "dream_cycle") and getattr(orchestrator.dream_cycle, "process_dreams", None):
-                asyncio.create_task(orchestrator.dream_cycle.process_dreams())
+                get_task_tracker().create_task(orchestrator.dream_cycle.process_dreams())
                 results["dlq_cycle"] = "queued"
             else:
                 results["dlq_cycle"] = "unavailable"

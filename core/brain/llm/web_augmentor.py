@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -27,7 +28,7 @@ class SovereignWebAugmentor(AbstractCognitiveAugmentor):
         keywords = ["now", "today", "news", "current", "latest"]
         if any(w in objective.lower() for w in keywords):
             if time.time() - self.last_update > 300: # 5 min cooldown for reactive
-                asyncio.create_task(self.refresh_world_state())
+                get_task_tracker().create_task(self.refresh_world_state())
         
         return context
 

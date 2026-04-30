@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Compatibility entrypoint for Aura cleanup.
 
@@ -6,7 +7,6 @@ Keep this thin shim in place so launcher flows remain stable even if the
 cleanup implementation lives under `scripts/one_off/`.
 """
 
-from __future__ import annotations
 
 import runpy
 from pathlib import Path

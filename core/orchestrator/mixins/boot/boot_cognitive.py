@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import Any, Optional
@@ -362,7 +363,7 @@ class BootCognitiveMixin:
         context_manager = CognitiveContextManager(self)
         ServiceContainer.register_instance("context_manager", context_manager)
         # Start context manager in background if it's heavy
-        asyncio.create_task(context_manager.start())
+        get_task_tracker().create_task(context_manager.start())
         logger.info("✓ CognitiveContextManager registered and starting in background")
 
         # Unified Consciousness & Affect Initialization
@@ -416,7 +417,7 @@ class BootCognitiveMixin:
                         "🛑 Consciousness System background start failed: %s", e
                     )
 
-            asyncio.create_task(_start_consciousness())
+            get_task_tracker().create_task(_start_consciousness())
 
             # --- PHASE 8: Phenomenological Integration ---
             from core.consciousness.integration import get_consciousness_integration

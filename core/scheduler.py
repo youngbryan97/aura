@@ -79,7 +79,7 @@ class Scheduler:
                 name="aura.scheduler.main_loop",
             )
         except Exception:
-            self._main_loop_task = asyncio.create_task(self._main_loop(), name="aura.scheduler.main_loop")
+            self._main_loop_task = get_task_tracker().create_task(self._main_loop(), name="aura.scheduler.main_loop")
         logger.info("🚀 Scheduler started.")
 
     async def _main_loop(self):
@@ -110,7 +110,7 @@ class Scheduler:
                                     name=f"scheduler.{spec.name}",
                                 )
                             except Exception:
-                                spec.running_task = asyncio.create_task(
+                                spec.running_task = get_task_tracker().create_task(
                                     self._run_task(spec),
                                     name=f"scheduler.{spec.name}",
                                 )

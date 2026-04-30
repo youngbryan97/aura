@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -146,7 +147,7 @@ def test_task_engine_loads_interrupted_plan_snapshot_as_resumable(tmp_path):
         context={"task_id": "task-restore"},
         status="running",
     )
-    path.write_text(
+    atomic_write_text(path, 
         json.dumps({"updated_at": 10.0, "plans": [persisted_plan.to_runtime_dict()]}),
         encoding="utf-8",
     )

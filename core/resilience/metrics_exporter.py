@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import Optional, Any
@@ -56,7 +57,7 @@ class MetricsExporter:
             # We wrap it in to_thread to prevent event loop stalls during boot.
             await asyncio.to_thread(start_http_server, self.actual_port)
             logger.info(f"📊 Metrics Exporter ONLINE (port {self.actual_port})")
-            self._task = asyncio.create_task(self._monitor_loop())
+            self._task = get_task_tracker().create_task(self._monitor_loop())
         except Exception as e:
             logger.error(f"Failed to start Metrics Exporter: {e}")
             self.running = False

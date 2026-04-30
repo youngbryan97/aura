@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import copy
@@ -210,7 +211,7 @@ class StateRepository:
             
             # Start consumer
             self._is_processing = True
-            self._consumer_task = asyncio.create_task(
+            self._consumer_task = get_task_tracker().create_task(
                 self._mutation_consumer_loop(),
                 name="vault_mutation_consumer"
             )
@@ -660,7 +661,7 @@ class StateRepository:
         actions: List[str] = []
 
         if self.is_vault_owner and self._is_processing and (self._consumer_task is None or self._consumer_task.done()):
-            self._consumer_task = asyncio.create_task(
+            self._consumer_task = get_task_tracker().create_task(
                 self._mutation_consumer_loop(),
                 name="vault_mutation_consumer",
             )

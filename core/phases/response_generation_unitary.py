@@ -22,6 +22,7 @@ After this rewrite:
      sovereignty or narrative boundaries.
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -1183,7 +1184,7 @@ class UnitaryResponsePhase(Phase):
 
         try:
             from core.embodiment.voice_presence import maybe_speak_response
-            asyncio.create_task(maybe_speak_response(response_text, state))
+            get_task_tracker().create_task(maybe_speak_response(response_text, state))
         except ImportError as e:
             logger.debug("Voice presence import error (safe to ignore): %s", e)
 
@@ -2121,7 +2122,7 @@ class UnitaryResponsePhase(Phase):
                         from core.learning.formalizer import formalize_content
                         page_title = fetched_content_parts[0].split("\n")[0] if fetched_content_parts else ""
                         page_url = str(auto_browse_urls[0]) if auto_browse_urls else ""
-                        asyncio.create_task(
+                        get_task_tracker().create_task(
                             formalize_content(
                                 content=fetched_block[:60000],
                                 source_title=page_title,

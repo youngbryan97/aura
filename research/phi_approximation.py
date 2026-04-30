@@ -20,8 +20,8 @@ complex. Characterize error distribution across 10K+ empirical TPMs.
 This is a real open problem. If the spectral approximation has bounded
 error on empirical TPMs, that's a publishable result.
 """
-
 from __future__ import annotations
+
 
 import logging
 import time

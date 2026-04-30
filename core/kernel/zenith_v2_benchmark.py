@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import time
 import copy
@@ -58,7 +59,7 @@ async def test_event_loop_lag():
                 lag_detected = True
             await asyncio.sleep(0.001)
 
-    monitor = asyncio.create_task(monitor_lag())
+    monitor = get_task_tracker().create_task(monitor_lag())
     
     print(f"📊 Stress-testing state transitions...")
     for i in range(5):

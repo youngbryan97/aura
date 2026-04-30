@@ -20,6 +20,7 @@ Wire these from orchestrator._init_autonomous_evolution():
     register_final_engines(orchestrator=self)
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 import logging
@@ -73,7 +74,7 @@ class WorldModelEngine:
     def _save_beliefs(self):
         try:
             data = {k: asdict(v) for k, v in self.beliefs.items()}
-            self.persist_path.write_text(json.dumps(data, indent=2))
+            atomic_write_text(self.persist_path, json.dumps(data, indent=2))
         except Exception:
             logger.error("WorldModelEngine: Failed to save beliefs to %s", self.persist_path)
 
@@ -142,7 +143,7 @@ class NarrativeIdentityEngine:
     def _save_narrative(self):
         try:
             data = {"core_essence": self.core_essence, "chapters": [asdict(c) for c in self.chapters]}
-            self.persist_path.write_text(json.dumps(data, indent=2))
+            atomic_write_text(self.persist_path, json.dumps(data, indent=2))
         except Exception:
             logger.error("NarrativeIdentityEngine: Failed to save narrative to %s", self.persist_path)
 

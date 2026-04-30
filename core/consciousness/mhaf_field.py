@@ -15,6 +15,7 @@ cognitive modules at a deeper level than the service bus.
 Persistence: state is checkpointed to ~/.aura/data/mhaf_state.json
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -205,7 +206,7 @@ class MycelialHypergraphAttractorField:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._loop(), name="MHAF.loop")
+        self._task = get_task_tracker().create_task(self._loop(), name="MHAF.loop")
         logger.info("MHAF background loop started.")
 
     async def stop(self):

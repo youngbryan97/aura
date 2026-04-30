@@ -42,8 +42,9 @@ The field provides:
   - Coherence measure (how unified vs fragmented the field is)
   - Back-pressure signals that modulate all input subsystems
 """
-
 from __future__ import annotations
+
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -207,7 +208,7 @@ class UnifiedField:
             return
         self._running = True
         self._start_time = time.time()
-        self._task = asyncio.create_task(self._run_loop(), name="UnifiedField")
+        self._task = get_task_tracker().create_task(self._run_loop(), name="UnifiedField")
         logger.info("UnifiedField STARTED (%d Hz)", self.cfg.update_hz)
 
     async def stop(self):

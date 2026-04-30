@@ -25,6 +25,7 @@ Commitments are distinct from HierarchicalPlanner goals:
   Commitments = promises, often interpersonal, with accountability
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -261,7 +262,7 @@ class CommitmentEngine:
                     for c_id, c in self._commitments.items()
                 },
             }
-            PERSIST_PATH.write_text(json.dumps(data, indent=2))
+            atomic_write_text(PERSIST_PATH, json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("CommitmentEngine save failed: %s", e)
 

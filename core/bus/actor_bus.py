@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -73,7 +74,7 @@ class ActorBus:
         
         # Start Telemetry Broadcaster
         if self._telemetry_broadcaster_task is None:
-            self._telemetry_broadcaster_task = asyncio.create_task(self._telemetry_broadcaster())
+            self._telemetry_broadcaster_task = get_task_tracker().create_task(self._telemetry_broadcaster())
             
         logger.info("📡 ActorBus (Unified Layer) ONLINE.")
 

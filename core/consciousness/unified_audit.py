@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import json
@@ -80,7 +82,7 @@ class AuditReport:
     def save_to_file(self, path: str) -> None:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(self.to_dict(), indent=2))
+        atomic_write_text(p, json.dumps(self.to_dict(), indent=2))
         logger.info("Audit saved to %s", path)
 
     def print_report(self) -> None:
@@ -239,7 +241,7 @@ class ConsciousnessAuditSuite:
                 except Exception as e:
                     logger.error("Scheduled audit failed: %s", e)
 
-        self._schedule_task = asyncio.create_task(_loop(), name="consciousness_audit")
+        self._schedule_task = get_task_tracker().create_task(_loop(), name="consciousness_audit")
         logger.info("Consciousness audit scheduled every %.0f minutes.", interval_minutes)
 
     def get_trend(self, n: int = 10) -> Dict[str, Any]:

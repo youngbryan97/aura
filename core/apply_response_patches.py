@@ -4,8 +4,8 @@ The response-layer fixes that once lived behind runtime monkey-patching are now
 implemented directly in the first-class modules. This entry point remains only
 so older boot paths can call it safely without mutating live classes.
 """
-
 from __future__ import annotations
+
 
 import logging
 from typing import Any

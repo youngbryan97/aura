@@ -78,8 +78,8 @@ INSTALL:
   from core.agency.self_development_patch import patch_agency_core
   patch_agency_core(agency_core_instance)
 """
-
 from __future__ import annotations
+
 
 import logging
 import random

@@ -3,6 +3,7 @@ core/ops/hypervisor.py
 Enterprise Sentinel: Watchdog Hypervisor for Aura.
 Monitors event loop health, memory leaks, and severe freezes.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -24,7 +25,7 @@ class Hypervisor:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._watchdog_loop())
+        self._task = get_task_tracker().create_task(self._watchdog_loop())
         logger.info("👁️ Hypervisor Watchdog active (Threshold: %.2fs)", self._lag_threshold)
 
     async def stop(self):

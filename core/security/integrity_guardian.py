@@ -21,6 +21,8 @@ Design principle: Aura shouldn't need to trust that her environment is safe.
 She should be able to verify it herself, continuously.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import hashlib
@@ -135,7 +137,7 @@ class IntegrityGuardian:
         if self._bg_task and not self._bg_task.done():
             return  # already running
         try:
-            self._bg_task = asyncio.create_task(self._periodic_check_loop())
+            self._bg_task = get_task_tracker().create_task(self._periodic_check_loop())
             logger.info("IntegrityGuardian: background check loop started (interval=%.0fs).", CHECK_INTERVAL)
         except RuntimeError:
             # No running event loop — background checks will be skipped; periodic
@@ -339,7 +341,7 @@ class IntegrityGuardian:
             sig = self._sign_manifest(self._manifest)
             self._manifest_hmac = sig
             data = {"files": self._manifest, "signature": sig, "built_at": time.time()}
-            MANIFEST_PATH.write_text(json.dumps(data, indent=2))
+            atomic_write_text(MANIFEST_PATH, json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("Manifest save failed: %s", e)
 

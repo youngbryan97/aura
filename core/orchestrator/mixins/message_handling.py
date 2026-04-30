@@ -163,7 +163,7 @@ class MessageHandlingMixin:
             priority = decision.priority
             if decision.defer_seconds > 0:
                 try:
-                    asyncio.create_task(
+                    get_task_tracker().create_task(
                         self._defer_enqueue_message(
                             message,
                             priority=priority,
@@ -372,7 +372,7 @@ class MessageHandlingMixin:
             except Exception as e:
                 logging.getLogger("Aura.BgTasks").debug(f"Task exception handler itself failed: {e}")
 
-        get_task_tracker().track_task(asyncio.create_task(_bounded_handler())).add_done_callback(_bg_task_exception_handler)
+        get_task_tracker().track_task(_bounded_handler()).add_done_callback(_bg_task_exception_handler)
         self._emit_dispatch_telemetry(message)
 
     def _emit_dispatch_telemetry(self, message: Any):
@@ -529,7 +529,7 @@ class MessageHandlingMixin:
             try:
                 cme = ServiceContainer.get("conversational_momentum_engine", default=None)
                 if cme:
-                    asyncio.ensure_future(cme.on_new_user_message(message))
+                    get_task_tracker().track(cme.on_new_user_message(message))
             except Exception as _exc:
                 logger.debug("Suppressed Exception: %s", _exc)
 

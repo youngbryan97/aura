@@ -5,6 +5,7 @@ Chaos Fuzzer — Zero-Day Hunt Test Suite
 Stress tests the entire Aura architecture by bombarding it
 with toxic data, extreme concurrency, and evasion attempts.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import os
@@ -86,7 +87,7 @@ async def test_sqlite_concurrency_spike():
             logger.error("Write %d failed: %s", idx, e)
             return False
 
-    tasks = [asyncio.create_task(attack_write(i)) for i in range(500)]
+    tasks = [get_task_tracker().create_task(attack_write(i)) for i in range(500)]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     successes = sum(1 for r in results if r is True)

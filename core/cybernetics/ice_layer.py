@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import logging
 import asyncio
 import time
@@ -57,7 +58,7 @@ class ICELayer:
                 # Refactored to Queue-based processing for Aura EventBus
                 self._audit_queue = await self._event_bus.subscribe("core/brain/empathy_audit")
                 self._violation_queue = await self._event_bus.subscribe("core/security/executive_violation")
-                asyncio.create_task(self._process_events())
+                get_task_tracker().create_task(self._process_events())
         except ImportError:
             self._event_bus = None
 
@@ -146,8 +147,11 @@ class ICELayer:
             except Exception as exc:
                 logger.debug("[ICE] Anomaly detector observe failed: %s", exc)
 
-        # Legacy escalation (slightly softened since detector provides continuous signal)
-        self._threat_level = min(1.0, self._threat_level + 0.25)
+        # Legacy escalation. Keep at +0.3 — the contract test verifies this
+        # exact step (0.0 -> 0.3 on a single executive violation) so the
+        # downstream neural-hardening trigger threshold (>0.8) is reachable
+        # in three violations as documented.
+        self._threat_level = min(1.0, self._threat_level + 0.3)
         if self._threat_level > 0.8:
             await self._trigger_neural_hardening()
 
@@ -174,7 +178,7 @@ class ICELayer:
         }
         
         if self._event_bus:
-            asyncio.create_task(self._event_bus.publish("core/cybernetics/anomaly_classified", res))
+            get_task_tracker().create_task(self._event_bus.publish("core/cybernetics/anomaly_classified", res))
             
         return res
 

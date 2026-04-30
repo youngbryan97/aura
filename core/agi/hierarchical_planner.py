@@ -18,6 +18,7 @@ This is what separates an assistant from an agent:
   An agent pursues what it has committed to.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -283,7 +284,7 @@ class HierarchicalPlanner:
                 }
                 for g_id, g in self._goals.items()
             }
-            PERSIST_PATH.write_text(json.dumps(data, indent=2))
+            atomic_write_text(PERSIST_PATH, json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("HierarchicalPlanner save failed: %s", e)
 

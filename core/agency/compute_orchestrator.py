@@ -20,6 +20,7 @@ The orchestrator also:
   - Logs allocation decisions for transparency
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -222,7 +223,7 @@ class ComputeOrchestrator:
             from core.container import ServiceContainer
             affect = ServiceContainer.get("affect_engine", default=None)
             if affect and hasattr(affect, "apply_stimulus"):
-                asyncio.ensure_future(
+                get_task_tracker().track(
                     affect.apply_stimulus("resource_strain", anxiety * 5)
                 )
         except Exception as _exc:

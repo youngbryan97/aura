@@ -5,8 +5,8 @@ That created drift as native runtime paths evolved, and parts of the patch
 layer became stale or ineffective. The safe/full mode contract now works by
 installing explicit runtime configuration that native subsystems consume.
 """
-
 from __future__ import annotations
+
 
 import logging
 from copy import deepcopy

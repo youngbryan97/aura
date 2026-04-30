@@ -3,6 +3,7 @@ core/ops/lymphatic_reaper.py
 Enterprise Maintenance: Cleans uporphaned processes, stale file handles, and fragments.
 Inspired by the biological lymphatic system.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import os
@@ -29,7 +30,7 @@ class LymphaticReaper:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._run_loop())
+        self._task = get_task_tracker().create_task(self._run_loop())
         logger.info("🛡️ Lymphatic Reaper active (Interval: %.1fs)", self._interval)
 
     async def stop(self):

@@ -1,6 +1,7 @@
 ################################################################################
 
 """Verify Evaluation Harness."""
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
 import sys
@@ -37,7 +38,7 @@ async def test_harness():
     
     # Create the test target file
     target_path = Path("test_target.py")
-    target_path.write_text("print('buggy')\n", encoding="utf-8")
+    atomic_write_text(target_path, "print('buggy')\n", encoding="utf-8")
     
     try:
         # We need to mock _run_probe_on_code or ensure run_custom_probe works

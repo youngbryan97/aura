@@ -11,6 +11,7 @@ theory (Laukkonen, Friston & Chandaria 2025), and the Free Energy Principle:
   [C] PhiWitness:         measures resulting causal integration via transfer entropy
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -138,7 +139,7 @@ class OutputReceptor:
             from core.container import ServiceContainer
             substrate = ServiceContainer.get("conscious_substrate", default=None)
             if substrate:
-                asyncio.create_task(
+                get_task_tracker().create_task(
                     substrate.inject_stimulus(delta, weight=OUTPUT_FEEDBACK_WEIGHT)
                 )
                 with self._lock:
@@ -487,7 +488,7 @@ class ClosedCausalLoop:
         if self._loop_state.is_running:
             return
         self._loop_state.is_running = True
-        self._task = asyncio.create_task(
+        self._task = get_task_tracker().create_task(
             self._prediction_loop(), name="ClosedCausalLoop.prediction"
         )
 

@@ -1,6 +1,7 @@
 """Aura Zenith Cognitive Loop Service.
 Decouples the cognitive cycle from the Orchestrator.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -35,7 +36,7 @@ class CognitiveLoop:
         if self.is_running:
             return
         self.is_running = True
-        self._task = asyncio.create_task(self.run())
+        self._task = get_task_tracker().create_task(self.run())
         logger.info("🧠 Cognitive Loop service started.")
 
     async def stop(self):

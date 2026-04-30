@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import os
 from pathlib import Path
 
@@ -53,7 +54,7 @@ def bundle_codebase(root_dir, output_file, max_size_mb=25):
             except Exception as e:
                 print(f"❌ Failed to read {path}: {e}")
                 
-    output.write_text("\n".join(bundle_content), encoding='utf-8')
+    atomic_write_text(output, "\n".join(bundle_content), encoding='utf-8')
     print(f"✅ Bundle created: {output} ({total_size / 1024 / 1024:.2f} MB)")
     print(f"📄 Total files: {file_count}")
 

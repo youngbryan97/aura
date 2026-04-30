@@ -22,6 +22,7 @@ This is NOT general code execution. It is ONLY for modifying
 Aura's own modules with full audit trail and rollback contract.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import logging
@@ -158,7 +159,7 @@ class SandboxedModifier:
                 # Write modified file in worktree
                 wt_file = Path(tmpdir) / file_path
                 wt_file.parent.mkdir(parents=True, exist_ok=True)
-                wt_file.write_text(new_content)
+                atomic_write_text(wt_file, new_content)
 
                 # Syntax check in worktree
                 check = subprocess.run(
@@ -232,10 +233,10 @@ class SandboxedModifier:
             # Backup original
             backup = abs_path.with_suffix(abs_path.suffix + ".bak")
             if abs_path.exists():
-                backup.write_text(original)
+                atomic_write_text(backup, original)
 
             # Write new content
-            abs_path.write_text(new_content)
+            atomic_write_text(abs_path, new_content)
 
             # Syntax check
             check = subprocess.run(
@@ -245,7 +246,7 @@ class SandboxedModifier:
             if check.returncode != 0:
                 # Rollback
                 if backup.exists():
-                    abs_path.write_text(original)
+                    atomic_write_text(abs_path, original)
                     backup.unlink()
                 return ModificationResult(
                     False, f"Syntax error: {check.stderr[:200]}", file_path

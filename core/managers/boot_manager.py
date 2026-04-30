@@ -1,6 +1,7 @@
 """BootManager service for Aura - Full Extraction.
 Handles the procedural initialization of subsystems, decoupling the boot sequence from the core orchestrator.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -120,7 +121,7 @@ class BootManager:
             self._calculate_temporal_drift()
 
             from core.memory.semantic_defrag import start_defrag_scheduler
-            asyncio.create_task(start_defrag_scheduler())
+            get_task_tracker().create_task(start_defrag_scheduler())
             
             self.logger.info("✅ BOOT COMPLETE: Orchestrator architecture online")
             self.orchestrator.status.initialized = True

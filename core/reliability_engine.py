@@ -4,6 +4,7 @@ Watches every service, enforces circuit breakers, graceful degradation,
 and guarantees cognitive_stability never drops below 0.85.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -45,11 +46,11 @@ class ReliabilityEngine:
             self.register_service(svc_name)
 
         # Global sweep
-        sweep = asyncio.create_task(self._global_sweep_loop())
+        sweep = get_task_tracker().create_task(self._global_sweep_loop())
         self._tasks.append(sweep)
 
         # Heartbeat listener
-        hb = asyncio.create_task(self._heartbeat_listener())
+        hb = get_task_tracker().create_task(self._heartbeat_listener())
         self._tasks.append(hb)
 
     def register_service(self, name: str, initial_stability: float = 1.0):

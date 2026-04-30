@@ -353,7 +353,7 @@ class AutonomyMixin:
                 logger.info("🧠 Accelerated Thought (Factor: %.1fx, Threshold: %.1fs)", factor, threshold) if factor > 1.0 else None
                 self._current_task_is_autonomous = True  # v47: flag for interruption logic
                 from core.utils.task_tracker import get_task_tracker
-                self._current_thought_task = get_task_tracker().track_task(asyncio.create_task(self._perform_autonomous_thought()))
+                self._current_thought_task = get_task_tracker().track_task(self._perform_autonomous_thought())
 
     async def _perform_autonomous_thought(self):
         """Perform a cycle of autonomous thought."""

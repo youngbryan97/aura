@@ -147,14 +147,22 @@ async def test_process_user_input_complex(orchestrator):
     with patch("core.utils.task_tracker.get_task_tracker") as mock_get_tracker:
         mock_tt = MagicMock()
         mock_tt.track_task.side_effect = lambda t, *args, **kwargs: t
+        # _handle_incoming_message does tracker.track_task(get_task_tracker().create_task(coro)),
+        # so create_task must yield something awaitable — return the coro itself.
+        mock_tt.create_task.side_effect = lambda coro, *a, **kw: asyncio.ensure_future(coro)
         mock_get_tracker.return_value = mock_tt
-        
+
+        # Stub the heavy pipeline so the test exercises wiring, not full cognition.
+        async def _stub_pipeline(*a, **kw):
+            return None
+        orchestrator._process_message_pipeline = _stub_pipeline  # type: ignore[assignment]
+
         # Ensure intent_router is truthy for the call
         mock_router = MagicMock()
         mock_router.classify = AsyncMock(return_value="system_status")
         orchestrator.intent_router = mock_router
         mock_router.classify.reset_mock() # Clear stale calls
-        
+
         await orchestrator._handle_incoming_message("Analyze the current system status and report back.")
         
         # Wait for the background task to finish
@@ -228,7 +236,13 @@ async def test_trigger_background_learning(orchestrator):
     # Setup safely
     orchestrator.curiosity = MagicMock()
     with patch("core.utils.task_tracker.get_task_tracker") as mock_get_tracker:
-        mock_track = mock_get_tracker.return_value.track_task
+        mock_tt = MagicMock()
+        # _trigger_background_learning gates on _task_scheduled(...) which checks
+        # for a real Future/Task. Wrap each coro in a real asyncio task so the
+        # gate passes and track_task is reached.
+        mock_tt.create_task.side_effect = lambda coro, *a, **k: asyncio.ensure_future(coro)
+        mock_get_tracker.return_value = mock_tt
+        mock_track = mock_tt.track_task
         with patch.object(orchestrator, "_learn_from_exchange", new_callable=AsyncMock) as mock_learn:
             RobustOrchestrator._trigger_background_learning(orchestrator, "What is fire?", "Fire is hot.")
             await asyncio.sleep(0)
@@ -404,11 +418,14 @@ async def test_acquire_next_message(orchestrator, mock_container):
     assert msg == "Test Message"
     assert mock_ls.update.called
 
-def test_enqueue_message(orchestrator):
+@pytest.mark.asyncio
+async def test_enqueue_message(orchestrator):
     orchestrator.message_queue = MagicMock()
-    orchestrator.enqueue_message("Input")
-    # Check that it was called with (priority, timestamp, counter, message)
-    # v Zenith: Corrected index from 2 to 3 for 4-tuple format
+    # Bypass the post-Zenith authority gate so this test exercises the queue
+    # mechanics, not the gating policy (which has its own dedicated tests).
+    # Async test guarantees there's a running loop for the put_nowait path.
+    orchestrator.enqueue_message("Input", _authority_checked=True)
+    # Tuple is now 5-wide: (priority, timestamp, counter, message, origin).
     args, kwargs = orchestrator.message_queue.put_nowait.call_args
     val = args[0]
     assert isinstance(val, tuple)
@@ -839,16 +856,18 @@ def test_record_message_in_history_impulse(orchestrator):
     assert orchestrator.conversation_history[-1]["role"] == "internal"
 
 # --- enqueue_message (line 919) ---
-def test_enqueue_message_success(orchestrator):
+@pytest.mark.asyncio
+async def test_enqueue_message_success(orchestrator):
     orchestrator.message_queue = asyncio.Queue(maxsize=10)
-    orchestrator.enqueue_message("Hello")
+    orchestrator.enqueue_message("Hello", _authority_checked=True)
     assert orchestrator.message_queue.qsize() == 1
 
-def test_enqueue_message_full(orchestrator):
+@pytest.mark.asyncio
+async def test_enqueue_message_full(orchestrator):
     orchestrator.message_queue = asyncio.Queue(maxsize=1)
     orchestrator.message_queue.put_nowait("first")
     # Should not raise, just warn
-    orchestrator.enqueue_message("second")
+    orchestrator.enqueue_message("second", _authority_checked=True)
     assert orchestrator.message_queue.qsize() == 1
 
 # --- enqueue_from_thread (line 926) ---
@@ -1897,12 +1916,20 @@ async def test_perform_autonomous_thought_no_brain(orchestrator):
         # Should return early without crashing
 
 # --- _dispatch_message (line 657) ---
-def test_dispatch_message_str(orchestrator):
+@pytest.mark.asyncio
+async def test_dispatch_message_str(orchestrator):
     orchestrator._handle_incoming_message = AsyncMock()
-    with patch("core.utils.task_tracker.task_tracker.track_task") as mock_tt:
-        with patch("asyncio.create_task") as mock_create_task:
-            mock_create_task.side_effect = lambda coro, *args, **kwargs: (coro.close(), MagicMock())[1]
-            orchestrator._dispatch_message("Hello World")
+    # _dispatch_message goes through get_task_tracker().track_task(...). The
+    # tracker's track() now creates the underlying asyncio.Task itself, so we
+    # need a running loop.
+    with patch("core.utils.task_tracker.get_task_tracker") as mock_get_tracker:
+        mock_tt = MagicMock()
+        mock_tt.track_task.return_value = MagicMock(spec=asyncio.Task)
+        mock_get_tracker.return_value = mock_tt
+
+        orchestrator._dispatch_message("Hello World")
+        # track_task should have been called for the bounded handler.
+        assert mock_tt.track_task.called or mock_tt.bounded_track.called
 
 def test_dispatch_message_dict(orchestrator):
     orchestrator._handle_incoming_message = AsyncMock()

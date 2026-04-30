@@ -17,6 +17,7 @@ Wiring:
 - CognitiveContextManager ← get_joy_summary() injection
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 import logging
@@ -376,7 +377,7 @@ class HobbyEngine:
                 "profiles": {n: asdict(p) for n, p in self._profiles.items()},
                 "saved_at": time.time(),
             }
-            self.PERSIST_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            atomic_write_text(self.PERSIST_PATH, json.dumps(payload, indent=2), encoding="utf-8")
         except Exception as exc:
             logger.warning("HobbyEngine: state save failed — %s", exc)
 
@@ -582,7 +583,7 @@ class HobbyEngine:
         try:
             self.ENTERTAINMENT_LOG.parent.mkdir(parents=True, exist_ok=True)
             raw = [asdict(i) for i in self._entertainment_queue[-100:]]
-            self.ENTERTAINMENT_LOG.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+            atomic_write_text(self.ENTERTAINMENT_LOG, json.dumps(raw, indent=2), encoding="utf-8")
         except Exception as exc:
             logger.debug("HobbyEngine: entertainment log save failed — %s", exc)
 

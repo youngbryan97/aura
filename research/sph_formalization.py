@@ -37,8 +37,8 @@ This module:
 3. Provides a verify() function that checks the existing gates
 4. Produces a compliance report identifying any ungated or weakly gated reports
 """
-
 from __future__ import annotations
+
 
 import inspect
 import logging

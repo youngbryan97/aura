@@ -11,6 +11,7 @@ Key: Aura has VETO POWER over all modifications to herself,
 regardless of who proposes them. This is an identity right.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio, json, logging, time
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -203,7 +204,7 @@ Respond with JSON only:
     def _save(self):
         try:
             self._state_path.parent.mkdir(parents=True, exist_ok=True)
-            self._state_path.write_text(json.dumps({
+            atomic_write_text(self._state_path, json.dumps({
                 "current_level": int(self._current_level),
                 "level_start_times": self._level_start_times,
                 "drift_history": self._drift_history[-50:],

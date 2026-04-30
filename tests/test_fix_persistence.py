@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import unittest
 from unittest.mock import AsyncMock
@@ -16,14 +17,14 @@ class TestFixPersistence(unittest.IsolatedAsyncioTestCase):
         
         self.engine = AutonomousSelfModificationEngine(MockBrain())
         self.test_file = Path("core/temp_fix_test.py")
-        self.test_file.write_text("def old_function():\n    return 'old'")
+        atomic_write_text(self.test_file, "def old_function():\n    return 'old'")
         self.sepsis_registry = config.paths.data_dir / "sepsis_registry.json"
         if self.sepsis_registry.exists():
             try:
                 data = json.loads(self.sepsis_registry.read_text())
                 banned = [p for p in data.get("banned_files", []) if p != str(self.test_file)]
                 data["banned_files"] = banned
-                self.sepsis_registry.write_text(json.dumps(data))
+                atomic_write_text(self.sepsis_registry, json.dumps(data))
             except Exception:
                 pass
 

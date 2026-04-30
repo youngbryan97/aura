@@ -38,13 +38,13 @@ class IncomingLogicMixin:
                 if message.startswith(prefix):
                     coro = self._route_prefixed_message(message, prefix, origin)
                     # v31.1: Await the task to ensure serialization via the dispatch semaphore.
-                    self._current_thought_task = tracker.track_task(asyncio.create_task(coro))
+                    self._current_thought_task = tracker.track_task(get_task_tracker().create_task(coro))
                     await self._current_thought_task
                     return
 
         # Default path
         coro = self._process_message_pipeline(message, origin=origin, **kwargs)
-        self._current_thought_task = tracker.track_task(asyncio.create_task(coro))
+        self._current_thought_task = tracker.track_task(get_task_tracker().create_task(coro))
         await self._current_thought_task
         return self._current_thought_task
 
@@ -705,7 +705,7 @@ class IncomingLogicMixin:
                                                 if origin in ("user", "voice", "admin"):
                                                     await self.output_gate.emit("I'm still processing your request. My logic is deep, but I'm with you.", origin=origin, target="primary")
 
-                                    heartbeat_task = asyncio.create_task(_reasoning_heartbeat())
+                                    heartbeat_task = get_task_tracker().create_task(_reasoning_heartbeat())
                                     priority = origin in ("user", "voice", "admin")
                                     try:
                                         async for event in self.react_loop.run_stream(message, priority=priority):
@@ -949,7 +949,7 @@ class IncomingLogicMixin:
                     return f"Cognitive failure: {str(e)}"
 
             from core.utils.task_tracker import get_task_tracker
-            task = get_task_tracker().track_task(asyncio.create_task(_watchdog_wrapper()))
+            task = get_task_tracker().track_task(_watchdog_wrapper())
             self._current_thought_task = task
 
             # Await inline — guard against cross-loop Future errors that can occur when

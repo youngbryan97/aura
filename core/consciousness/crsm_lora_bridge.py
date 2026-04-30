@@ -27,6 +27,7 @@ The quality score passed to FinetunePipe:
            - 0.2 * (1 - confidence)        (uncertain responses = weaker signal)
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import json
 import logging
@@ -189,7 +190,7 @@ class CRSMLoraBridge:
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
-                        asyncio.ensure_future(
+                        get_task_tracker().track(
                             pipe.register_success(
                                 task_description="experiential_moment",
                                 context=moment.context_summary[:300],

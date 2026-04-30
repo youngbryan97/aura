@@ -29,8 +29,8 @@ Integration:
   - ContextAssembler reads draft_divergence for personhood_context
   - Draft competition history is kept for "why did I say that?" debugging
 """
-
 from __future__ import annotations
+
 
 import hashlib
 import logging

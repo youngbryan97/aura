@@ -1,4 +1,6 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import contextlib
 import gc
@@ -135,7 +137,7 @@ def _load_probe_cache_from_disk() -> tuple[Optional[bool], str, float]:
 def _store_probe_cache_to_disk(ok: bool, detail: str) -> None:
     try:
         _MLX_RUNTIME_PROBE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _MLX_RUNTIME_PROBE_CACHE_PATH.write_text(
+        atomic_write_text(_MLX_RUNTIME_PROBE_CACHE_PATH, 
             json.dumps(
                 {
                     "ok": bool(ok),
@@ -851,7 +853,7 @@ class MLXLocalClient:
                         return False
                     if self._listener_task:
                         self._listener_task.cancel()
-                    self._listener_task = asyncio.create_task(self._response_listener_loop())
+                    self._listener_task = get_task_tracker().create_task(self._response_listener_loop())
                     self._set_lane_state("handshaking")
                     should_wait_init = True
             elif not self._process or not self._process.is_alive():
@@ -887,7 +889,7 @@ class MLXLocalClient:
                     return False
                 if self._listener_task:
                     self._listener_task.cancel()
-                self._listener_task = asyncio.create_task(self._response_listener_loop())
+                self._listener_task = get_task_tracker().create_task(self._response_listener_loop())
                 should_wait_init = True
                 self._init_done = False
                 self._set_lane_state("handshaking")

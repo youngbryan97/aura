@@ -4,6 +4,7 @@ Orchestrates on-device LoRA fine-tuning for Aura's internal Nucleus models.
 This allows Aura to update her own weights based on captured experiences.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import os
 import json
 import logging
@@ -63,7 +64,7 @@ class SelfOptimizer:
         logger.info("🧠 Nucleus: Starting self-optimization (LoRA) cycle...")
         
         if self.event_bus:
-            asyncio.create_task(self.event_bus.publish("core/optimizer/started", {
+            get_task_tracker().create_task(self.event_bus.publish("core/optimizer/started", {
                 "model": self.base_model_path.name,
                 "iters": iters,
                 "batch_size": batch_size
@@ -131,7 +132,7 @@ class SelfOptimizer:
             
             if process.returncode == 0:
                 if self.event_bus:
-                    asyncio.create_task(self.event_bus.publish("core/optimizer/completed", {
+                    get_task_tracker().create_task(self.event_bus.publish("core/optimizer/completed", {
                         "status": "success",
                         "duration": duration,
                         "samples": len(data)
@@ -152,7 +153,7 @@ class SelfOptimizer:
                     logger.debug('Ignored Exception in self_optimizer.py: %s', _e)
                 
                 if self.event_bus:
-                    asyncio.create_task(self.event_bus.publish("core/optimizer/completed", {
+                    get_task_tracker().create_task(self.event_bus.publish("core/optimizer/completed", {
                         "status": "failed",
                         "error": error_msg
                     }))

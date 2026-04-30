@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import time
 from rich.live import Live
@@ -27,7 +28,7 @@ class CircuitDash:
 
     async def start(self):
         self.running = True
-        self._task = asyncio.create_task(self._draw_loop())
+        self._task = get_task_tracker().create_task(self._draw_loop())
 
     async def stop(self):
         self.running = False

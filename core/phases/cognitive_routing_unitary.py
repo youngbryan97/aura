@@ -320,6 +320,7 @@ class CognitiveRoutingPhase(Phase):
 
         memory_salience = float(affect_signature.get("memory_salience", 0.0) or 0.0)
         affective_complexity = float(affect_signature.get("affective_complexity", 0.0) or 0.0)
+        arousal = float(affect_signature.get("arousal", 0.0) or 0.0)
         if (
             contract.requires_state_reflection
             or contract.requires_aura_stance
@@ -345,11 +346,24 @@ class CognitiveRoutingPhase(Phase):
                 analysis=analysis,
                 route_meta=route_meta,
             )
-            # [STABILITY v53] Removed deep_handoff for reflective/emotional/philosophical
-            # conversations. The 32B cortex is MORE than capable of handling questions
-            # about Aura's feelings, opinions, state, and philosophical topics.
-            # The 72B deep solver should ONLY activate for genuinely complex technical
-            # problems (coding, math, architecture). Emotional depth ≠ computational depth.
+            # When the affect-coupled reflective path escalates to DELIBERATE under
+            # genuine affective pressure (high arousal AND mixed/complex emotions),
+            # surface that as a deep-handoff request so downstream tiering can pick
+            # the heavier reasoning lane. This is gated tightly so ordinary "are you
+            # there?" chats stay on the 32B cortex — only truly pressured state
+            # reflections trigger the deeper lane.
+            if reflective_mode == CognitiveMode.DELIBERATE and is_user_facing:
+                affective_pressure = (
+                    arousal >= 0.7
+                    and affective_complexity > 0.45
+                    and (
+                        contract.requires_state_reflection
+                        or contract.requires_aura_question
+                        or contract.requires_aura_stance
+                    )
+                )
+                if affective_pressure:
+                    new_state.response_modifiers["deep_handoff"] = True
             return new_state
 
         if is_user_facing and bool(route_meta.get("coding_request")):

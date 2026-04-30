@@ -18,6 +18,7 @@ Public API (used by InferenceGate):
     pneuma.get_llm_temperature()    → precision-weighted temperature
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -60,7 +61,7 @@ class PNEUMA:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._loop(), name="PNEUMA.loop")
+        self._task = get_task_tracker().create_task(self._loop(), name="PNEUMA.loop")
         logger.info("PNEUMA background loop started.")
 
     async def stop(self):

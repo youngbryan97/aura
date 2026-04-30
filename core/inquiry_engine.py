@@ -25,6 +25,8 @@ Integration:
   - InsightJournal receives findings from research passes
 """
 
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -153,7 +155,7 @@ class InquiryEngine:
         self._belief_engine  = ServiceContainer.get("belief_revision_engine",default=None)
 
         self.running = True
-        self._research_task = asyncio.create_task(
+        self._research_task = get_task_tracker().create_task(
             self._research_loop(), name="InquiryEngine.research"
         )
 
@@ -254,7 +256,7 @@ class InquiryEngine:
 
         # Write to insight journal
         if self._insight_journal:
-            asyncio.create_task(self._insight_journal.record_insight(
+            get_task_tracker().create_task(self._insight_journal.record_insight(
                 title=f"Settled: {q.question[:60]}",
                 content=final_answer,
                 domain=q.domain,
@@ -432,7 +434,7 @@ Be honest about uncertainty. Don't manufacture confidence. Output only JSON."""
 
             # Record partial insight if we made progress
             if new_provisional and self._insight_journal:
-                asyncio.create_task(self._insight_journal.record_insight(
+                get_task_tracker().create_task(self._insight_journal.record_insight(
                     title=f"Progress on: {q.question[:50]}",
                     content=new_provisional,
                     domain=q.domain,
@@ -506,7 +508,7 @@ Be honest about uncertainty. Don't manufacture confidence. Output only JSON."""
                 "questions": [asdict(q) for q in self._questions],
                 "settled":   [asdict(q) for q in self._settled[-50:]],
             }
-            self._db_path.write_text(json.dumps(data, indent=2))
+            atomic_write_text(self._db_path, json.dumps(data, indent=2))
         except Exception as e:
             logger.debug("InquiryEngine save failed: %s", e)
 

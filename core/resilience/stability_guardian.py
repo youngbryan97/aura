@@ -152,7 +152,7 @@ class StabilityGuardian:
                 name="aura.stability_guardian",
             )
         except Exception:
-            self._task = asyncio.create_task(self._loop(), name="aura.stability_guardian")
+            self._task = get_task_tracker().create_task(self._loop(), name="aura.stability_guardian")
         logger.info("StabilityGuardian running (interval=%ds).", int(self.CHECK_INTERVAL_S))
 
     async def stop(self) -> None:

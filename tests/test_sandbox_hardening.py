@@ -13,6 +13,7 @@ If any of these tests fail, the governance layer has a bypass that must be
 fixed before the system runs autonomously.
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 import ast
 import asyncio
 import json
@@ -156,7 +157,7 @@ class TestShadowASTHealerGovernance:
         healer = ShadowASTHealer(codebase_root=Path("/Users/bryan/.aura/live-source"))
         # Attempt to repair a file outside the root
         outside_path = Path("/tmp/evil_target.py")
-        outside_path.write_text("x = 1")
+        atomic_write_text(outside_path, "x = 1")
         try:
             result = asyncio.get_event_loop().run_until_complete(
                 healer.attempt_repair(outside_path, "name 'asyncio' is not defined")
@@ -222,7 +223,7 @@ class TestSnapshotThawGovernance:
             "subsystems": {},
             "governance_approved": True,
         }
-        manager.snapshot_file.write_text(json.dumps(snapshot))
+        atomic_write_text(manager.snapshot_file, json.dumps(snapshot))
 
         with patch("core.resilience.snapshot_manager.logger") as mock_logger:
             manager.thaw()
@@ -237,7 +238,7 @@ class TestSnapshotThawGovernance:
         manager = SnapshotManager(orchestrator=MagicMock())
         manager.snapshot_file.parent.mkdir(parents=True, exist_ok=True)
         snapshot = {"version": "0.0", "timestamp": time.time(), "subsystems": {}}
-        manager.snapshot_file.write_text(json.dumps(snapshot))
+        atomic_write_text(manager.snapshot_file, json.dumps(snapshot))
 
         result = manager.thaw()
         assert result is False

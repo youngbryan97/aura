@@ -1,6 +1,7 @@
 """core/consciousness/system.py — The Consciousness Facade
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import Optional, Any
@@ -150,7 +151,7 @@ class ConsciousnessSystem:
         if self.dreaming:
             await self.dreaming.start()
             
-        self._task = asyncio.create_task(self.heartbeat.run())
+        self._task = get_task_tracker().create_task(self.heartbeat.run())
         logger.info("🧠 Consciousness System ONLINE — full stack active")
 
     async def stop(self):

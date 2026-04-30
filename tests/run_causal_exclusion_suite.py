@@ -10,6 +10,7 @@ Usage:
     python tests/run_causal_exclusion_suite.py > tests/CAUSAL_EXCLUSION_RESULTS.md
 """
 
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 import sys
@@ -650,5 +651,5 @@ print("=" * 72)
 json_results = {k: {kk: str(vv) if not isinstance(vv, (int, float, bool)) else vv
                      for kk, vv in v.items()} for k, v in results.items()}
 json_path = Path("tests/CAUSAL_EXCLUSION_RESULTS.json")
-json_path.write_text(json.dumps(json_results, indent=2))
+atomic_write_text(json_path, json.dumps(json_results, indent=2))
 print(f"\nResults written to {json_path}")

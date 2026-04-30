@@ -5,8 +5,8 @@ conversation needs: connect biography to history, private trouble to public
 issue, and also relate abstract topics back to lived stakes, daily life,
 identity, and institutional structure.
 """
-
 from __future__ import annotations
+
 
 import json
 import logging

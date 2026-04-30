@@ -9,6 +9,7 @@ Refactored for ZENITH Protocol efficiency:
   - Mandatory resource_anxiety abort if system load exceeds thresholds.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -64,7 +65,7 @@ class OntologyGenesisEngine:
             return True
 
         self._active = True
-        self._genesis_task = asyncio.create_task(self._discovery_loop(volition))
+        self._genesis_task = get_task_tracker().create_task(self._discovery_loop(volition))
         logger.info("OntologyGenesis: Hibernation ended (Volition=%d). Discovery loop active.", volition)
         return True
 

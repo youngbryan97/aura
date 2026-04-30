@@ -28,8 +28,8 @@ bridge) decides whether to apply them.  This keeps ownership clean.
 
 Operates entirely on numpy arrays.  Thread-safe via an internal lock.
 """
-
 from __future__ import annotations
+
 
 import logging
 import threading

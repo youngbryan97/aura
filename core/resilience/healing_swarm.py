@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -21,7 +22,7 @@ class HealingSwarmService:
         if self.is_running:
             return
         self.is_running = True
-        self._monitor_task = asyncio.create_task(self._monitor_loop())
+        self._monitor_task = get_task_tracker().create_task(self._monitor_loop())
         logger.info("🛡️ Healing Swarm Service ONLINE.")
 
     async def _monitor_loop(self):

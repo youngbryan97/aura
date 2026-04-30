@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import logging
 import asyncio
 import os
@@ -29,7 +30,7 @@ class IntegrityGuard:
         if self.active:
             return
         self.active = True
-        self._watchdog_task = asyncio.create_task(self._watchdog_loop())
+        self._watchdog_task = get_task_tracker().create_task(self._watchdog_loop())
         logger.info("🛡️ Integrity Guard ACTIVE (PID/Sovereignty Protection)")
 
     async def on_start_async(self):

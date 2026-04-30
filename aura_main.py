@@ -349,7 +349,7 @@ async def bootstrap_aura(orchestrator: Any):
     except Exception as exc:
         logger.debug("Memory monitor registration skipped: %s", exc)
     from core.utils.task_tracker import get_task_tracker
-    get_task_tracker().track_task(asyncio.create_task(mem_monitor.start()))
+    get_task_tracker().track_task(mem_monitor.start())
     
     logger.info("🛡️  Task Supervisor active (Memory monitoring enabled).")
 
@@ -506,12 +506,12 @@ async def run_desktop(port: int):
         await orchestrator.start()
         if hasattr(orchestrator, "_ensure_inference_gate_ready"):
             await orchestrator._ensure_inference_gate_ready(context="server_boot")
-        asyncio.create_task(orchestrator.run(), name="OrchestratorMainLoop")
+        get_task_tracker().create_task(orchestrator.run(), name="OrchestratorMainLoop")
 
         # 2. Start API Server (v21: Server now runs in Kernel)
         # [STABILITY] Start API after brain is ready to ensure correct ServiceContainer lookups.
         logger.info("🎬 [DEBUG] Pre-starting API server mission...")
-        api_task = asyncio.create_task(_run_api_server(), name="api_server")
+        api_task = get_task_tracker().create_task(_run_api_server(), name="api_server")
         logger.info("🎬 [DEBUG] API server task created successfully.")
         
         # Wait for API server to be TRULY ready (HTTP 200)
@@ -559,8 +559,8 @@ async def run_desktop(port: int):
                                 content.append(decoded)
                         return "\n".join(content)
 
-                    out_task = asyncio.create_task(_stream_logger(proc.stdout, "DEBUG"))
-                    err_task = asyncio.create_task(_stream_logger(proc.stderr, "ERROR"))
+                    out_task = get_task_tracker().create_task(_stream_logger(proc.stdout, "DEBUG"))
+                    err_task = get_task_tracker().create_task(_stream_logger(proc.stderr, "ERROR"))
                     
                     # Watch for exit
                     while proc.returncode is None:
@@ -591,7 +591,7 @@ async def run_desktop(port: int):
                     logger.warning(f"🎨 Restarting GUI in 5s... (Attempt {restart_count}/{max_restarts})")
                     await asyncio.sleep(5.0)
 
-            asyncio.create_task(_gui_reaper_loop(), name="gui_reaper")
+            get_task_tracker().create_task(_gui_reaper_loop(), name="gui_reaper")
             pipe = None # Subprocess doesn't use the actor pipe
         else:
             # Linux/Others can still use the supervised actor
@@ -873,7 +873,7 @@ def main():
                 await orchestrator.start()
                 if hasattr(orchestrator, "_ensure_inference_gate_ready"):
                     await orchestrator._ensure_inference_gate_ready(context="server_boot")
-                asyncio.create_task(orchestrator.run(), name="OrchestratorMainLoop")
+                get_task_tracker().create_task(orchestrator.run(), name="OrchestratorMainLoop")
                 await run_server_async(host, args.port)
             asyncio.run(_run_server_with_bootstrap())
         elif args.desktop:

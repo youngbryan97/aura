@@ -3,6 +3,7 @@ streaming, and impulse handling.
 
 Extracted from orchestrator.py as part of the God Object decomposition.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import queue
@@ -69,7 +70,7 @@ class MessageCoordinator:
         async def _bounded_handler():
             async with orch._dispatch_semaphore:
                 await self.handle_incoming_message(message, origin=origin)
-        task_tracker.track_task(asyncio.create_task(_bounded_handler())).add_done_callback(_bg_task_exception_handler)
+        task_tracker.track_task(get_task_tracker().create_task(_bounded_handler())).add_done_callback(_bg_task_exception_handler)
         self.emit_dispatch_telemetry(message)
 
     def emit_dispatch_telemetry(self, message: str):
@@ -211,7 +212,7 @@ class MessageCoordinator:
                     logger.error("State machine execution failed: %s", e)
                 finally:
                     orch.status.is_processing = False
-            orch._current_thought_task = task_tracker.track_task(asyncio.create_task(_execute_and_reply()))
+            orch._current_thought_task = task_tracker.track_task(get_task_tracker().create_task(_execute_and_reply()))
         except Exception as e:
             logger.error("Error in handle_incoming_message: %s", e)
             orch.status.is_processing = False

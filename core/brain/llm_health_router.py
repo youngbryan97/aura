@@ -13,8 +13,8 @@ Fixes:
 Drop-in: replace the existing router instantiation in orchestrator_boot.py
 with HealthAwareLLMRouter.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import inspect
@@ -1542,7 +1542,7 @@ class HealthAwareLLMRouter:
                             and not kwargs.get("is_background", False)
                         ):
                             get_task_tracker().track_task(
-                                asyncio.create_task(
+                                get_task_tracker().create_task(
                                     self._restore_primary_after_deep_handoff(),
                                     name="llm_router.restore_primary_after_deep_handoff",
                                 )

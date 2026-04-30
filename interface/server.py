@@ -12,8 +12,8 @@ in interface/event_bridge.py. This file retains only:
   - SPA catch-all
   - Entry-point
 """
-
 from __future__ import annotations
+
 
 # ── stdlib ────────────────────────────────────────────────────
 import asyncio

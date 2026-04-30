@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import inspect
 import logging
@@ -45,14 +46,14 @@ class MultimodalOrchestrator:
         
         # 1. Voice Manifestation
         if self.voice_engine and metadata and metadata.get("voice", True):
-            tasks.append(asyncio.create_task(self.voice_engine.speak(content)))
+            tasks.append(get_task_tracker().create_task(self.voice_engine.speak(content)))
             
         # 2. Expression Manifestation (Pulse to UI)
         if self.event_bus:
-            tasks.append(asyncio.create_task(self._pulse_expression(content, metadata)))
+            tasks.append(get_task_tracker().create_task(self._pulse_expression(content, metadata)))
             
         # 3. Concept Manifestation (Assets)
-        tasks.append(asyncio.create_task(self._manifest_assets(content)))
+        tasks.append(get_task_tracker().create_task(self._manifest_assets(content)))
         
         if tasks:
             # We don't block the UI on long-running tasks like image gen or full speech,

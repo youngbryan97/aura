@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import logging
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class CoreRuntime:
 
                     from core.eternal_lifecycle import eternal_lifecycle
 
-                    asyncio.create_task(eternal_lifecycle())
+                    get_task_tracker().create_task(eternal_lifecycle())
         return cls._instance
 
     @classmethod

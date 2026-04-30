@@ -25,8 +25,9 @@ Safety:
   • Rate-limited to prevent destabilizing rapid topology changes
   • Generational history logged for analysis
 """
-
 from __future__ import annotations
+
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import copy
@@ -148,7 +149,7 @@ class SubstrateEvolution:
         # Seed champion is the current live mesh
         self._champion = Genome(id=-1, inter_weights=seed_weights.copy(), fitness=0.5)
 
-        self._task = asyncio.create_task(self._evolution_loop(), name="SubstrateEvolution")
+        self._task = get_task_tracker().create_task(self._evolution_loop(), name="SubstrateEvolution")
         logger.info("SubstrateEvolution STARTED")
 
     async def stop(self):

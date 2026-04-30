@@ -4,6 +4,7 @@ Asynchronous Adversarial Self-Play.
 Spawns competing cognitive shards during system idle time to generate novel 
 problems and solve them, pushing failures to the DistillationPipe for nightly learning.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import random
@@ -176,7 +177,7 @@ Detail your logical chain of thought before providing the final answer.
                 abstraction = ServiceContainer.get("abstraction_engine", default=None)
                 if abstraction:
                     # Note: abstract_from_success is async
-                    task = asyncio.create_task(
+                    task = get_task_tracker().create_task(
                         abstraction.abstract_from_success(context=problem, successful_resolution=solution)
                     )
                     task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)

@@ -22,8 +22,8 @@ Runtime benefit: arousal gating during idle periods reduces compute load
 without losing architectural continuity. This is biologically realistic
 AND good for indefinite runtime on consumer hardware.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

@@ -2,6 +2,7 @@
 Agent Swarm / Collective Intelligence Delegator (Swarm 2.0).
 Allows the primary orchestrator to spawn specialized sub-tasks and synthesize consensus.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import uuid
@@ -43,7 +44,7 @@ class AgentDelegator(AuraBaseModule):
         """Starts background tasks for the delegator."""
         if self.running: return
         self.running = True
-        self._scavenger_task = asyncio.create_task(self._scavenger_loop())
+        self._scavenger_task = get_task_tracker().create_task(self._scavenger_loop())
         self.logger.info("🐝 AgentDelegator systems active (Scavenger enabled, GPU Semaphore=1)")
 
     async def stop(self):
@@ -98,7 +99,7 @@ class AgentDelegator(AuraBaseModule):
         self.logger.info("🐝 Spawning Swarm Agent: %s%s (%s)", hierarchy, agent_id, specialty)
         
         # Fire and forget the internal execution
-        asyncio.create_task(self._run_agent(agent, task_prompt, callback, **kwargs))
+        get_task_tracker().create_task(self._run_agent(agent, task_prompt, callback, **kwargs))
         
         return agent_id
         
@@ -133,7 +134,7 @@ class AgentDelegator(AuraBaseModule):
         for aid in agent_ids:
             agent = self.active_agents.get(aid)
             if agent:
-                wait_tasks.append(asyncio.create_task(agent.done_event.wait()))
+                wait_tasks.append(get_task_tracker().create_task(agent.done_event.wait()))
 
         if wait_tasks:
             try:
@@ -209,7 +210,7 @@ FINAL SYNTHESIS:"""
         self.active_agents[agent_id] = agent
 
         self.logger.info("🤖 Spawning AGENTIC agent %s for goal: %s", agent_id, goal[:60])
-        asyncio.create_task(self._run_agentic_agent(agent, goal, timeout, callback))
+        get_task_tracker().create_task(self._run_agentic_agent(agent, goal, timeout, callback))
         return agent_id
 
     async def delegate_parallel_goals(self, goals: List[Dict[str, str]], timeout: float = 120.0) -> Dict[str, Any]:
@@ -234,7 +235,7 @@ FINAL SYNTHESIS:"""
         for aid in agent_ids:
             agent = self.active_agents.get(aid)
             if agent:
-                wait_tasks.append(asyncio.create_task(agent.done_event.wait()))
+                wait_tasks.append(get_task_tracker().create_task(agent.done_event.wait()))
 
         if wait_tasks:
             done, pending = await asyncio.wait(wait_tasks, timeout=timeout)

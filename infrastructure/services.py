@@ -1,5 +1,6 @@
 """infrastructure/services.py - Core Aura services.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -55,7 +56,7 @@ class SimpleProcessManager:
         args = config.get("args", [])
         kwargs = config.get("kwargs", {})
         
-        task = asyncio.create_task(target(*args, **kwargs), name=process_id)
+        task = get_task_tracker().create_task(target(*args, **kwargs), name=process_id)
         self._processes[process_id] = task
         self._logger.info("Started process %s", process_id)
         return True

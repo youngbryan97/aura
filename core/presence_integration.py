@@ -3,6 +3,7 @@
 The "Presence Patch" that wires the v30 components into the Orchestrator.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import logging
 from core.container import ServiceContainer
 
@@ -32,7 +33,7 @@ def apply_presence_patch(orchestrator):
 
     # 3. Start ProactivePresence background task
     import asyncio
-    asyncio.create_task(presence.start())
+    get_task_tracker().create_task(presence.start())
     logger.info("🚀 ProactivePresence loop started.")
 
     # 4. Hook VAD to prevent interruption

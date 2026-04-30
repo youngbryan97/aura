@@ -1,3 +1,4 @@
+from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import unittest
 from pathlib import Path
@@ -23,7 +24,7 @@ class TestTypeSafeRepair(unittest.TestCase):
             sandbox = Path(tmpdir)
             test_file = sandbox / fix.target_file
             test_file.parent.mkdir(parents=True, exist_ok=True)
-            test_file.write_text(fix.fixed_code)
+            atomic_write_text(test_file, fix.fixed_code)
             
             # Run tests in sandbox
             results = await self.repair._run_tests_in_sandbox(sandbox, fix)

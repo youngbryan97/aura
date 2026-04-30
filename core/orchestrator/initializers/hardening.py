@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from typing import Any
@@ -15,7 +16,7 @@ async def init_hardening_layer(orchestrator: Any):
         # otherwise Metal GPU bindings will corrupt the child process!
         # platform_root = ServiceContainer.get("platform_root", default=None)
         # if platform_root:
-        #     asyncio.create_task(platform_root.start_monitor())
+        #     get_task_tracker().create_task(platform_root.start_monitor())
         #     logger.info("🌿 [BOOT] Platform Root persistence monitor started.")
         logger.info("🌿 [BOOT] Platform Root DEFERRED to prevent spawn corruption.")
     except Exception as e:
@@ -58,7 +59,7 @@ async def init_hardening_layer(orchestrator: Any):
     try:
         from core.utils.concurrency import EventLoopMonitor
         monitor = EventLoopMonitor(threshold=0.1)
-        asyncio.create_task(monitor.start())
+        get_task_tracker().create_task(monitor.start())
         ServiceContainer.register_instance("event_loop_monitor", monitor)
         logger.info("🛡️ [BOOT] EventLoopMonitor active (Threshold: 0.1s)")
     except Exception as e:

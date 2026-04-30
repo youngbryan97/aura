@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import re
@@ -287,7 +288,7 @@ class CognitiveRoutingPhase(BasePhase):
         
         # 5. Parallel Thought Stream for Deliberate Reasoning
         if cognitive_mode == CognitiveMode.DELIBERATE:
-            task = asyncio.create_task(self.parallel_stream.branch(
+            task = get_task_tracker().create_task(self.parallel_stream.branch(
                 input_text, 
                 str(state.cognition.working_memory[-2:])
             ))

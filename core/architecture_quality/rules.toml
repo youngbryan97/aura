@@ -1,0 +1,30 @@
+# Architecture-quality rules for Aura.
+#
+# Consumed by core.architecture_quality.gate.ArchitectureQualityGate.
+# Aura is a large, ~3-month-old enterprise-grade codebase, so the gate
+# measures regression — not absolute purity. The thresholds below are
+# conservative: a self-modification may slightly improve or hold each
+# metric, but cannot meaningfully degrade architectural health.
+
+[gate]
+# Maximum allowed drop in overall_score (out of 10000) for a single
+# self-modification session. ~2% absolute regression budget.
+max_score_drop = 200
+
+# Self-modifications must not introduce new circular dependencies.
+max_new_cycles = 0
+
+# Self-modifications must not promote a new "god file"
+# (>800 LOC + fan-in/out >= 5 with >=7.5 total coupling).
+max_new_god_files = 0
+
+# Absolute floor on overall_score post-change.
+# Set to 0 by default; can be tightened once a healthy steady-state
+# baseline is observed in production.
+min_overall_score = 0
+
+# Optional per-metric absolute floors. Each metric is in [0, 1].
+# Leave empty to rely purely on regression deltas.
+[metric_floors]
+# acyclicity = 0.55
+# modularity = 0.30

@@ -19,6 +19,8 @@ already exist across core/self_modification, core/learning, core/affect,
 core/agi, core/consciousness, core/resilience, and core/evolution.
 """
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import json
@@ -121,7 +123,7 @@ class EvolutionOrchestrator:
         if self._task and not self._task.done():
             return
         self._stop.clear()
-        self._task = asyncio.create_task(self._loop())
+        self._task = get_task_tracker().create_task(self._loop())
         logger.info("🧬 Evolution loop started.")
 
     async def stop(self) -> None:
@@ -545,7 +547,7 @@ class EvolutionOrchestrator:
                     for name, ax in self._snapshot.axes.items()
                 },
             }
-            self._STATE_FILE.write_text(json.dumps(data, indent=2))
+            atomic_write_text(self._STATE_FILE, json.dumps(data, indent=2))
         except Exception as exc:
             logger.debug("Evolution state save failed: %s", exc)
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import contextlib
@@ -561,7 +562,7 @@ class LocalServerClient:
             try:
                 log_dir.mkdir(parents=True, exist_ok=True)
                 probe = log_dir / ".write_probe"
-                probe.write_text("ok", encoding="utf-8")
+                atomic_write_text(probe, "ok", encoding="utf-8")
                 probe.unlink(missing_ok=True)
                 return log_dir / f"local-runtime-{self._lane_name.lower()}.log"
             except Exception:

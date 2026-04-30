@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -45,7 +46,7 @@ class StateVaultActor:
         self._bus.start()
         logger.info("Starting State Vault Actor with concurrent bus handlers...")
         self._is_running = True
-        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        self._heartbeat_task = get_task_tracker().create_task(self._heartbeat_loop())
         
         # 1. Initialize Repo
         await self.repo.initialize()
@@ -122,7 +123,7 @@ class StateVaultActor:
             now = time.time()
             if not hasattr(self, "_last_shm_update") or (now - self._last_shm_update > 0.1):
                 self._last_shm_update = now
-                asyncio.create_task(self._update_shared_memory_async(committed_state))
+                get_task_tracker().create_task(self._update_shared_memory_async(committed_state))
 
             return {"version": committed_state.version, "state_id": committed_state.state_id}
         except Exception as e:

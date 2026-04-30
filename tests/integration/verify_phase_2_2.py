@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import time
 import logging
@@ -90,7 +91,7 @@ async def test_pipe_hotswap():
         hotswap_done.set()
 
     def on_restart(name, pipe):
-        asyncio.create_task(on_restart_async(name, pipe))
+        get_task_tracker().create_task(on_restart_async(name, pipe))
     
     supervisor.set_restart_callback(on_restart)
 

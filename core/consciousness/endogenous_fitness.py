@@ -35,8 +35,8 @@ Integration:
         ef = get_endogenous_fitness()
         result = await ef.evaluate_fitness(genome_params)
 """
-
 from __future__ import annotations
+
 
 __all__ = [
     "EndogenousFitness",

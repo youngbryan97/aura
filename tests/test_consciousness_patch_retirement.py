@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import time
@@ -62,7 +63,7 @@ def test_apply_consciousness_patches_is_native_compatibility_hook(monkeypatch):
 
 def test_load_phenomenal_memory_restores_waking_thread_and_moment_tail(tmp_path: Path):
     save_path = tmp_path / "phenomenal_memory.json"
-    save_path.write_text(
+    atomic_write_text(save_path, 
         json.dumps(
             {
                 "psm_reports": ["report"],

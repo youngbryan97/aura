@@ -30,8 +30,9 @@ After boot, a continuous integration loop runs at 10 Hz that:
   - Applies unified field back-pressure to input subsystems
   - Pushes neurochemical mood into the substrate's VAD indices
 """
-
 from __future__ import annotations
+
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -230,7 +231,7 @@ class ConsciousnessBridge:
 
         # ── Start integration loop ───────────────────────────────────
         self._running = True
-        self._task = asyncio.create_task(self._integration_loop(), name="ConsciousnessBridge")
+        self._task = get_task_tracker().create_task(self._integration_loop(), name="ConsciousnessBridge")
 
         # ── Hook into GWT for somatic gating ─────────────────────────
         self._hook_somatic_into_gwt()
@@ -517,7 +518,7 @@ class ConsciousnessBridge:
 
                 # Coherence collapse → stabilize
                 if uf_coherence < 0.25:
-                    asyncio.create_task(
+                    get_task_tracker().create_task(
                         self.substrate_evolution.micro_evolve("coherence_collapse", 1.0 - uf_coherence)
                     )
 
@@ -526,7 +527,7 @@ class ConsciousnessBridge:
                     current_phi = float(getattr(substrate, "_current_phi", 0.0))
                     prev_phi = getattr(self, "_prev_phi_for_evolution", current_phi)
                     if current_phi < prev_phi * 0.5 and prev_phi > 0.1:
-                        asyncio.create_task(
+                        get_task_tracker().create_task(
                             self.substrate_evolution.micro_evolve("phi_drop", 0.7)
                         )
                     self._prev_phi_for_evolution = current_phi

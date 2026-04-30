@@ -26,8 +26,9 @@ signal.  The combined signal vector is:
 Resilient: if psutil or any sensor fails, that channel returns its last good
 value.  Total sensor failure degrades gracefully to neutral baseline.
 """
-
 from __future__ import annotations
+
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -183,7 +184,7 @@ class EmbodiedInteroception:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._run_loop(), name="Interoception")
+        self._task = get_task_tracker().create_task(self._run_loop(), name="Interoception")
         logger.info("EmbodiedInteroception STARTED (%.0f Hz)", self._SAMPLE_HZ)
 
     async def stop(self):

@@ -2,8 +2,10 @@
 ─────────────────
 Aura Cognitive Daemon — always-on process.
 """
-
 from __future__ import annotations
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import json
@@ -36,7 +38,7 @@ class CognitiveDaemon:
         from core.container import ServiceContainer
 
         logger.info("🧠 [DAEMON] Cognitive engine booting...")
-        DAEMON_PID_FILE.write_text(str(os.getpid()))
+        atomic_write_text(DAEMON_PID_FILE, str(os.getpid()))
 
         # Boot orchestrator
         from core.orchestrator.main import RobustOrchestrator
@@ -135,7 +137,7 @@ class WorldFeed:
 
     async def start(self):
         self._running = True
-        self._task = asyncio.create_task(self._feed_loop())
+        self._task = get_task_tracker().create_task(self._feed_loop())
 
     async def stop(self):
         self._running = False
@@ -183,7 +185,7 @@ async def main():
     daemon = CognitiveDaemon()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, lambda: asyncio.create_task(daemon.stop()))
+        loop.add_signal_handler(sig, lambda: get_task_tracker().create_task(daemon.stop()))
     await daemon.start()
     await daemon.run()
 

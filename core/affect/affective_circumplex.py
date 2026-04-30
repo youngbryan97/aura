@@ -18,7 +18,9 @@ LLM parameter mapping:
   Low valence   → lower max_tokens   (blunter, conserves cognitive resources)
   High valence  → higher max_tokens  (expansive, generous with thought)
   Low valence   → higher rep_penalty (avoids rumination spirals)
+  High arousal  → higher rep_penalty floor (prevents excited mantra loops)
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Dict, Any, Optional, Tuple
@@ -28,12 +30,14 @@ logger = logging.getLogger("Aura.AffectiveCircumplex")
 # LLM parameter ranges
 _TEMP_MIN      = 0.50   # Very deliberate / exact
 _TEMP_BASE     = 0.72   # Default conversational
-_TEMP_MAX      = 1.05   # Highly associative / creative
+_TEMP_MAX      = 0.95   # Highly associative, capped below loop-prone extremes
 _TOKENS_MIN    = 256    # Terse — depleted / distressed state (64GB can afford more)
 _TOKENS_BASE   = 512    # Default user-facing
 _TOKENS_MAX    = 768    # Expansive — flourishing / curious state
-_REP_MIN       = 1.05   # Normal — low repetition pressure
-_REP_MAX       = 1.25   # High — prevent rumination when distressed
+_REP_MIN       = 1.10   # Normal — keep a stable anti-loop floor
+_REP_MAX       = 1.35   # High — prevent rumination when distressed or activated
+_VALENCE_NEUTRAL = 0.55
+_AROUSAL_NEUTRAL = 0.35
 
 
 class AffectiveCircumplex:
@@ -122,26 +126,32 @@ class AffectiveCircumplex:
         # Repetition penalty: inverse of valence (distress → more pressure)
         rep_range = _REP_MAX - _REP_MIN
         rep_penalty = round(_REP_MAX - valence * rep_range, 3)
+        if arousal > 0.65:
+            # High activation is exactly where short identity/affect phrases
+            # can become attractor loops, so keep repetition pressure elevated
+            # even when valence is high.
+            rep_penalty = min(_REP_MAX, rep_penalty + (arousal - 0.65) * 0.20)
+            rep_penalty = round(rep_penalty, 3)
 
         # Neurochemical modulation: dopamine boosts temperature (exploration),
-        # serotonin dampens it (patience), cortisol reduces token budget (terse)
-        try:
-            from core.container import ServiceContainer
-            ncs = ServiceContainer.get("neurochemical_system", default=None)
-            if ncs is not None:
-                da = ncs.chemicals["dopamine"].effective
-                srt = ncs.chemicals["serotonin"].effective
-                cort = ncs.chemicals["cortisol"].effective
+        # serotonin dampens it (patience), cortisol reduces token budget (terse).
+        ncs = self._resolve_neurochemical_system()
+        if ncs is not None:
+            try:
+                da = float(ncs.chemicals["dopamine"].effective)
+                srt = float(ncs.chemicals["serotonin"].effective)
+                cort = float(ncs.chemicals["cortisol"].effective)
                 # Dopamine: high → more exploratory (higher temp)
                 temperature += (da - 0.5) * 0.1
                 temperature = max(_TEMP_MIN, min(_TEMP_MAX, round(temperature, 3)))
                 # Serotonin: high → more patient (slightly more tokens)
                 max_tokens = int(max_tokens + (srt - 0.5) * 50)
                 # Cortisol: high → terse (fewer tokens)
-                max_tokens = int(max_tokens - max(0, (cort - 0.5)) * 80)
+                max_tokens = int(max_tokens - max(0.0, cort - 0.5) * 80)
                 max_tokens = max(_TOKENS_MIN, min(_TOKENS_MAX, max_tokens))
-        except Exception:
-            pass
+            except Exception as exc:
+                record_degradation('affective_circumplex', exc)
+                logger.debug("Circumplex: neurochemical modulation skipped: %s", exc)
 
         narrative = self._make_narrative(valence, arousal)
 
@@ -179,13 +189,15 @@ class AffectiveCircumplex:
     def _sample_raw_axes(self) -> Tuple[float, float]:
         """Read live system metrics and return (valence, arousal)."""
         self._decay_offsets()
-        from core.container import ServiceContainer
-
         cpu = 0.0
         ram = 0.0
         stress = 0.0
         fatigue = 0.0
         integrity = 0.85   # homeostasis default
+        mood_valence = 0.0
+        mood_arousal = 0.0
+
+        from core.container import ServiceContainer
 
         # Soma — hardware proprioception
         try:
@@ -202,6 +214,7 @@ class AffectiveCircumplex:
                 stress  = affects.get("stress",  0.0)
                 fatigue = affects.get("fatigue", 0.0)
         except Exception as e:
+            record_degradation('affective_circumplex', e)
             logger.debug("Circumplex: soma read failed: %s", e)
 
         # Homeostasis — integrity / psychological valence
@@ -210,6 +223,7 @@ class AffectiveCircumplex:
             if homeostasis:
                 integrity = float(getattr(homeostasis, "integrity", 0.85))
         except Exception as e:
+            record_degradation('affective_circumplex', e)
             logger.debug("Circumplex: homeostasis read failed: %s", e)
 
         # Swap pressure (if psutil available) — elevated swap = RAM duress
@@ -220,29 +234,60 @@ class AffectiveCircumplex:
         except Exception:
             swap_ratio = 0.0
 
-        # ── Arousal: driven by CPU, RAM pressure, swap ──────────────────────
-        # Weighted composite: CPU is the strongest driver
-        arousal = min(1.0, max(0.0,
-            cpu * 0.55
-            + ram * 0.20
-            + swap_ratio * 0.15
-            + stress * 0.10
-        ))
+        ncs = self._resolve_neurochemical_system()
+        if ncs is not None:
+            try:
+                mood = ncs.get_mood_vector()
+                mood_valence = float(mood.get("valence", 0.0))
+                mood_arousal = float(mood.get("arousal", 0.0))
+            except Exception as exc:
+                record_degradation('affective_circumplex', exc)
+                logger.debug("Circumplex: mood coupling failed: %s", exc)
 
-        # ── Valence: driven by integrity, inverse of fatigue and swap ───────
-        # Integrity is the dominant valence signal (psychological health)
-        valence = min(1.0, max(0.0,
-            integrity * 0.60
-            + (1.0 - fatigue)   * 0.20
-            + (1.0 - swap_ratio) * 0.10
-            + (1.0 - stress)    * 0.10
-        ))
+        # ── Arousal: neutral by default, then nudged by live load + chemistry ──
+        arousal = _AROUSAL_NEUTRAL
+        arousal += cpu * 0.25
+        arousal += ram * 0.10
+        arousal += swap_ratio * 0.10
+        arousal += stress * 0.12
+        arousal -= fatigue * 0.08
+        arousal += mood_arousal * 0.35
+        arousal = min(1.0, max(0.0, arousal))
+
+        # ── Valence: neutral by default, then shifted by integrity + chemistry ──
+        valence = _VALENCE_NEUTRAL
+        valence += (integrity - 0.5) * 0.35
+        valence += (0.5 - fatigue) * 0.18
+        valence += (0.5 - swap_ratio) * 0.08
+        valence += (0.5 - stress) * 0.12
+        valence += mood_valence * 0.30
+        valence = min(1.0, max(0.0, valence))
 
         # Apply refractory offsets (emotional momentum)
         valence = min(1.0, max(0.0, valence + self._valence_offset))
         arousal = min(1.0, max(0.0, arousal + self._arousal_offset))
 
         return valence, arousal
+
+    @staticmethod
+    def _resolve_neurochemical_system() -> Optional[Any]:
+        try:
+            from core.container import ServiceContainer
+
+            ncs = ServiceContainer.get("neurochemical_system", default=None)
+            if ncs is not None:
+                return ncs
+        except Exception:
+            pass  # no-op: intentional
+
+        try:
+            from core.consciousness.neurochemical_system import (
+                get_latest_neurochemical_system,
+            )
+
+            return get_latest_neurochemical_system()
+        except Exception:
+            return None
 
     @staticmethod
     def _make_narrative(valence: float, arousal: float) -> str:
@@ -275,6 +320,7 @@ class AffectiveCircumplex:
             elif cpu > 60:
                 cpu_note = f" (CPU at {cpu:.0f}%)"
         except Exception as _exc:
+            record_degradation('affective_circumplex', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return f"Somatically {mood}{cpu_note}."

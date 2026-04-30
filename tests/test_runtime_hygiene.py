@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import subprocess
 import sys
@@ -23,6 +24,9 @@ async def test_task_tracker_loop_hygiene_observes_raw_asyncio_tasks():
         await release.wait()
 
     try:
+        # Test the IMPLICIT path: a raw asyncio.create_task should be observed
+        # by the loop factory we just installed. Going through the tracker would
+        # set the supervision to "explicit" instead.
         task = asyncio.create_task(_hold(), name="runtime_hygiene.implicit")
         await asyncio.sleep(0)
 

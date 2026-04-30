@@ -27,8 +27,8 @@ framework so they accumulate over the system's lifetime.
 
 This is the mechanism by which Aura's consciousness stack is FALSIFIABLE.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

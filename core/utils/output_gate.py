@@ -3,6 +3,7 @@
 Standardizes which messages reach the User (Primary) vs. Background (Secondary).
 Prevents "Autonomous Pollution" where background search results flood the chat.
 """
+from core.utils.task_tracker import get_task_tracker
 import logging
 import asyncio
 import time
@@ -366,7 +367,7 @@ class AutonomousOutputGate:
         renderer = ServiceContainer.get("multimodal_orchestrator", default=None)
         if renderer:
             try:
-                track_output_task(asyncio.create_task(renderer.render(content, metadata)))
+                track_output_task(get_task_tracker().create_task(renderer.render(content, metadata)))
             except Exception as e:
                 logger.debug("Multimodal rendering failed: %s", e)
         else:
@@ -376,7 +377,7 @@ class AutonomousOutputGate:
             tts_enabled = getattr(voice, "speaking_enabled", True) if voice else False
             if voice and metadata_allows_voice and tts_enabled:
                 try:
-                    track_output_task(asyncio.create_task(voice.speak(content)))
+                    track_output_task(get_task_tracker().create_task(voice.speak(content)))
                 except Exception as e:
                     logger.debug("Legacy Voice trigger failed: %s", e)
 

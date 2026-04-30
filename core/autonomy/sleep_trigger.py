@@ -15,6 +15,7 @@ Guards:
 
 This is what makes idle time productive instead of dead time.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -43,7 +44,7 @@ class AutonomousSleepTrigger:
 
     async def start(self):
         self.running = True
-        self._task = asyncio.create_task(self._watch_loop(), name="SleepTrigger")
+        self._task = get_task_tracker().create_task(self._watch_loop(), name="SleepTrigger")
         logger.info("😴 SleepTrigger active (idle=%.0fm, cooldown=%.0fh)",
                     _IDLE_THRESHOLD_SEC / 60, _SLEEP_COOLDOWN_SEC / 3600)
 

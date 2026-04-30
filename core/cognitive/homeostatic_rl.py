@@ -56,8 +56,8 @@ Technical choices:
     - Thread-safe via threading.Lock (sync callers) + asyncio-compatible
     - Singleton via get_homeostatic_rl()
 """
-
 from __future__ import annotations
+
 
 __all__ = [
     "HomeostaticRL",

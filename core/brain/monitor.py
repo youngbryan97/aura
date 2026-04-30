@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import logging
 # core/brain/monitor.py
 import asyncio
@@ -52,7 +53,7 @@ class SelfMonitor:
     def start(self):
         if not self._running:
             self._running = True
-            self._task = asyncio.create_task(self._loop())
+            self._task = get_task_tracker().create_task(self._loop())
 
     def stop(self):
         self._running = False

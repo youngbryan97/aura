@@ -142,7 +142,7 @@ class AutonomousConversationLoop:
             # Background the reflection task to avoid blocking the main interaction
             reflect_coro = self.conversation_reflector.maybe_reflect(self.conversation_history, self.brain)
             try:
-                reflect_task = asyncio.create_task(reflect_coro)
+                reflect_task = get_task_tracker().create_task(reflect_coro)
             except RuntimeError:
                 reflect_coro.close()
             except Exception:

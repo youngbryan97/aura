@@ -1,7 +1,7 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Generate Aura's launcher icon assets."""
 
-from __future__ import annotations
 
 from pathlib import Path
 

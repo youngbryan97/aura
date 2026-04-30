@@ -28,8 +28,8 @@ Three mechanisms:
 The gate produces a SomaticVerdict that modifies the decision's priority,
 confidence, and adds a somatic annotation visible to downstream processing.
 """
-
 from __future__ import annotations
+
 
 import logging
 import time

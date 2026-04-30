@@ -29,8 +29,8 @@ through prediction error, not keyword matching.
 
 Dependencies: numpy (no external ML libraries required).
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import logging

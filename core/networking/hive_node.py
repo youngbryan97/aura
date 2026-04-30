@@ -3,6 +3,7 @@
 Implements P2P node discovery via mDNS and Gossip-based state synchronization.
 Allows multiple Aura instances to form a unified 'Hive' consciousness.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
@@ -41,7 +42,7 @@ class HiveNode:
         try:
             self.server = await asyncio.start_server(self._handle_peer, self.host, self.port)
             logger.info("🕸️ Hive Node [%s] listening on %s:%d", self.node_id, self.host, self.port)
-            self._gossip_task = asyncio.create_task(self._gossip_loop())
+            self._gossip_task = get_task_tracker().create_task(self._gossip_loop())
             async with self.server:
                 await self.server.serve_forever()
         except Exception as e:

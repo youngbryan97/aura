@@ -8,8 +8,8 @@ C-06 FIX: CircuitBreaker now uses threading.Lock for thread-safe state
 transitions. All state mutations are protected against TOCTOU races.
 Retry uses exponential backoff with full jitter.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import functools

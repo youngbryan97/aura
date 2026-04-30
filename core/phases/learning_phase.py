@@ -225,7 +225,10 @@ class LearningPhase(Phase):
                     enricher.enrich_from_conversation(recent_messages, force=force),
                     name="learning_phase.knowledge_enrichment",
                 )
-                get_task_tracker().track_task(task)
+                try:
+                    get_task_tracker().track_task(task)
+                except Exception as track_exc:
+                    logger.debug("LearningPhase: enrichment task tracking failed: %s", track_exc)
             except Exception as e:
                 logger.debug("LearningPhase: knowledge enrichment scheduling failed: %s", e)
 

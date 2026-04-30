@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 from core.utils.exceptions import capture_and_log
@@ -55,7 +56,7 @@ class EnhancedMemorySystem:
         )
         
         # Proactive learning using the LLM (Knowledge Extraction)
-        task = asyncio.create_task(self.learn_fact_from_interaction(user_message, aura_response))
+        task = get_task_tracker().create_task(self.learn_fact_from_interaction(user_message, aura_response))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 

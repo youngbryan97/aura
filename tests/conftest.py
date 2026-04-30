@@ -1,6 +1,7 @@
 """Shared pytest fixtures for Aura smoke tests."""
 import asyncio
 import inspect
+import os
 import sys
 from pathlib import Path
 
@@ -122,6 +123,45 @@ def _cleanup_runtime_hygiene_after_test():
         hygiene.reset_state()
     except Exception:
         pass
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Final cleanup for singleton executors that can keep pytest alive.
+
+    The suite creates long-lived runtime services on purpose.  Unit tests should
+    not leave their ThreadPool/ProcessPool workers attached to the pytest
+    process after all assertions have completed.
+    """
+    try:
+        from core.bus.local_pipe_bus import LocalPipeBus
+
+        LocalPipeBus.shutdown_executor()
+    except Exception:
+        pass
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Let the audit script exit after pytest has printed its real summary.
+
+    Some integration tests intentionally touch long-lived runtime primitives
+    whose atexit joins can keep the interpreter alive after all assertions have
+    passed.  The audit runner opts into this hook so a green or red pytest
+    status is preserved exactly, while leaked background threads cannot leave
+    orphaned test processes.
+    """
+    if os.environ.get("AURA_PYTEST_FORCE_EXIT_AFTER_SUMMARY", "").lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    finally:
+        os._exit(int(exitstatus))
+
 
 @pytest.fixture
 def mock_container(service_container):

@@ -3,6 +3,7 @@
 Verification script for the Sovereign Platform Root and Metal persistence.
 """
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import os
 import sys
@@ -74,7 +75,7 @@ async def verify_persistence():
 
     # 6. Monitor for a few heartbeats
     logger.info("⏳ Monitoring hardware pulses for 30s...")
-    monitor_task = asyncio.create_task(platform.start_monitor())
+    monitor_task = get_task_tracker().create_task(platform.start_monitor())
     
     for i in range(3):
         await asyncio.sleep(10)

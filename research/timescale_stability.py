@@ -36,8 +36,8 @@ Stability criterion (Lyapunov):
     V(x) = sum_i w_i * ||x_i - x_i*||^2
     dV/dt < 0 for all x != x* iff eigenvalues of Jacobian have negative real parts
 """
-
 from __future__ import annotations
+
 
 import logging
 from dataclasses import dataclass, field

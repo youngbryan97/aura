@@ -4,8 +4,8 @@ Unified AgencyBus — singleton cooldown enforcer for ALL autonomous outputs.
 Prevents triple-fire from VolitionEngine + AgencyCore + orchestrator _process_cycle
 by enforcing a single global cooldown gate across all autonomous output pathways.
 """
-
 from __future__ import annotations
+
 
 import logging
 import threading

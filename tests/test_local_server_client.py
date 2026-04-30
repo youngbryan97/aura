@@ -1,3 +1,5 @@
+from core.runtime.atomic_writer import atomic_write_text
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import pytest
 import httpx
@@ -32,7 +34,7 @@ async def test_thread_lock_context_cancellation_does_not_park_executor_waiter():
         async with _thread_lock_context(lock, timeout=1.0, label="test_lock"):
             return True
 
-    task = asyncio.create_task(_wait_for_lock())
+    task = get_task_tracker().create_task(_wait_for_lock())
     await asyncio.sleep(0.05)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -333,7 +335,7 @@ async def test_server_health_detects_wrong_model_on_reserved_lane_port():
 
 def test_spawn_server_uses_single_slot_and_disables_prompt_cache_by_default(tmp_path, monkeypatch):
     model_path = tmp_path / "qwen2.5-32b-instruct-q5_k_m.gguf"
-    model_path.write_text("stub", encoding="utf-8")
+    atomic_write_text(model_path, "stub", encoding="utf-8")
 
     client = LocalServerClient(str(model_path))
     client._resolve_llama_server_bin = lambda: "/opt/homebrew/bin/llama-server"

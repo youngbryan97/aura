@@ -27,6 +27,7 @@ system feel like it "exists" rather than merely "responds."
 Runtime: Pure Python, zero LLM calls, <1ms per iteration.
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -69,7 +70,7 @@ class ContinuousCognitionLoop:
             return
         self._running = True
         ServiceContainer.register_instance("continuous_cognition", self, required=False)
-        self._task = asyncio.create_task(self._run(), name="continuous_cognition")
+        self._task = get_task_tracker().create_task(self._run(), name="continuous_cognition")
         logger.info("ContinuousCognitionLoop ONLINE — brainstem active at %.1f Hz", self._HZ)
 
     async def stop(self) -> None:

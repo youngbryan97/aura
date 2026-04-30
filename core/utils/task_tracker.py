@@ -85,9 +85,12 @@ class TaskTracker:
         if isinstance(coro_or_task, asyncio.Task):
             task = coro_or_task
         else:
+            # Use the running loop directly. Calling self.create_task here would
+            # recurse forever because ``create_task = track`` is an alias below.
             token = _SKIP_FACTORY_TRACK.set(True)
             try:
-                task = asyncio.create_task(coro_or_task, name=name)
+                loop = asyncio.get_running_loop()
+                task = loop.create_task(coro_or_task, name=name)
             finally:
                 _SKIP_FACTORY_TRACK.reset(token)
         self._total_tracked += 1
@@ -121,7 +124,7 @@ class TaskTracker:
 
         token = _SKIP_FACTORY_TRACK.set(True)
         try:
-            task = asyncio.create_task(_bounded(), name=name)
+            task = get_task_tracker().create_task(_bounded(), name=name)
         finally:
             _SKIP_FACTORY_TRACK.reset(token)
         self._total_tracked += 1

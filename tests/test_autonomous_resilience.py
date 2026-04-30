@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -47,7 +48,7 @@ class _ContainerStub:
 def test_static_fault_auditor_detects_zero_division_and_async_blocking(tmp_path):
     source = tmp_path / "core" / "demo_async.py"
     source.parent.mkdir(parents=True, exist_ok=True)
-    source.write_text(
+    atomic_write_text(source, 
         "import time\n\n"
         "def ratio(total):\n"
         "    return total / 0\n\n"
@@ -116,7 +117,7 @@ class _SelfModifierStub:
 def test_verifier_guided_patch_pipeline_uses_self_modifier(tmp_path):
     target = tmp_path / "core" / "module.py"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("value = 1\n", encoding="utf-8")
+    atomic_write_text(target, "value = 1\n", encoding="utf-8")
 
     modifier = _SelfModifierStub()
     pipeline = VerifierGuidedRepairPipeline(

@@ -17,6 +17,7 @@ Loops implemented:
 Runs as a background service at 30-second intervals.
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -47,7 +48,7 @@ class SingularityLoops:
         if self._task and not self._task.done():
             return
         self._stop.clear()
-        self._task = asyncio.create_task(self._run())
+        self._task = get_task_tracker().create_task(self._run())
 
     async def stop(self) -> None:
         self._stop.set()

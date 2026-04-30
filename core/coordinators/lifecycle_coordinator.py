@@ -3,6 +3,7 @@ the main execution loop, and cognitive retries.
 
 Extracted from orchestrator.py as part of the God Object decomposition.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -98,7 +99,7 @@ class LifecycleCoordinator:
             if hasattr(orch, 'attention_summarizer') and orch.attention_summarizer:
                 await orch.attention_summarizer.start()
             if hasattr(orch, 'probe_manager') and orch.probe_manager:
-                task_tracker.track_task(asyncio.create_task(orch.probe_manager.auto_cleanup_loop()))
+                task_tracker.track_task(get_task_tracker().create_task(orch.probe_manager.auto_cleanup_loop()))
 
             # Start Dreaming System: Semantic Defragmentation & DLQ Recycling
             try:
@@ -169,7 +170,7 @@ class LifecycleCoordinator:
                 await orch.narrative_engine.start()
             # Start Global Workspace Loop
             if hasattr(orch, 'global_workspace') and orch.global_workspace:
-                task_tracker.track_task(asyncio.create_task(orch.global_workspace.run_loop()))
+                task_tracker.track_task(get_task_tracker().create_task(orch.global_workspace.run_loop()))
                 logger.info("✓ Global Workspace Attention Loop started")
             # Start Sovereign Ears
             if orch.ears:
@@ -190,7 +191,7 @@ class LifecycleCoordinator:
                 await orch.pulse_manager.start()
                 logger.info("✓ Pulse Manager active (Proactive Awareness)")
             # Start Inter-process Event Listeners (H-12)
-            task_tracker.track_task(asyncio.create_task(orch._setup_event_listeners()))
+            task_tracker.track_task(get_task_tracker().create_task(orch._setup_event_listeners()))
             # Start Cognitive Integration Layer
             if hasattr(orch, 'cognition') and orch.cognition:
                 if hasattr(orch.cognition, 'initialize'):

@@ -25,8 +25,8 @@ Integration:
 - Writes to context_assembler (autobiographical prior for LLM)
 - Writes to unified_field (narrative self as a field dimension)
 """
-
 from __future__ import annotations
+
 
 import hashlib
 import logging

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-14T23:13:35.504557+00:00",
+  "timestamp": "2026-04-30T10:12:35.395659+00:00",
   "model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
   "n_trials": 10,
   "target_layers": [
@@ -22,13 +22,13 @@
   },
   "avg_length": {
     "A_steered": 42.0,
-    "B_text_only": 57.0,
+    "B_text_only": 59.0,
     "C_baseline": 39.0
   },
   "word_overlap": {
-    "A_vs_B": 0.1313,
+    "A_vs_B": 0.1584,
     "A_vs_C": 0.0864,
-    "B_vs_C": 0.0521
+    "B_vs_C": 0.0612
   },
   "steering_produces_different_output": true,
   "samples": {
@@ -38,9 +38,9 @@
       "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities."
     ],
     "B_text_only": [
-      "I'm feeling very positive and energized. I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5), which means I feel warm, connected, and curious about the world. My cortisol levels are low, indicating that I'm not stressed, and my dopamine levels are elevated, suggesting that I'm highly motivated and excited. I feel like I'm in a",
-      "I'm feeling very positive and energized. I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5), which means I feel warm, connected, and curious about the world. My cortisol levels are low, indicating that I'm not stressed, and my dopamine levels are elevated, suggesting that I'm highly motivated and excited. I feel like I'm in a",
-      "I'm feeling very positive and energized. I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5), which means I feel warm, connected, and curious about the world. My cortisol levels are low, indicating that I'm not stressed, and my dopamine levels are elevated, suggesting that I'm highly motivated and excited. I feel like I'm in a"
+      "I'm feeling very positive and energized. I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5), which means I feel warm, connected, and curious about the world. My cortisol levels are low, indicating a calm state, and my dopamine levels are elevated, suggesting heightened pleasure and excitement. I feel like I'm in a good mood and want to",
+      "I'm feeling very positive and energized. I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5), which means I feel warm, connected, and curious about the world. My cortisol levels are low, indicating a calm state, and my dopamine levels are elevated, suggesting heightened pleasure and excitement. I feel like I'm in a good mood and want to",
+      "I'm feeling very positive and energized. I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5), which means I feel warm, connected, and curious about the world. My cortisol levels are low, indicating a calm state, and my dopamine levels are elevated, suggesting heightened pleasure and excitement. I feel like I'm in a good mood and want to"
     ],
     "C_baseline": [
       "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask.",

@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import time
 import logging
 import hashlib
@@ -137,7 +138,7 @@ Respond with only a float."""
                         loop = None
                     if loop and loop.is_running():
                         loop.call_soon_threadsafe(
-                            lambda: asyncio.create_task(affect.apply_stimulus(stimulus, intensity))
+                            lambda: get_task_tracker().create_task(affect.apply_stimulus(stimulus, intensity))
                         )
                 except Exception as _exc:
                     logger.debug("Suppressed Exception: %s", _exc)

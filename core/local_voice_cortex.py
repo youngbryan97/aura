@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import numpy as np
@@ -234,7 +235,7 @@ class LocalVoiceCortex:
             
             vram = get_vram_manager()
             
-            transcribe_task = asyncio.create_task(
+            transcribe_task = get_task_tracker().create_task(
                 asyncio.to_thread(mlx_whisper.transcribe, audio_data, **self.whisper_params)
             )
             

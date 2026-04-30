@@ -23,8 +23,8 @@ References:
   - Dennett, D. (2017). From Bacteria to Bach and Back.
   - Humphrey, N. (2011). Soul Dust: The Magic of Consciousness.
 """
-
 from __future__ import annotations
+
 
 import logging
 import threading

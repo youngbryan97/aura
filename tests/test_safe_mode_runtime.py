@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 from pathlib import Path
@@ -89,7 +90,7 @@ async def test_context_streaming_prune_uses_bounded_tail_when_disabled(monkeypat
 @pytest.mark.asyncio
 async def test_dream_cycle_skips_when_runtime_mode_disables_feature(tmp_path: Path):
     dlq_path = tmp_path / "dlq.jsonl"
-    dlq_path.write_text(json.dumps({"message": "repair this"}) + "\n")
+    atomic_write_text(dlq_path, json.dumps({"message": "repair this"}) + "\n")
 
     orchestrator = SimpleNamespace(
         _runtime_mode_config={"dream_cycle": False},

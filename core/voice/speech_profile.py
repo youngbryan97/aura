@@ -9,8 +9,8 @@ that the LLM MUST obey and the ResponseShaper enforces post-generation.
 
 The LLM is the voicebox. This is the brain telling it what to do.
 """
-
 from __future__ import annotations
+
 
 import logging
 import math

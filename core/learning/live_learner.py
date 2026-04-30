@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import hashlib
@@ -134,7 +135,7 @@ class AdapterRegistry:
         return []
 
     def _save(self) -> None:
-        self._registry_path.write_text(json.dumps(self._registry, indent=2))
+        atomic_write_text(self._registry_path, json.dumps(self._registry, indent=2))
 
     def register(
         self,

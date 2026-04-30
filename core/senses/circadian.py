@@ -25,6 +25,7 @@ This is not cosmetic. The circadian state feeds directly into:
   - Experience consolidation scheduling
 """
 from __future__ import annotations
+from core.utils.task_tracker import get_task_tracker
 
 import logging
 import math
@@ -231,7 +232,7 @@ class CircadianEngine:
                 import asyncio
                 delta = self._state.arousal_baseline - 0.45  # deviation from neutral
                 if abs(delta) > 0.05:
-                    asyncio.ensure_future(
+                    get_task_tracker().track(
                         affect.apply_stimulus("circadian_arousal", delta * 2.0)
                     )
         except Exception as _exc:

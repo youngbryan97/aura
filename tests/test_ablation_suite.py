@@ -7,8 +7,8 @@ proving the module actually changes Aura's behaviour.
 
 No real LLM calls are needed.  Every test completes in < 1 second.
 """
-
 from __future__ import annotations
+
 
 import copy
 import math

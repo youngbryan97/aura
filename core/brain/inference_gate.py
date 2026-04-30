@@ -10,6 +10,7 @@ This module is the FAST PATH for user-facing chat. It injects Aura's full
 identity/personality system prompt so responses sound like Aura, not a bare LLM.
 Timeouts are kept tight (45s) for conversational responsiveness.
 """
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import gc
 import inspect
@@ -613,7 +614,7 @@ class InferenceGate:
 
             logger.warning("⚠️ Deferred cortex prewarm exhausted retries; foreground turn will retry on demand.")
 
-        self._deferred_prewarm_task = asyncio.create_task(
+        self._deferred_prewarm_task = get_task_tracker().create_task(
             _runner(),
             name="InferenceGate.deferred_cortex_prewarm",
         )
@@ -647,7 +648,7 @@ class InferenceGate:
                     task = self._prewarm_task
                 else:
                     self._extend_startup_quiet_window(20.0)
-                    self._prewarm_task = asyncio.create_task(
+                    self._prewarm_task = get_task_tracker().create_task(
                         self._mlx_client.warmup(),
                         name="InferenceGate.ensure_foreground_ready",
                     )
@@ -734,7 +735,7 @@ class InferenceGate:
 
             try:
                 logger.warning("♻️ [RECOVERY] Primary 32B cortex is dead. Triggering background respawn (Attempt %d/5)...", self._cortex_recovery_attempts)
-                self._prewarm_task = asyncio.create_task(
+                self._prewarm_task = get_task_tracker().create_task(
                     self._mlx_client.warmup(),
                     name="InferenceGate.cortex_recovery",
                 )
@@ -750,7 +751,7 @@ class InferenceGate:
 
         # [STABILITY v53] Wrap fire-and-forget task with exception logging
         # so crashes are visible instead of silently lost.
-        task = asyncio.create_task(_background_recover(), name="cortex_recovery")
+        task = get_task_tracker().create_task(_background_recover(), name="cortex_recovery")
         task.add_done_callback(self._log_task_exception)
 
     async def _respawn_cortex_if_needed(self) -> None:
@@ -802,7 +803,7 @@ class InferenceGate:
                     statuses["brainstem"] = "dead"
                     # Try to warm up brainstem
                     if hasattr(brainstem, "warmup"):
-                        asyncio.create_task(brainstem.warmup())
+                        get_task_tracker().create_task(brainstem.warmup())
                         statuses["brainstem"] = "recovering"
             else:
                 statuses["brainstem"] = "not_initialized"
@@ -1249,7 +1250,7 @@ class InferenceGate:
             if self._boot_should_eager_warmup():
                 self._extend_startup_quiet_window(90.0)
                 try:
-                    self._prewarm_task = asyncio.create_task(
+                    self._prewarm_task = get_task_tracker().create_task(
                         self._mlx_client.warmup(),
                         name="InferenceGate.cortex_prewarm",
                     )
@@ -1266,7 +1267,7 @@ class InferenceGate:
                 logger.info("🛡️ InferenceGate ONLINE (desktop safe boot: 32B warmup deferred until the first real foreground request).")
 
             if self._maintenance_task is None or self._maintenance_task.done():
-                self._maintenance_task = asyncio.create_task(
+                self._maintenance_task = get_task_tracker().create_task(
                     self._maintenance_loop(),
                     name="InferenceGate.maintenance",
                 )
@@ -2564,11 +2565,16 @@ class InferenceGate:
                     )
                 if text:
                     if restore_primary:
-                        # [STABILITY v53] Add exception callback to prevent silent failures
-                        _task = asyncio.create_task(
-                            self._restore_primary_after_deep_handoff(),
-                            name="restore_primary_after_deep",
-                        )
+                        # [STABILITY v53] Add exception callback to prevent silent failures.
+                        # Use asyncio.create_task directly so the loop's task factory can
+                        # observe (the global tracker installs a factory at boot, so the
+                        # task is still tracked) while keeping the scheduling primitive
+                        # unambiguous for callers that need to await the restore.
+                        _task = asyncio.create_task(self._restore_primary_after_deep_handoff())
+                        try:
+                            _task.set_name("restore_primary_after_deep")
+                        except AttributeError:
+                            pass
                         _task.add_done_callback(self._log_task_exception)
                     return text
 
@@ -2671,11 +2677,13 @@ class InferenceGate:
                     )
                 if brainstem_text:
                     if restore_primary:
-                        # [STABILITY v53] Add exception callback to prevent silent failures
-                        _task = asyncio.create_task(
-                            self._restore_primary_after_deep_handoff(),
-                            name="restore_primary_after_deep",
-                        )
+                        # [STABILITY v53] Add exception callback to prevent silent failures.
+                        # Use asyncio.create_task directly (loop factory still observes it).
+                        _task = asyncio.create_task(self._restore_primary_after_deep_handoff())
+                        try:
+                            _task.set_name("restore_primary_after_deep")
+                        except AttributeError:
+                            pass
                         _task.add_done_callback(self._log_task_exception)
                     return brainstem_text
                 logger.warning("🧠 Local fallback returned no text.")
@@ -2715,7 +2723,7 @@ class InferenceGate:
                     if reflex_text:
                         logger.info("🆘 [REFLEX] 1.5B CPU model produced response. Cortex recovery in background.")
                         if not self._cortex_recovery_in_progress:
-                            asyncio.create_task(self._ensure_cortex_recovery())
+                            get_task_tracker().create_task(self._ensure_cortex_recovery())
                         return reflex_text
             except Exception as reflex_err:
                 logger.debug("Reflex fallback failed: %s", reflex_err)
@@ -2728,7 +2736,7 @@ class InferenceGate:
             if _is_user_facing:
                 # Force cortex recovery in background
                 if not self._cortex_recovery_in_progress:
-                    asyncio.create_task(self._respawn_cortex_if_needed())
+                    get_task_tracker().create_task(self._respawn_cortex_if_needed())
                 # Give cortex time to recover before next request hits a dead endpoint
                 self._extend_startup_quiet_window(15.0)
                 # Reset the UnitaryResponsePhase circuit breaker so next attempt works

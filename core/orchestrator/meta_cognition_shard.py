@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
@@ -28,7 +29,7 @@ class MetaCognitionShard:
         if self.is_running:
             return
         self.is_running = True
-        self._audit_task = asyncio.create_task(self._audit_loop())
+        self._audit_task = get_task_tracker().create_task(self._audit_loop())
         logger.info("🧠 Meta-Cognition Shard ONLINE.")
 
     async def _audit_loop(self):

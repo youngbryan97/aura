@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import random
@@ -76,7 +77,7 @@ class RobustLock:
                 logger.debug("Suppressed Exception: %s", _exc)
 
         async def _await_threaded_acquire(acquire_timeout: float) -> bool:
-            acquire_task = asyncio.create_task(
+            acquire_task = get_task_tracker().create_task(
                 asyncio.to_thread(self._lock.acquire, timeout=acquire_timeout),
                 name=f"lock_acquire:{self.name}",
             )
@@ -282,7 +283,7 @@ class EventLoopMonitor:
             return
         self._stop_event.clear()
         self._started_at = time.perf_counter()
-        self._task = asyncio.create_task(self._run())
+        self._task = get_task_tracker().create_task(self._run())
         logger.info("🕒 EventLoopMonitor started (threshold=%.2fs, interval=%.1fs)", 
                     self.threshold, self.interval)
 

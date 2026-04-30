@@ -2,6 +2,7 @@
 # verify_system_health.py
 ################################################################################
 
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import sys
@@ -39,9 +40,9 @@ async def verify_health():
         
         # Start the cognitive loop explicitly if needed
         if hasattr(orchestrator, "cognitive_loop") and orchestrator.cognitive_loop:
-            asyncio.create_task(orchestrator.cognitive_loop.run())
+            get_task_tracker().create_task(orchestrator.cognitive_loop.run())
         elif hasattr(orchestrator, "run"):
-            asyncio.create_task(orchestrator.run())
+            get_task_tracker().create_task(orchestrator.run())
         
         logger.info("Checking Memory...")
         if orchestrator.memory:

@@ -1,5 +1,6 @@
 """core/terminal_monitor.py — v5.0 PRODUCTION-GRADE"""
 
+from core.runtime.atomic_writer import atomic_write_text
 import logging
 import re
 import time
@@ -107,7 +108,7 @@ class TerminalMonitor:
     def _save_blacklist(self):
         try:
             BLACKLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
-            BLACKLIST_PATH.write_text(json.dumps(list(self._blacklist)))
+            atomic_write_text(BLACKLIST_PATH, json.dumps(list(self._blacklist)))
         except Exception as e:
             logger.error(f"Failed to save blacklist: {e}")
 

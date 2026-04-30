@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import sys
 import unittest.mock as mock
 
@@ -26,7 +27,7 @@ async def test_arbitrator():
                 evo_blocked = False
                 print("Background: Evolution lock acquired!")
         
-        evo_task = asyncio.create_task(background_evo())
+        evo_task = get_task_tracker().create_task(background_evo())
         await asyncio.sleep(1) # Wait for task to try lock
         
         if evo_blocked:

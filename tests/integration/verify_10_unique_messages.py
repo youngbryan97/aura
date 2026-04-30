@@ -1,3 +1,4 @@
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import sys
 import os
@@ -45,7 +46,7 @@ async def verify_10_diverse_messages():
     orchestrator.cognitive_integration = cil
 
     # Start orchestrator
-    loop_task = asyncio.create_task(orchestrator.run())
+    loop_task = get_task_tracker().create_task(orchestrator.run())
     await asyncio.sleep(1.0) # Wait for event loop to settle
     
     messages = [
