@@ -153,6 +153,11 @@ def record_degradation(
     """
     error_type = type(error).__qualname__
     error_msg = str(error)[:500]
+    
+    # [STABILITY v54] Demote expected background accessibility errors to debug
+    if "background process lacks accessibility context" in error_msg:
+        severity = "debug"
+
     tb = "".join(traceback.format_exception(type(error), error, error.__traceback__, limit=3))
 
     record = DegradationRecord(

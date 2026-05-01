@@ -272,6 +272,9 @@ class MotivationBridge:
         """Store a reference to the kernel for live state access."""
         self.kernel = kernel
 
+    async def update(self, *args, **kwargs):
+        pass
+
     async def get_status(self) -> dict:
         """Return the current motivation budget levels from kernel state."""
         state = self.kernel.state

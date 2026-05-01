@@ -961,7 +961,7 @@ class MLXLocalClient:
         # should cascade to brainstem/cloud rather than keep waiting.  The
         # prior 30s budget stacked on top of a hung 32B generation produced
         # the 60–90 s "Aura is thinking..." windows the user reported.
-        default = 12.0 if foreground_request else 10.0
+        default = 30.0 if foreground_request else 60.0
         if not isinstance(deadline, Deadline):
             return default
 

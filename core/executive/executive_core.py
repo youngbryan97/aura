@@ -759,7 +759,7 @@ class ExecutiveCore:
         self._decision_history.append(record)
         self._approval_count += 1
         self._append_decision_event(intent, record)
-        logger.info("⚠️ Executive DEGRADED: %s (constraints: %s)",
+        logger.info("⚠️ Executive THROTTLED: %s (constraints: %s)",
                     intent.goal[:50], constraints)
         return record
 

@@ -162,13 +162,9 @@ class UnitaryResponsePhase(Phase):
             return 15.0
         if deep_handoff or model_tier == "secondary":
             return 120.0
-        # [STABILITY v53] Primary tier — 120s. The previous 75s was causing
-        # the cortex to be killed mid-generation on cold first turns. The 32B
-        # model on Apple Silicon can take 60-90s for the first response after
-        # boot (Metal shader compilation + KV cache warmup). Killing it at 75s
-        # means the user NEVER gets a response on turn 1. 120s gives real
-        # headroom while still preventing infinite hangs.
-        return 120.0
+        # [STABILITY v54] Primary tier — 240s. With 64k context caps,
+        # prompt evaluation can take 120s+ on M5 silicon.
+        return 240.0
 
     @staticmethod
     def _recent_router_history(state: AuraState, limit: int = 6) -> list[dict]:

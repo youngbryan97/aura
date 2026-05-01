@@ -166,7 +166,7 @@ class BlackHoleVault:
         self._save_vault()
         return True
         
-    def search_similar(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    def search_similar(self, query: str, limit: int = 5, **kwargs) -> List[Dict[str, Any]]:
         """Standard interface matching VectorMemory"""
         self._ensure_ready()
         if not self.memories:
