@@ -276,6 +276,7 @@ def _background_error_is_quiet(error: str) -> bool:
         "foreground_busy",
         "foreground_quiet_window",
         "client_returned_no_text",
+        "cancelled_unhealthy",
         "background_deferred:memory_pressure",
         "background_deferred:cortex_startup_quiet",
         "background_deferred:foreground_quiet_window",
@@ -285,7 +286,11 @@ def _background_error_is_quiet(error: str) -> bool:
         "heartbeat_stalled_during_generation",
         "first_token_sla_exceeded",
         "token_progress_stalled",
-    } or normalized.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:"))
+    } or normalized.startswith((
+        "mlx_runtime_unavailable:",
+        "local_runtime_unavailable:",
+        "request_queue_failed:",
+    ))
 
 
 def _local_client_failure_reason(client: Any) -> str:
@@ -408,7 +413,35 @@ class HealthAwareLLMRouter:
         self.last_background_tier: Optional[str] = None
         self.last_user_error: str = ""
         self.last_background_error: str = ""
+        self._last_fallback_warning_at: float = 0.0
         logger.info("HealthAwareLLMRouter initialized (Legacy-Compatible mode)")
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Aggregate endpoint statistics for proprioceptive telemetry."""
+        total_calls = 0
+        total_tokens = 0
+        total_failures = 0
+        total_empty = 0
+        endpoint_stats = {}
+        for name, ep in self.endpoints.items():
+            total_calls += ep.total_requests
+            total_tokens += ep.total_tokens
+            total_failures += ep.failure_count
+            total_empty += ep.empty_responses
+            endpoint_stats[name] = ep.status_dict()
+        return {
+            "total_calls": total_calls,
+            "total_tokens": total_tokens,
+            "total_failures": total_failures,
+            "total_empty_responses": total_empty,
+            "endpoint_count": len(self.endpoints),
+            "last_tier": self.last_tier,
+            "last_endpoint": self.last_endpoint,
+            "last_user_error": self.last_user_error,
+            "last_background_error": self.last_background_error,
+            "high_pressure_mode": self.high_pressure_mode,
+            "endpoints": endpoint_stats,
+        }
 
     def register(
         self,
@@ -1451,10 +1484,13 @@ class HealthAwareLLMRouter:
                     [e.name for e in available],
                 )
             else:
-                logger.warning(
-                    "⚠️ Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order.",
-                    prefer_tier,
-                )
+                now = time.time()
+                if now - self._last_fallback_warning_at > 30.0:
+                    logger.warning(
+                        "⚠️ Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order.",
+                        prefer_tier,
+                    )
+                    self._last_fallback_warning_at = now
                 available = []
         
         # Apply Mycelial Preference
@@ -1488,11 +1524,14 @@ class HealthAwareLLMRouter:
                     available.append(ep)
 
             if available:
-                logger.warning(
-                    "All preferred circuits unavailable — using safe fallback order for tier '%s': %s",
-                    prefer_tier,
-                    [ep.name for ep in available],
-                )
+                now_fb = time.time()
+                if now_fb - self._last_fallback_warning_at > 30.0:
+                    logger.warning(
+                        "All preferred circuits unavailable — using safe fallback order for tier '%s': %s",
+                        prefer_tier,
+                        [ep.name for ep in available],
+                    )
+                    self._last_fallback_warning_at = now_fb
             else:
                 return {
                     "ok": False,

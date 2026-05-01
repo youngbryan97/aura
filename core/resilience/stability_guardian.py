@@ -96,7 +96,7 @@ class StabilityGuardian:
     MEMORY_WARNING_PCT  = 82.0    # 64GB system — don't warn until ~52GB used
     MEMORY_CRITICAL_PCT = 92.0    # True critical on 64GB — ~59GB used
     MAX_TICK_LAG_MS     = 5000.0   # 5s mean tick = something is blocking
-    MAX_EVENT_LOOP_LAG_MS = 1500.0
+    MAX_EVENT_LOOP_LAG_MS = 2500.0
     MIN_TICK_RATE_HZ    = 0.01     # If we're not ticking at all, something is wrong
     MAX_TASK_COUNT      = 260      # asyncio task explosion guard
     MAX_UNSUPERVISED_TASK_COUNT = 80

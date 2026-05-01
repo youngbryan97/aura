@@ -273,7 +273,7 @@ class EventLoopMonitor:
     If the loop is delayed by more than 'threshold' seconds beyond its
     intended sleep interval, it logs a warning.
     """
-    def __init__(self, threshold: float = 0.1, interval: float = 1.0, startup_grace: float = 15.0):
+    def __init__(self, threshold: float = 0.25, interval: float = 1.0, startup_grace: float = 15.0):
         self.threshold = threshold
         self.interval = interval
         self.startup_grace = startup_grace

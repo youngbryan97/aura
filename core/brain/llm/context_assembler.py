@@ -817,7 +817,7 @@ class ContextAssembler:
         # the right move).  This prevents the "Cortex returned no text" loop
         # triggered by long prompt assembly on 32B.
         casual_cap = 6000
-        deliberate_cap = 12000
+        deliberate_cap = 20000
         cap = casual_cap if is_casual else deliberate_cap
         if len(base) > cap:
             trim_notice = "\n\n[... mid-prompt trimmed for latency ...]\n\n"
@@ -857,7 +857,7 @@ class ContextAssembler:
             base = "".join(pieces)
             if len(base) > cap:
                 base = base[:cap]
-            logger.info(
+            logger.debug(
                 "🧠 [BRAIN-PROMPT] System prompt exceeded %d-char budget — "
                 "trimmed to %d chars (casual=%s, depth=%d).",
                 cap, len(base), is_casual, depth,

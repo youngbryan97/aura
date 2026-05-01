@@ -85,6 +85,8 @@ class ProprioceptiveLoop(BasePhase):
                 total = stats.get("total_calls", 0)
                 if total > 0:
                     soma.latency["token_velocity"] = total  # Cumulative for now
+        except AttributeError:
+            pass  # get_stats not available on this router implementation
         except Exception as _e:
             record_degradation('proprioceptive_loop', _e)
             logger.debug('Ignored Exception in proprioceptive_loop.py: %s', _e)

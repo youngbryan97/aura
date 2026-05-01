@@ -2299,7 +2299,7 @@ class InferenceGate:
         prompt_budget_chars = max(14000, int(max(4096, context_window - 1536) * 2.25))
         limits = {
             "system": min(9000, max(6000, int(prompt_budget_chars * 0.40))),
-            "user": min(12000, max(5000, int(prompt_budget_chars * 0.46))),
+            "user": min(16000, max(5000, int(prompt_budget_chars * 0.46))),
             "assistant": min(7000, max(3500, int(prompt_budget_chars * 0.20))),
         }
         limit = limits.get(role, 8000)

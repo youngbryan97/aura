@@ -371,7 +371,24 @@ class AutomatedDiagnosisEngine:
         # Get LLM analysis
         try:
             thought = await self.brain.think(prompt, priority=0.1)
-            diagnosis = self._parse_diagnosis(thought.content if hasattr(thought, 'content') else str(thought))
+            # Guard: brain.think() returns None when all LLM endpoints are down
+            raw_content = ""
+            if thought is None:
+                raw_content = ""
+            elif hasattr(thought, 'content'):
+                raw_content = str(thought.content or "")
+            else:
+                raw_content = str(thought or "")
+
+            if not raw_content.strip():
+                logger.debug("Diagnosis skipped: LLM returned no content (endpoints may be unavailable)")
+                return {
+                    "ok": False,
+                    "error": "llm_returned_empty",
+                    "hypotheses": []
+                }
+
+            diagnosis = self._parse_diagnosis(raw_content)
             
             logger.info("Generated %d hypotheses", len(diagnosis.get('hypotheses', [])))
             return diagnosis
