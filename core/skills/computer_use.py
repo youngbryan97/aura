@@ -74,7 +74,7 @@ class ComputerUseSkill(BaseSkill):
         if "not authorized to send apple events" in lowered or "(-1743)" in lowered:
             return "Automation permission is blocked for System Events."
         if "not allowed assistive access" in lowered or "(-1719)" in lowered:
-            return "Accessibility permission is blocked for desktop UI inspection."
+            return "UI inspection unavailable (background process lacks accessibility context)."
         return message or "AppleScript execution failed."
 
     def _run_applescript(self, script: str, *, timeout: int = 10) -> str:

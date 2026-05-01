@@ -1,4 +1,3 @@
-from core.runtime.errors import record_degradation
 import os
 import sys
 import logging
@@ -11,6 +10,8 @@ from typing import Optional
 # Setup Path Resolution
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+from core.runtime.errors import record_degradation
 
 
 def _inject_project_venv_site_packages() -> None:

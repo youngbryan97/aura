@@ -782,12 +782,12 @@ class MLXLocalClient:
             # wedged generation. Cold-start gets 40 s once, then shrinks
             # automatically after the first completion sets the anchor.
             if foreground_request:
-                base = 40.0 if is_cold_start else 22.0
+                base = 45.0 if is_cold_start else 35.0
                 return _with_prompt_eval_headroom(
                     base,
                     threshold_tokens=512.0,
                     eval_seconds_per_token=0.0125,
-                    cap_s=90.0,
+                    cap_s=180.0,
                 )
             return 35.0
         return 8.0

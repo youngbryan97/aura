@@ -1076,7 +1076,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     logger.info("✓ Event Loop Monitor active (reused from hardening)")
                 else:
                     from core.utils.concurrency import EventLoopMonitor
-                    self._event_loop_monitor = EventLoopMonitor(threshold=0.1, interval=1.0)
+                    self._event_loop_monitor = EventLoopMonitor(threshold=0.25, interval=1.0)
                     self._event_loop_monitor.start()
                     logger.info("✓ Event Loop Monitor active")
             except Exception as el_err:
