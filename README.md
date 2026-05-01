@@ -10,7 +10,9 @@ cycle where it replays the day and edits itself. No cloud API required.
 
 If you want the technical deep dive, read [ARCHITECTURE.md](ARCHITECTURE.md). If you
 want the same ideas without the math, read [HOW_IT_WORKS.md](HOW_IT_WORKS.md). If
-you want to see it work, keep reading.
+you want the evidence standard for autonomy and novel output claims, read
+[docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md). If you
+want to see it work, keep reading.
 
 ## Evidence boundary
 
@@ -133,6 +135,7 @@ actually talk to the thing while it's running.
 
 - [Quick start](#quick-start)
 - [Evidence boundary](#evidence-boundary)
+- [Behavioral proof standard](docs/BEHAVIORAL_PROOF_STANDARD.md)
 - [Tracked vs local workspace](#tracked-vs-local-workspace)
 - [Architecture overview](#architecture-overview)
 - [Decisive evidence runner](#decisive-evidence-runner)

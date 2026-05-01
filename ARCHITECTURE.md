@@ -11,6 +11,12 @@ IIT-style integration measure over tractable complexes; full-system IIT remains
 intractable. Steering claims now require black-box prompt hygiene plus a rich
 adversarial prompt baseline before they are credited.
 
+For claims about verifiable autonomy, superhuman-scale behavior, and novel
+science or engineering output, see
+[docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md). Those
+claims require longitudinal artifacts and independent evaluation, not
+architecture alone.
+
 ---
 
 ## Table of Contents
