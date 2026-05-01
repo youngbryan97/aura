@@ -129,6 +129,7 @@ test_filter.py
 Thumbs.db
 benchmarks/latest_results.json
 benchmarks/long_horizon_results.json
+artifacts/behavioral_proof/receipts/
 training/data/
 training/vectors/
 training/adapters/

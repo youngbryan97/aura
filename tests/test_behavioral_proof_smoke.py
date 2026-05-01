@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 
-from core.evaluation.behavioral_proof import run_behavioral_proof_smoke
+from core.evaluation.behavioral_proof import (
+    run_behavioral_proof_bundle,
+    run_behavioral_proof_smoke,
+    run_live_autonomy_loop_smoke,
+)
 
 
 def test_behavioral_proof_smoke_promotes_competent_solver(tmp_path):
@@ -34,3 +38,45 @@ def test_behavioral_proof_smoke_reproducible_for_same_seed():
     assert a.manifest_hash == b.manifest_hash
     assert a.candidate.result.score == b.candidate.result.score
     assert a.baseline.result.score == b.baseline.result.score
+
+
+def test_live_autonomy_loop_closes_goal_action_artifact_eval_memory(tmp_path):
+    report = run_live_autonomy_loop_smoke(
+        seed=2468,
+        task_count=6,
+        receipt_root=tmp_path / "receipts",
+    )
+
+    assert report.passed is True
+    assert len(report.steps) == 6
+    assert all(step.passed for step in report.steps)
+    assert all(len(step.receipt_ids) == 4 for step in report.steps)
+    assert report.loop_closure == {
+        "internal_state_generated_goals": True,
+        "actions_emitted_artifacts": True,
+        "independent_evaluation_passed": True,
+        "memory_updated_after_each_action": True,
+        "future_policy_changed": True,
+        "receipts_cover_each_step": True,
+    }
+
+
+def test_behavioral_proof_bundle_writes_smoke_and_live_loop(tmp_path):
+    output = tmp_path / "bundle.json"
+    bundle = run_behavioral_proof_bundle(
+        output_path=output,
+        smoke_seed=1357,
+        live_loop_seed=2468,
+        smoke_task_count=30,
+        live_loop_task_count=6,
+        receipt_root=tmp_path / "receipts",
+    )
+
+    assert bundle.passed is True
+    assert bundle.smoke.passed is True
+    assert bundle.live_loop.passed is True
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["passed"] is True
+    assert payload["smoke"]["passed"] is True
+    assert payload["live_loop"]["passed"] is True

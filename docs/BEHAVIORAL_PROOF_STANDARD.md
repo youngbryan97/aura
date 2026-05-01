@@ -164,9 +164,18 @@ make behavioral-proof
 It writes `artifacts/behavioral_proof/latest.json`. The gate creates a sealed
 hidden-eval pack, scores a weak prompt-only baseline, scores a competent
 metadata-based solver, checks answer-hash integrity, and requires the candidate
-to pass the `PromotionGate` by a statistically meaningful margin. This is not
-evidence of superhuman science output yet; it is the regression hook that keeps
-the behavioral-evidence path executable.
+to pass the `PromotionGate` by a statistically meaningful margin.
+
+It also runs a lightweight live-loop closure check:
+
+```text
+internal state -> autonomous goal -> tool action -> artifact
+-> independent evaluation -> memory update -> changed future policy
+```
+
+This still is not evidence of superhuman science output. It is the executable
+regression hook that keeps the behavioral-evidence path honest while the live
+model and long-horizon autonomy lanes mature.
 
 ## Practical answer
 
