@@ -536,6 +536,9 @@ button, textarea {
 .feed-content {
   line-height: 1.5;
   font-size: 0.92rem;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  overflow: hidden;
 }
 
 .metric-bar {
@@ -705,6 +708,7 @@ button, textarea {
     linear-gradient(180deg, rgba(22,14,38,0.84), rgba(12,9,24,0.66)),
     radial-gradient(circle at top right, rgba(0,229,255,0.05), transparent 48%);
   border-color: rgba(110,47,209,0.2);
+  overflow: hidden;
 }
 
 .empty-state {

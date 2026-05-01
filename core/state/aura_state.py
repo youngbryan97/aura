@@ -938,8 +938,17 @@ class AuraState:
         new_summary = self._summarize_messages(summary_candidates)
 
         if existing_summary and new_summary:
-            # Replace old summary with merged version, not concatenation
-            combined_summary = f"Earlier: {existing_summary[:800]} Recent: {new_summary[:800]}"
+            # Strip any existing "Earlier:" prefix to prevent infinite nesting
+            # ("Earlier: Earlier: Earlier: ..." fossilizes stale context forever)
+            stripped = existing_summary
+            if stripped.startswith("Earlier: "):
+                # Extract only the "Recent:" portion from the old summary if present
+                recent_idx = stripped.find(" Recent: ")
+                if recent_idx != -1:
+                    stripped = stripped[recent_idx + len(" Recent: "):]
+                else:
+                    stripped = stripped[len("Earlier: "):]
+            combined_summary = f"Earlier: {stripped[:600]} Recent: {new_summary[:800]}"
         else:
             combined_summary = existing_summary or new_summary
         combined_summary = combined_summary[:2000]
