@@ -97,17 +97,6 @@ def _spawn(cmd: list[str], *, started_at: str) -> int:
             proc.terminate()
 
 
-def run_resume(*, started_at: str) -> int:
-    if not RESUME_SCRIPT.exists():
-        print(f"[orch] {RESUME_SCRIPT.name} missing; skipping resume.")
-        return 0
-    print(f"[orch] partial run detected — resuming via {RESUME_SCRIPT.name}")
-    update_state(started_at=started_at, phase="resume")
-    rc = _spawn([sys.executable, str(RESUME_SCRIPT)], started_at=started_at)
-    update_state(started_at=started_at, phase="resume_done", last_resume_rc=rc)
-    return rc
-
-
 def run_train_and_fuse(args: argparse.Namespace, *, started_at: str) -> int:
     if not TRAIN_AND_FUSE.exists():
         print(f"[orch] {TRAIN_AND_FUSE.name} missing; cannot proceed.")
@@ -115,11 +104,43 @@ def run_train_and_fuse(args: argparse.Namespace, *, started_at: str) -> int:
     cmd: list[str] = [sys.executable, str(TRAIN_AND_FUSE)]
     if args.skip_dataset: cmd.append("--skip-dataset")
     if args.skip_train: cmd.append("--skip-train")
+    if getattr(args, "resume", False): cmd.append("--resume")
     if args.base_model: cmd += ["--base-model", args.base_model]
     if args.tag: cmd += ["--tag", args.tag]
     update_state(started_at=started_at, phase="train_and_fuse")
     rc = _spawn(cmd, started_at=started_at)
     update_state(started_at=started_at, phase="train_and_fuse_done", last_pipeline_rc=rc)
+    return rc
+
+
+def run_fuse_publish(args: argparse.Namespace, *, started_at: str) -> int:
+    if not TRAIN_AND_FUSE.exists():
+        print(f"[orch] {TRAIN_AND_FUSE.name} missing; cannot publish fused model.")
+        return 3
+    cmd: list[str] = [
+        sys.executable,
+        str(TRAIN_AND_FUSE),
+        "--skip-dataset",
+        "--skip-train",
+    ]
+    if args.base_model:
+        cmd += ["--base-model", args.base_model]
+    if args.tag:
+        cmd += ["--tag", args.tag]
+    update_state(started_at=started_at, phase="fuse_publish")
+    rc = _spawn(cmd, started_at=started_at)
+    update_state(started_at=started_at, phase="fuse_publish_done", last_pipeline_rc=rc)
+    return rc
+
+
+def run_resume(*, started_at: str) -> int:
+    if not RESUME_SCRIPT.exists():
+        print(f"[orch] {RESUME_SCRIPT.name} missing; falling back to train_and_fuse.")
+        return -1
+    cmd = [sys.executable, str(RESUME_SCRIPT)]
+    update_state(started_at=started_at, phase="resume")
+    rc = _spawn(cmd, started_at=started_at)
+    update_state(started_at=started_at, phase="resume_done", last_resume_rc=rc)
     return rc
 
 
@@ -159,12 +180,25 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if has_partial_run() and not args.skip_train:
+        print("[orch] partial run detected — resuming via resume_training.py")
         rc = run_resume(started_at=started_at)
-        if rc != 0:
-            print(f"[orch] resume failed (rc={rc}) — wrapper will retry.")
-            return rc
-        if _shutdown.is_set():
-            return 130
+        # If resume_training.py fails to find a valid resume state (rc=1 typically),
+        # fall back to train_and_fuse.py --resume which is more generic.
+        if rc == 0:
+            print("[orch] resume completed cleanly; fusing and publishing model.")
+            rc = run_fuse_publish(args, started_at=started_at)
+            if rc != 0:
+                print(f"[orch] fuse/publish failed (rc={rc}) — wrapper will retry.")
+                return rc
+            update_state(started_at=started_at, phase="complete")
+            print("[orch] resume-based pipeline completed and published cleanly.")
+            return 0
+        if rc != 0 and rc != -1: # rc -1 means script missing
+            print(f"[orch] resume failed (rc={rc}) — falling back to train_and_fuse --resume")
+
+        args.resume = True
+    else:
+        args.resume = False
 
     rc = run_train_and_fuse(args, started_at=started_at)
     if rc != 0:

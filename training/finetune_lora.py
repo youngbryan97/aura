@@ -244,10 +244,12 @@ def main():
             print("=" * 60)
         else:
             print(f"Training exited with code {result.returncode}")
+            sys.exit(result.returncode)
     except Exception as e:
         print(f"Fine-tune failed: {e}")
         print("You can run it manually:")
         print(f"  {cmd_display}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

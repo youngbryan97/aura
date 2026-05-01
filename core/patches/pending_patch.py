@@ -60,3 +60,9 @@ def new_function():
 def new_function():
     return 'new'
 '''
+
+# [APPLIED] Fix for core/temp_fix_test.py at Fri May  1 14:24:16 2026
+'''
+def new_function():
+    return 'new'
+'''

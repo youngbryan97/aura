@@ -60,7 +60,7 @@ def build_dataset() -> None:
         sys.exit(f"Dataset build failed (exit {rc}).")
 
 
-def train_lora(*, base_model: Path) -> None:
+def train_lora(*, base_model: Path, resume: bool = False) -> None:
     finetune = TRAINING_DIR / "finetune_lora.py"
     if not finetune.exists():
         sys.exit(f"finetune_lora.py not found at {finetune}.")
@@ -68,8 +68,11 @@ def train_lora(*, base_model: Path) -> None:
     # the right size — same script supports 32B, 72B, 14B, 7B, etc.
     env = os.environ.copy()
     env["AURA_LORA_BASE_MODEL"] = str(base_model)
-    print(f"\n$ {sys.executable} {finetune}  (AURA_LORA_BASE_MODEL={base_model})", flush=True)
-    result = subprocess.run([sys.executable, str(finetune)], env=env)
+    cmd = [sys.executable, str(finetune)]
+    if resume:
+        cmd.append("--resume")
+    print(f"\n$ {' '.join(cmd)}  (AURA_LORA_BASE_MODEL={base_model})", flush=True)
+    result = subprocess.run(cmd, env=env)
     if result.returncode != 0:
         sys.exit(f"LoRA fine-tune failed (exit {result.returncode}).")
 
@@ -170,6 +173,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-dataset", action="store_true")
     parser.add_argument("--skip-train", action="store_true")
+    parser.add_argument("--resume", action="store_true")
     parser.add_argument(
         "--base-model",
         default=os.environ.get("AURA_LORA_BASE_MODEL", str(DEFAULT_BASE_MODEL)),
@@ -193,7 +197,7 @@ def main() -> None:
     if not args.skip_dataset:
         build_dataset()
     if not args.skip_train:
-        train_lora(base_model=base_model)
+        train_lora(base_model=base_model, resume=args.resume)
     fused_path = fuse_adapter(base_model=base_model, tag=args.tag)
     verify_load(fused_path)
     publish_manifest(fused_path, tag=args.tag, base_model=base_model)

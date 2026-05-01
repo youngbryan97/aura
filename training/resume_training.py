@@ -56,43 +56,41 @@ def _resume_state_from_log() -> tuple[Path, int] | None:
     if not LOG_PATH.exists():
         return None
 
+    # Collect all saved checkpoints from the log in order
+    saves: list[tuple[int, str]] = []
     last_resume_file: str | None = None
     remaining_at_resume: int | None = None
-    last_saved_file: str | None = None
-    last_saved_iter: int | None = None
 
     for line in LOG_PATH.read_text(errors="ignore").splitlines():
         resume_match = RESUME_RE.search(line)
         if resume_match:
             last_resume_file = resume_match.group(1).strip()
             remaining_at_resume = int(resume_match.group(2))
-            last_saved_file = None
-            last_saved_iter = None
-            continue
-
-        if remaining_at_resume is None:
+            saves = [] # Reset saves for this resume session
             continue
 
         save_match = SAVE_RE.search(line)
-        if save_match:
-            last_saved_iter = int(save_match.group(1))
-            last_saved_file = save_match.group(2)
+        if save_match and remaining_at_resume is not None:
+            saves.append((int(save_match.group(1)), save_match.group(2)))
 
     if remaining_at_resume is None or last_resume_file is None:
         return None
 
-    if last_saved_file and last_saved_iter is not None:
-        checkpoint = ADAPTER_PATH / last_saved_file
-        remaining = remaining_at_resume - last_saved_iter
-    else:
-        checkpoint = ADAPTER_PATH / last_resume_file
-        remaining = remaining_at_resume
+    # Try checkpoints in reverse order (newest first)
+    for iter_count, filename in reversed(saves):
+        checkpoint = ADAPTER_PATH / filename
+        if checkpoint.exists():
+            remaining = remaining_at_resume - iter_count
+            if remaining > 0:
+                return checkpoint, remaining
 
-    if remaining <= 0:
-        raise RuntimeError("Training already appears complete; no iterations remaining.")
-    if not checkpoint.exists():
-        raise FileNotFoundError(f"Resume checkpoint missing: {checkpoint}")
-    return checkpoint, remaining
+    # Fallback to the original resume file
+    checkpoint = ADAPTER_PATH / last_resume_file
+    if checkpoint.exists():
+        if remaining_at_resume > 0:
+            return checkpoint, remaining_at_resume
+
+    return None
 
 
 def _resolve_resume_state() -> tuple[Path, int]:

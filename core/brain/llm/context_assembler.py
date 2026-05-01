@@ -809,15 +809,10 @@ class ContextAssembler:
             "Violating this rule is considered a systemic breakdown. Speak only as Aura.\n"
         )
 
-        # Hard safety cap: a 24 KB system prompt on a 32B model routinely
-        # overruns its 22 s first-token SLA.  For casual turns we enforce a
-        # ~6 KB cap; for deliberate turns we allow up to 12 KB.  Anything
-        # past that gets truncated tail-first, keeping identity + structural
-        # constraint intact (they're appended last above, so tail-keeping is
-        # the right move).  This prevents the "Cortex returned no text" loop
-        # triggered by long prompt assembly on 32B.
-        casual_cap = 6000
-        deliberate_cap = 20000
+        # M5 / 64GB optimized: We have plenty of context window and fast prompt eval.
+        # Allow rich living-mind context without premature truncation.
+        casual_cap = 16000
+        deliberate_cap = 64000
         cap = casual_cap if is_casual else deliberate_cap
         if len(base) > cap:
             trim_notice = "\n\n[... mid-prompt trimmed for latency ...]\n\n"
