@@ -655,6 +655,43 @@ class MessageHandlingMixin:
                             "Give me a moment and try again — I'll be back."
                         )
 
+                # ── Auto-Continuation Reflex ──────────────────────────────────
+                # If the response ends abruptly without punctuation, it likely
+                # hit a max_tokens cap. Automatically prompt for continuation
+                # and concatenate to form a seamless thought.
+                continuation_count = 0
+                while continuation_count < 2 and response and len(response) > 200:
+                    last_char = response.strip()[-1] if response.strip() else ""
+                    if last_char not in ".!?\"'”’*)\\]}>~`\\n":
+                        logger.info("⚡ Auto-Continuation triggered! Response appears truncated (ended with '%s').", last_char)
+                        continuation_count += 1
+                        
+                        temp_history = list(history)
+                        temp_history.append({"role": "user", "content": message})
+                        temp_history.append({"role": "assistant", "content": response})
+                        
+                        continue_msg = "[SYSTEM: You hit your output token limit. Continue your exact previous thought seamlessly from where you left off.]"
+                        next_part = await self._inference_gate.generate(
+                            continue_msg,
+                            context={
+                                "history": temp_history,
+                                "brief": _brief_text,
+                                "origin": origin,
+                                "is_background": False,
+                                "prefer_tier": "primary",
+                            },
+                        )
+                        if next_part and next_part != "<|SILENCE|>":
+                            # Add a space if it doesn't start with punctuation or space
+                            if next_part[0].isalnum() and response[-1].isalnum():
+                                response += ""  # The model usually continues the exact word if cut off mid-word, or we could add a space. Usually no space is safer.
+                            response += next_part
+                        else:
+                            break
+                    else:
+                        break
+
+
                 # ── Silence Protocol ──────────────────────────────────────────
                 # If the model chose to emit <|SILENCE|>, the InferenceGate
                 # returns the sentinel string. We honour the choice: record the
