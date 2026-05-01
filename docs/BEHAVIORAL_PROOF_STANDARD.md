@@ -153,6 +153,21 @@ A release or public claim of L3-L5 behavior should ship one packet:
 
 No single demo substitutes for that packet.
 
+## Runnable smoke gate
+
+The first runnable behavioral gate is intentionally small:
+
+```bash
+make behavioral-proof
+```
+
+It writes `artifacts/behavioral_proof/latest.json`. The gate creates a sealed
+hidden-eval pack, scores a weak prompt-only baseline, scores a competent
+metadata-based solver, checks answer-hash integrity, and requires the candidate
+to pass the `PromotionGate` by a statistically meaningful margin. This is not
+evidence of superhuman science output yet; it is the regression hook that keeps
+the behavioral-evidence path executable.
+
 ## Practical answer
 
 Aura will behave like a mind at scale only if the loop closes:
