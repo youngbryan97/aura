@@ -660,7 +660,7 @@ class MessageHandlingMixin:
                 # hit a max_tokens cap. Automatically prompt for continuation
                 # and concatenate to form a seamless thought.
                 continuation_count = 0
-                while continuation_count < 2 and response and len(response) > 200:
+                while continuation_count < 3 and response and len(response) > 200:
                     last_char = response.strip()[-1] if response.strip() else ""
                     if last_char not in ".!?\"'”’*)\\]}>~`\\n":
                         logger.info("⚡ Auto-Continuation triggered! Response appears truncated (ended with '%s').", last_char)
