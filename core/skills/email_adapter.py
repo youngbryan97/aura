@@ -95,6 +95,8 @@ class EmailInput(BaseModel):
     uid: Optional[str] = Field(None, description="Email UID (for 'read' / 'reply' mode)")
     query: Optional[str] = Field(None, description="IMAP search query (for 'search' mode)")
     limit: int = Field(10, description="Max results for 'check' / 'search'")
+    in_reply_to: Optional[str] = Field(None, description="Message-ID to reply to (internal use)")
+    references: Optional[str] = Field(None, description="References header (internal use)")
 
 
 class EmailAdapterSkill(BaseSkill):
@@ -208,6 +210,11 @@ class EmailAdapterSkill(BaseSkill):
         msg["Date"] = email.utils.formatdate(localtime=True)
         msg["Message-ID"] = email.utils.make_msgid(domain="gmail.com")
 
+        if params.in_reply_to:
+            msg["In-Reply-To"] = params.in_reply_to
+        if params.references:
+            msg["References"] = params.references
+
         # Add body
         msg.attach(email.mime.text.MIMEText(body, "plain", "utf-8"))
 
@@ -284,18 +291,45 @@ class EmailAdapterSkill(BaseSkill):
                     return None
 
                 msg = email.message_from_bytes(msg_data[0][1])
+                
+                # Check for auto-reply headers
+                auto_headers = {
+                    "Auto-Submitted": msg.get("Auto-Submitted", "").lower(),
+                    "X-Autoreply": msg.get("X-Autoreply", "").lower(),
+                    "Precedence": msg.get("Precedence", "").lower(),
+                }
+                is_auto = (
+                    "auto-" in auto_headers["Auto-Submitted"] or
+                    "yes" in auto_headers["X-Autoreply"] or
+                    "bulk" in auto_headers["Precedence"] or
+                    "junk" in auto_headers["Precedence"]
+                )
+
                 body = ""
+                has_attachments = False
                 if msg.is_multipart():
                     for part in msg.walk():
-                        if part.get_content_type() == "text/plain":
+                        content_type = part.get_content_type()
+                        content_disposition = str(part.get("Content-Disposition", ""))
+                        
+                        if content_type == "text/plain" and "attachment" not in content_disposition:
                             payload = part.get_payload(decode=True)
                             if payload:
                                 body = payload.decode("utf-8", errors="replace")
-                                break
+                        elif "attachment" in content_disposition or content_type not in ("text/plain", "text/html", "multipart/alternative"):
+                            has_attachments = True
                 else:
                     payload = msg.get_payload(decode=True)
                     if payload:
                         body = payload.decode("utf-8", errors="replace")
+
+                # Strip quoted replies to avoid context bloat
+                clean_body = self._strip_quoted_replies(body)
+                
+                if has_attachments:
+                    clean_body += "\n\n[System Note: This email contains attachments/files that Aura cannot currently visualize.]"
+                if is_auto:
+                    clean_body = "[SYSTEM WARNING: THIS IS AN AUTOMATED OUT-OF-OFFICE OR SYSTEM REPLY. DO NOT RESPOND TO THIS THREAD OR YOU WILL CAUSE AN INFINITE LOOP.]\n\n" + clean_body
 
                 return {
                     "uid": params.uid,
@@ -303,14 +337,45 @@ class EmailAdapterSkill(BaseSkill):
                     "to": msg.get("To", ""),
                     "subject": msg.get("Subject", "(no subject)"),
                     "date": msg.get("Date", ""),
-                    "body": body[:10000],  # Cap at 10k chars
+                    "message_id": msg.get("Message-ID", ""),
+                    "body": clean_body[:10000],  # Cap at 10k chars
+                    "is_auto_reply": is_auto,
+                    "has_attachments": has_attachments
                 }
 
         result = await asyncio.to_thread(_imap_read)
         if result is None:
             return {"ok": False, "error": f"Email UID {params.uid} not found."}
-        logger.info("📧 Read email UID %s from %s", params.uid, result["from"])
+        
+        if result.get("is_auto_reply"):
+            logger.info("🤖 Detected auto-reply UID %s from %s", params.uid, result["from"])
+        else:
+            logger.info("📧 Read email UID %s from %s", params.uid, result["from"])
         return {"ok": True, **result}
+
+    def _strip_quoted_replies(self, text: str) -> str:
+        """Remove quoted historical text from email body."""
+        if not text:
+            return ""
+        
+        # Split by common reply separators
+        lines = text.splitlines()
+        clean_lines = []
+        
+        # Common "On ... wrote:" patterns
+        reply_intro_pattern = re.compile(r"^\s*(On\s.*wrote:|---+\s*Original Message\s*---+)", re.IGNORECASE)
+        
+        for line in lines:
+            # If we hit a line starting with > or a reply intro, we stop processing the "new" body
+            # unless it's a very short line or we're in the middle of a block.
+            # But usually, anything after the first > or "On ... wrote" is history.
+            if line.strip().startswith(">") or reply_intro_pattern.match(line):
+                # Check if there is significant text below that ISN'T quoted (unlikely in standard replies)
+                # For now, we cut off here.
+                break
+            clean_lines.append(line)
+            
+        return "\n".join(clean_lines).strip()
 
     async def _handle_reply(self, params: EmailInput) -> Dict[str, Any]:
         """Reply to an email thread."""
@@ -327,6 +392,8 @@ class EmailAdapterSkill(BaseSkill):
         # Build reply
         reply_to = original.get("from", "")
         reply_subject = original.get("subject", "")
+        orig_id = original.get("message_id", "")
+        
         if not reply_subject.lower().startswith("re:"):
             reply_subject = f"Re: {reply_subject}"
 
@@ -335,6 +402,8 @@ class EmailAdapterSkill(BaseSkill):
             to=reply_to,
             subject=reply_subject,
             body=params.body,
+            in_reply_to=orig_id,
+            references=orig_id
         ))
 
     async def _handle_search(self, params: EmailInput) -> Dict[str, Any]:

@@ -129,7 +129,7 @@ def _check_post_rate() -> bool:
 class RedditInput(BaseModel):
     mode: str = Field("browse", description=(
         "Mode: 'browse', 'read_post', 'comment', 'post', "
-        "'check_inbox', 'reply_inbox', 'read_rules'"
+        "'check_inbox', 'reply_inbox', 'read_rules', 'check_shadowban'"
     ))
     subreddit: Optional[str] = Field(None, description="Subreddit name (without r/)")
     url: Optional[str] = Field(None, description="Full URL of a Reddit post")
@@ -148,10 +148,8 @@ class RedditAdapterSkill(BaseSkill):
 
     name = "reddit_adapter"
     description = (
-        "Interact with Reddit. Modes: 'browse' (read subreddit), "
-        "'read_post' (read post+comments), 'comment' (reply to post), "
-        "'post' (create new post), 'check_inbox' (notifications), "
-        "'reply_inbox' (reply to messages), 'read_rules' (read community rules)."
+        "Interact with Reddit. Modes: 'browse', 'read_post', 'comment', 'post', "
+        "'check_inbox', 'reply_inbox', 'read_rules', 'check_shadowban'."
     )
     input_model = RedditInput
     timeout_seconds = 90.0
@@ -310,10 +308,20 @@ class RedditAdapterSkill(BaseSkill):
                 return await self._handle_reply_inbox(browser, params)
             elif params.mode == "read_rules":
                 return await self._handle_read_rules(browser, params)
+            elif params.mode == "check_shadowban":
+                return await self._handle_check_shadowban(browser, params)
             else:
                 return {"ok": False, "error": f"Unsupported Reddit mode: {params.mode}"}
-
         except Exception as e:
+            # Check for CAPTCHA if it's an interaction failure
+            if browser and browser.page:
+                try:
+                    content = await browser.page.content()
+                    if "g-recaptcha" in content or "captcha-delivery" in content:
+                        logger.warning("🚨 CAPTCHA detected on Reddit!")
+                        return {"ok": False, "error": "CAPTCHA_DETECTED", "message": "Reddit has presented a CAPTCHA. Operation halted."}
+                except:
+                    pass
             record_degradation('reddit_adapter', e)
             logger.error("Reddit operation failed: %s", e)
             return {"ok": False, "error": str(e)}
