@@ -70,6 +70,9 @@ class STDPLearningEngine:
     def record_spikes(self, activations: np.ndarray, t: float):
         """Record which neurons fired and update eligibility traces.
 
+        Vectorized implementation: uses NumPy broadcasting to compute
+        all pairwise STDP contributions in O(N) instead of O(N²).
+
         Args:
             activations: Current activation vector (n_neurons,). Values > 0.5
                         are considered "spikes".
@@ -77,32 +80,49 @@ class STDPLearningEngine:
         """
         threshold = 0.5
         spiking = activations > threshold
-
-        # For each pair of pre/post spiking neurons, compute STDP contribution
         spike_indices = np.where(spiking)[0]
 
-        for post_idx in spike_indices:
-            post_time = t
-            self._last_spike_time[post_idx] = post_time
+        if len(spike_indices) == 0:
+            # Still decay eligibility even with no spikes
+            self._eligibility *= ELIGIBILITY_DECAY
+            return
 
-            for pre_idx in range(self.n):
-                if pre_idx == post_idx:
-                    continue
+        # Vectorized STDP: compute dt for all (pre, post) pairs at once
+        # dt_matrix[i, j] = t - last_spike_time[i] for post neuron j
+        # Potentiation: pre fires before post (dt > 0)
+        # Depression: post fires before pre (dt < 0)
+        dt_vec = t - self._last_spike_time  # (N,) time since each neuron last fired
 
-                pre_time = self._last_spike_time[pre_idx]
-                dt = post_time - pre_time
+        # Create spike mask for broadcasting
+        post_mask = spiking.astype(np.float32)  # (N,) 1 where post fired
 
-                if dt > 0:
-                    # Pre before post: potentiation (LTP)
-                    stdp_val = A_PLUS * np.exp(-dt / TAU_PLUS)
-                    self._eligibility[pre_idx, post_idx] += stdp_val
-                elif dt < 0:
-                    # Post before pre: depression (LTD)
-                    stdp_val = -A_MINUS * np.exp(dt / TAU_MINUS)
-                    self._eligibility[pre_idx, post_idx] += stdp_val
+        # Potentiation contribution: for each pre neuron, if any post fired
+        # dt_vec[pre] > 0 means pre fired before now (causal)
+        pot_contribution = A_PLUS * np.exp(-np.clip(dt_vec, 0, 200) / TAU_PLUS)
+        # Shape: (N_pre,) x (N_post,) -> outer product
+        pot_matrix = np.outer(pot_contribution, post_mask)
+
+        # Depression contribution: for post neurons that fired,
+        # their prior spike was at t (they just fired), so for pre neurons
+        # that fired AFTER, dt < 0 -> depression
+        # We use the negative dt for pre neurons that fired recently
+        dep_dt = -dt_vec  # negative = post before pre
+        dep_contribution = -A_MINUS * np.exp(np.clip(dep_dt, -200, 0) / TAU_MINUS)
+        dep_matrix = np.outer(np.ones(self.n, dtype=np.float32), post_mask) * dep_contribution[:, np.newaxis]
+
+        self._eligibility += pot_matrix + dep_matrix
+
+        # Zero self-connections
+        np.fill_diagonal(self._eligibility, 0.0)
+
+        # Update last spike times
+        self._last_spike_time[spiking] = t
 
         # Decay eligibility traces
         self._eligibility *= ELIGIBILITY_DECAY
+
+        # NaN guard
+        self._eligibility = np.nan_to_num(self._eligibility, nan=0.0)
 
     def deliver_reward(self, surprise: float, prediction_error: float) -> np.ndarray:
         """Apply reward-modulated weight update based on prediction error.
@@ -160,6 +180,18 @@ class STDPLearningEngine:
 
         # Zero diagonal (no self-connections)
         np.fill_diagonal(W_new, 0.0)
+
+        # Symmetry breaking: prevent W from becoming symmetric (W = W^T)
+        # which collapses dynamical richness. Add a small antisymmetric
+        # perturbation every 50 updates.
+        self._total_updates_since_symmetry_break = getattr(
+            self, '_total_updates_since_symmetry_break', 0) + 1
+        if self._total_updates_since_symmetry_break >= 50:
+            asymmetry = 0.001 * (W_new - W_new.T)
+            W_new += asymmetry
+            W_new = np.clip(W_new, -WEIGHT_CLIP, WEIGHT_CLIP)
+            np.fill_diagonal(W_new, 0.0)
+            self._total_updates_since_symmetry_break = 0
 
         return W_new
 

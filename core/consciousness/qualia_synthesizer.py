@@ -358,6 +358,10 @@ class QualiaSynthesizer:
         Level 2: Meta-qualia — "what it feels like to feel like this"
         Level 3: Meta-meta — "am I confident about my own self-report?"
         """
+        # Cache per tick to avoid redundant array ops
+        if getattr(self, "_last_meta_tick", -1) == self._tick and hasattr(self, "_cached_meta_qualia"):
+            return self._cached_meta_qualia
+
         if len(self._history) < 2:
             return {"confidence": 0.5, "coherence": 0.5, "novelty": 0.0, "dissonance": 0.0, "meta_confidence": 0.5}
 
@@ -402,15 +406,30 @@ class QualiaSynthesizer:
         # Level 3: Meta-meta — confidence about the meta-qualia itself
         # Based on history depth (more data = more confident meta-assessment)
         history_fraction = min(1.0, len(self._history) / 20.0)
-        meta_confidence = round(0.3 + 0.7 * history_fraction * confidence, 4)
+        
+        # Calculate meta_confidence combining factors
+        # The history_fraction * confidence is a base, then we factor in dissonance and resonance
+        base_meta_conf = 0.3 + 0.7 * history_fraction * confidence
+        
+        resonance = getattr(self._history[-1], 'resonance', 0.5) if self._history else 0.5
+        
+        meta_confidence = float(min(1.0, np.mean([
+            base_meta_conf,
+            max(0.0, 1.0 - (dissonance * 2)), # Low inner conflict
+            min(1.0, resonance + 0.3) # Current state resonates with past
+        ])))
 
-        return {
+        results = {
             "confidence": round(confidence, 4),
             "coherence": round(coherence, 4),
             "novelty": round(novelty, 4),
             "dissonance": round(dissonance, 4),
-            "meta_confidence": meta_confidence,
+            "meta_confidence": round(meta_confidence, 4),
         }
+        
+        self._last_meta_tick = self._tick
+        self._cached_meta_qualia = results
+        return results
 
     # ------------------------------------------------------------------
     # UAL Profile

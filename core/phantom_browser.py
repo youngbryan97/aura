@@ -22,13 +22,17 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 
-# Try to import Playwright, but don't crash if not installed yet
 try:
     from playwright.async_api import Browser, ElementHandle, Page, async_playwright, Error as PlaywrightError
-    from playwright_stealth import Stealth
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
+
+try:
+    from playwright_stealth import stealth_async
+    STEALTH_AVAILABLE = True
+except ImportError:
+    STEALTH_AVAILABLE = False
 
 logger = logging.getLogger("PhantomBrowser")
 
@@ -184,11 +188,14 @@ class PhantomBrowser:
             self.page = await self.context.new_page()
 
             # Apply Stealth for anti-detection (2026 upgrade)
-            try:
-                await Stealth().apply_stealth_async(self.page)
-            except Exception as se:
-                record_degradation('phantom_browser', se)
-                logger.warning("Stealth application failed: %s", se)
+            if STEALTH_AVAILABLE:
+                try:
+                    await stealth_async(self.page)
+                except Exception as se:
+                    record_degradation('phantom_browser', se)
+                    logger.warning("Stealth application failed: %s", se)
+            else:
+                logger.warning("playwright-stealth is not installed. Running without stealth.")
 
             self.is_active = True
             logger.info("✓ Phantom Browser initialized (Visible: %s, UA: %s...)", self.visible, user_agent[:30])

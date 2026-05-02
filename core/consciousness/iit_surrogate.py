@@ -59,7 +59,7 @@ class RIIU:
         """
         self.neuron_count = neuron_count
         self.buffer_size = buffer_size
-        self.num_partitions = 8  # Increased for richer network state
+        self.num_partitions = 16  # Increased for richer network state
         
         # 2026 Evolution: Network-Aware Dimensionality
         self.network_dim = 128 # Reserved for hyphae + attention
@@ -70,17 +70,11 @@ class RIIU:
         self._write_idx = 0
         self._samples_collected = 0
 
-        # Welford's online covariance (avoids full recompute every tick)
-        self._welford_mean = np.zeros(self.total_dim, dtype=np.float64)
-        self._welford_M2 = np.zeros((self.total_dim, self.total_dim), dtype=np.float64)
-        self._welford_n = 0
-        self._cov_dirty = True  # signals that cached slogdet needs refresh
-        self._cached_cov = None
-
         # Cached results
         self._last_phi: float = 0.0
         self._last_whole_logdet: float = 0.0
         self._tick_count: int = 0
+        self._warmup = True
 
         # Partition indices (precomputed for speed)
         self._partitions = self._generate_partitions()
@@ -106,21 +100,17 @@ class RIIU:
         self._write_idx = (self._write_idx + 1) % self.buffer_size
         self._samples_collected = min(self.buffer_size, self._samples_collected + 1)
 
-        # 2. Welford online covariance update (O(d^2) per tick)
-        self._welford_n += 1
-        delta = v - self._welford_mean
-        self._welford_mean += delta / self._welford_n
-        delta2 = v - self._welford_mean
-        self._welford_M2 += np.outer(delta, delta2)
-        self._cov_dirty = True
-
         self._tick_count += 1
 
         phi = self._last_phi  # default: return cached value
-        if self._samples_collected >= _MIN_SAMPLES and self._tick_count % 5 == 0:
-            # 3. Full phi computation every 5 ticks (amortize slogdet cost)
-            data = self._buffer[:self._samples_collected]
-            phi = self._compute_phi_internal(data)
+        if self._samples_collected >= _MIN_SAMPLES:
+            self._warmup = False
+            if self._tick_count % 5 == 0:
+                # 2. Full phi computation every 5 ticks (amortize slogdet cost)
+                data = self._buffer[:self._samples_collected]
+                phi = self._compute_phi_internal(data)
+        else:
+            self._warmup = True
 
         # 3. Mycelial Pulse (Proof of Life for Φ Subsystem)
         try:
@@ -184,6 +174,7 @@ class RIIU:
             "samples": self._samples_collected,
             "buffer_full": self._samples_collected >= self.buffer_size,
             "neuron_count": self.neuron_count,
+            "warmup": self._warmup,
         }
 
     # ------------------------------------------------------------------
@@ -217,9 +208,11 @@ class RIIU:
 
         self._last_whole_logdet = logdet_w
 
-        # 2. Find the partition with the MAXIMUM log-det-sum
-        #    (the "best" partition that preserves the most information)
-        max_partition_logdet = -np.inf
+        # 2. Find the partition with the MINIMUM log-det-sum
+        #    (The Minimum Information Partition - MIP)
+        #    Information lost = (log|Σ_A| + log|Σ_B|) - log|Σ_whole|
+        #    We want the partition that minimizes this loss.
+        min_partition_logdet = np.inf
 
         for part_a, part_b in self._partitions:
             if len(part_a) < 2 or len(part_b) < 2:
@@ -242,13 +235,14 @@ class RIIU:
 
             partition_logdet = logdet_a + logdet_b
             if not np.isfinite(partition_logdet): continue
-            max_partition_logdet = max(max_partition_logdet, partition_logdet)
+            min_partition_logdet = min(min_partition_logdet, partition_logdet)
 
-        if max_partition_logdet == -np.inf:
+        if min_partition_logdet == np.inf:
             return 0.0
 
-        # Φ = how much information is lost when you partition the system
-        phi = logdet_w - max_partition_logdet
+        # Φ = minimum information lost when partitioning the system
+        # Mutual Information = H(A) + H(B) - H(A,B) -> log|Σ_A| + log|Σ_B| - log|Σ_whole|
+        phi = min_partition_logdet - logdet_w
 
         # Clamp to non-negative and finite range
         if not np.isfinite(phi): return 0.0
@@ -279,8 +273,10 @@ class RIIU:
         rng = np.random.RandomState(42)  # Deterministic partitions
 
         for _ in range(self.num_partitions):
-            # Random split point (ensure both halves have at least 8 elements for stability)
-            split = rng.randint(8, self.total_dim - 8)
+            # Random split point, strictly balanced to prevent artificial logdet drops
+            # from unbalanced capacity (e.g., [4, 60] vs [32, 32]).
+            # We constrain the split to be near the middle.
+            split = rng.randint(self.total_dim // 2 - 4, self.total_dim // 2 + 5)
             perm = rng.permutation(indices)
             part_a = sorted(perm[:split].tolist())
             part_b = sorted(perm[split:].tolist())

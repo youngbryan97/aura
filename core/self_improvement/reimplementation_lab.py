@@ -110,7 +110,9 @@ class ReimplementationLab:
                 logger.info("── Attempt %d/%d ──", attempt, attempts)
 
                 # 3. Generate candidate
-                candidate = await self.candidate_builder.build(spec, workspace, attempt=attempt)
+                candidate = await self.candidate_builder.build(
+                    spec, workspace, attempt=attempt, discrepancy=last_discrepancy
+                )
                 last_candidate = candidate
                 logger.info("Step 3/7: Candidate generated (%d chars)", len(candidate.source_code))
 

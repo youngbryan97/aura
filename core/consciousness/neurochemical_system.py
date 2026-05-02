@@ -96,7 +96,8 @@ class Chemical:
     name: str
     level: float = 0.5                   # current concentration [0, 1]
     baseline: float = 0.5                # homeostatic setpoint
-    production_rate: float = 0.0         # current synthesis rate
+    production_rate: float = 0.0         # current synthesis rate (interaction delta)
+    _base_production: float = 0.0        # intrinsic base production (not overwritten)
     uptake_rate: float = 0.02            # reuptake/clearance rate per tick
     receptor_sensitivity: float = 1.0    # adapts: >1 sensitized, <1 tolerant
     min_sensitivity: float = 0.3
@@ -136,23 +137,20 @@ class Chemical:
         """One metabolic step.
 
         Tonic dynamics: an Ornstein-Uhlenbeck-style return-to-baseline plus
-        an additive production driver. The previous formula was
-        ``tonic += (production - uptake * tonic) * dt`` with
-        ``production_rate = 0.0`` by default — this was pure exponential
-        decay toward zero, NOT a homeostatic system. GABA reached the
-        collapse threshold (0.10) about 30 ticks after boot (~1.5s at
-        20Hz), which surfaced as
-        ``🛑 SubstrateAuthority BLOCKED: ... — neurochemical_gaba_collapse``
-        suppressing memory writes and initiative across every Aura
-        session. Fixed 2026-04-27 by adding the homeostatic baseline
-        return term so chemicals decay TOWARD baseline rather than zero.
+        an additive production driver. Uses the Ornstein-Uhlenbeck formulation:
+        ``d(tonic)/dt = production + uptake_rate * (baseline - tonic)``.
+
+        Receptor adaptation is bidirectional:
+        - Above baseline → sensitivity decreases (tolerance)
+        - Below baseline → sensitivity increases (re-sensitization)
+        Both are bounded by [min_sensitivity, max_sensitivity].
         """
         expected_level = min(1.0, self.tonic_level + self.phasic_burst)
         external_level = max(0.0, min(1.0, self.level))
         if external_level > expected_level + 1e-6:
             self.tonic_level = max(0.0, min(1.0, external_level - self.phasic_burst))
 
-        # Tonic level: production + homeostatic return + uptake
+        # Tonic level: production + homeostatic return
         self.tonic_level += (
             self.production_rate
             + self.uptake_rate * (self.baseline - self.tonic_level)
@@ -164,9 +162,15 @@ class Chemical:
         # Sync level for backward compatibility
         self.level = min(1.0, self.tonic_level + self.phasic_burst)
 
-        # Receptor adaptation (homeostatic)
+        # Receptor adaptation (bidirectional homeostatic)
+        # deviation > 0 → overstimulated → sensitivity decreases (tolerance)
+        # deviation < 0 → understimulated → sensitivity increases (re-sensitization)
         deviation = self.level - self.baseline
         self.receptor_sensitivity -= self.adaptation_rate * deviation * dt
+        # Explicit re-sensitization pull toward 1.0 when sensitivity has drifted
+        # This prevents sensitivity from getting permanently stuck at the floor
+        sensitivity_drift = self.receptor_sensitivity - 1.0
+        self.receptor_sensitivity -= 0.002 * sensitivity_drift * dt  # slow pull toward 1.0
         self.receptor_sensitivity = max(self.min_sensitivity,
                                         min(self.max_sensitivity, self.receptor_sensitivity))
         # Adapt subtypes independently
@@ -175,13 +179,26 @@ class Chemical:
                 st.adapt(self.level, self.baseline, dt)
 
     def surge(self, amount: float):
-        """Acute phasic release (e.g. from event)."""
-        self.phasic_burst = min(0.5, self.phasic_burst + amount)
+        """Acute phasic release (e.g. from event).
+
+        Applies diminishing returns when already near saturation:
+        effective_amount scales down as level approaches 1.0.
+        This prevents NE/cortisol from hitting ceiling under sustained threat.
+        """
+        headroom = max(0.0, 1.0 - self.level)
+        # Diminishing returns: effective surge is proportional to remaining headroom
+        effective = amount * min(1.0, headroom * 2.0)
+        self.phasic_burst = min(0.5, self.phasic_burst + effective)
         self.level = min(1.0, self.tonic_level + self.phasic_burst)
 
     def deplete(self, amount: float):
-        """Acute depletion (affects tonic level)."""
-        self.tonic_level = max(0.0, self.tonic_level - amount)
+        """Acute depletion (affects tonic level).
+
+        Applies floor protection: depletion scales down as level approaches 0.
+        """
+        floor_guard = max(0.0, self.tonic_level - 0.05)  # protect last 5%
+        effective = min(amount, floor_guard)
+        self.tonic_level = max(0.0, self.tonic_level - effective)
         self.level = min(1.0, self.tonic_level + self.phasic_burst)
 
 
@@ -210,6 +227,27 @@ _INTERACTIONS = np.array([
     [ 0.05, -0.08, -0.05, -0.10,  0.15, 0.05, -0.05, -0.10, 0.00, 0.05],  # cortisol
     [ 0.08, -0.05,  0.05,  0.00,  0.10, 0.05, 0.00, 0.00, 0.03, 0.00],  # orexin (drives wakefulness)
 ], dtype=np.float32)
+
+# Spectral radius validation: if max |eigenvalue| > 1.0, the interaction
+# matrix can amplify signals unboundedly under sustained drive.
+_INTERACTION_EIGENVALUES = np.linalg.eigvals(_INTERACTIONS)
+_SPECTRAL_RADIUS = float(np.max(np.abs(_INTERACTION_EIGENVALUES)))
+if _SPECTRAL_RADIUS > 1.0:
+    import warnings
+    warnings.warn(
+        f"Neurochemical interaction matrix spectral radius = {_SPECTRAL_RADIUS:.3f} > 1.0. "
+        f"System may be unstable under sustained drive.",
+        RuntimeWarning,
+        stacklevel=1,
+    )
+    logging.getLogger("Consciousness.Neurochemical").critical(
+        "🛑 Interaction matrix spectral radius %.3f > 1.0 — risk of runaway",
+        _SPECTRAL_RADIUS,
+    )
+else:
+    logging.getLogger("Consciousness.Neurochemical").info(
+        "✓ Interaction matrix spectral radius = %.3f (bounded)", _SPECTRAL_RADIUS
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +309,7 @@ class NeurochemicalSystem:
             ),
             # Modulatory neurotransmitters (slower, diffuse, tonic + phasic)
             "dopamine": Chemical(
-                "dopamine", level=0.5, baseline=0.5, uptake_rate=0.03, adaptation_rate=0.03,
+                "dopamine", level=0.5, baseline=0.5, uptake_rate=0.03, adaptation_rate=0.008,
                 subtypes={
                     "d1": ReceptorSubtype("D1-like", effect_sign=1.0, weight=0.5,
                                           adaptation_rate=0.003),  # excitatory — working memory, reward
@@ -290,6 +328,14 @@ class NeurochemicalSystem:
             ),
             "norepinephrine": Chemical(
                 "norepinephrine", level=0.4, baseline=0.4, uptake_rate=0.04,
+                subtypes={
+                    "alpha1": ReceptorSubtype("α1", effect_sign=1.0, weight=0.4,
+                                              adaptation_rate=0.003),  # excitatory, vasoconstriction, arousal
+                    "alpha2": ReceptorSubtype("α2", effect_sign=-1.0, weight=0.3,
+                                              adaptation_rate=0.002),  # inhibitory autoreceptor (presynaptic brake)
+                    "beta": ReceptorSubtype("β", effect_sign=1.0, weight=0.3,
+                                            adaptation_rate=0.003),  # excitatory, cardiac, bronchial, attention
+                },
             ),
             "acetylcholine": Chemical(
                 "acetylcholine", level=0.5, baseline=0.5, uptake_rate=0.025,
@@ -363,27 +409,38 @@ class NeurochemicalSystem:
     # ── Core tick ────────────────────────────────────────────────────────
 
     def _metabolic_tick(self):
-        """One metabolic step: decay, cross-interactions, individual ticks."""
+        """One metabolic step: cross-interactions → individual ticks.
+
+        Homeostatic return is handled SOLELY inside Chemical.tick() via the
+        Ornstein-Uhlenbeck term ``uptake_rate * (baseline - tonic_level)``.
+        The previous implementation had a SECOND homeostatic pull on ``level``
+        (= tonic + phasic), which incorrectly eroded the phasic burst component
+        and doubled the pull strength. Removed 2026-05-02.
+        """
         dt = 1.0 / self._UPDATE_HZ
 
         # Get current levels as vector
         levels = np.array([self.chemicals[n].level for n in self._order], dtype=np.float32)
 
         # Cross-chemical interactions
-        interaction_deltas = _INTERACTIONS.T @ levels  # (8,)
-        interaction_deltas *= 0.1 * dt  # scale down
+        interaction_deltas = _INTERACTIONS.T @ levels  # (10,)
+        interaction_deltas *= 0.05 * dt  # scale factor (reduced from 0.1 to prevent drift)
 
-        # Apply interaction effects to production rates
+        # Apply interaction effects as ADDITIVE delta to base production,
+        # with production damping: chemicals above baseline have their
+        # production reduced proportionally (negative feedback). This
+        # prevents the cross-interaction matrix from pushing chemicals
+        # away from baseline indefinitely.
         for i, name in enumerate(self._order):
             chem = self.chemicals[name]
-            # Interaction modifies production rate temporarily
-            chem.production_rate = max(0.0, min(0.1, interaction_deltas[i]))
+            # Damping: reduce production when above baseline
+            above_baseline = max(0.0, chem.level - chem.baseline)
+            damping = 1.0 / (1.0 + above_baseline * 5.0)  # sigmoid damping
+            raw_production = chem._base_production + interaction_deltas[i]
+            chem.production_rate = max(0.0, min(0.15, raw_production * damping))
             chem.tick(dt)
 
-        # Homeostatic pull: all chemicals drift toward baseline
-        for chem in self.chemicals.values():
-            pull = 0.003 * (chem.baseline - chem.level) * dt
-            chem.level = max(0.0, min(1.0, chem.level + pull))
+        # NOTE: No second homeostatic pull here. Chemical.tick() handles it.
 
         self._tick_count += 1
 

@@ -160,6 +160,10 @@ class AffectEngineV2:
         self._consecutive_pinned_pulses = 0
         self._PINNED_RESET_AFTER = 24  # at 1 Hz pulse rate, ~24 s
 
+        # Oscillation detector: tracks valence zero-crossings
+        self._valence_history = []
+        self._oscillation_flag = False
+
     def _prune_background_tasks(self) -> None:
         self._background_tasks = {task for task in self._background_tasks if not task.done()}
 
@@ -372,6 +376,30 @@ class AffectEngineV2:
                 self.markers.emotions[emotion] = np.clip(decayed + drift, FLOOR, 1)
 
             wheel = self.markers.get_wheel()
+            
+            # Extract valence for watchdogs
+            primaries = wheel.get("primary", {})
+            pos = primaries.get("joy", 0) + primaries.get("trust", 0)
+            neg = primaries.get("fear", 0) + primaries.get("sadness", 0) + primaries.get("anger", 0)
+            v = pos - neg
+
+            # Oscillation Detector: If valence flips rapidly between positive and negative,
+            # we dampen the momentum to stabilize the affective core.
+            self._valence_history.append(v)
+            if len(self._valence_history) > 10:
+                self._valence_history.pop(0)
+                
+            crossings = sum(1 for i in range(1, len(self._valence_history)) 
+                            if self._valence_history[i-1] * self._valence_history[i] < -0.05)
+                            
+            if crossings >= 4:
+                if not getattr(self, '_oscillation_flag', False):
+                    logger.warning("🫁 Affect oscillation detected (%d crossings) — applying dampening.", crossings)
+                    self.markers.momentum = 0.95  # Severe dampening
+                    self._oscillation_flag = True
+            elif crossings <= 1 and getattr(self, '_oscillation_flag', False):
+                self.markers.momentum = 0.85  # Restore normal momentum
+                self._oscillation_flag = False
 
             # Stuck-valence watchdog.  If valence has been pinned at ≤ −0.95
             # for _PINNED_RESET_AFTER consecutive pulses, the homeostatic
@@ -380,10 +408,6 @@ class AffectEngineV2:
             # Aura can actually recover in a conversational cadence instead
             # of producing "I sense your fear" responses for the next ten
             # minutes.
-            try:
-                v = float(getattr(wheel, "valence", 0.0))
-            except Exception:
-                v = 0.0
             if v <= -0.95:
                 self._consecutive_pinned_pulses += 1
             else:

@@ -242,6 +242,16 @@ class DiscrepancyReport:
     def has_spec_issues(self) -> bool:
         return any(i.category == DiscrepancyCategory.SPEC_UNDERSPECIFICATION for i in self.items)
 
+    def to_llm_summary(self) -> str:
+        """Generate a concise summary of discrepancies for LLM feedback."""
+        if not self.items:
+            return "No discrepancies detected."
+        
+        lines = ["Previous attempt failed with the following discrepancies:"]
+        for item in self.items:
+            lines.append(f"- [{item.category.value}] {item.test_name}: {item.description}")
+        return "\n".join(lines)
+
 
 @dataclass
 class AuditResult:

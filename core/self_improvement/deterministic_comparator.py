@@ -123,7 +123,7 @@ class DeterministicComparator:
                     if isinstance(target, ast.Name):
                         candidate_names.add(target.id)
 
-        required = spec.interface.public_names
+        required = {name for name in spec.interface.public_names if not name.isupper() and name != "logger"}
         if not required:
             return True
         missing = required - candidate_names

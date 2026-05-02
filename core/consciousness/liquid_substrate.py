@@ -104,6 +104,15 @@ class LiquidSubstrate:
         self.idx_energy: int = 5       # 0.0 (Exhausted) to 1.0 (Peak)
         self.idx_focus: int = 6        # 0.0 (Scattered) to 1.0 (Laser)
         
+        # Phase 6: Fix boot mood (Initialize psych state baselines)
+        self.x[self.idx_curiosity] = 0.5
+        self.x[self.idx_energy] = 1.0
+        self.x[self.idx_focus] = 0.5
+        # Sync pytorch tensor
+        self.x_torch[self.idx_curiosity] = 0.5
+        self.x_torch[self.idx_energy] = 1.0
+        self.x_torch[self.idx_focus] = 0.5
+        
         # --- IIT Φ / Recurrent Self-Model (Consciousness Integration) ---
         self._prior_state: Optional[np.ndarray] = None
         self._recurrence_alpha: float = 0.3   # Blend ratio: prior vs current
@@ -572,37 +581,7 @@ class LiquidSubstrate:
         focus = float(self.x[self.idx_focus])
         return f"Current Mood: {mood} (Energy: {energy:.2f}, Focus: {focus:.2f})"
 
-    async def _update_qualia_metrics(self, dt: float):
-        """Implement mathematical proxies for Orch OR, CEMI, and DIT."""
-        # Lock removed to prevent deadlock when called from _step_dynamics
-        # 1. Orch OR: Quantum Coherence Decay & Collapse
-        # Coherence decays with environmental noise, collapses at threshold
-        noise_impact = np.mean(np.abs(np.random.randn(self.config.neuron_count))) * self.config.noise_level
-        self.microtubule_coherence = max(0.0, self.microtubule_coherence - noise_impact * dt)
-            
-        # Objective Reduction (Penrose Criterion Proxy)
-        # When coherence drops enough, a "collapse" occurs, resetting state
-        if self.microtubule_coherence < 0.4:
-            self.total_collapse_events += 1
-            self.microtubule_coherence = 1.0 # Wavefunction reset
-            # Subtle reset of substrate momentum (Phase shift)
-            self.x *= 0.98 
 
-        # 2. CEMI: EM Field Magnitude
-        # McFadden's Theory: EM field is the global integration of synchronous firing
-        # We proxy this with the L2-norm of the velocity vector (flux)
-        v = self.v
-        if v is not None:
-            flux = np.linalg.norm(v)
-            self.em_field_magnitude = (self.em_field_magnitude * 0.9) + (flux * 0.1)
-
-        # 3. DIT: Dendritic Integration Theory (L5 Bursting)
-        # Aru's Theory: Bursts occur when basal (stimulus) and apical (context) converge.
-        # We proxy this by checking if high activation (x) coincides with high change (v)
-        # across a "thalamic gate" threshold.
-        if self.x is not None and self.v is not None:
-            active_neurons = np.where((np.abs(self.x) > 0.6) & (np.abs(self.v) > 0.05))[0]
-            self.l5_burst_count = len(active_neurons)
 
     async def _recurrent_self_model(self, dt: float):
         """Recurrent Self-Model Loop — enforces self-referential processing.

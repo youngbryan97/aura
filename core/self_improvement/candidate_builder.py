@@ -33,13 +33,18 @@ class CodeGenerator(Protocol):
 class PromptBuilder:
     """Builds structured prompts from ModuleSpec for code generation."""
 
-    def build(self, spec: ModuleSpec) -> str:
+    def build(self, spec: ModuleSpec, discrepancy: Optional[DiscrepancyReport] = None) -> str:
         """Build a code generation prompt from a ModuleSpec."""
         sections = []
         sections.append("# Module Reimplementation Task")
         sections.append("")
         sections.append(f"## Module: {spec.module_path}")
         sections.append("")
+
+        if discrepancy:
+            sections.append("## Feedback from Previous Attempt")
+            sections.append(discrepancy.to_llm_summary())
+            sections.append("")
 
         if spec.module_docstring:
             sections.append("## Module Documentation")
@@ -127,6 +132,7 @@ class CandidateBuilder:
         spec: ModuleSpec,
         workspace: BlindedWorkspace,
         attempt: int = 1,
+        discrepancy: Optional[DiscrepancyReport] = None,
     ) -> CandidateModule:
         """Generate a candidate implementation from the spec.
 
@@ -134,13 +140,14 @@ class CandidateBuilder:
             spec: The behavioral specification to implement.
             workspace: The blinded workspace (for context, not for source).
             attempt: Current attempt number.
+            discrepancy: Discrepancy report from the previous attempt.
 
         Returns:
             CandidateModule with generated source code.
         """
         start = time.monotonic()
 
-        prompt = self.prompt_builder.build(spec)
+        prompt = self.prompt_builder.build(spec, discrepancy=discrepancy)
         context: dict[str, Any] = {
             "module_path": spec.module_path,
             "module_name": spec.module_name,

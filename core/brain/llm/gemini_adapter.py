@@ -331,8 +331,8 @@ class GeminiAdapter:
                 logger.warning("⚠️ Gemini stream: No prompt or system_prompt provided")
                 return
             
-        # Final guard: filter out any parts with empty/None text
-        parts = [p for p in parts if p.get("text")]
+        # Final guard: filter out any parts with empty/None text unless they have inlineData (images/multimodal)
+        parts = [p for p in parts if p.get("text") or p.get("inlineData")]
         if not parts:
             logger.warning("⚠️ Gemini stream: All parts were empty after filtering")
             return
@@ -479,9 +479,9 @@ class GeminiAdapter:
             # Already built via messages
             pass  # no-op: intentional
         else:
-            # Final guard: filter out any parts with empty/None text
+            # Final guard: filter out any parts with empty/None text unless they have inlineData
             parts = [p for p in parts] if isinstance(parts, list) else []
-            parts = [p for p in parts if p.get("text")]
+            parts = [p for p in parts if p.get("text") or p.get("inlineData")]
             if not parts:
                 return False, "", {"error": "All parts were empty after filtering"}
                 

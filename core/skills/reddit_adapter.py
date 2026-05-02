@@ -247,13 +247,19 @@ class RedditAdapterSkill(BaseSkill):
                 username_input = page.locator('input[name="username"], #login-username').first
                 password_input = page.locator('input[name="password"], #login-password').first
 
+                try:
+                    await username_input.wait_for(state="visible", timeout=3000)
+                except Exception:
+                    username_input = page.frame_locator('iframe').locator('input[name="username"], #login-username').first
+                    password_input = page.frame_locator('iframe').locator('input[name="password"], #login-password').first
+
                 # Reddit uses custom <faceplate-text-input> elements now, so .fill() might fail.
                 # Use click + keyboard type instead.
-                await username_input.click()
+                await username_input.click(timeout=5000)
                 await page.keyboard.type(username, delay=50)
                 await asyncio.sleep(0.5)
                 
-                await password_input.click()
+                await password_input.click(timeout=5000)
                 await page.keyboard.type(password, delay=50)
                 await asyncio.sleep(0.5)
 

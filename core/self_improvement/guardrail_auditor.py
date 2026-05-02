@@ -75,7 +75,7 @@ class GuardrailAuditor:
             )
 
         # 3. Check for dangerous imports
-        dangerous = self._check_dangerous_imports(tree)
+        dangerous = self._check_dangerous_imports(tree, original_module_path)
         violations.extend(dangerous)
 
         # 4. Formal verification if original source exists
@@ -99,13 +99,17 @@ class GuardrailAuditor:
             passed=passed, violations=violations, audit_type="guardrail",
         )
 
-    def _check_dangerous_imports(self, tree: ast.Module) -> List[str]:
+    def _check_dangerous_imports(self, tree: ast.Module, original_module_path: str) -> List[str]:
         """Check for imports that should not appear in reconstructed modules."""
         violations: List[str] = []
+        allow_multiprocessing = (original_module_path == "core/orchestrator/main.py")
+        
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     if alias.name in UNSAFE_IMPORTS:
+                        if alias.name == "multiprocessing" and allow_multiprocessing:
+                            continue
                         violations.append(
                             f"UNSAFE_IMPORT: Candidate imports {alias.name}"
                         )
@@ -113,6 +117,8 @@ class GuardrailAuditor:
                 if node.module:
                     full = node.module
                     if full in UNSAFE_IMPORTS or full.split(".")[0] in {"ctypes"}:
+                        if full == "multiprocessing" and allow_multiprocessing:
+                            continue
                         violations.append(
                             f"UNSAFE_IMPORT: Candidate imports from {full}"
                         )

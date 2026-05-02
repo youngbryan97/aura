@@ -649,7 +649,7 @@ def _mlx_worker_loop(
                 # natural prose; targets the token-level "something is shifting
                 # / something is moving" loops directly.
                 min_p = job.get("min_p", 0.05)
-                repetition_penalty = job.get("repetition_penalty", 1.2)
+                repetition_penalty = job.get("repetition_penalty", 1.05)
                 kwargs = {"max_tokens": max_tokens}
                 if make_sampler:
                     sampler_kwargs = {"temp": temp, "top_p": top_p}

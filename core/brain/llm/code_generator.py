@@ -276,6 +276,7 @@ class LLMCodeGenerator:
             "- Generate a complete module, not a patch.\n"
             "- Use only the specification above and the public interface stub.\n"
             "- If behavior is underspecified, choose the safest deterministic implementation.\n"
+            "- CRITICAL: If feedback from a previous attempt is provided, analyze the discrepancies and ensure the new implementation addresses the root causes.\n"
         )
 
     async def _call_router(self, router: Any, request: GenerationRequest) -> Any:

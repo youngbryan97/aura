@@ -61,10 +61,17 @@ class FreeEnergyEngine:
         self._smoothed_fe: float = 0.3  # Start at moderate free energy
         self._alpha = 0.15  # EMA smoothing
 
+        # ── Thread Safety ─────────────────────────────────────────────────
+        self._state_lock = threading.Lock()
+
         # ── Direct Signal Inputs ──────────────────────────────────────────
         self._last_surprise_signal: float = 0.0       # From PredictiveEngine
         self._last_attention_complexity: float = 0.0  # From AttentionSchema
         self._surprise_signal_age: float = 0.0        # When last signal arrived
+
+        # ── Rolling System Metrics (replace noisy instant readings) ───────
+        self._cpu_history: Deque[float] = deque(maxlen=10)
+        self._mem_history: Deque[float] = deque(maxlen=10)
 
         # ── Action Hysteresis ─────────────────────────────────────────────
         # Prevent rapid action-switching: keep the current action for at
@@ -175,8 +182,9 @@ class FreeEnergyEngine:
             arousal=round(arousal, 3),
             dominant_action=dominant_action,
         )
-        self._history.append(state)
-        self._current = state
+        with self._state_lock:
+            self._history.append(state)
+            self._current = state
         return state
 
     def _compute_belief_kl_divergence(self, belief_system) -> float:
@@ -235,14 +243,18 @@ class FreeEnergyEngine:
             return 0.1
 
     def _compute_system_entropy(self) -> float:
-        """Compute system entropy from hardware state.
+        """Compute system entropy from hardware state using rolling averages.
 
         H(system) = -Σ p_i * log(p_i) over resource utilization channels.
-        Higher entropy = more unpredictable resource usage = more complexity.
+        Uses a rolling average of CPU/memory readings to smooth out
+        the noise from psutil.cpu_percent(interval=0) returning cached/0 values.
         """
         try:
-            cpu = psutil.cpu_percent(interval=0) / 100.0
-            mem = psutil.virtual_memory().percent / 100.0
+            self._cpu_history.append(psutil.cpu_percent(interval=0) / 100.0)
+            self._mem_history.append(psutil.virtual_memory().percent / 100.0)
+
+            cpu = float(sum(self._cpu_history)) / max(1, len(self._cpu_history))
+            mem = float(sum(self._mem_history)) / max(1, len(self._mem_history))
 
             # Treat CPU and memory as probabilities in a 2-state system
             values = [max(1e-8, cpu), max(1e-8, 1.0 - cpu),
@@ -331,20 +343,25 @@ class FreeEnergyEngine:
         if user_present:
             return "engage"
 
+        # Trend-weighted urgency: rising F biases toward action
+        trend = self.get_trend()
+        trend_bonus = 0.15 if trend == "rising" else (-0.05 if trend == "falling" else 0.0)
+        effective_fe = min(1.0, fe + trend_bonus)
+
         # Very high surprise -> update beliefs first
         if surprise > 0.7:
             return "update_beliefs"
 
         # High free energy + low recent action -> act on world
-        if fe > 0.6 and recent_actions < 2:
+        if effective_fe > 0.6 and recent_actions < 2:
             return "act_on_world"
 
         # Moderate FE + high complexity -> explore to reduce uncertainty
-        if 0.3 < fe < 0.6 and complexity > 0.4:
+        if 0.3 < effective_fe < 0.6 and complexity > 0.4:
             return "explore"
 
         # Low FE -> rest, consolidate
-        if fe < 0.25:
+        if effective_fe < 0.25:
             return "rest"
 
         # Default: reflect
@@ -394,7 +411,8 @@ class FreeEnergyEngine:
 
     @property
     def smoothed_fe(self) -> float:
-        return self._smoothed_fe
+        with self._state_lock:
+            return self._smoothed_fe
 
     def is_distressed(self) -> bool:
         return self._smoothed_fe > 0.7
