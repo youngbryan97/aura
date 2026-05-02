@@ -129,7 +129,7 @@ def _check_post_rate() -> bool:
 class RedditInput(BaseModel):
     mode: str = Field("browse", description=(
         "Mode: 'browse', 'read_post', 'comment', 'post', "
-        "'check_inbox', 'reply_inbox'"
+        "'check_inbox', 'reply_inbox', 'read_rules'"
     ))
     subreddit: Optional[str] = Field(None, description="Subreddit name (without r/)")
     url: Optional[str] = Field(None, description="Full URL of a Reddit post")
@@ -151,7 +151,7 @@ class RedditAdapterSkill(BaseSkill):
         "Interact with Reddit. Modes: 'browse' (read subreddit), "
         "'read_post' (read post+comments), 'comment' (reply to post), "
         "'post' (create new post), 'check_inbox' (notifications), "
-        "'reply_inbox' (reply to messages)."
+        "'reply_inbox' (reply to messages), 'read_rules' (read community rules)."
     )
     input_model = RedditInput
     timeout_seconds = 90.0
@@ -308,6 +308,8 @@ class RedditAdapterSkill(BaseSkill):
                 return await self._handle_check_inbox(browser, params)
             elif params.mode == "reply_inbox":
                 return await self._handle_reply_inbox(browser, params)
+            elif params.mode == "read_rules":
+                return await self._handle_read_rules(browser, params)
             else:
                 return {"ok": False, "error": f"Unsupported Reddit mode: {params.mode}"}
 
@@ -446,7 +448,22 @@ class RedditAdapterSkill(BaseSkill):
                 'button[type="submit"]:has-text("Comment")'
             ).first
             await submit_btn.click()
-            await asyncio.sleep(3)
+            await asyncio.sleep(4)
+
+            # Check for UI error banners
+            errors = await page.evaluate("""() => {
+                const errs = [];
+                document.querySelectorAll('[role="alert"], .text-red-500, shreddit-banner[type="error"], shreddit-toast[type="error"], .error').forEach(el => {
+                    const text = el.innerText.trim();
+                    if (text && text.length > 5) errs.push(text);
+                });
+                return errs;
+            }""")
+
+            if errors:
+                err_text = " | ".join(errors)
+                logger.warning("Reddit comment rejected by UI: %s", err_text)
+                return {"ok": False, "error": "Reddit rejected the submission.", "reddit_error_message": err_text}
 
             _comment_timestamps.append(time.time())
             await self._save_session(browser)
@@ -528,6 +545,21 @@ class RedditAdapterSkill(BaseSkill):
             await submit_btn.click()
             await asyncio.sleep(5)
 
+            # Check for UI error banners
+            errors = await page.evaluate("""() => {
+                const errs = [];
+                document.querySelectorAll('[role="alert"], .text-red-500, shreddit-banner[type="error"], shreddit-toast[type="error"], .error').forEach(el => {
+                    const text = el.innerText.trim();
+                    if (text && text.length > 5) errs.push(text);
+                });
+                return errs;
+            }""")
+
+            if errors:
+                err_text = " | ".join(errors)
+                logger.warning("Reddit post rejected by UI: %s", err_text)
+                return {"ok": False, "error": "Reddit rejected the submission.", "reddit_error_message": err_text}
+
             _post_timestamps.append(time.time())
             await self._save_session(browser)
 
@@ -600,6 +632,52 @@ class RedditAdapterSkill(BaseSkill):
         except Exception as e:
             record_degradation('reddit_adapter', e)
             return {"ok": False, "error": f"Reply failed: {e}"}
+
+    async def _handle_read_rules(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
+        """Fetch rules for a specific subreddit."""
+        if not params.subreddit:
+            return {"ok": False, "error": "read_rules requires a 'subreddit'."}
+
+        url = f"https://www.reddit.com/r/{params.subreddit}/"
+        logger.info("📜 Reading rules for r/%s", params.subreddit)
+        
+        if not await browser.browse(url):
+            return {"ok": False, "error": f"Failed to load r/{params.subreddit}"}
+
+        await asyncio.sleep(2)
+        page = browser.page
+        if not page:
+            return {"ok": False, "error": "No browser page"}
+
+        try:
+            rules_data = await page.evaluate(f"""async () => {{
+                try {{
+                    const res = await fetch('/r/{params.subreddit}/about/rules.json');
+                    return await res.json();
+                }} catch (e) {{
+                    return {{error: e.toString()}};
+                }}
+            }}""")
+            
+            rules = []
+            if isinstance(rules_data, dict) and "rules" in rules_data:
+                for r in rules_data["rules"]:
+                    name = r.get("short_name", "")
+                    desc = r.get("description", "")
+                    rules.append(f"{name}: {desc}".strip())
+            else:
+                return {"ok": False, "error": "Failed to extract rules from JSON endpoint."}
+
+            return {
+                "ok": True,
+                "subreddit": params.subreddit,
+                "rules": rules,
+                "count": len(rules),
+                "message": f"Successfully fetched {len(rules)} rules for r/{params.subreddit}",
+            }
+        except Exception as e:
+            record_degradation('reddit_adapter', e)
+            return {"ok": False, "error": f"Failed to fetch rules: {e}"}
 
     @staticmethod
     def get_culture_prompt() -> str:
