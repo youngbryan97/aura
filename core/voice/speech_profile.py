@@ -86,7 +86,7 @@ class SpeechProfile:
         """Compile into a hard constraint block for LLM system prompt injection."""
         lines = [
             "## VOICE CONSTRAINTS (SUBSTRATE-ENFORCED — NON-NEGOTIABLE)",
-            f"- WORD BUDGET: {self.word_budget} words MAX. Shorter is better. This is enforced post-generation.",
+            f"- WORD BUDGET: ~{self.word_budget} words. Use the space you need to express your thought fully. This is enforced post-generation.",
         ]
 
         if self.fragment_ratio > 0.3:
@@ -349,8 +349,8 @@ class SpeechProfileCompiler:
         # 1. WORD BUDGET — how much to say
         # ══════════════════════════════════════════════════════════════════
 
-        # Base: mirror user length loosely, with personality scaling
-        base_budget = max(15, min(200, int(user_words * 1.3 + 20)))
+        # Base: mirror user length loosely, with a bias towards slightly more verbosity
+        base_budget = max(25, min(300, int(user_words * 1.5 + 40)))
 
         # Energy modulation: low energy = fewer words
         energy_factor = 0.5 + arousal * 0.5 + dopamine * 0.3  # 0.5-1.3
@@ -380,7 +380,7 @@ class SpeechProfileCompiler:
             base_budget = int(base_budget * 0.7)
             sources.append("low_conv_energy")
 
-        profile.word_budget = max(5, min(250, base_budget))
+        profile.word_budget = max(15, min(800, base_budget))
         if prompt_shape.prefers_extended_answer:
             budget_boost = 1.25 if prompt_shape.question_parts < 3 else 1.45
             profile.word_budget = int(profile.word_budget * budget_boost)
@@ -683,9 +683,9 @@ class SpeechProfileCompiler:
             sources.append("binding_demand_high")
 
         if prompt_shape.prefers_extended_answer:
-            profile.word_budget = max(profile.word_budget, 140)
+            profile.word_budget = max(profile.word_budget, 250)
             if prompt_shape.question_parts >= 3:
-                profile.word_budget = max(profile.word_budget, 180)
+                profile.word_budget = max(profile.word_budget, 400)
             profile.fragment_ratio = max(0.0, profile.fragment_ratio - 0.05)
             profile.sentence_length_mean = min(18, profile.sentence_length_mean + 1)
 
@@ -714,7 +714,7 @@ class SpeechProfileCompiler:
             sources.append(f"tone_{dominant_emotion}")
 
         # ─── Finalize ─────────────────────────────────────────────────────
-        profile.word_budget = max(5, min(380, profile.word_budget))
+        profile.word_budget = max(5, min(1000, profile.word_budget))
         profile.compilation_source = ", ".join(sources) if sources else "baseline"
         profile.substrate_snapshot = snapshot
 

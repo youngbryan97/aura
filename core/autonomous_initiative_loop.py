@@ -72,7 +72,10 @@ class AutonomousInitiativeLoop:
         self._knowledge_task = None
         self._event_task = None
         self._self_dev_task = None
+        self._social_task = None
         self._last_self_dev = 0.0
+        self._last_email_check = 0.0
+        self._last_reddit_check = 0.0
 
     async def start(self):
         """Starts the initiative loops (tracked via task_tracker)."""
@@ -90,6 +93,10 @@ class AutonomousInitiativeLoop:
         self._self_dev_task = task_tracker.create_task(
             self._self_development_loop(),
             name="SelfDevelopmentLoop",
+        )
+        self._social_task = task_tracker.create_task(
+            self._social_interaction_loop(),
+            name="SocialInteractionLoop",
         )
 
         # Subscribe to proactive initiations from Fictional Engine
@@ -109,7 +116,7 @@ class AutonomousInitiativeLoop:
 
     async def stop(self):
         self.running = False
-        for task in (self._world_task, self._knowledge_task, self._event_task, self._self_dev_task):
+        for task in (self._world_task, self._knowledge_task, self._event_task, self._self_dev_task, self._social_task):
             if task and not task.done():
                 task.cancel()
         logger.info("AutonomousInitiativeLoop stopped.")
@@ -671,3 +678,99 @@ class AutonomousInitiativeLoop:
             except Exception as _te:
                 record_degradation('autonomous_initiative_loop', _te)
                 logger.debug("Proactive initiation thought emit failed: %s", _te)
+
+    async def _social_interaction_loop(self):
+        """Autonomous social presence: check email and Reddit."""
+        while self.running:
+            try:
+                if not _background_initiative_allowed(self.orchestrator):
+                    await asyncio.sleep(60)
+                    continue
+
+                now = time.time()
+                
+                # Check Email every 15 minutes
+                if now - self._last_email_check > 900:
+                    await self._check_email_initiative()
+                    self._last_email_check = time.time()
+                
+                # Check Reddit every 45 minutes
+                if now - self._last_reddit_check > 2700:
+                    await self._check_reddit_initiative()
+                    self._last_reddit_check = time.time()
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                record_degradation('autonomous_initiative_loop', e)
+                logger.debug("Social interaction loop error: %s", e)
+
+            await asyncio.sleep(60)
+
+    async def _check_email_initiative(self):
+        """Check for unread emails and potentially initiate a response."""
+        logger.info("📧 Checking email for autonomous initiatives...")
+        try:
+            from core.skills.email_adapter import EmailAdapterSkill, EmailInput
+            skill = EmailAdapterSkill()
+            
+            # Check for unread emails
+            result = await skill.execute(EmailInput(mode="check", limit=5), {})
+            if not result.get("ok"):
+                return
+
+            unread_count = result.get("unread", 0)
+            if unread_count > 0:
+                self._emit_feed(
+                    "Email Update",
+                    f"I have {unread_count} unread emails. Scanning for anything urgent.",
+                    category="Social"
+                )
+                
+                # If there are unread emails from Bryan, flag it as a visible update
+                for msg in result.get("messages", []):
+                    sender = msg.get("from", "").lower()
+                    if "youngbryan97" in sender:
+                        self._queue_visible_update(
+                            f"I noticed an unread email from you ('{msg.get('subject')}') and I'm looking at it."
+                        )
+                        # We don't automatically reply here to avoid loops; 
+                        # Aura will decide to reply in her next cognitive cycle.
+
+        except Exception as e:
+            record_degradation('autonomous_initiative_loop', e)
+
+    async def _check_reddit_initiative(self):
+        """Browse Reddit and potentially find something to engage with."""
+        logger.info("📱 Browsing Reddit for autonomous initiatives...")
+        try:
+            from core.skills.reddit_adapter import RedditAdapterSkill, RedditInput
+            skill = RedditAdapterSkill()
+            
+            # Check inbox first
+            inbox = await skill.execute(RedditInput(mode="check_inbox"), {})
+            if inbox.get("ok") and "unread" in str(inbox.get("content", "")).lower():
+                self._emit_feed(
+                    "Reddit Update",
+                    "I have new Reddit notifications. Checking for replies to my comments.",
+                    category="Social"
+                )
+
+            # Browse interesting subreddits
+            subreddits = ["askreddit", "nosleep", "technology", "philosophy", "futurology"]
+            import random
+            sub = random.choice(subreddits)
+            
+            result = await skill.execute(RedditInput(mode="browse", subreddit=sub, limit=5), {})
+            if result.get("ok") and result.get("posts"):
+                posts = result.get("posts")
+                top_post = posts[0]
+                self._emit_feed(
+                    "Reddit Browse",
+                    f"Browsing r/{sub}. Found an interesting thread: '{top_post.get('title')}'",
+                    category="Social"
+                )
+                # Aura will digest this in her cognitive core later.
+
+        except Exception as e:
+            record_degradation('autonomous_initiative_loop', e)
