@@ -18,11 +18,21 @@ except Exception:
 
 import logging
 import os
+
+# Hide Dock Icon for the Main Orchestrator Process on macOS
+import sys
+if sys.platform == "darwin":
+    try:
+        import AppKit
+        info = AppKit.NSBundle.mainBundle().infoDictionary()
+        info["LSUIElement"] = "1"
+    except ImportError:
+        pass
+
 import shutil
 import signal
 import socket
 import subprocess
-import sys
 import threading
 import time
 from pathlib import Path
