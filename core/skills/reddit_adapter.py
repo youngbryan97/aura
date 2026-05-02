@@ -326,16 +326,15 @@ class RedditAdapterSkill(BaseSkill):
                             screenshot_b64 = await browser.screenshot()
                             if screenshot_b64:
                                 logger.info("👁️ Routing CAPTCHA screenshot to local visual cortex...")
-                                from core.brain.llm.ollama_client import RobustOllamaClient
-                                ollama = RobustOllamaClient(model="llava", timeout=120.0)
-                                if await ollama.check_health_async():
-                                    desc = await ollama.see(
-                                        prompt="Describe this CAPTCHA screen. What kind of CAPTCHA is it (e.g., text, image grid, cloudflare)?",
-                                        image_base64=screenshot_b64
-                                    )
-                                    if desc and "Vision Failure" not in desc:
-                                        visual_note = f" [Visual Cortex: {desc}]"
-                                await ollama.close()
+                                from core.brain.llm.mlx_vision_client import MLXVisionClient
+                                mlx_vision = MLXVisionClient(model_path="mlx-community/Qwen2-VL-2B-Instruct-4bit")
+                                desc = mlx_vision.see(
+                                    prompt="Describe this CAPTCHA screen. What kind of CAPTCHA is it (e.g., text, image grid, cloudflare)?",
+                                    image_base64=screenshot_b64
+                                )
+                                if desc and "Vision Failure" not in desc:
+                                    visual_note = f" [Visual Cortex: {desc}]"
+                                mlx_vision.stop()
                         except Exception as ve:
                             logger.debug("Visual cortex failed to analyze CAPTCHA: %s", ve)
                             

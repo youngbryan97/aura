@@ -378,13 +378,9 @@ class EmailAdapterSkill(BaseSkill):
     async def _describe_images(self, images: List[Dict[str, str]]) -> str:
         """Route images through the local LLM for description."""
         try:
-            from core.brain.llm.ollama_client import RobustOllamaClient
-            ollama = RobustOllamaClient(model="llava", timeout=120.0)
+            from core.brain.llm.mlx_vision_client import MLXVisionClient
+            mlx_vision = MLXVisionClient(model_path="mlx-community/Qwen2-VL-2B-Instruct-4bit") # Quantized for Apple Silicon
             
-            # Fast check if Ollama is responsive
-            if not await ollama.check_health_async():
-                return "[System Note: Local visual cortex (Ollama) is currently offline.]"
-                
             descriptions = []
             for img in images:
                 prompt = (
@@ -394,15 +390,15 @@ class EmailAdapterSkill(BaseSkill):
                     "Be highly descriptive but concise."
                 )
                 
-                logger.info("👁️ Processing %s via local llava...", img['filename'])
-                desc = await ollama.see(prompt=prompt, image_base64=img["data"])
+                logger.info("👁️ Processing %s via local MLX Vision...", img['filename'])
+                desc = mlx_vision.see(prompt=prompt, image_base64=img["data"])
                 
                 if desc and "Vision Failure" not in desc:
                     descriptions.append(f"[Local Visual Cortex Description of '{img['filename']}']: {desc}")
                 else:
                     descriptions.append(f"[System Note: Local visual cortex failed to process '{img['filename']}']")
             
-            await ollama.close()
+            mlx_vision.stop()
             return "\n\n".join(descriptions)
         except Exception as e:
             record_degradation('email_adapter', e)
