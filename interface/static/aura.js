@@ -1419,17 +1419,28 @@ function connect() {
         clearTimeout(state.reconnectTimer);
         state.reconnectTimer = null;
     }
-    state.ws = new WebSocket(`${proto}//${hostname}${port}/ws`);
+    const ws = new WebSocket(`${proto}//${hostname}${port}/ws`);
+    state.ws = ws;
+    
+    state.lastPong = Date.now();
 
     // Application-layer heartbeat to prevent silent disconnects
     if (state.pingInterval) clearInterval(state.pingInterval);
     state.pingInterval = setInterval(() => {
-        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        if (state.ws && state.ws === ws && state.ws.readyState === WebSocket.OPEN) {
+            // Force close if we haven't received a pong in 35s (handles sleep/offline TCP staleness)
+            if (Date.now() - state.lastPong > 35000) {
+                console.warn('[WS] Heartbeat timeout, forcing close for recovery');
+                state.ws.close();
+                return;
+            }
             state.ws.send(JSON.stringify({ type: 'ping' }));
         }
     }, 25000);
 
-    state.ws.onopen = () => {
+    ws.onopen = () => {
+        if (state.ws !== ws) return;
+        state.lastPong = Date.now();
         const wasDisconnected = !state.connected;
         const hadRetried = (state.retryCount || 0) > 0;
         state.connected = true;
@@ -1452,7 +1463,8 @@ function connect() {
         }
     };
 
-    state.ws.onmessage = e => {
+    ws.onmessage = e => {
+        if (state.ws !== ws) return;
         try {
             const data = JSON.parse(e.data);
             handleWsEvent(data);
@@ -1461,7 +1473,8 @@ function connect() {
         }
     };
 
-    state.ws.onclose = () => {
+    ws.onclose = () => {
+        if (state.ws !== ws) return;
         state.connected = false;
         if (state.pingInterval) clearInterval(state.pingInterval);
         showConnToast(true); // Show disconnection toast
@@ -1477,11 +1490,12 @@ function connect() {
         state.reconnectTimer = setTimeout(connect, delay);
     };
 
-    state.ws.onerror = (err) => {
+    ws.onerror = (err) => {
+        if (state.ws !== ws) return;
         console.error('[WS] WebSocket error:', err);
         // Force close to trigger onclose reconnection logic
-        if (state.ws && state.ws.readyState !== WebSocket.CLOSED) {
-            state.ws.close();
+        if (ws.readyState !== WebSocket.CLOSED) {
+            ws.close();
         }
     };
 }
@@ -1644,7 +1658,7 @@ function handleWsEvent(data) {
             setConnectionVisual('online');
         }
     } else if (type === 'pong') {
-        // heartbeat response
+        state.lastPong = Date.now();
     }
 }
 

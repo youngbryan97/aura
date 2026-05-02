@@ -167,6 +167,7 @@ class StallWatchdog(threading.Thread):
             "ConsciousnessLoopMonitor",
             "Server.Chat",
             "uvicorn",
+            "server.ws",
         )
         cutoff = time.time() - max(_TASK_HUNG_SECONDS, elapsed * 1.5)
         cancelled = 0
