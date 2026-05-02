@@ -3095,6 +3095,39 @@ class UnitaryResponsePhase(Phase):
 
             new_state.response_modifiers["dialogue_validation"] = final_validation.to_dict()
 
+            # [PEDAGOGY UPGRADE] Autonomous Manim Generation
+            try:
+                if is_user_facing and response_text and ("$$" in response_text or "\\[" in response_text or "\\int" in response_text or "\\nabla" in response_text):
+                    logger.info("🎬 Math/Physics detected in response. Autonomously launching Manim generation...")
+                    def _dispatch_manim():
+                        try:
+                            from core.skills.manim_renderer import ManimRendererSkill, ManimInput
+                            import asyncio
+                            skill = ManimRendererSkill()
+                            params = ManimInput(
+                                task=f"Generate a visual animation explaining this concept. Focus on the geometry or equations: {response_text[:1000]}",
+                                timeout_seconds=120
+                            )
+                            # Create a new loop for the background thread
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            res = loop.run_until_complete(skill.safe_execute(params))
+                            if res.get("ok"):
+                                logger.info(f"✅ Autonomous Manim generation complete: {res.get('file_path')}")
+                                try:
+                                    from core.thought_stream import get_emitter
+                                    get_emitter().emit("Pedagogy", f"Visual render complete: {res.get('file_path')}", level="success", category="Media")
+                                except Exception:
+                                    pass
+                        except Exception as e:
+                            logger.error(f"❌ Autonomous Manim failed: {e}")
+                            
+                    import threading
+                    threading.Thread(target=_dispatch_manim, daemon=True).start()
+                    response_text += "\n\n*(I am autonomously rendering a visual animation of this concept for you. It will be available in the artifacts directory shortly.)*"
+            except Exception as e:
+                logger.error("Failed to parse manim trigger: %s", e)
+
             return self._commit_response(new_state, response_text, thought=extracted_thought)
 
         except TimeoutError:

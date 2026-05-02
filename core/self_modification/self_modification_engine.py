@@ -250,20 +250,28 @@ class AutonomousSelfModificationEngine:
             logger.warning("Fix generation or sandbox testing failed: %s", test_results.get("error") or "Unknown error")
             return None
         
-        # Issue 96: Shadow Runtime Wiring (Deep Validation)
-        logger.info("🔬 Initiating Deep Shadow Runtime Validation for %s...", sample_event.file_path)
-        shadow_result = await self.shadow_runtime.test_mutation(
-            file_path=sample_event.file_path,
-            original_code=fix.original_code,
-            patched_code=fix.fixed_code,
-            soak_seconds=10
+        # Issue 96: Deep Validation via Branching Futures
+        logger.info("🔬 Initiating Branching Futures Validation for %s...", sample_event.file_path)
+        from core.skills.branching_futures import BranchingFuturesSkill, BranchingFuturesInput
+        branching_skill = BranchingFuturesSkill()
+        
+        # Ask the ghost thread to apply the fix and verify the system stays stable
+        branch_params = BranchingFuturesInput(
+            branch_name=f"test_fix_{int(time.time())}",
+            task=f"Apply the following code fix to {sample_event.file_path} and verify the system does not crash:\n\n{fix.fixed_code}",
+            timeout_seconds=60
         )
         
-        if not shadow_result.passed:
-            logger.error("❌ Shadow Runtime Validation FAILED: %s", shadow_result.errors)
+        try:
+            branch_result = await branching_skill.safe_execute(branch_params)
+            if not branch_result.get("ok"):
+                logger.error("❌ Branching Futures Validation FAILED: %s", branch_result.get("error"))
+                return None
+        except Exception as e:
+            logger.error("❌ Branching Futures Validation CRASHED: %s", e)
             return None
             
-        logger.info("✅ Shadow Runtime Validation PASSED.")
+        logger.info("✅ Branching Futures Validation PASSED.")
 
         return {
             "bug": bug,

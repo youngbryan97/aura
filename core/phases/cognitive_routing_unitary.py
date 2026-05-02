@@ -442,6 +442,32 @@ class CognitiveRoutingPhase(Phase):
             )
             return new_state
 
+        # [MCP AUTONOMY] Automatic routing for external foundation models and integrations
+        _MCP_SIGNALS = (
+            "foundation model", "scientific database", "mcp server", 
+            "enterprise query", "weather data", "mcp client",
+            "model context protocol", "external mcp", "query mcp"
+        )
+        if any(sig in lower_obj for sig in _MCP_SIGNALS):
+            logger.info("🧭 Routing: MCP Client autonomous trigger detected.")
+            new_state.cognition.current_mode = CognitiveMode.DELIBERATE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="TASK",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            new_state.response_modifiers["matched_skills"] = ["mcp_client"]
+            new_state.world.recent_percepts.append({
+                "type": "goal_achieved",
+                "content": "Autonomous MCP Client activation",
+                "intensity": 0.5,
+                "timestamp": time.time()
+            })
+            return new_state
+
         _TASK_SIGNALS = (
             "create ", "build ", "write a ", "write me ", "generate a ",
             "set up ", "automate ", "organize ", "plan ", "schedule ",
