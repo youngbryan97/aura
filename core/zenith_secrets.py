@@ -106,3 +106,56 @@ def load_dotenv(path: str | None = None) -> None:
             value = value.strip().strip('"').strip("'")
             if key and key not in os.environ:
                 os.environ[key] = value
+
+
+# ── Service-Namespaced Credential Management ─────────────────────────
+# These helpers provide a clean interface for skills that need login
+# credentials (email, Reddit, etc.). Values are NEVER logged.
+
+_CREDENTIAL_KEYS = {
+    "email": {
+        "address": "AURA_EMAIL_ADDRESS",
+        "password": "AURA_EMAIL_PASSWORD",
+    },
+    "reddit": {
+        "username": "AURA_REDDIT_USERNAME",
+        "password": "AURA_REDDIT_PASSWORD",
+    },
+    "owner": {
+        "email": "AURA_OWNER_EMAIL",
+    },
+}
+
+
+def get_credential(service: str, field: str = "password") -> str | None:
+    """Retrieve a credential for a named service.
+
+    Examples:
+        get_credential("email", "address")   -> "auraluna.cog@gmail.com"
+        get_credential("email", "password")  -> the Gmail password
+        get_credential("reddit", "username") -> "AuraLuna_Cog"
+        get_credential("owner", "email")     -> "youngbryan97@gmail.com"
+
+    Returns None if the credential is not found. NEVER logs the value.
+    """
+    keys = _CREDENTIAL_KEYS.get(service, {})
+    key = keys.get(field)
+    if not key:
+        logger.debug("No credential key mapping for service=%s field=%s", service, field)
+        return None
+    return get_secret(key)
+
+
+def store_credential(service: str, field: str, value: str) -> None:
+    """Store a credential for a named service in macOS Keychain.
+
+    This is the ONLY approved way to persist credentials.
+    The value is NEVER logged.
+    """
+    keys = _CREDENTIAL_KEYS.get(service)
+    if keys is None:
+        _CREDENTIAL_KEYS[service] = {}
+        keys = _CREDENTIAL_KEYS[service]
+    key_name = f"AURA_{service.upper()}_{field.upper()}"
+    keys[field] = key_name
+    set_secret(key_name, value, store="keychain")

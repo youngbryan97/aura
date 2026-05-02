@@ -139,7 +139,7 @@ class PhantomBrowser:
                 self._resource_lock._browser_sessions += 1
                 self._resource_lock._total_browser_sessions += 1
                 self._resource_lock._browser_idle.clear()
-            except ImportError:
+            except Exception:
                 self._resource_lock = None
 
             self.playwright = await async_playwright().start()
