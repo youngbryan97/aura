@@ -319,7 +319,8 @@ class CapabilityEngine(AuraBaseModule):
             # Misc
             "manifest_to_device", "notify_user", "native_chat",
             "dream_sleep", "force_dream_cycle", "test_generator",
-            "free_search", "uplink_local",
+            "free_search", "uplink_local", "mcp_client", "manim_renderer",
+            "branching_futures",
         } # ALL skills active — Aura is fully sovereign
         self.skill_awoken_times: Dict[str, float] = {}
         self.skill_states: Dict[str, str] = {} # READY, RUNNING, ERROR
@@ -548,6 +549,21 @@ class CapabilityEngine(AuraBaseModule):
                 r"turn (?:on|off) (?:your )?(?:skill|ability|feature)",
                 r"what (?:skills|abilities|capabilities) (?:do you have|can you use)",
                 r"list (?:your )?(?:skills|abilities|capabilities)",
+            ],
+            "mcp_client": [
+                r"connect (?:to )?(?:an? )?mcp server", r"use mcp",
+                r"query mcp", r"model context protocol",
+                r"call mcp", r"discover mcp tools",
+            ],
+            "manim_renderer": [
+                r"render (?:a )?manim", r"create (?:a )?manim",
+                r"animate (?:with )?manim", r"generate (?:a )?math video",
+                r"dynamic blackboard", r"render animation",
+            ],
+            "branching_futures": [
+                r"branching future", r"ghost thread", r"fork state",
+                r"create (?:a )?sandbox clone", r"try this safely",
+                r"experimental run",
             ],
         }
         for name, pats in patterns.items():
