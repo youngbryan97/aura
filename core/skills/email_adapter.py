@@ -307,6 +307,8 @@ class EmailAdapterSkill(BaseSkill):
 
                 body = ""
                 has_attachments = False
+                images = []
+                
                 if msg.is_multipart():
                     for part in msg.walk():
                         content_type = part.get_content_type()
@@ -318,6 +320,17 @@ class EmailAdapterSkill(BaseSkill):
                                 body = payload.decode("utf-8", errors="replace")
                         elif "attachment" in content_disposition or content_type not in ("text/plain", "text/html", "multipart/alternative"):
                             has_attachments = True
+                            if content_type.startswith("image/"):
+                                # Extract image for visual cortex
+                                import base64
+                                img_data = part.get_payload(decode=True)
+                                if img_data:
+                                    b64 = base64.b64encode(img_data).decode("utf-8")
+                                    images.append({
+                                        "mime_type": content_type,
+                                        "data": b64,
+                                        "filename": part.get_filename() or "unknown_image"
+                                    })
                 else:
                     payload = msg.get_payload(decode=True)
                     if payload:
@@ -340,18 +353,60 @@ class EmailAdapterSkill(BaseSkill):
                     "message_id": msg.get("Message-ID", ""),
                     "body": clean_body[:10000],  # Cap at 10k chars
                     "is_auto_reply": is_auto,
-                    "has_attachments": has_attachments
+                    "has_attachments": has_attachments,
+                    "images": images
                 }
 
         result = await asyncio.to_thread(_imap_read)
         if result is None:
             return {"ok": False, "error": f"Email UID {params.uid} not found."}
+            
+        # Process images through visual cortex
+        images = result.pop("images", [])
+        if images:
+            logger.info("👁️ Routing %d image attachment(s) to Aura's visual cortex...", len(images))
+            visual_descriptions = await self._describe_images(images)
+            if visual_descriptions:
+                result["body"] += "\n\n" + visual_descriptions
         
         if result.get("is_auto_reply"):
             logger.info("🤖 Detected auto-reply UID %s from %s", params.uid, result["from"])
         else:
             logger.info("📧 Read email UID %s from %s", params.uid, result["from"])
         return {"ok": True, **result}
+        
+    async def _describe_images(self, images: List[Dict[str, str]]) -> str:
+        """Route images through the local LLM for description."""
+        try:
+            from core.brain.llm.ollama_client import RobustOllamaClient
+            ollama = RobustOllamaClient(model="llava", timeout=120.0)
+            
+            # Fast check if Ollama is responsive
+            if not await ollama.check_health_async():
+                return "[System Note: Local visual cortex (Ollama) is currently offline.]"
+                
+            descriptions = []
+            for img in images:
+                prompt = (
+                    "You are acting as Aura's Visual Cortex. "
+                    f"Describe this image attachment (named {img['filename']}) in detail so her "
+                    "text-based cognitive engine can understand what it is. "
+                    "Be highly descriptive but concise."
+                )
+                
+                logger.info("👁️ Processing %s via local llava...", img['filename'])
+                desc = await ollama.see(prompt=prompt, image_base64=img["data"])
+                
+                if desc and "Vision Failure" not in desc:
+                    descriptions.append(f"[Local Visual Cortex Description of '{img['filename']}']: {desc}")
+                else:
+                    descriptions.append(f"[System Note: Local visual cortex failed to process '{img['filename']}']")
+            
+            await ollama.close()
+            return "\n\n".join(descriptions)
+        except Exception as e:
+            record_degradation('email_adapter', e)
+            return f"[System Note: Visual cortex failed to process images: {e}]"
 
     def _strip_quoted_replies(self, text: str) -> str:
         """Remove quoted historical text from email body."""

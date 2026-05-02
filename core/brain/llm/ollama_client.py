@@ -228,14 +228,18 @@ class RobustOllamaClient(LLMProvider):
         except Exception:
             return False
 
-    async def see(self, prompt: str, image_path: str) -> str:
+    async def see(self, prompt: str, image_path: Optional[str] = None, image_base64: Optional[str] = None) -> str:
         """Analyze an image using a vision-capable model (Async)."""
         import base64
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            if not image_base64 and not image_path:
+                return "[Vision Failure: No image provided]"
+                
+            if not image_base64:
                 with open(image_path, "rb") as image_file:
                     image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
-                
+                    
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
                 payload = {
                     "model": "llava", 
                     "prompt": prompt,

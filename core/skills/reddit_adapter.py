@@ -319,7 +319,27 @@ class RedditAdapterSkill(BaseSkill):
                     content = await browser.page.content()
                     if "g-recaptcha" in content or "captcha-delivery" in content:
                         logger.warning("🚨 CAPTCHA detected on Reddit!")
-                        return {"ok": False, "error": "CAPTCHA_DETECTED", "message": "Reddit has presented a CAPTCHA. Operation halted."}
+                        
+                        visual_note = ""
+                        try:
+                            # Capture base64 screenshot
+                            screenshot_b64 = await browser.screenshot()
+                            if screenshot_b64:
+                                logger.info("👁️ Routing CAPTCHA screenshot to local visual cortex...")
+                                from core.brain.llm.ollama_client import RobustOllamaClient
+                                ollama = RobustOllamaClient(model="llava", timeout=120.0)
+                                if await ollama.check_health_async():
+                                    desc = await ollama.see(
+                                        prompt="Describe this CAPTCHA screen. What kind of CAPTCHA is it (e.g., text, image grid, cloudflare)?",
+                                        image_base64=screenshot_b64
+                                    )
+                                    if desc and "Vision Failure" not in desc:
+                                        visual_note = f" [Visual Cortex: {desc}]"
+                                await ollama.close()
+                        except Exception as ve:
+                            logger.debug("Visual cortex failed to analyze CAPTCHA: %s", ve)
+                            
+                        return {"ok": False, "error": "CAPTCHA_DETECTED", "message": f"Reddit has presented a CAPTCHA. Operation halted.{visual_note}"}
                 except:
                     pass
             record_degradation('reddit_adapter', e)
