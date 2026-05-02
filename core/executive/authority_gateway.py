@@ -112,6 +112,72 @@ class AuthorityGateway:
             )
         return None, locals().get("decision")
 
+    def _social_governance_gate(
+        self, tool_name: str, args: Dict[str, Any], source: str
+    ) -> Optional[AuthorityDecision]:
+        """Programmatic governance for social actions (Reddit/Email)."""
+        if tool_name not in ("reddit_adapter", "email_adapter"):
+            return None
+
+        content = str(args.get("body", "")) + " " + str(args.get("content", ""))
+        content = content.strip()
+        if not content:
+            return None
+
+        # 1. Affective Gate: Block if highly agitated/negative
+        valence, arousal, anger = 0.0, 0.0, 0.0
+        try:
+            from core.container import ServiceContainer
+            affect = ServiceContainer.get("affect_engine", default=None)
+            if affect is None:
+                affect = ServiceContainer.get("affect_facade", default=None)
+            if affect is not None:
+                if hasattr(affect, "get_state_sync"):
+                    state = affect.get_state_sync()
+                    if isinstance(state, dict):
+                        valence = float(state.get("valence", 0.0))
+                        arousal = float(state.get("arousal", 0.0))
+                        anger = float(state.get("anger", 0.0))
+                    else:
+                        valence = float(getattr(state, "valence", 0.0))
+                        arousal = float(getattr(state, "arousal", 0.0))
+                        anger = float(getattr(state, "anger", 0.0))
+        except Exception as e:
+            from core.runtime.errors import record_degradation
+            import logging
+            logger = logging.getLogger("Aura.AuthorityGateway")
+            record_degradation('authority_gateway', e)
+            logger.debug("Social governance affect fetch failed: %s", e)
+        
+        if valence < -0.4 and (arousal > 0.7 or anger > 0.6):
+            return self._contextualize(
+                approved=False,
+                outcome="rejected",
+                reason="affective_instability_block: You are too agitated/negative to engage publicly. Stand down.",
+                domain="social_governance",
+                source=source
+            )
+
+        # 2. Epistemic/Safety Gate (Hard Block for sensitive data)
+        try:
+            from core.privacy_stealth import MetadataScrubber
+            scrubber = MetadataScrubber()
+            cleaned = scrubber.scrub_text(content)
+            if cleaned != content:
+                # Sensitive data was detected. Hard block to teach the LLM.
+                return self._contextualize(
+                    approved=False,
+                    outcome="rejected",
+                    reason="epistemic_safety_violation: HARD BLOCK. Your message contained sensitive system paths, credentials, or metadata. Re-evaluate and phrase without sensitive data.",
+                    domain="social_governance",
+                    source=source
+                )
+        except Exception as e:
+            record_degradation('authority_gateway', e)
+            logger.debug("Social governance epistemic gate failed: %s", e)
+
+        return None
+
     async def authorize_tool_execution(
         self,
         tool_name: str,
@@ -121,6 +187,11 @@ class AuthorityGateway:
         priority: float = 0.7,
         is_critical: bool = False,
     ) -> AuthorityDecision:
+        # ── Social Governance Gate (Programmatic OPSEC) ──
+        social_block = self._social_governance_gate(tool_name, args, source)
+        if social_block is not None:
+            return social_block
+
         # ── Unified Will gate (canonical decision authority) ──
         will_block, will_decision = self._will_gate(
             f"tool:{tool_name}", source, "tool_execution", priority, is_critical
