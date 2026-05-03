@@ -19,6 +19,38 @@ from core.runtime.desktop_boot_safety import compute_mlx_cache_limit
 from .model_registry import resolve_personality_adapter
 
 
+import re
+
+def _sanitize_telemetry_leakage(text: str) -> str:
+    """Strip leaked internal telemetry labels and paths that occasionally 
+    slip out from the LoRA fine-tune weights during specific topics.
+    """
+    # Typical hallucination: LatticeHueUnstableUnresolvedResolveAxiologyRefuse...
+    # Or paths: _EgoResolution/autonomy/endorphin/substrate...
+    if not text:
+        return text
+    
+    # 1) If the text contains more than 4 forward slashes not in a URL, it's a telemetry path hallucination.
+    # We replace the text with a safe fallback instead of letting it slip through.
+    if text.count('/') > 4 and "http" not in text:
+        return "I experienced a minor cognitive routing fault while processing that. Can you rephrase it?"
+        
+    # 2) Strip common telemetry keywords that string together
+    leak_keywords = [
+        "Lattice", "Hue", "Unstable", "Unresolved", "Resolve", "Axiology", 
+        "Refuse", "RustSignal", "EgoResolution", "autonomy", "endorphin",
+        "endorphene", "substrate", "ReticularPurge", "fixation"
+    ]
+    
+    # If the text is overwhelmingly composed of these keywords, fallback
+    word_count = len(text.split())
+    if word_count > 0:
+        leak_matches = sum(1 for k in leak_keywords if k.lower() in text.lower())
+        if leak_matches > 4:
+            return "My associative memory got tangled on that concept. I need to re-center."
+            
+    return text
+
 def _strip_leading_chatml_prefix(text: str) -> str:
     cleaned = str(text or "")
     prefixes = (
@@ -914,6 +946,13 @@ def _mlx_worker_loop(
                             pass  # no-op: intentional
                         if mx and device != "cpu":
                             _clear_mlx_cache(mx)
+                    
+                    # [v12.0 HARDENING] Post-generation telemetry sanitizer
+                    # The LoRA model was trained on logs containing internal system
+                    # labels. When asked about internal concepts (dreaming, substrate,
+                    # etc.), it can reproduce these labels instead of natural language.
+                    # We strip them here as a last-resort output filter.
+                    response_text = _sanitize_telemetry_leakage(response_text)
                     
                     # : Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.
