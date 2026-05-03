@@ -172,6 +172,9 @@ def _filter_kwargs(callable_obj: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
     if "system" in parameters and "system_prompt" in kwargs and "system" not in filtered:
         filtered["system"] = kwargs["system_prompt"]
 
+    if "context" in parameters and "context" not in filtered:
+        filtered["context"] = dict(kwargs)
+
     return filtered
 
 
