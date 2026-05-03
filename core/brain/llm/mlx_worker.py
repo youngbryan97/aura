@@ -665,7 +665,28 @@ def _mlx_worker_loop(
                     kwargs["sampler"] = make_sampler(**sampler_kwargs)
 
                 # [v11.0 HARDENING] Logits Processors (JSON Enforcement)
+                # [v11.0 HARDENING] Logits Processors (JSON Enforcement & Penalties)
                 logits_processors = []
+                
+                # Apply MLX penalties via logits processors
+                try:
+                    from mlx_lm.sample_utils import make_logits_processors
+                    _rp = job.get("repetition_penalty", repetition_penalty)
+                    _rcs = job.get("repetition_context_size", 64)
+                    _pp = job.get("presence_penalty", 0.0)
+                    if _rp and _rp > 1.0:
+                        lp = make_logits_processors(
+                            repetition_penalty=_rp,
+                            repetition_context_size=_rcs,
+                            presence_penalty=_pp,
+                        )
+                        if lp:
+                            logits_processors.extend(lp)
+                except ImportError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"Could not apply penalty logits processors: {e}")
+
                 if schema:
                     try:
                         brace_id = tokenizer.encode("{", add_special_tokens=False)[0]
@@ -909,6 +930,29 @@ def _mlx_worker_loop(
                     except Exception:
                         pass  # no-op: intentional
                     kwargs["sampler"] = make_sampler(**sampler_kwargs)
+
+                # Apply MLX penalties via logits processors
+                logits_processors = []
+                try:
+                    from mlx_lm.sample_utils import make_logits_processors
+                    _rp = job.get("repetition_penalty", repetition_penalty)
+                    _rcs = job.get("repetition_context_size", 64)
+                    _pp = job.get("presence_penalty", 0.0)
+                    if _rp and _rp > 1.0:
+                        lp = make_logits_processors(
+                            repetition_penalty=_rp,
+                            repetition_context_size=_rcs,
+                            presence_penalty=_pp,
+                        )
+                        if lp:
+                            logits_processors.extend(lp)
+                except ImportError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"Could not apply penalty logits processors: {e}")
+                
+                if logits_processors:
+                    kwargs["logits_processors"] = logits_processors
 
                 stop_sequences = ["<|im_end|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
                 
