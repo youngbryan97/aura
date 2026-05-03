@@ -71,6 +71,7 @@ class InterventionType(Enum):
     NONE = auto()
     ABORT_BOUNDARY = auto()      # Hard stop: boundary violation detected
     ABORT_CAPITULATION = auto()  # Hard stop: capitulation pattern detected
+    ABORT_LOOP = auto()          # Hard stop: mathematical generative loop detected
     WARN_PERSONA_DRIFT = auto()  # Soft: persona drift detected (log only)
     AFFECT_PULSE = auto()        # Maintenance: affect state updated
 
@@ -223,10 +224,57 @@ class TokenSentinel:
                 self._interventions.append(signal)
                 # Don't abort — just log and continue
 
+        # ── Loop check (every token, very fast) ──────────────
+        signal = self._check_generative_loop()
+        if signal.type == InterventionType.ABORT_LOOP:
+            self._interventions.append(signal)
+            return signal
+
         # ── Affect pulse (every affect_interval tokens) ──────────────
         if self._token_count % self._affect_interval == 0:
             self._pulse_affect()
 
+        return InterventionSignal(type=InterventionType.NONE)
+
+    def _check_generative_loop(self) -> InterventionSignal:
+        """Mathematically guarantee no infinite token loops."""
+        n_tokens = len(self._tokens)
+        if n_tokens < 6:
+            return InterventionSignal(type=InterventionType.NONE)
+            
+        max_seq_len = min(40, n_tokens // 3)
+        for seq_len in range(1, max_seq_len + 1):
+            seq = self._tokens[-seq_len:]
+            
+            repeats = 1
+            for i in range(1, (n_tokens // seq_len)):
+                start_idx = n_tokens - (i + 1) * seq_len
+                end_idx = n_tokens - i * seq_len
+                if self._tokens[start_idx:end_idx] == seq:
+                    repeats += 1
+                else:
+                    break
+                    
+            seq_str = "".join(seq)
+            
+            # Exempt long runs of whitespace or simple punctuation unless extreme
+            if not seq_str.strip() or (len(seq_str.strip()) == 1 and not seq_str.strip().isalnum()):
+                if repeats >= 60:
+                    threshold = 60
+                else:
+                    continue
+            else:
+                threshold = 12 if seq_len == 1 else (6 if seq_len < 4 else 3)
+                
+            if repeats >= threshold:
+                logger.error("🚨 SENTINEL: Mathematical loop detected! Sequence %r (len=%d) repeated %d times. Aborting.", seq_str[:30], seq_len, repeats)
+                return InterventionSignal(
+                    type=InterventionType.ABORT_LOOP,
+                    reason=f"Generative loop detected: {seq_str[:20]!r} x{repeats}",
+                    token_position=self._token_count,
+                    generated_so_far=self._text,
+                    clean_prefix=self._text[: -(seq_len * repeats)].rstrip(),
+                )
         return InterventionSignal(type=InterventionType.NONE)
 
     def _check_boundaries(self) -> InterventionSignal:

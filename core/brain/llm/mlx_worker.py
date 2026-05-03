@@ -798,8 +798,16 @@ def _mlx_worker_loop(
                                     # ── Sentinel: feed every token ────────────────────
                                     if sentinel is not None:
                                         signal = sentinel.feed(response.text)
-                                        if signal.type in (InterventionType.ABORT_CAPITULATION,
-                                                           InterventionType.ABORT_BOUNDARY):
+                                        if signal.type == InterventionType.ABORT_LOOP:
+                                            logger.warning(
+                                                "🚨 [SENTINEL] Aborting loop at token %d: %s",
+                                                token_count, signal.reason,
+                                            )
+                                            current_response = signal.clean_prefix
+                                            sentinel_aborted = True
+                                            break
+                                        elif signal.type in (InterventionType.ABORT_CAPITULATION,
+                                                             InterventionType.ABORT_BOUNDARY):
                                             # Mid-generation abort: the LLM started capitulating.
                                             # Replace response with deterministic refusal.
                                             logger.warning(
@@ -987,8 +995,22 @@ def _mlx_worker_loop(
                                 # ── Sentinel: mid-stream intervention ─────
                                 if stream_sentinel is not None:
                                     signal = stream_sentinel.feed(token_text)
-                                    if signal.type in (InterventionType.ABORT_CAPITULATION,
-                                                       InterventionType.ABORT_BOUNDARY):
+                                    if signal.type == InterventionType.ABORT_LOOP:
+                                        logger.warning(
+                                            "🚨 [SENTINEL-STREAM] Aborting loop at token %d: %s",
+                                            token_count, signal.reason,
+                                        )
+                                        ipc_writer.put({
+                                            "id": job.get("id"),
+                                            "action": "stream",
+                                            "status": "sentinel_abort",
+                                            "text": "",
+                                            "tokens_generated": token_count,
+                                            "timestamp": time.time(),
+                                        })
+                                        break
+                                    elif signal.type in (InterventionType.ABORT_CAPITULATION,
+                                                         InterventionType.ABORT_BOUNDARY):
                                         logger.warning(
                                             "🚨 [SENTINEL-STREAM] Aborting at token %d: %s",
                                             token_count, signal.reason,
