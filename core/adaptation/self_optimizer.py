@@ -132,17 +132,42 @@ class SelfOptimizer:
             duration = time.time() - start_time
             
             if process.returncode == 0:
+                logger.info("🧠 Nucleus: Training complete. Fusing weights into new model...")
+                fused_dir = self.base_model_path.parent.parent / "training" / "fused-model" / "aura-latest"
+                fuse_cmd = [
+                    self.python_path, "-m", "mlx_lm.fuse",
+                    "--model", str(self.base_model_path),
+                    "--adapter-path", str(self.adapter_output.parent),
+                    "--save-path", str(fused_dir)
+                ]
+                with open(log_file, "a") as out:
+                    fuse_process = await asyncio.create_subprocess_exec(
+                        *fuse_cmd, stdout=out, stderr=out
+                    )
+                    await fuse_process.wait()
+                    
+                if fuse_process.returncode == 0:
+                    logger.info("🧠 Nucleus: Fusion successful. Updating active.json...")
+                    active_json_path = self.base_model_path.parent.parent / "training" / "fused-model" / "active.json"
+                    active_json_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(active_json_path, "w") as f:
+                        json.dump({"active_model_path": str(fused_dir)}, f)
+                else:
+                    logger.error("❌ Nucleus: Fusion failed.")
+
                 if self.event_bus:
                     get_task_tracker().create_task(self.event_bus.publish("core/optimizer/completed", {
                         "status": "success",
                         "duration": duration,
-                        "samples": len(data)
+                        "samples": len(data),
+                        "fused_model": str(fused_dir) if fuse_process.returncode == 0 else None
                     }))
                 return {
                     "ok": True, 
                     "duration": duration, 
                     "adapter": str(self.adapter_output),
-                    "samples": len(data)
+                    "samples": len(data),
+                    "fused_model": str(fused_dir) if fuse_process.returncode == 0 else None
                 }
             else:
                 # Read error from log file as stdout/stderr were redirected

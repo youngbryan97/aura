@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 # Add project root to path
-root = Path.home() / ".aura"
+root = Path(__file__).resolve().parent.parent
 sys.path.append(str(root))
 
 async def main():
@@ -17,8 +17,8 @@ async def main():
     
     optimizer = get_self_optimizer()
     
-    # Run with 20 iterations for fast verification of the cognitive upgrade.
-    result = await optimizer.optimize(iters=20, batch_size=4)
+    # Run with 1000 iterations for a massive, high-fidelity personality bake.
+    result = await optimizer.optimize(iters=1000, batch_size=4)
     
     if result["ok"]:
         print(f"✅ Success! Duration: {result['duration']:.2f}s")
