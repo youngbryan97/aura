@@ -49,6 +49,10 @@ def _sanitize_telemetry_leakage(text: str) -> str:
         if leak_matches > 4:
             return "My associative memory got tangled on that concept. I need to re-center."
             
+    # 3) Extreme numeric sequences. If a single word/number has more than 20 digits, it's a hallucination.
+    if re.search(r'\d{20,}', text):
+        return "I experienced a minor cognitive routing fault while processing that. Can you rephrase it?"
+            
     return text
 
 def _strip_leading_chatml_prefix(text: str) -> str:
@@ -704,7 +708,7 @@ def _mlx_worker_loop(
                 try:
                     from mlx_lm.sample_utils import make_logits_processors
                     _rp = job.get("repetition_penalty", repetition_penalty)
-                    _rcs = job.get("repetition_context_size", 20)
+                    _rcs = job.get("repetition_context_size", 30)
                     _pp = job.get("presence_penalty", 0.0)
                     if _rp and _rp > 1.0:
                         lp = make_logits_processors(
@@ -1003,7 +1007,7 @@ def _mlx_worker_loop(
                 try:
                     from mlx_lm.sample_utils import make_logits_processors
                     _rp = job.get("repetition_penalty", repetition_penalty)
-                    _rcs = job.get("repetition_context_size", 20)
+                    _rcs = job.get("repetition_context_size", 30)
                     _pp = job.get("presence_penalty", 0.0)
                     if _rp and _rp > 1.0:
                         lp = make_logits_processors(
