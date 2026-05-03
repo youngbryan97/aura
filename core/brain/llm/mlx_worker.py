@@ -672,7 +672,7 @@ def _mlx_worker_loop(
                 try:
                     from mlx_lm.sample_utils import make_logits_processors
                     _rp = job.get("repetition_penalty", repetition_penalty)
-                    _rcs = job.get("repetition_context_size", 64)
+                    _rcs = job.get("repetition_context_size", 256)
                     _pp = job.get("presence_penalty", 0.0)
                     if _rp and _rp > 1.0:
                         lp = make_logits_processors(
@@ -873,6 +873,13 @@ def _mlx_worker_loop(
                                         logger.warning(f"⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt {internal_attempt + 1})...")
                                         if prompt_cache_lru is not None: prompt_cache_lru.clear()
                                         if mx and device != "cpu": _clear_mlx_cache(mx)
+                                        
+                                        # Bump parameters slightly to escape the generative rut
+                                        kwargs["temperature"] = min(1.0, kwargs.get("temperature", 0.7) + 0.1)
+                                        if "logits_processors" in kwargs:
+                                            # We just recreate the logit processors if they exist so it catches the loop
+                                            pass
+                                            
                                         continue
                                     else:
                                         logger.warning("🚨 [WORKER] Out of retries for loop abort. Returning truncated prefix.")
@@ -957,7 +964,7 @@ def _mlx_worker_loop(
                 try:
                     from mlx_lm.sample_utils import make_logits_processors
                     _rp = job.get("repetition_penalty", repetition_penalty)
-                    _rcs = job.get("repetition_context_size", 64)
+                    _rcs = job.get("repetition_context_size", 256)
                     _pp = job.get("presence_penalty", 0.0)
                     if _rp and _rp > 1.0:
                         lp = make_logits_processors(

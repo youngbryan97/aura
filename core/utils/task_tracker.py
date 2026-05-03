@@ -153,14 +153,19 @@ class TaskTracker:
         previous_factory = target_loop.get_task_factory()
         tracker = self
 
-        def _factory(factory_loop, coro, context=None):
+        def _factory(factory_loop, coro, **kwargs):
             if previous_factory is not None:
                 try:
-                    task = previous_factory(factory_loop, coro, context=context)
+                    task = previous_factory(factory_loop, coro, **kwargs)
                 except TypeError:
-                    task = previous_factory(factory_loop, coro)
+                    kwargs.pop("context", None)
+                    try:
+                        task = previous_factory(factory_loop, coro, **kwargs)
+                    except TypeError:
+                        kwargs.pop("name", None)
+                        task = previous_factory(factory_loop, coro, **kwargs)
             else:
-                task = asyncio.Task(coro, loop=factory_loop, context=context)
+                task = asyncio.Task(coro, loop=factory_loop, **kwargs)
             if not _SKIP_FACTORY_TRACK.get():
                 try:
                     tracker.observe(task, source="loop_factory")

@@ -2155,7 +2155,7 @@ class MLXLocalClient:
             "repetition_penalty": kwargs.get(
                 "repetition_penalty", _bridge_get("repetition_penalty", 1.08)
             ),
-            "repetition_context_size": kwargs.get("repetition_context_size", 64),
+            "repetition_context_size": kwargs.get("repetition_context_size", 256),
             "presence_penalty": kwargs.get(
                 "presence_penalty", _bridge_get("presence_penalty", 0.0)
             ),

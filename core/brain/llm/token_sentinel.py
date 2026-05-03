@@ -264,7 +264,20 @@ class TokenSentinel:
                 else:
                     continue
             else:
-                threshold = 12 if seq_len == 1 else (6 if seq_len < 4 else 3)
+                # Thresholds calibrated to avoid false positives on normal text
+                # while still catching real generative loops:
+                #   1-token seq: 20 repeats (e.g. "aaaa..." — very common in normal text)
+                #   2-3 token seq: 10 repeats (e.g. "ha ha ha..." — could be intentional)
+                #   4-8 token seq: 6 repeats (starting to look pathological)
+                #   9+ token seq: 4 repeats (definitely a loop at this point)
+                if seq_len == 1:
+                    threshold = 20
+                elif seq_len < 4:
+                    threshold = 10
+                elif seq_len < 9:
+                    threshold = 6
+                else:
+                    threshold = 4
                 
             if repeats >= threshold:
                 logger.error("🚨 SENTINEL: Mathematical loop detected! Sequence %r (len=%d) repeated %d times. Aborting.", seq_str[:30], seq_len, repeats)
