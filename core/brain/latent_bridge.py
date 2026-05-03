@@ -171,7 +171,7 @@ def compute_inference_params(
     temp -= 0.20 * (s["acetylcholine"] - 0.5)
     temp -= 0.15 * (s["cortisol"] - 0.3)
     temp += 0.20 * (s["curiosity"] - 0.5)
-    temp_ceiling = 0.92 if foreground else 1.00
+    temp_ceiling = 0.85 if foreground else 0.90
     temp = max(0.15, min(temp_ceiling, temp))
     rationale.append(
         f"temp={temp:.2f} (ach={s['acetylcholine']:.2f}, corts={s['cortisol']:.2f}, curio={s['curiosity']:.2f})"
@@ -206,13 +206,13 @@ def compute_inference_params(
 
     # ─── repetition penalty ────────────────────────────────────────────
     loop_pressure = (
-        0.22 * max(0.0, s["arousal"] - 0.60)
-        + 0.18 * max(0.0, s["free_energy"] - 0.55)
-        + 0.14 * max(0.0, temp - 0.80)
+        0.12 * max(0.0, s["arousal"] - 0.60)
+        + 0.10 * max(0.0, s["free_energy"] - 0.55)
+        + 0.10 * max(0.0, temp - 0.80)
     )
-    rep = 1.10 + 0.20 * s["frustration"] + loop_pressure
-    rep_floor = 1.10 if foreground else 1.06
-    rep = max(rep_floor, min(1.45, rep))
+    rep = 1.05 + 0.05 * s["frustration"] + loop_pressure
+    rep_floor = 1.05 if foreground else 1.02
+    rep = max(rep_floor, min(1.15, rep))
     rationale.append(
         f"rep_penalty={rep:.2f} (frust={s['frustration']:.2f}, arousal={s['arousal']:.2f}, fe={s['free_energy']:.2f})"
     )
