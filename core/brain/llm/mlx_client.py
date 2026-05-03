@@ -2153,9 +2153,9 @@ class MLXLocalClient:
             "top_k": kwargs.get("top_k", _bridge_get("top_k", 60)),
             "min_p": kwargs.get("min_p", 0.05),
             "repetition_penalty": kwargs.get(
-                "repetition_penalty", _bridge_get("repetition_penalty", 1.08)
+                "repetition_penalty", _bridge_get("repetition_penalty", 1.02)
             ),
-            "repetition_context_size": kwargs.get("repetition_context_size", 256),
+            "repetition_context_size": kwargs.get("repetition_context_size", 20),
             "presence_penalty": kwargs.get(
                 "presence_penalty", _bridge_get("presence_penalty", 0.0)
             ),

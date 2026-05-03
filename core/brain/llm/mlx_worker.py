@@ -672,7 +672,7 @@ def _mlx_worker_loop(
                 try:
                     from mlx_lm.sample_utils import make_logits_processors
                     _rp = job.get("repetition_penalty", repetition_penalty)
-                    _rcs = job.get("repetition_context_size", 256)
+                    _rcs = job.get("repetition_context_size", 20)
                     _pp = job.get("presence_penalty", 0.0)
                     if _rp and _rp > 1.0:
                         lp = make_logits_processors(
@@ -964,7 +964,7 @@ def _mlx_worker_loop(
                 try:
                     from mlx_lm.sample_utils import make_logits_processors
                     _rp = job.get("repetition_penalty", repetition_penalty)
-                    _rcs = job.get("repetition_context_size", 256)
+                    _rcs = job.get("repetition_context_size", 20)
                     _pp = job.get("presence_penalty", 0.0)
                     if _rp and _rp > 1.0:
                         lp = make_logits_processors(
