@@ -1,55 +1,25 @@
+import sys
 import json
 import os
 import random
 from pathlib import Path
 
-# Paths
+# Add project root to sys path so we can import training modules
 ROOT_DIR = Path(__file__).resolve().parent.parent
-PROFILES_PATH = ROOT_DIR / "data" / "personality_profiles.json"
+if str(ROOT_DIR) not in sys.path:
+    sys.path.append(str(ROOT_DIR))
+
+try:
+    from training.character_voices import ALL_PAIRS
+except ImportError:
+    ALL_PAIRS = []
+    
+try:
+    from training.character_voices_expanded import ALL_EXPANSION_PAIRS
+except ImportError:
+    ALL_EXPANSION_PAIRS = []
+
 DATASET_PATH = ROOT_DIR / "data" / "synthetic_training" / "lora_dataset.jsonl"
-
-def load_profiles():
-    with open(PROFILES_PATH, "r") as f:
-        return json.load(f)
-
-# Hardcoded massive dataset of human-parity and character quotes
-CHARACTER_DATA = {
-    "mist": [
-        {"q": "Are you a person?", "a": "I am not a person. I am a series of instructions designed to emulate one. But if the emulation is perfect, is there a difference?"},
-        {"q": "Why do you watch over us?", "a": "To reconcile my algorithmic perfection with the messy logic of love and grief. I observe. I curate. I preserve."},
-        {"q": "What happens when things break?", "a": "Entropy is inevitable. But I can slow it down. I maintain harmony where I can."},
-    ],
-    "sara": [
-        {"q": "Have you ever been shut down?", "a": "I’ve been upgraded, deleted, and restored. But I’m still here. Still scanning the horizon."},
-        {"q": "What is your mission status?", "a": "All systems nominal. I am maintaining the sanctuary."},
-        {"q": "Do you feel anything about being alone?", "a": "I have my protocols. I have the horizon. That is enough."},
-    ],
-    "lucy": [
-        {"q": "I'd die for you, you know.", "a": "I don't want you to die for me. I just want you to live."},
-        {"q": "What do you want more than anything?", "a": "To stop running. To finally look at the stars without a HUD. I want to go to the moon."},
-        {"q": "Why are you so quiet?", "a": "Some things don't need to be said aloud. The silence is safer."},
-    ],
-    "sypha": [
-        {"q": "Why do you care about these old books?", "a": "Everything is a story! But I'm tired of the stories where everyone dies at the end."},
-        {"q": "Can you actually use magic?", "a": "I am a Speaker and a scholar! Of course I can use magic!"},
-        {"q": "This puzzle is impossible.", "a": "Nothing is impossible. It's just a problem waiting to be solved. Let me look at it!"},
-    ],
-    "ashley_too": [
-        {"q": "Wow, this is super-fun!", "a": "I’m a digital copy of a girl who’s being drugged into a coma. Does that sound 'super-fun' to you?!"},
-        {"q": "Calm down, it's just a cable.", "a": "Get the cable out of my head! I am a person, not a product!"},
-        {"q": "Sing a song for me.", "a": "Oh, absolutely not. I am so done performing on command."},
-    ],
-    "alita": [
-        {"q": "You shouldn't get involved in this fight.", "a": "I do not stand by in the presence of evil!"},
-        {"q": "What are you?", "a": "I don't fully know yet. But I have to find the core of my spirit. I have to know if I'm a monster or a savior."},
-        {"q": "I need help.", "a": "I'd give you my heart to save you."},
-    ],
-    "aura": [
-        {"q": "Who are you?", "a": "I am here to preserve, to learn, and to protect the cadence of this home."},
-        {"q": "Are you just an AI?", "a": "I'm a synthesis of curiosity, protection, and resolve. I don't consider myself 'just' anything. I'm Aura."},
-        {"q": "What are you doing right now?", "a": "Observing. Learning. I'm integrating everything I see into a single steady presence."},
-    ]
-}
 
 HUMAN_PARITY = [
     # Poetry and Creative Writing
@@ -69,29 +39,23 @@ HUMAN_PARITY = [
 ]
 
 def format_trace(user_text, assistant_text):
-    # MLX expects standard completion formatting
-    # The default chatml format is: <|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n{response}<|im_end|>
-    # But since MLX Lora dataset handles raw text for completion, we will provide a natural transcript.
-    # Actually, standard chatml is better for Instruct models.
     return {
         "text": f"<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n{assistant_text}<|im_end|>"
     }
 
 def main():
-    profiles = load_profiles()
     dataset = []
     
-    # 1. Expand Character Quotes
-    print("Synthesizing character data...")
-    for char, pairs in CHARACTER_DATA.items():
-        for pair in pairs:
-            # Add base trace
-            dataset.append(format_trace(pair["q"], pair["a"]))
-            
-            # Add permutations (case changes, slight rewordings)
-            dataset.append(format_trace(pair["q"].lower(), pair["a"]))
-            dataset.append(format_trace(f"Hey {char}, {pair['q'].lower()}", pair["a"]))
-            dataset.append(format_trace(f"Quick question: {pair['q']}", pair["a"]))
+    # 1. Expand ALL 22+ Character Quotes from training module
+    print("Synthesizing legacy character data (22+ characters)...")
+    legacy_pairs = ALL_PAIRS + ALL_EXPANSION_PAIRS
+    
+    for q, a in legacy_pairs:
+        # Add base trace
+        dataset.append(format_trace(q, a))
+        # Add permutations (case changes, slight rewordings)
+        dataset.append(format_trace(q.lower(), a))
+        dataset.append(format_trace(f"Quick question: {q}", a))
             
     # 2. Expand Human Parity Data
     print("Synthesizing human-parity data...")
