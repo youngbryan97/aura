@@ -21,19 +21,19 @@ from .model_registry import resolve_personality_adapter
 
 import re
 
-def _sanitize_telemetry_leakage(text: str) -> str:
+from typing import Optional
+
+def _sanitize_telemetry_leakage(text: str) -> Optional[str]:
     """Strip leaked internal telemetry labels and paths that occasionally 
     slip out from the LoRA fine-tune weights during specific topics.
+    Returns None if a fatal hallucination is detected so the caller can retry.
     """
-    # Typical hallucination: LatticeHueUnstableUnresolvedResolveAxiologyRefuse...
-    # Or paths: _EgoResolution/autonomy/endorphin/substrate...
     if not text:
         return text
     
     # 1) If the text contains more than 4 forward slashes not in a URL, it's a telemetry path hallucination.
-    # We replace the text with a safe fallback instead of letting it slip through.
     if text.count('/') > 4 and "http" not in text:
-        return "I experienced a minor cognitive routing fault while processing that. Can you rephrase it?"
+        return None
         
     # 2) Strip common telemetry keywords that string together
     leak_keywords = [
@@ -47,11 +47,11 @@ def _sanitize_telemetry_leakage(text: str) -> str:
     if word_count > 0:
         leak_matches = sum(1 for k in leak_keywords if k.lower() in text.lower())
         if leak_matches > 4:
-            return "My associative memory got tangled on that concept. I need to re-center."
+            return None
             
     # 3) Extreme numeric sequences. If a single word/number has more than 20 digits, it's a hallucination.
     if re.search(r'\d{20,}', text):
-        return "I experienced a minor cognitive routing fault while processing that. Can you rephrase it?"
+        return None
             
     return text
 
@@ -952,11 +952,22 @@ def _mlx_worker_loop(
                             _clear_mlx_cache(mx)
                     
                     # [v12.0 HARDENING] Post-generation telemetry sanitizer
-                    # The LoRA model was trained on logs containing internal system
-                    # labels. When asked about internal concepts (dreaming, substrate,
-                    # etc.), it can reproduce these labels instead of natural language.
-                    # We strip them here as a last-resort output filter.
-                    response_text = _sanitize_telemetry_leakage(response_text)
+                    sanitized_text = _sanitize_telemetry_leakage(response_text)
+                    if sanitized_text is None:
+                        if internal_attempt < max_retries - 1:
+                            logger.warning("🚨 [WORKER] Hallucination detected by sanitizer. Retrying generation cleanly...")
+                            try:
+                                if prompt_cache_lru is not None: prompt_cache_lru.clear()
+                            except Exception: pass
+                            if mx and device != "cpu": _clear_mlx_cache(mx)
+                            
+                            kwargs["temperature"] = min(1.0, kwargs.get("temperature", 0.7) + 0.1)
+                            continue
+                        else:
+                            logger.error("🚨 [WORKER] Out of retries for hallucination. Falling back to reflex message.")
+                            sanitized_text = "I experienced a minor cognitive routing fault while processing that. Can you rephrase it?"
+                            
+                    response_text = sanitized_text
                     
                     # : Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.
