@@ -842,7 +842,10 @@ class MindTick:
                 self._last_tick_metadata = metadata
                 
             except asyncio.CancelledError:
-                break
+                if not self._running:
+                    break
+                logger.warning("MindTick loop spuriously cancelled. Ignoring.")
+                continue
             except Exception as e:
                 record_degradation('mind_tick', e)
                 logger.error("⚠️ MindTick Loop Error: %s", e)

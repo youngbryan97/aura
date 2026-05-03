@@ -463,7 +463,10 @@ class TerminalWatchdog:
                 await asyncio.sleep(WATCHDOG_INTERVAL_SECS)
                 await self._tick()
             except asyncio.CancelledError:
-                break
+                if not self._running:
+                    break
+                logger.warning("TerminalWatchdog spuriously cancelled. Ignoring.")
+                continue
             except Exception as e:
                 record_degradation('terminal_chat', e)
                 logger.debug("TerminalWatchdog tick error: %s", e)

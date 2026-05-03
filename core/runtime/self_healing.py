@@ -89,8 +89,18 @@ class SelfHealing:
 
         async def _loop():
             while self._running:
-                await self._tick()
-                await asyncio.sleep(interval)
+                try:
+                    await self._tick()
+                    await asyncio.sleep(interval)
+                except asyncio.CancelledError:
+                    if not self._running:
+                        break
+                    logger.warning("SelfHealing loop spuriously cancelled. Ignoring.")
+                    continue
+                except Exception as e:
+                    record_degradation('self_healing', e)
+                    logger.error("SelfHealing loop error: %s", e)
+                    await asyncio.sleep(1.0)
 
         self._task = get_task_tracker().create_task(_loop(), name="SelfHealing")
 
@@ -160,13 +170,28 @@ class SelfHealing:
     def _module_path_for_watch(self, w: WatchEntry) -> str | None:
         if not w.container_key:
             return None
+            
+        fallbacks = {
+            "orchestrator": "core/orchestrator/main.py",
+            "mind_tick": "core/mind_tick.py",
+            "scheduler": "core/scheduler.py",
+            "morphogenetic_runtime": "core/morphogenesis/runtime.py",
+            "motor_cortex": "core/somatic/motor_cortex.py"
+        }
+        
         try:
             from core.config import config
             from core.container import ServiceContainer
 
             instance = ServiceContainer.get(w.container_key, default=None)
             if instance is None:
-                return None
+                return fallbacks.get(w.container_key)
+                
+            # Unpack proxies if present
+            if hasattr(instance, "__wrapped__"):
+                instance = instance.__wrapped__
+            elif hasattr(instance, "_instance"):
+                instance = instance._instance or instance
 
             source_file = inspect.getsourcefile(type(instance)) or inspect.getfile(type(instance))
             if source_file:
@@ -180,10 +205,12 @@ class SelfHealing:
             candidate = module_name.replace(".", "/") + ".py"
             if (config.paths.base_dir / candidate).exists():
                 return candidate
+                
+            return fallbacks.get(w.container_key)
         except Exception as exc:
             record_degradation('self_healing', exc)
             logger.debug("Could not resolve watched module path for %s: %s", w.name, exc)
-        return None
+            return fallbacks.get(w.container_key)
 
     def schedule_deep_repair(
         self,

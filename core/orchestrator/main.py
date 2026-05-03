@@ -1199,22 +1199,27 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         self.status.running = True
         logger.info("🚩 [ORCHESTRATOR] Main Heartbeat Active (Loop started).")
         
-        try:
-            while not self._stop_event.is_set():
+        while not self._stop_event.is_set():
+            try:
                 # Heartbeat cycle count — ensures UI sees progress
                 self.status.cycle_count += 1
                 
                 # Short sleep to prevent CPU spinning while remaining responsive
                 await asyncio.sleep(0.05) 
-        except asyncio.CancelledError:
-            logger.info("Orchestrator heartbeat cancelled.")
-        except Exception as e:
-            record_degradation('main', e)
-            record_degradation('main', e)
-            logger.error("🛑 ORCHESTRATOR LOOP CRITICAL ERROR: %s", e, exc_info=True)
-        finally:
-            self.status.running = False
-            logger.info("Orchestrator heartbeat stopped.")
+            except asyncio.CancelledError:
+                if self._stop_event.is_set():
+                    logger.info("Orchestrator heartbeat cancelled cleanly.")
+                    break
+                else:
+                    logger.warning("Orchestrator heartbeat spuriously cancelled. Ignoring.")
+                    continue
+            except Exception as e:
+                record_degradation('main', e)
+                logger.error("🛑 ORCHESTRATOR LOOP CRITICAL ERROR: %s", e, exc_info=True)
+                await asyncio.sleep(1.0) # Prevent tight spin
+        
+        self.status.running = False
+        logger.info("Orchestrator heartbeat stopped.")
 
 
     async def _register_scheduled_tasks(self):

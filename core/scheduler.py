@@ -92,8 +92,8 @@ class Scheduler:
     async def _main_loop(self):
         """The heartbeat of the scheduler."""
         lock, stop_event = self._ensure_async_primitives()
-        try:
-            while not stop_event.is_set():
+        while not stop_event.is_set():
+            try:
                 now = time.monotonic()
                 async with lock:
                     pending_tasks = sorted(
@@ -116,13 +116,19 @@ class Scheduler:
                             )
                 
                 await asyncio.sleep(0.05)
-        except asyncio.CancelledError:
-            logger.info("Scheduler main loop cancelled.")
-        except Exception as e:
-            record_degradation('scheduler', e)
-            logger.error(f"Scheduler Fatal Crash: {e}")
-            logger.error(traceback.format_exc())
-            self.state = Lifecycle.RECOVERING
+            except asyncio.CancelledError:
+                if stop_event.is_set():
+                    logger.info("Scheduler main loop cancelled cleanly.")
+                    break
+                else:
+                    logger.warning("Scheduler loop spuriously cancelled. Ignoring.")
+                    continue
+            except Exception as e:
+                record_degradation('scheduler', e)
+                logger.error(f"Scheduler Fatal Crash: {e}")
+                logger.error(traceback.format_exc())
+                self.state = Lifecycle.RECOVERING
+                await asyncio.sleep(1.0)
 
     async def _run_task(self, spec: TaskSpec):
         """Safely execute a task with structured monitoring."""

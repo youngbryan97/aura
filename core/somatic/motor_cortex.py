@@ -468,40 +468,50 @@ class MotorCortex:
         """Main reflex loop -- targets 50ms cycle time."""
         logger.debug("MotorCortex: reflex loop started")
         while self._running:
-            cycle_start = time.monotonic()
-            self._cycle_count += 1
-
             try:
-                # Process queued reflexes (batch up to 4 per cycle)
-                processed = 0
-                while processed < 4 and not self._queue.empty():
-                    try:
-                        _priority, _seq, action = self._queue.get_nowait()
-                    except asyncio.QueueEmpty:
-                        break
-                    await self._execute_reflex(action)
-                    processed += 1
+                cycle_start = time.monotonic()
+                self._cycle_count += 1
 
-                # Periodic health check (every 5s)
-                now = time.time()
-                if now - self._last_health_check > self._HEALTH_INTERVAL_S:
-                    self._last_health_check = now
-                    self.submit_reflex(ReflexAction(
-                        reflex_class=ReflexClass.HEALTH_THROTTLE,
-                        handler_name="health_check",
-                        priority=ReflexPriority.LOW,
-                        source="motor_cortex_periodic",
-                    ))
+                try:
+                    # Process queued reflexes (batch up to 4 per cycle)
+                    processed = 0
+                    while processed < 4 and not self._queue.empty():
+                        try:
+                            _priority, _seq, action = self._queue.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
+                        await self._execute_reflex(action)
+                        processed += 1
 
+                    # Periodic health check (every 5s)
+                    now = time.time()
+                    if now - self._last_health_check > self._HEALTH_INTERVAL_S:
+                        self._last_health_check = now
+                        self.submit_reflex(ReflexAction(
+                            reflex_class=ReflexClass.HEALTH_THROTTLE,
+                            handler_name="health_check",
+                            priority=ReflexPriority.LOW,
+                            source="motor_cortex_periodic",
+                        ))
+
+                except Exception as exc:
+                    record_degradation('motor_cortex', exc)
+                    logger.error("MotorCortex: loop error: %s", exc, exc_info=True)
+
+                # Sleep to maintain target cycle time
+                elapsed = time.monotonic() - cycle_start
+                sleep_time = max(0.0, self._CYCLE_TARGET_S - elapsed)
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+            except asyncio.CancelledError:
+                if not self._running:
+                    break
+                logger.warning("MotorCortex loop spuriously cancelled. Ignoring.")
+                continue
             except Exception as exc:
                 record_degradation('motor_cortex', exc)
-                logger.error("MotorCortex: loop error: %s", exc, exc_info=True)
-
-            # Sleep to maintain target cycle time
-            elapsed = time.monotonic() - cycle_start
-            sleep_time = max(0.0, self._CYCLE_TARGET_S - elapsed)
-            if sleep_time > 0:
-                await asyncio.sleep(sleep_time)
+                logger.error("MotorCortex: fatal loop error: %s", exc, exc_info=True)
+                await asyncio.sleep(1.0)
 
     async def _execute_reflex(self, action: ReflexAction) -> None:
         """Execute a single reflex action and record the receipt."""

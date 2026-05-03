@@ -673,14 +673,20 @@ class AuraKernel:
     async def _motor_cortex_watchdog(self, mc: Any) -> None:
         """Watchdog that restarts the motor cortex loop if it dies."""
         while self._running:
-            await asyncio.sleep(10.0)
             try:
+                await asyncio.sleep(10.0)
                 if mc._running and (mc._task is None or mc._task.done()):
                     logger.warning("[RUBICON] Motor cortex loop died -- restarting")
                     mc._task = get_task_tracker().create_task(mc._run_loop(), name="motor_cortex_loop")
+            except asyncio.CancelledError:
+                if not self._running:
+                    break
+                logger.warning("Motor cortex watchdog spuriously cancelled. Ignoring.")
+                continue
             except Exception as exc:
                 record_degradation('aura_kernel', exc)
                 logger.debug("[RUBICON] Motor cortex watchdog error: %s", exc)
+                await asyncio.sleep(1.0)
 
     async def tick(self, objective: str, priority: bool = False) -> TickEntry | None:
         """

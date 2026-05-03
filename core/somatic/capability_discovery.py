@@ -141,7 +141,10 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
                 await asyncio.sleep(self.interval)
                 await self._run_scan()
             except asyncio.CancelledError:
-                break
+                if not self._running:
+                    break
+                logger.warning("Capability discovery loop spuriously cancelled. Ignoring.")
+                continue
             except Exception as exc:
                 record_degradation('capability_discovery', exc)
                 logger.error("Discovery scan failed: %s", exc, exc_info=True)
