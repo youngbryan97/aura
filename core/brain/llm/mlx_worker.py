@@ -729,9 +729,9 @@ def _mlx_worker_loop(
                                     mx.clear_cache()
                             except Exception: pass
 
-                        # [v11.5 HARDENING] Internal Worker Retries for Structured Leaks
-                        # If a schema is present and we get an empty response, retry up to 2 times.
-                        max_internal_retries = 2 if schema else 0
+                        # [v11.5 HARDENING] Internal Worker Retries for Structured Leaks & Loops
+                        # We allow up to 2 retries if the LLM gets stuck in a loop or returns empty on a schema.
+                        max_internal_retries = 2
                         
                         for internal_attempt in range(max_internal_retries + 1):
                             watchdog.start_job()
@@ -740,6 +740,7 @@ def _mlx_worker_loop(
                                 token_count = 0
                                 last_progress_emit_at = time.time()
                                 sentinel_aborted = False
+                                sentinel_loop_aborted = False
                                 
                                 # ── Token Sentinel: mid-generation cognitive intervention ──
                                 # Creates a lightweight monitor that checks for capitulation,
@@ -805,6 +806,7 @@ def _mlx_worker_loop(
                                             )
                                             current_response = signal.clean_prefix
                                             sentinel_aborted = True
+                                            sentinel_loop_aborted = True
                                             break
                                         elif signal.type in (InterventionType.ABORT_CAPITULATION,
                                                              InterventionType.ABORT_BOUNDARY):
@@ -865,6 +867,17 @@ def _mlx_worker_loop(
 
                                 response_text = current_response
                                 total_generated_tokens = token_count
+                                
+                                if sentinel_loop_aborted:
+                                    if internal_attempt < max_internal_retries:
+                                        logger.warning(f"⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt {internal_attempt + 1})...")
+                                        if prompt_cache_lru is not None: prompt_cache_lru.clear()
+                                        if mx and device != "cpu": _clear_mlx_cache(mx)
+                                        continue
+                                    else:
+                                        logger.warning("🚨 [WORKER] Out of retries for loop abort. Returning truncated prefix.")
+                                        break
+                                        
                                 if response_text.strip() or not schema:
                                     break # Success or not a structured task
                                 
