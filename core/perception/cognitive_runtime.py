@@ -178,6 +178,7 @@ class EmbodiedCognitionRuntime:
             skill=frame.skill,
             belief=self.belief,
         )
+        # Record the INTENTIONAL outcome (pre-execution)
         self.belief.record_action_outcome(
             action,
             expected=expected_effect,
@@ -187,6 +188,18 @@ class EmbodiedCognitionRuntime:
         )
         self._publish_action_decision(decision)
         return decision
+
+    def record_environmental_outcome(self, action: str, success: bool, message: str = "") -> None:
+        """Update the belief state with the actual result of an executed action."""
+        surprise = 0.0 if success else 0.5
+        self.belief.record_action_outcome(
+            action,
+            observed=message,
+            success=success,
+            surprise=surprise,
+        )
+        if self.last_frame and self.last_frame.skill:
+            self.last_frame.skill.record_outcome(success)
 
     def command_contract(
         self,

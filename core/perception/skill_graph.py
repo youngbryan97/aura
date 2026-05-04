@@ -172,6 +172,21 @@ class EnvironmentSkillGraph:
         )
         self.register(
             SkillOption(
+                name="break_stagnation",
+                description="Interrupt repetitive patterns and try alternative strategies.",
+                preconditions=["stagnation or loop detected in action outcomes"],
+                success_conditions=["observation_id changes", "new state reached"],
+                failure_conditions=["stalled again"],
+                constraints=["avoid the recently failed actions", "prefer exploration or waiting"],
+                action_hints=["change direction", "wait a turn", "search surroundings", "interact with a different object"],
+                priority=0.85,
+                reliability=0.5,
+                tags=["stagnation", "loop", "reflex", "change"],
+                predicate=lambda state, risk, goal: "stagnation" in risk.tags() or "loop" in risk.tags(),
+            )
+        )
+        self.register(
+            SkillOption(
                 name="safe_progress",
                 description="Advance the current task while respecting active invariants.",
                 success_conditions=["new useful state reached", "goal progress increases"],

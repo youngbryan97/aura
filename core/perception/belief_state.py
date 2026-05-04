@@ -136,7 +136,9 @@ class EnvironmentBeliefState:
         context["last_seen_at"] = time.time()
 
         if state.self_state:
-            self.self_history.append(dict(state.self_state))
+            hist_entry = dict(state.self_state)
+            hist_entry["observation_id"] = state.observation_id
+            self.self_history.append(hist_entry)
             if len(self.self_history) > 2000:
                 self.self_history = self.self_history[-2000:]
             for key, value in state.self_state.items():

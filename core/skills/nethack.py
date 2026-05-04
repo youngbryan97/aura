@@ -215,9 +215,15 @@ class NetHackSkill(BaseSkill):
                 "stuck in a menu, or the action is invalid in this context."
             )
 
-        logger.info(
-            "NetHack action '%s': changed=%s msg='%s'",
-            display_name, screen_changed, (msg_after or msg_before)[:60]
-        )
+        # Report the actual environmental outcome back to the runtime
+        if runtime is not None:
+            try:
+                runtime.record_environmental_outcome(
+                    display_name,
+                    success=screen_changed,
+                    message=result["summary"]
+                )
+            except Exception as e:
+                logger.warning("Failed to record environmental outcome: %s", e)
 
         return result

@@ -271,19 +271,39 @@ class EnvironmentReflexLayer:
         return []
 
     def _loop_assessments(self, belief: EnvironmentBeliefState) -> List[DangerAssessment]:
+        assessments: List[DangerAssessment] = []
         outcomes = belief.action_outcomes[-8:]
-        if len(outcomes) < 6:
-            return []
-        actions = [str(item.get("action", "")) for item in outcomes]
-        no_success = all(item.get("success") is False for item in outcomes if item.get("success") is not None)
-        if len(set(actions)) <= 2 and no_success:
-            return [
-                DangerAssessment(
-                    risk_level="danger",
-                    reason="Recent action outcomes suggest a control loop or repeated failed action.",
-                    recommended_override="interrupt_current_skill_and_replan",
-                    score=0.75,
-                    tags=["loop", "stagnation"],
+        
+        # 1. Action outcome looping (already existing)
+        if len(outcomes) >= 6:
+            actions = [str(item.get("action", "")) for item in outcomes]
+            # If we are repeating 1-2 actions and they are being 'surprised' (failed)
+            # or if the screen simply isn't changing.
+            recent_surprises = [item.get("surprise", 0.0) for item in outcomes]
+            if len(set(actions)) <= 2 and sum(recent_surprises) >= 2.0:
+                assessments.append(
+                    DangerAssessment(
+                        risk_level="danger",
+                        reason="Recent action outcomes suggest a control loop or repeated failed action.",
+                        recommended_override="interrupt_current_skill_and_replan",
+                        score=0.75,
+                        tags=["loop", "stagnation"],
+                    )
                 )
-            ]
-        return []
+
+        # 2. Observational Stagnation
+        # If the last few observation IDs are identical, we are not making world-state progress.
+        if len(belief.self_history) >= 4:
+            recent_ids = [str(item.get("observation_id", "")) for item in belief.self_history[-4:]]
+            if len(set(recent_ids)) == 1 and recent_ids[0]:
+                assessments.append(
+                    DangerAssessment(
+                        risk_level="caution",
+                        reason="Environment state has not changed for several cycles.",
+                        recommended_override="try_different_action_or_explore",
+                        score=0.55,
+                        tags=["stagnation"],
+                    )
+                )
+
+        return assessments
