@@ -94,7 +94,19 @@ class EnvironmentActionGateway:
         if belief.epistemic_uncertainty() >= 0.75 and "irreversible" in request.tags:
             vetoes.append("high_uncertainty_blocks_irreversible_action")
 
-        if "loop" in risk.tags() and "repeated" in request.tags:
+        # Inhibitory Gating: Block repetitive failures if we are in a loop or stagnation
+        risk_tags = risk.tags()
+        if "loop" in risk_tags or "stagnation" in risk_tags:
+            # We look at the most recent executed outcomes (surprise >= 0.5 means environmental failure)
+            recent_failures = [
+                str(item.get("action", ""))
+                for item in belief.action_outcomes[-6:]
+                if item.get("surprise", 0.0) >= 0.5
+            ]
+            if action in recent_failures:
+                vetoes.append(f"inhibitory_block:action_{action}_recently_failed_in_loop")
+
+        if "loop" in risk_tags and "repeated" in request.tags:
             vetoes.append("loop_risk_blocks_repeated_action")
 
         approved = not vetoes
