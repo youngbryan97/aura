@@ -80,6 +80,7 @@ class ConsciousnessBridge:
         self._tick_count: int = 0
         self._start_time: float = 0.0
         self._boot_errors: list = []
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
         logger.info("ConsciousnessBridge created")
 
@@ -89,6 +90,7 @@ class ConsciousnessBridge:
         """Boot all bridge components in dependency order."""
         if self._running:
             return
+        self._loop = asyncio.get_running_loop()
         self._start_time = time.time()
 
         # ── 1. Neural Mesh ───────────────────────────────────────────
@@ -541,18 +543,14 @@ class ConsciousnessBridge:
 
                 # Coherence collapse → stabilize
                 if uf_coherence < 0.25:
-                    get_task_tracker().create_task(
-                        self.substrate_evolution.micro_evolve("coherence_collapse", 1.0 - uf_coherence)
-                    )
+                    self._dispatch_micro_evolve("coherence_collapse", 1.0 - uf_coherence)
 
                 # Phi drop → try to recover integration
                 if substrate and hasattr(substrate, "_current_phi"):
                     current_phi = float(getattr(substrate, "_current_phi", 0.0))
                     prev_phi = getattr(self, "_prev_phi_for_evolution", current_phi)
                     if current_phi < prev_phi * 0.5 and prev_phi > 0.1:
-                        get_task_tracker().create_task(
-                            self.substrate_evolution.micro_evolve("phi_drop", 0.7)
-                        )
+                        self._dispatch_micro_evolve("phi_drop", 0.7)
                     self._prev_phi_for_evolution = current_phi
 
             except Exception as e:
@@ -658,6 +656,21 @@ class ConsciousnessBridge:
 
                 predictor.tick = enhanced_tick
                 logger.info("Neurochemical system wired to prediction surprise")
+
+    def _dispatch_micro_evolve(self, reason: str, intensity: float):
+        """Thread-safe dispatch of micro-evolution tasks."""
+        if not self.substrate_evolution or not self._loop:
+            return
+
+        def _submit():
+            if self._loop and self._loop.is_running():
+                get_task_tracker().create_task(
+                    self.substrate_evolution.micro_evolve(reason, intensity),
+                    name=f"MicroEvolve:{reason}"
+                )
+
+        if self._loop:
+            self._loop.call_soon_threadsafe(_submit)
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
