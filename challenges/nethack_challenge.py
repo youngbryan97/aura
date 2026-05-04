@@ -189,7 +189,11 @@ async def run_challenge():
                 full_prompt, origin="external"
             )
 
-            if response:
+            if response and not any(
+                marker in response for marker in (
+                    "I'm here", "My cortex is catching up", "I hit an interruption", "I dropped the heavy reasoning lane"
+                )
+            ):
                 consecutive_none = 0
                 last_response = response
                 logger.info(
