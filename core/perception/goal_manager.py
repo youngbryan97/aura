@@ -118,6 +118,7 @@ class EnvironmentGoalManager:
         belief: EnvironmentBeliefState,
     ) -> EmbodiedGoal:
         """Adapt the stack from live risk, prompts, uncertainty, and intentions."""
+        # 1. Resolve Active Prompts
         if state.has_active_prompt():
             self.interrupt_with(
                 "RESOLVE_ACTIVE_PROMPT",
@@ -125,7 +126,10 @@ class EnvironmentGoalManager:
                 priority=0.96,
                 constraints=["only emit prompt-safe actions until modal state clears"],
             )
+        elif "RESOLVE_ACTIVE_PROMPT" in self.goals:
+            self.complete("RESOLVE_ACTIVE_PROMPT")
 
+        # 2. Risk Stabilization
         if risk.critical:
             self.interrupt_with(
                 "STABILIZE_CRITICAL_RISK",
@@ -133,14 +137,20 @@ class EnvironmentGoalManager:
                 priority=0.99,
                 constraints=["avoid exploration", "avoid irreversible actions", "prefer recovery or escape"],
             )
-        elif risk.danger_or_worse:
+        elif "STABILIZE_CRITICAL_RISK" in self.goals:
+            self.complete("STABILIZE_CRITICAL_RISK")
+
+        if risk.danger_or_worse:
             self.push(
                 "REDUCE_TACTICAL_RISK",
                 priority=0.86,
                 reason="Reflex layer detected danger.",
                 constraints=["prefer reversible actions", "preserve escape routes", "reassess current plan"],
             )
+        elif "REDUCE_TACTICAL_RISK" in self.goals:
+            self.complete("REDUCE_TACTICAL_RISK")
 
+        # 3. Epistemic Uncertainty
         uncertainty = belief.epistemic_uncertainty()
         if uncertainty >= 0.65:
             self.push(
@@ -149,7 +159,10 @@ class EnvironmentGoalManager:
                 reason=f"Epistemic uncertainty is high ({uncertainty:.2f}).",
                 constraints=["test safely", "gather evidence", "avoid irreversible unknown actions"],
             )
+        elif "REDUCE_UNCERTAINTY" in self.goals:
+            self.complete("REDUCE_UNCERTAINTY")
 
+        # 4. Deferred Intentions
         for intention in belief.due_intentions(state)[:3]:
             self.push(
                 f"REMEMBER_{intention.intention}",
@@ -158,6 +171,7 @@ class EnvironmentGoalManager:
                 metadata={"trigger": intention.trigger, **intention.metadata},
             )
 
+        # 5. Default Progress
         if not any(goal.status == GoalStatus.ACTIVE and not goal.invariant for goal in self.goals.values()):
             self.push(
                 "MAKE_MEASURED_PROGRESS",
