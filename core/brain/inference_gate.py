@@ -2426,8 +2426,12 @@ class InferenceGate:
         except Exception:
             deep_probe_request = False
         if deep_probe_request and (explicit_foreground or self._origin_is_user_facing(origin)):
-            protected_foreground_lane = True
-            context["deep_mind_probe"] = True
+            if os.environ.get("AURA_EMBODIED_CHALLENGE"):
+                logger.info("🛡️ InferenceGate: Suppressing deep-probe logic for Embodied Challenge priority.")
+                deep_probe_request = False
+            else:
+                protected_foreground_lane = True
+                context["deep_mind_probe"] = True
         is_background = bool(context.get("is_background", False))
         if explicit_foreground:
             is_background = False

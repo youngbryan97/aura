@@ -2300,6 +2300,7 @@ class UnitaryResponsePhase(Phase):
             new_state.response_modifiers["response_contract"] = contract.to_dict()
             is_deep_probe_objective = bool(
                 is_user_facing and self._is_deep_mind_probe_objective(objective)
+                and not os.environ.get("AURA_EMBODIED_CHALLENGE")
             )
             if is_deep_probe_objective:
                 try:
