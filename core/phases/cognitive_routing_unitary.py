@@ -324,6 +324,30 @@ class CognitiveRoutingPhase(Phase):
         is_user_facing = self._is_user_facing_origin(routing_origin)
         new_state.cognition.current_objective = objective
         new_state.cognition.current_origin = routing_origin
+
+        # ── SYSTEM / ENVIRONMENTAL SENSORY FEED FAST-PATH ──────────────
+        # General improvement: programmatic system directives and environmental
+        # sensory feeds injected by background processes (embodied environments,
+        # terminal sessions, IoT sensors, etc.) must NOT enter the expensive
+        # routing pipeline.  They are already fully formed instructions — running
+        # them through contract building, turn analysis, and detect_intent wastes
+        # compute and, worse, can misclassify the payload as a user TASK/SKILL
+        # intent, triggering erroneous tool dispatch or multi-step planning.
+        _lower_obj = objective.lower()
+        if (
+            objective.startswith("CORE DIRECTIVE:")
+            or "[environmental context" in _lower_obj
+            or "[sensory update" in _lower_obj
+            or "[sensory feed" in _lower_obj
+        ):
+            logger.info("🧭 Routing: SYSTEM DIRECTIVE / SENSORY FEED detected — fast-path CHAT bypass.")
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            new_state.response_modifiers["intent_type"] = "CHAT"
+            new_state.response_modifiers["semantic_intent"] = "casual"
+            new_state.response_modifiers["model_tier"] = "primary"
+            new_state.response_modifiers["deep_handoff"] = False
+            return new_state
+
         contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing)
         new_state.response_modifiers["response_contract"] = contract.to_dict()
         analysis = analyze_turn(objective)
@@ -429,20 +453,6 @@ class CognitiveRoutingPhase(Phase):
 
         lower_obj = objective.lower()
         is_deep_mind_probe = looks_like_deep_mind_probe(objective)
-        
-        # Fast-path for environmental injections to avoid triggering task commitments
-        if "[environmental context" in lower_obj or "sensory update" in lower_obj:
-            logger.info("🧭 Routing: SENSORY FEED detected. Routing as CHAT to avoid task commitment.")
-            new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(
-                new_state,
-                objective=objective,
-                intent_type="CHAT",
-                is_user_facing=is_user_facing,
-                analysis=analysis,
-                route_meta=route_meta,
-            )
-            return new_state
 
         if any(cmd in lower_obj for cmd in ["reboot", "restart", "shutdown", "sleep mode"]):
             logger.info("🧭 Routing: SYSTEM intent detected via heuristics.")
