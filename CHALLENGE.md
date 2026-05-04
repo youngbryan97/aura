@@ -1,18 +1,24 @@
-# Aura NetHack Challenge: The Ascension Protocol
+# Aura NetHack Challenge: The Embodied Cognition Stress Test
 
 ## Objective
-Enable Aura to autonomously play and defeat NetHack (3.6.7) from a fresh start.
+Use NetHack (3.6.7) as the proof environment for Aura's general embodied
+cognition substrate. The point is not a NetHack-only bot; the point is a
+reusable loop that can perceive, maintain belief, quantify uncertainty, manage
+risk, select goals/skills, gate actions, trace outcomes, and learn from
+postmortems in any environment.
 
 ## Components
 - **NetHack Adapter**: A headless terminal wrapper using `pexpect` and `pyte`.
-- **Challenge Orchestrator**: A specialized loop that feeds terminal states to Aura and executes her chosen keystrokes.
+- **Embodied Cognition Runtime**: The general perception → belief → risk → goal → skill → action-gate → trace loop.
+- **Challenge Orchestrator**: A stress adapter that feeds terminal states into the general runtime and Aura's cognitive pipeline.
 - **Monitoring**: Continuous recording via `asciinema` and verbose logging.
 
 ## Progress
 - [x] Install NetHack & Dependencies
 - [x] Implement NetHack Terminal Adapter
 - [x] Implement Challenge Orchestrator
-- [/] Autonomous Gameplay Loop (In Progress)
+- [x] Add general embodied cognition runtime with belief, risk, goals, skills, action gating, traces, and postmortems
+- [/] Autonomous Gameplay Loop (In Progress; NetHack is wired as a stress adapter)
 - [ ] Record Successful Ascension
 - [ ] Final Documentation & Repository Push
 

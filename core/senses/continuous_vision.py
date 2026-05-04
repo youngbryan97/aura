@@ -121,15 +121,28 @@ class ContinuousSensoryBuffer:
             return False
         try:
             sct = await asyncio.to_thread(self._mss_module.mss)
-            try:
-                monitor = sct.monitors[1]
-            except IndexError:
+            monitor = None
+            # Try to find the first monitor with non-zero size
+            for m in sct.monitors:
+                if m.get("width", 0) > 0 and m.get("height", 0) > 0:
+                    # Skip monitor 0 (combined) if others are available
+                    if m == sct.monitors[0] and len(sct.monitors) > 1:
+                        continue
+                    monitor = m
+                    break
+
+            if not monitor and len(sct.monitors) > 0:
                 monitor = sct.monitors[0]
-            self.sct = sct
-            self.monitor = monitor
-            self._screen_probe_cooldown_until = 0.0
-            logger.info("👁️ [VISION] Continuous screen capture backend initialized.")
-            return True
+
+            if monitor and monitor.get("width", 0) > 0:
+                self.sct = sct
+                self.monitor = monitor
+                self._screen_probe_cooldown_until = 0.0
+                logger.info("👁️ [VISION] Continuous screen capture backend initialized: %s", monitor)
+                return True
+            else:
+                logger.warning("👁️ [VISION] No valid monitors found.")
+                return False
         except Exception as exc:
             record_degradation('continuous_vision', exc)
             self._screen_probe_cooldown_until = time.monotonic() + 15.0

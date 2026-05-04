@@ -103,6 +103,48 @@ class NetHackSkill(BaseSkill):
             if not physical_key:
                 return {"ok": False, "error": f"Invalid action: '{action}'"}
 
+        # Consult the general embodied cognition runtime if the challenge
+        # registered one. This is a local environment action gate, layered
+        # before the existing capability/AuthorityGateway execution chain.
+        runtime = ServiceContainer.get("embodied_cognition:nethack", default=None)
+        if runtime is not None and getattr(runtime, "last_frame", None) is not None:
+            tags = []
+            if display_name in {"q", "r", "z", "W", "w", "d", "e"}:
+                tags.extend(["unknown_use", "irreversible"])
+            if display_name in {"h", "j", "k", "l", "y", "u", "b", "n"}:
+                tags.append("movement")
+            if display_name in {"ESC", "SPACE", "ENTER", "RETURN"}:
+                tags.extend(["prompt_safe", "cancel" if display_name == "ESC" else "confirm"])
+            try:
+                decision = runtime.approve_action(
+                    display_name,
+                    source="execute_nethack_action",
+                    reason="LLM proposed NetHack keystroke",
+                    tags=tags,
+                    expected_effect="advance NetHack state",
+                )
+                if not decision.approved:
+                    return {
+                        "ok": False,
+                        "error": f"Embodied action gate blocked '{display_name}': {decision.reason}",
+                        "vetoes": decision.vetoes,
+                        "summary": f"Action '{display_name}' was blocked by Aura's embodied action gate: {decision.reason}",
+                    }
+                if decision.action and decision.action != display_name:
+                    display_name = decision.action
+                    action_upper = display_name.upper()
+                    if action_upper in SPECIAL_KEYS:
+                        physical_key = SPECIAL_KEYS[action_upper]
+                    elif len(display_name) == 1:
+                        physical_key = display_name
+                    else:
+                        return {
+                            "ok": False,
+                            "error": f"Embodied action gate selected invalid replacement: {decision.action}",
+                        }
+            except Exception as gate_err:
+                logger.warning("Embodied NetHack action gate unavailable: %s", gate_err)
+
         # ── PROPRIOCEPTIVE FEEDBACK ──
         # Capture screen BEFORE action
         screen_before = ""

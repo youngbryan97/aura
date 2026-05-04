@@ -91,6 +91,7 @@ class SnapshotManager:
             }
 
             # Write atomically
+            self.snapshot_dir.mkdir(parents=True, exist_ok=True)
             temp_file = str(self.snapshot_file) + ".tmp"
             with open(temp_file, "w") as f:
                 json.dump(state, f, indent=2)

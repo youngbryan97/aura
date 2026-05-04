@@ -376,9 +376,8 @@ class OrchestratorBootMixin(
                 await self._init_language_services()
 
                 def _spawn_boot_task(coro: Any, name: str) -> asyncio.Task:
+                    from core.utils.task_tracker import get_task_tracker
                     try:
-                        from core.utils.task_tracker import get_task_tracker
-
                         return get_task_tracker().create_task(coro, name=name)
                     except Exception:
                         return get_task_tracker().create_task(coro, name=name)

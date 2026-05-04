@@ -21,7 +21,6 @@ current turn's execution record. This makes memory/belief writes refuse
 to encode hallucinated actions as truth.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
 
 import logging
@@ -38,7 +37,7 @@ logger = logging.getLogger(__name__)
 # same line — the tail is discarded because the skill output will replace
 # it.
 _MARKER_RE = re.compile(
-    r"\[(?:SKILL_RESULT|SKILL|ACTION|TOOL|SKILL_INVOCATION)\s*:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\]"
+    r"\[(?:SKILL_RESULT|SKILL|ACTION|TOOL|SKILL_INVOCATION)\s*:\s*([a-zA-Z_][a-zA-Z0-9_]*)(?:\(([^)]*)\))?\s*\]"
     r"\s*([^\n]*)",
     re.IGNORECASE,
 )
@@ -127,9 +126,13 @@ async def ground_response(
         # Walk in reverse so we don't invalidate spans while replacing.
         for match in reversed(matches):
             skill_name = match.group(1).strip().lower()
-            tail = (match.group(2) or "").strip()
+            marker_args = (match.group(2) or "").strip()
+            tail = (match.group(3) or "").strip()
+            if marker_args and not tail:
+                tail = f"({marker_args})"
             hit: Dict[str, Any] = {
                 "skill": skill_name,
+                "marker_args": marker_args,
                 "tail": tail,
                 "span": [match.start(), match.end()],
                 "status": "unverified",
@@ -260,11 +263,26 @@ def _params_for_skill(
     # The tail text IS the action. This covers execute_nethack_action and
     # any future embodied interface tools.
     if skill_name in ("execute_nethack_action",):
+        # Zenith v47 Hardening: Support both [ACTION:nethack] key and [ACTION:nethack(key='y')]
         action_str = tail.strip().strip(":").strip()
+
+        # If tail is empty but the skill name had parens (matched by updated _MARKER_RE),
+        # they are currently lost because the regex only captures the name.
+        # TODO: update regex to capture args. For now, we handle the tail.
+
         if action_str:
-            # Take just the first word/char as the action key
-            # e.g. "l" → "l", "ESC to exit" → "ESC", "k (move up)" → "k"
-            action_key = action_str.split()[0].rstrip(",.;:)")
+            # Handle Python-style args in tail if they leaked out: (key='y') -> y
+            if action_str.startswith("(") and ")" in action_str:
+                inner = action_str[1:action_str.find(")")].strip()
+                if "key=" in inner:
+                    action_key = inner.split("key=", 1)[-1].strip("'\" ")
+                else:
+                    action_key = inner.strip("'\" ")
+            else:
+                # Take just the first word/char as the action key
+                # e.g. "l" → "l", "ESC to exit" → "ESC", "k (move up)" → "k"
+                action_key = action_str.split()[0].strip("()").rstrip(",.;:)")
+
             defaults["action"] = action_key
     return defaults
 

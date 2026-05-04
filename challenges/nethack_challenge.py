@@ -1,7 +1,10 @@
-"""challenges/nethack_challenge.py — Pure Sensory Daemon.
+"""challenges/nethack_challenge.py — NetHack stress test for embodied cognition.
 
-This script is NOT her mind. It is her body — the environmental daemon
-that bridges the NetHack terminal to her cognitive pipeline.
+This script is NOT her mind. It is a harsh body/environment adapter that
+connects a NetHack terminal to Aura's general embodied cognition runtime.
+NetHack is the proof target; the infrastructure being exercised is general:
+perception -> belief -> risk -> goals -> skills -> action gate -> trace ->
+postmortem learning.
 
 Architecture:
   1. Launch NetHack via the adapter
@@ -23,12 +26,13 @@ What this script does NOT do (and why):
 """
 
 import asyncio
+import logging
+import hashlib
 import os
 import sys
-import logging
 import time
-import hashlib
 from datetime import datetime
+from pathlib import Path
 
 # Add root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -37,6 +41,10 @@ from core.adapters.nethack_adapter import NetHackAdapter
 from core.orchestrator.main import create_orchestrator
 from core.service_registration import register_all_services
 from core.container import ServiceContainer
+
+from core.perception.cognitive_runtime import EmbodiedCognitionRuntime
+from core.perception.nethack_parser import NetHackParser
+from core.perception.postmortem import PostmortemAnalyzer
 
 # Setup logging
 log_dir = os.path.expanduser("~/.aura/logs/nethack")
@@ -53,9 +61,30 @@ logging.basicConfig(
     handlers=[
         logging.FileHandler(log_file),
         logging.StreamHandler(sys.stdout)
-    ]
+    ],
+    force=True
 )
 logger = logging.getLogger("Aura.NetHackChallenge")
+
+NETHACK_ACTIONS = [
+    "h", "j", "k", "l", "y", "u", "b", "n",
+    "s", "i", ".", "ESC", "SPACE", "ENTER", "RETURN",
+    ",", "o", "c", "e", "q", "r", "z", "W", "w", "t", "f",
+    "<", ">", ":", "?",
+]
+
+NETHACK_PROMPT_ACTIONS = {
+    "--more--": "SPACE",
+    "more": "SPACE",
+    "press return": "ENTER",
+    "is this ok": "y",
+    "[ynq]": "y",
+    "[yn]": "y",
+    "direction": "ESC",
+    "what do you want": "ESC",
+    "menu": "ESC",
+    "cancel": "ESC",
+}
 
 
 async def run_challenge():
@@ -72,27 +101,18 @@ async def run_challenge():
     orchestrator = create_orchestrator()
     await orchestrator.start()
 
-    # ── 3. EMBODIMENT DIRECTIVE ───────────────────────────────
-    # Tell her she's embodied. She should use her standard tool-calling
-    # mechanism — [ACTION:execute_nethack_action] — which action_grounding.py
-    # will dispatch through the capability engine to the NetHackSkill.
-    await orchestrator.process_user_input_priority(
-        "SYSTEM_DIRECTIVE: You are now embodied in a NetHack terminal session. "
-        "You will receive periodic sensory updates showing the current screen. "
-        "To interact with the game, use the execute_nethack_action tool. "
-        "Call it with a single key: h=left, j=down, k=up, l=right, "
-        "y=upleft, u=upright, b=downleft, n=downright, "
-        "i=inventory, s=search, o=open, c=close, >=descend, <=ascend, .=wait, "
-        "ESC=cancel/exit menu, SPACE=advance --More-- prompt, ENTER=confirm. "
-        "CRITICAL: DO NOT use w/a/s/d for movement (w=wield, a=redo, s=search, d=drop). "
-        "The tool returns proprioceptive feedback: whether your action changed "
-        "the screen, the game message, and your status. Use this feedback to "
-        "decide your next action. "
-        "Goal: Survive, explore, descend deeper. Be decisive and act.",
-        origin="admin"
-    )
-
     logger.info("Cognitive architecture booted. Starting sensory loop...")
+
+    # One reusable embodied cognition runtime. This is the general substrate;
+    # NetHack contributes only a parser and action vocabulary.
+    runtime = EmbodiedCognitionRuntime(
+        domain="nethack",
+        parser=NetHackParser(),
+        legal_actions=NETHACK_ACTIONS,
+        prompt_actions=NETHACK_PROMPT_ACTIONS,
+        storage_root=Path(log_dir),
+    )
+    ServiceContainer.register_instance("embodied_cognition:nethack", runtime)
 
     # Initial interaction to pick character
     adapter.send_action("y")  # Pick for me
@@ -102,71 +122,89 @@ async def run_challenge():
     last_prompt_time = 0
     step = 0
     consecutive_none = 0
+    last_response = ""
+    frame = None
 
     while adapter.is_alive():
+        logger.info("--- Loop Tick ---")
         screen = adapter.get_screen_text()
+        logger.info(f"Screen text length: {len(screen)}")
 
-        # Print screen to stdout for asciinema recording
-        print("\033[H\033[J")  # Clear terminal
-        print(f"--- STEP {step} ---")
-        print(screen)
-        print("-" * 80)
-        sys.stdout.flush()
+        def _log_screen():
+            # print("\033[H\033[J")  # Clear terminal
+            # print(f"--- STEP {step} ---")
+            # if last_response:
+            #     print(f"Previous Action Outcome: {last_response.strip()}")
+            #     print("-" * 80)
+            # print(screen)
+            # print("-" * 80)
+            # sys.stdout.flush()
+            pass
+
+        await asyncio.to_thread(_log_screen)
 
         screen_hash = hashlib.md5(screen.encode()).hexdigest()
         time_since_last = time.time() - last_prompt_time
+        logger.info(f"Screen Hash: {screen_hash}, Time since last: {time_since_last:.1f}s")
 
-        # ── SENSORY GATING ────────────────────────────────────
-        # Only send a sensory update when:
-        #   a) The screen has changed (new visual information)
-        #   b) It's been >12s since last update (time-pressure)
-        # This prevents flooding her cognitive pipeline with
-        # duplicate information.
         if screen_hash != last_screen_hash or time_since_last > 12:
-            # Extract key environmental signals for her
-            lines = screen.split('\n')
-            msg_line = lines[0].strip() if lines else ""
-            non_empty = [l.strip() for l in lines if l.strip()]
-            status = ""
-            if len(non_empty) >= 2:
-                status = non_empty[-2] + " | " + non_empty[-1]
-
-            prompt = (
-                f"[SENSORY UPDATE T={step}]\n"
-                f"MESSAGE: {msg_line}\n"
-                f"STATUS: {status}\n"
-                f"SCREEN:\n{screen}"
+            logger.info(f"Triggering Step {step}...")
+            logger.info("Running embodied cognition observation...")
+            frame = runtime.observe(screen)
+            logger.info(
+                "Frame ready: risk=%s goal=%s skill=%s",
+                frame.risk.level,
+                frame.goal.name,
+                frame.skill.name,
             )
+
+            prompt = f"[SENSORY UPDATE T={step}]\n"
+            prompt += frame.to_prompt(include_raw=screen) + "\n\n"
+
+            if last_response:
+                prompt += f"[PREVIOUS ACTION OUTCOME]\n{last_response.strip()}\n\n"
+
+            system_instruction = runtime.command_contract(
+                action_marker="execute_nethack_action",
+                valid_actions=NETHACK_ACTIONS,
+                extra_rules=[
+                    "Movement uses h/j/k/l/y/u/b/n; do not use w/a/s/d as movement keys.",
+                    "If the game asks 'Is this ok? [ynq]', answer with y.",
+                    "If a prompt/menu blocks control and no safe confirmation is obvious, use ESC.",
+                    "Do not explain reasoning in the live control loop.",
+                ],
+            )
+
+            full_prompt = f"{system_instruction}\n\n[SENSORY FEED - STEP {step}]\n{prompt}"
 
             last_screen_hash = screen_hash
             last_prompt_time = time.time()
 
-            logger.info(f"Step {step}: Injecting sensory update...")
+            logger.info(f"Step {step}: Dispatching sensory feed to Cognitive Engine...")
 
             # This goes through her FULL cognitive pipeline:
             # ProprioceptiveLoop → Affect → Metacognition →
             # Response Generation → Action Grounding → Tool Execution
             response = await orchestrator.process_user_input_priority(
-                prompt, origin="external"
+                full_prompt, origin="external"
             )
 
             if response:
                 consecutive_none = 0
-                # We do NOT parse her response for actions.
-                # action_grounding.py in _finalize_response handles that.
-                # The tool result flows back through FeedbackProcessor.
+                last_response = response
                 logger.info(
-                    f"Step {step}: Cognitive cycle complete. "
-                    f"Response length: {len(response)}"
+                    f"Step {step}: Cycle complete. Response length: {len(response)}"
                 )
+                # We log the first 100 chars to see if she's being conversational
+                logger.debug(f"Aura Response Snippet: {response[:100]}...")
             else:
+                last_response = ""
                 consecutive_none += 1
                 if consecutive_none > 3:
                     # Pipeline returning None = dedup blocking or will gate
                     # Force a fresh hash to re-trigger next cycle
                     logger.warning(
-                        f"Step {step}: {consecutive_none} consecutive None "
-                        "responses. Resetting screen hash."
+                        f"Step {step}: {consecutive_none} consecutive stalled cycles. Forcing sensor refresh."
                     )
                     last_screen_hash = ""
 
@@ -177,8 +215,37 @@ async def run_challenge():
         await asyncio.sleep(1.0)
 
         # Game over detection
-        if "DYWYPI" in screen or "Do you want your possessions identified?" in screen:
+        if "DYWYPI" in screen or "Do you want your possessions identified?" in screen or "You die" in screen:
             logger.info("=== GAME OVER DETECTED ===")
+
+            # Postmortem Learning Loop
+            postmortem = PostmortemAnalyzer(brain=orchestrator.engine, knowledge_base=runtime.affordances)
+
+            death_message = "Unknown"
+            parsed_state = frame.state if frame else runtime.parser.parse(screen)
+            for msg in parsed_state.messages:
+                if "die" in msg.lower() or "kill" in msg.lower():
+                    death_message = msg
+                    break
+
+            recent_events = [
+                e.description
+                for e in runtime.belief.event_log[-10:]
+                if e.event_type == "system_message"
+            ]
+
+            logger.info("Initiating Postmortem Reflection...")
+            report = await postmortem.analyze_failure(
+                death_message=death_message,
+                final_state_summary=parsed_state.to_structured_prompt(),
+                recent_events=recent_events,
+                belief=runtime.belief
+            )
+
+            logger.info(f"POSTMORTEM COMPLETE. Cause: {report.cause_of_death}")
+            for lesson in report.lessons:
+                logger.info(f"LEARNED LESSON: {lesson.rule}")
+
             break
 
     adapter.close()
@@ -190,3 +257,7 @@ if __name__ == "__main__":
         asyncio.run(run_challenge())
     except KeyboardInterrupt:
         logger.info("Challenge interrupted by user.")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        logger.error(f"Fatal error in challenge entry point: {e}")
