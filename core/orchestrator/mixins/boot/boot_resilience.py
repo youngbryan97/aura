@@ -187,8 +187,11 @@ class BootResilienceMixin:
 
         # v51: We isolate cognitive I/O from system I/O to prevent starvation.
         # If the default pool fills up with DB reads, Aura's heartbeat will still fire.
+        # [STABILITY v54] Scaling for M-series high parallelism.
+        # We increase from 32 to 64 to ensure that even during heavy vision/IPC
+        # bursts, the main cognitive heartbeat is never starved of a thread.
         cog_executor = ThreadPoolExecutor(
-            max_workers=min(32, (os.cpu_count() or 1) + 4),
+            max_workers=64,
             thread_name_prefix="Aura_Cognition"
         )
         try:

@@ -227,9 +227,30 @@ class CognitiveIntegrationPhase(Phase):
             score = await self._anomaly_detector.observe(event)
             threat = self._anomaly_detector.get_threat_level()
             state.response_modifiers["anomaly_threat_level"] = threat
+            # [STABILITY v54] Robust AnomalyScore handling
+            score_val = 0.0
+            is_anomaly = False
+            if score is not None:
+                if hasattr(score, "threat_probability"):
+                    score_val = float(score.threat_probability or 0.0)
+                elif isinstance(score, dict):
+                    score_val = float(score.get("threat_probability", 0.0))
+                else:
+                    try:
+                        score_val = float(score)
+                    except (TypeError, ValueError):
+                        score_val = 0.0
+
+                if hasattr(score, "is_anomaly"):
+                    is_anomaly = bool(score.is_anomaly)
+                elif isinstance(score, dict):
+                    is_anomaly = bool(score.get("is_anomaly", False))
+                else:
+                    is_anomaly = (threat > 0.7)
+
             state.response_modifiers["anomaly_score"] = {
-                "score": score.score if hasattr(score, "score") else float(score),
-                "is_anomaly": score.is_anomaly if hasattr(score, "is_anomaly") else threat > 0.7,
+                "score": score_val,
+                "is_anomaly": is_anomaly,
             }
             return score
         except Exception as exc:

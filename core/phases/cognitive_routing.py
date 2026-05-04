@@ -153,7 +153,8 @@ class CognitiveRoutingPhase(BasePhase):
         # ── SYSTEM / ENVIRONMENTAL SENSORY FEED FAST-PATH ──
         # General improvement: If the input is explicitly a system directive or sensory
         # feed injected by a background process (e.g. embodied environments, terminals),
-        # we bypass eager tool execution and treat it strictly as REACTIVE/CHAT.
+        # we treat it as a high-priority CONTROL intent. This prevents Aura from 
+        # responding conversationally to environmental updates and forces action.
         if (
             input_text.startswith("CORE DIRECTIVE:") 
             or "[environmental context" in lower_input 
@@ -161,14 +162,28 @@ class CognitiveRoutingPhase(BasePhase):
             or "sensory update" in lower_input
             or "[sensory feed" in lower_input
         ):
-            logger.info("🧭 Routing: SENSORY FEED / CORE DIRECTIVE detected. Routing as CHAT to avoid eager tool commitments.")
+            is_control_contract = "[embodied control contract]" in lower_input
+            routing_msg = "CONTROL (Contracted)" if is_control_contract else "SENSORY FEED"
+            logger.info("🧭 Routing: %s detected. Enforcing action-oriented mindset.", routing_msg)
+            
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            new_state.cognition.current_objective = input_text
             new_state.cognition.current_origin = routing_origin
-            new_state.response_modifiers["intent_type"] = "CHAT"
-            new_state.response_modifiers["semantic_intent"] = "casual"
+            new_state.response_modifiers["intent_type"] = "ACTION" if is_control_contract else "CHAT"
+            new_state.response_modifiers["semantic_intent"] = "control"
             new_state.response_modifiers["model_tier"] = "primary"
             new_state.response_modifiers["deep_handoff"] = False
+            
+            # Inject the Action Imperative directive for contracted control
+            if is_control_contract:
+                imperative = (
+                    "\n\n[ACTION IMPERATIVE: You are in active control of this entity. "
+                    "Conversational prose is secondary. A deterministic action marker "
+                    "or movement key is MANDATORY for this turn.]"
+                )
+                new_state.cognition.current_objective = input_text + imperative
+            else:
+                new_state.cognition.current_objective = input_text
+                
             return new_state
 
         # Fast skill detection before any LLM routing so tool use stays reliable

@@ -23,6 +23,9 @@ _USER_FACING_ORIGIN_TOKENS = frozenset({
     "websocket",
     "external",
     "direct",
+    "embodied",
+    "reflex",
+    "motor",
 })
 
 _BACKGROUND_ORIGIN_HINTS = frozenset({

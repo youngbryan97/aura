@@ -346,11 +346,31 @@ class NucleusManager(LLMProvider):
             finally:
                 sentinel.release()
 
-        # In a real async environment, we'd need to be careful with the iterator
-        # but for now we'll wrap the synchronous generator
-        for chunk in _stream_gen():
+        # ── [STABILITY v52] Non-blocking Streaming Bridge ───────────────
+        # MLX generate_step is a blocking CPU/GPU operation. We must offload
+        # it to a thread and pipe tokens back via a Queue to avoid 
+        # stalling the main event loop and motor reflexes.
+        queue = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def _thread_worker():
+            try:
+                for chunk in _stream_gen():
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                loop.call_soon_threadsafe(queue.put_nowait, None) # Sentinel
+            except Exception as e:
+                logger.error("Nucleus stream thread failed: %s", e)
+                loop.call_soon_threadsafe(queue.put_nowait, f"[NUCLEUS ERROR] {e}")
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        # Run in executor to avoid blocking the loop
+        asyncio.create_task(asyncio.to_thread(_thread_worker))
+
+        while True:
+            chunk = await queue.get()
+            if chunk is None:
+                break
             yield chunk
-            await asyncio.sleep(0) # Yield control
 
     async def generate(self, prompt: str, system_prompt: str = "", **kwargs) -> str:
         return await self.generate_text_async(prompt, system_prompt, **kwargs)

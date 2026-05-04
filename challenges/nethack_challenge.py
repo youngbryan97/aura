@@ -25,11 +25,20 @@ What this script does NOT do (and why):
   - Re-prompt on failure — that's metacognition's job
 """
 
+import sys
+if __name__ == "__main__":
+    print("!!! PARENT PROCESS STARTING !!!")
+    sys.stdout.flush()
+
 import asyncio
 import logging
 import hashlib
-import os
 import sys
+if __name__ == "__main__":
+    print("!!! PARENT PROCESS STARTING !!!")
+    sys.stdout.flush()
+import os
+import asyncio
 import time
 from datetime import datetime
 from pathlib import Path
@@ -52,17 +61,13 @@ os.makedirs(log_dir, exist_ok=True)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 log_file = os.path.join(log_dir, f"challenge_{timestamp}.log")
 
-print("DEBUG: NetHack sensory daemon starting...")
-sys.stdout.flush()
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     handlers=[
         logging.FileHandler(log_file),
         logging.StreamHandler(sys.stdout)
-    ],
-    force=True
+    ]
 )
 logger = logging.getLogger("Aura.NetHackChallenge")
 
@@ -86,7 +91,6 @@ NETHACK_PROMPT_ACTIONS = {
     "cancel": "ESC",
 }
 
-
 async def run_challenge():
     logger.info(">>> AURA NETHACK CHALLENGE STARTING (SENSORY DAEMON v3) <<<")
 
@@ -99,7 +103,10 @@ async def run_challenge():
     # ── 2. MIND: Boot her full cognitive architecture ─────────
     register_all_services()
     orchestrator = create_orchestrator()
-    await orchestrator.start()
+    try:
+        await asyncio.wait_for(orchestrator.start(), timeout=30)
+    except asyncio.TimeoutError:
+        logger.warning("Orchestrator start timed out. Proceeding anyway...")
 
     logger.info("Cognitive architecture booted. Starting sensory loop...")
 
@@ -179,14 +186,12 @@ async def run_challenge():
 
             last_screen_hash = screen_hash
             last_prompt_time = time.time()
-
-            logger.info(f"Step {step}: Dispatching sensory feed to Cognitive Engine...")
-
-            # This goes through her FULL cognitive pipeline:
-            # ProprioceptiveLoop → Affect → Metacognition →
-            # Response Generation → Action Grounding → Tool Execution
+            # [STABILITY] Dispatch to priority pipeline.
+            print(f"DEBUG: Dispatching to orchestrator type={type(orchestrator)}")
+            sys.stdout.flush()
+            logger.info(f"\n--- CHALLENGE DISPATCH: Step {step} ---")
             response = await orchestrator.process_user_input_priority(
-                full_prompt, origin="external"
+                full_prompt, origin="embodied_motor_reflex"
             )
 
             if response and not any(
@@ -199,6 +204,16 @@ async def run_challenge():
                 logger.info(
                     f"Step {step}: Cycle complete. Response length: {len(response)}"
                 )
+                # [REFLEX] If the response contains an action marker (especially from the somatic reflex bypass),
+                # we extract and execute it directly.
+                import re
+                action_match = re.search(r"\[ACTION:(.*?)\]", response)
+                if action_match:
+                    action_str = action_match.group(1)
+                    logger.info(f"Step {step}: Grounded action detected in response: {action_str}")
+                    print(f"\n⚡ [REFLEX] Executing grounded action: {action_str}")
+                    await adapter.execute_action(action_str)
+                
                 # We log the first 100 chars to see if she's being conversational
                 logger.debug(f"Aura Response Snippet: {response[:100]}...")
             else:

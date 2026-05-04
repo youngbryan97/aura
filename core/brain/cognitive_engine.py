@@ -490,17 +490,10 @@ class CognitiveEngine:
             
             return await self._reactive_recovery(objective, mode, origin, f"crash: {e}")
         finally:
-            # Cache Storm Fix: ALWAYS clear objective after processing
-            # to prevent background tasks from sticking in the state and re-triggering
-            # MindTick response generation indefinitely, even if we crashed or timed out.
             try:
                 # vResilience: Avoid locals().get() for type stability
                 if not success and 'backup_state' in locals():
                     state = backup_state
-                
-                if 'state' in locals() and state is not None:
-                    state.cognition.current_objective = None
-                    state.cognition.current_origin = None
             except Exception as _e:
                 record_degradation('cognitive_engine', _e)
                 logger.debug('Ignored Exception in cognitive_engine.py: %s', _e)
@@ -550,6 +543,15 @@ class CognitiveEngine:
                 break
         
         # 6. Extract Response
+        # 6. Extract Response
+        # [v49 Fix] Capture Action Imperative status before clearing state
+        routed_obj = str(getattr(state.cognition, "current_objective", "") or "")
+        is_action_imperative = "[ACTION IMPERATIVE]" in objective or "[ACTION IMPERATIVE]" in routed_obj
+        
+        # Clear state to prevent redundant background re-triggering
+        state.cognition.current_objective = None
+        state.cognition.current_origin = None
+
         last_msg = state.cognition.working_memory[-1] if state.cognition.working_memory else None
         if last_msg and last_msg.get("role") == "assistant":
             self.autopoiesis.experience_friction(objective[:20], 0.05)
@@ -566,6 +568,17 @@ class CognitiveEngine:
             
         # Experience friction for unresolved objectives
         self.autopoiesis.experience_friction(objective[:20], 0.45)
+
+        # ── ACTION IMPERATIVE FALLBACK ──
+        if is_action_imperative:
+            logger.warning("⚠️ [COGNITION] Action Imperative active but no response generated. Falling back to motor no-op.")
+            return Thought(
+                id=str(uuid.uuid4()),
+                content="[SOMATIC:key='.']", # Safe 'wait' or 'clear' key
+                mode=mode,
+                confidence=0.5,
+                reasoning=["Action Imperative fallback (no-op)."]
+            )
 
         import random
         _processing_fallbacks = [

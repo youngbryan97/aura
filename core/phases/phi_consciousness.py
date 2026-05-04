@@ -564,7 +564,17 @@ class PhiConsciousnessPhase(Phase):
 
 
             # vResilience: Support Python < 3.11 via wait_for (Issue-35)
-            raw = await asyncio.wait_for(organ.instance.think(prompt, priority=priority), timeout=8.0)
+            # [STABILITY v54] Pass is_background correctly and tighten timeout for background ticks
+            # Background HOT generation should never block the kernel lock for long.
+            gen_timeout = 8.0 if priority else 4.0
+            raw = await asyncio.wait_for(
+                organ.instance.think(
+                    prompt, 
+                    is_background=not priority,
+                    origin="phi_consciousness"
+                ), 
+                timeout=gen_timeout
+            )
 
             if raw and raw.strip():
                 phenomenal = raw.strip().strip('"').strip("'")

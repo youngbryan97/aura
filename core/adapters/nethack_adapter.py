@@ -61,6 +61,17 @@ class NetHackAdapter:
         self._update_screen()
         return "\n".join(self.screen.display)
 
+    def get_observation(self) -> dict:
+        """Returns the current screen as a structured observation."""
+        text = self.get_screen_text()
+        return {
+            "text": text,
+            "metadata": {
+                "timestamp": time.time(),
+                "source": "nethack"
+            }
+        }
+
     def send_action(self, action: str):
         """Sends a string to nethack."""
         if not self.child:

@@ -5,6 +5,7 @@ from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.phases.response_contract import ResponseContract, build_response_contract
@@ -328,6 +329,8 @@ def build_agentic_tool_map(
 
 
 def should_force_tool_handoff(contract: Optional[ResponseContract], *, is_background: bool) -> bool:
+    if os.environ.get("AURA_EMBODIED_CHALLENGE"):
+        return False
     return bool(
         contract
         and contract.requires_search

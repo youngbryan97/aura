@@ -18,6 +18,9 @@ class ContinuousSensoryBuffer:
     def __init__(self, data_dir: Path):
         self.data_dir = data_dir
         self.sct = None
+        from concurrent.futures import ThreadPoolExecutor
+        self._vision_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="AuraVision")
+        self._capture_lock = asyncio.Lock()
         self._mss_module = None
         self._screen_probe_cooldown_until = 0.0
         self._screen_permission_notice_at = 0.0
@@ -120,7 +123,7 @@ class ContinuousSensoryBuffer:
             self._screen_probe_cooldown_until = time.monotonic() + 15.0
             return False
         try:
-            sct = await asyncio.to_thread(self._mss_module.mss)
+            sct = await asyncio.get_running_loop().run_in_executor(self._vision_executor, self._mss_module.mss)
             monitor = None
             # Try to find the first monitor with non-zero size
             for m in sct.monitors:
@@ -155,15 +158,32 @@ class ContinuousSensoryBuffer:
             try:
                 if self.sct is None or self.monitor is None:
                     await self._ensure_screen_backend()
+                    if self.sct is None:
+                        now = time.monotonic()
+                        if now - getattr(self, "_last_backend_fail_log", 0) > 60.0:
+                            logger.warning("👁️ [VISION] No valid monitors found.")
+                            self._last_backend_fail_log = now
+                        await asyncio.sleep(15.0)
+                        continue
+
                 if self.sct and self.monitor:
-                    sct_img = await asyncio.get_running_loop().run_in_executor(
-                        None, self.sct.grab, self.monitor
-                    )
+                    async with self._capture_lock:
+                        # v27 Hardening: Strict 10s timeout for system screenshot calls
+                        try:
+                            sct_img = await asyncio.wait_for(
+                                asyncio.get_running_loop().run_in_executor(
+                                    self._vision_executor, self.sct.grab, self.monitor
+                                ),
+                                timeout=10.0
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error("👁️ [VISION] Screenshot capture timed out after 10s. Skipping frame.")
+                            sct_img = None
 
-                    import mss.tools
-
-                    png_bytes = mss.tools.to_png(sct_img.rgb, sct_img.size)
-                    self.frame_buffer.append(("image/png", png_bytes))
+                    if sct_img:
+                        import mss.tools
+                        png_bytes = mss.tools.to_png(sct_img.rgb, sct_img.size)
+                        self.frame_buffer.append(("image/png", png_bytes))
 
                 if self.camera_enabled:
                     if self.cap is None or not self.cap.isOpened():

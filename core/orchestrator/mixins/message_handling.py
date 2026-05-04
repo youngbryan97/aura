@@ -8,6 +8,7 @@ import hashlib
 import inspect
 import logging
 import os
+import sys
 import time
 from typing import Any, Optional
 
@@ -471,6 +472,21 @@ class MessageHandlingMixin:
 
     async def process_user_input_priority(self, message: str, origin: str = "user", timeout_sec: float = 300.0) -> Optional[str]:
         """Bypasses the message queue for immediate priority processing and AWAITS the result."""
+        
+        # [REFLEX BYPASS] Somatic motor reflexes MUST NEVER block on the user input semaphore.
+        # This prevents deadlocks when a heavy cognitive task is stalled.
+        print(f"DEBUG: Priority input origin={origin}, contract={('[EMBODIED CONTROL CONTRACT]' in message)}")
+        sys.stdout.flush()
+        if origin == "embodied_motor_reflex" or "[EMBODIED CONTROL CONTRACT]" in message:
+            # Check for deterministic somatic reflexes first
+            if "[EMBODIED CONTROL CONTRACT]" in message:
+                from .incoming_logic import IncomingLogicMixin
+                res = await self._check_embodied_reflexes(message)
+                if res:
+                    return res
+            
+            return await self._process_message_pipeline(message, origin=origin)
+            
         # Use Semaphore, not Global Lock
         async with self._user_input_semaphore:
             try:
@@ -527,6 +543,8 @@ class MessageHandlingMixin:
 
     async def _process_user_input_core(self, message: str, origin: str = "user") -> Optional[str]:
         """Actual processing logic — never calls itself, never recurses."""
+        print(f"\n--- ORCHESTRATOR INPUT: origin={origin}, len={len(message or '')} ---")
+        import sys; sys.stdout.flush()
         from ...container import ServiceContainer
 
         normalized_message = str(message or "").strip()
@@ -537,6 +555,19 @@ class MessageHandlingMixin:
                 logger.debug("🫥 Dropping empty internal message from origin=%s.", origin)
             return None
         message = normalized_message
+
+        # Somatic Reflex Bypass (Zero-Latency)
+        # Bypasses the Unified Will and InferenceGate for deterministic UI prompts
+        # when an active embodiment contract is detected.
+        # [ARCHITECTURE] Moved ABOVE deduplication to ensure reflexes fire even if
+        # the screen hasn't advanced since the last sensor tick.
+        has_contract = "[EMBODIED CONTROL CONTRACT]" in message
+        logger.debug(f"Input core: has_contract={has_contract}, origin={origin}, message_len={len(message)}")
+        
+        if has_contract:
+            somatic_response = await self._check_embodied_reflexes(message)
+            if somatic_response:
+                return somatic_response
 
         # Deduplication Guard (FINGERPRINTING)
         msg_hash = self._get_fingerprint(f"{message}_{origin}")

@@ -18,6 +18,8 @@ USER_FACING_ORIGINS = frozenset({
     "api",
     "websocket",
     "direct",
+    "embodied_motor_reflex",
+    "embodied_sensory_feed",
 })
 
 

@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import re
+import sys
 import time
 from typing import Any
 
@@ -79,6 +80,51 @@ class IncomingLogicMixin:
             raw_path,
         )
         return False
+
+    async def _check_embodied_reflexes(self, message: str) -> Optional[str]:
+        """Detect and return deterministic responses for standard somatic prompts.
+        
+        This is a general infrastructural reflex that handles low-level CLI/UI
+        confirmations without requiring an LLM turn. The patterns match
+        universal terminal/CLI conventions (pagers, y/n dialogs, etc.) and
+        emit a generic ``[SOMATIC:key='...']`` token that any environment
+        adapter can interpret — the core never references a specific adapter.
+        """
+        if "[EMBODIED CONTROL CONTRACT]" not in message:
+            return None
+
+        # Strip the control contract suffix to match patterns against the raw content
+        content = message.split("[EMBODIED CONTROL CONTRACT]")[0].strip()
+        if not content:
+            return None
+
+        # ── General Terminal Reflex Patterns ──────────────────────────
+        # Each entry maps a regex (matching a standard CLI prompt) to a
+        # generic somatic response token.
+        patterns = {
+            r"--More--":                    "[SOMATIC:key=' ']",
+            r"\(y/n/q?\)":                  "[SOMATIC:key='y']",
+            r"\[ynq?\]":                    "[SOMATIC:key='y']",
+            r"\[ynaq\]":                    "[SOMATIC:key='y']",
+            r"\[yn\]":                      "[SOMATIC:key='y']",
+            r"Press space to continue":     "[SOMATIC:key=' ']",
+            r"Press any key to continue":   "[SOMATIC:key=' ']",
+            r"\(end\)":                     "[SOMATIC:key='q']",
+            r"Hit return to continue":      "[SOMATIC:key='\n']",
+            r"\[enter\]":                   "[SOMATIC:key='\n']",
+            r"\[space\]":                   "[SOMATIC:key=' ']",
+            # Generic Header Message: The first line contains text (not a question).
+            # Handles 'Full moon' and other status headers. Requires at least one alphanumeric char.
+            r"^[ \t]*[a-zA-Z0-9][^\n?]{0,79}[ \t]*(\n|$)": "[SOMATIC:key=' ']",
+        }
+
+        for pattern, response in patterns.items():
+            if re.search(pattern, content, re.IGNORECASE):
+                logger.info("⚡ [REFLEX] Somatic match: '%s' → %s", pattern, response)
+                return response
+        
+        logger.debug("No somatic reflex match for: %s", repr(message[:100]))
+        return None
 
     async def _original_handle_incoming_logic(self, message: Any, origin: str = "user", suppress_ui: bool = False):
         """Route an incoming message through the deterministic State Machine pipeline."""
@@ -165,6 +211,16 @@ class IncomingLogicMixin:
 
         if await self._handle_filesystem_reality_check(safe_msg, origin):
             return None
+
+        # Phase -1: Somatic Reflexes (Zero-Latency)
+        # Gated by the EMBODIED CONTROL CONTRACT tag for general somatic safety.
+        # This handles standard UI prompts (More, y/n) without an LLM turn.
+        if "[EMBODIED CONTROL CONTRACT]" in safe_msg:
+            somatic_response = await self._check_embodied_reflexes(safe_msg)
+            if somatic_response:
+                # Bypass everything. No history recording needed for low-level somatic pulses.
+                await self.output_gate.emit(somatic_response, origin=origin, target="primary")
+                return None
 
         # Phase 0: Social Reflexes (Zero-Latency)
         if origin in ("user", "voice", "admin") and not config.skeletal_mode:
