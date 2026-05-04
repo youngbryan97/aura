@@ -2803,80 +2803,85 @@ class UnitaryResponsePhase(Phase):
                 else:
                     messages.insert(0, {"role": "system", "content": system_prompt})
 
-            priority_grounding = self._build_priority_grounding_block(
-                objective,
-                new_state,
-                direct_episodic_matches,
-            )
-            if priority_grounding:
-                system_prompt = f"{priority_grounding}\n\n{system_prompt}" if system_prompt else priority_grounding
-                if messages and messages[0].get("role") == "system":
-                    messages[0]["content"] = f"{priority_grounding}\n\n{messages[0]['content']}"
-                else:
-                    messages.insert(0, {"role": "system", "content": priority_grounding})
+            # When processing a CORE DIRECTIVE / sensory feed, skip all
+            # personality and contract prompt injections. The directive IS the
+            # complete prompt — the LLM just needs to follow it.
+            if not _is_system_directive:
+                priority_grounding = self._build_priority_grounding_block(
+                    objective,
+                    new_state,
+                    direct_episodic_matches,
+                )
+                if priority_grounding:
+                    system_prompt = f"{priority_grounding}\n\n{system_prompt}" if system_prompt else priority_grounding
+                    if messages and messages[0].get("role") == "system":
+                        messages[0]["content"] = f"{priority_grounding}\n\n{messages[0]['content']}"
+                    else:
+                        messages.insert(0, {"role": "system", "content": priority_grounding})
 
-            def _prepend_system_guidance(block: str) -> None:
-                nonlocal system_prompt, messages
-                text = str(block or "").strip()
-                if not text:
-                    return
-                system_prompt = f"{text}\n\n{system_prompt}".strip() if system_prompt else text
-                if messages and messages[0].get("role") == "system":
-                    messages[0]["content"] = f"{text}\n\n{messages[0]['content']}"
-                else:
-                    messages.insert(0, {"role": "system", "content": text})
+                def _prepend_system_guidance(block: str) -> None:
+                    nonlocal system_prompt, messages
+                    text = str(block or "").strip()
+                    if not text:
+                        return
+                    system_prompt = f"{text}\n\n{system_prompt}".strip() if system_prompt else text
+                    if messages and messages[0].get("role") == "system":
+                        messages[0]["content"] = f"{text}\n\n{messages[0]['content']}"
+                    else:
+                        messages.insert(0, {"role": "system", "content": text})
 
-            if contract.reason != "ordinary_dialogue":
-                contract_block = contract.to_prompt_block().strip()
-                _prepend_system_guidance(contract_block)
-            if is_user_facing and new_state.response_modifiers.get("coding_request"):
-                coding_block = self._build_coding_response_block(new_state, contract)
-                _prepend_system_guidance(coding_block)
-            if is_user_facing:
-                voice_block = self._build_user_facing_voice_block(new_state, contract)
-                _prepend_system_guidance(voice_block)
-            if is_deep_probe_objective:
-                try:
-                    from core.evaluation.deep_mind_probe import deep_probe_prompt_block
+                if contract.reason != "ordinary_dialogue":
+                    contract_block = contract.to_prompt_block().strip()
+                    _prepend_system_guidance(contract_block)
+                if is_user_facing and new_state.response_modifiers.get("coding_request"):
+                    coding_block = self._build_coding_response_block(new_state, contract)
+                    _prepend_system_guidance(coding_block)
+                if is_user_facing:
+                    voice_block = self._build_user_facing_voice_block(new_state, contract)
+                    _prepend_system_guidance(voice_block)
+                if is_deep_probe_objective:
+                    try:
+                        from core.evaluation.deep_mind_probe import deep_probe_prompt_block
 
-                    _prepend_system_guidance(deep_probe_prompt_block())
-                except Exception as exc:
-                    record_degradation('response_generation_unitary', exc)
-                    record_degradation('response_generation_unitary', exc)
-                    logger.debug("UnitaryResponse: deep probe guidance skipped: %s", exc)
-            if live_grounding_required:
-                self_expression_block = self._build_live_self_expression_block(new_state, contract)
-                _prepend_system_guidance(self_expression_block)
+                        _prepend_system_guidance(deep_probe_prompt_block())
+                    except Exception as exc:
+                        record_degradation('response_generation_unitary', exc)
+                        record_degradation('response_generation_unitary', exc)
+                        logger.debug("UnitaryResponse: deep probe guidance skipped: %s", exc)
+                if live_grounding_required:
+                    self_expression_block = self._build_live_self_expression_block(new_state, contract)
+                    _prepend_system_guidance(self_expression_block)
 
             # [RUBICON] Pre-Linguistic Decision: structured decision BEFORE LLM speaks
-            try:
-                from core.cognition.pre_linguistic import get_pre_linguistic
-                pl_engine = get_pre_linguistic()
-                if pl_engine._started:
-                    has_tool_evidence = self._has_recent_grounded_evidence(new_state)
-                    matched = list(new_state.response_modifiers.get("matched_skills", []) or [])
-                    decision_pkg = pl_engine.synthesize(
-                        objective,
-                        is_user_facing=is_user_facing,
-                        has_tool_result=has_tool_evidence,
-                        matched_skills=matched,
-                        response_modifiers=dict(new_state.response_modifiers),
-                    )
-                    # Inject the decision block into the prompt so the LLM narrates it
-                    decision_block = decision_pkg.to_prompt_block()
-                    _prepend_system_guidance(decision_block)
-                    # Store the decision in state for downstream audit
-                    new_state.response_modifiers["pre_linguistic_decision"] = decision_pkg.to_dict()
-                    logger.debug(
-                        "[RUBICON] PreLinguistic: %s via %s (%.1fms)",
-                        decision_pkg.chosen_action.value,
-                        decision_pkg.selected_limb,
-                        decision_pkg.latency_ms,
-                    )
-            except Exception as pl_exc:
-                record_degradation('response_generation_unitary', pl_exc)
-                record_degradation('response_generation_unitary', pl_exc)
-                logger.debug("[RUBICON] PreLinguistic injection skipped: %s", pl_exc)
+            if not _is_system_directive:
+                try:
+                    from core.cognition.pre_linguistic import get_pre_linguistic
+                    pl_engine = get_pre_linguistic()
+                    if pl_engine._started:
+                        has_tool_evidence = self._has_recent_grounded_evidence(new_state)
+                        matched = list(new_state.response_modifiers.get("matched_skills", []) or [])
+                        decision_pkg = pl_engine.synthesize(
+                            objective,
+                            is_user_facing=is_user_facing,
+                            has_tool_result=has_tool_evidence,
+                            matched_skills=matched,
+                            response_modifiers=dict(new_state.response_modifiers),
+                        )
+                        # Inject the decision block into the prompt so the LLM narrates it
+                        decision_block = decision_pkg.to_prompt_block()
+                        _prepend_system_guidance(decision_block)
+                        # Store the decision in state for downstream audit
+                        new_state.response_modifiers["pre_linguistic_decision"] = decision_pkg.to_dict()
+                        logger.debug(
+                            "[RUBICON] PreLinguistic: %s via %s (%.1fms)",
+                            decision_pkg.chosen_action.value,
+                            decision_pkg.selected_limb,
+                            decision_pkg.latency_ms,
+                        )
+                except Exception as pl_exc:
+                    record_degradation('response_generation_unitary', pl_exc)
+                    record_degradation('response_generation_unitary', pl_exc)
+                    logger.debug("[RUBICON] PreLinguistic injection skipped: %s", pl_exc)
 
             request_timeout = self._timeout_for_request(
                 is_user_facing=is_user_facing,
