@@ -2886,7 +2886,16 @@ class UnitaryResponsePhase(Phase):
                     record_degradation('response_generation_unitary', pl_exc)
                     logger.debug("[RUBICON] PreLinguistic injection skipped: %s", pl_exc)
 
-            request_timeout = self._timeout_for_request(
+            # [PERF] In embodied challenges, long history is a liability that causes
+            # 80s+ inference stalls. We aggressively shed to the bare minimum.
+            history_limit = 12
+            if os.environ.get("AURA_EMBODIED_CHALLENGE"):
+                history_limit = 2
+                logger.info("🛡️ UnitaryResponse: Using minimal history (2) for Embodied Challenge priority.")
+
+            messages = self._recent_router_history(
+                new_state,
+                limit=history_limit,
                 is_user_facing=is_user_facing,
                 model_tier=model_tier,
                 deep_handoff=deep_handoff,
