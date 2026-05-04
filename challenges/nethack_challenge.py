@@ -200,13 +200,24 @@ async def run_challenge():
             else:
                 last_response = ""
                 consecutive_none += 1
-                if consecutive_none > 3:
-                    # Pipeline returning None = dedup blocking or will gate
-                    # Force a fresh hash to re-trigger next cycle
-                    logger.warning(
-                        f"Step {step}: {consecutive_none} consecutive stalled cycles. Forcing sensor refresh."
-                    )
-                    last_screen_hash = ""
+                if consecutive_none > 2:
+                    # Pipeline returning None usually means a substrate crash or coherence crisis.
+                    # We inject a reflexive heartbeat if a prompt is visible to keep the loop alive.
+                    parsed_state = runtime.parser.parse(screen)
+                    if parsed_state.has_active_prompt():
+                        recovery_action = "SPACE" if "--More--" in str(parsed_state.active_prompts) else "ESC"
+                        logger.warning(
+                            f"Step {step}: {consecutive_none} stalled cycles. Injecting reflexive {recovery_action} heartbeat."
+                        )
+                        adapter.send_action(recovery_action)
+                        await asyncio.sleep(0.5)
+                        # Force a fresh hash to re-trigger next cycle
+                        last_screen_hash = ""
+                    else:
+                        logger.warning(
+                            f"Step {step}: {consecutive_none} stalled cycles. Forcing sensor refresh."
+                        )
+                        last_screen_hash = ""
 
             # Update after processing (can take 10-30s)
             last_prompt_time = time.time()
