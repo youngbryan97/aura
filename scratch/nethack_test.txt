@@ -1,0 +1,3 @@
+NetHack (gettty): Inappropriate ioctl for device
+NetHack (settty): Inappropriate ioctl for device
+Terminal must backspace.

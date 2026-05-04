@@ -320,7 +320,7 @@ class CapabilityEngine(AuraBaseModule):
             "manifest_to_device", "notify_user", "native_chat",
             "dream_sleep", "force_dream_cycle", "test_generator",
             "free_search", "uplink_local", "mcp_client", "manim_renderer",
-            "branching_futures",
+            "branching_futures", "execute_nethack_action",
         } # ALL skills active — Aura is fully sovereign
         self.skill_awoken_times: Dict[str, float] = {}
         self.skill_states: Dict[str, str] = {} # READY, RUNNING, ERROR
@@ -662,6 +662,7 @@ class CapabilityEngine(AuraBaseModule):
             (("terminal", "shell", "command", "cli"), ("sovereign_terminal", "computer_use")),
             (("click", "type", "screen", "desktop", "mouse", "keyboard"), ("computer_use", "os_manipulation")),
             (("file", "directory", "folder", "read file", "write file", "repo", "code"), ("file_operation", "computer_use")),
+            (("nethack", "game", "dungeon", "action", "move"), ("execute_nethack_action",)),
         )
         for tokens, names in heuristic_rules:
             if skip_web_search and any(name in {"web_search", "search_web", "free_search", "grounded_search"} for name in names):

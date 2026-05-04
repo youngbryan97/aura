@@ -230,7 +230,8 @@ def register_all_services(is_proxy: bool = False):
     # 2.2 Digital Organism Extensions (2026 Phase)
     def _create_self_model():
         from core.self_model import SelfModel
-        return SelfModel()
+        from uuid import uuid4
+        return SelfModel(id=str(uuid4()))
 
     def _create_canonical_self_engine():
         from core.self.canonical_self import get_canonical_self_engine

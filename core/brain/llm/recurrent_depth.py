@@ -64,7 +64,7 @@ logger = logging.getLogger("Aura.RecurrentDepth")
 LANE_DEFAULTS = {
     # (min_layers, max_layers): (n_loops, prelude_frac, coda_frac, alpha)
     (72, 999):  (1, 0.15, 0.15, 0.1),   # 72B (80 layers) — interactive solver
-    (56, 71):   (2, 0.20, 0.20, 0.1),   # 32B (64 layers) — good balance
+    (56, 71):   (2, 0.20, 0.20, 0.1),   # 32B (64 layers) — recurrent thinking
     (24, 55):   (1, 0.20, 0.20, 0.1),   # 14B (40 layers) — marginal benefit
     (0,  23):   (1, 0.20, 0.20, 0.1),   # 7B and below — too small
 }

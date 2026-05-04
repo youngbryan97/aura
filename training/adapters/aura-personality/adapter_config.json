@@ -7,8 +7,8 @@
     "fine_tune_type": "lora",
     "grad_accumulation_steps": 1,
     "grad_checkpoint": true,
-    "iters": 5990,
-    "learning_rate": 2e-06,
+    "iters": 22332,
+    "learning_rate": 5e-06,
     "lora_parameters": {
         "dropout": 0.0,
         "rank": 32,
@@ -16,7 +16,7 @@
     },
     "lr_schedule": null,
     "mask_prompt": false,
-    "max_seq_length": 2048,
+    "max_seq_length": 4096,
     "model": "/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-8bit",
     "num_layers": -1,
     "optimizer": "adam",
@@ -29,13 +29,13 @@
     },
     "project_name": null,
     "report_to": null,
-    "resume_adapter_file": "/Users/bryan/.aura/live-source/training/adapters/aura-personality/0004120_adapters.safetensors",
-    "save_every": 250,
+    "resume_adapter_file": null,
+    "save_every": 500,
     "seed": 0,
-    "steps_per_eval": 200,
-    "steps_per_report": 10,
+    "steps_per_eval": 500,
+    "steps_per_report": 100,
     "test": false,
     "test_batches": 500,
     "train": true,
-    "val_batches": 1
+    "val_batches": 25
 }

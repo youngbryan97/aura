@@ -724,10 +724,14 @@ class MLXLocalClient:
 
     def _stale_after(self, *, during_generation: bool = False,
                      foreground_request: bool = False) -> float:
-        """[STABILITY v51] Tightened from 30/60s to 20/40s for 32B.
-        Foreground (user-facing) requests get an even tighter budget so the
-        chat UI never sees more than ~25s of silent stalling before the lock
-        releases and the fallback cascade kicks in."""
+        """Heartbeat-stall timeout.
+
+        [RESILIENCE] Widened for 32B foreground: recurrent depth doubles
+        the compute per token, and complex prompts can legitimately take
+        60-90s for prompt eval.  Killing the cortex when heartbeats are
+        still arriving (worker is alive, just slow) was the #1 cause of
+        'cortex died and never came back'.  As long as heartbeats arrive,
+        the worker is alive — let it finish."""
         lowered = os.path.basename(self.model_path).lower()
         if "72b" in lowered or "solver" in lowered:
             if foreground_request and during_generation:
@@ -735,8 +739,8 @@ class MLXLocalClient:
             return 90.0 if during_generation else 45.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
             if foreground_request and during_generation:
-                return 22.0
-            return 40.0 if during_generation else 20.0
+                return 45.0  # was 22s — too aggressive with recurrent depth
+            return 60.0 if during_generation else 30.0
         return 20.0 if during_generation else 15.0
 
     def _first_token_sla(self, *, foreground_request: bool = False) -> float:
@@ -778,18 +782,21 @@ class MLXLocalClient:
                 )
             return 30.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
-            # Warm foreground cap stays tight (22 s) so the UI never sees a
-            # wedged generation. Cold-start gets 40 s once, then shrinks
-            # automatically after the first completion sets the anchor.
+            # [RESILIENCE] Recurrent depth 2x loops means prompt eval takes
+            # significantly longer.  These SLAs must accommodate that without
+            # killing the cortex.  Cold-start can legitimately need 90s for
+            # Metal shader JIT + recurrent depth prompt eval on a 5k-token
+            # prompt.  The point of these SLAs is to catch WEDGED workers
+            # (no heartbeats), not SLOW workers (heartbeats arriving).
             if foreground_request:
-                base = 45.0 if is_cold_start else 35.0
+                base = 75.0 if is_cold_start else 45.0
                 return _with_prompt_eval_headroom(
                     base,
                     threshold_tokens=512.0,
-                    eval_seconds_per_token=0.0125,
+                    eval_seconds_per_token=0.015,
                     cap_s=180.0,
                 )
-            return 35.0
+            return 45.0
         return 8.0
 
     def _token_stall_after(self, *, foreground_request: bool = False) -> float:
@@ -797,7 +804,11 @@ class MLXLocalClient:
         if "72b" in lowered or "solver" in lowered:
             return 18.0 if foreground_request else 25.0
         if "32b" in lowered or "cortex" in lowered or "zenith" in lowered:
-            return 14.0 if foreground_request else 24.0
+            # [RESILIENCE] Reverted from 10s — recurrent depth can cause
+            # legitimate pauses between tokens during the recurrent block
+            # computation.  20s is generous enough to absorb Metal GC pauses
+            # and recurrent-loop overhead without declaring the worker dead.
+            return 20.0 if foreground_request else 30.0
         return 8.0
 
     def _warmup_timeout(self) -> float:
@@ -1026,18 +1037,31 @@ class MLXLocalClient:
                 if foreground_request:
                     sla = self._first_token_sla(foreground_request=True)
                     if holder_age > sla:
-                        logger.error(
-                            "🛑 [MLX] Preempting wedged holder %s (age=%.1fs > sla=%.1fs). "
-                            "Cancelling in-flight future and scheduling worker reboot.",
-                            holder, holder_age, sla,
-                        )
+                        # [RESILIENCE] Check heartbeats before killing.
+                        # If the worker is still alive (heartbeats <30s old),
+                        # cancel the in-flight future but do NOT reboot the
+                        # worker.  This lets the caller cascade to fallback
+                        # while keeping the cortex warm for the next turn.
+                        heartbeat_age = time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+                        if heartbeat_age > 30.0:
+                            logger.error(
+                                "🛑 [MLX] Preempting wedged holder %s (age=%.1fs > sla=%.1fs, no heartbeat for %.1fs). "
+                                "Cancelling in-flight future and scheduling worker reboot.",
+                                holder, holder_age, sla, heartbeat_age,
+                            )
+                            self._deferred_reboot_reason = "foreground_preemption_wedged_holder"
+                        else:
+                            logger.warning(
+                                "🛡️ [MLX] Holder %s slow (age=%.1fs > sla=%.1fs) but heartbeat fresh (%.1fs ago). "
+                                "Cancelling generation but keeping cortex alive.",
+                                holder, holder_age, sla, heartbeat_age,
+                            )
                         try:
                             stuck_future = self._current_gen_future
                             if stuck_future is not None:
                                 _cancel_shared_future(stuck_future)
                         except Exception:
                             pass  # no-op: intentional
-                        self._deferred_reboot_reason = "foreground_preemption_wedged_holder"
                 return False
 
             if waited >= 5.0 and (now - last_log_at) >= 5.0:
@@ -1796,7 +1820,20 @@ class MLXLocalClient:
                         severity="error",
                         foreground_request=foreground_request,
                     )
-                    self._deferred_reboot_reason = "first_token_sla_exceeded"
+                    # [RESILIENCE] Only reboot if the worker is truly dead.
+                    # If heartbeats are still arriving, the worker is alive
+                    # but slow (e.g. complex prompt eval with recurrent depth).
+                    # Return None so the caller can cascade to fallback, but
+                    # keep the cortex alive for the NEXT request.
+                    heartbeat_age = time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+                    if heartbeat_age > 30.0:
+                        self._deferred_reboot_reason = "first_token_sla_exceeded"
+                    else:
+                        logger.info(
+                            "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago). "
+                            "NOT rebooting — keeping warm for next request.",
+                            heartbeat_age,
+                        )
                     return None
 
                 last_token_progress = max(self._last_token_progress_at, self._current_first_token_at)
@@ -1818,7 +1855,20 @@ class MLXLocalClient:
                         severity="error",
                         foreground_request=foreground_request,
                     )
-                    self._deferred_reboot_reason = "token_progress_stalled"
+                    # [RESILIENCE] Same principle: if heartbeats arrive, the
+                    # Metal GPU is alive and the worker is processing.  A stall
+                    # between tokens can happen during recurrent-depth cache
+                    # snapshot/restore or Metal shader recompilation.  Do NOT
+                    # kill the worker if it's still phoning home.
+                    heartbeat_age = time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+                    if heartbeat_age > 30.0:
+                        self._deferred_reboot_reason = "token_progress_stalled"
+                    else:
+                        logger.info(
+                            "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago). "
+                            "NOT rebooting — keeping warm for next request.",
+                            heartbeat_age,
+                        )
                     return None
 
                 last_progress = max(self._last_heartbeat, self._last_progress_at, self._last_ready_at)

@@ -3,6 +3,8 @@ Extracts message acquisition, enqueueing, dispatch, and user input processing lo
 """
 from core.runtime.errors import record_degradation
 import asyncio
+import collections
+import hashlib
 import inspect
 import logging
 import os
@@ -12,8 +14,40 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+# ── Response Repetition Detection ────────────────────────────────────────
+# General-purpose mechanism that detects when Aura is stuck in a cognitive
+# loop producing near-identical responses. When detected, injects a
+# metacognitive warning into conversation history so the next inference
+# cycle is aware of the loop and can break out of it.
+_REPETITION_RING_SIZE = 5
+_REPETITION_SIMILARITY_THRESHOLD = 0.8
+
+
+def _response_fingerprint(text: str) -> str:
+    """Normalize and hash a response for similarity comparison."""
+    normalized = " ".join(str(text or "").lower().split())
+    return hashlib.md5(normalized.encode()).hexdigest()
+
+
+def _responses_are_similar(a: str, b: str) -> bool:
+    """Check if two responses are near-identical (>80% token overlap)."""
+    if not a or not b:
+        return False
+    tokens_a = set(a.lower().split())
+    tokens_b = set(b.lower().split())
+    if not tokens_a or not tokens_b:
+        return False
+    intersection = tokens_a & tokens_b
+    union = tokens_a | tokens_b
+    jaccard = len(intersection) / len(union)
+    return jaccard >= _REPETITION_SIMILARITY_THRESHOLD
+
+
 class MessageHandlingMixin:
     """Handles message queue operations, dispatch, and user input processing."""
+
+    # Ring buffer of recent response fingerprints for repetition detection
+    _recent_response_ring: collections.deque  # initialized in __init__ or lazily
 
     async def _acquire_next_message(self) -> Optional[str]:
         """Get next message from queue. Returns None if queue is empty."""
@@ -723,6 +757,36 @@ class MessageHandlingMixin:
                 async with self._lock:
                     self._record_message_in_history(message, origin)
                     self._record_message_in_history(response, "assistant")
+
+                # ── Response Repetition Detection ─────────────────────────
+                # General-purpose: if she's producing near-identical
+                # responses, inject a metacognitive interrupt so her
+                # next reasoning cycle knows to try something different.
+                try:
+                    ring = getattr(self, "_recent_response_ring", None)
+                    if ring is None:
+                        ring = collections.deque(maxlen=_REPETITION_RING_SIZE)
+                        self._recent_response_ring = ring
+                    fp = _response_fingerprint(response)
+                    consecutive_dupes = sum(1 for prev_fp in ring if prev_fp == fp)
+                    ring.append(fp)
+                    if consecutive_dupes >= 2:
+                        logger.warning(
+                            "🔄 Response Repetition Detected: %d consecutive near-identical responses.",
+                            consecutive_dupes + 1,
+                        )
+                        metacognitive_warning = (
+                            "[METACOGNITIVE INTERRUPT] You have produced the same response "
+                            f"{consecutive_dupes + 1} times in a row. Your current strategy is "
+                            "NOT working — the environment is not changing in response to your "
+                            "actions. You MUST try a completely different approach. Do not repeat "
+                            "your previous plan. Analyze what went wrong and adapt."
+                        )
+                        async with self._lock:
+                            self._record_message_in_history(metacognitive_warning, "system")
+                except Exception as _rep_exc:
+                    record_degradation('message_handling', _rep_exc)
+                    logger.debug("Repetition detection error: %s", _rep_exc)
 
                 # ── Heartstone outcome signals ─────────────────────────────
                 # Detect positive user tone to evolve Empathy/Curiosity weights

@@ -2,7 +2,9 @@ import asyncio
 import os
 import sys
 import logging
+import time
 import re
+import hashlib
 from datetime import datetime
 
 # Add root to sys.path
@@ -12,9 +14,8 @@ from core.adapters.nethack_adapter import NetHackAdapter
 from core.orchestrator.main import create_orchestrator
 from core.service_registration import register_all_services
 from core.container import ServiceContainer
-import hashlib
 
-# Setup logging to both file and stdout (so asciinema captures it)
+# Setup logging
 log_dir = os.path.expanduser("~/.aura/logs/nethack")
 os.makedirs(log_dir, exist_ok=True)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -32,135 +33,143 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("Aura.NetHackChallenge")
-logger.info("Aura.NetHackChallenge initialized.")
+
+# ── Motor Grounding ──────────────────────────────────────────
+# Aura's cognitive pipeline emits [ACTION:x] markers in her response text.
+# This function extracts them and grounds them into physical keystrokes
+# via the adapter. This is analogous to action_grounding.py but for the
+# NetHack embodiment — it closes the perception-cognition-action loop.
+ACTION_RE = re.compile(r'\[ACTION:(.*?)\]', re.IGNORECASE)
+
+SPECIAL_KEYS = {
+    'ESC': '\x1b', 'ESCAPE': '\x1b',
+    'SPACE': ' ',
+    'ENTER': '\n', 'RETURN': '\n',
+}
+
+def extract_actions(response_text):
+    """Extract all [ACTION:x] markers from Aura's cognitive response."""
+    if not response_text:
+        return []
+    return ACTION_RE.findall(response_text)
+
+def resolve_key(action_str):
+    """Convert an action string to the physical key to send."""
+    upper = action_str.strip().upper()
+    if upper in SPECIAL_KEYS:
+        return SPECIAL_KEYS[upper]
+    # Single character actions
+    raw = action_str.strip()
+    if len(raw) == 1:
+        return raw
+    # Multi-char that isn't a special key — take first char as heuristic
+    if raw:
+        return raw[0]
+    return None
+
 
 async def run_challenge():
-    logger.info(">>> AURA NETHACK CHALLENGE STARTING <<<")
+    logger.info(">>> AURA NETHACK CHALLENGE STARTING (EMBODIED DAEMON v2) <<<")
     
     # 1. Setup NetHack
     adapter = NetHackAdapter()
     adapter.start(name="Aura")
+    ServiceContainer.register_instance("nethack_adapter", adapter)
     
     # 2. Setup Aura
     register_all_services()
     orchestrator = create_orchestrator()
     await orchestrator.start()
-    affect_engine = ServiceContainer.get("affect_engine", default=None)
     
-    # System Prompt for NetHack
-    # We'll use a hidden message to set the persona/goal
-    await orchestrator.process_user_input("SYSTEM_DIRECTIVE: You are now in NetHack Challenge Mode. Your objective is to beat NetHack from scratch. Analyze the visual grid and status lines. Be terse, efficient, and lethal. Always use [ACTION:key] format.")
+    # System directive — routed through her full cognitive pipeline
+    await orchestrator.process_user_input_priority(
+        "SYSTEM_DIRECTIVE: You are now embodied in a NetHack terminal session. "
+        "You will receive periodic [NETHACK SENSORY UPDATE]s showing the current screen. "
+        "To take actions, output [ACTION:key] markers where key is a single character "
+        "(h/j/k/l/y/u/b/n for movement, i for inventory, etc.) or ESC/SPACE/ENTER. "
+        "You may output multiple [ACTION:x] markers in one response. "
+        "The '--More--' prompt requires [ACTION:SPACE] to dismiss. "
+        "Focus on survival and exploration. Be terse.",
+        origin="admin"
+    )
 
-    logger.info("Aura NetHack challenge loop starting...")
+    logger.info("Aura NetHack embodied daemon loop starting...")
     
     # Initial interaction to pick character
-    adapter.send_action("y") # Pick for me
+    adapter.send_action("y")  # Pick for me
     await asyncio.sleep(1)
     
-    step = 0
-    stuck_counter = 0
     last_screen_hash = ""
-    working_memory = []
+    last_prompt_time = 0
+    step = 0
+    consecutive_none = 0
+    
     while adapter.is_alive():
         screen = adapter.get_screen_text()
         
         # Print screen to stdout for asciinema
-        print("\033[H\033[J") # Clear screen
+        print("\033[H\033[J")  # Clear screen
         print(f"--- STEP {step} ---")
         print(screen)
         print("-" * 80)
         sys.stdout.flush()
         
-        wm_str = "\n".join(working_memory) if working_memory else "- No recent actions."
-        
-        prompt = f"""CURRENT NETHACK SCREEN (STEP {step}):
-{screen}
-
-[WORKING MEMORY]
-{wm_str}
-
-[ENVIRONMENTAL AFFORDANCES]
-- Movement: y, u, h, j, k, l, b, n
-- Inventory: i, d, w, T, W
-- Search/Interact: s, o, c, >, <
-- Cancel/Exit Menu: ESC, SPACE
-- Format: You MUST output exactly [ACTION:key] where key is a single character or ESC/SPACE/ENTER.
-
-What is your next move?"""
-        
-        distress_score = getattr(affect_engine, 'distress_score', 0.0) if affect_engine else 0.0
         screen_hash = hashlib.md5(screen.encode()).hexdigest()
+        time_since_last = time.time() - last_prompt_time
         
-        screen_changed = (screen_hash != last_screen_hash)
-        if not screen_changed and step > 0:
-            stuck_counter += 1
-        else:
-            stuck_counter = 0
+        # Only ping her cognitive pipeline when screen changes or stagnation detected
+        if screen_hash != last_screen_hash or time_since_last > 15:
+            stagnation = ""
+            if screen_hash == last_screen_hash and step > 0:
+                stagnation = (
+                    "\n[METACOGNITIVE ALARM] Screen unchanged. Your last action had no effect. "
+                    "You may be stuck in a modal prompt. Try [ACTION:ESC] or [ACTION:SPACE]."
+                )
+            
+            prompt = f"[NETHACK SENSORY UPDATE T={step}]\nCURRENT SCREEN:\n{screen}{stagnation}"
+            
             last_screen_hash = screen_hash
+            last_prompt_time = time.time()
             
-        if working_memory and "->" not in working_memory[-1]:
-             outcome = "Screen changed." if screen_changed else "Screen did NOT change."
-             working_memory[-1] += f" -> {outcome}"
-             
-        if stuck_counter > 3:
-             prompt += "\n\n[METACOGNITIVE INSIGHT] You are caught in a repetitive loop. The environment is rejecting your inputs. You are likely trapped in a modal dialogue or menu. To escape, you must use a cancellation command like [ACTION:ESC] or [ACTION:SPACE]."
+            logger.info(f"Step {step}: Sending sensory update to cognitive pipeline...")
+            response = await orchestrator.process_user_input_priority(prompt, origin="external")
+            logger.info(f"Step {step}: Aura responded: {response}")
             
-        if stuck_counter > 10 and distress_score > 0.15:
-             logger.warning(f"🚨 AUTONOMIC BAILOUT TRIGGERED: Stuck counter {stuck_counter}, distress {distress_score:.2f}")
-             logger.warning("Forcing ESC action.")
-             adapter.send_action('\x1b')
-             step += 1
-             await asyncio.sleep(0.5)
-             continue
-        
-        logger.info(f"Step {step}: Waiting for Aura's move (Tier: local_fast)...")
-        
-        # Use InferenceGate directly to specify tier
-        response = await orchestrator._inference_gate.generate(
-            prompt,
-            context={
-                "is_background": False,
-                "prefer_tier": "local_fast", # Use 7B model
-            },
-        )
-        
-        if response:
-            logger.info(f"Aura: {response}")
-            match = re.search(r'\[ACTION:(.*?)\]', response)
-            if match:
-                action = match.group(1)
+            # ── MOTOR GROUNDING ──────────────────────────────────────
+            # Extract [ACTION:x] markers and execute them physically
+            if response:
+                consecutive_none = 0
+                actions = extract_actions(response)
+                if actions:
+                    for i, action_str in enumerate(actions):
+                        key = resolve_key(action_str)
+                        if key:
+                            display = action_str.strip().upper() if action_str.strip().upper() in SPECIAL_KEYS else action_str.strip()
+                            logger.info(f"  MOTOR: Executing action {i+1}/{len(actions)}: '{display}'")
+                            adapter.send_action(key)
+                            await asyncio.sleep(0.3)  # Small delay between actions
+                else:
+                    # She responded but didn't emit action markers — nudge on next cycle
+                    logger.warning(f"Step {step}: Response had no [ACTION:x] markers.")
             else:
-                # Heuristic: if she just says a direction or 'k', etc.
-                action = response.strip()[:1]
-                
-            # Parse control sequences
-            if action.upper() == "ESC" or action.upper() == "ESCAPE":
-                action = '\x1b'
-            elif action.upper() == "SPACE":
-                action = ' '
-            elif action.upper() == "ENTER" or action.upper() == "RETURN":
-                action = '\n'
-                
-            logger.info(f"Action: '{action}'")
-            adapter.send_action(action)
+                consecutive_none += 1
+                if consecutive_none > 2:
+                    # Pipeline returned None repeatedly (dedup or will gate) — force dedup reset
+                    logger.warning(f"Step {step}: {consecutive_none} consecutive None responses. Injecting tick marker.")
+                    # Slightly vary the prompt to bypass dedup fingerprinting
+                    last_screen_hash = ""  # Force re-send with fresh hash comparison
             
-            display_action = action
-            if action == '\x1b': display_action = 'ESC'
-            elif action == ' ': display_action = 'SPACE'
-            elif action == '\n': display_action = 'ENTER'
-            working_memory.append(f"- Step {step}: Action '{display_action}'")
-            if len(working_memory) > 5:
-                 working_memory.pop(0)
-        else:
-            logger.warning("No response from Aura.")
-            
-        step += 1
-        await asyncio.sleep(0.5)
+            # Update prompt time after processing (processing can take 10-30s)
+            last_prompt_time = time.time()
         
+        step += 1
+        await asyncio.sleep(1.0)
+        
+        # Game over detection
         if "DYWYPI" in screen or "Do you want your possessions identified?" in screen:
-            logger.info("Game Over detected.")
+            logger.info("=== GAME OVER DETECTED ===")
             break
-            
+    
     adapter.close()
     logger.info(">>> AURA NETHACK CHALLENGE FINISHED <<<")
 

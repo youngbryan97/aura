@@ -1171,6 +1171,8 @@ class ContextAssembler:
         # 5. PRIORITY 5: Older History (Fill remaining budget)
         available_for_old_history = char_limit - (current_chars + input_chars + history_chars)
         num_recent = len(retained_history)
+        dropped_messages_count = 0
+        
         if available_for_old_history > 500 and len(working_memory) > num_recent:
             older_history = working_memory[:-num_recent]
             old_retained = []
@@ -1182,8 +1184,19 @@ class ContextAssembler:
                     available_for_old_history -= msg_len
                     history_chars += msg_len
                 else:
-                    break
+                    dropped_messages_count += 1
+                    
+            # Count the remaining messages that we didn't even iterate over
+            dropped_messages_count += (len(older_history) - len(old_retained) - (1 if dropped_messages_count > 0 else 0))
+            
             retained_history = old_retained + retained_history
+        elif len(working_memory) > num_recent:
+            dropped_messages_count = len(working_memory) - num_recent
+
+        # 6. Memory Summarization Hook
+        if dropped_messages_count > 0:
+            summary_notice = f"[SYSTEM: {dropped_messages_count} older conversational messages were omitted from this context window due to cognitive load limits. If the user refers to past context, be aware it may have scrolled out of immediate memory.]"
+            messages.append({"role": "system", "content": summary_notice})
 
         # Assemble final array
         messages.extend(retained_history)

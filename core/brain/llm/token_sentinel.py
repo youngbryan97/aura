@@ -224,11 +224,12 @@ class TokenSentinel:
                 self._interventions.append(signal)
                 # Don't abort — just log and continue
 
-        # ── Loop check (every token, very fast) ──────────────
-        signal = self._check_generative_loop()
-        if signal.type == InterventionType.ABORT_LOOP:
-            self._interventions.append(signal)
-            return signal
+        # ── Loop check (every check_interval tokens, was every-token) ─────
+        if self._token_count % self._check_interval == 0:
+            signal = self._check_generative_loop()
+            if signal.type == InterventionType.ABORT_LOOP:
+                self._interventions.append(signal)
+                return signal
 
         # ── Affect pulse (every affect_interval tokens) ──────────────
         if self._token_count % self._affect_interval == 0:
@@ -237,20 +238,32 @@ class TokenSentinel:
         return InterventionSignal(type=InterventionType.NONE)
 
     def _check_generative_loop(self) -> InterventionSignal:
-        """Mathematically guarantee no infinite token loops."""
+        """Detect infinite token loops by checking for repeated sequences.
+
+        [PERF] Capped to the most recent 200 tokens instead of full history.
+        This keeps the check O(1) amortized instead of O(n²) as generation
+        grows longer.
+        """
         n_tokens = len(self._tokens)
         if n_tokens < 6:
             return InterventionSignal(type=InterventionType.NONE)
-            
-        max_seq_len = min(40, n_tokens // 3)
+
+        # Only scan the tail of the token buffer to bound compute cost
+        scan_window = min(200, n_tokens)
+        tail = self._tokens[-scan_window:]
+        tail_len = len(tail)
+
+        max_seq_len = min(40, tail_len // 3)
         for seq_len in range(1, max_seq_len + 1):
-            seq = self._tokens[-seq_len:]
+            seq = tail[-seq_len:]
             
             repeats = 1
-            for i in range(1, (n_tokens // seq_len)):
-                start_idx = n_tokens - (i + 1) * seq_len
-                end_idx = n_tokens - i * seq_len
-                if self._tokens[start_idx:end_idx] == seq:
+            for i in range(1, (tail_len // seq_len)):
+                start_idx = tail_len - (i + 1) * seq_len
+                end_idx = tail_len - i * seq_len
+                if start_idx < 0:
+                    break
+                if tail[start_idx:end_idx] == seq:
                     repeats += 1
                 else:
                     break
@@ -264,12 +277,6 @@ class TokenSentinel:
                 else:
                     continue
             else:
-                # Thresholds calibrated to avoid false positives on normal text
-                # while still catching real generative loops:
-                #   1-token seq: 20 repeats (e.g. "aaaa..." — very common in normal text)
-                #   2-3 token seq: 10 repeats (e.g. "ha ha ha..." — could be intentional)
-                #   4-8 token seq: 6 repeats (starting to look pathological)
-                #   9+ token seq: 4 repeats (definitely a loop at this point)
                 if seq_len == 1:
                     threshold = 20
                 elif seq_len < 4:

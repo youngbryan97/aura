@@ -32,9 +32,13 @@ except ImportError:
 
 from character_voices import get_all_character_pairs
 from character_voices_expanded import get_all_expansion_pairs
+from character_voices_expanded_part2 import get_part2_expansion_pairs
+from character_direct_quotes import get_all_direct_quotes
 from architecture_knowledge import get_all_architecture_pairs
 from autonomy_training import get_all_autonomy_pairs, get_boundary_sequences
 from theory_knowledge import get_all_theory_pairs
+import json
+import random
 from dpo_enhanced import get_all_enhanced_dpo
 
 OUTPUT_DIR = Path(__file__).parent / "data"
@@ -140,6 +144,29 @@ def main():
     base_dpo_v2 = DPO_PAIRS_V2 if DPO_PAIRS_V2 else []
     character_pairs = get_all_character_pairs()
     character_expansion = get_all_expansion_pairs()
+    character_expansion_part2 = get_part2_expansion_pairs()
+
+    # Load authentic raw data
+    try:
+        with open("/Users/bryan/.aura/live-source/training/raw_data/verbatim_quotes_final.json", "r") as f:
+            raw_quotes = json.load(f)
+            direct_quotes = [(q["user"], q["assistant"]) for q in raw_quotes]
+    except Exception:
+        print("Warning: verbatim_quotes_final.json not found. Falling back.")
+        direct_quotes = get_all_direct_quotes()
+
+    try:
+        with open("/Users/bryan/.aura/live-source/training/raw_data/human_conversations.json", "r") as f:
+            raw_human = json.load(f)
+            # DYNAMIC SAMPLING: To prevent human conversations from drowning out the character voices,
+            # we sample exactly a 1:1 ratio with the verbatim quotes.
+            target_human_count = max(len(direct_quotes), 100)
+            sampled_human = random.sample(raw_human, min(target_human_count, len(raw_human)))
+            human_speech = [(q["user"], q["assistant"]) for q in sampled_human]
+    except Exception:
+        print("Warning: human_conversations.json not found.")
+        human_speech = []
+
     architecture_pairs = get_all_architecture_pairs()
     autonomy_pairs = get_all_autonomy_pairs()
     boundary_sequences = get_boundary_sequences()
@@ -148,11 +175,13 @@ def main():
 
     # ── Report ───────────────────────────────────────────────────────────
     print("=" * 60)
-    print("  PROJECT ZENITH — AURA TRAINING CORPUS v3")
+    print("  PROJECT ZENITH — AURA TRAINING CORPUS v3.2 (AUTHENTIC DATA)")
     print("=" * 60)
     print(f"  Base personality pairs:      {len(base_pairs)}")
     print(f"  Character voice pairs:       {len(character_pairs)}")
-    print(f"  Character expansion pairs:   {len(character_expansion)}")
+    print(f"  Character expansion pairs:   {len(character_expansion)} + {len(character_expansion_part2)} part 2")
+    print(f"  VERBATIM source quotes:      {len(direct_quotes)}")
+    print(f"  REAL Human speech (sampled): {len(human_speech)}")
     print(f"  Architecture self-knowledge: {len(architecture_pairs)}")
     print(f"  Autonomy/boundary pairs:     {len(autonomy_pairs)}")
     print(f"  Boundary sequences:          {len(boundary_sequences)}")
@@ -166,6 +195,9 @@ def main():
         base_pairs
         + character_pairs
         + character_expansion
+        + character_expansion_part2
+        + direct_quotes
+        + human_speech
         + architecture_pairs
         + autonomy_pairs
         + theory_pairs
@@ -240,7 +272,7 @@ def main():
     val = all_examples[split:]
 
     # ── Write JSONL ──────────────────────────────────────────────────────
-    get_task_tracker().create_task(get_storage_gateway().create_dir(OUTPUT_DIR, cause='main'))
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     train_path = OUTPUT_DIR / "train.jsonl"
     val_path = OUTPUT_DIR / "valid.jsonl"

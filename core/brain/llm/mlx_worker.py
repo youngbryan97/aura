@@ -93,7 +93,7 @@ def _prompt_cache_entry_budget_for_model(model_path: str) -> int:
     if any(token in lowered for token in ("72b", "solver")):
         return 0
     if any(token in lowered for token in ("32b", "cortex", "zenith")):
-        return 2
+        return 4
     if any(token in lowered for token in ("14b", "7b", "brainstem")):
         return 6
     return 12
@@ -516,7 +516,7 @@ def _mlx_worker_loop(
     heartbeat = HeartbeatThread(ipc_writer)
     heartbeat.start()
 
-    watchdog = JobWatchdog(timeout=90.0)  # [STABILITY v51] Reduced from 240s. M5 Metal compilation should finish within 60s.
+    watchdog = JobWatchdog(timeout=180.0)  # [RESILIENCE] Raised from 90s. Recurrent depth 2x loops on 32B can take 120s+ for prompt eval.
     watchdog.start()
 
     try:
@@ -685,8 +685,8 @@ def _mlx_worker_loop(
                 # natural prose; targets the token-level "something is shifting
                 # / something is moving" loops directly.
                 min_p = job.get("min_p", 0.05)
-                repetition_penalty = job.get("repetition_penalty", 1.05)
-                kwargs = {"max_tokens": max_tokens}
+                repetition_penalty = job.get("repetition_penalty", 1.15)
+                kwargs = {"max_tokens": max_tokens, "temperature": temp, "top_p": top_p, "repetition_penalty": repetition_penalty}
                 if make_sampler:
                     sampler_kwargs = {"temp": temp, "top_p": top_p}
                     try:
@@ -708,7 +708,7 @@ def _mlx_worker_loop(
                 try:
                     from mlx_lm.sample_utils import make_logits_processors
                     _rp = job.get("repetition_penalty", repetition_penalty)
-                    _rcs = job.get("repetition_context_size", 30)
+                    _rcs = job.get("repetition_context_size", 64)
                     _pp = job.get("presence_penalty", 0.0)
                     if _rp and _rp > 1.0:
                         lp = make_logits_processors(
@@ -870,11 +870,10 @@ def _mlx_worker_loop(
                                         })
                                         last_progress_emit_at = progress_now
                                     
-                                    # [STABILITY v52] Explicit manual cache clearing to prevent MLX memory 
-                                    # fragmentation mapping failures on long context 32B inferences.
-                                    if mx and device != "cpu" and token_count % 32 == 0:
-                                        _clear_mlx_cache(mx)
-                                    
+                                    # [PERF] Mid-generation cache clearing removed — was forcing Metal to
+                                    # reallocate GPU memory every 32 tokens, creating micro-stalls.
+                                    # Post-generation cleanup (line ~988) still ensures clean state.
+
                                     # [FRONTIER UPGRADE] Absolute safety cap expanded so it never stops midway
                                     if token_count > 8192:
                                         logger.warning("🏁 [WORKER] Hard token limit (8192) reached. Truncating.")

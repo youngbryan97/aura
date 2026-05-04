@@ -10,9 +10,9 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 try:
-    from training.character_voices import ALL_PAIRS
+    from training.character_voices import ALL_CHARACTER_PAIRS
 except ImportError:
-    ALL_PAIRS = []
+    ALL_CHARACTER_PAIRS = []
     
 try:
     from training.character_voices_expanded import ALL_EXPANSION_PAIRS
@@ -48,7 +48,7 @@ def main():
     
     # 1. Expand ALL 22+ Character Quotes from training module
     print("Synthesizing legacy character data (22+ characters)...")
-    legacy_pairs = ALL_PAIRS + ALL_EXPANSION_PAIRS
+    legacy_pairs = ALL_CHARACTER_PAIRS + ALL_EXPANSION_PAIRS
     
     for q, a in legacy_pairs:
         # Add base trace
