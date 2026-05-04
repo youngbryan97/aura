@@ -74,28 +74,39 @@ class NetHackParser(EnvironmentParser):
         if status_effects:
             state.self_state["status_effects"] = status_effects
 
-        # 2. Parse Messages (Top line(s) usually)
+        # 2. Parse Messages and Prompts
+        # NetHack messages are usually on line 0, but prompts can appear anywhere.
         msg_line = lines[0].strip()
         if msg_line:
             state.messages.append(msg_line)
-            # If the line ends with --More--, there might be more messages
             if "--More--" in msg_line:
                 state.active_prompts.append("--More-- (Press SPACE to continue)")
 
-        # Menus and questions
+        # Scan for questions and modal states across all lines
         prompt_markers = (
             "What do you want to",
-            "Call",
+            "Call a",
             "Direction?",
             "Is this ok?",
             "[ynq]",
             "[yn]",
             "Pick an object",
             "In what direction",
+            "Press return",
+            "press return",
         )
-        if any(marker in msg_line for marker in prompt_markers):
-            if not any(p.startswith("--More--") for p in state.active_prompts):
-                state.active_prompts.append(msg_line)
+        
+        # We check all lines for these markers
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if any(marker in stripped for marker in prompt_markers):
+                # Don't duplicate if already added via line 0 logic
+                if not any(stripped in p for p in state.active_prompts):
+                    state.active_prompts.append(stripped)
+            
+            # Special case for --More-- on other lines (rare but possible)
+            if "--More--" in stripped and not any("--More--" in p for p in state.active_prompts):
+                state.active_prompts.append("--More-- (Press SPACE to continue)")
 
         # 3. Parse Map/Grid (Lines 1 to 21)
         player_pos = None

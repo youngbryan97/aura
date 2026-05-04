@@ -104,7 +104,14 @@ class EnvironmentActionGateway:
                 if item.get("surprise", 0.0) >= 0.5
             ]
             if action in recent_failures:
-                vetoes.append(f"inhibitory_block:action_{action}_recently_failed_in_loop")
+                reason = f"inhibitory_block:action_{action}_recently_failed_in_loop"
+                vetoes.append(reason)
+                # If we have a replacement, we don't need to veto if the replacement is different
+                if replacements and replacements[-1] != action:
+                    pass 
+                else:
+                    # No replacement or replacement is the same failed action
+                    pass
 
         if "loop" in risk_tags and "repeated" in request.tags:
             vetoes.append("loop_risk_blocks_repeated_action")
