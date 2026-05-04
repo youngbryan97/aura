@@ -150,15 +150,42 @@ async def run_challenge():
                             logger.info(f"  MOTOR: Executing action {i+1}/{len(actions)}: '{display}'")
                             adapter.send_action(key)
                             await asyncio.sleep(0.3)  # Small delay between actions
+                    consecutive_no_action = 0
                 else:
-                    # She responded but didn't emit action markers — nudge on next cycle
-                    logger.warning(f"Step {step}: Response had no [ACTION:x] markers.")
+                    # She responded but didn't emit action markers
+                    consecutive_no_action = getattr(run_challenge, '_no_action_count', 0) + 1
+                    run_challenge._no_action_count = consecutive_no_action
+                    logger.warning(f"Step {step}: Response had no [ACTION:x] markers ({consecutive_no_action} consecutive).")
+                    
+                    if consecutive_no_action >= 3:
+                        # Force a default exploratory action to prevent total paralysis
+                        logger.warning(f"Step {step}: Forcing exploratory move (l=right) after {consecutive_no_action} non-actionable responses.")
+                        adapter.send_action('l')
+                        run_challenge._no_action_count = 0
+                    else:
+                        # Re-prompt immediately with an action reminder
+                        reminder = (
+                            f"[MOTOR FEEDBACK] Your response had no [ACTION:x] markers. "
+                            "You MUST output at least one [ACTION:key] to interact with the game. "
+                            "Example: [ACTION:l] to move right, [ACTION:k] to move up. What is your next action?"
+                        )
+                        retry = await orchestrator.process_user_input_priority(reminder, origin="external")
+                        if retry:
+                            retry_actions = extract_actions(retry)
+                            for i, action_str in enumerate(retry_actions):
+                                key = resolve_key(action_str)
+                                if key:
+                                    display = action_str.strip().upper() if action_str.strip().upper() in SPECIAL_KEYS else action_str.strip()
+                                    logger.info(f"  MOTOR (retry): Executing action {i+1}/{len(retry_actions)}: '{display}'")
+                                    adapter.send_action(key)
+                                    await asyncio.sleep(0.3)
+                            if retry_actions:
+                                run_challenge._no_action_count = 0
             else:
                 consecutive_none += 1
                 if consecutive_none > 2:
                     # Pipeline returned None repeatedly (dedup or will gate) — force dedup reset
                     logger.warning(f"Step {step}: {consecutive_none} consecutive None responses. Injecting tick marker.")
-                    # Slightly vary the prompt to bypass dedup fingerprinting
                     last_screen_hash = ""  # Force re-send with fresh hash comparison
             
             # Update prompt time after processing (processing can take 10-30s)
