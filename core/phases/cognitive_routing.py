@@ -150,6 +150,25 @@ class CognitiveRoutingPhase(BasePhase):
             self._last_non_user_fingerprint = fingerprint
             self._last_non_user_route_at = now
         
+        # ── SYSTEM / ENVIRONMENTAL SENSORY FEED FAST-PATH ──
+        # General improvement: If the input is explicitly a system directive or sensory
+        # feed injected by a background process (e.g. embodied environments, terminals),
+        # we bypass eager tool execution and treat it strictly as REACTIVE/CHAT.
+        if (
+            input_text.startswith("CORE DIRECTIVE:") 
+            or "[environmental context" in lower_input 
+            or "sensory update" in lower_input
+        ):
+            logger.info("🧭 Routing: SENSORY FEED / CORE DIRECTIVE detected. Routing as CHAT to avoid eager tool commitments.")
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            new_state.cognition.current_objective = input_text
+            new_state.cognition.current_origin = routing_origin
+            new_state.response_modifiers["intent_type"] = "CHAT"
+            new_state.response_modifiers["semantic_intent"] = "casual"
+            new_state.response_modifiers["model_tier"] = "primary"
+            new_state.response_modifiers["deep_handoff"] = False
+            return new_state
+
         # Fast skill detection before any LLM routing so tool use stays reliable
         matched_skills: list[str] = []
         try:
@@ -237,12 +256,6 @@ class CognitiveRoutingPhase(BasePhase):
             logger.info("🧭 Routing: Casual/Autonomous bypass. Forcing REACTIVE.")
             cognitive_mode = CognitiveMode.REACTIVE
         
-        # Fast-path for environmental injections to avoid triggering task commitments
-        if "[environmental context" in lower_input or "sensory update" in lower_input:
-            logger.info("🧭 Routing: SENSORY FEED detected. Routing as CHAT to avoid task commitment.")
-            cognitive_mode = CognitiveMode.REACTIVE
-            new_state.response_modifiers["intent_type"] = "CHAT"
-            new_state.response_modifiers["semantic_intent"] = "casual"
 
         # 2. Heuristic fast-path
         if any(cmd in lower_input for cmd in ["reboot", "restart", "shutdown", "sleep"]):

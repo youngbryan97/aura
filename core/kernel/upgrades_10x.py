@@ -667,7 +667,8 @@ class GodModeToolPhase(Phase):
 
         cap = self._get_cap_engine()
         matched_skill_hints = normalize_matched_skills(state.response_modifiers.get("matched_skills", []))
-        if not matched_skill_hints and cap and hasattr(cap, "detect_intent"):
+        is_nethack_directive = str(objective or "").startswith("CORE DIRECTIVE")
+        if not matched_skill_hints and cap and hasattr(cap, "detect_intent") and not is_nethack_directive:
             try:
                 matched_skill_hints = list(cap.detect_intent(objective) or [])
             except Exception as exc:
@@ -705,7 +706,7 @@ class GodModeToolPhase(Phase):
                 matched_skills = [contract.required_skill]
 
             # 2. Re-run pattern match if routing didn't capture it
-            if not matched_skills and hasattr(cap, "detect_intent"):
+            if not matched_skills and hasattr(cap, "detect_intent") and not is_nethack_directive:
                 matched_skills = cap.detect_intent(objective)
 
             if _looks_like_search_capability_question(objective):

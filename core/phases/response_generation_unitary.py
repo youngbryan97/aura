@@ -3128,6 +3128,32 @@ class UnitaryResponsePhase(Phase):
             except Exception as e:
                 logger.error("Failed to parse manim trigger: %s", e)
 
+            # [ACTION GROUNDING] Parse markers and dispatch real execution before committing
+            try:
+                from core.phases.action_grounding import ground_response
+                from core.container import ServiceContainer
+                cap_engine = ServiceContainer.get("capability_engine", default=None)
+                if cap_engine:
+                    grounding_res = await ground_response(
+                        response_text,
+                        capability_engine=cap_engine,
+                        context={"origin": routing_origin, "state_id": new_state.state_id}
+                    )
+                    response_text = grounding_res.grounded_text
+                    if grounding_res.marker_hits:
+                        new_state.response_modifiers["grounded_actions"] = grounding_res.as_dict()
+                        for hit in grounding_res.marker_hits:
+                            new_state.response_modifiers["last_skill_run"] = hit.get("skill")
+                            new_state.response_modifiers["last_skill_ok"] = hit.get("ok", False)
+                            if hit.get("ok"):
+                                new_state.cognition.working_memory.append({
+                                    "role": "system",
+                                    "content": hit.get("summary", f"{hit.get('skill')} completed."),
+                                    "metadata": {"type": "skill_result", "skill": hit.get("skill"), "ok": True}
+                                })
+            except Exception as g_err:
+                logger.error("Action grounding failed: %s", g_err)
+
             return self._commit_response(new_state, response_text, thought=extracted_thought)
 
         except TimeoutError:
