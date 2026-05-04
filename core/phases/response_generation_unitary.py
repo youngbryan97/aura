@@ -2897,9 +2897,6 @@ class UnitaryResponsePhase(Phase):
             messages = self._recent_router_history(
                 new_state,
                 limit=history_limit,
-                is_user_facing=is_user_facing,
-                model_tier=model_tier,
-                deep_handoff=deep_handoff,
             )
             # Hard cap system prompt to fit within context window.
             # The 32B local model has ~8K token context (~32K chars).
@@ -2942,6 +2939,12 @@ class UnitaryResponsePhase(Phase):
                 pass  # anti-repetition is best-effort
 
             messages = self._inject_active_grounding_message(messages, new_state, objective, contract)
+            
+            request_timeout = self._timeout_for_request(
+                is_user_facing=is_user_facing,
+                model_tier=model_tier,
+                deep_handoff=deep_handoff,
+            )
 
             llm_kwargs = {
                 "messages": messages,

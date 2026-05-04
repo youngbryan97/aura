@@ -23,6 +23,7 @@ from .liquid_substrate import LiquidSubstrate
 from .qualia_synthesizer import QualiaSynthesizer
 from .self_prediction import SelfPredictionLoop
 from .temporal_binding import TemporalBindingEngine
+from .substrate_authority import SubstrateAuthority
 
 logger = logging.getLogger("Consciousness")
 
@@ -39,9 +40,14 @@ class ConsciousnessSystem:
         
         # Initialize attributes to avoid NoneType/AttributeError in IDE
         self._task: Optional[asyncio.Task] = None
-        self.phi_core: Optional[Any] = None
-        self.closed_loop: Optional[Any] = None
-        self.bridge: Optional[Any] = None  # ConsciousnessBridge (Phase Bridge)
+        self.phi_core = None
+        self.closed_loop = None
+        
+        # Accelerate Authority Registration (Phase Unification)
+        self.substrate_authority = SubstrateAuthority()
+        ServiceContainer.register_instance("substrate_authority", self.substrate_authority)
+        
+        self.bridge = None  # ConsciousnessBridge (Phase Bridge)
         
         # Aliases
         self.substrate = self.liquid_substrate

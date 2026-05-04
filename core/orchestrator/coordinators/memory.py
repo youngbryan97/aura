@@ -77,27 +77,49 @@ class MemoryCoordinator:
                 logger.error(f"MemoryCoordinator.get_hot_memory failed: {e}")
         return {}
 
-    async def commit_interaction(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    async def commit_interaction(
+        self,
+        context: str,
+        action: str = "interaction",
+        outcome: str = "",
+        success: bool = True,
+        emotional_valence: float = 0.0,
+        importance: float = 0.5,
+        metadata: Optional[Dict[str, Any]] = None,
+        role: Optional[str] = None,    # Legacy support
+        content: Optional[str] = None, # Legacy support
+    ) -> None:
         """Commits an interaction to persistent memory.
-        Maps MemoryCoordinator's (role, content) to MemoryFacade's (context, action, outcome, success) signature.
+        Supports both the rich MemoryFacade signature and the legacy (role, content) signature.
         """
+        # Legacy mapping if called with role/content
+        if role and content:
+            context = f"{role}: {content}"
+            action = "commit_interaction"
+            outcome = content[:500]
+            success = True
+
         if self.memory and hasattr(self.memory, 'commit_interaction'):
             try:
                 if asyncio.iscoroutinefunction(self.memory.commit_interaction):
                     await self.memory.commit_interaction(
-                        context=f"{role}: {content}",
-                        action="commit_interaction",
-                        outcome=content[:500] if content else "",
-                        success=True,
+                        context=context,
+                        action=action,
+                        outcome=outcome,
+                        success=success,
+                        emotional_valence=emotional_valence,
+                        importance=importance,
                         metadata=metadata,
                     )
                 else:
                     await asyncio.to_thread(
                         self.memory.commit_interaction,
-                        context=f"{role}: {content}",
-                        action="commit_interaction",
-                        outcome=content[:500] if content else "",
-                        success=True,
+                        context=context,
+                        action=action,
+                        outcome=outcome,
+                        success=success,
+                        emotional_valence=emotional_valence,
+                        importance=importance,
                         metadata=metadata,
                     )
             except Exception as e:

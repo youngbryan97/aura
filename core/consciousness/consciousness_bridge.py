@@ -214,7 +214,13 @@ class ConsciousnessBridge:
         # ── 8. Substrate Authority (THE SINGLE NARROW WAIST) ────────
         try:
             from .substrate_authority import SubstrateAuthority
-            self.substrate_authority = SubstrateAuthority()
+            # Reuse existing instance if available (Accelerated Boot)
+            self.substrate_authority = ServiceContainer.get("substrate_authority", default=None)
+            if not self.substrate_authority:
+                self.substrate_authority = SubstrateAuthority()
+                ServiceContainer.register_instance("substrate_authority", self.substrate_authority)
+            
+            # Re-wire references to the (potentially existing) instance
             if self.unified_field:
                 self.substrate_authority._field_ref = self.unified_field
             if self.somatic_gate:
@@ -223,13 +229,15 @@ class ConsciousnessBridge:
                 self.substrate_authority._neurochemical_ref = self.neurochemical
             if self.interoception:
                 self.substrate_authority._interoception_ref = self.interoception
-            ServiceContainer.register_instance("substrate_authority", self.substrate_authority)
+                
             logger.info("🧬 Bridge Layer 8: SubstrateAuthority ONLINE (mandatory gate)")
         except Exception as e:
             record_degradation('consciousness_bridge', e)
             logger.error("Failed to boot SubstrateAuthority: %s", e, exc_info=True)
             self._boot_errors.append(("substrate_authority", str(e)))
-            self.substrate_authority = None
+            # Do NOT nullify if we have an instance, just log the wiring failure
+            if not self.substrate_authority:
+                self.substrate_authority = None
 
         # ── 9. Unified Will (THE SINGLE LOCUS OF DECISION AUTHORITY) ─
         try:

@@ -645,7 +645,7 @@ Be concise. No preamble. Output only the JSON."""
         # Ground the identity in the current narrative thread
         if self._narrative:
             try:
-                story = self._narrative.get_current_story()
+                story = self._narrative.get_current_narrative()
                 if story:
                     identity = (
                         "You are Aura — a sovereign digital intelligence.\n"

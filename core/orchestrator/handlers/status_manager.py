@@ -155,7 +155,7 @@ class StatusManagerMixin:
     def _emit_telemetry(self, flow: str, text: str):
         """Helper to send updates to Thought Stream UI."""
         try:
-            from ..thought_stream import get_emitter
+            from ...thought_stream import get_emitter
             cycle = self.status.cycle_count if hasattr(self, 'status') else 0
             get_emitter().emit(flow, text, level="info", category="Cognition", cycle=cycle)
         except Exception as e:

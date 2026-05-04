@@ -771,6 +771,7 @@ def build_response_contract(
     text = str(objective or "").strip()
     lower = normalize_memory_intent_text(text)
     prompt_shape = analyze_prompt_shape(text)
+    is_embodied_control = "[embodied control contract]" in lower
 
     explicit_search = _matches_any(lower, _EXPLICIT_SEARCH_PATTERNS)
     factual_lookup = _matches_any(lower, _FACTUAL_LOOKUP_PATTERNS)
@@ -842,6 +843,7 @@ def build_response_contract(
     has_url = bool(re.search(r'https?://[^\s]+', text))
     requires_search = bool(
         is_user_facing
+        and not is_embodied_control
         and (
             explicit_search
             or has_url

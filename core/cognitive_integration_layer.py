@@ -359,7 +359,17 @@ class CognitiveIntegrationLayer:
 
         # Agency Integration: Execute tools if needed
         # v1.1 FIX: This restores Aura's ability to 'look things up' in the CogV5 pipeline.
-        if brief.requires_research:
+        intent_type = ""
+        origin = ""
+        if state:
+            if hasattr(state, "response_modifiers"):
+                intent_type = state.response_modifiers.get("intent_type", "")
+            if hasattr(state, "cognition") and hasattr(state.cognition, "current_origin"):
+                origin = state.cognition.current_origin
+
+        # [STABILITY] Bypassing agency research for embodied actions to prevent stalls.
+        is_embodied = "embodied" in str(origin) or "[embodied control contract]" in str(message).lower()
+        if brief.requires_research and intent_type != "ACTION" and not is_embodied:
             try:
                 # AgencyCoordinator is registered as agency_coordinator in ServiceContainer
                 agency = ServiceContainer.get("agency_coordinator", default=None)

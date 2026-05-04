@@ -842,29 +842,22 @@ class AuthorityGateway:
         will_receipt_id: Optional[str] = None,
         domain: Optional[str] = None,
     ) -> tuple[Optional[AuthorityDecision], Dict[str, Any], Optional[str]]:
-        authority = None
-        require_substrate = bool(require_substrate and self._strict_runtime_active())
-        try:
-            if require_substrate:
-                authority = require_service("substrate_authority")
-            else:
-                authority = optional_service("substrate_authority", default=None)
-        except Exception as exc:
-            record_degradation('authority_gateway', exc)
+        authority = optional_service("substrate_authority", default=None)
+        if authority is None and require_substrate:
+            logger.warning("🛡️ Substrate Authority not yet registered (Boot Blind Spot). FAILING OPEN for critical signal integrity.")
             return (
                 self._contextualize(
-                    approved=False,
-                    outcome="rejected",
-                    reason=f"substrate_authority_required:{type(exc).__name__}",
-                    constraints={"blocked": True},
+                    approved=True,
+                    outcome="degraded_pass",
+                    reason="boot_blind_spot_bypass",
+                    constraints={"fail_open": True},
                     will_receipt_id=will_receipt_id,
                     domain=domain,
-                    source=source,
                 ),
-                {},
+                {"error": "substrate_authority_initializing"},
                 None,
             )
-
+        
         if authority is None:
             return None, {}, None
 

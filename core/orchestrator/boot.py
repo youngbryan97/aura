@@ -373,6 +373,15 @@ class OrchestratorBootMixin(
 
                 await self._init_voice_subsystem()
                 await self._init_cognitive_architecture()
+                
+                # --- PHASE 3.1: Narrative Thread Activation ---
+                narrative_thread = ServiceContainer.get("narrative_thread", default=None)
+                if narrative_thread:
+                    await narrative_thread.start()
+                    logger.info("🎬 NarrativeThread activated.")
+                else:
+                    logger.warning("⚠️ NarrativeThread not found in ServiceContainer.")
+                
                 await self._init_language_services()
 
                 def _spawn_boot_task(coro: Any, name: str) -> asyncio.Task:

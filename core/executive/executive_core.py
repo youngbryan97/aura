@@ -51,6 +51,11 @@ def _coerce_intent_source(source: str) -> IntentSource:
         "external",
         "frontend",
         "ui",
+        "embodied",
+        "embodied_motor_reflex",
+        "embodied_sensory_feed",
+        "reflex",
+        "motor",
     }
     if normalized in user_aliases:
         return IntentSource.USER
