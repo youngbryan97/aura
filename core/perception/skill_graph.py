@@ -45,12 +45,16 @@ class SkillOption:
 
     def score(self, state: EnvironmentState, risk: RiskProfile, goal: EmbodiedGoal) -> float:
         base = self.priority * 0.45 + self.reliability * 0.35 + goal.priority * 0.20
+        risk_tags = risk.tags()
         if risk.critical and "emergency" in self.tags:
             base += 0.25
         if state.has_active_prompt() and "modal" in self.tags:
             base += 0.25
         if "uncertainty" in goal.name.lower() and "information" in self.tags:
             base += 0.15
+        if ("loop" in risk_tags or "stagnation" in risk_tags) and "stagnation" in self.tags:
+            # Massive boost to break the loop - this takes precedence over standard risk
+            base += 0.5
         return max(0.0, min(1.0, base))
 
     def record_outcome(self, success: bool) -> None:
@@ -58,8 +62,9 @@ class SkillOption:
             self.successes += 1
         else:
             self.failures += 1
-        total = self.successes + self.failures
-        self.reliability = self.successes / total if total else self.reliability
+        # Laplace smoothing to prevent reliability from hitting 0 or 1 too fast
+        # and to ensure it starts at 0.5.
+        self.reliability = (self.successes + 1) / (self.successes + self.failures + 2)
         self.updated_at = time.time()
 
 
