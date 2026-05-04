@@ -85,10 +85,12 @@ async def run_challenge():
     await orchestrator.process_user_input_priority(
         "SYSTEM_DIRECTIVE: You are now embodied in a NetHack terminal session. "
         "You will receive periodic [NETHACK SENSORY UPDATE]s showing the current screen. "
-        "To take actions, output [ACTION:key] markers where key is a single character "
-        "(h/j/k/l/y/u/b/n for movement, i for inventory, etc.) or ESC/SPACE/ENTER. "
+        "To take actions, output [ACTION:key] markers where key is a single character. "
+        "MOVEMENT: h=left, j=down, k=up, l=right, y=upleft, u=upright, b=downleft, n=downright. "
+        "IMPORTANT: DO NOT use w/a/s/d for movement — those are game commands (w=wield, d=drop). "
+        "OTHER: i=inventory, s=search, o=open, c=close, >=descend stairs, <=ascend stairs, .=wait. "
+        "MENUS: SPACE or ENTER to advance --More-- prompts, ESC to cancel/exit menus. "
         "You may output multiple [ACTION:x] markers in one response. "
-        "The '--More--' prompt requires [ACTION:SPACE] to dismiss. "
         "Focus on survival and exploration. Be terse.",
         origin="admin"
     )
