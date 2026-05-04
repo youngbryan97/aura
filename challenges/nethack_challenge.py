@@ -67,6 +67,41 @@ def resolve_key(action_str):
         return raw[0]
     return None
 
+def motor_execute(adapter, key, action_label):
+    """Execute a motor action and route feedback through the somatic system.
+    
+    This wires the embodied action into the FeedbackProcessor so that
+    the proprioceptive loop, body schema, and affect system all receive
+    proper feedback about action outcomes.
+    """
+    import time as _time
+    screen_before = adapter.get_screen_text()
+    t0 = _time.monotonic()
+    adapter.send_action(key)
+    _time.sleep(0.15)  # Let the terminal settle
+    screen_after = adapter.get_screen_text()
+    latency_ms = (_time.monotonic() - t0) * 1000
+    
+    # Determine if the action had any observable effect
+    changed = screen_before != screen_after
+    
+    # Route through the somatic FeedbackProcessor
+    try:
+        from core.somatic.action_feedback import get_feedback_processor
+        fp = get_feedback_processor()
+        fp.process_tool_result(
+            tool_name=f"motor_action_{action_label}",
+            success=changed,
+            latency_ms=latency_ms,
+            result_summary=f"screen_{'changed' if changed else 'unchanged'} after '{action_label}'",
+            error_detail="" if changed else f"Action '{action_label}' had no observable effect on environment",
+            source="embodied_motor_loop",
+        )
+    except Exception as exc:
+        logger.debug("FeedbackProcessor routing failed: %s", exc)
+    
+    return changed
+
 
 async def run_challenge():
     logger.info(">>> AURA NETHACK CHALLENGE STARTING (EMBODIED DAEMON v2) <<<")
@@ -121,14 +156,11 @@ async def run_challenge():
         
         # Only ping her cognitive pipeline when screen changes or stagnation detected
         if screen_hash != last_screen_hash or time_since_last > 15:
-            stagnation = ""
-            if screen_hash == last_screen_hash and step > 0:
-                stagnation = (
-                    "\n[METACOGNITIVE ALARM] Screen unchanged. Your last action had no effect. "
-                    "You may be stuck in a modal prompt. Try [ACTION:ESC] or [ACTION:SPACE]."
-                )
+            # Stagnation detection is now handled architecturally by the
+            # somatic FeedbackProcessor + ProprioceptiveLoop. No need for
+            # challenge-specific prompt injection.
             
-            prompt = f"[NETHACK SENSORY UPDATE T={step}]\nCURRENT SCREEN:\n{screen}{stagnation}"
+            prompt = f"[NETHACK SENSORY UPDATE T={step}]\nCURRENT SCREEN:\n{screen}"
             
             last_screen_hash = screen_hash
             last_prompt_time = time.time()
@@ -139,6 +171,8 @@ async def run_challenge():
             
             # ── MOTOR GROUNDING ──────────────────────────────────────
             # Extract [ACTION:x] markers and execute them physically
+            # All actions route through motor_execute() → FeedbackProcessor
+            # so the somatic system tracks outcomes for proprioception.
             if response:
                 consecutive_none = 0
                 actions = extract_actions(response)
@@ -148,8 +182,8 @@ async def run_challenge():
                         if key:
                             display = action_str.strip().upper() if action_str.strip().upper() in SPECIAL_KEYS else action_str.strip()
                             logger.info(f"  MOTOR: Executing action {i+1}/{len(actions)}: '{display}'")
-                            adapter.send_action(key)
-                            await asyncio.sleep(0.3)  # Small delay between actions
+                            motor_execute(adapter, key, display)
+                            await asyncio.sleep(0.15)
                     consecutive_no_action = 0
                 else:
                     # She responded but didn't emit action markers
@@ -160,7 +194,7 @@ async def run_challenge():
                     if consecutive_no_action >= 3:
                         # Force a default exploratory action to prevent total paralysis
                         logger.warning(f"Step {step}: Forcing exploratory move (l=right) after {consecutive_no_action} non-actionable responses.")
-                        adapter.send_action('l')
+                        motor_execute(adapter, 'l', 'l')
                         run_challenge._no_action_count = 0
                     else:
                         # Re-prompt immediately with an action reminder
@@ -177,8 +211,8 @@ async def run_challenge():
                                 if key:
                                     display = action_str.strip().upper() if action_str.strip().upper() in SPECIAL_KEYS else action_str.strip()
                                     logger.info(f"  MOTOR (retry): Executing action {i+1}/{len(retry_actions)}: '{display}'")
-                                    adapter.send_action(key)
-                                    await asyncio.sleep(0.3)
+                                    motor_execute(adapter, key, display)
+                                    await asyncio.sleep(0.15)
                             if retry_actions:
                                 run_challenge._no_action_count = 0
             else:

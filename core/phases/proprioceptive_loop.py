@@ -162,6 +162,78 @@ class ProprioceptiveLoop(BasePhase):
             record_degradation('proprioceptive_loop', _fp_exc)
             logger.debug("Proprioception limb health probe failed: %s", _fp_exc)
 
+        # ── 4d. [RUBICON] Action Stagnation Detection ──────────────
+        # When the somatic system detects that recent actions are stuck
+        # in a repetitive failure loop, inject a proprioceptive percept
+        # into working memory. This is the body saying "my limbs aren't
+        # responding" — the cognitive loop needs to adapt its strategy.
+        #
+        # This is general-purpose: fires for ANY tool/skill/action that
+        # is failing repeatedly, not just specific embodied contexts.
+        try:
+            from core.somatic.action_feedback import get_feedback_processor as _gfp
+            fp = _gfp()
+            stagnation = fp.detect_action_stagnation(window=10)
+            if stagnation and stagnation.get("stagnant"):
+                soma.hardware["action_stagnation"] = True
+                soma.hardware["action_failure_rate"] = stagnation.get("failure_rate", 0)
+                soma.hardware["action_loop_detected"] = stagnation.get("loop_detected", False)
+
+                # Build a concise proprioceptive percept for working memory.
+                # This is NOT prompt engineering — it's the somatic nervous
+                # system reporting sensory feedback to the cognitive workspace,
+                # exactly as biological proprioception reports to the brain.
+                parts = ["[PROPRIOCEPTIVE FEEDBACK] Action stagnation detected by somatic system."]
+                fr = stagnation.get("failure_rate", 0)
+                if fr > 0:
+                    parts.append(f"Recent action failure rate: {fr:.0%}.")
+                if stagnation.get("loop_detected"):
+                    parts.append(f"Repetitive action loop detected (cycle length: {stagnation.get('loop_length', 0)}).")
+                degraded = stagnation.get("degraded_limbs", [])
+                if degraded:
+                    limb_names = ", ".join(d["name"] for d in degraded[:3])
+                    parts.append(f"Degraded capabilities: {limb_names}.")
+                outcomes = stagnation.get("recent_outcomes", [])
+                if outcomes:
+                    trail_str = "; ".join(
+                        f"{o['action']}→{o['outcome']}" for o in outcomes[-4:]
+                    )
+                    parts.append(f"Recent trail: {trail_str}.")
+                parts.append("Your current approach is not producing results. Adapt strategy.")
+
+                percept_text = " ".join(parts)
+                wm = new_state.cognition.working_memory
+                # Avoid duplicate injection (check last 3 entries)
+                already_injected = any(
+                    isinstance(m, dict)
+                    and "PROPRIOCEPTIVE FEEDBACK" in str(m.get("content", ""))
+                    for m in wm[-3:]
+                )
+                if not already_injected:
+                    wm.append({
+                        "role": "system",
+                        "content": percept_text,
+                        "metadata": {
+                            "type": "proprioceptive_percept",
+                            "source": "somatic_feedback_processor",
+                            "stagnation": True,
+                        },
+                    })
+                    logger.warning(
+                        "🦴 Proprioceptive stagnation percept injected into working memory "
+                        "(failure_rate=%.0f%%, loop=%s)",
+                        fr * 100,
+                        stagnation.get("loop_detected"),
+                    )
+            else:
+                # Clear stagnation flag if it was previously set
+                soma.hardware.pop("action_stagnation", None)
+                soma.hardware.pop("action_failure_rate", None)
+                soma.hardware.pop("action_loop_detected", None)
+        except Exception as _stag_exc:
+            record_degradation('proprioceptive_loop', _stag_exc)
+            logger.debug("Proprioception stagnation check failed: %s", _stag_exc)
+
         logger.debug(
             "🦴 Proprioception: CPU=%.1f%%, VRAM=%.1f%%, Expression=%s, ThoughtLag=%.0fms",
             soma.hardware.get("cpu_usage", 0),

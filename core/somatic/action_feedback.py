@@ -409,6 +409,94 @@ class FeedbackProcessor:
             for f in recent
         ]
 
+    # ------------------------------------------------------------------
+    # Action Stagnation Detection
+    # ------------------------------------------------------------------
+
+    def detect_action_stagnation(self, window: int = 10) -> Dict[str, Any]:
+        """Detect when recent actions are stuck in a repetitive failure loop.
+
+        Analyzes the last ``window`` action feedbacks for:
+          1. High failure rate (>60% of recent actions failed)
+          2. Repetitive action loop (same sequence of actions repeating)
+          3. Single-limb degradation (one tool/skill failing repeatedly)
+
+        Returns a structured dict that the ProprioceptiveLoop can
+        inject into the cognitive workspace.  Returns an empty dict
+        if no stagnation is detected.
+
+        This is the somatic equivalent of "my body isn't responding to
+        my motor commands" — a proprioceptive alarm, not a prompt hack.
+        """
+        trail = list(self._feedback_trail)[-window:]
+        if len(trail) < 3:
+            return {}
+
+        # --- 1. High failure rate ---
+        failures = sum(1 for f in trail if not f.succeeded)
+        failure_rate = failures / len(trail)
+
+        # --- 2. Repetitive action loop ---
+        action_sequence = [f.action_name for f in trail]
+        # Check if the last N actions repeat a short cycle
+        loop_length = 0
+        for cycle_len in range(1, min(5, len(action_sequence) // 2 + 1)):
+            pattern = action_sequence[-cycle_len:]
+            preceding = action_sequence[-(2 * cycle_len):-cycle_len]
+            if pattern == preceding:
+                loop_length = cycle_len
+                break
+
+        # --- 3. Single-limb degradation ---
+        degraded_limbs = []
+        for name, limb in self._limbs.items():
+            if limb.consecutive_failures >= 3 and limb.health < 0.5:
+                degraded_limbs.append({
+                    "name": name,
+                    "consecutive_failures": limb.consecutive_failures,
+                    "health": round(limb.health, 3),
+                    "last_error": limb.last_error[:100],
+                })
+
+        # --- 4. Outcome summary for last N actions ---
+        outcome_summary = []
+        for f in trail[-5:]:
+            outcome_summary.append({
+                "action": f.action_name,
+                "outcome": f.outcome.value,
+                "summary": f.result_summary[:80],
+            })
+
+        # Build stagnation report (only if something is actually wrong)
+        is_stagnant = (
+            failure_rate > 0.6
+            or loop_length > 0
+            or len(degraded_limbs) > 0
+        )
+
+        if not is_stagnant:
+            return {}
+
+        report = {
+            "stagnant": True,
+            "failure_rate": round(failure_rate, 2),
+            "loop_detected": loop_length > 0,
+            "loop_length": loop_length,
+            "degraded_limbs": degraded_limbs,
+            "recent_outcomes": outcome_summary,
+            "window_size": len(trail),
+            "timestamp": time.time(),
+        }
+
+        logger.warning(
+            "🦴 Action stagnation detected: failure_rate=%.0f%% loop=%s degraded=%d",
+            failure_rate * 100,
+            loop_length if loop_length else "none",
+            len(degraded_limbs),
+        )
+
+        return report
+
 
 # ---------------------------------------------------------------------------
 # Singleton
