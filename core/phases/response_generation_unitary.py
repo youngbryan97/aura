@@ -3033,96 +3033,101 @@ class UnitaryResponsePhase(Phase):
                     retried_text = self._shape_user_facing_response(retried_text)
                 return retried_text
 
-            response_text, dialogue_validation, dialogue_retried = await enforce_dialogue_contract(
-                response_text,
-                contract,
-                retry_generate=_retry_dialogue if is_user_facing else None,
-            )
-            if is_user_facing and not dialogue_validation.ok:
-                recovered = self._build_governed_user_recovery_reply(new_state, objective, contract)
-                if recovered:
-                    response_text, dialogue_validation = self._select_valid_recovery_variant(
-                        recovered,
-                        contract,
-                    )
+            # Dialogue Contract Enforcement
+            # System directives and action/sensory streams bypass dialogue
+            # validation, because they are inherently programmatic responses
+            # (like `[ACTION:execute]`) that violate conversational rules.
+            if not _is_system_directive:
+                response_text, dialogue_validation, dialogue_retried = await enforce_dialogue_contract(
+                    response_text,
+                    contract,
+                    retry_generate=_retry_dialogue if is_user_facing else None,
+                )
+                if is_user_facing and not dialogue_validation.ok:
+                    recovered = self._build_governed_user_recovery_reply(new_state, objective, contract)
+                    if recovered:
+                        response_text, dialogue_validation = self._select_valid_recovery_variant(
+                            recovered,
+                            contract,
+                        )
+                        logger.info(
+                            "🗣️ UnitaryResponse: replaced failed subjective draft with grounded recovery reply (%s)",
+                            ", ".join(dialogue_validation.violations) or "recovered",
+                        )
+                new_state.response_modifiers["dialogue_validation"] = dialogue_validation.to_dict()
+                if dialogue_retried:
                     logger.info(
-                        "🗣️ UnitaryResponse: replaced failed subjective draft with grounded recovery reply (%s)",
+                        "🗣️ UnitaryResponse: retried draft to satisfy dialogue contract (%s)",
                         ", ".join(dialogue_validation.violations) or "recovered",
                     )
-            new_state.response_modifiers["dialogue_validation"] = dialogue_validation.to_dict()
-            if dialogue_retried:
-                logger.info(
-                    "🗣️ UnitaryResponse: retried draft to satisfy dialogue contract (%s)",
-                    ", ".join(dialogue_validation.violations) or "recovered",
-                )
 
-            # Genuine Refusal (Values-based pushback)
-            if self._refusal:
-                response_text, _ = await self._refusal.process(user_input=objective, response=response_text, state=new_state)
-            if is_user_facing:
-                response_text = self._shape_user_facing_response(response_text)
+                # Genuine Refusal (Values-based pushback)
+                if self._refusal:
+                    response_text, _ = await self._refusal.process(user_input=objective, response=response_text, state=new_state)
+                if is_user_facing:
+                    response_text = self._shape_user_facing_response(response_text)
 
-            final_validation = validate_dialogue_response(response_text, contract)
-            if is_user_facing and not final_validation.ok:
-                recovered = self._build_governed_user_recovery_reply(new_state, objective, contract)
-                if recovered:
-                    candidate, candidate_validation = self._select_valid_recovery_variant(
-                        recovered,
-                        contract,
+                final_validation = validate_dialogue_response(response_text, contract)
+                if is_user_facing and not final_validation.ok:
+                    recovered = self._build_governed_user_recovery_reply(new_state, objective, contract)
+                    if recovered:
+                        candidate, candidate_validation = self._select_valid_recovery_variant(
+                            recovered,
+                            contract,
+                        )
+                        if candidate_validation.ok:
+                            logger.info(
+                                "🗣️ UnitaryResponse: final governed recovery replaced invalid post-processed reply (%s)",
+                                ", ".join(final_validation.violations) or "post_process_invalid",
+                            )
+                            response_text = candidate
+                            final_validation = candidate_validation
+
+                if is_user_facing and not final_validation.ok and live_grounding_required:
+                    # The minimal canned line is strictly worse than a real
+                    # cortex reply that simply lacks an explicit "I/me" anchor or
+                    # live-state phrase. Only force it when the response is
+                    # actually broken — too short to be substantive, or only
+                    # tripping low-signal-style violations. A 50+ char reply that
+                    # the cortex generated for this turn is a real answer the
+                    # user should see, even if dialogue_policy wanted more
+                    # first-person grounding.
+                    substantive_violations = {
+                        "empty_response",
+                        "prompt_artifact",
+                        "generic_assistant_language",
+                        "low_signal_preamble",
+                        "low_signal_redirect",
+                        "moderator_turn",
+                        "prompt_fishing_closer",
+                    }
+                    stripped_response = str(response_text or "").strip()
+                    only_grounding_complaints = (
+                        bool(final_validation.violations)
+                        and not (set(final_validation.violations) & substantive_violations)
                     )
-                    if candidate_validation.ok:
+                    if (
+                        only_grounding_complaints
+                        and len(stripped_response) >= 50
+                    ):
                         logger.info(
-                            "🗣️ UnitaryResponse: final governed recovery replaced invalid post-processed reply (%s)",
+                            "🗣️ UnitaryResponse: keeping cortex reply despite grounding-only violation (%s, len=%d)",
+                            ", ".join(final_validation.violations) or "ungrounded_only",
+                            len(stripped_response),
+                        )
+                    else:
+                        minimal, minimal_validation = self._select_valid_recovery_variant(
+                            self._build_minimal_live_voice_reply(new_state),
+                            contract,
+                        )
+                        logger.info(
+                            "🗣️ UnitaryResponse: forcing minimal live-voice fallback (%s)",
                             ", ".join(final_validation.violations) or "post_process_invalid",
                         )
-                        response_text = candidate
-                        final_validation = candidate_validation
+                        response_text = minimal
+                        final_validation = minimal_validation
 
-            if is_user_facing and not final_validation.ok and live_grounding_required:
-                # The minimal canned line is strictly worse than a real
-                # cortex reply that simply lacks an explicit "I/me" anchor or
-                # live-state phrase. Only force it when the response is
-                # actually broken — too short to be substantive, or only
-                # tripping low-signal-style violations. A 50+ char reply that
-                # the cortex generated for this turn is a real answer the
-                # user should see, even if dialogue_policy wanted more
-                # first-person grounding.
-                substantive_violations = {
-                    "empty_response",
-                    "prompt_artifact",
-                    "generic_assistant_language",
-                    "low_signal_preamble",
-                    "low_signal_redirect",
-                    "moderator_turn",
-                    "prompt_fishing_closer",
-                }
-                stripped_response = str(response_text or "").strip()
-                only_grounding_complaints = (
-                    bool(final_validation.violations)
-                    and not (set(final_validation.violations) & substantive_violations)
-                )
-                if (
-                    only_grounding_complaints
-                    and len(stripped_response) >= 50
-                ):
-                    logger.info(
-                        "🗣️ UnitaryResponse: keeping cortex reply despite grounding-only violation (%s, len=%d)",
-                        ", ".join(final_validation.violations) or "ungrounded_only",
-                        len(stripped_response),
-                    )
-                else:
-                    minimal, minimal_validation = self._select_valid_recovery_variant(
-                        self._build_minimal_live_voice_reply(new_state),
-                        contract,
-                    )
-                    logger.info(
-                        "🗣️ UnitaryResponse: forcing minimal live-voice fallback (%s)",
-                        ", ".join(final_validation.violations) or "post_process_invalid",
-                    )
-                    response_text = minimal
-                    final_validation = minimal_validation
-
-            new_state.response_modifiers["dialogue_validation"] = final_validation.to_dict()
+                new_state.response_modifiers["dialogue_validation"] = final_validation.to_dict()
 
             # [PEDAGOGY UPGRADE] Autonomous Manim Generation
             try:
