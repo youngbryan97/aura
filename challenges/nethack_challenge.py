@@ -60,6 +60,7 @@ async def run_challenge():
     step = 0
     stuck_counter = 0
     last_screen_hash = ""
+    working_memory = []
     while adapter.is_alive():
         screen = adapter.get_screen_text()
         
@@ -70,8 +71,13 @@ async def run_challenge():
         print("-" * 80)
         sys.stdout.flush()
         
+        wm_str = "\n".join(working_memory) if working_memory else "- No recent actions."
+        
         prompt = f"""CURRENT NETHACK SCREEN (STEP {step}):
 {screen}
+
+[WORKING MEMORY]
+{wm_str}
 
 [ENVIRONMENTAL AFFORDANCES]
 - Movement: y, u, h, j, k, l, b, n
@@ -85,22 +91,27 @@ What is your next move?"""
         distress_score = getattr(affect_engine, 'distress_score', 0.0) if affect_engine else 0.0
         screen_hash = hashlib.md5(screen.encode()).hexdigest()
         
-        if screen_hash == last_screen_hash:
+        screen_changed = (screen_hash != last_screen_hash)
+        if not screen_changed and step > 0:
             stuck_counter += 1
         else:
             stuck_counter = 0
             last_screen_hash = screen_hash
             
-        if stuck_counter > 5 and distress_score > 0.15:
-            logger.warning(f"🚨 AUTONOMIC BAILOUT TRIGGERED: Stuck counter {stuck_counter}, distress {distress_score:.2f}")
-            if stuck_counter > 10:
-                 logger.warning("Forcing ESC action.")
-                 adapter.send_action('\x1b')
-                 step += 1
-                 await asyncio.sleep(0.5)
-                 continue
-            else:
-                 prompt += "\n\n[AUTONOMIC WARNING] Severe cognitive distress detected. Your current action loop is failing. You must abort, use an escape sequence ([ACTION:ESC]), or try a completely different strategy."
+        if working_memory and "->" not in working_memory[-1]:
+             outcome = "Screen changed." if screen_changed else "Screen did NOT change."
+             working_memory[-1] += f" -> {outcome}"
+             
+        if stuck_counter > 3:
+             prompt += "\n\n[METACOGNITIVE INSIGHT] You are caught in a repetitive loop. The environment is rejecting your inputs. You are likely trapped in a modal dialogue or menu. To escape, you must use a cancellation command like [ACTION:ESC] or [ACTION:SPACE]."
+            
+        if stuck_counter > 10 and distress_score > 0.15:
+             logger.warning(f"🚨 AUTONOMIC BAILOUT TRIGGERED: Stuck counter {stuck_counter}, distress {distress_score:.2f}")
+             logger.warning("Forcing ESC action.")
+             adapter.send_action('\x1b')
+             step += 1
+             await asyncio.sleep(0.5)
+             continue
         
         logger.info(f"Step {step}: Waiting for Aura's move (Tier: local_fast)...")
         
@@ -132,6 +143,14 @@ What is your next move?"""
                 
             logger.info(f"Action: '{action}'")
             adapter.send_action(action)
+            
+            display_action = action
+            if action == '\x1b': display_action = 'ESC'
+            elif action == ' ': display_action = 'SPACE'
+            elif action == '\n': display_action = 'ENTER'
+            working_memory.append(f"- Step {step}: Action '{display_action}'")
+            if len(working_memory) > 5:
+                 working_memory.pop(0)
         else:
             logger.warning("No response from Aura.")
             
