@@ -16,8 +16,9 @@ class NetHackAdapter:
         self.last_output = ""
 
     def start(self, name: str = "Aura"):
+        logger.info("Starting NetHack process...")
         env = os.environ.copy()
-        env["TERM"] = "vt100"
+        env["TERM"] = "xterm-256color"
         
         # Create a custom .nethackrc for automation
         rc_path = os.path.expanduser("~/.nethackrc_aura")
@@ -29,10 +30,22 @@ class NetHackAdapter:
         env["NETHACKOPTIONS"] = rc_path
         
         # Start nethack
+        logger.info(f"Spawning: {self.nethack_path} -u {name}")
         self.child = pexpect.spawn(f"{self.nethack_path} -u {name}", env=env, encoding='utf-8')
         self.child.setwinsize(24, 80)
+        logger.info("NetHack process spawned. Waiting for initialization...")
         time.sleep(1.0)
         self._update_screen()
+        
+        # Handle 'Destroy old game?' prompt automatically
+        screen_text = "\n".join(self.screen.display)
+        if "Destroy old game?" in screen_text:
+            logger.info("Detected 'Destroy old game?' prompt. Sending 'y'...")
+            self.send_action("y")
+            time.sleep(0.5)
+            self._update_screen()
+
+        logger.info("NetHack adapter initialized.")
 
     def _update_screen(self):
         try:

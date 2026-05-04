@@ -429,6 +429,21 @@ class CognitiveRoutingPhase(Phase):
 
         lower_obj = objective.lower()
         is_deep_mind_probe = looks_like_deep_mind_probe(objective)
+        
+        # Fast-path for environmental injections to avoid triggering task commitments
+        if "[environmental context" in lower_obj or "sensory update" in lower_obj:
+            logger.info("🧭 Routing: SENSORY FEED detected. Routing as CHAT to avoid task commitment.")
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            return new_state
+
         if any(cmd in lower_obj for cmd in ["reboot", "restart", "shutdown", "sleep mode"]):
             logger.info("🧭 Routing: SYSTEM intent detected via heuristics.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
@@ -502,7 +517,7 @@ class CognitiveRoutingPhase(Phase):
         try:
             from core.container import ServiceContainer
             cap = ServiceContainer.get("capability_engine", default=None)
-            if cap and hasattr(cap, "detect_intent") and not is_deep_mind_probe:
+            if cap and hasattr(cap, "detect_intent") and not is_deep_mind_probe and not objective.startswith("CORE DIRECTIVE"):
                 matched = cap.detect_intent(objective)
                 if matched:
                     if looks_like_execution_report(objective):
