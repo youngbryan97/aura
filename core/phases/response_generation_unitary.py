@@ -2745,7 +2745,31 @@ class UnitaryResponsePhase(Phase):
                     or not self._has_recent_grounded_evidence(new_state)
                 )
             )
-            if not is_user_facing:
+            # ── CORE DIRECTIVE / SENSORY FEED PROMPT FAST-PATH ──────────
+            # General improvement: when the pipeline is processing a programmatic
+            # system directive or environmental sensory feed (from an embodied
+            # environment, terminal session, IoT sensor, etc.), the full personality
+            # prompt is counterproductive — it drowns out the directive and causes
+            # the LLM to generate conversational text instead of following the
+            # instruction. We use a minimal system prompt that IS the directive.
+            _is_system_directive = (
+                objective.startswith("CORE DIRECTIVE:")
+                or "[sensory update" in objective.lower()
+                or "[sensory feed" in objective.lower()
+                or "[environmental context" in objective.lower()
+            )
+            if _is_system_directive:
+                # The objective IS the system prompt — it already contains all
+                # instructions and context the LLM needs.
+                system_prompt = objective
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                ]
+                logger.info(
+                    "🧠 [ZENITH] CORE DIRECTIVE fast-path: directive-only prompt (len=%d)",
+                    len(system_prompt),
+                )
+            elif not is_user_facing:
                 system_prompt = self._build_background_router_system_prompt(new_state)
                 messages = self._build_router_messages(
                     new_state,
