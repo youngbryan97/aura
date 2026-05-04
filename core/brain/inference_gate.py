@@ -106,11 +106,14 @@ class InferenceGate:
 
     @classmethod
     def _user_facing_recovery_response(cls, prompt: str) -> str:
+        # [RESILIENCE] Actually acknowledge what the user said instead of a generic failure.
+        # This prevents the user from having to repeat themselves after a crash.
+        clamped = (prompt[:150] + "...") if len(prompt) > 150 else prompt
         return (
-            "I dropped the heavy reasoning lane, but I should not make you restate the question. "
-            "The cleanest answer I can preserve is this: I am still attached to the last thing you asked, "
-            "I should answer from that thread as soon as the deeper lane recovers, and I should mark any uncertainty "
-            "plainly instead of covering the break with fluent filler."
+            "I dropped the heavy reasoning lane, but I didn't lose your thought. "
+            f"You were saying: '{clamped}'\n\n"
+            "I'm keeping this active. I'll answer properly as soon as the deeper lane recovers, "
+            "but right now I'm running in a lighter mode and marking my uncertainty plainly."
         )
 
     @staticmethod
@@ -1199,7 +1202,7 @@ class InferenceGate:
         On M5 hardware there is no gateway proxy, so 504 risk is zero.
         """
         if is_background or requested_tier == "tertiary":
-            return 12.0
+            return 60.0
         if deep_handoff or requested_tier == "secondary":
             return 240.0
 
@@ -2493,10 +2496,13 @@ class InferenceGate:
             try:
                 from core.morphogenesis.hooks import get_morphogenesis_routing_advice
                 _morph_advice = get_morphogenesis_routing_advice()
-                if _morph_advice.get("recommend_downgrade", False):
+                # [RESILIENCE] Only downgrade for genuinely critical pressure,
+                # not routine background morphogenetic oscillations.
+                if _morph_advice.get("recommend_downgrade", False) and _morph_advice.get("pressure", 0.0) > 0.85:
                     logger.info(
-                        "🧬 Morphogenesis recommends tier downgrade: %s",
+                        "🧬 Morphogenesis recommends tier downgrade: %s (pressure=%.2f)",
                         _morph_advice.get("reason", "unknown"),
+                        _morph_advice.get("pressure", 0.0),
                     )
                     requested_tier = "tertiary"
             except Exception:
@@ -2576,10 +2582,15 @@ class InferenceGate:
                 try:
                     import psutil
                     ram_pct = psutil.virtual_memory().percent
-                    if ram_pct >= 88.0:
+                    # [RESILIENCE] Raised from 88% to 94%. On a 64GB system running
+                    # a 32GB model, 88% is NORMAL operating state. Downgrading to
+                    # brainstem at 88% was the #1 cause of "cortex disappears for
+                    # semi-complex questions." 94% is the actual macOS memory
+                    # throttle wall — only downgrade when genuinely in danger.
+                    if ram_pct >= 94.0:
                         logger.warning(
                             "InferenceGate: RAM at %.1f%% — downgrading primary to brainstem "
-                            "to preserve headroom.", ram_pct,
+                            "to prevent OOM.", ram_pct,
                         )
                         requested_tier = "tertiary"
                 except Exception:
@@ -3124,51 +3135,57 @@ class InferenceGate:
                         return text
 
                     # ── CORTEX RETRY: For user-facing requests, retry the primary model
-                    # once before degrading. The stall detector reboots the worker, so
-                    # the second attempt often succeeds on a fresh process.
+                    # The stall detector reboots the worker, so we wait for recovery.
+                    # [RESILIENCE] We now retry TWICE. Recurrent loops + context building
+                    # can easily trip a single timeout. We give it 3s, then 6s to settle.
                     if _is_user_facing and local_label == PRIMARY_ENDPOINT:
-                        lane_status = self.get_conversation_status()
-                        if not lane_status.get("conversation_ready"):
-                            logger.warning(
-                                "🧠 %s returned no text before the conversation lane was ready (state=%s). Forcing foreground warmup before retry.",
-                                local_label,
-                                lane_status.get("state", "unknown"),
-                            )
-                            try:
-                                await self.ensure_foreground_ready(timeout=min(60.0, primary_timeout))
-                            except Exception as warmup_exc:
-                                record_degradation('inference_gate', warmup_exc)
-                                record_degradation('inference_gate', warmup_exc)
-                                logger.warning("🧠 Foreground warmup retry did not complete cleanly: %s", warmup_exc)
+                        for retry_attempt, wait_sec in enumerate([3.0, 6.0], 1):
+                            lane_status = self.get_conversation_status()
+                            if not lane_status.get("conversation_ready"):
+                                logger.warning(
+                                    "🧠 %s returned no text before the conversation lane was ready (state=%s). Forcing foreground warmup before retry %d.",
+                                    local_label,
+                                    lane_status.get("state", "unknown"),
+                                    retry_attempt,
+                                )
+                                try:
+                                    await self.ensure_foreground_ready(timeout=min(60.0, primary_timeout))
+                                except Exception as warmup_exc:
+                                    record_degradation('inference_gate', warmup_exc)
+                                    logger.warning("🧠 Foreground warmup retry did not complete cleanly: %s", warmup_exc)
 
-                        logger.warning("🧠 %s returned no text on user-facing request. Retrying once after worker reboot...", local_label)
-                        await asyncio.sleep(1.5)  # brief pause for worker reboot to settle
-                        retry_deadline = get_deadline(primary_timeout)
-                        async with self._resource_context(
-                            enabled=True,
-                            priority=True,
-                            worker=local_label,
-                            timeout=retry_deadline.remaining or primary_timeout,
-                        ):
-                            text = await self._generate_with_client(
-                                local_client,
-                                prompt,
-                                system_prompt,
-                                history,
-                                retry_deadline,
-                                f"{local_label}-RETRY",
-                                messages=messages,
-                                max_tokens=max_tokens,
-                                temperature=somatic_temperature,
-                                origin=origin,
-                                is_background=is_background,
-                                foreground_request=True,
-                                **morpho_kwargs,
-                            )
-                        if text:
-                            logger.info("✅ %s retry succeeded (len=%d)", local_label, len(text))
-                            return text
-                        logger.warning("🧠 %s retry also failed.", local_label)
+                            logger.warning("🧠 %s returned no text on user-facing request. Retrying (attempt %d/2) after %ds pause...", local_label, retry_attempt, wait_sec)
+                            await asyncio.sleep(wait_sec)
+                            
+                            # Give the retry MORE time than the initial attempt
+                            retry_timeout = primary_timeout * 1.5 
+                            retry_deadline = get_deadline(retry_timeout)
+                            async with self._resource_context(
+                                enabled=True,
+                                priority=True,
+                                worker=local_label,
+                                timeout=retry_deadline.remaining or retry_timeout,
+                            ):
+                                text = await self._generate_with_client(
+                                    local_client,
+                                    prompt,
+                                    system_prompt,
+                                    history,
+                                    retry_deadline,
+                                    f"{local_label}-RETRY-{retry_attempt}",
+                                    messages=messages,
+                                    max_tokens=max_tokens,
+                                    temperature=somatic_temperature,
+                                    origin=origin,
+                                    is_background=is_background,
+                                    foreground_request=True,
+                                    **morpho_kwargs,
+                                )
+                            if text:
+                                logger.info("✅ %s retry %d succeeded (len=%d)", local_label, retry_attempt, len(text))
+                                return text
+                                
+                        logger.warning("🧠 %s all retries failed.", local_label)
                         # For user-facing requests, skip brainstem — go straight to cloud
                         if allow_cloud_fallback:
                             logger.warning("🧠 Escalating to cloud before brainstem for user-facing request.")
