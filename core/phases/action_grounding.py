@@ -255,6 +255,17 @@ def _params_for_skill(
         query = tail.strip().strip(":").strip()
         if query:
             defaults["query"] = query
+    # ── Embodied action skills ─────────────────────────────────
+    # Skills that take a single "action" parameter (keystroke, command, etc.)
+    # The tail text IS the action. This covers execute_nethack_action and
+    # any future embodied interface tools.
+    if skill_name in ("execute_nethack_action",):
+        action_str = tail.strip().strip(":").strip()
+        if action_str:
+            # Take just the first word/char as the action key
+            # e.g. "l" → "l", "ESC to exit" → "ESC", "k (move up)" → "k"
+            action_key = action_str.split()[0].rstrip(",.;:)")
+            defaults["action"] = action_key
     return defaults
 
 

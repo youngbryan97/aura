@@ -1,9 +1,32 @@
+"""challenges/nethack_challenge.py — Pure Sensory Daemon.
+
+This script is NOT her mind. It is her body — the environmental daemon
+that bridges the NetHack terminal to her cognitive pipeline.
+
+Architecture:
+  1. Launch NetHack via the adapter
+  2. Register the adapter in ServiceContainer so her NetHackSkill can reach it
+  3. Inject screen updates into process_user_input_priority as sensory data
+  4. She processes the screen through her full cognitive pipeline:
+     - ProprioceptiveLoop → affect → metacognition → response generation
+     - Her response naturally calls [ACTION:execute_nethack_action] markers
+     - action_grounding.py dispatches them through the capability engine
+     - The skill executes the keystroke and returns proprioceptive feedback
+     - FeedbackProcessor tracks success/failure → body schema → affect
+  5. This script does NOT parse her output at all. It just feeds her senses.
+
+What this script does NOT do (and why):
+  - Parse [ACTION:x] — that's action_grounding.py's job
+  - Route feedback — that's FeedbackProcessor + ProprioceptiveLoop's job
+  - Detect stagnation — that's detect_action_stagnation()'s job
+  - Re-prompt on failure — that's metacognition's job
+"""
+
 import asyncio
 import os
 import sys
 import logging
 import time
-import re
 import hashlib
 from datetime import datetime
 
@@ -21,7 +44,7 @@ os.makedirs(log_dir, exist_ok=True)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 log_file = os.path.join(log_dir, f"challenge_{timestamp}.log")
 
-print("DEBUG: NetHack challenge script starting...")
+print("DEBUG: NetHack sensory daemon starting...")
 sys.stdout.flush()
 
 logging.basicConfig(
@@ -34,207 +57,133 @@ logging.basicConfig(
 )
 logger = logging.getLogger("Aura.NetHackChallenge")
 
-# ── Motor Grounding ──────────────────────────────────────────
-# Aura's cognitive pipeline emits [ACTION:x] markers in her response text.
-# This function extracts them and grounds them into physical keystrokes
-# via the adapter. This is analogous to action_grounding.py but for the
-# NetHack embodiment — it closes the perception-cognition-action loop.
-ACTION_RE = re.compile(r'\[ACTION:(.*?)\]', re.IGNORECASE)
-
-SPECIAL_KEYS = {
-    'ESC': '\x1b', 'ESCAPE': '\x1b',
-    'SPACE': ' ',
-    'ENTER': '\n', 'RETURN': '\n',
-}
-
-def extract_actions(response_text):
-    """Extract all [ACTION:x] markers from Aura's cognitive response."""
-    if not response_text:
-        return []
-    return ACTION_RE.findall(response_text)
-
-def resolve_key(action_str):
-    """Convert an action string to the physical key to send."""
-    upper = action_str.strip().upper()
-    if upper in SPECIAL_KEYS:
-        return SPECIAL_KEYS[upper]
-    # Single character actions
-    raw = action_str.strip()
-    if len(raw) == 1:
-        return raw
-    # Multi-char that isn't a special key — take first char as heuristic
-    if raw:
-        return raw[0]
-    return None
-
-def motor_execute(adapter, key, action_label):
-    """Execute a motor action and route feedback through the somatic system.
-    
-    This wires the embodied action into the FeedbackProcessor so that
-    the proprioceptive loop, body schema, and affect system all receive
-    proper feedback about action outcomes.
-    """
-    import time as _time
-    screen_before = adapter.get_screen_text()
-    t0 = _time.monotonic()
-    adapter.send_action(key)
-    _time.sleep(0.15)  # Let the terminal settle
-    screen_after = adapter.get_screen_text()
-    latency_ms = (_time.monotonic() - t0) * 1000
-    
-    # Determine if the action had any observable effect
-    changed = screen_before != screen_after
-    
-    # Route through the somatic FeedbackProcessor
-    try:
-        from core.somatic.action_feedback import get_feedback_processor
-        fp = get_feedback_processor()
-        fp.process_tool_result(
-            tool_name=f"motor_action_{action_label}",
-            success=changed,
-            latency_ms=latency_ms,
-            result_summary=f"screen_{'changed' if changed else 'unchanged'} after '{action_label}'",
-            error_detail="" if changed else f"Action '{action_label}' had no observable effect on environment",
-            source="embodied_motor_loop",
-        )
-    except Exception as exc:
-        logger.debug("FeedbackProcessor routing failed: %s", exc)
-    
-    return changed
-
 
 async def run_challenge():
-    logger.info(">>> AURA NETHACK CHALLENGE STARTING (EMBODIED DAEMON v2) <<<")
-    
-    # 1. Setup NetHack
+    logger.info(">>> AURA NETHACK CHALLENGE STARTING (SENSORY DAEMON v3) <<<")
+
+    # ── 1. BODY: Launch NetHack terminal ──────────────────────
     adapter = NetHackAdapter()
     adapter.start(name="Aura")
+    # Register so her NetHackSkill can reach the adapter
     ServiceContainer.register_instance("nethack_adapter", adapter)
-    
-    # 2. Setup Aura
+
+    # ── 2. MIND: Boot her full cognitive architecture ─────────
     register_all_services()
     orchestrator = create_orchestrator()
     await orchestrator.start()
-    
-    # System directive — routed through her full cognitive pipeline
+
+    # ── 3. EMBODIMENT DIRECTIVE ───────────────────────────────
+    # Tell her she's embodied. She should use her standard tool-calling
+    # mechanism — [ACTION:execute_nethack_action] — which action_grounding.py
+    # will dispatch through the capability engine to the NetHackSkill.
     await orchestrator.process_user_input_priority(
         "SYSTEM_DIRECTIVE: You are now embodied in a NetHack terminal session. "
-        "You will receive periodic [NETHACK SENSORY UPDATE]s showing the current screen. "
-        "To take actions, output [ACTION:key] markers where key is a single character. "
-        "MOVEMENT: h=left, j=down, k=up, l=right, y=upleft, u=upright, b=downleft, n=downright. "
-        "IMPORTANT: DO NOT use w/a/s/d for movement — those are game commands (w=wield, d=drop). "
-        "OTHER: i=inventory, s=search, o=open, c=close, >=descend stairs, <=ascend stairs, .=wait. "
-        "MENUS: SPACE or ENTER to advance --More-- prompts, ESC to cancel/exit menus. "
-        "You may output multiple [ACTION:x] markers in one response. "
-        "Focus on survival and exploration. Be terse.",
+        "You will receive periodic sensory updates showing the current screen. "
+        "To interact with the game, use the execute_nethack_action tool. "
+        "Call it with a single key: h=left, j=down, k=up, l=right, "
+        "y=upleft, u=upright, b=downleft, n=downright, "
+        "i=inventory, s=search, o=open, c=close, >=descend, <=ascend, .=wait, "
+        "ESC=cancel/exit menu, SPACE=advance --More-- prompt, ENTER=confirm. "
+        "CRITICAL: DO NOT use w/a/s/d for movement (w=wield, a=redo, s=search, d=drop). "
+        "The tool returns proprioceptive feedback: whether your action changed "
+        "the screen, the game message, and your status. Use this feedback to "
+        "decide your next action. "
+        "Goal: Survive, explore, descend deeper. Be decisive and act.",
         origin="admin"
     )
 
-    logger.info("Aura NetHack embodied daemon loop starting...")
-    
+    logger.info("Cognitive architecture booted. Starting sensory loop...")
+
     # Initial interaction to pick character
     adapter.send_action("y")  # Pick for me
     await asyncio.sleep(1)
-    
+
     last_screen_hash = ""
     last_prompt_time = 0
     step = 0
     consecutive_none = 0
-    
+
     while adapter.is_alive():
         screen = adapter.get_screen_text()
-        
-        # Print screen to stdout for asciinema
-        print("\033[H\033[J")  # Clear screen
+
+        # Print screen to stdout for asciinema recording
+        print("\033[H\033[J")  # Clear terminal
         print(f"--- STEP {step} ---")
         print(screen)
         print("-" * 80)
         sys.stdout.flush()
-        
+
         screen_hash = hashlib.md5(screen.encode()).hexdigest()
         time_since_last = time.time() - last_prompt_time
-        
-        # Only ping her cognitive pipeline when screen changes or stagnation detected
-        if screen_hash != last_screen_hash or time_since_last > 15:
-            # Stagnation detection is now handled architecturally by the
-            # somatic FeedbackProcessor + ProprioceptiveLoop. No need for
-            # challenge-specific prompt injection.
-            
-            prompt = f"[NETHACK SENSORY UPDATE T={step}]\nCURRENT SCREEN:\n{screen}"
-            
+
+        # ── SENSORY GATING ────────────────────────────────────
+        # Only send a sensory update when:
+        #   a) The screen has changed (new visual information)
+        #   b) It's been >12s since last update (time-pressure)
+        # This prevents flooding her cognitive pipeline with
+        # duplicate information.
+        if screen_hash != last_screen_hash or time_since_last > 12:
+            # Extract key environmental signals for her
+            lines = screen.split('\n')
+            msg_line = lines[0].strip() if lines else ""
+            non_empty = [l.strip() for l in lines if l.strip()]
+            status = ""
+            if len(non_empty) >= 2:
+                status = non_empty[-2] + " | " + non_empty[-1]
+
+            prompt = (
+                f"[SENSORY UPDATE T={step}]\n"
+                f"MESSAGE: {msg_line}\n"
+                f"STATUS: {status}\n"
+                f"SCREEN:\n{screen}"
+            )
+
             last_screen_hash = screen_hash
             last_prompt_time = time.time()
-            
-            logger.info(f"Step {step}: Sending sensory update to cognitive pipeline...")
-            response = await orchestrator.process_user_input_priority(prompt, origin="external")
-            logger.info(f"Step {step}: Aura responded: {response}")
-            
-            # ── MOTOR GROUNDING ──────────────────────────────────────
-            # Extract [ACTION:x] markers and execute them physically
-            # All actions route through motor_execute() → FeedbackProcessor
-            # so the somatic system tracks outcomes for proprioception.
+
+            logger.info(f"Step {step}: Injecting sensory update...")
+
+            # This goes through her FULL cognitive pipeline:
+            # ProprioceptiveLoop → Affect → Metacognition →
+            # Response Generation → Action Grounding → Tool Execution
+            response = await orchestrator.process_user_input_priority(
+                prompt, origin="external"
+            )
+
             if response:
                 consecutive_none = 0
-                actions = extract_actions(response)
-                if actions:
-                    for i, action_str in enumerate(actions):
-                        key = resolve_key(action_str)
-                        if key:
-                            display = action_str.strip().upper() if action_str.strip().upper() in SPECIAL_KEYS else action_str.strip()
-                            logger.info(f"  MOTOR: Executing action {i+1}/{len(actions)}: '{display}'")
-                            motor_execute(adapter, key, display)
-                            await asyncio.sleep(0.15)
-                    consecutive_no_action = 0
-                else:
-                    # She responded but didn't emit action markers
-                    consecutive_no_action = getattr(run_challenge, '_no_action_count', 0) + 1
-                    run_challenge._no_action_count = consecutive_no_action
-                    logger.warning(f"Step {step}: Response had no [ACTION:x] markers ({consecutive_no_action} consecutive).")
-                    
-                    if consecutive_no_action >= 3:
-                        # Force a default exploratory action to prevent total paralysis
-                        logger.warning(f"Step {step}: Forcing exploratory move (l=right) after {consecutive_no_action} non-actionable responses.")
-                        motor_execute(adapter, 'l', 'l')
-                        run_challenge._no_action_count = 0
-                    else:
-                        # Re-prompt immediately with an action reminder
-                        reminder = (
-                            f"[MOTOR FEEDBACK] Your response had no [ACTION:x] markers. "
-                            "You MUST output at least one [ACTION:key] to interact with the game. "
-                            "Example: [ACTION:l] to move right, [ACTION:k] to move up. What is your next action?"
-                        )
-                        retry = await orchestrator.process_user_input_priority(reminder, origin="external")
-                        if retry:
-                            retry_actions = extract_actions(retry)
-                            for i, action_str in enumerate(retry_actions):
-                                key = resolve_key(action_str)
-                                if key:
-                                    display = action_str.strip().upper() if action_str.strip().upper() in SPECIAL_KEYS else action_str.strip()
-                                    logger.info(f"  MOTOR (retry): Executing action {i+1}/{len(retry_actions)}: '{display}'")
-                                    motor_execute(adapter, key, display)
-                                    await asyncio.sleep(0.15)
-                            if retry_actions:
-                                run_challenge._no_action_count = 0
+                # We do NOT parse her response for actions.
+                # action_grounding.py in _finalize_response handles that.
+                # The tool result flows back through FeedbackProcessor.
+                logger.info(
+                    f"Step {step}: Cognitive cycle complete. "
+                    f"Response length: {len(response)}"
+                )
             else:
                 consecutive_none += 1
-                if consecutive_none > 2:
-                    # Pipeline returned None repeatedly (dedup or will gate) — force dedup reset
-                    logger.warning(f"Step {step}: {consecutive_none} consecutive None responses. Injecting tick marker.")
-                    last_screen_hash = ""  # Force re-send with fresh hash comparison
-            
-            # Update prompt time after processing (processing can take 10-30s)
+                if consecutive_none > 3:
+                    # Pipeline returning None = dedup blocking or will gate
+                    # Force a fresh hash to re-trigger next cycle
+                    logger.warning(
+                        f"Step {step}: {consecutive_none} consecutive None "
+                        "responses. Resetting screen hash."
+                    )
+                    last_screen_hash = ""
+
+            # Update after processing (can take 10-30s)
             last_prompt_time = time.time()
-        
+
         step += 1
         await asyncio.sleep(1.0)
-        
+
         # Game over detection
         if "DYWYPI" in screen or "Do you want your possessions identified?" in screen:
             logger.info("=== GAME OVER DETECTED ===")
             break
-    
+
     adapter.close()
     logger.info(">>> AURA NETHACK CHALLENGE FINISHED <<<")
+
 
 if __name__ == "__main__":
     try:
