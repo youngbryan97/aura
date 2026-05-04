@@ -2759,11 +2759,13 @@ class UnitaryResponsePhase(Phase):
                 or "[environmental context" in objective.lower()
             )
             if _is_system_directive:
-                # The objective IS the system prompt — it already contains all
-                # instructions and context the LLM needs.
-                system_prompt = objective
+                # For instruct-tuned models, providing ONLY a system prompt causes
+                # them to continue generating the prompt itself. We must provide
+                # a minimal system identity and put the directive in the user turn.
+                system_prompt = "You are an autonomous execution engine. Follow the user's directive precisely. Do not output any conversational text. Output ONLY the required action marker."
                 messages = [
                     {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": objective},
                 ]
                 logger.info(
                     "🧠 [ZENITH] CORE DIRECTIVE fast-path: directive-only prompt (len=%d)",
