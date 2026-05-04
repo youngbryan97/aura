@@ -337,6 +337,7 @@ class CognitiveRoutingPhase(Phase):
         if (
             objective.startswith("CORE DIRECTIVE:")
             or "[environmental context" in _lower_obj
+            or "[embodied control contract]" in _lower_obj
             or "[sensory update" in _lower_obj
             or "[sensory feed" in _lower_obj
         ):

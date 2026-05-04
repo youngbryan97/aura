@@ -397,6 +397,19 @@ class TaskCommitmentVerifier:
         lowered = str(objective or "").lower()
         if not lowered:
             return False
+
+        # FAST BYPASS: If this is an embodied contract, sensory feed, or massive
+        # system directive, it is NEVER a conversational status query. 
+        # Conversational status queries (e.g. 'how's the progress?') are short.
+        if (
+            len(objective) > 500
+            or "[embodied control contract]" in lowered
+            or "[sensory feed" in lowered
+            or "[environmental context" in lowered
+            or "core directive:" in lowered
+        ):
+            return False
+
         return any(marker in lowered for marker in _STATUS_QUERY_MARKERS)
 
     def build_status_reply(

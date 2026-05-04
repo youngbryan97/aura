@@ -157,7 +157,9 @@ class CognitiveRoutingPhase(BasePhase):
         if (
             input_text.startswith("CORE DIRECTIVE:") 
             or "[environmental context" in lower_input 
+            or "[embodied control contract]" in lower_input
             or "sensory update" in lower_input
+            or "[sensory feed" in lower_input
         ):
             logger.info("🧭 Routing: SENSORY FEED / CORE DIRECTIVE detected. Routing as CHAT to avoid eager tool commitments.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
