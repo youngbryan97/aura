@@ -29,21 +29,22 @@ class SwarmProtocol:
         if self.running:
             return
         self.running = True
-        bind_host = self.host
+        # [BOOT FIX] Default to loopback to avoid macOS firewall dialogs
+        # that block the event loop indefinitely on 0.0.0.0 binds.
+        bind_host = "127.0.0.1" if self.host == "0.0.0.0" else self.host
         try:
-            self._server = await asyncio.start_server(self._handle_peer, bind_host, self.port)
-        except PermissionError:
-            if bind_host == "127.0.0.1":
-                self._server = None
-                self.offline_only = True
-            else:
-                bind_host = "127.0.0.1"
-                try:
-                    self._server = await asyncio.start_server(self._handle_peer, bind_host, self.port)
-                    logger.warning("🕸️ SwarmProtocol external bind denied. Falling back to loopback on %s:%d", bind_host, self.port)
-                except PermissionError:
-                    self._server = None
-                    self.offline_only = True
+            self._server = await asyncio.wait_for(
+                asyncio.start_server(self._handle_peer, bind_host, self.port),
+                timeout=5.0,
+            )
+        except (PermissionError, OSError, asyncio.TimeoutError) as exc:
+            logger.warning("🕸️ SwarmProtocol bind failed on %s:%d (%s). Running offline.", bind_host, self.port, exc)
+            self._server = None
+            self.offline_only = True
+        except Exception as exc:
+            logger.warning("🕸️ SwarmProtocol unexpected bind error: %s. Running offline.", exc)
+            self._server = None
+            self.offline_only = True
         self.host = bind_host
         self._mood_broadcast_task = get_task_tracker().create_task(self._broadcast_loop())
         if self.offline_only:

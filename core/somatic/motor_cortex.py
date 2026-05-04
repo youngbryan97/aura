@@ -305,7 +305,7 @@ class MotorCortex:
         self._total_actions = 0
         self._total_latency_ms = 0.0
         self._last_health_check = 0.0
-        self._boot_time = time.time()
+        self._boot_time = time.monotonic()
 
         logger.info("MotorCortex created -- awaiting start()")
 
@@ -506,7 +506,13 @@ class MotorCortex:
             except asyncio.CancelledError:
                 if not self._running:
                     break
-                logger.warning("MotorCortex loop spuriously cancelled. Ignoring.")
+                
+                # Somatic-H52: Suppress spurious warnings during boot or transition
+                uptime = time.monotonic() - self._boot_time
+                if uptime > 15.0:
+                    logger.warning("Somatic Loop (MotorCortex) spuriously cancelled (uptime %.1fs). Ignoring.", uptime)
+                else:
+                    logger.debug("Somatic Loop (MotorCortex) reset during system initialization (uptime %.1fs).", uptime)
                 continue
             except Exception as exc:
                 record_degradation('motor_cortex', exc)

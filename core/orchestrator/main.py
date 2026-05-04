@@ -1,7 +1,6 @@
-from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-# Robust orchestrator with proper initialization.
+"""Robust Orchestrator for Aura.
+Central brain that coordinates cognition, motor control, and environmental grounding.
+"""
 
 import asyncio
 import collections
@@ -376,6 +375,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
 
     def __init__(self, config_path: Optional[Path] = None, auto_fix_enabled: Optional[bool] = None, kernel_interface: Optional[Any] = None):
         """Initializes the orchestrator with required components."""
+        import sys; sys.stdout.flush()
         # [BOOT FIX] Call Mixin initializer to set up hooks, state_manager, etc.
         self._init_basic_state(config_path, auto_fix_enabled)
         
@@ -590,7 +590,6 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 record_degradation('main', e)
                 logger.error("Failed to load Continuity state: %s", e)
                 _continuity_engine = None
-
             # ── Waking Sequence ───────────────────────────────────────────────
             # Emit an orientation thought based on how long we were offline.
             # Goes to the neural feed (thought cards), NOT the user chat.
@@ -650,7 +649,6 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 record_degradation('main', _we)
                 record_degradation('main', _we)
                 logger.warning("Waking sequence non-fatal: %s", _we)
-
             # Loading Self Model
             if self.self_model:
                 try:
@@ -678,7 +676,6 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 record_degradation('main', _ai_err)
                 record_degradation('main', _ai_err)
                 logger.warning("Architecture index boot init non-fatal: %s", _ai_err)
-
             # ── Affective Circumplex ───────────────────────────────────────────
             # Pre-warm the circumplex singleton so the first inference has params.
             try:
@@ -874,7 +871,6 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 record_degradation('main', _e)
                 record_degradation('main', _e)
                 logger.warning("Agency layer boot non-fatal: %s", _e)
-
             # ── Security Layer ────────────────────────────────────────────────
             try:
                 from core.security.user_recognizer import get_user_recognizer
@@ -920,7 +916,6 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 record_degradation('main', _e)
                 record_degradation('main', _e)
                 logger.warning("Substrate layer boot non-fatal: %s", _e)
-
             # Restore continuous stream of consciousness from snapshot
             try:
                 from core.resilience.snapshot_manager import SnapshotManager
@@ -948,7 +943,6 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 if res and inspect.isawaitable(res):
                     await asyncio.wait_for(res, timeout=15.0)
                 logger.info("✓ Consciousness stream activated")
-                
             if hasattr(self, 'curiosity') and self.curiosity:
                 if hasattr(self.curiosity, 'start'):
                      res = self.curiosity.start()
