@@ -134,7 +134,8 @@ class Antigen:
     health_pressure: float
     temporal_pressure: float
     recurrence_pressure: float
-    protected: bool
+    protected: bool = False
+    source_domain: str = "substrate" # "substrate" or "environment"
     source: str = "unknown"
     error_signature: str = ""
     stack_trace: str = ""
@@ -145,6 +146,7 @@ class Antigen:
         return {
             "antigen_id": self.antigen_id,
             "subsystem": self.subsystem,
+            "source_domain": self.source_domain,
             "danger": round(float(self.danger), 4),
             "subsystem_need": round(float(self.subsystem_need), 4),
             "threat_probability": round(float(self.threat_probability), 4),
@@ -1350,6 +1352,22 @@ class AdaptiveImmuneSystem:
         coverage_report = coverage_report or {"coverage_ratio": 0.0}
         coverage_ratio = float(coverage_report.get("coverage_ratio", 0.0) or 0.0)
         if artifact.suppressed:
+            return self._default_verification_report(
+                status="suppressed",
+                coverage_ratio=coverage_ratio,
+                notes=artifact.notes,
+            )
+
+        # [HARDENING] Prevent substrate repair for environmental antigens
+        if antigen.source_domain == "environment" and artifact.kind in {
+            EffectorKind.RESTART_COMPONENT,
+            EffectorKind.CLEAR_CACHE,
+            EffectorKind.RESTORE_CHECKPOINT,
+            EffectorKind.QUARANTINE,
+            EffectorKind.HALT_RUNAWAY,
+        }:
+            artifact.suppressed = True
+            artifact.notes = "environmental antigen forbidden from substrate repair"
             return self._default_verification_report(
                 status="suppressed",
                 coverage_ratio=coverage_ratio,
