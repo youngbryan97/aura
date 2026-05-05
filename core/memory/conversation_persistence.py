@@ -105,44 +105,66 @@ class ConversationPersistence:
     # ── Attachment ────────────────────────────────────────────────────────────
 
     def attach(self, orchestrator) -> "ConversationPersistence":
-        """Attach to orchestrator and hook into its message pipeline."""
+        """Attach to orchestrator via middleware registration (no monkey-patching)."""
         self._orchestrator = orchestrator
 
-        # Patch the message processing to trigger saves
-        original_process = getattr(orchestrator, 'process_user_input', None)
-        if original_process:
-            persistence = self  # capture self
+        # Register as middleware if the orchestrator supports it
+        if hasattr(orchestrator, 'middleware') and isinstance(orchestrator.middleware, list):
+            orchestrator.middleware.append(self._middleware_hook)
+            logger.info("ConversationPersistence attached as middleware")
+        elif hasattr(orchestrator, 'register_middleware'):
+            orchestrator.register_middleware(self._middleware_hook)
+            logger.info("ConversationPersistence attached via register_middleware")
+        else:
+            # Legacy fallback: wrap process_user_input (monkey-patch)
+            original_process = getattr(orchestrator, 'process_user_input', None)
+            if original_process:
+                persistence = self
 
-            async def persisting_process(message: str, origin: str = "user"):
-                # Record user message
-                user_msg = ConversationMessage(
-                    role="user",
-                    content=message,
-                    session_id=persistence.session_id,
-                    origin=origin,
-                )
-                persistence._record(user_msg)
-
-                # Call original
-                response = await original_process(message, origin)
-
-                # Record assistant response
-                if response and response.strip():
-                    assistant_msg = ConversationMessage(
-                        role="assistant",
-                        content=response.strip(),
+                async def persisting_process(message: str, origin: str = "user"):
+                    user_msg = ConversationMessage(
+                        role="user",
+                        content=message,
                         session_id=persistence.session_id,
                         origin=origin,
                     )
-                    persistence._record(assistant_msg)
-                    persistence._maybe_save()
+                    persistence._record(user_msg)
+                    response = await original_process(message, origin)
+                    if response and response.strip():
+                        assistant_msg = ConversationMessage(
+                            role="assistant",
+                            content=response.strip(),
+                            session_id=persistence.session_id,
+                            origin=origin,
+                        )
+                        persistence._record(assistant_msg)
+                        persistence._maybe_save()
+                    return response
 
-                return response
-
-            orchestrator.process_user_input = persisting_process
-            logger.info("ConversationPersistence attached to process_user_input")
+                orchestrator.process_user_input = persisting_process
+                logger.warning("ConversationPersistence using legacy monkey-patch (orchestrator lacks middleware support)")
 
         return self
+
+    async def _middleware_hook(self, message: str, response: str, *, origin: str = "user", receipt_id: str = "", **kwargs) -> None:
+        """Middleware callback — receives input/output pairs with Will receipt."""
+        user_msg = ConversationMessage(
+            role="user",
+            content=message,
+            session_id=self.session_id,
+            origin=origin,
+        )
+        self._record(user_msg)
+
+        if response and response.strip():
+            assistant_msg = ConversationMessage(
+                role="assistant",
+                content=response.strip(),
+                session_id=self.session_id,
+                origin=origin,
+            )
+            self._record(assistant_msg)
+            self._maybe_save()
 
     # ── Load on Boot ──────────────────────────────────────────────────────────
 

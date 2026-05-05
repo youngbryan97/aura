@@ -491,6 +491,8 @@ Memory A: {content_a[:200]}
 Memory B: {content_b[:200]}
 
 Synthesize these into a single, generalized insight or principle.
+CRITICAL: Remove redundancies but DO NOT hallucinate or interpolate missing details.
+Keep uncertainty and retain factual fidelity. Do not invent connections that are not explicitly present.
 Be concise (1-2 sentences). Extract the universal pattern."""
 
         try:
@@ -594,13 +596,11 @@ class VectorMemoryEngine:
                     context={"error": type(exc).__name__},
                     exc=exc,
                 )
-                if return_decision:
-                    return False, None
-                return False
+                raise  # Fail closed: reject memory write entirely
             logger.debug("VectorMemoryEngine constitutional gate unavailable: %s", exc)
             if return_decision:
-                return True, None
-            return True
+                return False, None
+            return False
 
     async def store(
         self,

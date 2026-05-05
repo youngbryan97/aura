@@ -645,8 +645,8 @@ class StateRepository:
                 await self._commit_to_db(new_state, serialized_data)
         except Exception as exc:
             record_degradation('state_repository', exc)
-            record_degradation('state_repository', exc)
             logger.error("🛑 [STATE] Vault persistence failed: %s", exc)
+            raise  # Fail closed on critical state mutation failure
         finally:
             self._last_commit_at = time.time()
             self._last_commit_duration_ms = (time.perf_counter() - commit_started) * 1000.0

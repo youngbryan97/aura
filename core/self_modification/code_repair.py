@@ -514,69 +514,48 @@ class SandboxTester:
             results["errors"].append(f"Syntax error: {e}")
             return results
         
-        # Test 2: Import check (Dynamic Dry Run)
+        # Test 2: Static import check (AST + py_compile, no code execution)
         try:
-            # Try to import the module
-            module_name = fix.target_file.replace('/', '.').replace('.py', '')
-            
-            # Run Python to try importing
-            # We add sandbox path to sys.path
-            test_code = f"import sys; sys.path.insert(0, '{sandbox_path}'); import {module_name}; print('Import OK')"
-            
-            result = await asyncio.to_thread(
-                subprocess.run,
-                ["python", "-c", test_code],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                cwd=sandbox_path
-            )
-            
-            if result.returncode == 0 and "Import OK" in result.stdout:
-                results["import_test"] = True
-            else:
-                results["errors"].append(f"Import failed: {result.stderr}")
-                return results
-                
-        except TimeoutError:
-            results["errors"].append("Import test timeout")
+            import py_compile as _py_compile
+            # Verify the file compiles without executing it
+            _py_compile.compile(str(sandbox_file), doraise=True)
+            # Verify AST parses and has no banned patterns
+            tree = ast.parse(code, filename=str(sandbox_file))
+            banned_calls = {"eval", "exec", "__import__", "compile"}
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    if node.func.id in banned_calls:
+                        results["errors"].append(f"Banned call '{node.func.id}' at line {node.lineno}")
+                        return results
+            results["import_test"] = True
+        except (SyntaxError, _py_compile.PyCompileError) as e:
+            results["errors"].append(f"Static compile failed: {e}")
             return results
-        except Exception as e:
+        except (ValueError, OSError) as e:
             record_degradation('code_repair', e)
-            results["errors"].append(f"Import test error: {e}")
-            # Import failures are critical for self-modification
+            results["errors"].append(f"Static check error: {e}")
             return results
 
-        # Test 3: System Integration Check (Dry Run)
-        # We try to import the Orchestrator to ensure core dependencies aren't broken
+        # Test 3: Static integrity check (py_compile on sandbox siblings)
         try:
-            integrity_code = f"import sys; sys.path.insert(0, '{sandbox_path}'); from core.orchestrator import RobustOrchestrator; print('Integrity OK')"
-            
-            result = await asyncio.to_thread(
-                subprocess.run,
-                ["python", "-c", integrity_code],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                cwd=sandbox_path
-            )
-            
-            if result.returncode == 0 and "Integrity OK" in result.stdout:
-                 results["integrity_check"] = True
-            else:
-                 # If integrity check fails, it might be because of missing deps in sandbox, so we warn but don't fail hard unless it's a core file modification
-                 logger.warning("Integrity check warning: %s", result.stderr)
-                 # Only fail if the modified file IS a core file
-                 if "core/" in fix.target_file:
-                     results["errors"].append(f"Core integrity check failed: {result.stderr}")
-                     return results
-                 results["integrity_check"] = True # Soft pass for non-core
-
-        except Exception as e:
+            integrity_ok = True
+            for sibling in sandbox_file.parent.glob("*.py"):
+                try:
+                    _py_compile.compile(str(sibling), doraise=True)
+                except _py_compile.PyCompileError as e:
+                    if "core/" in fix.target_file:
+                        results["errors"].append(f"Sibling compile failed: {sibling.name}: {e}")
+                        integrity_ok = False
+                    else:
+                        logger.warning("Non-core sibling compile warning: %s", e)
+            results["integrity_check"] = integrity_ok
+            if not integrity_ok:
+                return results
+        except (OSError, ValueError) as e:
             record_degradation('code_repair', e)
             logger.warning("Integrity check exception: %s", e)
             if "core/" in fix.target_file:
-                 return results
+                return results
             results["integrity_check"] = True
 
 

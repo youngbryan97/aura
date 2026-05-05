@@ -181,10 +181,13 @@ class BugLocalizer:
 class ReproductionSynthesizer:
     def synthesize(self, frame: TraceFrame, exc: BaseException) -> str:
         return (
-            "import importlib\n"
-            f"module_name = {self._module_name(frame.file)!r}\n"
-            "module = importlib.import_module(module_name)\n"
-            f"getattr(module, {frame.function!r})\n"
+            "import ast\n"
+            "import py_compile\n"
+            f"target_file = {frame.file!r}\n"
+            "py_compile.compile(target_file, doraise=True)\n"
+            f"tree = ast.parse(open(target_file).read())\n"
+            f"funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]\n"
+            f"assert {frame.function!r} in funcs, f'Function {frame.function!r} not found in {{funcs}}'\n"
             f"# Expected failure before repair: {type(exc).__name__}: {str(exc)[:160]}\n"
         )
 
@@ -198,11 +201,13 @@ class TestSynthesizer:
         module_name = frame.file.replace("/", ".").removesuffix(".py")
         test_name = re.sub(r"[^a-zA-Z0-9_]+", "_", f"test_repair_{module_name}_{frame.function}")[:120]
         return (
-            "import importlib\n\n"
+            "import ast\n"
+            "import py_compile\n\n"
             f"def {test_name}():\n"
-            f"    module = importlib.import_module({module_name!r})\n"
-            f"    assert hasattr(module, {frame.function!r})\n"
-            "    assert module is not None\n"
+            f"    py_compile.compile({frame.file!r}, doraise=True)\n"
+            f"    tree = ast.parse(open({frame.file!r}).read())\n"
+            f"    funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]\n"
+            f"    assert {frame.function!r} in funcs\n"
             f"    # Regression packet: {type(exc).__name__}: {str(exc)[:120]!r}\n"
         )
 

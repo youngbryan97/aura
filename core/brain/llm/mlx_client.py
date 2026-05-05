@@ -2585,11 +2585,11 @@ class MLXLocalClient:
         warmup_timeout = self._warmup_timeout()
         self._warmup_attempted = True
         # [STABILITY v51] Stale-warmup circuit breaker: if _warmup_in_flight
-        # has been True for >120s, the previous warmup task leaked without
+        # has been True for >300s, the previous warmup task leaked without
         # clearing the flag. Force-clear before proceeding.
         if self._warmup_in_flight:
             elapsed_since_transition = time.time() - self._lane_transition_at
-            if elapsed_since_transition > 120.0:
+            if elapsed_since_transition > 300.0:
                 logger.warning(
                     "🔧 [STABILITY] _warmup_in_flight was stuck True for %.0fs. "
                     "Force-clearing stale warmup flag.",

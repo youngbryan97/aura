@@ -598,7 +598,8 @@ class SafeSelfModification:
                     return False, f"File {fix.target_file} is barred due to previous sepsis"
         except Exception as e:
             record_degradation('safe_modification', e)
-            logger.debug("Sepsis check failed (non-blocking): %s", e)
+            logger.error("Sepsis check failed: %s", e)
+            raise  # Fail closed completely
 
         # 2. Risk Evaluation
         risk = getattr(fix, "risk_level", 1)
@@ -737,7 +738,7 @@ class SafeSelfModification:
             record_degradation('safe_modification', e)
             logger.error("Code modification exception: %s", e)
             await self._rollback(backup_id, branch_name if branch_created else None, expected_hash=pre_mod_hash)
-            return False, f"Modification exception: {e}"
+            raise  # Fail closed completely
         
         # Stage 4: Commit changes
         commit_hash = None

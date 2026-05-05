@@ -453,9 +453,11 @@ class InferenceGate:
         # 2. Detect stuck warmup flag on MLX client
         if hasattr(self._mlx_client, "_warmup_in_flight") and self._mlx_client._warmup_in_flight:
             transition_at = getattr(self._mlx_client, "_lane_transition_at", 0.0)
-            if transition_at > 0 and (time.time() - transition_at) > 90.0:
+            # [STABILITY v53] Increased from 90s to 300s. A 32B model cold-load
+            # takes ~150s; 90s was guaranteed to force-kill a healthy loading worker.
+            if transition_at > 0 and (time.time() - transition_at) > 300.0:
                 logger.warning(
-                    "🔍 [WATCHDOG] MLX warmup_in_flight stuck for >90s. Force-clearing."
+                    "🔍 [WATCHDOG] MLX warmup_in_flight stuck for >300s. Force-clearing."
                 )
                 self._mlx_client._warmup_in_flight = False
 
@@ -938,7 +940,12 @@ class InferenceGate:
                     statuses["cortex"] = "alive"
                 else:
                     statuses["cortex"] = "dead"
-                    await self._ensure_cortex_recovery()
+                    # [STABILITY v53] Only trigger recovery if not already in progress.
+                    # Calling it directly was bypassing the rate-limit checks in some cases.
+                    if not self._cortex_recovery_in_progress:
+                        await self._ensure_cortex_recovery()
+                    else:
+                        statuses["cortex"] = "recovering"
             else:
                 statuses["cortex"] = "not_initialized"
         except Exception as e:

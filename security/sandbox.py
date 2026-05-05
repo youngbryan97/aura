@@ -129,10 +129,11 @@ class SecureSandbox:
     - rlimits on CPU time, memory, file descriptors, file size
     - Stdout/stderr size caps (1MB)
     - Sensitive env-var stripping
-
-    Does NOT provide: filesystem isolation, network isolation, or
-    mount namespaces. On macOS, true isolation requires sandbox-exec
-    or a container runtime.
+    
+    macOS Hardening:
+    - Automatically injects `sandbox-exec` with a strict version 1 profile
+    - Denies network access entirely
+    - Restricts file-write strictly to the workdir/tmp
     """
 
     MAX_OUTPUT_BYTES = 1024 * 1024  # 1MB output cap
@@ -225,6 +226,27 @@ class SecureSandbox:
                     "TOKEN", "SECRET", "PASSWORD", "KEY", "CREDENTIAL", "AUTH"
                 )):
                     del env[key]
+
+            # macOS strict sandbox-exec injection
+            if sys.platform == "darwin" and self.security_level != SecurityLevel.PRIVILEGED:
+                profile_path = self.workdir / ".sandbox_profile.sb"
+                with open(profile_path, "w") as f:
+                    f.write(f'''(version 1)
+(deny default)
+(allow process-exec*)
+(allow process-fork)
+(allow file-read*)
+(allow file-write*
+    (subpath "{self.workdir.absolute()}")
+    (subpath "/private/tmp")
+    (subpath "/private/var/folders")
+    (literal "/dev/null")
+)
+(deny network*)
+(allow sysctl-read)
+(allow ipc-posix-shm)
+''')
+                cmd = ["sandbox-exec", "-f", str(profile_path)] + cmd
 
             process = subprocess.Popen(
                 cmd,
