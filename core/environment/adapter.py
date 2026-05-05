@@ -8,6 +8,11 @@ from .command import CommandSpec
 from .observation import Observation
 
 
+class EnvironmentUnavailableError(Exception):
+    """Raised when an environment cannot be started in strict mode."""
+    pass
+
+
 @dataclass(frozen=True)
 class EnvironmentCapabilities:
     can_observe: bool = True

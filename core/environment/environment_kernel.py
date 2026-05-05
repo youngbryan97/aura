@@ -109,7 +109,11 @@ class EnvironmentKernel:
         frame = await self.observe()
         parsed = frame.parsed_state
         if parsed.modal_state and parsed.modal_state.requires_resolution:
-            safe_response = self.modal_manager.resolve(parsed.modal_state)
+            safe_response = self.modal_manager.resolve(
+                parsed.modal_state, 
+                intent_name=intent.name if intent else None, 
+                intent_parameters=intent.parameters if intent else None
+            )
             intent = ActionIntent(
                 name="resolve_modal",
                 parameters={"response": safe_response},

@@ -135,15 +135,15 @@ class ModalState:
 class ModalManager:
     """Suspends ordinary policy when a modal blocks the environment."""
 
-    def resolve(self, modal_state: ModalState) -> str | None:
-        if not modal_state.requires_resolution:
-            return None
-        if modal_state.safe_default is not None:
-            return modal_state.safe_default
-        safe_candidates = sorted(modal_state.legal_responses - modal_state.dangerous_responses)
-        if safe_candidates:
-            return safe_candidates[0]
-        return None
+    def __init__(self):
+        self.policy = ModalPolicy()
+
+    def resolve(self, modal_state: ModalState, intent_name: str | None = None, intent_parameters: dict | None = None) -> str | None:
+        return self.policy.resolve_with_intent(
+            modal_state, 
+            intent_name=intent_name, 
+            intent_parameters=intent_parameters
+        )
 
     def should_block_normal_policy(self, modal_state: ModalState | None) -> bool:
         return bool(modal_state and modal_state.requires_resolution)

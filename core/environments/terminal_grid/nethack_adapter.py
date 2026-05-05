@@ -10,13 +10,20 @@ from __future__ import annotations
 import os
 import shutil
 import time
+from enum import Enum
 from pathlib import Path
 
-from core.environment.adapter import EnvironmentCapabilities, ExecutionResult, ensure_command_spec
+from core.environment.adapter import EnvironmentCapabilities, EnvironmentUnavailableError, ExecutionResult, ensure_command_spec
 from core.environment.command import CommandSpec
 from core.environment.observation import Observation
 
 from .base import TerminalGridAdapter
+
+
+class EnvironmentMode(Enum):
+    AUTO = "auto"
+    SIMULATED = "simulated"
+    STRICT_REAL = "strict_real"
 
 
 class NetHackTerminalGridAdapter(TerminalGridAdapter):
@@ -32,10 +39,13 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
         action_latency_ms_target=250,
     )
 
-    def __init__(self, nethack_path: str | None = None, *, force_simulated: bool = False) -> None:
+    def __init__(self, nethack_path: str | None = None, *, force_simulated: bool = False, mode: EnvironmentMode = EnvironmentMode.AUTO) -> None:
         super().__init__()
         self.nethack_path = nethack_path or os.environ.get("AURA_NETHACK_PATH") or shutil.which("nethack") or "/opt/homebrew/bin/nethack"
-        self.force_simulated = force_simulated
+        
+        # Backwards compatibility for force_simulated
+        self.mode = EnvironmentMode.SIMULATED if force_simulated else mode
+        
         self.child = None
         self._pyte_screen = None
         self._pyte_stream = None
@@ -43,7 +53,14 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
 
     async def start(self, *, run_id: str, seed: int | None = None) -> None:
         await super().start(run_id=run_id, seed=seed)
-        if self.force_simulated or not Path(self.nethack_path).exists():
+        
+        if self.mode == EnvironmentMode.SIMULATED:
+            self._simulated = True
+            return
+            
+        if not Path(self.nethack_path).exists():
+            if self.mode == EnvironmentMode.STRICT_REAL:
+                raise EnvironmentUnavailableError(f"NetHack binary not found at {self.nethack_path} but STRICT_REAL mode was requested.")
             self._simulated = True
             return
         try:
