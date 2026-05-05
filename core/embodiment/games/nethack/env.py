@@ -29,11 +29,20 @@ class NetHackEnv:
         if self.child:
             self.child.close(force=True)
             
-        # Run nethack in a pseudo-terminal
-        self.child = pexpect.spawn(self.cmd, encoding='utf-8', dimensions=(24, 80))
-        # Wait for the first screen
-        await asyncio.sleep(0.5)
-        self.last_obs = self.parser.parse(self.child.before + self.child.after)
+        # Run nethack in a pseudo-terminal with a stable TERM and preserved PATH
+        import os
+        merged_env = os.environ.copy()
+        merged_env["TERM"] = "vt100"
+        self.child = pexpect.spawn("/opt/homebrew/bin/nethack", encoding='utf-8', dimensions=(24, 80), env=merged_env)
+        # Wait for the first screen to populate buffer
+        try:
+            self.child.expect(pexpect.TIMEOUT, timeout=1.0)
+        except:
+            pass
+            
+        raw_text = str(self.child.before or "") + str(self.child.after or "")
+        logger.debug(f"NetHack Initial Screen: {raw_text[:200]}...")
+        self.last_obs = self.parser.parse(raw_text)
         return self.last_obs
         
     async def step(self, action: str) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
@@ -43,12 +52,19 @@ class NetHackEnv:
             
         # Map action strings to keystrokes
         keys = self._map_action(action)
+        if not self.child.isalive():
+            logger.error("NetHack process died unexpectedly.")
+            return self.last_obs, 0.0, True, {"error": "process_died"}
+            
         self.child.send(keys)
         
         # Wait for update
-        await asyncio.sleep(0.05) # 50ms reflex loop target
+        try:
+            self.child.expect(pexpect.TIMEOUT, timeout=0.1)
+        except:
+            pass
         
-        raw_text = self.child.before + self.child.after
+        raw_text = str(self.child.before or "") + str(self.child.after or "")
         obs = self.parser.parse(raw_text)
         
         # Simple reward: HP change + Gold change

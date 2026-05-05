@@ -48,10 +48,12 @@ class DungeonLevel:
     def update_node(self, x: int, y: int, kind: str, walkable: bool = True):
         if (x, y) in self.grid:
             node = self.grid[(x, y)]
-            node.kind = kind
-            node.walkable = walkable
-            node.explored = True
-            node.last_seen = time.time()
+            # Only update if we see something new or more specific
+            if kind != "unknown" or not node.explored:
+                node.kind = kind
+                node.walkable = walkable
+                node.explored = True
+                node.last_seen = time.time()
 
     def add_item(self, x: int, y: int, item: EvidenceItem):
         if (x, y) in self.grid:
@@ -60,6 +62,10 @@ class DungeonLevel:
     def clear_items(self, x: int, y: int):
         if (x, y) in self.grid:
             self.grid[(x, y)].items = []
+
+    def is_walkable(self, x: int, y: int) -> bool:
+        if (x, y) not in self.grid: return False
+        return self.grid[(x, y)].walkable
 
 class SpatialAtlas:
     """The high-level manager for multi-level spatial memory."""
@@ -112,6 +118,54 @@ class SpatialAtlas:
                     return (l_idx, nx, ny) # Return first found for simplicity in other levels
                     
         return None
+
+    def find_frontier(self, dlvl: int, x: int, y: int) -> Optional[Tuple[int, int]]:
+        """Find the nearest unexplored but reachable tile (frontier)."""
+        from collections import deque
+        level = self.get_level(dlvl)
+        queue = deque([(x, y)])
+        visited = set([(x, y)])
+        
+        while queue:
+            cx, cy = queue.popleft()
+            
+            # Check neighbors
+            for dx, dy in [(0,1), (0,-1), (1,0), (-1,0), (1,1), (1,-1), (-1,1), (-1,-1)]:
+                nx, ny = cx + dx, cy + dy
+                if (nx, ny) not in level.grid: continue
+                if (nx, ny) in visited: continue
+                
+                node = level.grid[(nx, ny)]
+                if not node.explored:
+                    # Found a frontier!
+                    return (nx, ny)
+                
+                if node.walkable:
+                    visited.add((nx, ny))
+                    queue.append((nx, ny))
+        return None
+
+    def get_path(self, dlvl: int, start: Tuple[int, int], end: Tuple[int, int]) -> List[str]:
+        """BFS to find a path from start to end on the given level."""
+        from collections import deque
+        level = self.get_level(dlvl)
+        queue = deque([(start, [])])
+        visited = set([start])
+        
+        while queue:
+            (cx, cy), path = queue.popleft()
+            if (cx, cy) == end:
+                return path
+            
+            for dx, dy, name in [
+                (0,-1,"n"), (0,1,"s"), (1,0,"e"), (-1,0,"w"),
+                (1,-1,"ne"), (-1,-1,"nw"), (1,1,"se"), (-1,1,"sw")
+            ]:
+                nx, ny = cx + dx, cy + dy
+                if (nx, ny) in level.grid and level.grid[(nx, ny)].walkable and (nx, ny) not in visited:
+                    visited.add((nx, ny))
+                    queue.append(((nx, ny), path + [name]))
+        return []
 
     def get_local_topology(self, dlvl: int, x: int, y: int, radius: int = 5) -> List[MapNode]:
         """Get nodes within a radius of the current position."""
