@@ -216,10 +216,20 @@ class NetHackParser(EnvironmentParser):
             "Is this ok?",
             "[ynq]",
             "[yn]",
+            "Pick a",
+            "pick a",
             "Pick an object",
             "In what direction",
             "Press return",
             "press return",
+            "Hit return",
+            "hit return",
+            "return to continue",
+            "Hit space",
+            "hit space",
+            "space to continue",
+            "Enter to continue",
+            "enter to continue",
         )
 
         # Track whether any line has a dangerous prompt
@@ -322,9 +332,14 @@ class NetHackParser(EnvironmentParser):
 
             state.entities = nearby
         else:
-            # If player not found, might be a menu
-            if not state.active_prompts and "Inventory" not in msg_line:
+            has_visible_content = any(line.strip() for line in lines)
+            # If player not found, might be a menu. A completely blank frame is
+            # usually an unstable terminal transition, not a prompt; downstream
+            # policy should wait/observe rather than send an escape key.
+            if not state.active_prompts and "Inventory" not in msg_line and has_visible_content:
                 state.active_prompts.append("Menu or prompt active.")
+            elif not has_visible_content:
+                state.uncertainty["blank_observation"] = 1.0
 
         if any(e.get("unknown") for e in state.entities):
             state.uncertainty["visible_unknown_items"] = 0.65

@@ -57,7 +57,11 @@ class ModalState:
 
         # Startup/setup selection menus that should choose the environment's
         # default option rather than escape the run before it starts.
-        if "pick a" in lower and any(token in lower for token in ("role", "profession", "class", "option", "profile")):
+        if (
+            "pick a" in lower
+            and any(token in lower for token in ("role", "profession", "class", "option", "profile"))
+            and "[yn" not in lower
+        ):
             return ModalState(
                 kind="item_selection",
                 text=text,
@@ -82,7 +86,21 @@ class ModalState:
             dangerous = {"y"}
 
         if "[yn]" in lower or "[ynq]" in lower:
-            safe_default = "y" if not dangerous and any(token in lower for token in ("is this ok", "is this okay", "confirm setup", "confirm settings")) else "n"
+            safe_setup = any(
+                token in lower
+                for token in (
+                    "is this ok",
+                    "is this okay",
+                    "confirm setup",
+                    "confirm settings",
+                    "shall i pick",
+                    "pick for you",
+                    "choose for you",
+                    "use default",
+                    "default settings",
+                )
+            )
+            safe_default = "y" if not dangerous and safe_setup else "n"
             return ModalState(
                 kind="confirmation",
                 text=text,
@@ -113,13 +131,24 @@ class ModalState:
                 confidence=0.85,
             )
 
-        # --More-- continuation
-        if "--more--" in lower or "press return" in lower:
+        # Non-decision continuation prompts. These are safe to acknowledge
+        # because they do not choose between domain actions; they only unblock
+        # a lifecycle/status message.
+        if "--more--" in lower or "space to continue" in lower:
             return ModalState(
                 kind="prompt",
                 text=text,
                 legal_responses={" ", "\r", "\n"},
                 safe_default=" ",
+                requires_resolution=True,
+                confidence=0.95,
+            )
+        if any(token in lower for token in ("press return", "hit return", "return to continue", "enter to continue")):
+            return ModalState(
+                kind="prompt",
+                text=text,
+                legal_responses={" ", "\r", "\n"},
+                safe_default="\r",
                 requires_resolution=True,
                 confidence=0.95,
             )

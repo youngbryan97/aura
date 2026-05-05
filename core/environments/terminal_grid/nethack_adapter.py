@@ -70,11 +70,14 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
         try:
             import pexpect  # type: ignore
             import pyte  # type: ignore
+            from core.environment.runtime_workspace import environment_runtime_file
+            from core.runtime.atomic_writer import atomic_write_text
 
             env = os.environ.copy()
             env["TERM"] = "xterm-256color"
-            rc_path = Path.home() / ".nethackrc_aura"
-            rc_path.write_text(
+            rc_path = environment_runtime_file(self.environment_id, "nethackrc", purpose="config")
+            atomic_write_text(
+                rc_path,
                 "OPTIONS=color,autoquiver,autopickup,hitpointbar,showexp,time,statuslines:2\n"
                 "OPTIONS=pettype:none\n"
                 "OPTIONS=pickup_types:$\n",
@@ -188,13 +191,18 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
             return
         from core.environment.startup_policy import StartupPromptPolicy
 
-        decision = StartupPromptPolicy().decide(self.screen.text, fresh_start_required=True)
-        self._last_startup_decision = decision.to_dict()
-        if decision.response is None:
-            return
-        self.child.send(decision.response)
-        time.sleep(0.3)
-        self._update_screen()
+        policy = StartupPromptPolicy()
+        decisions = []
+        for _ in range(8):
+            decision = policy.decide(self.screen.text, fresh_start_required=True)
+            decisions.append(decision.to_dict())
+            self._last_startup_decision = decision.to_dict()
+            if decision.response is None:
+                break
+            self.child.send(decision.response)
+            time.sleep(0.3)
+            self._update_screen()
+        self._startup_decisions = decisions
 
 
 __all__ = ["NetHackTerminalGridAdapter"]

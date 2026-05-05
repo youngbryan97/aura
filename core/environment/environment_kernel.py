@@ -122,7 +122,8 @@ class EnvironmentKernel:
         from core.memory.procedural.store import ProceduralMemoryStore
         from core.environment.outcome.ledger import OutcomeLedger
         
-        aura_data_dir = Path.home() / ".aura" / "data" / self.environment_id.replace(":", "_")
+        from .runtime_workspace import environment_runtime_dir
+        aura_data_dir = environment_runtime_dir(self.environment_id, purpose="learning")
         self.causal_model = None       # set externally to CausalWorldModel if available
         self.outcome_ledger = OutcomeLedger(aura_data_dir / "outcome_ledger.json")
         self.procedural_store = ProceduralMemoryStore(aura_data_dir / "procedural_store.json")

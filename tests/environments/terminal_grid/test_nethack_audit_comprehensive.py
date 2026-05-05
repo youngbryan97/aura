@@ -440,6 +440,11 @@ class TestModalStateMachine:
         assert modal.kind == "prompt"
         assert modal.safe_default == " "
 
+    def test_from_prompt_text_return_continuation(self):
+        modal = ModalState.from_prompt_text("Warning: sidecar unavailable. Hit return to continue:")
+        assert modal.kind == "prompt"
+        assert modal.safe_default == "\r"
+
     def test_from_prompt_text_unknown(self):
         modal = ModalState.from_prompt_text("Something totally unexpected happened")
         assert modal.kind == "unknown"

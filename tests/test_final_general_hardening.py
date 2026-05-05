@@ -167,14 +167,56 @@ def test_startup_policy_replaces_stale_session_only_when_fresh_run_required():
     assert cautious.response == "n"
 
 
+def test_startup_policy_acknowledges_non_decision_continuation_prompts():
+    policy = StartupPromptPolicy()
+    decision = policy.decide("Warning: cannot write status file. Hit return to continue:")
+
+    assert decision.action == "acknowledge_startup_message"
+    assert decision.response == "\r"
+
+
+def test_startup_policy_accepts_safe_default_setup_prompt():
+    policy = StartupPromptPolicy()
+    decision = policy.decide("Shall I pick a default profile for you? [ynq]", fresh_start_required=True)
+
+    assert decision.action == "accept_default_startup_setup"
+    assert decision.response == "y"
+
+
+def test_environment_kernel_learning_stores_use_runtime_workspace(monkeypatch, tmp_path):
+    monkeypatch.setenv("AURA_ENV_RUNTIME_DIR", str(tmp_path / "env-runtime"))
+    kernel = EnvironmentKernel(adapter=_GeneralScriptedAdapter(["screen"]))
+
+    assert str(kernel.outcome_ledger.path).startswith(str(tmp_path / "env-runtime"))
+    assert str(kernel.procedural_store.path).startswith(str(tmp_path / "env-runtime"))
+
+
+def test_policy_orchestrator_observes_during_blank_unstable_frames():
+    kernel = EnvironmentKernel(adapter=_GeneralScriptedAdapter(["screen"]))
+    parsed = ParsedState(environment_id="terminal_grid:generic", context_id="ctx", uncertainty={"blank_observation": 1.0})
+
+    intent = kernel.policy.select_action(
+        parsed_state=parsed,
+        belief=kernel.belief,
+        homeostasis=kernel.homeostasis,
+        episode=None,
+        recent_frames=[],
+    )
+
+    assert intent.name == "observe"
+    assert "perception_recovery" in intent.tags
+
+
 def test_modal_policy_accepts_safe_setup_defaults_but_rejects_dangerous_confirmation():
     setup = ModalState.from_prompt_text("name: Aura                    Is this ok? [ynq]")
     role = ModalState.from_prompt_text("Pick a role or profession")
+    automatic = ModalState.from_prompt_text("Shall I pick a default profile for you? [ynq]")
     danger = ModalState.from_prompt_text("Really attack the shopkeeper? [yn]")
     manager = ModalManager()
 
     assert manager.resolve(setup) == "y"
     assert manager.resolve(role) == "\r"
+    assert manager.resolve(automatic) == "y"
     assert manager.resolve(danger) == "n"
 
 

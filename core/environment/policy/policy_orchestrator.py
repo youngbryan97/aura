@@ -47,6 +47,14 @@ class PolicyOrchestrator:
         2. If strategic returns an intent (emergency/goal-driven), use it
         3. Otherwise, generate candidates → simulate → rank → select
         """
+        if float(parsed_state.uncertainty.get("blank_observation", 0.0) or 0.0) >= 0.9:
+            return ActionIntent(
+                name="observe",
+                expected_effect="observation_stabilized",
+                risk="safe",
+                tags={"perception_recovery"},
+            )
+
         # 1. Let strategic policy check for emergencies and HTN-driven actions
         strategic_intent = self.strategic_policy.select_action(
             parsed_state, belief, homeostasis, recent_frames=recent_frames,
@@ -81,4 +89,3 @@ class PolicyOrchestrator:
 
         # Fallback
         return ActionIntent(name="observe", expected_effect="observe_more", risk="safe")
-
