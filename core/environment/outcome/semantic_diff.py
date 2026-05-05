@@ -7,6 +7,10 @@ from typing import Any
 from core.environment.command import ActionIntent
 from core.environment.parsed_state import ParsedState
 
+@dataclass
+class SemanticEvent:
+    name: str
+    details: dict
 
 @dataclass
 class CausalLink:
@@ -24,20 +28,35 @@ class SemanticDiffLearner:
         # Maps (action_name, context) -> list[CausalLink]
         self.learned_links: dict[str, list[CausalLink]] = {}
 
-    def compute_diff(self, state_before: ParsedState, state_after: ParsedState) -> list[str]:
+    def compute_diff(self, state_before: ParsedState, state_after: ParsedState) -> list[SemanticEvent]:
         """Computes semantic differences between two states."""
-        diffs = []
+        events = []
         
-        # In a real environment, this would deeply diff the two parsed states
-        # For example, if an entity disappeared, if resources changed significantly, etc.
+        # Position diff
+        before_pos = state_before.self_state.get("local_coordinates")
+        after_pos = state_after.self_state.get("local_coordinates")
+        if before_pos and after_pos:
+            if before_pos != after_pos:
+                events.append(SemanticEvent(name="position_changed", details={"from": before_pos, "to": after_pos}))
+            else:
+                events.append(SemanticEvent(name="position_unchanged", details={"pos": before_pos}))
+                
+        # Message checks
+        msg = state_after.self_state.get("raw_text", "").lower()
+        if "hit a wall" in msg or "blocked" in msg:
+            events.append(SemanticEvent(name="blocked_by_wall", details={"message": msg}))
+            
+        if "die" in msg:
+            events.append(SemanticEvent(name="fatal_event", details={"message": msg}))
+            
         if state_before.context_id != state_after.context_id:
-            diffs.append(f"context_changed_to_{state_after.context_id}")
+            events.append(SemanticEvent(name=f"context_changed_to_{state_after.context_id}", details={}))
             
         # We also ingest explicitly parsed semantic events
         for event in state_after.semantic_events:
-            diffs.append(f"event_{event.name}")
+            events.append(SemanticEvent(name=event.label, details={}))
             
-        return diffs
+        return events
 
     def learn_from_transition(
         self,
@@ -46,15 +65,15 @@ class SemanticDiffLearner:
         state_after: ParsedState
     ) -> list[CausalLink]:
         """Extract causal links from an action execution."""
-        diffs = self.compute_diff(state_before, state_after)
+        events = self.compute_diff(state_before, state_after)
         links = []
         
         # Simple generic learning rule: Action -> Observed Diff
-        for diff in diffs:
+        for event in events:
             link = CausalLink(
                 action_name=action.name,
                 pre_condition_hash=state_before.stable_hash()[:8],
-                observed_effect=diff,
+                observed_effect=event.name,
             )
             links.append(link)
             
@@ -65,4 +84,4 @@ class SemanticDiffLearner:
             
         return links
 
-__all__ = ["CausalLink", "SemanticDiffLearner"]
+__all__ = ["CausalLink", "SemanticDiffLearner", "SemanticEvent"]

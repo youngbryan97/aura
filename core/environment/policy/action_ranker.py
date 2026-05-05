@@ -49,22 +49,22 @@ class ActionRanker:
 
         hypothesis = sim.hypotheses[0]
         
-        # 1. Survival Score (inverse of risk + resource impact)
-        survival_score = 0.0
-        if hypothesis.risk_level == "fatal":
-            survival_score = -100.0
-        elif hypothesis.risk_level == "high":
-            survival_score = -5.0
-        elif hypothesis.risk_level == "caution":
-            survival_score = -1.0
+        # 1. Survival Score — derived from risk_delta (0.0=safe, 1.0=lethal)
+        # Thresholds: >= 0.7 is very dangerous, >= 0.4 is caution, < 0.2 is safe
+        risk = hypothesis.risk_delta  # float, exists on SimulationHypothesis
+        if risk >= 0.85:
+            survival_score = -100.0   # near-certain death
+        elif risk >= 0.7:
+            survival_score = -5.0     # very high risk
+        elif risk >= 0.4:
+            survival_score = -1.0     # caution
         else:
-            survival_score = 0.5
-            
-        # Add resource deltas to survival
-        for delta in hypothesis.resource_deltas:
-            # Healing is good, taking damage is bad
-            # This is generic: if delta.value > 0 it's positive
-            survival_score += delta.value
+            survival_score = max(0.5, 1.0 - risk)  # inverse of risk
+
+        # Apply resource deltas from simulation (predicted_resource_delta: dict[str, float])
+        for resource_key, delta_value in hypothesis.predicted_resource_delta.items():
+            # Positive deltas (healing, food) improve survival; negative (damage) worsen it
+            survival_score += delta_value
 
         # 2. Progress Score (goal progression)
         progress_score = 0.0

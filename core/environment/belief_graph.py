@@ -38,6 +38,7 @@ class EnvironmentBeliefGraph:
         self.nodes: dict[str, BeliefNode] = {}
         self.edges: list[BeliefEdge] = []
         self.context_stack: list[str] = []
+        self.spatial: dict[tuple[str, int, int], str] = {} # context_id, x, y -> tile/feature
         self.frontiers: set[str] = set()
         self.hazards: set[str] = set()
         self.contradictions: list[dict[str, Any]] = []
@@ -101,13 +102,19 @@ class EnvironmentBeliefGraph:
                     BeliefEdge(
                         from_id=f"context:{self.context_stack[-1]}",
                         to_id=f"context:{context}",
-                        relation="transitioned_to",
+                        relation="transition",
                         confidence=0.8,
                         last_confirmed_seq=state.sequence_id,
                     )
                 )
             self.context_stack.append(context)
         self.upsert_node(BeliefNode(f"context:{context}", "context", context, context, last_seen_seq=state.sequence_id))
+        
+        # Update spatial
+        local_coords = state.self_state.get("local_coordinates")
+        if local_coords and len(local_coords) >= 2:
+            self.spatial[(context, local_coords[0], local_coords[1])] = "player"
+            
         for entity in state.entities:
             self.upsert_node(
                 BeliefNode(

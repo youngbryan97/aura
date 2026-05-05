@@ -24,9 +24,13 @@ class TacticalPolicy:
         parsed_state: ParsedState,
         belief: EnvironmentBeliefGraph,
         homeostasis: Homeostasis,
+        recent_frames: list | None = None,
+        strategic_hint: str | None = None,
     ) -> ActionIntent | None:
         """Selects the best tactical action given current beliefs and constraints."""
-        candidates = self.generator.generate(parsed_state)
+        candidates = self.generator.generate(
+            parsed_state, belief=belief, recent_frames=recent_frames,
+        )
         if not candidates:
             return None
 
@@ -40,12 +44,21 @@ class TacticalPolicy:
 
         # Rank candidates
         ranked = self.ranker.rank(candidates, simulations, resources, parsed_state)
-        
+
         if not ranked:
             return None
-            
+
+        # If strategic hint matches a candidate, boost it
+        if strategic_hint:
+            for i, (intent, score) in enumerate(ranked):
+                if intent.name == strategic_hint or strategic_hint in intent.name:
+                    # Move hint-matching candidate to top if it's in top 3
+                    if i < 3:
+                        return intent
+
         # Return the best candidate
         best_intent, best_score = ranked[0]
         return best_intent
 
 __all__ = ["TacticalPolicy"]
+
