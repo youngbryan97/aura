@@ -936,16 +936,18 @@ class InferenceGate:
         # Primary cortex
         try:
             if self._mlx_client and hasattr(self._mlx_client, "is_alive"):
+                # [STABILITY v53] Detect warming/recovering states so MindTick 
+                # doesn't report 'dead' during cold start.
+                lane_state = getattr(self._mlx_client, "_lane_state", "cold")
+                
                 if self._mlx_client.is_alive():
                     statuses["cortex"] = "alive"
+                elif self._cortex_recovery_in_progress or lane_state in ("spawning", "handshaking", "warming", "recovering"):
+                    statuses["cortex"] = "recovering"
                 else:
                     statuses["cortex"] = "dead"
-                    # [STABILITY v53] Only trigger recovery if not already in progress.
-                    # Calling it directly was bypassing the rate-limit checks in some cases.
-                    if not self._cortex_recovery_in_progress:
-                        await self._ensure_cortex_recovery()
-                    else:
-                        statuses["cortex"] = "recovering"
+                    # Trigger recovery if not already in progress.
+                    await self._ensure_cortex_recovery()
             else:
                 statuses["cortex"] = "not_initialized"
         except Exception as e:
@@ -960,8 +962,12 @@ class InferenceGate:
 
             brainstem = get_mlx_client(model_path=str(get_brainstem_path()))
             if brainstem and hasattr(brainstem, "is_alive"):
+                lane_state = getattr(brainstem, "_lane_state", "cold")
+                
                 if brainstem.is_alive():
                     statuses["brainstem"] = "alive"
+                elif lane_state in ("spawning", "handshaking", "warming", "recovering"):
+                    statuses["brainstem"] = "recovering"
                 else:
                     statuses["brainstem"] = "dead"
                     # Try to warm up brainstem

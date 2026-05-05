@@ -265,7 +265,9 @@ class AffectEngineV2:
                             float(self._llm_cooldown),
                             float(2 ** min(self._llm_failure_count + 1, 6)),
                         )
-                        logger.warning(
+                        log_level = logging.DEBUG if failure_reason == "empty_response" else logging.WARNING
+                        logger.log(
+                            log_level,
                             "⚠️ LLM Appraisal failed (%s:%s)",
                             failure_reason,
                             type(e).__name__,

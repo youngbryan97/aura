@@ -2765,7 +2765,9 @@ def get_mlx_client(model_path: Optional[str] = None, **kwargs) -> MLXLocalClient
         model_path = get_runtime_model_path()
 
     backend = get_local_backend()
-    if backend != "mlx":
+    # [STABILITY v53] Force llama_cpp for .gguf artifacts, even if the
+    # global default is MLX. This ensures the 1.5B Reflex model works.
+    if backend != "mlx" or str(model_path).lower().endswith(".gguf"):
         from .local_server_client import get_local_server_client
 
         return get_local_server_client(model_path=model_path, **kwargs)

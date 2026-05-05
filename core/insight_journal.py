@@ -123,6 +123,10 @@ class InsightJournal:
         """Return the most recent discoveries."""
         return sorted(self._insights, key=lambda x: x.timestamp, reverse=True)[:limit]
 
+    def get_highest_confidence_insights(self, limit: int = 5) -> List[Insight]:
+        """Return the insights with the highest confidence scores."""
+        return sorted(self._insights, key=lambda x: x.confidence, reverse=True)[:limit]
+
     def get_insights_by_domain(self, domain: str) -> List[Insight]:
         return [i for i in self._insights if i.domain == domain]
 
