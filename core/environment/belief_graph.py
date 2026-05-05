@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import json
 from collections import deque
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from .parsed_state import ParsedState
@@ -144,7 +146,37 @@ class EnvironmentBeliefGraph:
             self.upsert_edge(
                 BeliefEdge(f"context:{context}", obj.object_id, "contains", confidence=obj.confidence, last_confirmed_seq=state.sequence_id)
             )
+            # Inter-level edges for transitions (stairs, portals)
             if obj.kind == "transition":
+                glyph = obj.properties.get("glyph", "")
+                if glyph == ">" and state.self_state:
+                    dlvl = state.self_state.get("dlvl")
+                    if dlvl is not None:
+                        target_ctx = f"dlvl_{int(dlvl) + 1}"
+                        self.upsert_edge(
+                            BeliefEdge(
+                                from_id=f"context:{context}",
+                                to_id=f"context:{target_ctx}",
+                                relation="connects",
+                                properties={"direction": "down", "via": obj.object_id},
+                                confidence=0.9,
+                                last_confirmed_seq=state.sequence_id,
+                            )
+                        )
+                elif glyph == "<" and state.self_state:
+                    dlvl = state.self_state.get("dlvl")
+                    if dlvl is not None and int(dlvl) > 1:
+                        target_ctx = f"dlvl_{int(dlvl) - 1}"
+                        self.upsert_edge(
+                            BeliefEdge(
+                                from_id=f"context:{context}",
+                                to_id=f"context:{target_ctx}",
+                                relation="connects",
+                                properties={"direction": "up", "via": obj.object_id},
+                                confidence=0.9,
+                                last_confirmed_seq=state.sequence_id,
+                            )
+                        )
                 self.mark_frontier(obj.object_id)
         for hazard in state.hazards:
             self.upsert_node(
@@ -205,6 +237,60 @@ class EnvironmentBeliefGraph:
             "context_stack": list(self.context_stack),
         }
         return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+    # ------------------------------------------------------------------
+    # Frontier target prioritization
+    # ------------------------------------------------------------------
+
+    def get_frontier_targets(self) -> list[str]:
+        """Return frontier node IDs sorted by descending confidence."""
+        targets = []
+        for fid in self.frontiers:
+            node = self.nodes.get(fid)
+            conf = node.confidence if node else 0.5
+            targets.append((conf, fid))
+        targets.sort(reverse=True)
+        return [fid for _, fid in targets]
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def save(self, path: str | Path) -> None:
+        """Serialize belief graph to JSON file."""
+        payload = {
+            "nodes": {k: asdict(v) for k, v in self.nodes.items()},
+            "edges": [asdict(e) for e in self.edges],
+            "frontiers": sorted(self.frontiers),
+            "hazards": sorted(self.hazards),
+            "context_stack": list(self.context_stack),
+            "contradictions": list(self.contradictions),
+        }
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+
+    def load(self, path: str | Path) -> None:
+        """Deserialize belief graph from JSON file."""
+        p = Path(path)
+        if not p.exists():
+            logging.getLogger(__name__).warning("belief_graph_load_missing: %s", p)
+            return
+        data = json.loads(p.read_text(encoding="utf-8"))
+        self.nodes.clear()
+        self.edges.clear()
+        self.frontiers.clear()
+        self.hazards.clear()
+        self.context_stack.clear()
+        self.contradictions.clear()
+        for nid, ndata in data.get("nodes", {}).items():
+            self.nodes[nid] = BeliefNode(**ndata)
+        for edata in data.get("edges", []):
+            self.edges.append(BeliefEdge(**edata))
+        self.frontiers = set(data.get("frontiers", []))
+        self.hazards = set(data.get("hazards", []))
+        self.context_stack = list(data.get("context_stack", []))
+        self.contradictions = list(data.get("contradictions", []))
 
 
 __all__ = ["BeliefNode", "BeliefEdge", "EnvironmentBeliefGraph"]

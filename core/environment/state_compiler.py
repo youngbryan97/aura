@@ -110,6 +110,49 @@ class StateCompiler:
                 context_id=str(context_id),
             )
 
+        # Encumbrance → mobility resource
+        encumbrance = parsed.self_state.get("encumbrance", "Normal")
+        mobility_score = {
+            "Normal": 1.0,
+            "Burdened": 0.7,
+            "Stressed": 0.4,
+            "Strained": 0.2,
+            "Overtaxed": 0.05,
+        }.get(str(encumbrance), 1.0)
+        parsed.resources["mobility"] = ResourceState(
+            name="mobility",
+            value=mobility_score,
+            max_value=1.0,
+            critical_below=0.3,
+            evidence_ref=raw_ref,
+            last_seen_seq=seq,
+            kind="mobility",
+            context_id=str(context_id),
+        )
+
+        # Sensory reliability → uncertainty channel
+        sensory = parsed.self_state.get("sensory_reliability")
+        if sensory is not None and float(sensory) < 1.0:
+            parsed.uncertainty["sensory"] = 1.0 - float(sensory)
+
+        # Inventory items → ObjectState entries
+        for item in parsed.self_state.get("inventory_items", []) or []:
+            oid = f"{env}:inventory:{item.get('letter', '?')}"
+            parsed.objects.append(
+                ObjectState(
+                    object_id=oid,
+                    kind="item",
+                    label=str(item.get("description", "unknown")),
+                    context_id=str(context_id),
+                    affordances=["use", "drop"],
+                    risk_tags=["cursed"] if item.get("buc") == "cursed" else [],
+                    properties=dict(item),
+                    evidence_ref=raw_ref,
+                    last_seen_seq=seq,
+                )
+            )
+            parsed.observed_ids.add(oid)
+
         for idx, ent in enumerate(getattr(legacy, "entities", []) or []):
             ent_type = str(ent.get("type", "unknown"))
             pos = ent.get("pos")

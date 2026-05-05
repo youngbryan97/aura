@@ -1,0 +1,24 @@
+
+   --------
+   |......|
+   |..@.D.|
+   |...g.e|
+   |...>..!
+   --------
+
+
+
+a - a blessed +1 long sword (weapon in hand)
+b - an uncursed food ration
+c - a cursed scroll of identify
+d - 3 uncursed potions of healing
+e - an uncursed cloak of protection (being worn)
+(end)
+
+
+
+
+
+
+[Aura the Agent] St:14 Dx:12 Co:10 In:10 Wi:10 Ch:10 Neutral
+Dlvl:3 $:42 HP:5(28) Pw:7(7) AC:5 Xp:3/120 T:1523 Hungry Burdened

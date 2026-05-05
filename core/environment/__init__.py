@@ -2,7 +2,7 @@
 from .adapter import EnvironmentAdapter, EnvironmentCapabilities, ExecutionResult
 from .command import ActionIntent, CommandCompiler, CommandSpec, CommandStep
 from .environment_kernel import EnvironmentFrame, EnvironmentKernel
-from .modal import ModalManager, ModalState
+from .modal import ModalManager, ModalPolicy, ModalState
 from .observation import Observation
 from .ontology import Affordance, EntityState, HazardState, ObjectState, ResourceState, SemanticEvent
 from .parsed_state import ParsedState
@@ -21,6 +21,7 @@ __all__ = [
     "SemanticEvent",
     "ModalState",
     "ModalManager",
+    "ModalPolicy",
     "ActionIntent",
     "CommandStep",
     "CommandSpec",
