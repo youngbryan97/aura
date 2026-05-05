@@ -82,15 +82,15 @@ class NarrativeThread:
         
         # 2. Extract key data points
         # Waking context / Uptime
-        waking_context = await continuity.get_waking_context() if continuity else "I am currently online."
+        waking_context = continuity.get_waking_context() if continuity else "I am currently online."
         
         # Recent Insights
         top_insights = insight_journal.get_highest_confidence_insights(limit=3) if insight_journal else []
         insight_text = ", ".join([i.content for i in top_insights]) if top_insights else "expanding my understanding of my environment"
         
         # Active Inquiries
-        active_questions = await inquiry_engine.get_active_questions() if inquiry_engine else []
-        question_text = random.choice(active_questions).content if active_questions else "unspecified curiosities"
+        active_q = inquiry_engine.get_active_question() if inquiry_engine else None
+        question_text = active_q.question if active_q else "unspecified curiosities"
         
         # Belief Count
         belief_count = len(belief_system.get_beliefs()) if belief_system else 0

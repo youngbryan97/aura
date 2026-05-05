@@ -878,7 +878,7 @@ class InferenceGate:
                 # crash; the previous 60s budget guaranteed five back-to-back
                 # timeouts and a 5-minute lockout. Give warmup the room it
                 # actually needs.
-                await asyncio.wait_for(asyncio.shield(self._prewarm_task), timeout=240.0)
+                await asyncio.wait_for(asyncio.shield(self._prewarm_task), timeout=420.0)
                 logger.info("✅ [RECOVERY] Primary 32B cortex restored after disruption.")
                 self._cortex_recovery_attempts = 0
                 self._cortex_recovery_exhausted_at = 0.0

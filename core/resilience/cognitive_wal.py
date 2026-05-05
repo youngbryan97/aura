@@ -26,7 +26,7 @@ class CognitiveWAL:
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
         self._pending_intents: Dict[str, Dict] = {}
 
-    def log_intent(self, turn_id: str, action: str, target: str, context: Optional[Dict] = None):
+    def log_intent(self, turn_id: str, action: str, target: str, context: Optional[Dict] = None, blocking: bool = False):
         """Write the thought to disk BEFORE executing it."""
         entry = {
             "time": time.time(),
@@ -34,13 +34,17 @@ class CognitiveWAL:
             "action": action,
             "target": target,
             "context": context,
-            "status": "pending"
+            "status": "pending",
+            "critical": blocking
         }
         self._pending_intents[turn_id] = entry
         
         try:
             with open(self.filepath, "a") as f:
                 f.write(json.dumps(entry) + "\n")
+                if blocking:
+                    f.flush()
+                    os.fsync(f.fileno())  # Force OS to write to disk
         except Exception as e:
             record_degradation('cognitive_wal', e)
             logger.error("Failed to write to WAL: %s", e)
@@ -139,8 +143,8 @@ class CognitiveWAL:
 cognitive_wal = CognitiveWAL()
 
 
-def log_intent(turn_id: str, action: str, target: str, context: Optional[Dict] = None):
-    return cognitive_wal.log_intent(turn_id, action, target, context)
+def log_intent(turn_id: str, action: str, target: str, context: Optional[Dict] = None, blocking: bool = False):
+    return cognitive_wal.log_intent(turn_id, action, target, context, blocking=blocking)
 
 
 def mark_complete(turn_id: str):

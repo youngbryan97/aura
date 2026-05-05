@@ -49,6 +49,24 @@ class SalientEvent:
 
 
 @dataclass
+class GameState:
+    """Structured representation of a game or complex environment."""
+    game_id: str = "nethack"
+    active: bool = False
+    hp: int = 0
+    hp_max: int = 0
+    hunger: str = "neutral"
+    level: int = 1
+    coordinates: Tuple[int, int] = (0, 0)
+    inventory: List[Dict[str, Any]] = field(default_factory=list)
+    map_hash: str = ""
+    last_action: str = ""
+    salient_changes: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    updated_at: float = field(default_factory=time.time)
+
+
+@dataclass
 class EnvironmentBelief:
     """A standing belief about the environment."""
     key: str                 # "user_mood", "time_of_day", etc.
@@ -109,6 +127,9 @@ class WorldState:
 
         # Standing beliefs
         self._beliefs: Dict[str, EnvironmentBelief] = {}
+
+        # Game/Stress-test state
+        self.game_state = GameState()
 
         # Timing
         self._boot_time = time.time()
@@ -273,6 +294,30 @@ class WorldState:
         if belief and not belief.expired:
             return belief.value
         return None
+
+    # ------------------------------------------------------------------
+    # Game State Updates
+    # ------------------------------------------------------------------
+
+    def update_game_state(self, **kwargs) -> None:
+        """Update the game state with new data points.
+        
+        Usage: world_state.update_game_state(hp=15, hunger="weak")
+        """
+        for key, value in kwargs.items():
+            if hasattr(self.game_state, key):
+                setattr(self.game_state, key, value)
+        
+        self.game_state.updated_at = time.time()
+        
+        # If HP is low, trigger a salient event
+        if self.game_state.hp > 0 and self.game_state.hp_max > 0:
+            hp_percent = self.game_state.hp / self.game_state.hp_max
+            if hp_percent <= 0.25:
+                self.record_event(
+                    f"CRITICAL: Low health ({self.game_state.hp}/{self.game_state.hp_max})",
+                    source="game", salience=0.95, ttl=300
+                )
 
     # ------------------------------------------------------------------
     # Status

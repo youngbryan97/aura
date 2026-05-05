@@ -322,6 +322,24 @@ class InitiativeSynthesizer:
             record_degradation('initiative_synthesis', e)
             logger.debug("Synth: tension gather failed: %s", e)
 
+        # 9. Hierarchical Planner - active subgoals
+        try:
+            planner = ServiceContainer.get("hierarchical_planner", default=None)
+            if planner:
+                subgoal = planner.get_current_subgoal()
+                if subgoal:
+                    self.submit(
+                        content=subgoal.description,
+                        source="hierarchical_planner",
+                        urgency=subgoal.priority,
+                        drive="competence",
+                        subgoal_id=subgoal.id,
+                        plan_active=True,
+                    )
+        except Exception as e:
+            record_degradation('initiative_synthesis', e)
+            logger.debug("Synth: planner gather failed: %s", e)
+
     # ------------------------------------------------------------------
     # Boredom-driven exploration
     # ------------------------------------------------------------------

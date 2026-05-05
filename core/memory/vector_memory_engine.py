@@ -165,10 +165,7 @@ class EmbeddingEngine:
         if self._model:
             return self._model.encode(text, normalize_embeddings=True)
 
-        if self._tfidf_fallback:
-            return self._embed_tfidf(text)
-
-        # Last resort: character n-gram hash (very basic)
+        # Fallback: character n-gram hash (fast, fixed-size, reliable)
         return self._embed_hash(text)
 
     def embed_batch(self, texts: List[str]) -> np.ndarray:
@@ -184,11 +181,13 @@ class EmbeddingEngine:
         """TF-IDF embedding fallback."""
         self._tfidf_corpus.append(text)
         try:
+            # fit_transform expects a collection of strings
             matrix = self._tfidf_fallback.fit_transform(self._tfidf_corpus)
             vec = matrix[-1].toarray()[0]
             norm = np.linalg.norm(vec)
             return vec / norm if norm > 0 else vec
-        except Exception:
+        except Exception as e:
+            logger.debug("TF-IDF embedding failed: %s", e)
             return np.zeros(512)
 
     def _embed_hash(self, text: str) -> np.ndarray:
@@ -533,6 +532,11 @@ class VectorMemoryEngine:
         self.scorer = ImportanceScorer()
         self.consolidator = ConsolidationEngine(self.vault, self.embedder)
         self._recent_memory_ids: List[str] = []  # For recency weighting
+        
+        # --- SPATIAL MEMORY LAYER ---
+        # Map: (level, x, y) -> list of feature descriptions
+        self._spatial_registry: Dict[Tuple[int, int, int], List[str]] = {}
+        
         logger.info("✅ VectorMemoryEngine initialized. Memories: %d", self.vault.count())
 
     def _constitutional_runtime_live(self) -> bool:
@@ -672,6 +676,41 @@ class VectorMemoryEngine:
             self._recent_memory_ids = self._recent_memory_ids[-1000:]
 
         return memory_id
+
+    # ------------------------------------------------------------------
+    # Spatial Memory Methods
+    # ------------------------------------------------------------------
+
+    async def store_spatial(self, level: int, x: int, y: int, feature: str):
+        """Store a feature at a specific spatial coordinate."""
+        key = (level, x, y)
+        if key not in self._spatial_registry:
+            self._spatial_registry[key] = []
+        
+        if feature not in self._spatial_registry[key]:
+            self._spatial_registry[key].append(feature)
+            
+        # Also store in episodic for semantic context
+        await self.store(
+            content=f"At level {level}, position ({x}, {y}), there is a {feature}.",
+            memory_type="episodic",
+            source="perception",
+            tags=["spatial", f"level_{level}"]
+        )
+
+    async def recall_spatial(self, level: int, x: int, y: int) -> List[str]:
+        """Recall what is at a specific spatial coordinate."""
+        return self._spatial_registry.get((level, x, y), [])
+
+    async def find_feature(self, feature_query: str) -> List[Tuple[Tuple[int, int, int], str]]:
+        """Find the coordinates of a specific feature."""
+        results = []
+        query_lower = feature_query.lower()
+        for coord, features in self._spatial_registry.items():
+            for f in features:
+                if query_lower in f.lower():
+                    results.append((coord, f))
+        return results
 
     async def recall(
         self,
