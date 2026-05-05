@@ -296,6 +296,7 @@ class AttentionalContextGate:
         )
 
         selected: list[ContextBlock] = []
+        dropped: list[ContextBlock] = []
         used = 0
 
         for block in essentials + candidates:
@@ -303,6 +304,19 @@ class AttentionalContextGate:
             if block.essential or used + cost <= token_budget:
                 selected.append(block)
                 used += cost
+            else:
+                dropped.append(block)
+
+        if dropped:
+            dropped_summary = ", ".join(
+                f"{b.id}(p={b.priority:.2f},s={b.salience:.2f},t={estimate_tokens(b.content)})"
+                for b in dropped[:5]
+            )
+            logger.info(
+                "ContextGate dropped %d blocks (budget=%d, used=%d): %s%s",
+                len(dropped), token_budget, used, dropped_summary,
+                f" +{len(dropped)-5} more" if len(dropped) > 5 else "",
+            )
 
         logger.debug(
             "ContextGate selected %d blocks / approx %d tokens budget=%d",

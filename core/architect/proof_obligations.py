@@ -83,6 +83,35 @@ class ProofVerifier:
             rollback_packet_hash=rollback_packet.receipt_hash if rollback_packet is not None else "",
             shadow_artifact_path=str(Path(ghost.artifact_path).parent),
         ).signed()
+
+        # Authoritative non-LLM harness gate (LLM is advisory only)
+        try:
+            from core.self_modification.safe_modification_harness import get_safe_harness
+            import asyncio
+            harness = get_safe_harness(self.config.repo_root)
+            harness_result = asyncio.get_event_loop().run_until_complete(
+                harness.run(list(plan.changed_files))
+            )
+            results.append(ProofResult(
+                "safe_harness_gate",
+                harness_result.passed,
+                "passed" if harness_result.passed else "failed",
+                {"checks": harness_result.checks, "errors": harness_result.errors[:5]},
+            ))
+            if not harness_result.passed:
+                # Override receipt to block promotion
+                receipt = ProofReceipt(
+                    run_id=ghost.run_id,
+                    plan_id=plan.id,
+                    tier=plan.risk_tier,
+                    results=tuple(results),
+                    behavior_delta=delta,
+                    rollback_packet_hash=rollback_packet.receipt_hash if rollback_packet is not None else "",
+                    shadow_artifact_path=str(Path(ghost.artifact_path).parent),
+                ).signed()
+        except (ImportError, RuntimeError, OSError) as exc:
+            results.append(ProofResult("safe_harness_gate", False, "failed", {"error": str(exc)}))
+
         receipt_path = Path(ghost.artifact_path).parent / "proof_receipt.json"
         atomic_write_text(receipt_path, json.dumps(asdict(receipt), indent=2, sort_keys=True, default=str))
         return receipt

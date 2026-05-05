@@ -135,6 +135,57 @@ class KnowledgeFormalizer:
 
         return [claim.to_knowledge() for claim in claims]
 
+    async def _extract_atomic_facts_llm(self, content: str, source_title: str = "", source_url: str = "") -> List[Dict[str, Any]]:
+        """Extract facts using the InferenceGate (LLM) when use_llm=True."""
+        try:
+            from core.container import ServiceContainer
+            inference = ServiceContainer.get("inference_gate", default=None)
+            if not inference:
+                return self._extract_atomic_facts(content, source_title, source_url)
+
+            prompt = (
+                f"Extract up to 5 atomic factual claims from the following text.\n"
+                f"Source Title: {source_title}\n"
+                f"Content:\n{content[:2000]}\n\n"
+                f"Return JSON only: [{{\"content\": \"<exact sentence>\", \"type\": \"definition|causal_rule|quantitative_fact\", \"subject\": \"<subject>\", \"predicate\": \"<predicate>\"}}]"
+            )
+            
+            # Using fast model tier
+            result = await inference.generate(prompt, tier="fast")
+            
+            import json
+            raw_claims = []
+            
+            try:
+                # Find JSON array
+                start = result.find('[')
+                end = result.rfind(']') + 1
+                if start != -1 and end != 0:
+                    raw_claims = json.loads(result[start:end])
+            except Exception:
+                pass
+                
+            claims = []
+            for rc in raw_claims:
+                if not isinstance(rc, dict) or "content" not in rc:
+                    continue
+                claims.append(DistilledClaim(
+                    content=rc.get("content", ""),
+                    claim_type=rc.get("type", "fact"),
+                    source=source_title or "web_research",
+                    confidence=0.8,
+                    subject=rc.get("subject", ""),
+                    predicate=rc.get("predicate", ""),
+                    source_quality=self._source_quality(source_title, source_url),
+                ).to_knowledge())
+                
+            return claims
+            
+        except Exception as e:
+            record_degradation('formalizer_llm', e)
+            logger.warning("LLM formalization failed: %s. Falling back to deterministic parser.", e)
+            return self._extract_atomic_facts(content, source_title, source_url)
+
     @staticmethod
     def _sentence_candidates(content: str) -> list[str]:
         normalized = re.sub(r"\s+", " ", str(content or "").replace("\r", "\n")).strip()
@@ -256,6 +307,7 @@ class KnowledgeFormalizer:
         content: str,
         source_title: str = "",
         source_url: str = "",
+        use_llm: bool = False,
     ) -> Dict[str, Any]:
         """Formalize raw content into knowledge graph entries.
 
@@ -292,7 +344,10 @@ class KnowledgeFormalizer:
                 return result
 
             # 1. Extract atomic facts
-            facts = self._extract_atomic_facts(content, source_title, source_url)
+            if use_llm:
+                facts = await self._extract_atomic_facts_llm(content, source_title, source_url)
+            else:
+                facts = self._extract_atomic_facts(content, source_title, source_url)
             if not facts:
                 logger.debug("Formalizer: No facts extracted from '%s'", source_title[:60])
                 return result
@@ -407,10 +462,12 @@ async def formalize_content(
     content: str,
     source_title: str = "",
     source_url: str = "",
+    use_llm: bool = False,
 ) -> Dict[str, Any]:
     """Convenience function to formalize content via the singleton."""
     return await get_formalizer().formalize(
         content=content,
         source_title=source_title,
         source_url=source_url,
+        use_llm=use_llm,
     )

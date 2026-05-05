@@ -4,7 +4,7 @@ import contextvars
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Deque, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ class TaskRecord:
     failed: bool = False
     finished_at: Optional[float] = None
     exception: Optional[str] = None
+    last_heartbeat: float = field(default_factory=time.monotonic)
 
     def age_s(self, now: Optional[float] = None) -> float:
         current_time = now if now is not None else time.monotonic()
@@ -49,6 +50,7 @@ class TaskRecord:
             "finished_at": self.finished_at,
             "duration_s": duration,
             "exception": self.exception,
+            "last_heartbeat": self.last_heartbeat,
         }
 
 
@@ -217,6 +219,16 @@ class TaskTracker:
             stale.append(record.to_dict(now))
         stale.sort(key=lambda item: item["age_s"], reverse=True)
         return stale
+
+    def heartbeat(self, task: Optional[asyncio.Task] = None) -> None:
+        """Register a heartbeat for the given task, or the current task if None."""
+        target_task = task or asyncio.current_task()
+        if not target_task:
+            return
+            
+        record = self._records.get(id(target_task))
+        if record:
+            record.last_heartbeat = time.monotonic()
 
     def _mark_supervised(self, task: asyncio.Task) -> None:
         try:

@@ -61,16 +61,32 @@ class AgencyBus:
         return cls._instance
 
     def submit(self, proposal: dict[str, object]) -> bool:
-        """Returns True if proposal passes the cooldown gate.
+        """Returns True if proposal passes the cooldown gate AND has valid Will receipt.
 
         Args:
             proposal: dict with keys:
                 origin (str): 'volition', 'agency_core', 'orchestrator', etc.
                 text (str): the proposed message
                 priority_class (str): 'duty', 'drive', 'impulse', 'boredom'
+                will_receipt (str): required receipt ID from UnifiedWill
         """
         now = time.time()
         priority_class = str(proposal.get("priority_class", "impulse"))
+        
+        # Will Receipt Enforcement
+        receipt_id = proposal.get("will_receipt")
+        if not receipt_id:
+            logger.warning("🚌 AgencyBus REJECTED: missing will_receipt from %s", proposal.get('origin', '?'))
+            return False
+            
+        try:
+            from core.will import get_will
+            if not get_will().verify_receipt(str(receipt_id)):
+                logger.warning("🚌 AgencyBus REJECTED: invalid will_receipt %s", receipt_id)
+                return False
+        except ImportError:
+            pass  # Degraded mode — skip verify if will unavailable
+
         min_cooldown = self.COOLDOWNS.get(priority_class, self.DEFAULT_COOLDOWN)
 
         elapsed = now - self._last_output
@@ -87,8 +103,8 @@ class AgencyBus:
         self._last_output = now
         self._audit.append({'ts': now, **proposal})
         logger.debug(
-            "🚌 AgencyBus GATE OPEN: %s from %s (%.0fs since last)",
-            priority_class, proposal.get('origin', '?'), elapsed
+            "🚌 AgencyBus GATE OPEN: %s from %s (receipt=%s)",
+            priority_class, proposal.get('origin', '?'), receipt_id
         )
         return True
 

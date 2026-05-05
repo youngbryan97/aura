@@ -103,6 +103,31 @@ class GroundingGuard:
         
         return assessment.grounded_score
 
+    async def validate_and_correct(self, objective: str, eval_score: float, actual_result: Dict[str, Any]) -> tuple[float, Optional[Dict[str, Any]]]:
+        """Validate an evaluation and return both the grounded score and any necessary correction.
+        Combines assessment and correction generation into a single call.
+        """
+        assessment = self.assess(objective, eval_score, actual_result)
+        
+        self.history.append({
+            "objective": objective,
+            "original": eval_score,
+            "grounded": assessment.grounded_score,
+            "mismatch": assessment.mismatch,
+            "correction_intent": assessment.correction_intent,
+            "failure_reason": assessment.failure_reason,
+        })
+        
+        correction = None
+        if assessment.needs_replan:
+            correction = {
+                "intent": assessment.correction_intent,
+                "parameters": assessment.correction_parameters,
+                "reason": assessment.explanation or assessment.failure_reason,
+            }
+            
+        return assessment.grounded_score, correction
+
     @staticmethod
     def _correction_for_error(error: str) -> tuple[str, dict[str, Any]]:
         text = str(error or "").lower()

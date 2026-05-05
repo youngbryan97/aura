@@ -861,6 +861,23 @@ class UnifiedWill:
         to a Will decision."""
         return any(d.receipt_id == receipt_id for d in self._audit_trail)
 
+    def verify_closure(self, receipt_id: str, effect_verified: bool, telemetry_logged: bool) -> bool:
+        """Verify full closure of an action.
+        Ensures the receipt exists, the downstream effect was verified,
+        and telemetry was logged.
+        """
+        receipt_exists = self.verify_receipt(receipt_id)
+        if not receipt_exists:
+            logger.warning("Closure failed: receipt %s not found", receipt_id)
+            return False
+        if not effect_verified:
+            logger.warning("Closure failed: effect not verified for %s", receipt_id)
+            return False
+        if not telemetry_logged:
+            logger.warning("Closure failed: telemetry not logged for %s", receipt_id)
+            return False
+        return True
+
 
 # ---------------------------------------------------------------------------
 # Singleton

@@ -1,0 +1,8 @@
+# LLM Recurrent Depth Configuration
+# Each lane's depth target (0.3-0.7 range enforced at boot)
+# Depth controls how much internal reasoning vs. direct response is used
+
+cortex_32b: 0.55
+solver_72b: 0.60
+brainstem_7b: 0.45
+reflex_1p5b: 0.40

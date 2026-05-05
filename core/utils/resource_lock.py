@@ -74,16 +74,28 @@ class ResourceLock:
             return False
 
     @asynccontextmanager
-    async def gpu_session(self):
-        """Mutex for GPU-heavy operations (one at a time)."""
+    async def gpu_session(self, owner: str = "unknown"):
+        """Mutex for GPU-heavy operations (one at a time) with timeout."""
         self._ensure_primitives()
         if self._gpu_semaphore:
-            await self._gpu_semaphore.acquire()
+            try:
+                # Use asyncio.timeout for Python 3.11+
+                if hasattr(asyncio, "timeout"):
+                    async with asyncio.timeout(30.0):
+                        await self._gpu_semaphore.acquire()
+                else:
+                    await asyncio.wait_for(self._gpu_semaphore.acquire(), timeout=30.0)
+            except (asyncio.TimeoutError, TimeoutError):
+                logger.error("🚨 DEADLOCK DETECTED: Could not acquire GPU semaphore within 30s for %s", owner)
+                raise RuntimeError(f"GPU semaphore deadlock for {owner}")
+        
+        logger.debug("gpu_session acquired by %s", owner)
         try:
             yield
         finally:
             if self._gpu_semaphore:
                 self._gpu_semaphore.release()
+                logger.debug("gpu_session released by %s", owner)
 
     @property
     def browser_active(self) -> bool:

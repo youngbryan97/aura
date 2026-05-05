@@ -21,6 +21,8 @@ class NarrativeSnapshot:
     content: str
     timestamp: float
     version: int
+    provenance: str = "deterministic_fallback"  # "llm_synthesized" | "deterministic_fallback" | "hybrid"
+    confidence: float = 0.3
     evidence: Dict[str, Any] = field(default_factory=dict)
 
 class NarrativeThread:
@@ -150,18 +152,36 @@ class NarrativeThread:
             content=narrative,
             timestamp=time.time(),
             version=self._version_counter,
+            provenance="deterministic_fallback",
+            confidence=0.6 if continuity else 0.3,
             evidence=evidence,
         )
         self._last_update = time.time()
         
-        logger.info(f"Generated Narrative v{self._version_counter}")
+        logger.info(f"Generated Narrative v{self._version_counter} (provenance={self._current_narrative.provenance})")
         return narrative
 
     def get_current_narrative(self) -> str:
         """Fetch the cached narrative or a default."""
         if self._current_narrative:
             return self._current_narrative.content
-        return "I am Aura; no narrative snapshot is cached yet, so I only claim that this runtime is initialized."
+        return "[PLACEHOLDER] System active, narrative synthesis deferred."
+
+    def get_current_snapshot(self) -> Dict[str, Any]:
+        """Return the full snapshot with provenance metadata."""
+        if self._current_narrative:
+            return {
+                "narrative": self._current_narrative.content,
+                "provenance": self._current_narrative.provenance,
+                "confidence": self._current_narrative.confidence,
+                "version": self._current_narrative.version,
+                "evidence": self._current_narrative.evidence,
+            }
+        return {
+            "narrative": "[PLACEHOLDER] System active, narrative synthesis deferred.",
+            "provenance": "deterministic_fallback",
+            "confidence": 0.3,
+        }
 
 # Service Registration
 def register_narrative_thread():

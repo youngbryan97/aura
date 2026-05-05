@@ -250,6 +250,14 @@ class PhiCore:
         self._last_surrogate_time: float = 0.0
         self._surrogate_interval_s: float = 5.0
         self._norm_history: deque = deque(maxlen=20)
+        
+        # Stability tracking (TimescaleStabilityAnalyzer)
+        self._stability_analyzer = None
+        try:
+            from core.consciousness.timescale_stability import TimescaleStabilityAnalyzer
+            self._stability_analyzer = TimescaleStabilityAnalyzer()
+        except ImportError as e:
+            logger.warning("TimescaleStabilityAnalyzer unavailable: %s", e)
 
         # IIT 4.0 Exclusion Postulate: maximum phi complex tracking
         self._max_phi_complex: Optional[Tuple[int, ...]] = None  # Node indices of max-phi subset
@@ -641,6 +649,42 @@ class PhiCore:
             return self._last_result
 
         return None
+
+    def compute_full_kernel(self) -> Optional[PhiResult]:
+        """Compute the exact 8-node MIP across both affective and mesh layers."""
+        start_t = time.perf_counter()
+        affective_res = self.compute_affective_phi()
+        mesh_res = self.compute_mesh_phi()
+        
+        # Winning complex is the one with highest phi
+        winner = affective_res
+        complex_name = "affective"
+        if mesh_res and (not winner or mesh_res.phi_s > winner.phi_s):
+            winner = mesh_res
+            complex_name = "mesh"
+            
+        elapsed = time.perf_counter() - start_t
+        if winner:
+            logger.info("compute_full_kernel: winner=%s, phi_s=%.5f, time=%.3fs", complex_name, winner.phi_s, elapsed)
+            
+        return winner
+
+    def tick(self, config: Any = None) -> None:
+        """Called every conscious tick."""
+        # 1. Timescale Stability
+        if self._stability_analyzer:
+            try:
+                # default alpha/beta, ideally from config/binding
+                stability = self._stability_analyzer.analyze(alpha=0.15, beta=0.08)
+                if stability.is_stable and stability.slowest_mode_rate < 0.01:
+                    logger.debug("Timescale stable. Slowest mode < 0.01. Boosting commitment compatibility.")
+            except Exception as e:
+                logger.warning("Stability tick failed: %s", e)
+
+        # 2. Full kernel per tick
+        do_full_kernel = getattr(config, 'consciousness', {}).get('full_kernel_per_tick', False) if config else False
+        if do_full_kernel:
+            self.compute_full_kernel()
 
     def _compute_spectral_phi_16(self) -> Optional[PhiResult]:
         """Compute phi for the 16-node complex using spectral approximation.
