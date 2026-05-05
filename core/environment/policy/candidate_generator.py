@@ -120,6 +120,17 @@ class CandidateGenerator:
         candidates.append(ActionIntent(name="search", risk="safe"))
         candidates.append(ActionIntent(name="inventory", risk="safe"))
 
+        # 7b. Recent harm or attack evidence should create a general
+        # threat-response candidate even if perception did not classify the
+        # hostile entity precisely this frame.
+        if self._recent_threat_pressure(recent_frames):
+            candidates.append(ActionIntent(
+                name="retreat_to_safety",
+                risk="caution",
+                expected_effect="threat_distance_increased",
+                tags={"threat_response"},
+            ))
+
         # 8. Stairs/transition if belief graph indicates stairs present
         if belief:
             context = parsed_state.context_id or "default"
@@ -257,11 +268,18 @@ class CandidateGenerator:
         """Suppress candidates that have repeatedly failed in the same context."""
         # Count recent failures per action
         recent_failures: dict[str, int] = {}
+        recent_counts: dict[str, int] = {}
+        recent_names: list[str] = []
         for frame in recent_frames[-10:]:
+            if frame.action_intent:
+                recent_names.append(frame.action_intent.name)
+                recent_counts[frame.action_intent.name] = recent_counts.get(frame.action_intent.name, 0) + 1
             if frame.outcome_assessment and frame.outcome_assessment.success_score < 0.3:
                 if frame.action_intent:
                     key = f"{frame.action_intent.name}:{context_id}"
                     recent_failures[key] = recent_failures.get(key, 0) + 1
+
+        oscillating_information_loop = self._information_loop(recent_names)
 
         # Filter out suppressed candidates
         filtered = []
@@ -269,15 +287,45 @@ class CandidateGenerator:
             key = f"{c.name}:{context_id}"
             if recent_failures.get(key, 0) >= self.suppression_threshold:
                 continue  # suppressed
+            if c.name in {"inventory", "search", "observe", "inspect", "diagnose", "far_look"} and recent_counts.get(c.name, 0) >= self.suppression_threshold:
+                continue
+            if oscillating_information_loop and c.name in {"inventory", "observe", "inspect", "diagnose", "far_look"}:
+                continue
             filtered.append(c)
 
         # If everything was suppressed, add recovery actions
         if not filtered:
-            filtered.append(ActionIntent(name="search", risk="safe"))
+            for direction in self._movement_directions(ParsedState(environment_id="", context_id=context_id), None):
+                filtered.append(ActionIntent(name="move", parameters={"direction": direction}, risk="caution", expected_effect="recover_from_information_loop"))
             filtered.append(ActionIntent(name="wait", risk="safe"))
-            filtered.append(ActionIntent(name="inventory", risk="safe"))
 
         return filtered
+
+    @staticmethod
+    def _information_loop(recent_names: list[str]) -> bool:
+        window = recent_names[-8:]
+        if len(window) < 4:
+            return False
+        informational = {"inventory", "observe", "inspect", "diagnose", "far_look", "search", "resolve_modal"}
+        if sum(1 for name in window if name in informational) < 5:
+            return False
+        progress = {"move", "use_stairs", "pickup", "eat", "stabilize_resource", "retreat_to_safety"}
+        return not any(name in progress for name in window)
+
+    @staticmethod
+    def _recent_threat_pressure(recent_frames: list | None) -> bool:
+        if not recent_frames:
+            return False
+        for frame in recent_frames[-4:]:
+            outcome = getattr(frame, "outcome_assessment", None)
+            if outcome is None:
+                continue
+            events = set(getattr(outcome, "observed_events", []) or [])
+            if "attacked" in events or any(str(event).startswith("resource_health_decreased") for event in events):
+                return True
+            if getattr(outcome, "harm_score", 0.0) >= 0.2:
+                return True
+        return False
 
 
 __all__ = ["CandidateGenerator"]

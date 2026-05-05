@@ -35,6 +35,13 @@ class StrategicPolicy:
         # 1. Check emergency overrides first (e.g., critical HP)
         emergency = self.planner.check_emergencies(parsed_state, belief)
         if emergency:
+            if self._emergency_action_repeatedly_failed(emergency.name, parsed_state.context_id, recent_frames):
+                return ActionIntent(
+                    name="retreat_to_safety",
+                    risk="caution",
+                    expected_effect="emergency_repositioned",
+                    tags={"emergency", "recovery"},
+                )
             return ActionIntent(
                 name=emergency.name,
                 risk="caution",
@@ -61,5 +68,21 @@ class StrategicPolicy:
             strategic_hint=task_hint,
         )
 
-__all__ = ["StrategicPolicy"]
+    @staticmethod
+    def _emergency_action_repeatedly_failed(action_name: str, context_id: str | None, recent_frames: list | None) -> bool:
+        if not recent_frames:
+            return False
+        failures = 0
+        for frame in recent_frames[-5:]:
+            if not getattr(frame, "action_intent", None) or not getattr(frame, "outcome_assessment", None):
+                continue
+            if frame.action_intent.name != action_name:
+                continue
+            parsed = getattr(frame, "post_parsed_state", None) or getattr(frame, "parsed_state", None)
+            if context_id and parsed is not None and getattr(parsed, "context_id", None) != context_id:
+                continue
+            if frame.outcome_assessment.success_score < 0.3:
+                failures += 1
+        return failures >= 2
 
+__all__ = ["StrategicPolicy"]

@@ -8,6 +8,7 @@ from .modal import ModalManager, ModalPolicy, ModalState
 from .observation import Observation
 from .ontology import Affordance, EntityState, HazardState, ObjectState, ResourceState, SemanticEvent
 from .parsed_state import ParsedState
+from .startup_policy import StartupPromptDecision, StartupPromptPolicy
 
 __all__ = [
     "EnvironmentAdapter",
@@ -34,4 +35,6 @@ __all__ = [
     "ExternalTaskProofGate",
     "EnvironmentFrame",
     "EnvironmentKernel",
+    "StartupPromptDecision",
+    "StartupPromptPolicy",
 ]

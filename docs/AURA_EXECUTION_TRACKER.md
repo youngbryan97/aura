@@ -46,6 +46,14 @@ NetHack strategy in shared code.
   records semantic action budgets, uses a generic terminal-grid compiler,
   performs non-LLM A* spatial planning over canonical belief, and checks
   external task proof before counting benchmark evidence.
+- **Startup and modal control**: `startup_policy.py` handles stale-session
+  lifecycle prompts separately from task strategy, and `modal.py` accepts
+  safe setup defaults while continuing to reject dangerous confirmations.
+- **Adapter death and tactical stalls**: execution failure without fresh
+  observation now closes dead-adapter runs as crashes instead of looping; the
+  policy stack suppresses repeated information loops, lowers idle wait when no
+  resource emergency exists, escalates failed emergency actions to recovery,
+  and creates general threat-response candidates from recent harm evidence.
 - **Long-horizon learning**: `experience_replay.py`,
   `abstraction_discovery.py`, and `curriculum.py` turn repeated failures,
   uncertainty, and bottlenecks into transferable causal rules, emergent
@@ -66,10 +74,15 @@ NetHack strategy in shared code.
 - `core/environment/curriculum.py`
 - `core/environment/planning.py`
 - `core/environment/external_validation.py`
+- `core/environment/startup_policy.py`
 - `core/environment/capability_matrix.py`
 - `core/environment/asset/asset_model.py`
 - `core/environment/hazard/hazard_model.py`
 - `core/environment/policy/candidate_generator.py`
+- `core/environment/policy/action_ranker.py`
+- `core/environment/policy/strategic_policy.py`
+- `core/environment/modal.py`
+- `core/memory/procedural/store.py`
 - `core/environments/terminal_grid/state_compiler.py`
 - `core/runtime/activation_audit.py`
 - `core/runtime/proof_kernel_bridge.py`
@@ -98,11 +111,14 @@ python -m pytest tests/environment/final_blockers -q
 python -m pytest tests/nethack_crucible.py tests/environments/terminal_grid/test_nethack_audit_comprehensive.py tests/environments/terminal_grid/test_terminal_grid_live_canary.py tests/environments/terminal_grid/test_nethack_adapter_preflight.py -q
 python challenges/nethack_challenge.py --mode simulated --steps 20 --trace artifacts/test_nethack_kernel_trace.jsonl --log-level ERROR
 python -m pytest tests/architecture tests/test_embodied_cognition_runtime.py tests/test_runtime_stability_edges.py tests/test_runtime_service_access.py -q
+python challenges/nethack_challenge.py --mode strict_real --steps 40 --trace /tmp/aura_strict_probe_after_threat_response.jsonl --log-level INFO
 ```
 
-Latest focused result: **266 passed, 1 subtests passed**. The simulated stress
+Latest focused result: **271 passed, 1 subtests passed**. The simulated stress
 canary passed and emitted **40 hash-chained trace rows** at
-`artifacts/test_nethack_kernel_trace.jsonl`.
+`artifacts/test_nethack_kernel_trace.jsonl`. The strict-real smoke reached a
+live `dlvl_1` run, resolved startup modals, opened a door, moved, handled
+information modals, and stayed alive through 40 steps; no ascension is claimed.
 
 ### Remaining Empirical Target
 
@@ -316,9 +332,9 @@ gateway gaps, semantic diff blind spots, or outcome-learning regressions.
 
 ## Exact Stopping Point
 
-Stopped this pass after final hardening tests were green (266 passed,
+Stopped this pass after final hardening tests were green (271 passed,
 1 subtests passed), the simulated stress canary emitted 40 trace rows, and
-docs were updated to the current general-infrastructure state.
+strict-real smoke reached a live level and stayed alive through 40 steps.
 
 ## Current Git Diff Summary
 

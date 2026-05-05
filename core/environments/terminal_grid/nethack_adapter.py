@@ -50,6 +50,7 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
         self._pyte_screen = None
         self._pyte_stream = None
         self._simulated = True
+        self._last_error = ""
         from .nethack_parser import NetHackStateCompiler
 
         self.state_compiler = NetHackStateCompiler()
@@ -84,10 +85,14 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
             self._pyte_stream = pyte.Stream(self._pyte_screen)
             self.child = pexpect.spawn(f"{self.nethack_path} -u Aura", env=env, encoding="utf-8", timeout=0.2)
             self.child.setwinsize(24, 80)
+            self._simulated = False
             time.sleep(0.5)
             self._update_screen()
-            self._simulated = False
-        except Exception:
+            self._resolve_startup_prompt()
+        except Exception as exc:
+            self._last_error = f"{type(exc).__name__}: {exc}"
+            if self.mode == EnvironmentMode.STRICT_REAL:
+                raise EnvironmentUnavailableError(f"NetHack strict-real startup failed: {self._last_error}") from exc
             self.child = None
             self._simulated = True
 
@@ -101,8 +106,17 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
             if out and self._pyte_stream is not None:
                 self._pyte_stream.feed(out)
                 self.screen.text = "\n".join(self._pyte_screen.display)  # type: ignore[union-attr]
-        except Exception:
-            pass
+        except pexpect.TIMEOUT:
+            return
+        except pexpect.EOF as exc:
+            self._mark_child_dead(exc)
+        except OSError as exc:
+            if getattr(exc, "errno", None) == 5:
+                self._mark_child_dead(exc)
+            else:
+                self._last_error = f"{type(exc).__name__}: {exc}"
+        except Exception as exc:
+            self._last_error = f"{type(exc).__name__}: {exc}"
 
     async def observe(self) -> Observation:
         self._update_screen()
@@ -129,7 +143,20 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
             observation = await self.observe()
             return ExecutionResult(True, command.command_id, observation, raw_result={"simulated": False})
         except Exception as exc:
-            return ExecutionResult(False, command.command_id, None, error=str(exc))
+            self._last_error = f"{type(exc).__name__}: {exc}"
+            if self.child is not None:
+                try:
+                    if not self.child.isalive():
+                        self._mark_child_dead(exc)
+                except Exception:
+                    self._mark_child_dead(exc)
+            return ExecutionResult(
+                False,
+                command.command_id,
+                None,
+                error=str(exc),
+                metadata={"adapter_alive": self.is_alive(), "error_class": type(exc).__name__},
+            )
 
     async def close(self) -> None:
         if self.child is not None:
@@ -143,7 +170,31 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
     def is_alive(self) -> bool:
         if self._simulated:
             return super().is_alive()
-        return bool(self.child is not None and self.child.isalive())
+        return bool(self._alive and self.child is not None and self.child.isalive())
+
+    def _mark_child_dead(self, error: BaseException | str) -> None:
+        self._last_error = f"{type(error).__name__}: {error}" if not isinstance(error, str) else error
+        self._alive = False
+        child = self.child
+        self.child = None
+        if child is not None:
+            try:
+                child.terminate(force=True)
+            except Exception:
+                pass
+
+    def _resolve_startup_prompt(self) -> None:
+        if self.child is None:
+            return
+        from core.environment.startup_policy import StartupPromptPolicy
+
+        decision = StartupPromptPolicy().decide(self.screen.text, fresh_start_required=True)
+        self._last_startup_decision = decision.to_dict()
+        if decision.response is None:
+            return
+        self.child.send(decision.response)
+        time.sleep(0.3)
+        self._update_screen()
 
 
 __all__ = ["NetHackTerminalGridAdapter"]

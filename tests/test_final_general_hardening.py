@@ -18,6 +18,9 @@ from core.environment.planning import GridPathPlanner
 from core.environment.curriculum import CurriculumEngine
 from core.environment.abstraction_discovery import AbstractionDiscoveryEngine
 from core.environment.experience_replay import HindsightReplayBuffer
+from core.environment.startup_policy import StartupPromptPolicy
+from core.environment.modal import ModalManager, ModalState
+from core.environment.policy.candidate_generator import CandidateGenerator
 from core.environments.terminal_grid.state_compiler import TerminalGridStateCompiler
 from core.learning.formalizer import KnowledgeFormalizer
 from core.runtime.concurrency_health import ConcurrencyHealthMonitor
@@ -58,6 +61,12 @@ class _GeneralScriptedAdapter:
 
     def is_alive(self) -> bool:
         return self.alive
+
+
+class _DyingAdapter(_GeneralScriptedAdapter):
+    async def execute(self, command: CommandSpec) -> ExecutionResult:
+        self.alive = False
+        return ExecutionResult(False, command.command_id, None, error="Input/output error")
 
 
 def _outcome(score: float = 0.0, *, death: bool = False, surprise: float = 0.0) -> OutcomeAssessment:
@@ -145,6 +154,30 @@ def test_terminal_grid_compiler_extracts_generic_beliefs_without_domain_strategy
     assert any("distant alarm" in event.label for event in parsed.semantic_events)
 
 
+def test_startup_policy_replaces_stale_session_only_when_fresh_run_required():
+    policy = StartupPromptPolicy()
+    prompt = "There is already a session in progress. Destroy old session? [yn]"
+
+    fresh = policy.decide(prompt, fresh_start_required=True)
+    cautious = policy.decide(prompt, fresh_start_required=False)
+
+    assert fresh.action == "replace_stale_session"
+    assert fresh.response == "y"
+    assert cautious.action == "decline_confirmation"
+    assert cautious.response == "n"
+
+
+def test_modal_policy_accepts_safe_setup_defaults_but_rejects_dangerous_confirmation():
+    setup = ModalState.from_prompt_text("name: Aura                    Is this ok? [ynq]")
+    role = ModalState.from_prompt_text("Pick a role or profession")
+    danger = ModalState.from_prompt_text("Really attack the shopkeeper? [yn]")
+    manager = ModalManager()
+
+    assert manager.resolve(setup) == "y"
+    assert manager.resolve(role) == "\r"
+    assert manager.resolve(danger) == "n"
+
+
 def test_action_semantics_blocks_unknown_high_risk_direct_action_and_allows_observe():
     validator = ActionSemanticsValidator()
     parsed = ParsedState(environment_id="env", context_id="ctx", uncertainty={"identity": 0.9})
@@ -187,6 +220,44 @@ def test_grid_path_planner_uses_canonical_spatial_map_and_avoids_hazards():
 
     assert path
     assert (1, 0) not in path
+
+
+def test_candidate_generator_suppresses_information_loops_without_domain_rules():
+    class Frame:
+        def __init__(self, name: str, score: float = 0.8) -> None:
+            self.action_intent = ActionIntent(name=name)
+            self.outcome_assessment = _outcome(score)
+
+    parsed = ParsedState(environment_id="env", context_id="ctx")
+    recent = [
+        Frame("inventory"),
+        Frame("resolve_modal"),
+        Frame("inventory"),
+        Frame("resolve_modal"),
+        Frame("inventory"),
+        Frame("resolve_modal"),
+    ]
+
+    candidates = CandidateGenerator().generate(parsed, belief=EnvironmentBeliefGraph(), recent_frames=recent)
+    names = {candidate.name for candidate in candidates}
+
+    assert "inventory" not in names
+    assert "move" in names or "explore_frontier" in names
+
+
+def test_recent_threat_pressure_creates_general_retreat_candidate():
+    class Frame:
+        action_intent = ActionIntent(name="search")
+        outcome_assessment = _outcome(0.0)
+
+    Frame.outcome_assessment.observed_events = ["resource_health_decreased", "attacked"]
+    parsed = ParsedState(environment_id="env", context_id="ctx")
+
+    candidates = CandidateGenerator().generate(parsed, belief=EnvironmentBeliefGraph(), recent_frames=[Frame()])
+
+    threat = [candidate for candidate in candidates if candidate.name == "retreat_to_safety"]
+    assert threat
+    assert "threat_response" in threat[-1].tags
 
 
 def test_replay_and_abstraction_turn_failures_into_transferable_rules():
@@ -259,6 +330,26 @@ async def test_kernel_wires_budget_replay_abstraction_curriculum_and_external_pr
     assert evidence.passed is True
     assert evidence.proof_level == "simulated"
     assert evidence.trace_rows >= 1
+
+
+@pytest.mark.asyncio
+async def test_kernel_ends_run_when_adapter_dies_after_execution_failure():
+    compiler = CommandCompiler("terminal_grid:generic")
+    register_generic_handlers(compiler)
+    kernel = EnvironmentKernel(
+        adapter=_DyingAdapter(["#####\n#@.>#\n#####"]),
+        state_compiler=TerminalGridStateCompiler(),
+        command_compiler=compiler,
+    )
+    await kernel.start(run_id="adapter-death", seed=3)
+
+    frame = await kernel.step(ActionIntent(name="observe", expected_effect="state_observed"))
+
+    assert frame.execution_result is not None
+    assert frame.execution_result.ok is False
+    assert kernel.run_manager.current_record is None
+    assert kernel.run_manager.records[-1].terminal_reason == "crash"
+    assert "execution_failed" in frame.outcome_assessment.observed_events
 
 
 def test_concurrency_health_samples_existing_watchdogs_and_queues():

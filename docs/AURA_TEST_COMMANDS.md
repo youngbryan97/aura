@@ -152,9 +152,20 @@ python challenges/nethack_challenge.py --mode simulated --steps 20 \
   --trace artifacts/test_nethack_kernel_trace.jsonl --log-level ERROR
 ```
 
-Current final-pass focused result: **266 passed, 1 subtests passed**.
+Current final-pass focused result: **271 passed, 1 subtests passed**.
 The simulated stress canary passed and wrote **40 hash-chained trace rows** to
 `artifacts/test_nethack_kernel_trace.jsonl`.
+
+Strict-real smoke:
+
+```bash
+python challenges/nethack_challenge.py --mode strict_real --steps 40 \
+  --trace /tmp/aura_strict_probe_after_threat_response.jsonl --log-level INFO
+```
+
+Current strict-real result: reached live `dlvl_1`, resolved startup modals,
+opened a door, moved, and stayed alive through 40 steps. This is not an
+ascension.
 
 ## Phase C-O verification slices
 

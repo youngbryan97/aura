@@ -72,6 +72,10 @@ class ActionRanker:
             progress_score = 1.0
         if intent.name in ("stabilize_resource", "eat", "pray") and resources.critical_resources:
             progress_score += 0.8
+        if "threat_response" in intent.tags or intent.name in {"retreat_to_safety", "retreat"}:
+            progress_score += 1.4
+        if intent.name == "wait" and not resources.critical_resources:
+            progress_score -= 0.6
 
         # 3. Information Score (uncertainty reduction)
         info_score = hypothesis.information_gain

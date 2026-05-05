@@ -17,6 +17,7 @@ The executable audit lives in `core/environment/capability_matrix.py`.
 | Canonical spatial/topological memory | `EnvironmentBeliefGraph.spatial`, `upsert_spatial()` |
 | Resource homeostasis | `core/environment/homeostasis.py` |
 | Modal state machine | `core/environment/modal.py` |
+| Startup prompt policy | `core/environment/startup_policy.py` |
 | Candidate generation | `core/environment/policy/candidate_generator.py` |
 | Tactical simulation | `core/environment/simulation.py` |
 | Action ranking | `core/environment/policy/action_ranker.py` |
@@ -112,7 +113,7 @@ python -m pytest \
   tests/nethack_crucible.py -q
 ```
 
-Focused final-pass result: `266 passed, 1 subtests passed`.
+Focused final-pass result: `271 passed, 1 subtests passed`.
 
 Stress canary:
 
@@ -123,5 +124,16 @@ python challenges/nethack_challenge.py --mode simulated --steps 20 \
 
 Result: passed, with 40 hash-chained trace rows emitted to
 `artifacts/test_nethack_kernel_trace.jsonl`.
+
+Strict-real smoke:
+
+```bash
+python challenges/nethack_challenge.py --mode strict_real --steps 40 \
+  --trace /tmp/aura_strict_probe_after_threat_response.jsonl --log-level INFO
+```
+
+Result: reached a live `dlvl_1` run, resolved startup modals, opened a door,
+moved, handled information modals, and stayed alive through 40 steps. This is
+not an ascension and is not counted as task mastery.
 
 No successful strict-real ascension is recorded in this document.

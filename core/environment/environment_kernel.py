@@ -303,8 +303,17 @@ class EnvironmentKernel:
         result = await self.adapter.execute(command)
         frame.execution_result = result
         
-        # Observe and parse after execution
-        obs_after = result.observation_after or await self.adapter.observe()
+        # Observe and parse after execution. If execution itself failed and
+        # the adapter did not provide a fresh observation, do not blindly ask
+        # a possibly-dead environment for another frame; preserve the last
+        # known state and let lifecycle handling close the run if liveness is
+        # gone.
+        if result.observation_after is not None:
+            obs_after = result.observation_after
+        elif result.ok:
+            obs_after = await self.adapter.observe()
+        else:
+            obs_after = frame.observation
         parsed_after = self.state_compiler.compile(obs_after)
         self.belief.update_from_parsed_state(parsed_after)
         frame.post_observation = obs_after
@@ -313,6 +322,8 @@ class EnvironmentKernel:
         # Semantic diff
         semantic_events = self.semantic_diff.compute_diff(parsed, parsed_after)
         observed_events = [e.name for e in semantic_events]
+        if not result.ok:
+            observed_events.append("execution_failed")
         self.semantic_diff.learn_from_transition(parsed, intent, parsed_after)
         
         expected = sim.hypotheses[0].predicted_events if sim.hypotheses else []
@@ -326,6 +337,8 @@ class EnvironmentKernel:
             first_line = raw_after.splitlines()[0] if raw_after.splitlines() else raw_after
             if first_line:
                 messages.append(first_line)
+        if result.error:
+            messages.append(str(result.error))
         outcome = self.outcomes.assess(
             action=intent.name,
             expected_effect=intent.expected_effect,
@@ -445,6 +458,8 @@ class EnvironmentKernel:
         self._publish_outcome(frame, semantic_events, resource_delta)
 
         terminal_reason = self._terminal_reason(outcome, obs_after, parsed_after)
+        if not terminal_reason and not result.ok and not self.adapter.is_alive():
+            terminal_reason = "crash"
         if terminal_reason:
             if self.episode:
                 self.episode.transition(terminal=True)

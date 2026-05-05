@@ -55,6 +55,17 @@ class ModalState:
                 confidence=0.9,
             )
 
+        # Startup/setup selection menus that should choose the environment's
+        # default option rather than escape the run before it starts.
+        if "pick a" in lower and any(token in lower for token in ("role", "profession", "class", "option", "profile")):
+            return ModalState(
+                kind="item_selection",
+                text=text,
+                legal_responses={"\r", "\n", " "},
+                safe_default="\r",
+                confidence=0.78,
+            )
+
         # Item selection
         if "what do you want to" in lower or "pick an object" in lower:
             return ModalState(
@@ -71,11 +82,12 @@ class ModalState:
             dangerous = {"y"}
 
         if "[yn]" in lower or "[ynq]" in lower:
+            safe_default = "y" if not dangerous and any(token in lower for token in ("is this ok", "is this okay", "confirm setup", "confirm settings")) else "n"
             return ModalState(
                 kind="confirmation",
                 text=text,
                 legal_responses={"y", "n", "\x1b"},
-                safe_default="n",
+                safe_default=safe_default,
                 dangerous_responses=dangerous,
                 confidence=0.85,
             )
@@ -181,6 +193,8 @@ class ModalPolicy:
         if modal_state.kind == "confirmation":
             if intent_name in {"eat", "pray", "pickup", "loot"} and "y" not in modal_state.dangerous_responses:
                 return "y"
+            if modal_state.safe_default is not None and modal_state.safe_default not in modal_state.dangerous_responses:
+                return modal_state.safe_default
             return "n"
 
         # Fall back to safe default
@@ -191,4 +205,3 @@ class ModalPolicy:
 
 
 __all__ = ["ModalKind", "ModalState", "ModalManager", "ModalPolicy"]
-

@@ -40,13 +40,18 @@ class ProceduralMemoryStore:
             environment_family=environment_family,
             context_signature=context_signature,
             option_name=action,
-            parameters=procedure.get("parameters", {}),
+            preconditions=list(procedure.get("preconditions", [])),
+            action_sequence_template=[
+                action,
+                *[f"{key}={value}" for key, value in sorted(dict(procedure.get("parameters", {}) or {}).items())],
+            ],
+            success_conditions=list(procedure.get("effect", [])),
+            failure_conditions=list(procedure.get("failure_conditions", [])),
             success_count=1,
             failure_count=0,
             mean_outcome_score=1.0,
             risk_score=0.1,
-            success_conditions=procedure.get("effect", []),
-            confidence=0.5
+            examples=[json.dumps(procedure, sort_keys=True, default=str)[:500]],
         )
         self.upsert(record)
 
