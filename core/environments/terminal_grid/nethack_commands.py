@@ -37,6 +37,7 @@ class NetHackCommandCompiler(CommandCompiler):
             "resolve_modal", "eat", "use", "pray",
             "navigate_to", "retreat", "stabilize",
             "explore_frontier", "recover_from_loop", "backtrack", "diagnose",
+            "retreat_to_safety", "stabilize_resource", "use_stairs",
             # Extended intents
             "pickup", "drop", "wield", "wear", "take_off",
             "quaff", "read", "zap", "apply", "throw",
@@ -87,12 +88,16 @@ class NetHackCommandCompiler(CommandCompiler):
             direction = str(intent.parameters.get("direction", "down")).lower()
             steps = [CommandStep("key", self.direction_keys.get(direction, ">"))]
 
-        elif intent.name in {"retreat", "backtrack"}:
+        elif intent.name in {"retreat", "backtrack", "retreat_to_safety"}:
             direction = str(intent.parameters.get("direction", "west")).lower()
             steps = [CommandStep("key", self.direction_keys.get(direction, "h"))]
 
         elif intent.name in {"explore_frontier", "recover_from_loop"}:
-            steps = [CommandStep("key", "s" if intent.name == "explore_frontier" else "\x1b")]
+            direction = str(intent.parameters.get("direction", "")).lower()
+            if direction and direction in self.direction_keys:
+                steps = [CommandStep("key", self.direction_keys[direction])]
+            else:
+                steps = [CommandStep("key", "s" if intent.name == "explore_frontier" else "\x1b")]
 
         # ----- Extended intents -----
         elif intent.name == "pickup":
@@ -235,11 +240,29 @@ class NetHackCommandCompiler(CommandCompiler):
         elif intent.name == "loot":
             steps = [CommandStep("key", "#"), CommandStep("text", "loot\n")]
 
+        elif intent.name == "use_stairs":
+            direction = str(intent.parameters.get("direction", "down")).lower()
+            steps = [CommandStep("key", "<" if direction == "up" else ">")]
+
         elif intent.name == "use_stairs_down":
             steps = [CommandStep("key", ">")]
 
         elif intent.name == "use_stairs_up":
             steps = [CommandStep("key", "<")]
+
+        elif intent.name == "stabilize_resource":
+            resource = str(intent.parameters.get("resource", "")).lower()
+            if resource in {"health", "hp"}:
+                steps = [CommandStep("key", "#"), CommandStep("text", "pray\n")]
+            elif resource in {"nutrition", "hunger", "food"}:
+                item = intent.parameters.get("item_letter")
+                steps = [CommandStep("key", "e")]
+                if item:
+                    steps.append(CommandStep("key", str(item)[0]))
+                else:
+                    expected_modal = ModalState(kind="item_selection", text="select food", legal_responses={"\x1b"}, safe_default="\x1b")
+            else:
+                steps = [CommandStep("key", ".")]
 
         elif intent.name == "use":
             # Generic use — delegate to apply
@@ -265,4 +288,3 @@ class NetHackCommandCompiler(CommandCompiler):
 
 
 __all__ = ["NetHackCommandCompiler"]
-

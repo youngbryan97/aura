@@ -35,38 +35,37 @@ def seed_aura_goals(planner: HTNPlanner, environment_id: str) -> None:
     planner.add_subtask(parent_id=knowledge_id, name="identify_unknown_objects", priority=0.8)
     planner.add_subtask(parent_id=knowledge_id, name="map_topology", priority=0.8)
 
-    # 4. Environment-Specific Objectives mapped to drives
-    if "nethack" in environment_id or "terminal_grid" in environment_id:
-        logger.info("Seeding NetHack-specific milestones into HTN.")
-        
-        # Domain milestones
-        planner.add_milestone("found_stairs")
-        planner.add_milestone("descended_level")
-        planner.add_milestone("acquired_amulet")
-        
-        # Add domain sub-task to the knowledge drive
-        nh_id = planner.add_subtask(
+    # 4. Capability-family objectives mapped to drives. These are intentionally
+    # not task- or game-specific; adapters provide typed transitions, resources,
+    # prompts, and terminal success/failure events.
+    if "terminal_grid" in environment_id or "grid" in environment_id:
+        logger.info("Seeding bounded-grid exploration milestones into HTN.")
+        planner.add_milestone("transition_discovered")
+        planner.add_milestone("context_changed")
+        planner.add_milestone("primary_objective_discovered")
+
+        grid_id = planner.add_subtask(
             parent_id=knowledge_id,
-            name="solve_nethack_dungeon",
+            name="solve_bounded_grid_environment",
             priority=0.9,
         )
-        planner.add_subtask(parent_id=nh_id, name="find_stairs", priority=0.9)
-        planner.add_subtask(parent_id=nh_id, name="descend", priority=0.9)
-        planner.add_subtask(parent_id=nh_id, name="locate_amulet", priority=0.9)
-        
+        planner.add_subtask(parent_id=grid_id, name="discover_transition", priority=0.9)
+        planner.add_subtask(parent_id=grid_id, name="change_context_when_safe", priority=0.9)
+        planner.add_subtask(parent_id=grid_id, name="locate_primary_objective", priority=0.9)
+
     elif "browser" in environment_id:
-        logger.info("Seeding Browser-specific milestones into HTN.")
+        logger.info("Seeding document-navigation milestones into HTN.")
         planner.add_milestone("page_loaded")
         planner.add_milestone("target_element_found")
         
-        br_id = planner.add_subtask(parent_id=knowledge_id, name="navigate_and_extract", priority=0.9)
+        br_id = planner.add_subtask(parent_id=knowledge_id, name="navigate_information_surface", priority=0.9)
         planner.add_subtask(parent_id=br_id, name="load_url")
         planner.add_subtask(parent_id=br_id, name="find_element")
         planner.add_subtask(parent_id=br_id, name="read_content")
 
     elif "os" in environment_id or "desktop" in environment_id:
-        logger.info("Seeding OS-specific milestones into HTN.")
-        os_id = planner.add_subtask(parent_id=knowledge_id, name="execute_user_request", priority=0.9)
+        logger.info("Seeding desktop-interaction milestones into HTN.")
+        os_id = planner.add_subtask(parent_id=knowledge_id, name="complete_external_tool_task", priority=0.9)
         planner.add_subtask(parent_id=os_id, name="parse_request")
         planner.add_subtask(parent_id=os_id, name="locate_application")
         planner.add_subtask(parent_id=os_id, name="perform_interaction")

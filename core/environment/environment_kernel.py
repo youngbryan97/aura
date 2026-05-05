@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +36,8 @@ class EnvironmentFrame:
     gateway_decision: GatewayDecision | None = None
     receipt: EnvironmentActionReceipt | None = None
     execution_result: ExecutionResult | None = None
+    post_observation: Observation | None = None
+    post_parsed_state: ParsedState | None = None
     outcome_assessment: OutcomeAssessment | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -88,8 +90,7 @@ class EnvironmentKernel:
         self.boundary_guard = BoundaryGuard()
         from .run_manager import RunManager
         self.run_manager = RunManager()
-        from .strategy.htn_planner import HTNPlanner
-        self.htn_planner = HTNPlanner()
+        self.htn_planner = self.policy.strategic_policy.planner
         self.blackbox = BlackBoxRecorder(trace_path)
         self.episode: EpisodeManager | None = None
         self.run_id = ""
@@ -105,6 +106,8 @@ class EnvironmentKernel:
         self.episodic_memory = None    # set externally to EpisodicMemory if available
         self.macro_inducer = None      # set externally to MacroInducer if available
         self.competence_tracker: dict[str, dict] = {}  # action_name -> {attempts, successes, last_score}
+        self.world_state = None
+        self._bind_aura_services()
 
     async def start(self, *, run_id: str, seed: int | None = None) -> None:
         self.run_id = run_id
@@ -114,6 +117,17 @@ class EnvironmentKernel:
         from core.environment.strategy.goal_seeder import seed_aura_goals
         seed_aura_goals(self.htn_planner, self.environment_id)
         await self.adapter.start(run_id=run_id, seed=seed)
+        self.run_manager.mode = self._infer_run_mode()
+        capabilities = getattr(self.adapter, "capabilities", None)
+        capabilities_payload = asdict(capabilities) if is_dataclass(capabilities) else {}
+        self.run_manager.start_run(
+            run_id=run_id,
+            environment_id=self.environment_id,
+            adapter_config={
+                "adapter": self.adapter.__class__.__name__,
+                "capabilities": capabilities_payload,
+            },
+        )
 
     async def observe(self) -> EnvironmentFrame:
         observation = await self.adapter.observe()
@@ -137,6 +151,7 @@ class EnvironmentKernel:
             metadata={"homeostasis": asdict(homeostasis)},
         )
         self.frames.append(frame)
+        self._publish_observation(frame)
         self._trace(frame)
         return frame
 
@@ -172,7 +187,13 @@ class EnvironmentKernel:
         
         gov_decision = await self.governance_bridge.decide_action(intent)
         if not gov_decision.approved:
-            decision = GatewayDecision(approved=False, decision_id="gov_veto")
+            decision = GatewayDecision(
+                approved=False,
+                action_intent=None,
+                reason=gov_decision.reason or "governance_veto",
+                vetoes=[gov_decision.reason or "governance_veto"],
+                decision_id="gov_veto",
+            )
             decision_id = decision.decision_id
             will_id = None
             auth_id = None
@@ -215,26 +236,41 @@ class EnvironmentKernel:
         frame.execution_result = result
         
         # Observe and parse after execution
-        obs_after = await self.adapter.observe()
+        obs_after = result.observation_after or await self.adapter.observe()
         parsed_after = self.state_compiler.compile(obs_after)
         self.belief.update_from_parsed_state(parsed_after)
+        frame.post_observation = obs_after
+        frame.post_parsed_state = parsed_after
         
         # Semantic diff
         semantic_events = self.semantic_diff.compute_diff(parsed, parsed_after)
         observed_events = [e.name for e in semantic_events]
+        self.semantic_diff.learn_from_transition(parsed, intent, parsed_after)
         
         expected = sim.hypotheses[0].predicted_events if sim.hypotheses else []
         pe = self.prediction_error.compute(action_id=intent.intent_id(), expected_events=expected, observed_events=observed_events)
+        before_resources = {name: float(res.value) for name, res in parsed.resources.items()}
+        after_resources = {name: float(res.value) for name, res in parsed_after.resources.items()}
+        resource_delta = self.outcomes.compute_resource_delta(before_resources, after_resources)
+        messages = [event.label for event in parsed_after.semantic_events]
+        raw_after = obs_after.text or (obs_after.raw if isinstance(obs_after.raw, str) else "")
+        if raw_after:
+            first_line = raw_after.splitlines()[0] if raw_after.splitlines() else raw_after
+            if first_line:
+                messages.append(first_line)
         outcome = self.outcomes.assess(
             action=intent.name,
             expected_effect=intent.expected_effect,
             observed_events=observed_events,
             prediction_error=pe,
+            resource_delta=resource_delta,
             information_gain=sim.hypotheses[0].information_gain if sim.hypotheses else 0.0,
+            messages=messages,
         )
         frame.outcome_assessment = outcome
         receipt.execution_result_id = result.command_id
         receipt.finalize(status="executed" if result.ok else "failed", belief_hash_after=self.belief.stable_hash())
+        frame.belief_hash_after = self.belief.stable_hash()
 
         # --- Cross-system wiring: outcome -> learning stores ---
         # 1. Causal model: ground with empirical observations
@@ -297,11 +333,31 @@ class EnvironmentKernel:
 
         # 8. RunManager: record step
         self.run_manager.record_step(frame)
+        self._publish_outcome(frame, semantic_events, resource_delta)
+
+        terminal_reason = self._terminal_reason(outcome, obs_after, parsed_after)
+        if terminal_reason:
+            if self.episode:
+                self.episode.transition(terminal=True)
+            if self.run_manager.current_record is not None:
+                self.run_manager.end_run(
+                    terminal_reason=terminal_reason,
+                    frames=self.frames,
+                    final_score=outcome.success_score,
+                )
 
         self._trace(frame, latency_ms=(time.time() - started) * 1000)
         return frame
 
     async def close(self) -> None:
+        if self.run_manager.current_record is not None:
+            self.run_manager.end_run(
+                terminal_reason="closed",
+                frames=self.frames,
+                final_score=self.frames[-1].outcome_assessment.success_score
+                if self.frames and self.frames[-1].outcome_assessment
+                else 0.0,
+            )
         if self.episode:
             self.episode.transition(terminal=True)
             self.episode.transition()
@@ -321,7 +377,7 @@ class EnvironmentKernel:
                 pass
 
     def _trace(self, frame: EnvironmentFrame, *, latency_ms: float = 0.0) -> None:
-        parsed = frame.parsed_state
+        parsed = frame.post_parsed_state or frame.parsed_state
         self.blackbox.record(
             BlackBoxRow(
                 run_id=self.run_id or frame.observation.run_id,
@@ -343,6 +399,85 @@ class EnvironmentKernel:
                 latency_ms=latency_ms,
             )
         )
+
+    def _bind_aura_services(self) -> None:
+        """Connect kernel learning to Aura's existing organs when present."""
+        try:
+            from core.container import ServiceContainer
+        except Exception:
+            return
+        self.world_state = ServiceContainer.get("world_state", default=None)
+        self.causal_model = ServiceContainer.get("causal_world_model", default=self.causal_model)
+        self.episodic_memory = ServiceContainer.get("episodic_memory", default=self.episodic_memory)
+        self.macro_inducer = ServiceContainer.get("macro_inducer", default=self.macro_inducer)
+        try:
+            ServiceContainer.register_instance(f"environment_kernel:{self.environment_id}", self, required=False)
+        except Exception:
+            pass
+
+    def _publish_observation(self, frame: EnvironmentFrame) -> None:
+        if self.world_state is None:
+            return
+        try:
+            parsed = frame.parsed_state
+            self.world_state.record_event(
+                f"{self.environment_id} observation context={parsed.context_id}",
+                source=f"environment:{self.environment_id}",
+                salience=0.5 + min(0.4, max(parsed.uncertainty.values()) if parsed.uncertainty else 0.0),
+                ttl=900.0,
+                observation_id=frame.observation.stable_hash(),
+                parsed_state=parsed.stable_hash(),
+                context_id=parsed.context_id,
+            )
+            self.world_state.set_belief(
+                f"environment.{self.environment_id}.context",
+                parsed.context_id,
+                confidence=0.85,
+                source="environment_kernel",
+                ttl=900.0,
+            )
+        except Exception:
+            pass
+
+    def _publish_outcome(self, frame: EnvironmentFrame, semantic_events: list, resource_delta: dict[str, float]) -> None:
+        if self.world_state is None or frame.action_intent is None or frame.outcome_assessment is None:
+            return
+        try:
+            self.world_state.record_event(
+                f"{self.environment_id} action {frame.action_intent.name} score={frame.outcome_assessment.success_score:.2f}",
+                source=f"environment:{self.environment_id}",
+                salience=0.65 if frame.outcome_assessment.success_score >= 0.5 else 0.85,
+                ttl=1800.0,
+                action=frame.action_intent.name,
+                observed_events=[event.name for event in semantic_events],
+                resource_delta=resource_delta,
+                receipt_id=frame.receipt.receipt_id if frame.receipt else None,
+            )
+        except Exception:
+            pass
+
+    def _terminal_reason(
+        self,
+        outcome: OutcomeAssessment,
+        observation: Observation,
+        parsed: ParsedState,
+    ) -> str:
+        text = observation.text or (observation.raw if isinstance(observation.raw, str) else "")
+        if outcome.is_death or self.run_manager.detect_death(text):
+            return "death"
+        labels = " ".join(event.label.lower() for event in parsed.semantic_events)
+        if any(token in labels for token in ("victory", "task_completed", "ascended", "success")):
+            return "success"
+        return ""
+
+    def _infer_run_mode(self):
+        mode = getattr(self.adapter, "mode", None)
+        value = getattr(mode, "value", None)
+        if value == "simulated" or getattr(self.adapter, "_simulated", False):
+            return "simulated_canary"
+        if getattr(self.adapter, "mode", "") == "fixture_replay":
+            return "fixture_replay"
+        return "strict_real"
 
 
 __all__ = ["EnvironmentFrame", "EnvironmentKernel"]

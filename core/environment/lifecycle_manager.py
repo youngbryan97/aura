@@ -34,24 +34,26 @@ class LifecycleManager:
         # Specific adapters (like NetHack) might yield "death" or "victory"
         # Browser adapters might yield "browser_crashed" or "task_completed"
         for event in parsed_state.semantic_events:
-            if event.name in ("death", "system_crash", "ban"):
+            name = getattr(event, "name", None) or getattr(event, "kind", "") or getattr(event, "label", "")
+            label = str(name).lower()
+            if label in ("death", "system_crash", "ban") or any(token in label for token in ("you die", "fatal", "crash")):
                 self.is_terminal = True
                 self.terminal_state = TerminalState(
-                    reason=event.name,
+                    reason=label,
                     is_success=False,
                     context=event.properties
                 )
-                self.log.warning(f"Episode terminated: {event.name}")
+                self.log.warning(f"Episode terminated: {label}")
                 return True
                 
-            if event.name in ("victory", "task_completed", "success"):
+            if label in ("victory", "task_completed", "success") or any(token in label for token in ("ascended", "completed successfully")):
                 self.is_terminal = True
                 self.terminal_state = TerminalState(
-                    reason=event.name,
+                    reason=label,
                     is_success=True,
                     context=event.properties
                 )
-                self.log.info(f"Episode completed successfully: {event.name}")
+                self.log.info(f"Episode completed successfully: {label}")
                 return True
                 
         return False

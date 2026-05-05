@@ -8,12 +8,9 @@ Generates candidates dynamically from:
 """
 from __future__ import annotations
 
-from typing import Iterable
-
 from core.environment.command import ActionIntent
 from core.environment.parsed_state import ParsedState
 from core.environment.belief_graph import EnvironmentBeliefGraph
-from core.environment.ontology import Affordance
 
 
 class CandidateGenerator:
@@ -35,8 +32,10 @@ class CandidateGenerator:
         candidates.append(ActionIntent(name="wait", risk="safe"))
         candidates.append(ActionIntent(name="explore_frontier", risk="caution"))
 
-        # 2. Movement options
-        for direction in ["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]:
+        # 2. Movement options. If a canonical spatial model exists, rank
+        # directions by known safe frontier/transition targets and avoid known
+        # hazards. Otherwise expose the full reversible movement fan-out.
+        for direction in self._movement_directions(parsed_state, belief):
             candidates.append(ActionIntent(
                 name="move",
                 parameters={"direction": direction},
@@ -50,13 +49,37 @@ class CandidateGenerator:
                     candidates.append(ActionIntent(name="pickup", parameters={"target_id": obj.object_id}))
                 elif affordance == "use":
                     candidates.append(ActionIntent(name="use", parameters={"target_id": obj.object_id}))
+                elif affordance in {"navigate", "use_stairs"} and obj.kind == "transition":
+                    direction = self._transition_direction(obj.label, obj.properties)
+                    if self._is_at_position(parsed_state, obj.position):
+                        candidates.append(ActionIntent(
+                            name="use_stairs",
+                            parameters={"direction": direction},
+                            risk="caution",
+                            expected_effect="level_changed",
+                            target_id=obj.object_id,
+                        ))
+                    else:
+                        move_direction = self._direction_toward(parsed_state, obj.position)
+                        if move_direction:
+                            candidates.append(ActionIntent(
+                                name="move",
+                                parameters={"direction": move_direction},
+                                risk="caution",
+                                expected_effect="approach_transition",
+                                target_id=obj.object_id,
+                            ))
                 elif affordance == "open":
                     candidates.append(ActionIntent(name="open_door", parameters={"target_id": obj.object_id}))
                 elif affordance == "eat":
                     candidates.append(ActionIntent(name="eat", parameters={"target_id": obj.object_id}))
 
         # 4. Inventory-based actions
-        inventory = getattr(parsed_state, "inventory_items", None) or parsed_state.self_state.get("inventory", [])
+        inventory = (
+            getattr(parsed_state, "inventory_items", None)
+            or parsed_state.self_state.get("inventory_items", [])
+            or parsed_state.self_state.get("inventory", [])
+        )
         for item in inventory:
             letter = item.get("letter") if isinstance(item, dict) else None
             category = item.get("category", "") if isinstance(item, dict) else ""
@@ -125,6 +148,86 @@ class CandidateGenerator:
 
         return candidates
 
+    def _movement_directions(
+        self,
+        parsed_state: ParsedState,
+        belief: EnvironmentBeliefGraph | None,
+    ) -> list[str]:
+        all_dirs = ["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
+        if not belief:
+            return all_dirs
+        context = parsed_state.context_id or "default"
+        origin = self._current_xy(parsed_state)
+        if origin is None:
+            origin = belief.current_position(context)
+        if origin is None:
+            return all_dirs
+        dxdy = {
+            "north": (0, -1),
+            "south": (0, 1),
+            "east": (1, 0),
+            "west": (-1, 0),
+            "northeast": (1, -1),
+            "northwest": (-1, -1),
+            "southeast": (1, 1),
+            "southwest": (-1, 1),
+        }
+        safe_dirs: list[str] = []
+        unknown_dirs: list[str] = []
+        for direction, (dx, dy) in dxdy.items():
+            key = (context, origin[0] + dx, origin[1] + dy)
+            cell = belief.spatial.get(key)
+            if not cell:
+                unknown_dirs.append(direction)
+                continue
+            if cell.get("kind") in {"hazard", "trap", "hostile_entity"} and float(cell.get("confidence", 0.0) or 0.0) >= 0.5:
+                continue
+            if cell.get("walkable") is False:
+                continue
+            safe_dirs.append(direction)
+        return safe_dirs + [d for d in unknown_dirs if d not in safe_dirs] or all_dirs
+
+    @staticmethod
+    def _current_xy(parsed_state: ParsedState) -> tuple[int, int] | None:
+        pos = parsed_state.self_state.get("local_coordinates")
+        if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+            return (int(pos[0]), int(pos[1]))
+        return None
+
+    @classmethod
+    def _is_at_position(cls, parsed_state: ParsedState, position) -> bool:
+        current = cls._current_xy(parsed_state)
+        if current is None or not isinstance(position, (list, tuple)) or len(position) < 2:
+            return False
+        return current == (int(position[0]), int(position[1]))
+
+    @classmethod
+    def _direction_toward(cls, parsed_state: ParsedState, position) -> str | None:
+        current = cls._current_xy(parsed_state)
+        if current is None or not isinstance(position, (list, tuple)) or len(position) < 2:
+            return None
+        dx = int(position[0]) - current[0]
+        dy = int(position[1]) - current[1]
+        sx = 1 if dx > 0 else -1 if dx < 0 else 0
+        sy = 1 if dy > 0 else -1 if dy < 0 else 0
+        return {
+            (0, -1): "north",
+            (0, 1): "south",
+            (1, 0): "east",
+            (-1, 0): "west",
+            (1, -1): "northeast",
+            (-1, -1): "northwest",
+            (1, 1): "southeast",
+            (-1, 1): "southwest",
+        }.get((sx, sy))
+
+    @staticmethod
+    def _transition_direction(label: str, properties: dict) -> str:
+        text = f"{label} {properties.get('glyph', '')}".lower()
+        if "<" in text or "up" in text:
+            return "up"
+        return "down"
+
     def _apply_loop_suppression(
         self,
         candidates: list[ActionIntent],
@@ -158,4 +261,3 @@ class CandidateGenerator:
 
 
 __all__ = ["CandidateGenerator"]
-

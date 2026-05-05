@@ -33,12 +33,26 @@ class BeliefEdge:
     last_confirmed_seq: int = 0
 
 
+class SpatialCell(dict):
+    """Dict-backed spatial entry with legacy string equality.
+
+    Older tests and callers treated ``belief.spatial[(ctx, x, y)]`` as a raw
+    kind string. Newer infrastructure needs confidence, provenance, walkability,
+    and node links. This keeps both contracts live.
+    """
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            return self.get("kind") == other
+        return super().__eq__(other)
+
+
 class EnvironmentBeliefGraph:
     def __init__(self) -> None:
         self.nodes: dict[str, BeliefNode] = {}
         self.edges: list[BeliefEdge] = []
         self.context_stack: list[str] = []
-        self.spatial: dict[tuple[str, int, int], str] = {} # context_id, x, y -> tile/feature
+        self.spatial: dict[tuple[str, int, int], dict[str, Any]] = {}
         self.frontiers: set[str] = set()
         self.hazards: set[str] = set()
         self.contradictions: list[dict[str, Any]] = []
@@ -83,6 +97,71 @@ class EnvironmentBeliefGraph:
     def mark_hazard(self, node_id: str) -> None:
         self.hazards.add(node_id)
 
+    def upsert_spatial(
+        self,
+        context_id: str,
+        x: int,
+        y: int,
+        *,
+        kind: str,
+        confidence: float = 0.7,
+        evidence_id: str = "",
+        node_id: str = "",
+        walkable: bool | None = None,
+        properties: dict[str, Any] | None = None,
+        sequence_id: int = 0,
+    ) -> dict[str, Any]:
+        """Merge a spatial observation into the canonical environment map.
+
+        The map is conservative around hazards: a later low-confidence benign
+        observation cannot erase a high-confidence hazard. This prevents
+        split-brain map repair where perception momentarily loses sight of a
+        trap, wall, unsafe UI region, or other risk-bearing location.
+        """
+        key = (str(context_id), int(x), int(y))
+        incoming = SpatialCell({
+            "kind": str(kind or "unknown"),
+            "confidence": max(0.0, min(1.0, float(confidence))),
+            "evidence_id": evidence_id,
+            "node_id": node_id,
+            "walkable": walkable,
+            "properties": dict(properties or {}),
+            "last_seen_seq": int(sequence_id or 0),
+        })
+        existing = self.spatial.get(key)
+        if existing:
+            old_kind = str(existing.get("kind", "unknown"))
+            old_conf = float(existing.get("confidence", 0.0) or 0.0)
+            high_conf_hazard = old_kind in {"hazard", "trap", "damage", "hostile_entity"} and old_conf >= 0.7
+            incoming_benign = incoming["kind"] in {"floor", "player", "unknown", "empty"}
+            if high_conf_hazard and incoming_benign and incoming["confidence"] < old_conf:
+                existing["last_seen_seq"] = max(int(existing.get("last_seen_seq", 0) or 0), incoming["last_seen_seq"])
+                return existing
+            if old_kind != incoming["kind"] and old_conf >= 0.7 and incoming["confidence"] >= 0.7:
+                self.contradictions.append(
+                    {
+                        "spatial_key": key,
+                        "old_kind": old_kind,
+                        "new_kind": incoming["kind"],
+                        "seq": incoming["last_seen_seq"],
+                    }
+                )
+            existing.update(
+                {
+                    "kind": incoming["kind"] if incoming["confidence"] >= old_conf * 0.75 else old_kind,
+                    "confidence": max(old_conf * 0.9, incoming["confidence"]),
+                    "evidence_id": evidence_id or existing.get("evidence_id", ""),
+                    "node_id": node_id or existing.get("node_id", ""),
+                    "last_seen_seq": max(int(existing.get("last_seen_seq", 0) or 0), incoming["last_seen_seq"]),
+                }
+            )
+            if walkable is not None:
+                existing["walkable"] = walkable
+            existing.setdefault("properties", {}).update(incoming["properties"])
+            return existing
+        self.spatial[key] = incoming
+        return incoming
+
     def decay_unobserved(self, current_seq: int, *, half_life_steps: int = 200) -> None:
         half_life_steps = max(1, half_life_steps)
         for node in self.nodes.values():
@@ -112,8 +191,19 @@ class EnvironmentBeliefGraph:
         
         # Update spatial
         local_coords = state.self_state.get("local_coordinates")
-        if local_coords and len(local_coords) >= 2:
-            self.spatial[(context, local_coords[0], local_coords[1])] = "player"
+        if isinstance(local_coords, (list, tuple)) and len(local_coords) >= 2:
+            self.upsert_spatial(
+                context,
+                int(local_coords[0]),
+                int(local_coords[1]),
+                kind="player",
+                confidence=0.95,
+                evidence_id=state.raw_observation_ref,
+                node_id=f"{state.environment_id}:self",
+                walkable=True,
+                properties={"self": True},
+                sequence_id=state.sequence_id,
+            )
             
         for entity in state.entities:
             self.upsert_node(
@@ -138,6 +228,19 @@ class EnvironmentBeliefGraph:
             )
             if entity.threat_score >= 0.5 or entity.kind == "hostile":
                 self.mark_hazard(entity.entity_id)
+            if entity.position is not None:
+                self.upsert_spatial(
+                    context,
+                    int(entity.position[0]),
+                    int(entity.position[1]),
+                    kind="hostile_entity" if entity.entity_id in self.hazards else "entity",
+                    confidence=entity.confidence,
+                    evidence_id=entity.evidence_ref,
+                    node_id=entity.entity_id,
+                    walkable=False if entity.entity_id in self.hazards else None,
+                    properties={"label": entity.label, "threat_score": entity.threat_score},
+                    sequence_id=state.sequence_id,
+                )
         for obj in state.objects:
             self.upsert_node(
                 BeliefNode(
@@ -185,6 +288,24 @@ class EnvironmentBeliefGraph:
                             )
                         )
                 self.mark_frontier(obj.object_id)
+            if obj.position is not None:
+                spatial_kind = "transition" if obj.kind == "transition" else obj.kind
+                self.upsert_spatial(
+                    context,
+                    int(obj.position[0]),
+                    int(obj.position[1]),
+                    kind=spatial_kind,
+                    confidence=obj.confidence,
+                    evidence_id=obj.evidence_ref,
+                    node_id=obj.object_id,
+                    walkable=True if obj.kind in {"transition", "item", "resource"} else None,
+                    properties={
+                        "label": obj.label,
+                        "affordances": list(obj.affordances),
+                        "risk_tags": list(obj.risk_tags),
+                    },
+                    sequence_id=state.sequence_id,
+                )
         for hazard in state.hazards:
             self.upsert_node(
                 BeliefNode(
@@ -198,6 +319,20 @@ class EnvironmentBeliefGraph:
                 )
             )
             self.mark_hazard(hazard.hazard_id)
+            pos = hazard.properties.get("position") or hazard.properties.get("pos")
+            if isinstance(pos, (list, tuple)) and len(pos) == 2:
+                self.upsert_spatial(
+                    context,
+                    int(pos[0]),
+                    int(pos[1]),
+                    kind="hazard",
+                    confidence=hazard.confidence,
+                    evidence_id=hazard.evidence_ref,
+                    node_id=hazard.hazard_id,
+                    walkable=False,
+                    properties={"label": hazard.label, "severity": hazard.severity},
+                    sequence_id=state.sequence_id,
+                )
         self.decay_unobserved(state.sequence_id)
 
     def record_blocked_edge(self, from_id: str, to_id: str, *, seq: int = 0, reason: str = "") -> None:
@@ -242,8 +377,52 @@ class EnvironmentBeliefGraph:
             "frontiers": sorted(self.frontiers),
             "hazards": sorted(self.hazards),
             "context_stack": list(self.context_stack),
+            "spatial": {
+                f"{ctx}:{x}:{y}": value
+                for (ctx, x, y), value in sorted(self.spatial.items(), key=lambda item: item[0])
+            },
         }
         return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+    def current_position(self, context_id: str | None = None) -> tuple[int, int] | None:
+        """Return the most recent known self position in a context."""
+        candidates: list[tuple[int, int, int]] = []
+        for (ctx, x, y), entry in self.spatial.items():
+            if context_id is not None and ctx != context_id:
+                continue
+            if entry.get("kind") == "player" or entry.get("properties", {}).get("self"):
+                candidates.append((int(entry.get("last_seen_seq", 0) or 0), x, y))
+        if not candidates:
+            return None
+        _, x, y = max(candidates)
+        return (x, y)
+
+    def nearest_spatial(
+        self,
+        *,
+        context_id: str,
+        kinds: set[str],
+        origin: tuple[int, int] | None = None,
+        min_confidence: float = 0.2,
+    ) -> tuple[int, int, dict[str, Any]] | None:
+        """Find the nearest known spatial entry matching one of ``kinds``."""
+        origin = origin or self.current_position(context_id)
+        best_distance: float | None = None
+        best_entry: tuple[int, int, dict[str, Any]] | None = None
+        for (ctx, x, y), entry in self.spatial.items():
+            if ctx != context_id:
+                continue
+            if str(entry.get("kind")) not in kinds:
+                continue
+            if float(entry.get("confidence", 0.0) or 0.0) < min_confidence:
+                continue
+            distance = abs(x - origin[0]) + abs(y - origin[1]) if origin else 0
+            if best_distance is None or float(distance) < best_distance:
+                best_distance = float(distance)
+                best_entry = (x, y, entry)
+        if best_entry is None:
+            return None
+        return best_entry
 
     # ------------------------------------------------------------------
     # Frontier target prioritization
@@ -272,6 +451,10 @@ class EnvironmentBeliefGraph:
             "hazards": sorted(self.hazards),
             "context_stack": list(self.context_stack),
             "contradictions": list(self.contradictions),
+            "spatial": [
+                {"context_id": ctx, "x": x, "y": y, **value}
+                for (ctx, x, y), value in self.spatial.items()
+            ],
         }
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -288,6 +471,7 @@ class EnvironmentBeliefGraph:
         self.edges.clear()
         self.frontiers.clear()
         self.hazards.clear()
+        self.spatial.clear()
         self.context_stack.clear()
         self.contradictions.clear()
         for nid, ndata in data.get("nodes", {}).items():
@@ -298,6 +482,11 @@ class EnvironmentBeliefGraph:
         self.hazards = set(data.get("hazards", []))
         self.context_stack = list(data.get("context_stack", []))
         self.contradictions = list(data.get("contradictions", []))
+        for item in data.get("spatial", []):
+            ctx = str(item.pop("context_id"))
+            x = int(item.pop("x"))
+            y = int(item.pop("y"))
+            self.spatial[(ctx, x, y)] = SpatialCell(item)
 
 
 __all__ = ["BeliefNode", "BeliefEdge", "EnvironmentBeliefGraph"]

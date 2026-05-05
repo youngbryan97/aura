@@ -129,6 +129,33 @@ checkpointed runtime-fix pass.
   constraints, record the exact blocker in `docs/AURA_EXECUTION_TRACKER.md`.
 - Add new commands here as each milestone introduces new focused test slices.
 
+## General Environment Autonomy Slice
+
+This is the focused suite for the NetHack-scale general environment kernel:
+
+```bash
+python -m pytest \
+  tests/test_environment_general_integration.py \
+  tests/environment/final_blockers \
+  tests/environments/terminal_grid \
+  tests/architecture \
+  tests/test_embodied_cognition_runtime.py \
+  tests/nethack_crucible.py -q
+
+python challenges/nethack_challenge.py --mode simulated --steps 20 \
+  --trace artifacts/test_nethack_kernel_trace.jsonl --log-level ERROR
+```
+
+Current focused result: **210 passed**.
+
+Full repository sweep after the general environment autonomy patch set:
+
+```bash
+python -m pytest -q
+```
+
+Result: **4333 passed, 7 skipped, 7 warnings, 1 subtests passed**.
+
 ## Phase C-O verification slices
 
 ```

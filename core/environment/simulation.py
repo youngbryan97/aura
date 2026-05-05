@@ -39,7 +39,7 @@ class SimulationBundle:
 _OBSERVATION_INTENTS = {"observe", "inspect", "diagnose", "resolve_modal", "inventory", "far_look", "look", "search"}
 
 # Intents that change resources
-_RESOURCE_INTENTS = {"eat", "quaff", "stabilize", "pray"}
+_RESOURCE_INTENTS = {"eat", "quaff", "stabilize", "stabilize_resource", "pray"}
 
 
 class TacticalSimulator:
@@ -65,9 +65,11 @@ class TacticalSimulator:
                 assumptions.append(f"hostile_entities_nearby:{hostile_nearby}")
 
         # --- Resource delta predictions ---
-        if action_intent.name in {"eat", "stabilize"}:
+        if action_intent.name in {"eat", "stabilize", "stabilize_resource"}:
             resource_delta["nutrition"] = 0.3
             assumptions.append("food_available")
+            if action_intent.parameters.get("resource") in {"health", "hp"}:
+                resource_delta["health"] = 0.2
 
         if action_intent.name == "quaff":
             if "unknown" in action_intent.tags:
@@ -108,4 +110,3 @@ class TacticalSimulator:
 
 
 __all__ = ["SimulationHypothesis", "SimulationBundle", "TacticalSimulator"]
-

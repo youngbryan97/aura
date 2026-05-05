@@ -36,6 +36,24 @@ make run          # foreground launch
 - Dashboard: open `http://localhost:<port>/api/dashboard/snapshot` for a
   raw JSON view of every live subsystem.
 
+## General environment stress runs
+
+The general environment OS is documented in
+[`docs/GENERAL_ENVIRONMENT_AUTONOMY.md`](GENERAL_ENVIRONMENT_AUTONOMY.md).
+Run the deterministic canary before any strict-real long run:
+
+```bash
+python challenges/nethack_challenge.py --mode simulated --steps 100
+```
+
+Run NetHack as a strict real stress adapter:
+
+```bash
+python challenges/nethack_challenge.py --mode strict_real --steps 5000
+```
+
+The trace defaults to `~/.aura/logs/nethack/kernel_trace.jsonl`.
+
 ## Platform posture
 The deliberate platform decisions — RBAC, SSO, tenant isolation, DR,
 plugin signing — are declared in [`docs/PLATFORM_POSTURE.md`](PLATFORM_POSTURE.md)

@@ -290,10 +290,28 @@ GENERIC_HANDLERS: dict[str, callable] = {
 }
 
 
+def _bind_environment(handler, environment_id: str):
+    """Bind a generic handler to the compiler's concrete environment.
+
+    Generic handlers describe semantic effects. The concrete compiler owns the
+    environment boundary, so the returned CommandSpec must be rewritten to that
+    environment instead of leaking the historical ``generic`` id.
+    """
+
+    def _handler(intent: ActionIntent) -> CommandSpec:
+        command = handler(intent)
+        command.environment_id = environment_id
+        command.command_id = command_id_for(environment_id, intent)
+        return command
+
+    return _handler
+
+
 def register_generic_handlers(compiler) -> None:
     """Register all generic handlers on a CommandCompiler instance."""
+    environment_id = getattr(compiler, "environment_id", "generic")
     for name, handler in GENERIC_HANDLERS.items():
-        compiler.register(name, handler)
+        compiler.register(name, _bind_environment(handler, environment_id))
 
 
 __all__ = ["GENERIC_HANDLERS", "register_generic_handlers"]

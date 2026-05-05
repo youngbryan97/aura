@@ -56,6 +56,14 @@ class StateCompiler:
         )
         seq = int(parsed.self_state.get("turn", 0) or 0)
         parsed.sequence_id = seq
+        spatial_info = dict(getattr(legacy, "spatial_info", {}) or {})
+        player_pos = spatial_info.get("player_pos")
+        if isinstance(player_pos, (list, tuple)) and len(player_pos) == 2:
+            # Legacy terminal parsers report row/column. The environment OS
+            # canonical spatial convention is x/y.
+            row, col = int(player_pos[0]), int(player_pos[1])
+            parsed.self_state.setdefault("local_coordinates", (col, row))
+            parsed.self_state.setdefault("grid_coordinates", (row, col))
         if parsed.self_state:
             parsed.entities.append(
                 EntityState(
@@ -156,7 +164,10 @@ class StateCompiler:
         for idx, ent in enumerate(getattr(legacy, "entities", []) or []):
             ent_type = str(ent.get("type", "unknown"))
             pos = ent.get("pos")
-            position = tuple(pos) if isinstance(pos, (list, tuple)) and len(pos) == 2 else None
+            position = None
+            if isinstance(pos, (list, tuple)) and len(pos) == 2:
+                row, col = int(pos[0]), int(pos[1])
+                position = (col, row)
             if ent_type in {"monster", "large_monster", "hostile"}:
                 eid = f"{env}:entity:{ent.get('glyph', ent_type)}:{position or idx}"
                 parsed.entities.append(
@@ -200,6 +211,7 @@ class StateCompiler:
                             label="visible hazard",
                             context_id=str(context_id),
                             severity=0.7,
+                            properties={"position": position} if position is not None else {},
                             evidence_ref=raw_ref,
                             last_seen_seq=seq,
                         )
@@ -208,16 +220,8 @@ class StateCompiler:
         prompts = list(getattr(legacy, "active_prompts", []) or [])
         if prompts:
             text = " ".join(str(p) for p in prompts)
-            safe = " " if "--More--" in text or "Press return" in text else "\x1b"
-            parsed.modal_state = ModalState(
-                kind="menu" if "menu" in text.lower() or "inventory" in text.lower() else "prompt",
-                text=text,
-                legal_responses={safe, "\x1b", "y", "n"},
-                safe_default=safe,
-                dangerous_responses={"y"} if "Really" in text or "attack" in text.lower() else set(),
-                confidence=0.85,
-                source_evidence=raw_ref,
-            )
+            parsed.modal_state = ModalState.from_prompt_text(text)
+            parsed.modal_state.source_evidence = raw_ref
             parsed.uncertainty["modal_state"] = float(getattr(legacy, "uncertainty", {}).get("modal_state", 0.2))
 
         for msg in getattr(legacy, "messages", []) or []:

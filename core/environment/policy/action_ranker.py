@@ -68,8 +68,10 @@ class ActionRanker:
 
         # 2. Progress Score (goal progression)
         progress_score = 0.0
-        if intent.name in ("move", "explore_frontier", "use_stairs"):
+        if intent.name in ("move", "explore_frontier", "use_stairs", "use_stairs_down", "use_stairs_up"):
             progress_score = 1.0
+        if intent.name in ("stabilize_resource", "eat", "pray") and resources.critical_resources:
+            progress_score += 0.8
 
         # 3. Information Score (uncertainty reduction)
         info_score = hypothesis.information_gain

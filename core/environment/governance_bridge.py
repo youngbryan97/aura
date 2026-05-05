@@ -31,10 +31,11 @@ class EnvironmentGovernanceBridge:
             auth_receipt = await self.authority_gateway.authorize(intent, will_receipt)
             if not auth_receipt:
                 return GovernanceDecision(approved=False, reason="authority_refused")
-                
-        # If no gateways are provided but requires_authority is True, default to mock passing for testing
-        # In a real environment, it would fail closed if gateways were absent.
-        will_receipt = will_receipt or f"mock_will_{intent.name}"
-        auth_receipt = auth_receipt or f"mock_auth_{intent.name}"
+        elif getattr(intent, "risk", "") in {"irreversible", "forbidden"} or getattr(intent, "requires_authority", False):
+            return GovernanceDecision(
+                approved=False,
+                will_receipt_id=will_receipt,
+                reason="authority_gateway_missing",
+            )
             
         return GovernanceDecision(approved=True, will_receipt_id=will_receipt, authority_receipt_id=auth_receipt)

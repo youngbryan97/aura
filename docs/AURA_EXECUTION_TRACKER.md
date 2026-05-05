@@ -2,21 +2,51 @@
 
 ## Current Phase
 
-Phase A+ closure: every item from both rounds of A+ feedback addressed
-with concrete adapters, fail-closed governance in live code paths, and
-runnable regressions. 365 passed in the final sweep. See
-`docs/AURA_AGRADE_GAP_REGISTER.md` for the literal item-by-item closure.
+General environment autonomy closure: NetHack is now wired through the
+canonical environment kernel as a stress adapter, not through a separate
+game-specific control loop. The kernel has live observation normalization,
+belief/spatial memory, shared HTN policy, simulation, governance, action
+gateway, command compilation, semantic outcome learning, run lifecycle,
+postmortems, and trace replay.
 
 ## Current Milestone
 
-Final consolidation: every phase A-O has at least one runnable module
-and at least one regression test; the prompt's full requirement set is
-audited in `docs/AURA_PROMPT_COVERAGE_AUDIT.md`.
+General infrastructure hardening for arbitrary bounded environments. The
+capability matrix in `core/environment/capability_matrix.py` is executable
+and covers the live organs required for NetHack-scale runs without encoding
+NetHack strategy in shared code.
 
 ## Files Changed (this session)
 
 ### Source
 
+- `core/environment/environment_kernel.py` (shared HTN planner wiring,
+  run lifecycle, service binding, post-action observation, semantic
+  learning, resource deltas, terminal detection)
+- `core/environment/belief_graph.py` (metadata-rich canonical spatial
+  memory with hazard-preserving merge and legacy kind compatibility)
+- `core/environment/capability_matrix.py` (new executable capability audit)
+- `core/environment/generic_command_handlers.py` (generic handlers bind to
+  concrete environment IDs)
+- `core/environment/state_compiler.py` (legacy terminal state converts to
+  canonical x/y coordinates and modal factory)
+- `core/environment/outcome_attribution.py` (death and no-progress scoring)
+- `core/environment/outcome/semantic_diff.py` (resource, modal, entity, and
+  fatal-event diffs)
+- `core/environment/policy/candidate_generator.py` (inventory, spatial,
+  transition, and hazard-aware candidates)
+- `core/environment/policy/action_ranker.py`
+- `core/environment/simulation.py`
+- `core/environment/governance_bridge.py` (authority-required effects fail
+  closed when authority is unavailable)
+- `core/environment/lifecycle_manager.py`
+- `core/environment/strategy/goal_seeder.py` (capability-family goals instead
+  of NetHack-specific milestones)
+- `core/environments/terminal_grid/nethack_commands.py` (aliases for generic
+  intents emitted by shared policy)
+- `core/embodiment/games/nethack/state_compiler.py` (compatibility import for
+  canonical compiler)
+- `challenges/nethack_challenge.py` (canonical EnvironmentKernel stress loop)
 - `aura_main.py` (manifest enforcement after lock_registration)
 - `core/orchestrator/mixins/cognitive_background.py`
 - `core/orchestrator/mixins/message_handling.py`
@@ -46,6 +76,9 @@ audited in `docs/AURA_PROMPT_COVERAGE_AUDIT.md`.
 
 ### Docs
 
+- `docs/GENERAL_ENVIRONMENT_AUTONOMY.md` (new)
+- `CHALLENGE.md`
+- `docs/AURA_TEST_COMMANDS.md`
 - `docs/AURA_EXECUTION_PLAN.md`
 - `docs/AURA_EXECUTION_TRACKER.md`
 - `docs/AURA_RISK_REGISTER.md`
@@ -55,11 +88,18 @@ audited in `docs/AURA_PROMPT_COVERAGE_AUDIT.md`.
 
 ### Tests
 
+- `tests/test_environment_general_integration.py` (new)
 - `tests/test_server_runtime_hardening.py` (~1500 lines added across
   Phase B mixin sweep, Phase C-O contracts, and final-gap closures)
 
 ## Tests Added (highlight)
 
+- `test_generic_command_handlers_bind_to_concrete_environment_id`
+- `test_policy_reads_inventory_items_and_emits_generic_stair_intent`
+- `test_belief_spatial_memory_keeps_metadata_and_legacy_kind_lookup`
+- `test_semantic_diff_reports_resources_modal_and_new_entities`
+- `test_kernel_lifecycle_records_terminal_death_and_postmortem`
+- `test_environment_capability_matrix_is_executable_and_clean`
 - `test_cognitive_background_reflection_uses_named_tracker`
 - `test_cognitive_background_learning_uses_named_tracker`
 - `test_message_handling_deferred_enqueue_uses_named_tracker`
@@ -91,6 +131,16 @@ audited in `docs/AURA_PROMPT_COVERAGE_AUDIT.md`.
 ## Commands Run (final sweep)
 
 ```
+python -m pytest tests/test_environment_general_integration.py \
+  tests/environment/final_blockers tests/environments/terminal_grid \
+  tests/architecture tests/test_embodied_cognition_runtime.py \
+  tests/nethack_crucible.py -q
+
+python challenges/nethack_challenge.py --mode simulated --steps 20 \
+  --trace artifacts/test_nethack_kernel_trace.jsonl --log-level ERROR
+
+python -m pytest -q
+
 python -m pytest tests/test_server_runtime_hardening.py \
   tests/test_orchestrator_compatibility.py \
   tests/test_runtime_stability_edges.py \
@@ -101,10 +151,16 @@ python -m pytest tests/test_server_runtime_hardening.py \
   tests/test_time_resilience.py
 ```
 
-Result: **304 passed, 1 subtests passed**.
+General environment result: **210 passed**. Simulated challenge emitted a
+hash-chained trace at `artifacts/test_nethack_kernel_trace.jsonl`.
+Full repository result: **4333 passed, 7 skipped, 7 warnings,
+1 subtests passed** in 479.24s.
 
 ## Pass / Fail Results
 
+- general environment autonomy slice: 210 passed
+- simulated NetHack stress canary: passed, trace emitted
+- full repository sweep: 4333 passed, 7 skipped, 7 warnings, 1 subtests passed
 - mixin ownership slice: 8 passed
 - service manifest slice: 6 passed
 - shutdown coordinator slice: 6 passed
@@ -141,32 +197,32 @@ Result: **304 passed, 1 subtests passed**.
 5. Multimodal model router, durable-workflow engine, external red-team
    automation, day-in-the-life 24h soak runner are documented in the
    plan as Phase J/K/L follow-ons.
+6. Successful NetHack ascension is not yet recorded. The architecture is now
+   wired for strict-real runs, but a full autonomous win remains an empirical
+   long-run target.
 
 ## Next Exact Task
 
-After this checkpoint, the next high-leverage move is to wire the
-abstract `MemoryWriteGateway` and `StateGateway` in `core/runtime/gateways.py`
-to concrete implementations rooted at `core/memory/memory_facade.py` and
-`core/state/state_repository.py`, then run the conformance suite with
-`AURA_STRICT_RUNTIME=1` to confirm zero degradations.
+After this checkpoint, the next high-leverage move is to run the strict-real
+NetHack stress loop, inspect `EnvironmentKernel.run_manager.records` and
+the black-box trace every 15 minutes, and fix only general architecture
+failures: policy loops, modal failures, belief/spatial merge errors, action
+gateway gaps, semantic diff blind spots, or outcome-learning regressions.
 
 ## Next Exact Continuation Prompt
 
-> Continue Aura production hardening from `docs/AURA_EXECUTION_TRACKER.md`.
-> Phases A-O have all landed. Next: wire concrete adapters for
-> `core/runtime/gateways.MemoryWriteGateway` rooted at
-> `core/memory/memory_facade.py` and `core/runtime/gateways.StateGateway`
-> rooted at `core/state/state_repository.py`. After that, run the
-> conformance suite with `AURA_STRICT_RUNTIME=1` and the abuse-gauntlet
-> harness in `core/runtime/fault_injection.run_abuse_stage` for the
-> `stage_1_2h` scenario.
+> Continue Aura general environment autonomy from
+> `docs/AURA_EXECUTION_TRACKER.md`. The canonical EnvironmentKernel is wired
+> to NetHack as a stress adapter. Run
+> `python challenges/nethack_challenge.py --mode strict_real --steps 5000`,
+> inspect the trace and run-manager records, and patch only general
+> infrastructure causes of stalls or loops.
 
 ## Exact Stopping Point
 
-Stopped after Phase O regressions all green (304/304), the prompt
-coverage audit recorded in `docs/AURA_PROMPT_COVERAGE_AUDIT.md`, and
-the source archive download artifacts produced (see
-`AURA_EXECUTION_PLAN.md` for paths).
+Stopped after the general environment autonomy slice was green (210/210),
+the simulated stress canary emitted a trace, and docs were updated to the
+current canonical-kernel state.
 
 ## Current Git Diff Summary
 

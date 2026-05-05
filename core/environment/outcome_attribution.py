@@ -106,15 +106,28 @@ class OutcomeAttributor:
 
         # Classify semantic events from messages
         semantic = self.classify_events(messages)
-        is_death = "death" in semantic
+        is_death = "death" in semantic or any(
+            event in {"fatal_event", "death"} or "you die" in event.lower()
+            for event in observed_events
+        )
 
         harm = sum(abs(v) for v in resource_delta.values() if v < 0)
         if is_death:
             harm = 1.0
 
         surprise = prediction_error.magnitude if prediction_error else 0.0
-        expected_hit = expected_effect in observed_events if expected_effect else False
-        info_success = information_gain > 0 and action in {"observe", "inspect", "diagnose", "inventory", "look", "far_look", "search"}
+        combined_observed = list(dict.fromkeys([*observed_events, *semantic]))
+        expected_hit = expected_effect in combined_observed if expected_effect else False
+        informational = action in {"observe", "inspect", "diagnose", "inventory", "look", "far_look", "search"}
+        produced_new_information = any(
+            event in {"new_object_or_entity_observed", "modal_opened", "modal_cleared"}
+            for event in combined_observed
+        )
+        info_success = (
+            information_gain > 0
+            and informational
+            and (produced_new_information or expected_hit or surprise < 0.5)
+        )
         success = 0.8 if expected_hit or info_success else max(0.0, 0.4 - surprise - harm)
         if harm:
             success = min(success, 0.5)
@@ -132,7 +145,7 @@ class OutcomeAttributor:
         return OutcomeAssessment(
             action=action,
             expected_effect=expected_effect,
-            observed_events=list(observed_events),
+            observed_events=combined_observed,
             success_score=max(0.0, min(1.0, success)),
             harm_score=max(0.0, min(1.0, harm)),
             information_gain=max(0.0, min(1.0, information_gain)),
@@ -145,4 +158,3 @@ class OutcomeAttributor:
 
 
 __all__ = ["OutcomeAssessment", "OutcomeAttributor"]
-
