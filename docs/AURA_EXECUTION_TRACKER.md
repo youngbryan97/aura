@@ -2,12 +2,13 @@
 
 ## Current Phase
 
-General environment autonomy closure: NetHack is now wired through the
-canonical environment kernel as a stress adapter, not through a separate
-game-specific control loop. The kernel has live observation normalization,
-belief/spatial memory, shared HTN policy, simulation, governance, action
-gateway, command compilation, semantic outcome learning, run lifecycle,
-postmortems, and trace replay.
+Final general infrastructure hardening for arbitrary bounded environments.
+NetHack remains a stress adapter, not a shared-strategy target. The canonical
+environment kernel now includes live observation normalization, belief/spatial
+memory, shared HTN policy, simulation, governance, action gateway, command
+compilation, closed-loop action semantics, action budgets, semantic outcome
+learning, hindsight replay, abstraction discovery, curriculum generation,
+run lifecycle, postmortems, external proof gating, and trace replay.
 
 ## Current Milestone
 
@@ -16,7 +17,102 @@ capability matrix in `core/environment/capability_matrix.py` is executable
 and covers the live organs required for NetHack-scale runs without encoding
 NetHack strategy in shared code.
 
-## Files Changed (this session)
+## Latest Final Hardening Pass (2026-05-05)
+
+### Gaps Addressed
+
+- **Live integration uncertainty**: `activation_audit.py` now auto-starts and
+  samples the proof-kernel bridge, lock watchdog, and concurrency health
+  monitor. Activation evidence includes service status where available.
+- **Standalone proof kernel**: `proof_kernel_bridge.py` runs bounded
+  proof-kernel homeostasis/workspace probes over live runtime evidence and
+  reports explicit claim scope.
+- **LLM-final proof risk**: `proof_obligations.py` now requires deterministic
+  compile receipts and machine receipts for high-impact paths; LLM judgment is
+  advisory, not final authority.
+- **Knowledge learning brittleness**: `formalizer.py` now emits structured
+  extractive claims with type, subject/predicate, conditions, consequences,
+  evidence span, source quality, and verification status.
+- **Grounding as penalty only**: `grounding_guard.py` and `self_evaluator.py`
+  now return corrective replan intents when self-evaluation conflicts with
+  tool/environment evidence.
+- **Context mis-budgeting**: `context_gate.py` uses a real tokenizer when
+  present and conservative deterministic estimates for code, punctuation-heavy
+  text, CJK/non-English text, and terminal output.
+- **Narrative/persona over-claiming**: `narrative_thread.py` now grounds
+  self-report in runtime evidence and explicitly refuses unsupported
+  consciousness/personhood escalation.
+- **Embodied control**: the shared kernel now validates action semantics,
+  records semantic action budgets, uses a generic terminal-grid compiler,
+  performs non-LLM A* spatial planning over canonical belief, and checks
+  external task proof before counting benchmark evidence.
+- **Long-horizon learning**: `experience_replay.py`,
+  `abstraction_discovery.py`, and `curriculum.py` turn repeated failures,
+  uncertainty, and bottlenecks into transferable causal rules, emergent
+  abstractions, and self-generated practice tasks.
+- **Async fragility**: `concurrency_health.py` composes task tracker, lock
+  watchdog, dead-letter queue, and degradation evidence into one receiptable
+  pressure report.
+- **Repository hygiene**: root-level `fix_*.py` repair artifacts were moved to
+  `archive/repair_scripts/` and documented as non-runtime history.
+
+### Latest Files Changed
+
+- `core/environment/environment_kernel.py`
+- `core/environment/action_semantics.py`
+- `core/environment/action_budget.py`
+- `core/environment/experience_replay.py`
+- `core/environment/abstraction_discovery.py`
+- `core/environment/curriculum.py`
+- `core/environment/planning.py`
+- `core/environment/external_validation.py`
+- `core/environment/capability_matrix.py`
+- `core/environment/asset/asset_model.py`
+- `core/environment/hazard/hazard_model.py`
+- `core/environment/policy/candidate_generator.py`
+- `core/environments/terminal_grid/state_compiler.py`
+- `core/runtime/activation_audit.py`
+- `core/runtime/proof_kernel_bridge.py`
+- `core/runtime/concurrency_health.py`
+- `core/dead_letter_queue.py`
+- `core/learning/formalizer.py`
+- `core/learning/proof_obligations.py`
+- `core/brain/grounding_guard.py`
+- `core/brain/llm/context_gate.py`
+- `core/brain/llm/recurrent_depth.py`
+- `core/narrative_thread.py`
+- `core/self_evaluator.py`
+- `archive/repair_scripts/`
+- `tests/test_final_general_hardening.py`
+- `docs/GENERAL_ENVIRONMENT_AUTONOMY.md`
+- `docs/AURA_TEST_COMMANDS.md`
+- `docs/AURA_EXECUTION_TRACKER.md`
+- `CHALLENGE.md`
+
+### Latest Commands Run
+
+```bash
+python -m pytest tests/test_final_general_hardening.py -q
+python -m pytest tests/test_environment_general_integration.py tests/test_rsi_expansion_components.py tests/test_context_limit_runtime.py tests/environments/terminal_grid/test_terminal_grid_contract.py -q
+python -m pytest tests/environment/final_blockers -q
+python -m pytest tests/nethack_crucible.py tests/environments/terminal_grid/test_nethack_audit_comprehensive.py tests/environments/terminal_grid/test_terminal_grid_live_canary.py tests/environments/terminal_grid/test_nethack_adapter_preflight.py -q
+python challenges/nethack_challenge.py --mode simulated --steps 20 --trace artifacts/test_nethack_kernel_trace.jsonl --log-level ERROR
+python -m pytest tests/architecture tests/test_embodied_cognition_runtime.py tests/test_runtime_stability_edges.py tests/test_runtime_service_access.py -q
+```
+
+Latest focused result: **266 passed, 1 subtests passed**. The simulated stress
+canary passed and emitted **40 hash-chained trace rows** at
+`artifacts/test_nethack_kernel_trace.jsonl`.
+
+### Remaining Empirical Target
+
+Successful strict-real NetHack ascension is not recorded. The architecture is
+now better hardened for the long-run stress test, but any future NetHack fixes
+must remain general infrastructure fixes: policy loops, modal handling,
+belief/spatial merge, action semantics, proof evidence, concurrency liveness,
+or learning transfer.
+
+## Historical Prior Files Changed
 
 ### Source
 
@@ -92,7 +188,7 @@ NetHack strategy in shared code.
 - `tests/test_server_runtime_hardening.py` (~1500 lines added across
   Phase B mixin sweep, Phase C-O contracts, and final-gap closures)
 
-## Tests Added (highlight)
+## Historical Prior Tests Added
 
 - `test_generic_command_handlers_bind_to_concrete_environment_id`
 - `test_policy_reads_inventory_items_and_emits_generic_stair_intent`
@@ -128,7 +224,7 @@ NetHack strategy in shared code.
 - `test_fuzz_target_*`, `test_telemetry_sli_*`, `test_gateway_contracts_*`,
   `test_turn_taking_*`, `test_computer_use_*`, `test_memory_guard_*` (13)
 
-## Commands Run (final sweep)
+## Historical Prior Sweep
 
 ```
 python -m pytest tests/test_environment_general_integration.py \
@@ -151,12 +247,12 @@ python -m pytest tests/test_server_runtime_hardening.py \
   tests/test_time_resilience.py
 ```
 
-General environment result: **210 passed**. Simulated challenge emitted a
+Historical general environment result: **210 passed**. Simulated challenge emitted a
 hash-chained trace at `artifacts/test_nethack_kernel_trace.jsonl`.
-Full repository result: **4333 passed, 7 skipped, 7 warnings,
+Historical full repository result: **4333 passed, 7 skipped, 7 warnings,
 1 subtests passed** in 479.24s.
 
-## Pass / Fail Results
+## Historical Prior Pass / Fail Results
 
 - general environment autonomy slice: 210 passed
 - simulated NetHack stress canary: passed, trace emitted
@@ -220,17 +316,12 @@ gateway gaps, semantic diff blind spots, or outcome-learning regressions.
 
 ## Exact Stopping Point
 
-Stopped after the general environment autonomy slice was green (210/210),
-the simulated stress canary emitted a trace, and docs were updated to the
-current canonical-kernel state.
+Stopped this pass after final hardening tests were green (266 passed,
+1 subtests passed), the simulated stress canary emitted 40 trace rows, and
+docs were updated to the current general-infrastructure state.
 
 ## Current Git Diff Summary
 
-- Pre-existing dirty file outside the mission: `.aura/memfs/user.txt`
-- Mission diff this session is on three commits:
-  1. `cae9c652` — orchestrator mixin task ownership sweep
-  2. `7aab3de6` — Phase C-O runtime invariants, conformance,
-     capability surface
-  3. (final commit, this checkpoint) — fuzz/SLI/gateway/turn-taking/
-     computer-use/memory-guard contracts, prompt-coverage audit, and
-     tracker doc sync.
+- This document records the final hardening diff for the checkpoint commit.
+- Root-level repair artifacts were moved to `archive/repair_scripts/`.
+- No successful strict-real ascension receipt is present.

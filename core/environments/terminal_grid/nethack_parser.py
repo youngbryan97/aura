@@ -7,12 +7,14 @@ from core.environment.observation import Observation
 from core.environment.parsed_state import ParsedState
 from core.environment.state_compiler import StateCompiler
 from core.perception.nethack_parser import NetHackParser
+from .state_compiler import TerminalGridStateCompiler
 
 
 class NetHackStateCompiler(StateCompiler):
     def __init__(self) -> None:
         super().__init__()
         self._legacy_parser = NetHackParser()
+        self._generic_grid = TerminalGridStateCompiler()
 
     def compile(self, observation: Observation) -> ParsedState:
         text = observation.text or (observation.raw if isinstance(observation.raw, str) else "")
@@ -24,7 +26,7 @@ class NetHackStateCompiler(StateCompiler):
             parsed.sequence_id = observation.sequence_id
             return parsed
         except Exception:
-            parsed = super().compile(observation)
+            parsed = self._generic_grid.compile(observation)
             parsed.environment_id = "terminal_grid:nethack"
             parsed.uncertainty["parser_error"] = 1.0
             return parsed

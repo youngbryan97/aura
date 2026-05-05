@@ -11,6 +11,7 @@ from __future__ import annotations
 from core.environment.command import ActionIntent
 from core.environment.parsed_state import ParsedState
 from core.environment.belief_graph import EnvironmentBeliefGraph
+from core.environment.planning import GridPathPlanner
 
 
 class CandidateGenerator:
@@ -19,6 +20,7 @@ class CandidateGenerator:
     def __init__(self):
         self.failure_counts: dict[str, int] = {}  # (action_name:context) -> count
         self.suppression_threshold: int = 3
+        self.path_planner = GridPathPlanner()
 
     def generate(
         self,
@@ -120,6 +122,24 @@ class CandidateGenerator:
 
         # 8. Stairs/transition if belief graph indicates stairs present
         if belief:
+            context = parsed_state.context_id or "default"
+            current = self._current_xy(parsed_state) or belief.current_position(context)
+            if current is not None:
+                for kinds, effect in (
+                    ({"transition"}, "approach_transition"),
+                    ({"frontier", "unknown"}, "frontier_progress"),
+                ):
+                    target = belief.nearest_spatial(context_id=context, kinds=kinds, origin=current, min_confidence=0.2)
+                    if target:
+                        planned = self.path_planner.next_move_intent(
+                            belief,
+                            context_id=context,
+                            goal=(int(target[0]), int(target[1])),
+                        )
+                        if planned is not None:
+                            planned.expected_effect = effect
+                            candidates.append(planned)
+                            break
             for node in belief.nodes.values():
                 if "stair" in node.kind.lower() or "stair" in node.label.lower():
                     direction = "down" if "down" in node.label.lower() else "up"

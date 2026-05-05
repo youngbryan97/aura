@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any
 
+from core.runtime.errors import record_degradation
+
 from .action_gateway import EnvironmentActionGateway, GatewayDecision
 from .adapter import EnvironmentAdapter, ExecutionResult
 from .belief_graph import EnvironmentBeliefGraph
@@ -60,11 +62,10 @@ class EnvironmentKernel:
         self.adapter = adapter
         self.environment_id = adapter.environment_id
         if state_compiler is None:
-            if "nethack" in adapter.environment_id:
-                from core.embodiment.games.nethack.state_compiler import NetHackStateCompiler
-                self.state_compiler = NetHackStateCompiler()
-            else:
-                self.state_compiler = StateCompiler()
+            from .registry import get_environment_registry
+
+            registered = get_environment_registry().get_state_compiler(adapter.environment_id)
+            self.state_compiler = registered or getattr(adapter, "state_compiler", None) or StateCompiler()
         else:
             self.state_compiler = state_compiler
         self.command_compiler = command_compiler or CommandCompiler(self.environment_id)
@@ -86,6 +87,28 @@ class EnvironmentKernel:
         self.crisis = CrisisManager()
         from .outcome.semantic_diff import SemanticDiffLearner
         self.semantic_diff = SemanticDiffLearner()
+        from .action_semantics import ActionSemanticsValidator
+        self.action_semantics = ActionSemanticsValidator()
+        from .experience_replay import HindsightReplayBuffer
+        self.replay_buffer = HindsightReplayBuffer()
+        from .abstraction_discovery import AbstractionDiscoveryEngine
+        self.abstraction_discovery = AbstractionDiscoveryEngine()
+        from .cognition_router import CognitionRouter
+        self.cognition_router = CognitionRouter()
+        from .action_budget import ActionBudget
+        self.action_budget = ActionBudget(
+            max_total_steps=100000,
+            max_irreversible_actions=25,
+            max_unknown_actions=250,
+            max_repeated_failures=12,
+            max_modal_steps=500,
+            max_resource_cost=100000.0,
+        )
+        from .curriculum import CurriculumEngine
+        self.curriculum = CurriculumEngine()
+        from .external_validation import ExternalTaskProofGate
+        self.external_proof_gate = ExternalTaskProofGate()
+        self.last_external_evidence = None
         from .boundary_guard import BoundaryGuard
         self.boundary_guard = BoundaryGuard()
         from .run_manager import RunManager
@@ -228,9 +251,54 @@ class EnvironmentKernel:
         if not decision.approved:
             receipt.finalize(status="blocked", belief_hash_after=frame.belief_hash_after)
             self.gateway.record_failure(intent.name, parsed.context_id or "default")
+            self._record_action_budget(
+                frame,
+                intent,
+                irreversible=intent.risk == "irreversible",
+                unknown="unknown" in intent.tags,
+                modal=bool(parsed.modal_state),
+                failed=True,
+            )
             self._trace(frame, latency_ms=(time.time() - started) * 1000)
             return frame
-        command = self.command_compiler.compile(intent, trace_id=receipt.receipt_id, receipt_id=receipt.receipt_id)
+        try:
+            command = self.command_compiler.compile(intent, trace_id=receipt.receipt_id, receipt_id=receipt.receipt_id)
+        except Exception as exc:
+            result = ExecutionResult(False, receipt.receipt_id, None, error=f"action_compilation_error:{type(exc).__name__}:{exc}")
+            frame.execution_result = result
+            receipt.finalize(status="failed", belief_hash_after=frame.belief_hash_after)
+            self.gateway.record_failure(intent.name, parsed.context_id or "default")
+            self._record_action_budget(
+                frame,
+                intent,
+                irreversible=intent.risk == "irreversible",
+                unknown="unknown" in intent.tags,
+                modal=bool(parsed.modal_state),
+                failed=True,
+            )
+            self._trace(frame, latency_ms=(time.time() - started) * 1000)
+            return frame
+        semantic_decision = self.action_semantics.validate(
+            intent=intent,
+            command=command,
+            parsed_state=parsed,
+            simulation=sim,
+        )
+        frame.metadata["action_semantics"] = semantic_decision.to_dict()
+        if not semantic_decision.allowed:
+            receipt.finalize(status="blocked", belief_hash_after=frame.belief_hash_after)
+            frame.execution_result = ExecutionResult(False, command.command_id, None, error=";".join(semantic_decision.reasons))
+            self.gateway.record_failure(intent.name, parsed.context_id or "default")
+            self._record_action_budget(
+                frame,
+                intent,
+                irreversible=semantic_decision.irreversible,
+                unknown=semantic_decision.requires_observation,
+                modal=bool(parsed.modal_state),
+                failed=True,
+            )
+            self._trace(frame, latency_ms=(time.time() - started) * 1000)
+            return frame
         receipt.command_id = command.command_id
         result = await self.adapter.execute(command)
         frame.execution_result = result
@@ -289,8 +357,9 @@ class EnvironmentKernel:
                     score=outcome.success_score,
                     consequences=observed_events,
                 )
-            except Exception:
-                pass  # non-critical
+            except Exception as exc:
+                from core.runtime.errors import record_degradation
+                record_degradation("environment_kernel", exc, severity="warning", action="continued after outcome ledger write failed")
 
         # 3. Procedural memory: record successful procedures
         if self.procedural_store and outcome.success_score > 0.7:
@@ -300,8 +369,9 @@ class EnvironmentKernel:
                     context_signature=parsed.context_id or "default",
                     procedure={"action": intent.name, "parameters": intent.parameters, "effect": observed_events},
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                from core.runtime.errors import record_degradation
+                record_degradation("environment_kernel", exc, severity="warning", action="continued after procedural memory write failed")
 
         # 4. Episodic memory: record notable events (deaths, surprises, milestones)
         if self.episodic_memory and (outcome.is_death or outcome.surprise > 0.5):
@@ -311,8 +381,9 @@ class EnvironmentKernel:
                     importance=1.0 if outcome.is_death else outcome.surprise,
                     tags=[self.environment_id, intent.name] + observed_events[:3],
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                from core.runtime.errors import record_degradation
+                record_degradation("environment_kernel", exc, severity="warning", action="continued after episodic memory write failed")
 
         # 5. HTN planner: feed semantic events as completion signals
         self.htn_planner.update(parsed_after, self.belief)
@@ -323,13 +394,51 @@ class EnvironmentKernel:
         if outcome.success_score > 0.5:
             ct["successes"] += 1
         ct["last_score"] = outcome.success_score
+        self.curriculum.record_result(
+            environment_family=self.environment_id.split(":")[0],
+            objective=intent.name,
+            outcome_score=outcome.success_score,
+            bottleneck="surprise" if outcome.surprise > 0.5 else ("resource" if resource_delta else "policy"),
+        )
+        next_curriculum = self.curriculum.propose_next_task(environment_family=self.environment_id.split(":")[0])
+        if next_curriculum is not None:
+            frame.metadata["curriculum_next"] = next_curriculum.to_dict()
+        self._record_action_budget(
+            frame,
+            intent,
+            irreversible=semantic_decision.irreversible,
+            unknown=semantic_decision.requires_observation or "unknown" in intent.tags,
+            modal=bool(parsed.modal_state),
+            cost=float(result.metadata.get("resource_cost", 0.0) or 0.0),
+            failed=not result.ok or outcome.success_score <= 0.5,
+        )
 
         # 7. Macro inducer: collect action traces for N-gram mining
         if self.macro_inducer:
             try:
                 self.macro_inducer.record_step(intent.name)
-            except Exception:
-                pass
+            except Exception as exc:
+                from core.runtime.errors import record_degradation
+                record_degradation("environment_kernel", exc, severity="debug", action="skipped macro induction for this step")
+
+        self.replay_buffer.add_transition(
+            environment_id=self.environment_id,
+            context_id=parsed.context_id or "default",
+            action=intent,
+            before=parsed,
+            after=parsed_after,
+            outcome=outcome,
+            observed_events=observed_events,
+        )
+        for abstraction in self.abstraction_discovery.observe_transition(
+            environment_id=self.environment_id,
+            context_id=parsed.context_id or "default",
+            action=intent,
+            outcome=outcome,
+            observed_events=observed_events,
+            parsed_after=parsed_after,
+        ):
+            frame.metadata.setdefault("emergent_abstractions", []).append(abstraction.to_dict())
 
         # 8. RunManager: record step
         self.run_manager.record_step(frame)
@@ -345,6 +454,7 @@ class EnvironmentKernel:
                     frames=self.frames,
                     final_score=outcome.success_score,
                 )
+                self._refresh_external_evidence()
 
         self._trace(frame, latency_ms=(time.time() - started) * 1000)
         return frame
@@ -358,6 +468,7 @@ class EnvironmentKernel:
                 if self.frames and self.frames[-1].outcome_assessment
                 else 0.0,
             )
+            self._refresh_external_evidence()
         if self.episode:
             self.episode.transition(terminal=True)
             self.episode.transition()
@@ -368,13 +479,13 @@ class EnvironmentKernel:
         if self.outcome_ledger:
             try:
                 self.outcome_ledger.save()
-            except Exception:
-                pass
+            except Exception as exc:
+                record_degradation("environment_kernel", exc, severity="warning", action="continued after outcome ledger save failed")
         if self.procedural_store:
             try:
                 self.procedural_store.save()
-            except Exception:
-                pass
+            except Exception as exc:
+                record_degradation("environment_kernel", exc, severity="warning", action="continued after procedural store save failed")
 
     def _trace(self, frame: EnvironmentFrame, *, latency_ms: float = 0.0) -> None:
         parsed = frame.post_parsed_state or frame.parsed_state
@@ -412,8 +523,8 @@ class EnvironmentKernel:
         self.macro_inducer = ServiceContainer.get("macro_inducer", default=self.macro_inducer)
         try:
             ServiceContainer.register_instance(f"environment_kernel:{self.environment_id}", self, required=False)
-        except Exception:
-            pass
+        except Exception as exc:
+            record_degradation("environment_kernel", exc, severity="debug", action="continued without environment kernel service registration")
 
     def _publish_observation(self, frame: EnvironmentFrame) -> None:
         if self.world_state is None:
@@ -436,8 +547,8 @@ class EnvironmentKernel:
                 source="environment_kernel",
                 ttl=900.0,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            record_degradation("environment_kernel", exc, severity="warning", action="continued after observation publish failed")
 
     def _publish_outcome(self, frame: EnvironmentFrame, semantic_events: list, resource_delta: dict[str, float]) -> None:
         if self.world_state is None or frame.action_intent is None or frame.outcome_assessment is None:
@@ -453,8 +564,44 @@ class EnvironmentKernel:
                 resource_delta=resource_delta,
                 receipt_id=frame.receipt.receipt_id if frame.receipt else None,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            record_degradation("environment_kernel", exc, severity="warning", action="continued after outcome publish failed")
+
+    def _record_action_budget(
+        self,
+        frame: EnvironmentFrame,
+        intent: ActionIntent,
+        *,
+        irreversible: bool = False,
+        unknown: bool = False,
+        modal: bool = False,
+        cost: float = 0.0,
+        failed: bool = False,
+    ) -> None:
+        self.action_budget.record(
+            action_name=intent.name,
+            irreversible=irreversible,
+            unknown=unknown,
+            modal=modal,
+            cost=cost,
+            failed=failed,
+        )
+        exhausted = self.action_budget.exhausted_reasons()
+        frame.metadata["action_budget"] = {
+            "used_total_steps": self.action_budget.used_total_steps,
+            "used_irreversible_actions": self.action_budget.used_irreversible_actions,
+            "used_unknown_actions": self.action_budget.used_unknown_actions,
+            "used_modal_steps": self.action_budget.used_modal_steps,
+            "failure_counts": dict(self.action_budget.failure_counts),
+            "exhausted_reasons": exhausted,
+        }
+        if exhausted and self.run_manager.current_record is not None:
+            self.run_manager.current_record.metadata["action_budget_exhausted"] = exhausted
+
+    def _refresh_external_evidence(self) -> None:
+        self.last_external_evidence = self.external_proof_gate.evaluate_kernel(self)
+        if self.run_manager.records:
+            self.run_manager.records[-1].metadata["external_task_evidence"] = self.last_external_evidence.to_dict()
 
     def _terminal_reason(
         self,

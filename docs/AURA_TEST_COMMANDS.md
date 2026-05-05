@@ -135,26 +135,26 @@ This is the focused suite for the NetHack-scale general environment kernel:
 
 ```bash
 python -m pytest \
+  tests/test_final_general_hardening.py \
   tests/test_environment_general_integration.py \
   tests/environment/final_blockers \
-  tests/environments/terminal_grid \
+  tests/environments/terminal_grid/test_nethack_audit_comprehensive.py \
+  tests/environments/terminal_grid/test_terminal_grid_live_canary.py \
+  tests/environments/terminal_grid/test_nethack_adapter_preflight.py \
+  tests/environments/terminal_grid/test_terminal_grid_contract.py \
   tests/architecture \
   tests/test_embodied_cognition_runtime.py \
+  tests/test_runtime_stability_edges.py \
+  tests/test_runtime_service_access.py \
   tests/nethack_crucible.py -q
 
 python challenges/nethack_challenge.py --mode simulated --steps 20 \
   --trace artifacts/test_nethack_kernel_trace.jsonl --log-level ERROR
 ```
 
-Current focused result: **210 passed**.
-
-Full repository sweep after the general environment autonomy patch set:
-
-```bash
-python -m pytest -q
-```
-
-Result: **4333 passed, 7 skipped, 7 warnings, 1 subtests passed**.
+Current final-pass focused result: **266 passed, 1 subtests passed**.
+The simulated stress canary passed and wrote **40 hash-chained trace rows** to
+`artifacts/test_nethack_kernel_trace.jsonl`.
 
 ## Phase C-O verification slices
 

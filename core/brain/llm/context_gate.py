@@ -19,10 +19,13 @@ The right model:
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import logging
 import math
+import re
 import time
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Callable, Iterable
 
 logger = logging.getLogger("Brain.ContextGate")
@@ -37,14 +40,72 @@ def _clamp01(x: float) -> float:
         return 0.0
 
 
-def estimate_tokens(text: str) -> int:
-    """Cheap, dependency-free token estimate.
+@lru_cache(maxsize=1)
+def _optional_tiktoken_encoding() -> Any:
+    """Return a tokenizer when one is locally installed.
 
-    Keep this conservative.  For prompt budgeting, undercounting is worse
-    than overcounting.
+    Context gating must not depend on a cloud SDK or network download. If
+    tiktoken is unavailable, the deterministic fallback below deliberately
+    overestimates mixed code, punctuation-heavy, and non-English text.
+    """
+    if importlib.util.find_spec("tiktoken") is None:
+        return None
+    try:
+        import tiktoken  # type: ignore
+
+        return tiktoken.get_encoding("cl100k_base")
+    except Exception:
+        return None
+
+
+def estimate_tokens(text: str) -> int:
+    """Conservative prompt-token estimate.
+
+    The old len/3.5 heuristic under-budgeted code, JSON, CJK, emoji, and
+    punctuation-heavy terminal output. This function uses a real tokenizer
+    when present and otherwise takes the maximum of several deterministic
+    heuristics so budget errors fail toward compaction instead of overflow.
     """
     text = str(text or "")
-    return max(1, math.ceil(len(text) / 3.5))
+    if not text:
+        return 0
+    encoding = _optional_tiktoken_encoding()
+    if encoding is not None:
+        try:
+            return max(1, len(encoding.encode(text)))
+        except Exception:
+            pass
+
+    words = re.findall(r"[A-Za-z0-9_]+|[^\sA-Za-z0-9_]", text)
+    cjk = sum(1 for ch in text if "\u3400" <= ch <= "\u9fff" or "\u3040" <= ch <= "\u30ff" or "\uac00" <= ch <= "\ud7af")
+    non_ascii = sum(1 for ch in text if ord(ch) > 127) - cjk
+    punctuation = sum(1 for ch in text if ch in "{}[]()<>.,;:/\\|`~!@#$%^&*-+=?\"'")
+    lines = text.count("\n") + 1
+    codeish = sum(1 for ch in text if ch in "{}[]=;") + len(re.findall(r"\b(def|class|async|await|return|import|from|const|let|function)\b", text))
+
+    char_model = math.ceil(len(text) / 3.2)
+    lexical_model = math.ceil(len(words) * 1.18 + punctuation * 0.18 + cjk * 0.9 + non_ascii * 0.45)
+    structure_model = math.ceil(lines * 1.5 + codeish * 0.6)
+    return max(1, char_model, lexical_model, structure_model)
+
+
+def _trim_to_token_budget(text: str, max_tokens: int) -> str:
+    text = str(text or "")
+    if estimate_tokens(text) <= max_tokens:
+        return text
+    marker = "\n...[compacted]"
+    budget = max(1, int(max_tokens))
+    low, high = 0, len(text)
+    best = ""
+    while low <= high:
+        mid = (low + high) // 2
+        candidate = text[:mid].rstrip() + marker
+        if estimate_tokens(candidate) <= budget:
+            best = candidate
+            low = mid + 1
+        else:
+            high = mid - 1
+    return best or marker.strip()
 
 
 def _fingerprint(text: str) -> str:
@@ -72,9 +133,8 @@ class ContextBlock:
         if not text:
             return self
 
-        max_chars = int(self.max_tokens * 3.5)
-        if len(text) > max_chars:
-            text = text[: max(0, max_chars - 20)].rstrip() + "\n...[compacted]"
+        if estimate_tokens(text) > self.max_tokens:
+            text = _trim_to_token_budget(text, self.max_tokens)
         return ContextBlock(
             id=self.id,
             content=text,

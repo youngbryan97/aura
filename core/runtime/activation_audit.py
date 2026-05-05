@@ -133,6 +133,30 @@ async def _register_substrate_policy(orchestrator: Any) -> Any:
     return {"registered": True}
 
 
+async def _start_proof_kernel_bridge(orchestrator: Any) -> Any:
+    from core.runtime.proof_kernel_bridge import start_proof_kernel_bridge
+
+    bridge = await start_proof_kernel_bridge()
+    return bridge.status()
+
+
+async def _start_lock_watchdog(orchestrator: Any) -> Any:
+    from core.container import ServiceContainer
+    from core.resilience.lock_watchdog import get_lock_watchdog
+
+    watchdog = get_lock_watchdog()
+    watchdog.start()
+    ServiceContainer.register_instance("lock_watchdog", watchdog, required=False)
+    return watchdog.get_snapshot()
+
+
+async def _start_concurrency_health(orchestrator: Any) -> Any:
+    from core.runtime.concurrency_health import start_concurrency_health_monitor
+
+    monitor = await start_concurrency_health_monitor()
+    return monitor.status()
+
+
 async def _register_aura_workspace(orchestrator: Any) -> Any:
     from core.container import ServiceContainer
     from core.workspace.aura_workspace import AuraWorkspace
@@ -255,6 +279,31 @@ DEFAULT_SPECS: tuple[ActivationSpec, ...] = (
         reason="turns substrate state into goal, memory, tool, risk, and repair policy weights",
     ),
     ActivationSpec(
+        name="proof_kernel_bridge",
+        service_keys=("proof_kernel_bridge",),
+        required=True,
+        auto_start=True,
+        starter=_start_proof_kernel_bridge,
+        reason="connects standalone proof-kernel proxies to live runtime evidence and honest claim scope",
+    ),
+    ActivationSpec(
+        name="lock_watchdog",
+        service_keys=("lock_watchdog",),
+        task_name_contains=("aura.lock_watchdog",),
+        required=True,
+        auto_start=True,
+        starter=_start_lock_watchdog,
+        reason="detects and recovers stalled lock acquisition/hold paths",
+    ),
+    ActivationSpec(
+        name="concurrency_health",
+        service_keys=("concurrency_health",),
+        required=True,
+        auto_start=True,
+        starter=_start_concurrency_health,
+        reason="causally samples task liveness, lock stalls, DLQ backlog, and degradation pressure",
+    ),
+    ActivationSpec(
         name="agent_workspace",
         service_keys=("aura_workspace", "agent_workspace"),
         required=True,
@@ -320,11 +369,20 @@ class ActivationAuditor:
         try:
             from core.container import ServiceContainer
 
+            service_status: dict[str, Any] = {}
             for key in spec.service_keys:
                 if ServiceContainer.has(key):
                     value = ServiceContainer.get(key, default=None)
                     if value is not None:
                         service_hits.append(key)
+                        status_fn = getattr(value, "status", None)
+                        if callable(status_fn):
+                            try:
+                                service_status[key] = self._safe_json(status_fn())
+                            except Exception as exc:
+                                service_status[key] = {"status_error": repr(exc)}
+            if service_status:
+                evidence["service_status"] = service_status
         except Exception as exc:
             evidence["service_error"] = repr(exc)
         try:

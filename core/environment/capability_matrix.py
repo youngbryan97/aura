@@ -54,14 +54,20 @@ REQUIREMENTS: tuple[CapabilityRequirement, ...] = (
     CapabilityRequirement("homeostasis", "Resource Homeostasis", "Survival and service health depend on resource extraction, trends, and emergency bias."),
     CapabilityRequirement("policy_stack", "Policy Stack", "Candidate generation, simulation, ranking, and strategic planning must be connected."),
     CapabilityRequirement("command_compiler", "Semantic Command Compilation", "Policies emit intents; adapters execute compiled commands, never raw prose."),
+    CapabilityRequirement("action_semantics", "Closed-Loop Action Semantics", "Compiled commands need preconditions, predicted effects, reversibility, and uncertainty checks."),
     CapabilityRequirement("action_gateway", "Effect Gate", "All actions pass through legality, modal, risk, uncertainty, and loop checks."),
+    CapabilityRequirement("action_budget", "Action Budget", "Long runs need bounded unknown, irreversible, repeated-failure, modal, and resource-cost accounting."),
     CapabilityRequirement("modal_manager", "Modal State Machine", "Blocking prompts, dialogs, menus, and confirmations must suspend normal policy."),
     CapabilityRequirement("semantic_diff", "Outcome Diffing", "The kernel must compare pre/post state semantically rather than by raw pixels/text alone."),
     CapabilityRequirement("outcome_learning", "Outcome Learning", "Action outcomes must feed durable ledger/procedural/competence stores."),
+    CapabilityRequirement("replay_learning", "Hindsight Replay Learning", "Failures must become reusable causal policy rules instead of isolated memories."),
+    CapabilityRequirement("abstraction_discovery", "Abstraction Discovery", "Repeated surprise patterns must induce transferable categories without hand-coded domain labels."),
+    CapabilityRequirement("curriculum_engine", "Open-Ended Curriculum", "Bottlenecks should create self-generated practice tasks, not only reactive fixes."),
     CapabilityRequirement("trace_replay", "Black-Box Trace", "Every control step needs replayable observation->belief->intent->command->outcome receipts."),
     CapabilityRequirement("run_lifecycle", "Run Lifecycle", "Runs must start, terminate, postmortem, and preserve cross-run learning."),
     CapabilityRequirement("governance_bridge", "Governance Bridge", "Risky effects must connect to will/authority receipts."),
     CapabilityRequirement("benchmark_integrity", "Benchmark Integrity", "Strict-real, simulated, and fixture runs must stay distinguishable."),
+    CapabilityRequirement("external_task_proof", "External Task Proof Gate", "Placeholder scaffolds and canaries must not be counted as broad task wins."),
 )
 
 
@@ -124,10 +130,20 @@ class EnvironmentCapabilityMatrix:
         ok = compiler is not None and callable(getattr(compiler, "compile", None)) and bool(getattr(compiler, "_handlers", {}))
         return ok, f"handlers={len(getattr(compiler, '_handlers', {}))}" if compiler else "missing"
 
+    def _check_action_semantics(self, kernel: Any) -> tuple[bool, str]:
+        semantics = getattr(kernel, "action_semantics", None)
+        ok = semantics is not None and callable(getattr(semantics, "validate", None))
+        return ok, semantics.__class__.__name__ if semantics else "missing"
+
     def _check_action_gateway(self, kernel: Any) -> tuple[bool, str]:
         gateway = getattr(kernel, "gateway", None)
         ok = gateway is not None and self._has_methods(gateway, ("approve", "record_failure"))
         return ok, gateway.__class__.__name__ if gateway else "missing"
+
+    def _check_action_budget(self, kernel: Any) -> tuple[bool, str]:
+        budget = getattr(kernel, "action_budget", None)
+        ok = budget is not None and self._has_methods(budget, ("record", "exhausted_reasons"))
+        return ok, f"steps={getattr(budget, 'used_total_steps', 0)}" if budget else "missing"
 
     def _check_modal_manager(self, kernel: Any) -> tuple[bool, str]:
         modal = getattr(kernel, "modal_manager", None)
@@ -142,6 +158,21 @@ class EnvironmentCapabilityMatrix:
     def _check_outcome_learning(self, kernel: Any) -> tuple[bool, str]:
         ok = all(hasattr(kernel, attr) for attr in ("outcomes", "outcome_ledger", "procedural_store", "competence_tracker"))
         return ok, "ledger+procedural+competence" if ok else "missing learning store"
+
+    def _check_replay_learning(self, kernel: Any) -> tuple[bool, str]:
+        replay = getattr(kernel, "replay_buffer", None)
+        ok = replay is not None and self._has_methods(replay, ("add_transition", "applicable_rules")) and hasattr(replay, "rules")
+        return ok, f"rules={len(getattr(replay, 'rules', {}) or {})}" if replay else "missing"
+
+    def _check_abstraction_discovery(self, kernel: Any) -> tuple[bool, str]:
+        discovery = getattr(kernel, "abstraction_discovery", None)
+        ok = discovery is not None and callable(getattr(discovery, "observe_transition", None)) and hasattr(discovery, "abstractions")
+        return ok, f"abstractions={len(getattr(discovery, 'abstractions', {}) or {})}" if discovery else "missing"
+
+    def _check_curriculum_engine(self, kernel: Any) -> tuple[bool, str]:
+        curriculum = getattr(kernel, "curriculum", None)
+        ok = curriculum is not None and self._has_methods(curriculum, ("record_result", "propose_next_task"))
+        return ok, curriculum.__class__.__name__ if curriculum else "missing"
 
     def _check_trace_replay(self, kernel: Any) -> tuple[bool, str]:
         blackbox = getattr(kernel, "blackbox", None)
@@ -162,6 +193,11 @@ class EnvironmentCapabilityMatrix:
         manager = getattr(kernel, "run_manager", None)
         ok = guard is not None and manager is not None and hasattr(manager, "mode")
         return ok, f"mode={getattr(manager, 'mode', 'unknown')}" if manager else "missing"
+
+    def _check_external_task_proof(self, kernel: Any) -> tuple[bool, str]:
+        gate = getattr(kernel, "external_proof_gate", None)
+        ok = gate is not None and callable(getattr(gate, "evaluate_kernel", None))
+        return ok, gate.__class__.__name__ if gate else "missing"
 
 
 __all__ = [

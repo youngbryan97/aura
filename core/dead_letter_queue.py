@@ -69,6 +69,25 @@ class DeadLetterQueue:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def stats(self, *, recent_window_s: float = 900.0, limit: int = 10) -> Dict[str, Any]:
+        """Return queue pressure without requiring callers to inspect SQLite."""
+        cutoff = time.time() - float(recent_window_s)
+        with self._connect() as con:
+            total = int(con.execute("SELECT COUNT(*) FROM dlq").fetchone()[0])
+            recent_count = int(
+                con.execute("SELECT COUNT(*) FROM dlq WHERE created_at >= ?", (cutoff,)).fetchone()[0]
+            )
+            rows = con.execute(
+                "SELECT * FROM dlq ORDER BY created_at DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+        return {
+            "total": total,
+            "recent_count": recent_count,
+            "recent_window_s": float(recent_window_s),
+            "recent": [dict(row) for row in rows],
+        }
+
     def resolve(self, entry_id: str):
         """Remove a task from the DLQ (e.g. after manual retry)."""
         with self._connect() as con:

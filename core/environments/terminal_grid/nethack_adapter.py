@@ -50,6 +50,9 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
         self._pyte_screen = None
         self._pyte_stream = None
         self._simulated = True
+        from .nethack_parser import NetHackStateCompiler
+
+        self.state_compiler = NetHackStateCompiler()
 
     async def start(self, *, run_id: str, seed: int | None = None) -> None:
         await super().start(run_id=run_id, seed=seed)

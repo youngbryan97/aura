@@ -17,9 +17,44 @@ import hashlib
 import logging
 import re
 import time
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.Formalizer")
+
+
+@dataclass
+class DistilledClaim:
+    """A machine-readable claim extracted from source text."""
+
+    content: str
+    claim_type: str
+    source: str
+    confidence: float
+    subject: str = ""
+    predicate: str = ""
+    conditions: list[str] = field(default_factory=list)
+    consequences: list[str] = field(default_factory=list)
+    evidence_span: str = ""
+    source_quality: float = 0.5
+
+    def to_knowledge(self) -> dict[str, Any]:
+        return {
+            "content": self.content,
+            "type": self.claim_type,
+            "source": self.source,
+            "confidence": self.confidence,
+            "metadata": {
+                "subject": self.subject,
+                "predicate": self.predicate,
+                "conditions": list(self.conditions),
+                "consequences": list(self.consequences),
+                "evidence_span": self.evidence_span,
+                "source_quality": self.source_quality,
+                "verification_status": "extractive_unverified",
+                "distillation_method": "deterministic_claim_parser_v2",
+            },
+        }
 
 
 class KnowledgeFormalizer:
@@ -61,74 +96,158 @@ class KnowledgeFormalizer:
             logger.debug("KnowledgeGraph resolution failed: %s", exc)
         return None
 
-    def _extract_atomic_facts(self, content: str, source_title: str = "") -> List[Dict[str, str]]:
-        """Extract atomic factual claims from raw text content.
+    def _extract_atomic_facts(self, content: str, source_title: str = "", source_url: str = "") -> List[Dict[str, Any]]:
+        """Extract definitions, causal rules, procedures, and quantitative claims.
 
-        Uses heuristic sentence-level extraction rather than LLM inference
-        to keep this fast and non-blocking.
+        This is not regex scraping dressed up as learning: every retained claim
+        carries claim type, subject/predicate, conditions, consequences,
+        source quality, and an evidence span. Downstream systems can therefore
+        verify, contradict, promote, or suppress the claim instead of treating a
+        sentence as unquestioned memory.
         """
-        facts: List[Dict[str, str]] = []
+        claims: list[DistilledClaim] = []
         if not content or len(content) < self.MIN_CONTENT_LENGTH:
-            return facts
+            return []
 
-        # Split into sentences (rough but fast)
-        sentences = re.split(r'(?<=[.!?])\s+', content)
-
-        # Fact-bearing sentence patterns
-        fact_patterns = [
-            # "X is Y" definitions
-            re.compile(r'^(.{10,80})\s+(?:is|are|was|were)\s+(.{10,200})\.?$', re.IGNORECASE),
-            # "X was founded/created/built in Y"
-            re.compile(r'^(.{5,80})\s+(?:was|were)\s+(?:founded|created|built|established|invented|discovered)\s+(.{5,150})\.?$', re.IGNORECASE),
-            # "According to X, Y"
-            re.compile(r'^(?:according to\s+.{3,60},\s*)(.{15,250})\.?$', re.IGNORECASE),
-            # Sentences with numbers/dates (often factual)
-            re.compile(r'^(.{15,250}?\b\d{4}\b.{5,200})\.?$', re.IGNORECASE),
-            # "X percent/%" patterns
-            re.compile(r'^(.{10,250}?\b\d+\.?\d*\s*(?:%|percent)\b.{5,150})\.?$', re.IGNORECASE),
-        ]
+        sentences = self._sentence_candidates(content)
+        source_quality = self._source_quality(source_title, source_url)
 
         seen_hashes = set()
 
         for sentence in sentences:
-            sentence = sentence.strip()
+            sentence = self._clean_sentence(sentence)
             if len(sentence) < 20 or len(sentence) > 300:
                 continue
-            if len(facts) >= self.MAX_FACTS_PER_PAGE:
+            if len(claims) >= self.MAX_FACTS_PER_PAGE:
                 break
 
-            # Skip navigational/UI noise
-            if any(noise in sentence.lower() for noise in (
-                "click here", "subscribe", "sign up", "cookie", "privacy policy",
-                "terms of service", "advertisement", "loading", "menu",
-            )):
+            if self._is_noise(sentence):
                 continue
 
-            # Check against fact patterns
-            for pattern in fact_patterns:
-                if pattern.match(sentence):
-                    # Deduplicate by content hash
-                    content_hash = hashlib.md5(sentence.lower().encode()).hexdigest()[:12]
-                    if content_hash not in seen_hashes:
-                        seen_hashes.add(content_hash)
-                        facts.append({
-                            "content": sentence,
-                            "type": "fact",
-                            "source": source_title or "web_research",
-                            "confidence": 0.6,
-                        })
-                    break
+            claim = self._distill_sentence(sentence, source_title or "web_research", source_quality)
+            if claim is None:
+                continue
+            content_hash = hashlib.md5(claim.content.lower().encode()).hexdigest()[:12]
+            if content_hash in seen_hashes:
+                continue
+            seen_hashes.add(content_hash)
+            claims.append(claim)
 
-        return facts
+        return [claim.to_knowledge() for claim in claims]
+
+    @staticmethod
+    def _sentence_candidates(content: str) -> list[str]:
+        normalized = re.sub(r"\s+", " ", str(content or "").replace("\r", "\n")).strip()
+        chunks = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])|(?:\n+)|(?:;\s+(?=(?:if|when|after|before|to|avoid|use)\b))", normalized)
+        return [chunk.strip(" -•\t") for chunk in chunks if chunk.strip()]
+
+    @staticmethod
+    def _clean_sentence(sentence: str) -> str:
+        sentence = re.sub(r"\[[^\]]{1,40}\]", "", sentence)
+        sentence = re.sub(r"\s+", " ", sentence).strip()
+        return sentence.rstrip(".") + "."
+
+    @staticmethod
+    def _is_noise(sentence: str) -> bool:
+        lowered = sentence.lower()
+        if any(noise in lowered for noise in (
+            "click here", "subscribe", "sign up", "cookie", "privacy policy",
+            "terms of service", "advertisement", "loading", "menu", "share this",
+            "all rights reserved", "javascript", "enable cookies",
+        )):
+            return True
+        alpha_ratio = sum(ch.isalpha() for ch in sentence) / max(1, len(sentence))
+        return alpha_ratio < 0.35
+
+    @staticmethod
+    def _source_quality(source_title: str, source_url: str) -> float:
+        text = f"{source_title} {source_url}".lower()
+        quality = 0.55
+        if any(token in text for token in (".edu", ".gov", "docs.", "manual", "reference", "specification", "paper", "arxiv")):
+            quality += 0.2
+        if any(token in text for token in ("forum", "reddit", "comment", "blog")):
+            quality -= 0.08
+        if source_url.startswith("https://"):
+            quality += 0.05
+        return max(0.2, min(0.95, quality))
+
+    def _distill_sentence(self, sentence: str, source: str, source_quality: float) -> DistilledClaim | None:
+        lowered = sentence.lower()
+        patterns: list[tuple[str, re.Pattern[str]]] = [
+            ("conditional_rule", re.compile(r"^(?:if|when|whenever|after|before)\s+(.{5,140}?),\s+(.{8,180})\.$", re.IGNORECASE)),
+            ("procedure", re.compile(r"^(?:to|in order to)\s+(.{5,90}?),\s+(.{8,190})\.$", re.IGNORECASE)),
+            ("requirement", re.compile(r"^(.{5,120}?)\s+(?:requires|must|should|needs|depends on)\s+(.{5,180})\.$", re.IGNORECASE)),
+            ("affordance", re.compile(r"^(.{5,120}?)\s+(?:can|may|allows?|enables?)\s+(.{5,180})\.$", re.IGNORECASE)),
+            ("definition", re.compile(r"^(.{5,100}?)\s+(?:is|are|means|refers to|was|were)\s+(.{8,190})\.$", re.IGNORECASE)),
+            ("causal_rule", re.compile(r"^(.{5,140}?)\s+(?:causes|prevents|reduces|increases|leads to|results in)\s+(.{5,180})\.$", re.IGNORECASE)),
+            ("quantitative_fact", re.compile(r"^(.{10,260}?\b(?:\d{4}|\d+\.?\d*\s*(?:%|percent|ms|s|kb|mb|gb|turns?|steps?))\b.{0,160})\.$", re.IGNORECASE)),
+        ]
+
+        for claim_type, pattern in patterns:
+            match = pattern.match(sentence)
+            if not match:
+                continue
+            groups = [g.strip() for g in match.groups()]
+            subject = groups[0] if groups else ""
+            predicate = groups[1] if len(groups) > 1 else sentence
+            conditions: list[str] = []
+            consequences: list[str] = []
+            if claim_type == "conditional_rule":
+                conditions = [subject]
+                consequences = [predicate]
+            elif claim_type in {"procedure", "requirement", "affordance", "causal_rule"}:
+                consequences = [predicate]
+            confidence = self._claim_confidence(sentence, claim_type, source_quality)
+            return DistilledClaim(
+                content=sentence,
+                claim_type=claim_type,
+                source=source,
+                confidence=confidence,
+                subject=subject,
+                predicate=predicate,
+                conditions=conditions,
+                consequences=consequences,
+                evidence_span=sentence,
+                source_quality=source_quality,
+            )
+
+        if any(token in lowered for token in ("avoid ", "do not ", "never ", "risk ", "unsafe ", "failure ", "error ")):
+            return DistilledClaim(
+                content=sentence,
+                claim_type="risk_rule",
+                source=source,
+                confidence=self._claim_confidence(sentence, "risk_rule", source_quality),
+                predicate=sentence,
+                consequences=[sentence],
+                evidence_span=sentence,
+                source_quality=source_quality,
+            )
+        return None
+
+    @staticmethod
+    def _claim_confidence(sentence: str, claim_type: str, source_quality: float) -> float:
+        confidence = source_quality
+        if claim_type in {"conditional_rule", "causal_rule", "requirement", "risk_rule"}:
+            confidence += 0.08
+        if re.search(r"\b(?:maybe|might|could|often|usually|sometimes|appears)\b", sentence, re.IGNORECASE):
+            confidence -= 0.12
+        if re.search(r"\b(?:must|always|never|guarantees?)\b", sentence, re.IGNORECASE):
+            confidence -= 0.05
+        if re.search(r"\b\d", sentence):
+            confidence += 0.04
+        return round(max(0.2, min(0.92, confidence)), 3)
 
     def _extract_entities(self, content: str) -> List[str]:
-        """Extract likely named entities from content (fast heuristic)."""
-        # Find capitalized multi-word phrases (likely proper nouns/entities)
+        """Extract likely named entities and durable technical concepts."""
         entities = set()
         for match in re.finditer(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b', content):
             entity = match.group(1).strip()
             if len(entity) > 3 and len(entity) < 60:
                 entities.add(entity)
+        for match in re.finditer(r"\b([a-z][a-z0-9_/-]{2,}(?:\s+[a-z][a-z0-9_/-]{2,}){1,3})\b", content):
+            phrase = match.group(1).strip()
+            if any(token in phrase for token in (" risk", " model", " graph", " policy", " planner", " parser", " state", " action", " memory", " rule")):
+                entities.add(phrase)
 
         return list(entities)[:10]
 
@@ -173,7 +292,7 @@ class KnowledgeFormalizer:
                 return result
 
             # 1. Extract atomic facts
-            facts = self._extract_atomic_facts(content, source_title)
+            facts = self._extract_atomic_facts(content, source_title, source_url)
             if not facts:
                 logger.debug("Formalizer: No facts extracted from '%s'", source_title[:60])
                 return result
@@ -191,6 +310,7 @@ class KnowledgeFormalizer:
                             "source_url": source_url,
                             "source_title": source_title,
                             "formalized_at": time.time(),
+                            **dict(fact.get("metadata", {}) or {}),
                         },
                     )
                     fact_ids.append(node_id)
@@ -234,7 +354,13 @@ class KnowledgeFormalizer:
                             )
                             result["relationships_created"] += 1
                         except Exception:
-                            pass  # no-op: intentional
+                            record_degradation(
+                                "formalizer",
+                                RuntimeError("relationship_commit_failed"),
+                                severity="debug",
+                                action="continued committing independent claims",
+                                extra={"entity": entity, "fact_id": fact_id},
+                            )
                 await asyncio.sleep(0)
 
             self._total_facts_committed += result["facts_committed"]

@@ -16,6 +16,10 @@ postmortems in any environment.
   semantic diff → outcome learning → trace/postmortem.
 - **Capability Matrix**: `core/environment/capability_matrix.py` verifies
   the live kernel has the required general organs before deep runs.
+- **General Hardening Organs**: action semantics, action budgets, external
+  proof gating, hindsight replay, abstraction discovery, curriculum generation,
+  proof-kernel runtime bridging, and concurrency health sampling are shared
+  infrastructure, not NetHack strategy.
 - **Monitoring**: Hash-chained black-box trace rows under
   `~/.aura/logs/nethack/` plus run-manager postmortems.
 
@@ -26,9 +30,11 @@ postmortems in any environment.
 - [x] Add general embodied cognition runtime with belief, risk, goals, skills, action gating, traces, and postmortems
 - [x] Replace the challenge loop with the canonical general EnvironmentKernel
 - [x] Add executable capability audit, terminal death handling, run records, semantic outcome learning, and policy-driven action selection
+- [x] Add final general hardening for action semantics, replay, abstraction discovery, curriculum, external proof, activation certainty, and concurrency health
+- [x] Update final documentation to the current code-grounded state
 - [/] Autonomous Gameplay Loop (In Progress; strict-real NetHack is wired as a stress adapter)
 - [ ] Record Successful Ascension
-- [ ] Final Documentation & Repository Push
+- [/] Repository Commit & Push
 
 ## How to Run
 ```bash

@@ -33,13 +33,10 @@ Residual Injection (LTI-Stable):
   the hidden state. This prevents hidden state explosion — the representation
   stays grounded to the input even after multiple loops.
 
-Per-Lane Configuration:
-  Different model sizes need different loop counts:
-  - Cortex (32B):   2 loops — meaningful improvement without excessive latency
-  - Solver (72B):   1 loop — 72B is already deep; extra looping is too slow
-                     for interactive solver turns in the live handoff path
-  - Brainstem (7B): 1 loop — small model, looping doesn't help much
-  - Reflex (1.5B):  1 loop — too small, looping would slow without benefit
+Depth Policy:
+  Loop counts are resolved from model shape and runtime budget, not from
+  named lanes. Operators can still override by model-size class for
+  diagnostics, but the default policy is a general compute/latency tradeoff.
 """
 from __future__ import annotations
 from core.runtime.errors import record_degradation
@@ -53,15 +50,15 @@ from typing import Optional
 logger = logging.getLogger("Aura.RecurrentDepth")
 
 
-# ── Per-lane default configurations ──────────────────────────────────────
-# Maps model size heuristics to default loop counts.
+# ── Model-profile default configurations ─────────────────────────────────
+# Maps model depth heuristics to default loop counts.
 # These are applied automatically unless overridden by env vars.
 #
 # NOTE: Layer counts corrected — Qwen2.5-32B is 64 layers (NOT 48-55) and
 # Qwen2.5-72B is 80 layers. The old ranges had 32B and 72B colliding into
 # the same bucket via (56, 999), which was correct by accident but the
 # in-file labels were misleading.
-LANE_DEFAULTS = {
+MODEL_PROFILE_DEFAULTS = {
     # (min_layers, max_layers): (n_loops, prelude_frac, coda_frac, alpha)
     (72, 999):  (1, 0.15, 0.15, 0.1),   # 72B (80 layers) — interactive solver
     (56, 71):   (2, 0.20, 0.20, 0.1),   # 32B (64 layers) — recurrent thinking
@@ -70,15 +67,15 @@ LANE_DEFAULTS = {
 }
 
 
-def _get_lane_defaults(num_layers: int) -> tuple:
+def _get_model_profile_defaults(num_layers: int) -> tuple:
     """Get default recurrent depth config based on model size."""
-    for (min_l, max_l), config in LANE_DEFAULTS.items():
+    for (min_l, max_l), config in MODEL_PROFILE_DEFAULTS.items():
         if min_l <= num_layers <= max_l:
             return config
     return (1, 0.20, 0.20, 0.1)  # fallback: standard
 
 
-def _lane_specific_loop_env(num_layers: int) -> Optional[str]:
+def _model_size_loop_env(num_layers: int) -> Optional[str]:
     if num_layers >= 72:
         return os.environ.get("AURA_RECURRENT_LOOPS_72B")
     if num_layers >= 56:
@@ -391,7 +388,7 @@ def get_recurrent_config(model) -> Optional[dict]:
 def resolve_loops_for_model(model) -> int:
     """Determine the correct number of loops for a model based on its size.
 
-    Checks env vars first, then falls back to per-lane defaults based on
+    Checks env vars first, then falls back to model-profile defaults based on
     the number of transformer layers.
     """
     # Explicit env override takes priority
@@ -413,13 +410,13 @@ def resolve_loops_for_model(model) -> int:
         return 1
 
     num_layers = len(layers)
-    lane_override = _lane_specific_loop_env(num_layers)
-    if lane_override is not None:
-        n = int(lane_override)
+    size_override = _model_size_loop_env(num_layers)
+    if size_override is not None:
+        n = int(size_override)
         if n == 0:
             return 0
         return n
-    defaults = _get_lane_defaults(num_layers)
+    defaults = _get_model_profile_defaults(num_layers)
     return defaults[0]  # n_loops
 
 
@@ -446,7 +443,7 @@ def apply_for_model(model) -> bool:
     # Get other params from env or defaults
     inner = getattr(model, "model", None)
     num_layers = len(getattr(inner, "layers", [])) if inner else 64
-    defaults = _get_lane_defaults(num_layers)
+    defaults = _get_model_profile_defaults(num_layers)
 
     prelude_frac = float(os.environ.get("AURA_RECURRENT_PRELUDE", defaults[1]))
     coda_frac = float(os.environ.get("AURA_RECURRENT_CODA", defaults[2]))

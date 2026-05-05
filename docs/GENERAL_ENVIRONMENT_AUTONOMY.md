@@ -22,6 +22,8 @@ The executable audit lives in `core/environment/capability_matrix.py`.
 | Action ranking | `core/environment/policy/action_ranker.py` |
 | Strategic HTN planning | `core/environment/strategy/htn_planner.py` |
 | Semantic command compilation | `core/environment/command.py`, environment compilers |
+| Closed-loop action semantics | `core/environment/action_semantics.py` |
+| Semantic action budgets | `core/environment/action_budget.py` via `EnvironmentKernel` |
 | Effect gate | `core/environment/action_gateway.py` |
 | Governance bridge | `core/environment/governance_bridge.py` |
 | Receipt chain | `core/environment/receipt_chain.py` |
@@ -30,9 +32,18 @@ The executable audit lives in `core/environment/capability_matrix.py`.
 | Cross-run outcome ledger | `core/environment/outcome/ledger.py` |
 | Procedural memory connection | `core/memory/procedural/store.py` via `EnvironmentKernel` |
 | Competence tracking | `EnvironmentKernel.competence_tracker` |
+| Hindsight replay / causal rules | `core/environment/experience_replay.py` |
+| Autonomous abstraction discovery | `core/environment/abstraction_discovery.py` |
+| Open-ended curriculum tasks | `core/environment/curriculum.py` |
 | Black-box trace + replay | `core/environment/blackbox.py`, `core/environment/replay.py` |
 | Run lifecycle/postmortem | `core/environment/run_manager.py`, `core/environment/postmortem.py` |
 | Benchmark mode separation | `core/environment/benchmark_runner.py`, `BoundaryGuard` |
+| External task proof gate | `core/environment/external_validation.py` |
+| Runtime activation proof bridge | `core/runtime/activation_audit.py`, `core/runtime/proof_kernel_bridge.py` |
+| Async/concurrency health | `core/runtime/concurrency_health.py`, `core/utils/task_tracker.py`, `core/resilience/lock_watchdog.py`, `core/dead_letter_queue.py` |
+| Corrective grounding | `core/brain/grounding_guard.py`, `core/self_evaluator.py` |
+| Robust context budgeting | `core/brain/llm/context_gate.py` |
+| Structured knowledge distillation | `core/learning/formalizer.py` |
 
 ## Current Integration State
 
@@ -40,15 +51,28 @@ The executable audit lives in `core/environment/capability_matrix.py`.
 - The kernel starts a durable run record, seeds the same HTN planner used by
   policy, observes through the adapter, compiles state, updates belief/spatial
   memory, selects an intent, simulates it, routes governance, gates effects,
-  compiles a command, executes, diffs pre/post state, attributes outcome,
-  updates learning stores, emits trace rows, and closes the run with a
-  postmortem when terminal failure/success is detected.
+  compiles a command, validates closed-loop action semantics, records action
+  budget pressure, executes, diffs pre/post state, attributes outcome, updates
+  replay/abstraction/curriculum/ledger/procedural stores, emits trace rows,
+  and closes the run with a postmortem when terminal failure/success is
+  detected.
 - Generic policies emit semantic intents. Environment-specific code is limited
   to adapters, parsers/compilers, and command compilers.
 - Authority-required actions now fail closed if no authority gateway is
   connected.
 - Spatial memory is metadata-rich but remains backward-compatible with legacy
   kind-string lookups.
+- External proof now distinguishes strict-real, simulated-canary, and fixture
+  evidence, and refuses placeholder/stub adapters as capability proof.
+- Activation audit now starts and samples the live proof-kernel bridge,
+  lock watchdog, and concurrency health monitor. The proof bridge reports an
+  explicit claim scope and does not treat engineered proxies as subjective
+  consciousness proof.
+- The generic terminal-grid compiler parses ASCII/ANSI-like screens into the
+  shared ontology. NetHack-specific code remains an adapter/parser/command
+  translation layer, not shared strategy.
+- Repository repair scripts are archived under `archive/repair_scripts/` and
+  are no longer root-level canonical runtime artifacts.
 
 ## NetHack Stress Adapter
 
@@ -74,20 +98,30 @@ Current focused suite:
 
 ```bash
 python -m pytest \
+  tests/test_final_general_hardening.py \
   tests/test_environment_general_integration.py \
   tests/environment/final_blockers \
-  tests/environments/terminal_grid \
+  tests/environments/terminal_grid/test_nethack_audit_comprehensive.py \
+  tests/environments/terminal_grid/test_terminal_grid_live_canary.py \
+  tests/environments/terminal_grid/test_nethack_adapter_preflight.py \
+  tests/environments/terminal_grid/test_terminal_grid_contract.py \
   tests/architecture \
   tests/test_embodied_cognition_runtime.py \
+  tests/test_runtime_stability_edges.py \
+  tests/test_runtime_service_access.py \
   tests/nethack_crucible.py -q
 ```
 
-Focused result: `210 passed`.
+Focused final-pass result: `266 passed, 1 subtests passed`.
 
-Full repository result after this patch set:
+Stress canary:
 
 ```bash
-python -m pytest -q
+python challenges/nethack_challenge.py --mode simulated --steps 20 \
+  --trace artifacts/test_nethack_kernel_trace.jsonl --log-level ERROR
 ```
 
-Result: `4333 passed, 7 skipped, 7 warnings, 1 subtests passed`.
+Result: passed, with 40 hash-chained trace rows emitted to
+`artifacts/test_nethack_kernel_trace.jsonl`.
+
+No successful strict-real ascension is recorded in this document.

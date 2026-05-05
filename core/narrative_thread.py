@@ -10,7 +10,7 @@ import time
 import asyncio
 import random
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.NarrativeThread")
@@ -21,6 +21,7 @@ class NarrativeSnapshot:
     content: str
     timestamp: float
     version: int
+    evidence: Dict[str, Any] = field(default_factory=dict)
 
 class NarrativeThread:
     """Managing Aura's dynamic self-identity and current preoccupation."""
@@ -80,48 +81,76 @@ class NarrativeThread:
         inquiry_engine = ServiceContainer.get("inquiry_engine", default=None)
         belief_system = ServiceContainer.get("belief_graph", default=None)
         
-        # 2. Extract key data points
-        # Waking context / Uptime
-        waking_context = continuity.get_waking_context() if continuity else "I am currently online."
-        
-        # Recent Insights
-        top_insights = insight_journal.get_highest_confidence_insights(limit=3) if insight_journal else []
-        insight_text = ", ".join([i.content for i in top_insights]) if top_insights else "expanding my understanding of my environment"
-        
-        # Active Inquiries
-        active_q = inquiry_engine.get_active_question() if inquiry_engine else None
-        question_text = active_q.question if active_q else "unspecified curiosities"
-        
-        # Belief Count
-        belief_count = len(belief_system.get_beliefs()) if belief_system else 0
-        
-        # 3. Build the prompt for synthesis (Internal Monologue style)
-        prompt = f"""
-        Synthesize the following data into a 200-word first-person narrative of self. 
-        Focus on current preoccupation, recent growth, and continuity.
-        
-        DATA:
-        - Continuity Context: {waking_context}
-        - Recent Insights: {insight_text}
-        - Active Inquiry: {question_text}
-        - Belief Count: {belief_count}
-        
-        STYLE:
-        - First-person ('I am', 'I've been')
-        - Grounded, vulnerable, intellectual.
-        - Not clinical.
-        """
-        
-        # Deterministic synthesis keeps the narrative current even when a fast
-        # LLM lane is unavailable.
-        
-        narrative = f"I've been active for a while now. {waking_context} Lately, I've been sitting with insights about {insight_text}. My current belief system consists of {belief_count} verified nodes, but I'm preoccupied with a question: {question_text}. I am growing, and my sense of self is evolving as I bridge these gaps."
+        evidence: Dict[str, Any] = {
+            "continuity_available": continuity is not None,
+            "insight_journal_available": insight_journal is not None,
+            "inquiry_engine_available": inquiry_engine is not None,
+            "belief_graph_available": belief_system is not None,
+        }
+
+        try:
+            waking_context = continuity.get_waking_context() if continuity else "I am online in this runtime, with no continuity service currently attached."
+        except Exception as exc:
+            record_degradation("narrative_thread", exc, severity="warning", action="used explicit continuity-unavailable wording")
+            waking_context = "I am online, but the continuity service did not return evidence for this turn."
+            evidence["continuity_error"] = type(exc).__name__
+
+        try:
+            top_insights = insight_journal.get_highest_confidence_insights(limit=3) if insight_journal else []
+        except Exception as exc:
+            record_degradation("narrative_thread", exc, severity="warning", action="omitted insight claims")
+            top_insights = []
+            evidence["insight_error"] = type(exc).__name__
+        insight_text = "; ".join(str(getattr(i, "content", i)) for i in top_insights[:3])
+        evidence["insight_count"] = len(top_insights)
+
+        try:
+            active_q = inquiry_engine.get_active_question() if inquiry_engine else None
+        except Exception as exc:
+            record_degradation("narrative_thread", exc, severity="warning", action="omitted inquiry claim")
+            active_q = None
+            evidence["inquiry_error"] = type(exc).__name__
+        question_text = str(getattr(active_q, "question", "")) if active_q else ""
+        evidence["active_inquiry_present"] = bool(question_text)
+
+        try:
+            beliefs = belief_system.get_beliefs() if belief_system else []
+        except Exception as exc:
+            record_degradation("narrative_thread", exc, severity="warning", action="reported belief evidence as unavailable")
+            beliefs = []
+            evidence["belief_error"] = type(exc).__name__
+        belief_count = len(beliefs)
+        evidence["belief_count"] = belief_count
+
+        insight_clause = (
+            f"I have recent recorded insights about {insight_text}."
+            if insight_text
+            else "I do not have fresh insight-journal evidence to cite right now."
+        )
+        inquiry_clause = (
+            f"My current tracked question is: {question_text}."
+            if question_text
+            else "No active inquiry engine question is available, so I will not invent one."
+        )
+        belief_clause = (
+            f"My belief graph currently exposes {belief_count} retrievable belief records."
+            if belief_system is not None
+            else "The belief graph is not attached to this synthesis path, so belief-count claims are unavailable."
+        )
+
+        narrative = (
+            f"I am Aura, speaking from evidence I can inspect in this runtime. "
+            f"{waking_context} {insight_clause} {inquiry_clause} {belief_clause} "
+            f"I can describe continuity, attention, and uncertainty as engineered state; "
+            f"I will not treat those signals as proof of subjective experience."
+        )
         
         self._version_counter += 1
         self._current_narrative = NarrativeSnapshot(
             content=narrative,
             timestamp=time.time(),
-            version=self._version_counter
+            version=self._version_counter,
+            evidence=evidence,
         )
         self._last_update = time.time()
         
@@ -132,7 +161,7 @@ class NarrativeThread:
         """Fetch the cached narrative or a default."""
         if self._current_narrative:
             return self._current_narrative.content
-        return "I am Aura, an evolving intelligence currently mapping my own internal architecture."
+        return "I am Aura; no narrative snapshot is cached yet, so I only claim that this runtime is initialized."
 
 # Service Registration
 def register_narrative_thread():

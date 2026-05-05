@@ -34,6 +34,9 @@ class TerminalGridAdapter:
         self.screen = TerminalGridScreen(text=screen_text or self._default_screen())
         self.commands: list[str] = []
         self._alive = False
+        from .state_compiler import TerminalGridStateCompiler
+
+        self.state_compiler = TerminalGridStateCompiler()
 
     async def start(self, *, run_id: str, seed: int | None = None) -> None:
         self.run_id = run_id

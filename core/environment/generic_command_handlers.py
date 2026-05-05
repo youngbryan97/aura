@@ -205,15 +205,19 @@ def handle_observe(intent: ActionIntent) -> CommandSpec:
 
 
 def handle_explore_frontier(intent: ActionIntent) -> CommandSpec:
-    """Explore is a meta-intent. The command compiler resolves it to a concrete move
-    based on the belief graph's frontier set. Default: move in a direction."""
+    """Explore unknown state through a reversible probe.
+
+    Path selection happens in the policy layer via GridPathPlanner. If no
+    concrete path is available, the compiler emits an information-gathering
+    probe rather than a no-op masquerading as progress.
+    """
     return CommandSpec(
         command_id=command_id_for("generic", intent),
         environment_id="generic",
         intent=intent,
         preconditions=[],
-        steps=[CommandStep(kind="key", value=".")],  # placeholder — policy should resolve
-        expected_effects=["frontier_progress"],
+        steps=[CommandStep(kind="key", value="s")],
+        expected_effects=["frontier_information_gain", "area_searched"],
     )
 
 
