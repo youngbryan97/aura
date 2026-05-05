@@ -210,17 +210,23 @@ class AgencyFacade(AgencyCore):
                     "reason": "unified_will unavailable",
                     "proposal": top.as_dict(),
                 }
-            decision = await will.decide(
-                action_kind="autonomous_initiative",
-                content=top.proposal.content,
-                source="agency_facade",
-                context={
-                    "proposal": top.as_dict(),
-                    "alternatives": [s.as_dict() for s in scored[1:5]],
-                },
+            from core.governance.will_client import WillClient, WillRequest
+            from core.will import ActionDomain
+
+            decision = await WillClient(will).decide_async(
+                WillRequest(
+                    content=top.proposal.content,
+                    source="agency_facade",
+                    domain=getattr(ActionDomain, "INITIATIVE", "initiative"),
+                    context={
+                        "action_kind": "autonomous_initiative",
+                        "proposal": top.as_dict(),
+                        "alternatives": [s.as_dict() for s in scored[1:5]],
+                    },
+                )
             )
             return {
-                "approved": bool(getattr(decision, "approved", False)),
+                "approved": WillClient.is_approved(decision),
                 "receipt_id": str(getattr(decision, "receipt_id", "")),
                 "reason": str(getattr(decision, "reason", "")),
                 "proposal": top.as_dict(),

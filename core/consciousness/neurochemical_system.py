@@ -170,7 +170,8 @@ class Chemical:
         # Explicit re-sensitization pull toward 1.0 when sensitivity has drifted
         # This prevents sensitivity from getting permanently stuck at the floor
         sensitivity_drift = self.receptor_sensitivity - 1.0
-        self.receptor_sensitivity -= 0.002 * sensitivity_drift * dt  # slow pull toward 1.0
+        if deviation <= 0.0:
+            self.receptor_sensitivity -= 0.002 * sensitivity_drift * dt  # slow pull toward 1.0
         self.receptor_sensitivity = max(self.min_sensitivity,
                                         min(self.max_sensitivity, self.receptor_sensitivity))
         # Adapt subtypes independently
@@ -309,7 +310,7 @@ class NeurochemicalSystem:
             ),
             # Modulatory neurotransmitters (slower, diffuse, tonic + phasic)
             "dopamine": Chemical(
-                "dopamine", level=0.5, baseline=0.5, uptake_rate=0.03, adaptation_rate=0.008,
+                "dopamine", level=0.5, baseline=0.5, uptake_rate=0.03, adaptation_rate=0.010,
                 subtypes={
                     "d1": ReceptorSubtype("D1-like", effect_sign=1.0, weight=0.5,
                                           adaptation_rate=0.003),  # excitatory — working memory, reward

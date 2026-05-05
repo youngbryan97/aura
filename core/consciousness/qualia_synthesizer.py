@@ -144,8 +144,9 @@ class QualiaSynthesizer:
         try:
             from core.container import ServiceContainer
             myc = ServiceContainer.get("mycelium", default=None)
-            # Tension = density of active hyphae normalized
-            tension = min(1.0, len(myc.hyphae) / 100.0)
+            if myc is not None:
+                # Tension = density of active hyphae normalized
+                tension = min(1.0, len(getattr(myc, "hyphae", ())) / 100.0)
         except Exception as _e:
             record_degradation('qualia_synthesizer', _e)
             logger.debug('Ignored Exception in qualia_synthesizer.py: %s', _e)

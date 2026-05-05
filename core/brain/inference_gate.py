@@ -3085,7 +3085,8 @@ class InferenceGate:
                         fallback_client = get_mlx_client(model_path=str(get_deep_model_path()))
                         fallback_label = DEEP_ENDPOINT
                     skip_initial_primary_attempt = False
-                    if _is_user_facing and local_label == PRIMARY_ENDPOINT:
+                    lane_managed_client = hasattr(local_client, "get_lane_status") or hasattr(local_client, "warmup")
+                    if _is_user_facing and local_label == PRIMARY_ENDPOINT and lane_managed_client:
                         lane_status = self.get_conversation_status()
                         if not lane_status.get("conversation_ready"):
                             logger.info(

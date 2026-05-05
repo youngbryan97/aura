@@ -278,23 +278,24 @@ class AgencyOrchestrator:
         simulation: Dict[str, Any],
     ) -> Dict[str, Any]:
         try:
-            from core.will import get_will, ActionDomain
-            will = get_will()
-            if will is None:
-                return {"decision": "blocked", "reason": "will_unavailable"}
+            from core.governance.will_client import WillClient, WillRequest
             domain = self._primitive_to_domain(proposal.primitive)
-            decision = await will.decide(
-                action=proposal.intent,
-                domain=domain,
-                context={
-                    "drive": proposal.drive,
-                    "primitive": proposal.primitive,
-                    "expected_outcome": proposal.expected_outcome,
-                    "state": state,
-                    "simulation": simulation,
-                },
+            decision = await WillClient().decide_async(
+                WillRequest(
+                    content=proposal.intent,
+                    source="agency_orchestrator",
+                    domain=domain,
+                    priority=proposal.priority,
+                    context={
+                        "drive": proposal.drive,
+                        "primitive": proposal.primitive,
+                        "expected_outcome": proposal.expected_outcome,
+                        "state": state,
+                        "simulation": simulation,
+                    },
+                )
             )
-            approved = bool(getattr(decision, "approved", False))
+            approved = WillClient.is_approved(decision)
             return {
                 "decision": "approved" if approved else "blocked",
                 "reason": getattr(decision, "reason", ""),
@@ -318,7 +319,7 @@ class AgencyOrchestrator:
             "tool_execution": getattr(ActionDomain, "TOOL_EXECUTION", primitive),
             "external_communication": getattr(ActionDomain, "EXPRESSION", primitive),
             "code_modification": getattr(ActionDomain, "STATE_MUTATION", primitive),
-            "persistent_belief_update": getattr(ActionDomain, "BELIEF_UPDATE", primitive),
+            "persistent_belief_update": getattr(ActionDomain, "STATE_MUTATION", primitive),
             "initiative_release": getattr(ActionDomain, "INITIATIVE", primitive),
             "social_posting": getattr(ActionDomain, "EXPRESSION", primitive),
             "file_write": getattr(ActionDomain, "STATE_MUTATION", primitive),

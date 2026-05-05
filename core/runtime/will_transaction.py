@@ -189,27 +189,31 @@ class WillTransaction:
     async def _invoke_decide(self, will: Any) -> Any:
         if will is None:
             return None
-        decide = getattr(will, "decide", None)
-        if decide is None:
-            return None
         try:
+            from core.governance.will_client import WillClient, WillRequest
+
+            decision = await WillClient(will).decide_async(
+                WillRequest(
+                    content=self.record.action,
+                    source=self.record.cause,
+                    domain=self.record.domain,
+                    context=self._context,
+                )
+            )
+            return decision
+        except Exception:
+            decide = getattr(will, "decide", None)
+            if decide is None:
+                return None
             decision = decide(
                 domain=self.record.domain,
                 action=self.record.action,
                 cause=self.record.cause,
                 context=self._context,
             )
-        except TypeError:
-            # Some Will variants take positional args.
-            decision = decide(
-                self.record.domain,
-                self.record.action,
-                self.record.cause,
-                self._context,
-            )
-        if asyncio.iscoroutine(decision):
-            decision = await decision
-        return decision
+            if asyncio.iscoroutine(decision):
+                decision = await decision
+            return decision
 
     @staticmethod
     def _is_approved(decision: Any) -> bool:

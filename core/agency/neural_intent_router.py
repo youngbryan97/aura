@@ -177,12 +177,16 @@ class NeuralIntentRouter:
         will_receipt = ""
         if will is not None and hasattr(will, "decide"):
             try:
-                decision = await _maybe_await(
-                    will.decide(
-                        action_kind="neural_intent",
+                from core.governance.will_client import WillClient, WillRequest
+                from core.will import ActionDomain
+
+                decision = await WillClient(will).decide_async(
+                    WillRequest(
                         content=f"{intent.skill_name}: {intent.text[:120]}",
                         source=f"neural_intent:{source_norm}",
+                        domain=getattr(ActionDomain, "TOOL_EXECUTION", "tool_execution"),
                         context={
+                            "action_kind": "neural_intent",
                             "user_requested_action": False,
                             "internal_intent": True,
                             "skill": intent.skill_name,
@@ -190,7 +194,7 @@ class NeuralIntentRouter:
                         },
                     )
                 )
-                approved = bool(getattr(decision, "approved", True))
+                approved = WillClient.is_approved(decision)
                 approve_reason = str(getattr(decision, "reason", "")) or "will_decided"
                 will_receipt = str(getattr(decision, "receipt_id", ""))
             except Exception as exc:

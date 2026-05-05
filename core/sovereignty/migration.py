@@ -209,14 +209,17 @@ class MigrationOrchestrator:
             return proposal
 
         try:
-            from core.will import get_will, ActionDomain
-            will = get_will()
-            wd = await will.decide(
-                action="sovereign_migration",
-                domain=getattr(ActionDomain, "STATE_MUTATION", "state_mutation"),
-                context={"reason": reason, "provider": provider_name},
+            from core.governance.will_client import WillClient, WillRequest
+            from core.will import ActionDomain
+            wd = await WillClient().decide_async(
+                WillRequest(
+                    content="sovereign_migration",
+                    source="migration",
+                    domain=getattr(ActionDomain, "STATE_MUTATION", "state_mutation"),
+                    context={"reason": reason, "provider": provider_name},
+                )
             )
-            if not getattr(wd, "approved", False):
+            if not WillClient.is_approved(wd):
                 proposal.phase = Phase.FAILED
                 proposal.failure_reason = f"will_refused:{getattr(wd, 'reason', '')}"
                 self._record(proposal, "will_refused")

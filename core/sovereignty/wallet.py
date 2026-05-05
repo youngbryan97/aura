@@ -203,14 +203,17 @@ class Wallet:
                 raise PermissionError("require_fresh_user_auth")
 
         try:
-            from core.will import get_will, ActionDomain
-            will = get_will()
-            wd = await will.decide(
-                action="wallet_spend",
-                domain=getattr(ActionDomain, "EXPRESSION", "expression"),
-                context={"intent": purpose, "amount": amount, "destination": destination},
+            from core.governance.will_client import WillClient, WillRequest
+            from core.will import ActionDomain
+            wd = await WillClient().decide_async(
+                WillRequest(
+                    content="wallet_spend",
+                    source="wallet",
+                    domain=getattr(ActionDomain, "EXPRESSION", "expression"),
+                    context={"intent": purpose, "amount": amount, "destination": destination},
+                )
             )
-            if not getattr(wd, "approved", False):
+            if not WillClient.is_approved(wd):
                 self._record(intent, f"will_refused:{getattr(wd, 'reason', '')}")
                 raise PermissionError("will_refused")
             intent.will_receipt_id = getattr(wd, "receipt_id", None)

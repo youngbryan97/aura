@@ -199,10 +199,16 @@ class LiveArchitectureGraphBuilder:
             root / "logs" / "receipts",
             root / "data" / "receipts",
         ]
-        external_candidates = [
-            Path.home() / ".aura" / "receipts",
-            Path.home() / ".aura" / "logs" / "receipts",
-        ]
+        external_candidates = []
+        try:
+            is_live_workspace = root.resolve() == Path.cwd().resolve()
+        except OSError:
+            is_live_workspace = False
+        if is_live_workspace:
+            external_candidates = [
+                Path.home() / ".aura" / "receipts",
+                Path.home() / ".aura" / "logs" / "receipts",
+            ]
         for directory in local_candidates:
             if not directory.exists() or not directory.is_dir():
                 continue
@@ -216,7 +222,8 @@ class LiveArchitectureGraphBuilder:
         local_receipts.extend(self._load_trace_receipts(root / "data" / "traces"))
         local_receipts.extend(self._load_life_trace_receipts(root / "data" / "life_trace.sqlite3"))
         local_receipts.extend(self._load_coverage_receipts(root))
-        external_receipts.extend(self._load_life_trace_receipts(Path.home() / ".aura" / "life_trace.sqlite3"))
+        if is_live_workspace:
+            external_receipts.extend(self._load_life_trace_receipts(Path.home() / ".aura" / "life_trace.sqlite3"))
         local_receipts.sort(key=lambda receipt: receipt.timestamp, reverse=True)
         external_receipts.sort(key=lambda receipt: receipt.timestamp, reverse=True)
         return (local_receipts + external_receipts)[: self.config.runtime_receipt_limit]

@@ -27,6 +27,7 @@ from core.brain.types import ThinkingMode
 from core.meta.cognitive_trace import CognitiveTrace
 from core.scheduler import TaskSpec, scheduler
 from core.health.degraded_events import record_degraded_event
+from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 from core.utils.queues import BackpressuredQueue, USER_FACING_ORIGINS
 from core.utils.concurrency import run_io_bound, LOCK_SENTINEL, RobustLock
@@ -1810,7 +1811,9 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             from core.terminal_monitor import get_terminal_monitor
             monitor = get_terminal_monitor()
             if monitor:
-                error_goal = await monitor.check_for_errors()
+                error_goal = monitor.check_for_errors()
+                if inspect.isawaitable(error_goal):
+                    error_goal = await error_goal
                 is_thinking = (t := self._current_thought_task) is not None and not t.done()
                 if error_goal and not is_thinking:
                     logger.info("🔧 Terminal Monitor: Auto-fix triggered")

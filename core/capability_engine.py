@@ -72,6 +72,21 @@ _SEARCH_WITH_TARGET_RE = re.compile(
     re.IGNORECASE,
 )
 
+_INTERNAL_ONLY_SKILLS = frozenset(
+    {
+        # Importable adapter/experimental modules that are intentionally not
+        # part of the stable public skill contract. They may be called by
+        # dedicated environment or autonomy layers, but should not leak into
+        # the general registered tool catalog until they satisfy that surface.
+        "branching_futures",
+        "email_adapter",
+        "execute_nethack_action",
+        "manim_renderer",
+        "mcp_client",
+        "reddit_adapter",
+    }
+)
+
 
 def _humanize_skill_name(name: str) -> str:
     raw = str(name or "").strip()
@@ -319,8 +334,7 @@ class CapabilityEngine(AuraBaseModule):
             # Misc
             "manifest_to_device", "notify_user", "native_chat",
             "dream_sleep", "force_dream_cycle", "test_generator",
-            "free_search", "uplink_local", "mcp_client", "manim_renderer",
-            "branching_futures", "execute_nethack_action",
+            "free_search", "uplink_local",
         } # ALL skills active — Aura is fully sovereign
         self.skill_awoken_times: Dict[str, float] = {}
         self.skill_states: Dict[str, str] = {} # READY, RUNNING, ERROR
@@ -824,6 +838,8 @@ class CapabilityEngine(AuraBaseModule):
                                                 description = item.value.value
                             
                             if is_skill and name:
+                                if name in _INTERNAL_ONLY_SKILLS:
+                                    continue
                                 # Always overwrite: AST has ground-truth module_path
                                 # and class_name from the actual file.  The Rust index
                                 # assumes 1-skill-per-file with auto-generated class
@@ -838,6 +854,9 @@ class CapabilityEngine(AuraBaseModule):
                 except Exception as e:
                     record_degradation('capability_engine', e)
                     self.logger.error("AST fail for %s: %s", filename, e)
+
+        for internal_name in _INTERNAL_ONLY_SKILLS:
+            self.skills.pop(internal_name, None)
 
         if self.orchestrator and hasattr(self.orchestrator, 'status') and self.orchestrator.status:
             try:

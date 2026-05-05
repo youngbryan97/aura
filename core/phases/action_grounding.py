@@ -268,7 +268,7 @@ def _params_for_skill(
 
         # If tail is empty but the skill name had parens (matched by updated _MARKER_RE),
         # they are currently lost because the regex only captures the name.
-        # TODO: update regex to capture args. For now, we handle the tail.
+        # Preserve tail handling here until marker argument capture is widened.
 
         if action_str:
             # Handle Python-style args in tail if they leaked out: (key='y') -> y

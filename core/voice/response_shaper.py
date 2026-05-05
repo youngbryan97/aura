@@ -105,7 +105,23 @@ class ResponseShaper:
         text = text.strip()
 
         # ── 1. Acknowledgment-only check ─────────────────────────────────
-        if random.random() < profile.acknowledgment_only_probability:
+        #
+        # This path is intentionally conservative. A low background chance of
+        # "just acknowledge" should not erase substantive content that the
+        # router already produced for a user-facing turn. Reserve post-hoc
+        # replacement for explicit near-silence profiles, or for genuinely
+        # low-energy/short-budget turns where a compact acknowledgement is a
+        # faithful rendering rather than content loss.
+        words = text.split()
+        ack_probability = max(0.0, min(1.0, float(profile.acknowledgment_only_probability)))
+        allow_ack_replacement = (
+            ack_probability >= 0.95
+            or (
+                ack_probability >= 0.25
+                and (profile.word_budget <= 15 or len(words) <= max(12, profile.word_budget))
+            )
+        )
+        if allow_ack_replacement and random.random() < ack_probability:
             # Substrate says: just acknowledge, don't elaborate
             ack = random.choice(_ACK_WORDS)
             if profile.capitalization == "lowercase":

@@ -2894,10 +2894,11 @@ class UnitaryResponsePhase(Phase):
                 history_limit = 2
                 logger.info("🛡️ UnitaryResponse: Using minimal history (2) for Embodied Challenge priority.")
 
-            messages = self._recent_router_history(
-                new_state,
-                limit=history_limit,
-            )
+            if not messages:
+                messages = self._recent_router_history(
+                    new_state,
+                    limit=history_limit,
+                )
             # Hard cap system prompt to fit within context window.
             # The 32B local model has ~8K token context (~32K chars).
             # Reserve at least 40% for conversation history + user message.

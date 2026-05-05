@@ -3,6 +3,8 @@ import pexpect
 import os
 import time
 
+__test__ = False
+
 nethack_path = "/opt/homebrew/bin/nethack"
 env = os.environ.copy()
 env["TERM"] = "xterm-256color"
@@ -18,9 +20,10 @@ def test_user(name):
             print("FAILED: Too many hacks.")
         else:
             print("SUCCESS: Game started.")
-    except:
+    except Exception:
         print("Timeout/EOF.")
     child.terminate()
 
-test_user("Aura")
-test_user("AuraTest")
+if __name__ == "__main__":
+    test_user("Aura")
+    test_user("AuraTest")

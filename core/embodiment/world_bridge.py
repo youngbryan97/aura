@@ -208,14 +208,17 @@ class WorldBridge:
             return WorldActionResult(channel=channel.value, ok=False, receipt_id="", error="require_fresh_user_auth")
 
         try:
-            from core.will import get_will, ActionDomain
-            will = get_will()
-            decision = await will.decide(
-                action=action,
-                domain=getattr(ActionDomain, "TOOL_EXECUTION", "tool_execution"),
-                context={"intent": intent, "channel": channel.value, "payload": payload},
+            from core.governance.will_client import WillClient, WillRequest
+            from core.will import ActionDomain
+            decision = await WillClient().decide_async(
+                WillRequest(
+                    content=action,
+                    source="world_bridge",
+                    domain=getattr(ActionDomain, "TOOL_EXECUTION", "tool_execution"),
+                    context={"intent": intent, "channel": channel.value, "payload": payload},
+                )
             )
-            if not getattr(decision, "approved", False):
+            if not WillClient.is_approved(decision):
                 return WorldActionResult(channel=channel.value, ok=False, receipt_id="", error=f"will_refused:{getattr(decision, 'reason', '')}")
         except Exception as exc:
             record_degradation('world_bridge', exc)

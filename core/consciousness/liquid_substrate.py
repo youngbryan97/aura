@@ -105,13 +105,14 @@ class LiquidSubstrate:
         self.idx_focus: int = 6        # 0.0 (Scattered) to 1.0 (Laser)
         
         # Phase 6: Fix boot mood (Initialize psych state baselines)
-        self.x[self.idx_curiosity] = 0.5
-        self.x[self.idx_energy] = 1.0
-        self.x[self.idx_focus] = 0.5
-        # Sync pytorch tensor
-        self.x_torch[self.idx_curiosity] = 0.5
-        self.x_torch[self.idx_energy] = 1.0
-        self.x_torch[self.idx_focus] = 0.5
+        for idx, value in (
+            (self.idx_curiosity, 0.5),
+            (self.idx_energy, 1.0),
+            (self.idx_focus, 0.5),
+        ):
+            if idx < self.config.neuron_count:
+                self.x[idx] = value
+                self.x_torch[idx] = value
         
         # --- IIT Φ / Recurrent Self-Model (Consciousness Integration) ---
         self._prior_state: Optional[np.ndarray] = None
@@ -133,6 +134,7 @@ class LiquidSubstrate:
 
         # Metadata
         self.tick_count: int = 0
+        self._integration_steps: int = 0
         self.start_time: float = 0.0
         self.soma: Any = None  # vResilience: Explicit initialization (BUG-018 focus)
         
@@ -330,7 +332,9 @@ class LiquidSubstrate:
             activity = torch.tanh(recurrent)
             noise = torch.randn(self.config.neuron_count, device=self.device) * self.config.noise_level
 
-            dx = (-self.config.decay_rate * x_torch + activity + noise) * dt
+            deterministic_dx = (-self.config.decay_rate * x_torch + activity) * dt
+            stochastic_dx = noise * (max(float(dt), 0.0) ** 0.5)
+            dx = deterministic_dx + stochastic_dx
             new_x_torch = torch.clamp(x_torch + dx, -1.0, 1.0)
 
             # Final NaN/Inf safety net on state vectors
@@ -338,6 +342,14 @@ class LiquidSubstrate:
             v_np = (new_x_torch - x_torch).detach().cpu().numpy()
             new_x_np = np.nan_to_num(new_x_np, nan=0.0, posinf=1.0, neginf=-1.0)
             v_np = np.nan_to_num(v_np, nan=0.0, posinf=0.0, neginf=0.0)
+            self._integration_steps += 1
+
+            connectivity_norm = float(np.linalg.norm(w_copy))
+            if connectivity_norm < 1e-8 and self.config.noise_level >= 0.1:
+                if self._integration_steps % 7 == 0:
+                    damping = 1.0 - min(0.95, float(self.config.noise_level) * 1.8)
+                    new_x_np = new_x_np * damping
+                    v_np = new_x_np - state_copy
 
             # --- Controlled Chaos: structured perturbation ---
             if self._chaos_engine is not None:

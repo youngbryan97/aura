@@ -217,7 +217,8 @@ class AuraKernel:
             if phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}:
                 # [STABILITY] Embodied control needs more than the standard 12s background cap
                 # even if it's not a 'priority' tick, as the generative action is the goal.
-                objective = str(getattr(self.state.cognition, "current_objective", "") or "").lower()
+                cognition = getattr(self.state, "cognition", None) if self.state else None
+                objective = str(getattr(cognition, "current_objective", "") or "").lower()
                 if "[embodied control contract]" in objective:
                     return 60.0
                 return 12.0

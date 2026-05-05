@@ -134,14 +134,17 @@ class CommunityLayer:
         if c.verdict == CV.REQUIRE_FRESH_USER_AUTH:
             return {"ok": False, "error": "require_fresh_user_auth"}
         try:
-            from core.will import get_will, ActionDomain
-            will = get_will()
-            wd = await will.decide(
-                action=f"social_post:{platform}:{channel}",
-                domain=getattr(ActionDomain, "EXPRESSION", "expression"),
-                context={"body": body, "intent": intent, "drive": drive, "platform": platform},
+            from core.governance.will_client import WillClient, WillRequest
+            from core.will import ActionDomain
+            wd = await WillClient().decide_async(
+                WillRequest(
+                    content=f"social_post:{platform}:{channel}",
+                    source="community",
+                    domain=getattr(ActionDomain, "EXPRESSION", "expression"),
+                    context={"body": body, "intent": intent, "drive": drive, "platform": platform},
+                )
             )
-            if not getattr(wd, "approved", False):
+            if not WillClient.is_approved(wd):
                 self._record({"event": "will_refused", "reason": getattr(wd, "reason", "")})
                 return {"ok": False, "error": "will_refused"}
             will_receipt_id = getattr(wd, "receipt_id", None)

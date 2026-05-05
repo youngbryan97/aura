@@ -192,6 +192,8 @@ class CognitiveEngine:
         try:
             container = get_container()
             orchestrator = container.get("orchestrator", default=None)
+            if orchestrator is None:
+                return ""
             return str(
                 background_policy.background_activity_reason(
                     orchestrator,

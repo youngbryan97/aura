@@ -261,16 +261,17 @@ class SelfObject:
         not directly mutate; it asks. Returns the Will's decision payload.
         """
         try:
-            from core.will import get_will, ActionDomain
-            will = get_will()
-            if will is None:
-                return {"approved": False, "reason": "will_unavailable"}
-            decision = await will.decide(
-                action=f"self_adjust:{','.join(parameters.keys())}",
-                domain=getattr(ActionDomain, "STATE_MUTATION", "state_mutation"),
-                context={"parameters": parameters, "reason": reason, "source": "self_object"},
+            from core.governance.will_client import WillClient, WillRequest
+            from core.will import ActionDomain
+            decision = await WillClient().decide_async(
+                WillRequest(
+                    content=f"self_adjust:{','.join(parameters.keys())}",
+                    source="self_object",
+                    domain=getattr(ActionDomain, "STATE_MUTATION", "state_mutation"),
+                    context={"parameters": parameters, "reason": reason},
+                )
             )
-            approved = bool(getattr(decision, "approved", False))
+            approved = WillClient.is_approved(decision)
             if approved:
                 self._apply_parameters(parameters)
             return {

@@ -214,7 +214,8 @@ class SafePipeline:
 
             # 8. APPROVAL
             try:
-                from core.will import get_will, ActionDomain
+                from core.governance.will_client import WillClient, WillRequest
+                from core.will import ActionDomain
                 from core.ethics.conscience import get_conscience, Verdict as CV
                 conscience_decision = get_conscience().evaluate(
                     action="self_modify",
@@ -226,13 +227,15 @@ class SafePipeline:
                     return self._block(proposal, Stage.APPROVAL, f"conscience_refused:{conscience_decision.rule_id}")
                 if conscience_decision.verdict == CV.REQUIRE_FRESH_USER_AUTH:
                     return self._block(proposal, Stage.APPROVAL, "require_fresh_user_auth")
-                will = get_will()
-                wd = await will.decide(
-                    action="self_modify",
-                    domain=getattr(ActionDomain, "STATE_MUTATION", "state_mutation"),
-                    context={"file": file_path, "intent": intent, "diff": proposal.diff_explanation},
+                wd = await WillClient().decide_async(
+                    WillRequest(
+                        content="self_modify",
+                        source="safe_pipeline",
+                        domain=getattr(ActionDomain, "STATE_MUTATION", "state_mutation"),
+                        context={"file": file_path, "intent": intent, "diff": proposal.diff_explanation},
+                    )
                 )
-                if not getattr(wd, "approved", False):
+                if not WillClient.is_approved(wd):
                     return self._block(proposal, Stage.APPROVAL, f"will_refused:{getattr(wd, 'reason', '')}")
                 proposal.will_receipt_id = getattr(wd, "receipt_id", None)
             except Exception as exc:

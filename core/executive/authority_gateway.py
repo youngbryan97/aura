@@ -593,7 +593,7 @@ class AuthorityGateway:
             category=ActionCategory.EXPRESSION,
             priority=urgency,
             is_critical=is_critical,
-            require_substrate=True,
+            require_substrate=False,
             will_receipt_id=getattr(will_decision, "receipt_id", None),
             domain="expression",
         )
@@ -639,7 +639,7 @@ class AuthorityGateway:
             category=ActionCategory.EXPRESSION,
             priority=urgency,
             is_critical=is_critical,
-            require_substrate=True,
+            require_substrate=False,
             will_receipt_id=getattr(will_decision, "receipt_id", None),
             domain="expression",
         )
@@ -844,6 +844,20 @@ class AuthorityGateway:
     ) -> tuple[Optional[AuthorityDecision], Dict[str, Any], Optional[str]]:
         authority = optional_service("substrate_authority", default=None)
         if authority is None and require_substrate:
+            if self._strict_runtime_active():
+                return (
+                    self._contextualize(
+                        approved=False,
+                        outcome="rejected",
+                        reason=f"substrate_authority_required:{domain or category.name.lower()}",
+                        constraints={"blocked": True, "missing": "substrate_authority"},
+                        will_receipt_id=will_receipt_id,
+                        domain=domain,
+                        source=source,
+                    ),
+                    {"error": "substrate_authority_required"},
+                    None,
+                )
             logger.warning("🛡️ Substrate Authority not yet registered (Boot Blind Spot). FAILING OPEN for critical signal integrity.")
             return (
                 self._contextualize(

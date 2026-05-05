@@ -93,7 +93,7 @@ def _prompt_cache_entry_budget_for_model(model_path: str) -> int:
     if any(token in lowered for token in ("72b", "solver")):
         return 0
     if any(token in lowered for token in ("32b", "cortex", "zenith")):
-        return 4
+        return 2
     if any(token in lowered for token in ("14b", "7b", "brainstem")):
         return 6
     return 12

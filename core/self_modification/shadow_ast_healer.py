@@ -79,18 +79,18 @@ class ShadowASTHealer:
     async def _check_governance_async(self, file_path: Path, action: str) -> bool:
         """Async governance check used by the repair coroutine."""
         try:
-            from core.will import get_will, ActionDomain
-            will = get_will()
-            if will is None:
-                logger.warning("ShadowHealer: Will unavailable — refusing repair (fail-closed)")
-                return False
-            decision = await will.decide(
-                action=action,
-                domain=ActionDomain.STATE_MUTATION,
-                context={"file": str(file_path), "source": "shadow_ast_healer"},
-                priority=0.6,
+            from core.governance.will_client import WillClient, WillRequest
+            from core.will import ActionDomain
+            decision = await WillClient().decide_async(
+                WillRequest(
+                    content=action,
+                    source="shadow_ast_healer",
+                    domain=ActionDomain.STATE_MUTATION,
+                    context={"file": str(file_path)},
+                    priority=0.6,
+                )
             )
-            approved = decision.is_approved() if hasattr(decision, "is_approved") else False
+            approved = WillClient.is_approved(decision)
             if not approved:
                 logger.warning(
                     "ShadowHealer: Governance DENIED repair of %s: %s",

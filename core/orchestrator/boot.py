@@ -257,7 +257,7 @@ class OrchestratorBootMixin(
         # UPSO State Layer (Moved to _init_basic_state for early boot access)
         # self.state_repo = StateRepository()
         # self.mind_tick = MindTick(self)
-        
+
         # v14.1 FIX: Ensure queues exist for processing
         if not hasattr(self, 'message_queue') or self.message_queue is None:
             from core.utils.queues import PriorityBackpressuredQueue
@@ -721,3 +721,23 @@ class OrchestratorBootMixin(
                 self.status.initialized = True 
                 self.status.healthy = False
                 logger.warning("⚠️ BOOT: Entering degraded state. Cycle starting despite errors.")
+
+
+async def boot_orchestrator(*, headless: bool = True, skip_gui: bool = True, **kwargs: Any) -> Any:
+    """Compatibility boot helper used by legacy headless tests.
+
+    The canonical factory lives in ``core.orchestrator.main``. This shim
+    preserves the old import while delegating to the existing orchestrator
+    factory instead of introducing a second boot path.
+    """
+    from core.orchestrator.main import create_orchestrator
+
+    orchestrator = create_orchestrator(**kwargs)
+    setup = getattr(orchestrator, "setup", None)
+    status = getattr(orchestrator, "status", None)
+    if status is None and callable(setup):
+        setup()
+    if skip_gui:
+        setattr(orchestrator, "_skip_gui", True)
+    setattr(orchestrator, "_headless", bool(headless))
+    return orchestrator

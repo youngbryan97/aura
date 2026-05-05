@@ -37,7 +37,7 @@ class DummyOrchestrator(MessageHandlingMixin):
         self.conversation_history.append({"role": role, "content": message})
 
 @pytest.mark.asyncio
-async def test_auto_continuation_triggers():
+async def test_auto_continuation_triggers(monkeypatch):
     orchestrator = DummyOrchestrator()
     
     # We will simulate a truncation (ends with a letter) followed by a completion (ends with a period)
@@ -54,8 +54,8 @@ async def test_auto_continuation_triggers():
     class MockKernel:
         def is_ready(self): return False
         
-    ki.KernelInterface.get_instance = MagicMock(return_value=MockKernel())
-    container.ServiceContainer.get = MagicMock(return_value=None)
+    monkeypatch.setattr(ki.KernelInterface, "get_instance", MagicMock(return_value=MockKernel()))
+    monkeypatch.setattr(container.ServiceContainer, "get", MagicMock(return_value=None))
     
     # Mock will
     import core.will as will
@@ -69,7 +69,7 @@ async def test_auto_continuation_triggers():
         _started = True
         def decide(self, *args, **kwargs): return MockWillDecision()
         
-    will.get_will = MagicMock(return_value=MockWill())
+    monkeypatch.setattr(will, "get_will", MagicMock(return_value=MockWill()))
     
     # Pad string to > 200 chars to trigger continuation
     long_first_part = "This is the first part of a very long sentence that just cuts off. " * 5 + "and then it cuts off"
