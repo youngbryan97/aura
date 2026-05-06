@@ -256,14 +256,15 @@ class SubstrateAuthority:
         chem_decision = AuthorizationDecision.ALLOW
         if chem_state in ("cortisol_crisis", "gaba_collapse"):
             # During crisis, direct user asks can still use tools/memory, but only in a constrained mode.
+            # FIX: Allow MEMORY_WRITE during crisis if priority > 0.6 to prevent "functional lobotomy".
             if category not in (ActionCategory.STABILIZATION, ActionCategory.RESPONSE):
-                if user_facing_request and category in (
+                if (user_facing_request or priority > 0.6) and category in (
                     ActionCategory.TOOL_EXECUTION,
                     ActionCategory.MEMORY_WRITE,
                 ):
                     chem_decision = AuthorizationDecision.CONSTRAIN
                     constraints.append(
-                        f"neurochemical_{chem_state}: user_facing_{category.name.lower()}_constrained"
+                        f"neurochemical_{chem_state}: {category.name.lower()}_constrained_by_priority"
                     )
                 elif (
                     category == ActionCategory.STATE_MUTATION

@@ -713,7 +713,6 @@ def register_continuous_learner(orchestrator=None) -> ContinuousLearner:
         adapter_dir=str(config.paths.data_dir / "learning" / "adapters"),
     )
 
-    ServiceContainer.register_instance("continuous_learner", learner)
-    logger.info("🧬 ContinuousLearner registered. Genuine learning is active.")
+    logger.info("🧬 ContinuousLearner created.")
     return learner
 

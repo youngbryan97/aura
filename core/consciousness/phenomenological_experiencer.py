@@ -1097,11 +1097,10 @@ class PhenomenologicalExperiencer:
 
         self._load_phenomenal_memory()
         
-        # Register in ServiceContainer
-        from core.container import ServiceContainer
-        ServiceContainer.register_instance("phenomenological_experiencer", self)
+        # Registration is now handled by the factory in consciousness_provider.py
+        # or the orchestrator boot sequence.
         
-        logger.info("🌟 PhenomenologicalExperiencer initialized and registered")
+        logger.info("🌟 PhenomenologicalExperiencer initialized")
 
     def set_refs(
         self,

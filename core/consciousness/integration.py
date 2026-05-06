@@ -23,6 +23,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from core.consciousness.phenomenological_experiencer import get_experiencer
+from core.container import ServiceContainer
 
 logger = logging.getLogger("Aura.ConsciousnessIntegration")
 
@@ -89,6 +90,9 @@ class ConsciousnessIntegration:
 
     async def initialize(self):
         """Perform initialization and cross-wiring."""
+        # Register the experiencer so others can find it
+        ServiceContainer.register_instance("phenomenological_experiencer", self.experiencer)
+        
         try:
             # Wire references if orchestrator is available
             if self.orchestrator:

@@ -406,23 +406,27 @@ class BootCognitiveMixin:
         try:
             # 1. Affect Engine (Damasio V2)
             from core.affect.damasio_v2 import AffectEngineV2
-            affect = ServiceContainer.get("affect_engine")
-            ServiceContainer.register_instance("affect_engine", affect)
-            ServiceContainer.register_instance("affect_manager", affect)
-            logger.info(
-                "✓ AffectEngineV2 (affect_engine/affect_manager) registered"
-            )
+            affect = ServiceContainer.get("affect_engine", default=None)
+            if affect:
+                ServiceContainer.register_instance("affect_engine", affect)
+                ServiceContainer.register_instance("affect_manager", affect)
+                logger.info(
+                    "✓ AffectEngineV2 (affect_engine/affect_manager) registered"
+                )
+            else:
+                logger.warning("⚠️ AffectEngineV2 not found in container; skipping explicit registration.")
 
             # 2. Subsystem Audit
             from core.subsystem_audit import SubsystemAudit
-            audit = ServiceContainer.get("subsystem_audit")
+            audit = ServiceContainer.get("subsystem_audit", default=None)
 
             # 3. Qualia Synthesizer (Unified)
             # Explicitly register qualia_synthesizer for LoopMonitor tracking.
             # ConsciousnessSystem will resolve it via ServiceContainer or create fresh.
             from core.consciousness.qualia_synthesizer import QualiaSynthesizer
-            synth = ServiceContainer.get("qualia_synthesizer")
-            logger.info("✓ QualiaSynthesizer registered (initial registration)")
+            synth = ServiceContainer.get("qualia_synthesizer", default=None)
+            if synth:
+                logger.info("✓ QualiaSynthesizer registered (initial registration)")
 
             from core.consciousness import ConsciousnessSystem
 

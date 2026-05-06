@@ -206,19 +206,17 @@ class ServiceContainer:
         subsystems that boot asynchronously (final_engines, affective_circumplex,
         architecture_index, etc.) can complete their setup without crashing.
         """
-        existing = cls.has(name)
-        existing_instance = None
-        if existing:
-            try:
-                existing_instance = cls.get(name, default=None)
-            except LifecycleError:
-                with cls._lock:
-                    desc = cls._services.get(cls._resolve_name(name))
-                if desc is not None:
-                    if desc.instance is not None:
-                        existing_instance = desc.instance
-                    elif not callable(desc.factory):
-                        existing_instance = desc.factory
+        with cls._lock:
+            resolved_name = cls._resolve_name(name)
+            desc = cls._services.get(resolved_name)
+            if desc and desc.instance is not None:
+                existing_instance = desc.instance
+            elif desc and not callable(desc.factory):
+                existing_instance = desc.factory
+            else:
+                existing_instance = None
+            
+            existing = desc is not None
         if cls._registration_locked:
             logger.debug("⚠️ Late instance registration (post-lock): '%s' — allowed for pre-built instances.", name)
             if (
