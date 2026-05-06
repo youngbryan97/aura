@@ -13,6 +13,8 @@ inside a single local coding turn.
   - `DeliberationController` candidate choice.
   - `Planner` candidate rescoring.
   - `CounterfactualEngine` autonomous alternative ranking.
+  - `RecursiveSelfImprovementLoop` action ranking before Will authorization
+    and before any weight/code mutation.
 - Added explicit System 2 receipts with algorithm, budget, seed, best path,
   runner-up paths, value scores, rejected branches, uncertainty, and Will receipt.
 - Hardened paraconsistent contradiction detection for common semantic antonym
@@ -49,6 +51,15 @@ python -m pytest tests/test_hierarchical_phi.py tests/test_context_attentional_g
   tests/architect/test_autonomous_architect.py::test_cli_auto_t1_runs_in_temp_repo \
   tests/test_launcher_polish_contract.py::test_launcher_cleanup_shim_exists_at_repo_root \
   tests/test_consciousness_expansion_gauntlet.py -q --tb=short
+python -m pytest tests/test_recursive_self_improvement_loop.py \
+  tests/test_rsi_validation_gauntlet.py::test_rsi_authorization_fails_closed_when_will_unavailable \
+  tests/test_rsi_validation_gauntlet.py::test_rsi_authorization_degraded_open_requires_explicit_env \
+  -q --tb=short
+python -m pytest tests/test_caa_32b_real_ab.py tests/steering/test_caa_32b.py \
+  tests/test_adversarial_statistics.py -q --tb=short
+python training/caa_32b_validation.py \
+  --behavioral-results tests/CAA_32B_AB_LIVE_RESULTS.json \
+  --output artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/CAA_32B_RESULTS.json
 python tools/security_scan.py
 python tools/behavioral_proof_smoke.py \
   --output artifacts/proof_bundle/2026-05-05-ivs/behavioral_proof_latest.json \
@@ -56,6 +67,8 @@ python tools/behavioral_proof_smoke.py \
 python tools/proof_bundle.py --output-dir artifacts/proof_bundle/2026-05-05-ivs/proof_bundle
 python -m pytest tests/ -q --tb=no \
   --junitxml=artifacts/proof_bundle/2026-05-05-ivs/pytest_full_final2.xml
+python -m pytest tests/ -q --tb=no \
+  --junitxml=artifacts/proof_bundle/2026-05-05-ivs/pytest_full_after_caa_rsi.xml
 ```
 
 ## Final Local Results
@@ -63,18 +76,24 @@ python -m pytest tests/ -q --tb=no \
 - Full suite before final System 2 changes: `4359 passed, 8 skipped, 7 warnings, 1 subtests passed`.
 - Consciousness expansion gauntlet: `10 passed`.
 - Native System 2 + validation hardening slice: `22 passed`.
+- RSI Native System 2 slice: `7 passed`.
+- CAA 32B A/B pipeline slice: `20 passed, 1 skipped`.
+- CAA 32B validator with live production A/B artifact: `passed: true`.
 - Cognitive/interaction/will compatibility slice: `157 passed`.
 - Prior-failure/gauntlet compatibility slice: `36 passed`.
 - Security scan after contact-literal scrub: `passed: true`, `findings: []`.
 - Behavioral proof smoke: `passed: true`.
-- Proof bundle generation: `passed: true`, `all_files_generated: true`.
+- Proof bundle generation: `passed: true`, `all_files_generated: true`,
+  `readiness_passed: true`.
 - Final full suite after all code/docs changes:
   `4381 passed, 8 skipped, 7 warnings, 1 subtests passed in 415.40s`.
+- Final full suite after RSI/System2 direct wiring and CAA readiness closure:
+  `4383 passed, 8 skipped, 7 warnings, 1 subtests passed in 593.53s`.
 
 Final full-suite rerun artifact:
 
 ```text
-artifacts/proof_bundle/2026-05-05-ivs/pytest_full_final2.xml
+artifacts/proof_bundle/2026-05-05-ivs/pytest_full_after_caa_rsi.xml
 ```
 
 Proof artifacts:
@@ -99,9 +118,8 @@ human/blind-judge studies. Those are tracked in
 The honest standard is: runnable local tests must pass; nonlocal proof items
 must remain explicit pending obligations with blockers and required artifacts.
 
-The proof-bundle readiness check still marks `CAA_32B_RESULTS.json` as not
-fully ready because no live production-32B behavioral A/B results were supplied.
-The vector artifacts and geometry checks are present, but the strongest claim
-that hidden-state steering beats rich textual controls on held-out live tasks
-remains a separately tracked proof obligation. This is intentionally not
-converted into a local pass.
+The `CAA_32B_RESULTS.json` placeholder is closed. The proof-bundle validator now
+consumes `tests/CAA_32B_AB_LIVE_RESULTS.json`, a live production-32B A/B artifact
+with 50 trials across 5 held-out tasks. That artifact reports rich-prompt
+adversarial-control pass with `effect_size_d=3.4336`, `p=0.00019996`, and
+`passes_adversarial_control=true`.

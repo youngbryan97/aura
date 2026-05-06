@@ -15,7 +15,7 @@
     },
     "CAA_32B_RESULTS.json": {
       "exists": true,
-      "passed": false,
+      "passed": true,
       "summary": {
         "activation_vector_count": 15,
         "vector_count": 16
@@ -75,13 +75,13 @@
     "SELF_REPAIR_LINEAGE.json": "artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/SELF_REPAIR_LINEAGE.json",
     "STDP_EXTERNAL_VALIDATION.json": "artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/STDP_EXTERNAL_VALIDATION.json"
   },
-  "generated_at": 1778039474.860567,
+  "generated_at": 1778040870.624691,
   "git": {
-    "commit": "da6d08b9276491c11121635482133bb663725af7",
-    "status": "M .aura/memfs/user.txt\n M core/architect/proof_obligations.py\n M core/brain/deliberation.py\n M core/brain/llm/context_gate.py\n M core/brain/llm/recurrent_depth.py\n M core/brain/planner.py\n M core/cognition/paraconsistent_logic.py\n M core/consciousness/affective_steering.py\n M core/consciousness/counterfactual_engine.py\n M core/consciousness/hierarchical_phi.py\n M core/patches/pending_patch.py\n M core/prime_directives.py\n M core/providers/cognitive_provider.py\n M core/self_modification/safe_modification_harness.py\n M core/senses/interaction_signals.py\n M core/volition.py\n M docs/AURA_TEST_COMMANDS.md\n M tests/CONTINUITY_TORTURE_RESULTS.json\n M tests/STEERING_AB_RESULTS.json\n M tests/test_projects.db\n M training/adapters/aura-personality/adapter_config.json\n M training/architecture_knowledge.py\n M training/build_dataset_v3.py\n M training/character_voices.py\n M training/data/train.jsonl\n M training/data/valid.jsonl\n M training/finetune_lora.py\n?? artifacts/proof_bundle/2026-05-05-ivs/\n?? aura_cleanup.py\n?? core/reasoning/__init__.py\n?? core/reasoning/native_system2.py\n?? docs/THIRD_PARTY_VALIDATION_2026_05_05.md\n?? tests/system2/\n?? tests/test_validation_hardening.py\n?? training/raw_data/new_scraped_quotes.json\n?? training/raw_data/scrape_new_characters.py"
+    "commit": "330453cab6d8ffee897d6034a229e7e26889f6ba",
+    "status": "M .aura/memfs/user.txt\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/ACTIVATION_REPORT.json\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/BOOT_HEALTH.json\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/CAA_32B_RESULTS.json\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/DECISIVE_RESULTS.json\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/GOVERNANCE_COVERAGE.json\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/LONGEVITY_RUN.json\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/MUTATION_TEST_REPORT.json\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/SECURITY_SCAN.json\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/SELF_REPAIR_LINEAGE.json\n M artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/STDP_EXTERNAL_VALIDATION.json\n M core/learning/recursive_self_improvement.py\n M core/patches/pending_patch.py\n M tests/CONTINUITY_TORTURE_RESULTS.json\n M tests/STEERING_AB_RESULTS.json\n M tests/test_caa_32b_real_ab.py\n M tests/test_projects.db\n M tests/test_recursive_self_improvement_loop.py\n M tools/proof_bundle.py\n M training/adapters/aura-personality/adapter_config.json\n M training/architecture_knowledge.py\n M training/build_dataset_v3.py\n M training/caa_32b_validation.py\n M training/character_voices.py\n M training/data/train.jsonl\n M training/data/valid.jsonl\n M training/finetune_lora.py\n?? training/raw_data/new_scraped_quotes.json\n?? training/raw_data/scrape_new_characters.py"
   },
   "passed": true,
-  "readiness_passed": false,
+  "readiness_passed": true,
   "required_files": [
     "DECISIVE_RESULTS.json",
     "CAA_32B_RESULTS.json",

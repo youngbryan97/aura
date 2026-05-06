@@ -147,6 +147,24 @@ python -m pytest \
   tests/test_launcher_polish_contract.py::test_launcher_cleanup_shim_exists_at_repo_root \
   tests/test_consciousness_expansion_gauntlet.py \
   -q --tb=short
+
+python -m pytest \
+  tests/test_recursive_self_improvement_loop.py \
+  tests/test_rsi_validation_gauntlet.py::test_rsi_authorization_fails_closed_when_will_unavailable \
+  tests/test_rsi_validation_gauntlet.py::test_rsi_authorization_degraded_open_requires_explicit_env \
+  -q --tb=short
+
+python -m pytest \
+  tests/test_caa_32b_real_ab.py \
+  tests/steering/test_caa_32b.py \
+  tests/test_adversarial_statistics.py \
+  -q --tb=short
+
+python training/caa_32b_validation.py \
+  --behavioral-results tests/CAA_32B_AB_LIVE_RESULTS.json \
+  --output artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/CAA_32B_RESULTS.json
+
+python tools/proof_bundle.py --output-dir artifacts/proof_bundle/2026-05-05-ivs/proof_bundle
 ```
 
 Full proof command:
@@ -158,7 +176,8 @@ python -m pytest tests/ -q --tb=no \
 
 Native System 2 is not a standalone utility. It is registered as
 `native_system2` / `system2_search`, governed by UnifiedWill, and currently
-wired into deliberation, the planner, and counterfactual autonomous choice.
+wired into deliberation, the planner, counterfactual autonomous choice, and
+RecursiveSelfImprovementLoop action ranking before mutation authorization.
 
 ## Notes
 

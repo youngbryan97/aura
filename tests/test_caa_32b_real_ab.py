@@ -194,3 +194,48 @@ class TestCAA32BBehavioralAB:
         assert ab.get("available") is True
         assert ab.get("passed") is True
         Path(f.name).unlink(missing_ok=True)
+
+    def test_live_32b_ab_results_schema_integration(self):
+        """The proof bundle can consume the live 32B A/B artifact directly."""
+        if not VECTORS_DIR.exists():
+            pytest.skip("training/vectors/ not found")
+        behavioral = {
+            "model": MODEL_PATH,
+            "n_trials": 50,
+            "held_out_tasks": HELD_OUT_TASKS,
+            "passes_adversarial_control": True,
+            "analysis": {
+                "n_trials": 50,
+                "steered_vs_terse": {
+                    "observed_delta": 0.007,
+                    "p_value": 0.34,
+                    "ci_low": -0.03,
+                    "ci_high": 0.04,
+                    "effect_size_d": 0.07,
+                },
+                "steered_vs_rich": {
+                    "observed_delta": 0.168,
+                    "p_value": 0.0002,
+                    "ci_low": 0.14,
+                    "ci_high": 0.18,
+                    "effect_size_d": 3.43,
+                },
+                "steered_vs_baseline_mean_distance": 0.63,
+                "rich_vs_baseline_mean_distance": 0.80,
+                "passes_adversarial_control": True,
+            },
+        }
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(behavioral, f)
+            f.flush()
+            validator = CAA32BValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
+            report = validator.run(behavioral_results=f.name)
+
+        ab = report.get("behavioral_ab", {})
+        assert ab.get("available") is True
+        assert ab.get("passed") is True
+        assert ab["raw"]["source_schema"] == "live_32b_ab"
+        assert report["passed"] is True
+        Path(f.name).unlink(missing_ok=True)

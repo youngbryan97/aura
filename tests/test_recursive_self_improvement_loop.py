@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from core.container import ServiceContainer
 from core.learning.recursive_self_improvement import (
+    ImprovementPlan,
     ImprovementScorecard,
     RecursiveSelfImprovementLoop,
 )
@@ -79,6 +82,60 @@ async def test_recursive_loop_rolls_back_weight_update_without_gain(tmp_path: Pa
     assert result.promoted is False
     assert result.rollback_performed is True
     assert learner.rollback_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_recursive_loop_uses_native_system2_to_rank_rsi_actions(monkeypatch, tmp_path: Path):
+    class Receipt:
+        commitment_reason = "System 2 prefers safer structural repair first"
+        will_receipt_id = "will-system2-rsi"
+
+        def to_dict(self):
+            return {
+                "commitment_reason": self.commitment_reason,
+                "will_receipt_id": self.will_receipt_id,
+            }
+
+    class FakeSystem2:
+        def __init__(self):
+            self.calls = []
+
+        async def rank_actions(self, **kwargs):
+            self.calls.append(kwargs)
+            return SimpleNamespace(
+                search_id="s2-rsi-test",
+                confidence=0.82,
+                committed_action=SimpleNamespace(name="code_refinement", metadata={}),
+                receipt=Receipt(),
+            )
+
+    fake = FakeSystem2()
+    monkeypatch.setattr(ServiceContainer, "_services", dict(ServiceContainer._services))
+    monkeypatch.setattr(ServiceContainer, "_aliases", dict(ServiceContainer._aliases))
+    ServiceContainer.register_instance("native_system2", fake)
+
+    loop = RecursiveSelfImprovementLoop(
+        ledger_path=tmp_path / "rsi.jsonl",
+        require_will_authorization=False,
+    )
+    plan = ImprovementPlan(
+        objective="improve RSI planning",
+        actions=["weight_update", "code_refinement"],
+        rationale=["both actions are available"],
+        depth=0,
+    )
+
+    refined = await loop._refine_plan_with_native_system2(
+        plan,
+        ImprovementScorecard(score=0.4, metrics={"quality": 0.4}),
+    )
+
+    assert fake.calls
+    assert refined.actions[0] == "code_refinement"
+    assert refined.system2_search_id == "s2-rsi-test"
+    assert refined.system2_selected_action == "code_refinement"
+    assert refined.system2_confidence == 0.82
+    assert refined.system2_receipt["will_receipt_id"] == "will-system2-rsi"
 
 
 def test_structural_improver_finds_and_repairs_missing_os_import(tmp_path: Path):

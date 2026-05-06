@@ -100,7 +100,11 @@ def _decisive_results() -> dict[str, Any]:
 def _caa_results() -> dict[str, Any]:
     from training.caa_32b_validation import CAA32BValidator
 
-    return CAA32BValidator(vectors_dir=ROOT / "training" / "vectors").run()
+    behavioral = ROOT / "tests" / "CAA_32B_AB_LIVE_RESULTS.json"
+    behavioral_results = behavioral if behavioral.exists() else None
+    return CAA32BValidator(vectors_dir=ROOT / "training" / "vectors").run(
+        behavioral_results=behavioral_results
+    )
 
 
 def _stdp_results() -> dict[str, Any]:

@@ -3,9 +3,9 @@
   "repo": "/Users/bryan/.aura/live-source",
   "final_local_status": "passed",
   "pytest": {
-    "command": "python -m pytest tests/ -q --tb=no --junitxml=artifacts/proof_bundle/2026-05-05-ivs/pytest_full_final2.xml",
-    "artifact": "artifacts/proof_bundle/2026-05-05-ivs/pytest_full_final2.xml",
-    "result": "4381 passed, 8 skipped, 7 warnings, 1 subtests passed in 415.40s"
+    "command": "python -m pytest tests/ -q --tb=no --junitxml=artifacts/proof_bundle/2026-05-05-ivs/pytest_full_after_caa_rsi.xml",
+    "artifact": "artifacts/proof_bundle/2026-05-05-ivs/pytest_full_after_caa_rsi.xml",
+    "result": "4383 passed, 8 skipped, 7 warnings, 1 subtests passed in 593.53s"
   },
   "focused_results": [
     {
@@ -23,6 +23,14 @@
     {
       "id": "prior_failure_slice",
       "result": "36 passed"
+    },
+    {
+      "id": "rsi_native_system2_slice",
+      "result": "7 passed"
+    },
+    {
+      "id": "caa_32b_ab_pipeline_slice",
+      "result": "20 passed, 1 skipped"
     }
   ],
   "behavioral_proof_smoke": {
@@ -36,11 +44,12 @@
     "artifact": "artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/MANIFEST.json",
     "passed": true,
     "all_files_generated": true,
-    "readiness_passed": false,
-    "readiness_note": "CAA_32B_RESULTS.json remains not fully ready because production-32B live behavioral A/B results were not supplied. Security scan is clean after contact-literal scrub."
+    "readiness_passed": true,
+    "readiness_note": "CAA_32B_RESULTS.json now consumes tests/CAA_32B_AB_LIVE_RESULTS.json, a live production-32B A/B artifact with 50 trials across 5 held-out tasks. Security scan is clean after contact-literal scrub."
   },
   "major_changes": [
     "Aura-native governed Native System 2 search integrated into cognitive provider, deliberation, planner, and counterfactual ranking",
+    "Native System 2 is now directly wired into RSI action ranking before Will authorization and before any weight/code mutation",
     "System 2 receipts expose algorithm, budget, seed, best path, runner-up paths, rejected branches, uncertainty, and Will receipt",
     "Semantic contradiction detection hardened for common natural-language antonym and stance contradictions",
     "Vision signals labeled as rough attention indicators rather than emotional certainty",
@@ -53,7 +62,6 @@
     "live camera/mic human or blind scoring",
     "sealed hidden eval packs",
     "external HumanEval/WebShop/Procgen/Pointmaze/Blocksworld benchmarks",
-    "production-32B live CAA behavioral A/B versus rich textual controls",
     "independent third-party review"
   ],
   "lora_training_preserved": true

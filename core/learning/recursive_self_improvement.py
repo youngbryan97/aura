@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
@@ -57,6 +57,11 @@ class ImprovementPlan:
     depth: int
     fine_tune_type: str = "lora"
     full_weights_unlocked: bool = False
+    system2_search_id: str = ""
+    system2_selected_action: str = ""
+    system2_confidence: float = 0.0
+    system2_reason: str = ""
+    system2_receipt: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -200,6 +205,7 @@ class RecursiveSelfImprovementLoop:
             force=force,
             depth=depth,
         )
+        plan = await self._refine_plan_with_native_system2(plan, baseline)
 
         authorized, reason = self._authorize(plan)
         if not authorized:
@@ -334,6 +340,119 @@ class RecursiveSelfImprovementLoop:
             fine_tune_type=fine_tune_type,
             full_weights_unlocked=full_weights_unlocked,
         )
+
+    async def _refine_plan_with_native_system2(
+        self,
+        plan: ImprovementPlan,
+        baseline: ImprovementScorecard,
+    ) -> ImprovementPlan:
+        """Use Aura's governed Native System 2 substrate to rank RSI actions.
+
+        System 2 does not mutate weights or source here. It evaluates the
+        candidate improvement actions, records an auditable search receipt, and
+        may reorder or defer the planned actions before the existing Will gate
+        authorizes anything effectful.
+        """
+        try:
+            from core.container import ServiceContainer
+            from core.reasoning.native_system2 import SearchAlgorithm, System2SearchConfig
+
+            system2 = ServiceContainer.get("native_system2", default=None)
+            if system2 is None:
+                return plan
+
+            candidate_names = list(dict.fromkeys([*plan.actions, "collect_more_signal"]))
+            if len(candidate_names) < 2:
+                return plan
+
+            action_profiles = {
+                "weight_update": {
+                    "prior": 0.65,
+                    "risk": 0.45,
+                    "external_side_effect": True,
+                    "summary": "fine-tune/update LoRA weights through governed learner",
+                },
+                "code_refinement": {
+                    "prior": 0.6,
+                    "risk": 0.65,
+                    "external_side_effect": True,
+                    "summary": "route code changes through safe self-modification",
+                },
+                "collect_more_signal": {
+                    "prior": 0.35,
+                    "risk": 0.05,
+                    "external_side_effect": False,
+                    "summary": "defer mutation and collect more evidence",
+                },
+            }
+            ranked = await system2.rank_actions(
+                context=json.dumps(
+                    {
+                        "objective": plan.objective,
+                        "current_actions": plan.actions,
+                        "rationale": plan.rationale,
+                        "depth": plan.depth,
+                        "fine_tune_type": plan.fine_tune_type,
+                        "baseline": asdict(baseline),
+                    },
+                    sort_keys=True,
+                    default=str,
+                )[:1800],
+                actions=[
+                    {
+                        "name": name,
+                        "prior": action_profiles.get(name, {}).get("prior", 0.4),
+                        "risk": action_profiles.get(name, {}).get("risk", 0.25),
+                        "external_side_effect": action_profiles.get(name, {}).get("external_side_effect", False),
+                        "metadata": {
+                            "summary": action_profiles.get(name, {}).get("summary", name),
+                            "rsi_action": True,
+                            "score_hint": action_profiles.get(name, {}).get("prior", 0.4),
+                        },
+                    }
+                    for name in candidate_names
+                ],
+                config=System2SearchConfig(
+                    algorithm=SearchAlgorithm.HYBRID,
+                    budget=32,
+                    max_depth=2,
+                    branching_factor=max(2, len(candidate_names)),
+                    beam_width=min(4, len(candidate_names)),
+                    confidence_threshold=0.55,
+                ),
+                source="recursive_self_improvement",
+            )
+            selected = ranked.committed_action
+            if selected is None:
+                return plan
+            chosen = str(selected.metadata.get("verifies") or selected.name)
+            if chosen.startswith("verify:"):
+                chosen = chosen[len("verify:") :]
+
+            if chosen == "collect_more_signal" and not any(action == "collect_more_signal" for action in plan.actions):
+                actions = ["collect_more_signal"]
+            elif chosen in plan.actions:
+                actions = [chosen, *[action for action in plan.actions if action != chosen]]
+            else:
+                actions = list(plan.actions)
+
+            rationale = [
+                *plan.rationale,
+                f"Native System 2 selected {chosen}: {ranked.receipt.commitment_reason}",
+            ]
+            return replace(
+                plan,
+                actions=actions,
+                rationale=rationale,
+                system2_search_id=ranked.search_id,
+                system2_selected_action=chosen,
+                system2_confidence=ranked.confidence,
+                system2_reason=ranked.receipt.commitment_reason,
+                system2_receipt=ranked.receipt.to_dict(),
+            )
+        except Exception as exc:
+            record_degradation("recursive_self_improvement.native_system2", exc)
+            return plan
 
     def _authorize(self, plan: ImprovementPlan) -> tuple[bool, str]:
         if not self.require_will_authorization:
