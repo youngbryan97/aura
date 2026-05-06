@@ -74,6 +74,8 @@ class VisionSignalState:
     head_pose: str = "unknown"
     attention_available: float = 0.0
     eyes_detected: int = 0
+    method: str = "haar_cascade_pupil_threshold"
+    reliability: str = "rough_attention_indicator"
 
 
 @dataclass
@@ -169,6 +171,8 @@ class InteractionSignalsEngine:
             "vision_backend": {
                 "ready": self._vision_backend_ready,
                 "reason": self._vision_backend_reason,
+                "method": "haar_cascade_pupil_threshold",
+                "reliability": "rough_attention_indicator",
             },
         }
 
@@ -194,6 +198,7 @@ class InteractionSignalsEngine:
                 f"- Attention available: {fused.attention_available:.2f}. Hesitation: {fused.hesitation:.2f}.",
                 f"- Response shaping: keep pacing {fused.pacing}, keep verbosity {fused.verbosity_bias}, and let question pressure track {fused.question_pressure:.2f}.",
                 *(f"- Camera cue: {', '.join(vision_bits)}." for _ in [0] if vision_bits),
+                *(["- Camera-derived gaze and head pose are rough attention indicators, not emotional certainty."] if vision_bits else []),
                 "- Use these cues to shape tone and pacing. Do not claim certainty about the user's inner emotions unless they say them directly.",
             ]
         )
@@ -336,6 +341,8 @@ class InteractionSignalsEngine:
             head_pose=str(payload.get("head_pose") or "unknown"),
             attention_available=round(_clamp01(_safe_float(payload.get("attention_available"), 0.0)), 4),
             eyes_detected=max(0, int(_safe_float(payload.get("eyes_detected"), 0.0))),
+            method=str(payload.get("method") or "haar_cascade_pupil_threshold"),
+            reliability=str(payload.get("reliability") or "rough_attention_indicator"),
         )
 
     def _compute_fused_state(self) -> FusedInteractionState:
@@ -485,9 +492,11 @@ class InteractionSignalsEngine:
                     "updated_at": time.time(),
                     "face_present": False,
                     "face_count": 0,
-                    "attention_available": 0.0,
+                    "attention_available": 0.28,
                     "gaze_direction": "absent",
                     "head_pose": "absent",
+                    "method": "haar_cascade_pupil_threshold",
+                    "reliability": "rough_attention_indicator",
                 }
 
             x, y, w, h = max(faces, key=lambda item: int(item[2]) * int(item[3]))
@@ -572,6 +581,8 @@ class InteractionSignalsEngine:
                 "eyes_detected": int(len(eyes)),
                 "width": int(metadata.get("width") or frame_w),
                 "height": int(metadata.get("height") or frame_h),
+                "method": "haar_cascade_pupil_threshold",
+                "reliability": "rough_attention_indicator",
             }
         except Exception as exc:
             record_degradation('interaction_signals', exc)

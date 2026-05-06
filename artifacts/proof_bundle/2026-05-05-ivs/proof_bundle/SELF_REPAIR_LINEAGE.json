@@ -1,0 +1,984 @@
+{
+  "calibration": {
+    "buckets": [],
+    "generated_at": 1778039444.952944
+  },
+  "generated_at": 1778039444.952342,
+  "recent_patches": [
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1778039003.0808718,
+      "patch_id": "patch_06ff34c3c7d3ae70",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1778015438.262651,
+      "patch_id": "patch_e40fa261d67ca3c1",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1778014426.892965,
+      "patch_id": "patch_83d583697b81365a",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777980832.207106,
+      "patch_id": "patch_482bea538b5b273b",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777956610.2517629,
+      "patch_id": "patch_738ff2421224a638",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777956185.8273191,
+      "patch_id": "patch_d469255666e2dc21",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777954914.229824,
+      "patch_id": "patch_2ac22dd75c649c70",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777954569.740439,
+      "patch_id": "patch_aa8047cbc2616cb2",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777954221.780303,
+      "patch_id": "patch_4c4401a604daca5e",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777953973.150571,
+      "patch_id": "patch_5415dc6e304ebdad",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777953625.2679172,
+      "patch_id": "patch_05a325c7eb274fc2",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777953442.119628,
+      "patch_id": "patch_9654126835e6806d",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777953278.682133,
+      "patch_id": "patch_730a95af53178e57",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777953102.1394298,
+      "patch_id": "patch_ddbf34748750fc8d",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777952963.481987,
+      "patch_id": "patch_36c7c8f8a70a404b",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777952062.75821,
+      "patch_id": "patch_f8790bdfc8c65c03",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777951294.699906,
+      "patch_id": "patch_c56f98d6a69e6326",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777671277.426048,
+      "patch_id": "patch_89a87d52842b617a",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777670652.098026,
+      "patch_id": "patch_4dfcc468eb93f125",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777670389.5243578,
+      "patch_id": "patch_4811593177ec82fb",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777540387.208225,
+      "patch_id": "patch_939415075560442b",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777516796.932312,
+      "patch_id": "patch_f10468b5401e3dff",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777516677.255567,
+      "patch_id": "patch_960a3b2077e4a4f2",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777516552.5084789,
+      "patch_id": "patch_2f101696082d5674",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    },
+    {
+      "bug_fingerprint": "a094ecfe7fa90641",
+      "created_at": 1777510302.84257,
+      "patch_id": "patch_5e72b188ff269482",
+      "post_metrics": {},
+      "pre_metrics": {
+        "error_type": "NameError",
+        "line": 2
+      },
+      "risk_tier": "tier1_shadow_validated_auto_fix",
+      "status": "eligible",
+      "target_files": [
+        "core/consciousness/sample_bug.py"
+      ],
+      "trigger_id": "trace_unavailable",
+      "validation": {
+        "approval": {
+          "approved": true,
+          "observation_mode": true,
+          "reasons": [
+            "deterministic shadow-validated repair"
+          ],
+          "required_gates": [
+            "targeted_test",
+            "behavioral_contracts",
+            "shadow_runtime",
+            "regression_suite",
+            "rollback_snapshot"
+          ],
+          "stage": "auto_apply_after_shadow"
+        },
+        "calibration_attempts": 0,
+        "calibration_probability": 0.55,
+        "reasons": [
+          "deterministic shadow-validated repair",
+          "observation_mode_calibrating"
+        ]
+      }
+    }
+  ]
+}

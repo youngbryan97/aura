@@ -6,6 +6,7 @@ import math
 
 from core.brain.llm_interface import LLMInterface
 from core.brain.trace_logger import TraceLogger
+from core.runtime.errors import record_degradation
 
 class Plan:
     def __init__(self, steps: List[str], score: float = 0.0, metadata: Optional[Dict] = None):
@@ -76,7 +77,64 @@ class Planner:
             coros = [self.score_plan(context, plan) for plan in nxt]
             if coros:
                 await asyncio.gather(*coros)
+            await self._native_system2_rescore(context, nxt)
             # sort by score desc
             nxt.sort(key=lambda p: p.score, reverse=True)
             candidates = nxt[:beam]
         return candidates
+
+    async def _native_system2_rescore(self, context: str, plans: List[Plan]) -> None:
+        """Let Aura's native System 2 substrate arbitrate plan candidates.
+
+        This does not execute plans. It only adds a governed deliberate-search
+        score so the ordinary planner benefits from the same backtracking,
+        value, simulation, and audit path as the rest of cognition.
+        """
+        if len(plans) < 2:
+            return
+        try:
+            from core.container import ServiceContainer
+            from core.reasoning.native_system2 import SearchAlgorithm, System2SearchConfig
+
+            system2 = ServiceContainer.get("native_system2", default=None)
+            if system2 is None:
+                return
+            ranked = await system2.rank_actions(
+                context=context[:1200],
+                actions=[
+                    {
+                        "name": " -> ".join(plan.steps) or "(empty plan)",
+                        "prior": max(0.05, plan.score),
+                        "metadata": {"index": idx, "score_hint": plan.score},
+                    }
+                    for idx, plan in enumerate(plans)
+                ],
+                config=System2SearchConfig(
+                    algorithm=SearchAlgorithm.HYBRID,
+                    budget=max(12, min(64, len(plans) * 10)),
+                    max_depth=2,
+                    branching_factor=len(plans),
+                    beam_width=min(5, len(plans)),
+                    confidence_threshold=0.55,
+                ),
+                source="planner",
+            )
+            root = ranked.tree.nodes[ranked.root_id]
+            for child_id in root.children_ids:
+                child = ranked.tree.nodes.get(child_id)
+                if not child or not child.action:
+                    continue
+                idx = child.action.metadata.get("index")
+                if idx is None:
+                    continue
+                plan = plans[int(idx)]
+                original = plan.score
+                plan.score = max(0.0, min(1.0, (0.55 * plan.score) + (0.45 * child.mean_value)))
+                plan.metadata["native_system2"] = {
+                    "search_id": ranked.search_id,
+                    "value": child.mean_value,
+                    "original_score": original,
+                    "will_receipt_id": ranked.receipt.will_receipt_id,
+                }
+        except Exception as exc:
+            record_degradation("planner.native_system2", exc)

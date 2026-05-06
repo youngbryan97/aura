@@ -103,6 +103,18 @@ def register_cognitive_services(container, is_proxy: bool = False):
         return DeliberationController(llm)
     container.register('deliberator', create_deliberator, lifetime=ServiceLifetime.SINGLETON, required=True)
 
+    def create_native_system2():
+        """Aura-native deliberate search, governed through UnifiedWill."""
+        try:
+            from core.reasoning.native_system2 import NativeSystem2Engine
+            llm = container.get("llm_interface", default=None)
+            return NativeSystem2Engine(llm=llm, governed=True)
+        except Exception:
+            logger.exception("Failed to create native_system2")
+            return None
+    container.register('native_system2', create_native_system2, lifetime=ServiceLifetime.SINGLETON, required=True)
+    container.register('system2_search', lambda: container.get("native_system2"), lifetime=ServiceLifetime.SINGLETON, required=False)
+
     # 4. Capability Engine (Unified)
     def create_capability_engine():
         from core.capability_engine import CapabilityEngine

@@ -1,0 +1,23 @@
+{
+  "payload": {
+    "capability_receipt_id": null,
+    "cause": "behavioral_proof.live_loop",
+    "created_at": 1778039253.031788,
+    "governance_receipt_id": "governance-9d874321-60c7-41aa-a391-70fcef13a20e",
+    "kind": "tool_execution",
+    "metadata": {},
+    "output_digest": null,
+    "receipt_id": "tool_execution-0726d1d8-6e57-4541-903f-3f614994efa5",
+    "status": "success_verified",
+    "tool": "metadata_reference_solver",
+    "verification_evidence": {
+      "artifact_id": "artifact-6f821b64754e",
+      "independent_evaluator": "HiddenEvalPack",
+      "passed": true,
+      "task_id": "6f821b64754ed270786fbd9845f305848bfa2a82cc8b2923ea43c3ed5af81a79"
+    }
+  },
+  "schema": "receipt_tool_execution",
+  "schema_name": "receipt_tool_execution",
+  "schema_version": 1
+}

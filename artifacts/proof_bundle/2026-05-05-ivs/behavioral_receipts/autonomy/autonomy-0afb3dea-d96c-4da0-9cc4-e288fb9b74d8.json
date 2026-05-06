@@ -1,0 +1,18 @@
+{
+  "payload": {
+    "autonomy_level": 2,
+    "budget_remaining": 0.625,
+    "cause": "behavioral_proof.live_loop",
+    "created_at": 1778039253.031453,
+    "governance_receipt_id": "governance-9d874321-60c7-41aa-a391-70fcef13a20e",
+    "kind": "autonomy",
+    "metadata": {
+      "competence": 1.0
+    },
+    "proposed_action": "Maintain verified competence on held-out palindrome task",
+    "receipt_id": "autonomy-0afb3dea-d96c-4da0-9cc4-e288fb9b74d8"
+  },
+  "schema": "receipt_autonomy",
+  "schema_name": "receipt_autonomy",
+  "schema_version": 1
+}

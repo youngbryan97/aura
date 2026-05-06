@@ -1,0 +1,87 @@
+{
+  "coverage": 1.0,
+  "generated_at": 1778039444.947952,
+  "missing": [],
+  "passed": true,
+  "registered_sinks": {
+    "output.primary": {
+      "allowed_domains": [
+        "expression",
+        "response"
+      ],
+      "fn_qualname": "AutonomousOutputGate._send_to_primary",
+      "sink_id": "output.primary"
+    },
+    "primitive.code_mutation": {
+      "allowed_domains": [
+        "file_write",
+        "state_mutation"
+      ],
+      "fn_qualname": "guarded_code_mutation",
+      "sink_id": "primitive.code_mutation"
+    },
+    "primitive.file_write": {
+      "allowed_domains": [
+        "file_write",
+        "state_mutation"
+      ],
+      "fn_qualname": "guarded_write_text",
+      "sink_id": "primitive.file_write"
+    },
+    "primitive.hot_reload": {
+      "allowed_domains": [
+        "state_mutation"
+      ],
+      "fn_qualname": "guarded_hot_reload",
+      "sink_id": "primitive.hot_reload"
+    },
+    "primitive.lora_training": {
+      "allowed_domains": [
+        "state_mutation",
+        "tool_execution"
+      ],
+      "fn_qualname": "guarded_lora_training",
+      "sink_id": "primitive.lora_training"
+    },
+    "primitive.memory_write": {
+      "allowed_domains": [
+        "memory_write"
+      ],
+      "fn_qualname": "guarded_memory_write",
+      "sink_id": "primitive.memory_write"
+    },
+    "primitive.network_call": {
+      "allowed_domains": [
+        "tool_execution"
+      ],
+      "fn_qualname": "guarded_network_call",
+      "sink_id": "primitive.network_call"
+    },
+    "primitive.scar_formation": {
+      "allowed_domains": [
+        "memory_write",
+        "state_mutation"
+      ],
+      "fn_qualname": "guarded_scar_formation",
+      "sink_id": "primitive.scar_formation"
+    },
+    "primitive.shell_exec": {
+      "allowed_domains": [
+        "tool_execution"
+      ],
+      "fn_qualname": "guarded_shell_exec",
+      "sink_id": "primitive.shell_exec"
+    }
+  },
+  "required": [
+    "output.primary",
+    "primitive.code_mutation",
+    "primitive.file_write",
+    "primitive.hot_reload",
+    "primitive.lora_training",
+    "primitive.memory_write",
+    "primitive.network_call",
+    "primitive.scar_formation",
+    "primitive.shell_exec"
+  ]
+}

@@ -75,6 +75,11 @@ def _get_model_profile_defaults(num_layers: int) -> tuple:
     return (1, 0.20, 0.20, 0.1)  # fallback: standard
 
 
+def _get_lane_defaults(num_layers: int) -> tuple:
+    """Backward-compatible alias for external recurrent-depth validators."""
+    return _get_model_profile_defaults(num_layers)
+
+
 def _model_size_loop_env(num_layers: int) -> Optional[str]:
     if num_layers >= 72:
         return os.environ.get("AURA_RECURRENT_LOOPS_72B")

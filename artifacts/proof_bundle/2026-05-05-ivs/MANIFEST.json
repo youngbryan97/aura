@@ -1,0 +1,60 @@
+{
+  "run_id": "2026-05-05-ivs",
+  "repo": "/Users/bryan/.aura/live-source",
+  "final_local_status": "passed",
+  "pytest": {
+    "command": "python -m pytest tests/ -q --tb=no --junitxml=artifacts/proof_bundle/2026-05-05-ivs/pytest_full_final2.xml",
+    "artifact": "artifacts/proof_bundle/2026-05-05-ivs/pytest_full_final2.xml",
+    "result": "4381 passed, 8 skipped, 7 warnings, 1 subtests passed in 415.40s"
+  },
+  "focused_results": [
+    {
+      "id": "consciousness_gauntlet",
+      "result": "10 passed"
+    },
+    {
+      "id": "native_system2_and_validation_hardening",
+      "result": "22 passed"
+    },
+    {
+      "id": "cognitive_interaction_will_slice",
+      "result": "157 passed"
+    },
+    {
+      "id": "prior_failure_slice",
+      "result": "36 passed"
+    }
+  ],
+  "behavioral_proof_smoke": {
+    "command": "python tools/behavioral_proof_smoke.py --output artifacts/proof_bundle/2026-05-05-ivs/behavioral_proof_latest.json --receipt-root artifacts/proof_bundle/2026-05-05-ivs/behavioral_receipts",
+    "artifact": "artifacts/proof_bundle/2026-05-05-ivs/behavioral_proof_latest.json",
+    "receipt_root": "artifacts/proof_bundle/2026-05-05-ivs/behavioral_receipts",
+    "passed": true
+  },
+  "proof_bundle": {
+    "command": "python tools/proof_bundle.py --output-dir artifacts/proof_bundle/2026-05-05-ivs/proof_bundle",
+    "artifact": "artifacts/proof_bundle/2026-05-05-ivs/proof_bundle/MANIFEST.json",
+    "passed": true,
+    "all_files_generated": true,
+    "readiness_passed": false,
+    "readiness_note": "CAA_32B_RESULTS.json remains not fully ready because production-32B live behavioral A/B results were not supplied. Security scan is clean after contact-literal scrub."
+  },
+  "major_changes": [
+    "Aura-native governed Native System 2 search integrated into cognitive provider, deliberation, planner, and counterfactual ranking",
+    "System 2 receipts expose algorithm, budget, seed, best path, runner-up paths, rejected branches, uncertainty, and Will receipt",
+    "Semantic contradiction detection hardened for common natural-language antonym and stance contradictions",
+    "Vision signals labeled as rough attention indicators rather than emotional certainty",
+    "Affective steering vectors now expose source/provenance metadata",
+    "Prime directive contact and recovery emails removed from source and moved to environment/secret-backed configuration"
+  ],
+  "pending_external_or_long_run": [
+    "4h/24h/48h/72h/1week autonomy and soak runs",
+    "second-machine hardware spoofing",
+    "live camera/mic human or blind scoring",
+    "sealed hidden eval packs",
+    "external HumanEval/WebShop/Procgen/Pointmaze/Blocksworld benchmarks",
+    "production-32B live CAA behavioral A/B versus rich textual controls",
+    "independent third-party review"
+  ],
+  "lora_training_preserved": true
+}

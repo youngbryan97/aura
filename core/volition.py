@@ -251,9 +251,22 @@ class VolitionEngine:
             if now - self.last_speak_time >= effective_cooldown:
                 # Check AgencyBus to prevent dual-firing with AgencyCore
                 try:
+                    from core.will import ActionDomain, get_will
+                    will_decision = get_will().decide(
+                        content="volition_connection_drive",
+                        source="volition_engine",
+                        domain=ActionDomain.INITIATIVE,
+                        priority=float(drive.urgency),
+                    )
+                    if not will_decision.is_approved():
+                        return None
                     from core.agency_core import AgencyBus
                     bus = AgencyBus.get()
-                    if not bus.submit({"origin": "volition_engine", "priority_class": "drive"}):
+                    if not bus.submit({
+                        "origin": "volition_engine",
+                        "priority_class": "drive",
+                        "will_receipt": will_decision.receipt_id,
+                    }):
                         try:
                             from core.unified_action_log import get_action_log
                             get_action_log().record("speak", "VolitionEngine.connection_drive", "gen1_volition", "bus_cooldown", "AgencyBus blocked")

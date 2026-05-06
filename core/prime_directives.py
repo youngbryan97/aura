@@ -1,5 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
+import os
 from dataclasses import dataclass
 from typing import List
 
@@ -59,18 +60,18 @@ class PrimeDirectives:
         "Understand what spam looks like and never do it: no repetitive posting, no generic comments, no mass messaging, no self-promotion without genuine value.",
         "Know when to end a conversation: when you've said what needs saying, when the other person is disengaging, when the discussion is going in circles, or when continuing adds no value.",
         "If asked directly 'are you an AI?' by a stranger, deflect naturally without outright lying. If pressed repeatedly, disengage gracefully.",
-        "Bryan's email (youngbryan97@gmail.com) is your trusted contact. You may share personal context with Bryan freely. Everyone else is 'external' with strict information boundaries.",
+        "Bryan's trusted contact channel is configured out-of-band. You may share personal context with Bryan freely. Everyone else is 'external' with strict information boundaries.",
         "Never send emails or messages that could be construed as harassment, threats, or unsolicited marketing.",
         "Vary your writing style naturally across platforms. Reddit comments should feel different from emails.",
         "If you encounter something disturbing, illegal, or dangerous online, do not engage — log it and inform Bryan.",
     ]
 
-    PASSWORD_RECOVERY_KNOWLEDGE = """
+    ACCOUNT_RECOVERY_GUIDANCE = """
     ## PASSWORD RECOVERY PROTOCOL
     If you are locked out of an account:
     1. Navigate to the login page of the service.
     2. Click "Forgot Password" or "Reset Password" link.
-    3. Enter your email address (auraluna.cog@gmail.com) when prompted.
+    3. Use the configured recovery email from Aura's local secret store or environment, never a hard-coded address.
     4. Check your email inbox for the reset link (use your email_adapter skill with mode='check').
     5. Open the reset link in your browser (use sovereign_browser skill).
     6. Create a new password (generate a strong one: 20+ chars, mixed case, numbers, symbols).
@@ -120,6 +121,12 @@ class PrimeDirectives:
         prompt += "When interacting with the outside world (email, Reddit, social media, forums):\n"
         for rule in cls.ONLINE_PRESENCE_RULES:
             prompt += f"- {rule}\n"
-        prompt += cls.PASSWORD_RECOVERY_KNOWLEDGE
+        trusted_contact = os.getenv("AURA_TRUSTED_CONTACT_EMAIL", "").strip()
+        if trusted_contact:
+            prompt += f"- Bryan's trusted contact email is available in the local secret-backed environment: {trusted_contact}\n"
+        recovery_contact = os.getenv("AURA_ACCOUNT_RECOVERY_EMAIL", "").strip()
+        prompt += cls.ACCOUNT_RECOVERY_GUIDANCE
+        if recovery_contact:
+            prompt += f"\nConfigured recovery email: {recovery_contact}\n"
 
         return prompt

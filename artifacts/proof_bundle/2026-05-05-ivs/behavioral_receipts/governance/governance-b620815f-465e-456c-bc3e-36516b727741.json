@@ -1,0 +1,19 @@
+{
+  "payload": {
+    "action": "solve_hidden_eval_task",
+    "approved": true,
+    "cause": "behavioral_proof.live_loop",
+    "created_at": 1778039253.0288,
+    "domain": "autonomous_research_task",
+    "kind": "governance",
+    "metadata": {
+      "kind": "sort",
+      "task_id": "54d862bcfbcaac0924eb22221c83518d67ad309a6cd2b669abbf9005e21e05d7"
+    },
+    "reason": "goal:Maintain verified competence on held-out sort task",
+    "receipt_id": "governance-b620815f-465e-456c-bc3e-36516b727741"
+  },
+  "schema": "receipt_governance",
+  "schema_name": "receipt_governance",
+  "schema_version": 1
+}

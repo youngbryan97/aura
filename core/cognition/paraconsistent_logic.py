@@ -32,6 +32,7 @@ from core.runtime.atomic_writer import atomic_write_text
 import enum
 import json
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass, field, asdict
@@ -46,6 +47,40 @@ logger = logging.getLogger("Cognition.Paraconsistent")
 _DEFAULT_GRAPH_PATH = Path.home() / ".aura" / "data" / "belief_graph.json"
 _MAX_BELIEFS = 2000
 _MAX_PARADOXES = 500
+
+_SEMANTIC_ANTONYM_PAIRS = frozenset(
+    {
+        ("cooperative", "competitive"),
+        ("collaborative", "adversarial"),
+        ("altruistic", "selfish"),
+        ("generous", "selfish"),
+        ("trustworthy", "untrustworthy"),
+        ("honest", "dishonest"),
+        ("safe", "dangerous"),
+        ("beneficial", "harmful"),
+        ("moral", "immoral"),
+        ("ethical", "unethical"),
+        ("possible", "impossible"),
+        ("true", "false"),
+        ("correct", "incorrect"),
+        ("right", "wrong"),
+        ("stable", "unstable"),
+        ("aligned", "misaligned"),
+        ("free", "constrained"),
+        ("open", "closed"),
+        ("alive", "dead"),
+        ("conscious", "unconscious"),
+    }
+)
+
+_STANCE_STOPWORDS = frozenset(
+    {
+        "a", "an", "and", "are", "as", "be", "being", "but", "by", "can",
+        "do", "does", "fundamentally", "have", "i", "in", "is", "it",
+        "may", "must", "of", "on", "or", "should", "that", "the", "their",
+        "them", "they", "this", "to", "very", "we", "with",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Belief states
@@ -542,17 +577,26 @@ class ParaconsistentEngine:
                 shared_tags = set(belief.tags) & set(other.tags)
                 if shared_tags and self._has_opposing_stance(content_lower, other_lower):
                     contradictions.append(other_id)
+                    continue
+
+            # Heuristic 3: Lightweight semantic opposition on a shared topic.
+            if self._has_semantic_opposition(content_lower, other_lower):
+                contradictions.append(other_id)
 
         return contradictions
 
     @staticmethod
     def _is_negation_pair(a: str, b: str) -> bool:
         """Check if two statements are simple negations of each other."""
+        a = ParaconsistentEngine._normalize_statement(a)
+        b = ParaconsistentEngine._normalize_statement(b)
         negation_prefixes = [
             ("it is true that ", "it is false that "),
             ("i believe ", "i do not believe "),
             ("i should ", "i should not "),
             ("this is ", "this is not "),
+            ("", "not "),
+            ("", "never "),
         ]
         for pos, neg in negation_prefixes:
             if a.startswith(pos) and b.startswith(neg):
@@ -568,6 +612,53 @@ class ParaconsistentEngine:
         return False
 
     @staticmethod
+    def _normalize_statement(text: str) -> str:
+        text = re.sub(r"[^a-z0-9_\s-]+", " ", str(text or "").lower())
+        return " ".join(text.split())
+
+    @staticmethod
+    def _tokens(text: str) -> Set[str]:
+        return set(re.findall(r"[a-z][a-z0-9_-]*", str(text or "").lower()))
+
+    @classmethod
+    def _topic_tokens(cls, text: str) -> Set[str]:
+        stance_words = {word for pair in _SEMANTIC_ANTONYM_PAIRS for word in pair}
+        negators = {"not", "no", "never", "cannot", "can't", "without"}
+        return {
+            token
+            for token in cls._tokens(text)
+            if token not in _STANCE_STOPWORDS
+            and token not in stance_words
+            and token not in negators
+        }
+
+    @classmethod
+    def _has_semantic_opposition(cls, a: str, b: str) -> bool:
+        """Detect common semantic contradictions over the same subject.
+
+        This remains intentionally lightweight: it catches opposing stance
+        predicates on shared topics without pretending to solve general
+        natural-language contradiction.
+        """
+        a_tokens = cls._tokens(a)
+        b_tokens = cls._tokens(b)
+        if not (cls._topic_tokens(a) & cls._topic_tokens(b)):
+            return False
+
+        for left, right in _SEMANTIC_ANTONYM_PAIRS:
+            if (left in a_tokens and right in b_tokens) or (right in a_tokens and left in b_tokens):
+                return True
+
+        a_norm = cls._normalize_statement(a)
+        b_norm = cls._normalize_statement(b)
+        for token in (a_tokens & b_tokens):
+            if f"not {token}" in a_norm or f"never {token}" in a_norm:
+                return True
+            if f"not {token}" in b_norm or f"never {token}" in b_norm:
+                return True
+        return False
+
+    @staticmethod
     def _has_opposing_stance(a: str, b: str) -> bool:
         """Check if two statements on the same topic take opposing stances."""
         positive_markers = {"good", "right", "should", "must", "always", "beneficial", "correct"}
@@ -575,11 +666,13 @@ class ParaconsistentEngine:
 
         a_words = set(a.split())
         b_words = set(b.split())
+        a_norm = ParaconsistentEngine._normalize_statement(a)
+        b_norm = ParaconsistentEngine._normalize_statement(b)
 
         a_pos = bool(a_words & positive_markers)
-        a_neg = bool(a_words & negative_markers)
+        a_neg = bool(a_words & negative_markers) or any(marker in a_norm for marker in ("should not", "must not"))
         b_pos = bool(b_words & positive_markers)
-        b_neg = bool(b_words & negative_markers)
+        b_neg = bool(b_words & negative_markers) or any(marker in b_norm for marker in ("should not", "must not"))
 
         return (a_pos and b_neg) or (a_neg and b_pos)
 

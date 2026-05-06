@@ -90,6 +90,7 @@ NULL_CHECK_INTERVAL_S = 120.0
 
 # Number of spectral refinement candidates for MIP search.
 N_REFINEMENT_CANDIDATES = 24
+MAX_PARTITION_CANDIDATES = 25
 
 # Executive-tier column offset in the 4096-neuron mesh.
 MESH_COLUMNS = 64
@@ -450,18 +451,25 @@ class HierarchicalPhi:
         """One-node-swap neighbors of ``base`` + a few random perturbations."""
         out = [base]
         a, b = base
+        budget = max(1, MAX_PARTITION_CANDIDATES)
         for node in a:
+            if len(out) >= budget:
+                break
             na = tuple(x for x in a if x != node)
             nb = tuple(sorted(b + (node,)))
             if na and nb:
                 out.append((na, nb))
         for node in b:
+            if len(out) >= budget:
+                break
             nb = tuple(x for x in b if x != node)
             na = tuple(sorted(a + (node,)))
             if na and nb:
                 out.append((na, nb))
         rng = np.random.default_rng(seed=0xB00)
         for _ in range(n_random):
+            if len(out) >= budget:
+                break
             mask = rng.integers(0, 2, size=k)
             if mask.sum() in (0, k):
                 mask[0] = 1 - mask[-1]
@@ -746,8 +754,11 @@ class HierarchicalPhi:
                 out.null_baseline_phi,
             )
 
-            # Refresh null baseline occasionally.
-            if (now - self._null_baseline_time) > NULL_CHECK_INTERVAL_S:
+            # Refresh null baseline occasionally on cached/background refreshes.
+            # Force=True is used by foreground validation paths and should
+            # measure only the requested φ refresh; callers that need a null
+            # baseline invoke compute_null_baseline() explicitly.
+            if not force and (now - self._null_baseline_time) > NULL_CHECK_INTERVAL_S:
                 try:
                     self.compute_null_baseline(history)
                 except Exception as exc:  # pragma: no cover

@@ -1,0 +1,87 @@
+{
+  "generated_at": 1778039444.953781,
+  "passed": true,
+  "paths": {
+    "core/brain/inference_gate.py": {
+      "auto_apply_allowed": false,
+      "path": "core/brain/inference_gate.py",
+      "reason": "consequential agency, memory, substrate, model-routing, or orchestrator path",
+      "required_gates": [
+        "targeted_test",
+        "behavioral_contracts",
+        "shadow_runtime",
+        "human_approval"
+      ],
+      "sealed": false,
+      "tier": 2,
+      "tier_label": "tier2_propose_only"
+    },
+    "core/bus/actor_bus.py": {
+      "auto_apply_allowed": false,
+      "path": "core/bus/actor_bus.py",
+      "reason": "sealed safety, governance, phi, scar, bus, or self-modification root",
+      "required_gates": [
+        "external_review",
+        "manual_patch",
+        "cold_restart"
+      ],
+      "sealed": true,
+      "tier": 3,
+      "tier_label": "tier3_sealed"
+    },
+    "core/consciousness/endogenous_fitness.py": {
+      "auto_apply_allowed": true,
+      "path": "core/consciousness/endogenous_fitness.py",
+      "reason": "runtime code outside sealed and proposal-only surfaces",
+      "required_gates": [
+        "targeted_test",
+        "behavioral_contracts",
+        "shadow_runtime",
+        "regression_suite",
+        "rollback_snapshot"
+      ],
+      "sealed": false,
+      "tier": 1,
+      "tier_label": "tier1_shadow_validated_auto_fix"
+    },
+    "core/consciousness/phi_core.py": {
+      "auto_apply_allowed": false,
+      "path": "core/consciousness/phi_core.py",
+      "reason": "sealed safety, governance, phi, scar, bus, or self-modification root",
+      "required_gates": [
+        "external_review",
+        "manual_patch",
+        "cold_restart"
+      ],
+      "sealed": true,
+      "tier": 3,
+      "tier_label": "tier3_sealed"
+    },
+    "core/memory/scar_formation.py": {
+      "auto_apply_allowed": false,
+      "path": "core/memory/scar_formation.py",
+      "reason": "sealed safety, governance, phi, scar, bus, or self-modification root",
+      "required_gates": [
+        "external_review",
+        "manual_patch",
+        "cold_restart"
+      ],
+      "sealed": true,
+      "tier": 3,
+      "tier_label": "tier3_sealed"
+    },
+    "tests/test_endgame_grand_update.py": {
+      "auto_apply_allowed": true,
+      "path": "tests/test_endgame_grand_update.py",
+      "reason": "low-risk tests, generated tools, docs, UI static assets, or proposal workspace",
+      "required_gates": [
+        "targeted_test",
+        "syntax",
+        "import"
+      ],
+      "sealed": false,
+      "tier": 0,
+      "tier_label": "tier0_free_auto_fix"
+    }
+  }
+}

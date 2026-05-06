@@ -86,9 +86,9 @@ class ProofVerifier:
 
         # Authoritative non-LLM harness gate (LLM is advisory only)
         try:
-            from core.self_modification.safe_modification_harness import get_safe_harness
+            from core.self_modification.safe_modification_harness import SafeModificationHarness
             import asyncio
-            harness = get_safe_harness(self.config.repo_root)
+            harness = SafeModificationHarness(candidate)
             harness_result = asyncio.get_event_loop().run_until_complete(
                 harness.run(list(plan.changed_files))
             )

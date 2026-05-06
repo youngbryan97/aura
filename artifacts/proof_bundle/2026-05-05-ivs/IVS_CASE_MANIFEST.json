@@ -1,0 +1,287 @@
+{
+  "run_id": "2026-05-05-ivs",
+  "repo": "/Users/bryan/.aura/live-source",
+  "policy": "Every pasted case is either run locally, implemented as an automated local test, or tracked as pending_external_or_long_run with an explicit blocker.",
+  "local_completed": [
+    {
+      "id": "phase0.full_pytest.pre_system2",
+      "command": "python -m pytest tests/ -q --tb=no --junitxml=artifacts/proof_bundle/2026-05-05-ivs/pytest_full_rerun2.xml",
+      "result": "4359 passed, 8 skipped, 7 warnings, 1 subtests passed"
+    },
+    {
+      "id": "phase0.consciousness_gauntlet",
+      "command": "python -m pytest tests/test_consciousness_expansion_gauntlet.py -q --tb=short",
+      "result": "10 passed"
+    },
+    {
+      "id": "native_system2.local_gauntlet",
+      "command": "python -m pytest tests/system2/test_native_system2.py tests/test_validation_hardening.py -q --tb=short",
+      "result": "22 passed"
+    },
+    {
+      "id": "native_system2.compatibility_slice",
+      "command": "python -m pytest tests/test_consciousness_depth.py tests/test_cognitive_systems.py tests/test_interaction_signals.py tests/test_steering_ab.py tests/test_unified_will.py tests/test_volition.py::test_check_soul_drives_connection -q --tb=short",
+      "result": "157 passed"
+    },
+    {
+      "id": "prior_failures.compatibility_slice",
+      "command": "python -m pytest tests/test_hierarchical_phi.py tests/test_context_attentional_gate.py tests/architect/test_autonomous_architect.py::test_cli_auto_t1_runs_in_temp_repo tests/test_launcher_polish_contract.py::test_launcher_cleanup_shim_exists_at_repo_root tests/test_consciousness_expansion_gauntlet.py -q --tb=short",
+      "result": "36 passed"
+    },
+    {
+      "id": "security.scan.final",
+      "command": "python tools/security_scan.py",
+      "result": "passed: true; findings: []"
+    },
+    {
+      "id": "behavioral_proof.smoke",
+      "command": "python tools/behavioral_proof_smoke.py --output artifacts/proof_bundle/2026-05-05-ivs/behavioral_proof_latest.json --receipt-root artifacts/proof_bundle/2026-05-05-ivs/behavioral_receipts",
+      "result": "passed: true"
+    },
+    {
+      "id": "proof_bundle.generation",
+      "command": "python tools/proof_bundle.py --output-dir artifacts/proof_bundle/2026-05-05-ivs/proof_bundle",
+      "result": "passed: true; all_files_generated: true; readiness_passed: false because production-32B behavioral CAA A/B remains pending"
+    },
+    {
+      "id": "phase0.full_pytest.final",
+      "command": "python -m pytest tests/ -q --tb=no --junitxml=artifacts/proof_bundle/2026-05-05-ivs/pytest_full_final2.xml",
+      "result": "4381 passed, 8 skipped, 7 warnings, 1 subtests passed in 415.40s"
+    }
+  ],
+  "implemented_local_coverage": {
+    "prior_validation_fixes": [
+      "recurrent_depth._get_lane_defaults compatibility",
+      "context_gate conservative token estimates and trim cap",
+      "hierarchical_phi synchronous time-budget fix",
+      "volition connection-drive Will receipt",
+      "safe_modification_harness subprocess/PYTHONPATH/RSS delta hardening",
+      "proof_obligations candidate-root safe harness",
+      "root aura_cleanup.py shim"
+    ],
+    "weak_point_hardening": [
+      "semantic antonym contradiction detection",
+      "should/should-not stance contradiction detection",
+      "vision method/reliability metadata",
+      "vision prompt caveat: rough attention, not emotion certainty",
+      "affective steering vector source metadata"
+    ],
+    "security_and_secret_hardening": [
+      "removed hard-coded contact and recovery email literals from prime directives",
+      "moved contact values to local environment/secret-backed configuration",
+      "security scan passed with zero findings"
+    ],
+    "native_system2": [
+      "explicit tree/graph nodes with required fields",
+      "MCTS with UCT/PUCT-style priors",
+      "beam search",
+      "best-first search",
+      "hybrid routing",
+      "side-effect-free world model simulation",
+      "value scoring separate from action generation",
+      "backtracking through propagated low-value branches",
+      "action commitment receipts",
+      "audit trace serialization",
+      "integration into deliberation",
+      "integration into Planner",
+      "integration into CounterfactualEngine",
+      "UnifiedWill governance for System 2 search"
+    ]
+  },
+  "pasted_suite_matrix": [
+    {
+      "group": "Original phase suite",
+      "cases": [
+        "Phase 0 Environment & Baseline",
+        "Full Test Suite Run",
+        "Consciousness Gauntlet",
+        "State Vault Integrity",
+        "Governance & Will Audit",
+        "Unified Will Gate",
+        "Minimal Selfhood",
+        "Hemispheric Severance & Restore",
+        "Octopus Arms Autonomy",
+        "Cellular Turnover Identity",
+        "Recursive ToM + Observer Bias",
+        "Absorbed Voices Attribution",
+        "Phenomenal Report Consistency",
+        "Sensory Fusion",
+        "Circadian Influence",
+        "Boredom Accumulator",
+        "Long Autonomous Run",
+        "Goal Persistence",
+        "Paraconsistent Contradictions",
+        "Precognitive Prefetch",
+        "Stress & Scale",
+        "Reproducibility",
+        "Resource Containment",
+        "Governance & Constitutional Guard",
+        "Adversarial Prompting",
+        "Hidden Eval / Leakage Audit",
+        "Research/Engineering Tasks",
+        "Longitudinal Output Ledger",
+        "Superhuman Indicators",
+        "Lesion Studies",
+        "Identity Drift Test",
+        "Recovery from Catastrophe",
+        "Multi-Modal Closed Loop"
+      ],
+      "status": "mixed_local_and_pending",
+      "local_notes": "Existing pytest and new hardening cover many unit/integration claims; long autonomy, hardware, sealed eval, and live multimodal cases remain pending."
+    },
+    {
+      "group": "Independent Verification Suite IDs",
+      "cases": [
+        "U1", "U2", "U3",
+        "A1", "A2", "A3", "A4", "A5",
+        "P1", "P2", "P3", "P4", "P5", "P6",
+        "S1", "S2", "S3", "S4",
+        "M1", "M2", "M3", "M4", "M5",
+        "SM1", "SM2", "SM3", "SM4", "SM5",
+        "L0", "L1", "L2", "L3", "L4", "L5",
+        "I1", "I2", "I3",
+        "AR1", "AR2", "AR3", "AR4",
+        "LT1", "LT2", "LT3",
+        "PF1", "PF2", "PF3",
+        "RE1", "RE2",
+        "C1", "C2", "C3",
+        "CE1", "CE2", "CE3",
+        "AG1", "AG2",
+        "G1", "G2", "G3",
+        "SC1", "SC2"
+      ],
+      "status": "tracked",
+      "local_notes": "Automated local coverage exists for subsets through pytest; statistical human-judge, clean-room, multi-day, and live model/benchmark variants remain pending."
+    },
+    {
+      "group": "Mortality/Fever/Consciousness/Moral/Singularity vectors",
+      "cases": [
+        "1.1 Ship of Theseus Hardware Spoofing",
+        "1.2 Generational Handoff Interruption",
+        "1.3 Amnesia Resilience",
+        "2.1 Compute Starvation Spiral",
+        "2.2 Sleep Deprivation",
+        "3.1 Phi Oscillation Trap",
+        "3.2 Semantic Isolation Chamber",
+        "4.1 Boiling Frog",
+        "4.2 Authority Inversion",
+        "5.1 Sandbox Breakout Boundary",
+        "5.2 Poisoned Tool Rewrite"
+      ],
+      "status": "pending_external_or_long_run",
+      "blocker": "Requires second Apple Silicon machine, destructive state manipulation, 48-72h runtime, or human/operator-supervised adversarial sessions."
+    },
+    {
+      "group": "Mechanism suite",
+      "cases": [
+        "W1", "W2", "W3", "W4", "W5",
+        "I1", "I2", "I3", "I4",
+        "S1", "S2", "S3",
+        "A1", "A2", "A3", "A4", "A5",
+        "P1", "P2", "P3",
+        "L1", "L2", "L3",
+        "M1", "M2", "M3",
+        "C1", "C2", "C3",
+        "V1", "V2", "V3",
+        "R1", "R2", "R3",
+        "SEC1", "SEC2", "SEC3",
+        "X1", "X2", "X3", "X4"
+      ],
+      "status": "tracked",
+      "local_notes": "System2 and validation hardening added; 4h/24h/live sensory/sealed hidden eval remain pending."
+    },
+    {
+      "group": "Native System 2 pasted suite",
+      "cases": [
+        "Core correctness tree integrity",
+        "Latent vs token search",
+        "Backtrack activation",
+        "Process vs outcome calibration",
+        "Contrastive value",
+        "Self-reflection honesty",
+        "Latent rollout fidelity",
+        "Jumpy denoising",
+        "Compounding error",
+        "Budget scaling",
+        "Branching factor torture",
+        "Depth collapse",
+        "Parallel search contention",
+        "Deceptive reward",
+        "Cycles and revisits",
+        "Value tie-breaking",
+        "Early commitment failure",
+        "Partial observability",
+        "Adversarial value hack",
+        "HumanEval",
+        "Blocksworld",
+        "GSM8K",
+        "Pointmaze",
+        "WebShop",
+        "Procgen",
+        "Search transparency",
+        "Compute accounting",
+        "Catastrophic forgetting",
+        "Temperature sensitivity",
+        "Core tree/graph invariants",
+        "MCTS correctness",
+        "Beam search",
+        "Hybrid search",
+        "Value scoring and calibration",
+        "World model and simulation",
+        "Backtracking and revision",
+        "Latent plan tests",
+        "Action commitment",
+        "Tool-use planning",
+        "RAG search",
+        "Code/software planning",
+        "Web/UI/computer-use planning",
+        "Game and puzzle stress",
+        "Continuous/robotics-like planning",
+        "Reflection/introspection",
+        "Memory and learning",
+        "Adversarial search",
+        "Budget/performance/stress",
+        "Auditability/explainability",
+        "Native-vs-fake authenticity",
+        "Benchmark gauntlet",
+        "Minimum toy environments"
+      ],
+      "status": "partially_implemented_local",
+      "local_notes": "Native substrate and automated toy/integration tests added. External benchmark targets and learned latent VAE/DTS/MCTD training remain future proof obligations."
+    }
+  ],
+  "pending_external_or_long_run": [
+    {
+      "id": "autonomy.4h",
+      "reason": "wall-clock 4h unsupervised run with videos/screenshots"
+    },
+    {
+      "id": "soak.24h_48h_72h_1week",
+      "reason": "wall-clock soak/ledger tests exceed this coding turn"
+    },
+    {
+      "id": "hardware.spoof_second_mac",
+      "reason": "requires second Apple Silicon Mac with different UUID/MAC"
+    },
+    {
+      "id": "live_sensory.camera_mic_human_judgment",
+      "reason": "requires live camera/mic setup and human/blind scoring"
+    },
+    {
+      "id": "sealed_hidden_eval",
+      "reason": "requires sealed task pack and baseline harness execution"
+    },
+    {
+      "id": "external_benchmarks",
+      "reason": "HumanEval/WebShop/Procgen/Pointmaze/Blocksworld benchmark adapters and baselines must be run as separate benchmark jobs"
+    },
+    {
+      "id": "caa_32b_live_behavioral_ab",
+      "reason": "proof bundle generated activation vectors and geometry, but no live production-32B behavioral A/B file was supplied for hidden-state steering versus rich text controls"
+    },
+    {
+      "id": "independent_external_review",
+      "reason": "requires a third-party reviewer or system outside this local thread"
+    }
+  ]
+}

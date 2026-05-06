@@ -22,6 +22,7 @@ import py_compile
 import resource
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -82,6 +83,7 @@ class SafeModificationHarness:
         started = time.monotonic()
         checks: dict[str, bool] = {}
         errors: list[str] = []
+        baseline_rss_mb = self._current_rss_mb()
 
         # Use patch_content if provided, otherwise read from disk
         file_contents: dict[str, str] = {}
@@ -117,7 +119,7 @@ class SafeModificationHarness:
         errors.extend(test_errors)
 
         # Check 4: Resource delta
-        resource_ok, resource_errors = self._check_resource_delta()
+        resource_ok, resource_errors = self._check_resource_delta(baseline_rss_mb)
         checks["resource_delta"] = resource_ok
         errors.extend(resource_errors)
 
@@ -204,16 +206,19 @@ class SafeModificationHarness:
             return True, []  # No tests to run — pass
 
         try:
+            env = dict(os.environ)
+            env["PYTHONPATH"] = str(self.codebase_root)
             result = await asyncio.to_thread(
                 subprocess.run,
-                ["python3", "-m", "pytest", "--timeout=30", "-x"] + test_files,
+                [sys.executable, "-m", "pytest", "-x"] + test_files,
                 capture_output=True,
                 text=True,
                 timeout=60,
                 cwd=self.codebase_root,
+                env=env,
             )
             if result.returncode != 0:
-                errors.append(f"pytest failed: {result.stdout[-500:]}")
+                errors.append(f"pytest failed: stdout={result.stdout[-500:]} stderr={result.stderr[-500:]}")
                 return False, errors
         except subprocess.TimeoutExpired:
             errors.append("pytest timed out (60s)")
@@ -224,24 +229,29 @@ class SafeModificationHarness:
 
         return True, []
 
-    def _check_resource_delta(self) -> tuple[bool, list[str]]:
-        """Check current process resource usage is within bounds."""
-        errors: list[str] = []
+    def _current_rss_mb(self) -> float:
         try:
-            usage = resource.getrusage(resource.RUSAGE_SELF)
-            max_rss_mb = usage.ru_maxrss / (1024 * 1024) if os.name != "darwin" else usage.ru_maxrss / (1024 * 1024)
-            # On macOS ru_maxrss is in bytes, on Linux in KB
-            if os.name == "darwin":
-                max_rss_mb = usage.ru_maxrss / (1024 * 1024)
-            else:
-                max_rss_mb = usage.ru_maxrss / 1024
+            import psutil
 
-            # Flag if RSS > 2GB (reasonable for a dev process)
-            if max_rss_mb > 2048:
-                errors.append(f"High memory usage: {max_rss_mb:.0f}MB")
-                return False, errors
+            return float(psutil.Process(os.getpid()).memory_info().rss) / (1024 * 1024)
         except Exception:
-            pass  # resource module may not be available on all platforms
+            try:
+                usage = resource.getrusage(resource.RUSAGE_SELF)
+                if os.name == "darwin":
+                    return float(usage.ru_maxrss) / (1024 * 1024)
+                return float(usage.ru_maxrss) / 1024
+            except Exception:
+                return 0.0
+
+    def _check_resource_delta(self, baseline_rss_mb: float = 0.0) -> tuple[bool, list[str]]:
+        """Check proof execution did not create a large incremental RSS jump."""
+        errors: list[str] = []
+        current_rss_mb = self._current_rss_mb()
+        if baseline_rss_mb > 0.0 and current_rss_mb > 0.0:
+            delta_mb = current_rss_mb - baseline_rss_mb
+            if delta_mb > 512:
+                errors.append(f"High memory delta: {delta_mb:.0f}MB (baseline={baseline_rss_mb:.0f}MB current={current_rss_mb:.0f}MB)")
+                return False, errors
         return True, []
 
     def _check_rollback_drill(self, changed_files: list[str]) -> tuple[bool, list[str]]:
@@ -285,8 +295,9 @@ _harness: SafeModificationHarness | None = None
 
 def get_safe_harness(codebase_root: str | Path = ".") -> SafeModificationHarness:
     global _harness
-    if _harness is None:
-        _harness = SafeModificationHarness(codebase_root)
+    root = Path(codebase_root).resolve()
+    if _harness is None or _harness.codebase_root != root:
+        _harness = SafeModificationHarness(root)
     return _harness
 
 

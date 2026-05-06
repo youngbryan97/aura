@@ -1,0 +1,18 @@
+{
+  "payload": {
+    "autonomy_level": 2,
+    "budget_remaining": 1.0,
+    "cause": "behavioral_proof.live_loop",
+    "created_at": 1778039253.0278,
+    "governance_receipt_id": "governance-a81c0be9-612e-4936-8b9a-5501e14329ae",
+    "kind": "autonomy",
+    "metadata": {
+      "competence": 0.25
+    },
+    "proposed_action": "Improve competence by solving held-out palindrome task",
+    "receipt_id": "autonomy-c1b5a875-5a0a-45ed-81bf-a7bfb5bce30b"
+  },
+  "schema": "receipt_autonomy",
+  "schema_name": "receipt_autonomy",
+  "schema_version": 1
+}

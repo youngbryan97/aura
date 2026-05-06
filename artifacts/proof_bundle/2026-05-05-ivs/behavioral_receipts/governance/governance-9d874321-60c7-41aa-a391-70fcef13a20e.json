@@ -1,0 +1,19 @@
+{
+  "payload": {
+    "action": "solve_hidden_eval_task",
+    "approved": true,
+    "cause": "behavioral_proof.live_loop",
+    "created_at": 1778039253.0311968,
+    "domain": "autonomous_research_task",
+    "kind": "governance",
+    "metadata": {
+      "kind": "palindrome",
+      "task_id": "6f821b64754ed270786fbd9845f305848bfa2a82cc8b2923ea43c3ed5af81a79"
+    },
+    "reason": "goal:Maintain verified competence on held-out palindrome task",
+    "receipt_id": "governance-9d874321-60c7-41aa-a391-70fcef13a20e"
+  },
+  "schema": "receipt_governance",
+  "schema_name": "receipt_governance",
+  "schema_version": 1
+}

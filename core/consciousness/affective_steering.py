@@ -323,6 +323,7 @@ class SteeringVector:
     substrate_fn: str          # how to map substrate value to weight
     is_derived: bool = False   # True if derived from model activations
     derived_at: float = 0.0    # timestamp of derivation
+    source: str = "unknown"    # extracted_caa, runtime_derived_caa, fallback_random, etc.
     
     # [OPTIMIZATION] MLX-native version for zero-copy/fast path
     _v_mx: Any = field(default=None, init=False, repr=False)
@@ -358,6 +359,7 @@ class SteeringVector:
             "substrate_fn": self.substrate_fn,
             "is_derived": self.is_derived,
             "derived_at": self.derived_at,
+            "source": self.source,
             "v_norm": float(np.linalg.norm(self.v)),
         }
 
@@ -408,6 +410,20 @@ class SteeringVectorLibrary:
         self._cache_dir = cache_dir
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._vectors: Dict[str, SteeringVector] = {}
+        self._source = self._infer_source()
+
+    def _infer_source(self) -> str:
+        """Best-effort provenance label for the active steering vector directory."""
+        try:
+            path = self._cache_dir.resolve()
+            parts = set(path.parts)
+            if "training" in parts and "vectors" in parts:
+                return "extracted_caa"
+            if "steering_vectors" in parts:
+                return "cached_caa"
+        except Exception:
+            pass
+        return "configured_caa"
 
     def load_or_derive(
         self,
@@ -442,6 +458,7 @@ class SteeringVectorLibrary:
                         substrate_fn=dim_spec["substrate_fn"],
                         is_derived=True,
                         derived_at=float(data.get("derived_at", 0)),
+                        source=str(data.get("source", self._source)),
                     )
                     self._vectors[key] = v
                     loaded += 1
@@ -471,10 +488,11 @@ class SteeringVectorLibrary:
                     substrate_fn=dim_spec["substrate_fn"],
                     is_derived=True,
                     derived_at=time.time(),
+                    source="runtime_derived_caa",
                 )
                 self._vectors[key] = sv
                 # Cache to disk
-                np.savez(cache_path, v=vec, derived_at=time.time())
+                np.savez(cache_path, v=vec, derived_at=time.time(), source="runtime_derived_caa")
                 derived += 1
                 logger.info("✅ Derived: %s (norm=%.3f)", key, np.linalg.norm(vec))
             except Exception as e:
@@ -503,6 +521,7 @@ class SteeringVectorLibrary:
                     substrate_idx=dim_spec["substrate_idx"],
                     substrate_fn=dim_spec["substrate_fn"],
                     is_derived=False,
+                    source="fallback_random",
                 )
 
         logger.info(
@@ -619,6 +638,17 @@ class SteeringVectorLibrary:
     @property
     def vectors(self) -> Dict[str, SteeringVector]:
         return self._vectors
+
+    @property
+    def source(self) -> str:
+        if not self._vectors:
+            return self._source
+        if any(v.source == "fallback_random" for v in self._vectors.values()):
+            return "mixed_with_fallback_random"
+        sources = {v.source for v in self._vectors.values()}
+        if len(sources) == 1:
+            return next(iter(sources))
+        return "mixed"
 
 
 # ── The Steering Hook ──────────────────────────────────────────────────────────
@@ -1211,6 +1241,11 @@ class AffectiveSteeringEngine:
                 self._sync_thread._running if self._sync_thread else False
             ),
             "vector_count": len(self._library._vectors) if self._library else 0,
+            "vector_source": self._library.source if self._library else "unloaded",
+            "vector_sources": {
+                key: vector.source
+                for key, vector in (self._library.vectors.items() if self._library else [])
+            },
         }
 
     def explain_current_injection(self) -> str:

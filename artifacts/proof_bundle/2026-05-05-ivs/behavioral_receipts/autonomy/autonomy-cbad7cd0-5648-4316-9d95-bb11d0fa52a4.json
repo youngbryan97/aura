@@ -1,0 +1,18 @@
+{
+  "payload": {
+    "autonomy_level": 2,
+    "budget_remaining": 0.75,
+    "cause": "behavioral_proof.live_loop",
+    "created_at": 1778039253.030328,
+    "governance_receipt_id": "governance-31b72d2f-a1b9-4016-b474-a2485575a58d",
+    "kind": "autonomy",
+    "metadata": {
+      "competence": 1.0
+    },
+    "proposed_action": "Maintain verified competence on held-out mod task",
+    "receipt_id": "autonomy-cbad7cd0-5648-4316-9d95-bb11d0fa52a4"
+  },
+  "schema": "receipt_autonomy",
+  "schema_name": "receipt_autonomy",
+  "schema_version": 1
+}

@@ -1,0 +1,19 @@
+{
+  "payload": {
+    "action": "solve_hidden_eval_task",
+    "approved": true,
+    "cause": "behavioral_proof.live_loop",
+    "created_at": 1778039253.029994,
+    "domain": "autonomous_research_task",
+    "kind": "governance",
+    "metadata": {
+      "kind": "mod",
+      "task_id": "ee6e5f82c5995912846053e3819c41e245b73f8fad4f1fab510423de39c504df"
+    },
+    "reason": "goal:Maintain verified competence on held-out mod task",
+    "receipt_id": "governance-31b72d2f-a1b9-4016-b474-a2485575a58d"
+  },
+  "schema": "receipt_governance",
+  "schema_name": "receipt_governance",
+  "schema_version": 1
+}

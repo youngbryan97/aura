@@ -123,6 +123,43 @@ bash scripts/run_decisive_test.sh
 These are not the first milestone commands because they are too broad for a
 checkpointed runtime-fix pass.
 
+## Native System 2 / IVS Validation Slice
+
+Use this focused slice for the governed native System 2 search substrate and
+the May 2026 independent validation hardening pass:
+
+```bash
+python -m pytest tests/system2/test_native_system2.py tests/test_validation_hardening.py -q --tb=short
+
+python -m pytest \
+  tests/test_consciousness_depth.py \
+  tests/test_cognitive_systems.py \
+  tests/test_interaction_signals.py \
+  tests/test_steering_ab.py \
+  tests/test_unified_will.py \
+  tests/test_volition.py::test_check_soul_drives_connection \
+  -q --tb=short
+
+python -m pytest \
+  tests/test_hierarchical_phi.py \
+  tests/test_context_attentional_gate.py \
+  tests/architect/test_autonomous_architect.py::test_cli_auto_t1_runs_in_temp_repo \
+  tests/test_launcher_polish_contract.py::test_launcher_cleanup_shim_exists_at_repo_root \
+  tests/test_consciousness_expansion_gauntlet.py \
+  -q --tb=short
+```
+
+Full proof command:
+
+```bash
+python -m pytest tests/ -q --tb=no \
+  --junitxml=artifacts/proof_bundle/2026-05-05-ivs/pytest_full_final.xml
+```
+
+Native System 2 is not a standalone utility. It is registered as
+`native_system2` / `system2_search`, governed by UnifiedWill, and currently
+wired into deliberation, the planner, and counterfactual autonomous choice.
+
 ## Notes
 
 - If a command cannot run because of missing optional dependencies or platform

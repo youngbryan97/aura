@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="0.086" timestamp="2026-05-05T13:48:37.480215-07:00" hostname="Bryans-MacBook-Pro-2.local"><testcase classname="" name="tests.test_recurrent_depth" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/bryan/.aura/live-source/tests/test_recurrent_depth.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+.venv/lib/python3.12/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+.venv/lib/python3.12/site-packages/_pytest/pathlib.py:587: in import_path
+    importlib.import_module(module_name)
+/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1387: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1360: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1331: in _find_and_load_unlocked
+    ???
+&lt;frozen importlib._bootstrap&gt;:935: in _load_unlocked
+    ???
+.venv/lib/python3.12/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/test_recurrent_depth.py:19: in &lt;module&gt;
+    from core.brain.llm.recurrent_depth import (  # noqa: E402
+E   ImportError: cannot import name '_get_lane_defaults' from 'core.brain.llm.recurrent_depth' (/Users/bryan/.aura/live-source/core/brain/llm/recurrent_depth.py)</error></testcase></testsuite></testsuites>

@@ -1,0 +1,22 @@
+{
+  "payload": {
+    "bytes_written": 154,
+    "cause": "behavioral_proof.live_loop",
+    "created_at": 1778039253.0346189,
+    "family": "behavioral_proof_memory",
+    "governance_receipt_id": "governance-dbb37711-27fe-4fef-a9d9-5c9f3a007b16",
+    "kind": "memory_write",
+    "metadata": {
+      "artifact_id": "artifact-9224f9fd4a6d",
+      "competence": 1.0,
+      "passed": true,
+      "task_id": "9224f9fd4a6dfc482ed8275bf84b7bcd3e649d763bcea555e308bbb359a6a9d6"
+    },
+    "receipt_id": "memory_write-f137057b-c830-40df-933f-b88965731647",
+    "record_id": "memory-9224f9fd4a6d",
+    "schema_version": 1
+  },
+  "schema": "receipt_memory_write",
+  "schema_name": "receipt_memory_write",
+  "schema_version": 1
+}

@@ -49,6 +49,8 @@ class ActionCandidate:
     expected_outcome: str           # brief description of predicted result
     score: float = 0.0
     selected: bool = False
+    system2_value: float = 0.0
+    system2_receipt_id: str = ""
 
     def compute_score(self, hedonic_weight: float = 0.5,
                       alignment_weight: float = 0.5) -> float:
@@ -127,9 +129,80 @@ class CounterfactualEngine:
         for c in candidates:
             c.compute_score(hedonic_weight=0.45, alignment_weight=0.55)
 
+        await self._apply_native_system2_ranking(candidates, context)
+
         # Sort best first
-        candidates.sort(key=lambda c: c.score, reverse=True)
+        candidates.sort(key=lambda c: (c.system2_value or c.score, c.score), reverse=True)
         return candidates
+
+    async def _apply_native_system2_ranking(
+        self,
+        candidates: List[ActionCandidate],
+        context: Dict[str, Any],
+    ) -> None:
+        """Route autonomous counterfactual choice through Native System 2.
+
+        The search simulates and ranks alternatives only; it does not execute
+        any action. The selected action still flows through the existing
+        autonomous/Will/Authority execution path.
+        """
+        if len(candidates) < 2:
+            return
+        try:
+            from core.reasoning.native_system2 import SearchAlgorithm, System2SearchConfig
+
+            system2 = ServiceContainer.get("native_system2", default=None)
+            if system2 is None:
+                return
+
+            ranked = await system2.rank_actions(
+                context=str(context)[:1200],
+                actions=[
+                    {
+                        "name": f"{idx}:{candidate.description}",
+                        "prior": max(0.05, candidate.score),
+                        "risk": max(0.0, -candidate.simulated_hedonic_gain),
+                        "metadata": {
+                            "index": idx,
+                            "score_hint": max(0.0, min(1.0, candidate.score)),
+                            "action_type": candidate.action_type,
+                            "heartstone_alignment": candidate.heartstone_alignment,
+                            "simulated_hedonic_gain": candidate.simulated_hedonic_gain,
+                        },
+                    }
+                    for idx, candidate in enumerate(candidates)
+                ],
+                config=System2SearchConfig(
+                    algorithm=SearchAlgorithm.HYBRID,
+                    budget=max(16, min(80, len(candidates) * 14)),
+                    max_depth=2,
+                    branching_factor=len(candidates),
+                    beam_width=min(5, len(candidates)),
+                    confidence_threshold=0.55,
+                ),
+                source="counterfactual_engine",
+            )
+            root = ranked.tree.nodes[ranked.root_id]
+            root_children = [ranked.tree.nodes[cid] for cid in root.children_ids if cid in ranked.tree.nodes]
+            for child in root_children:
+                if not child.action:
+                    continue
+                idx = child.action.metadata.get("index")
+                if idx is None:
+                    try:
+                        idx = int(str(child.action.name).split(":", 1)[0])
+                    except Exception:
+                        continue
+                if 0 <= int(idx) < len(candidates):
+                    candidate = candidates[int(idx)]
+                    candidate.system2_value = child.mean_value
+                    candidate.system2_receipt_id = ranked.search_id
+                    candidate.expected_outcome = (
+                        f"{candidate.expected_outcome} "
+                        f"[System2 value={child.mean_value:.3f} receipt={ranked.search_id}]"
+                    )
+        except Exception as exc:
+            record_degradation("counterfactual_engine.native_system2", exc)
 
     def select(self, candidates: List[ActionCandidate]) -> Optional[ActionCandidate]:
         """Select the best candidate and mark it."""

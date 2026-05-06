@@ -1,0 +1,18 @@
+{
+  "payload": {
+    "autonomy_level": 2,
+    "budget_remaining": 0.375,
+    "cause": "behavioral_proof.live_loop",
+    "created_at": 1778039253.034049,
+    "governance_receipt_id": "governance-dbb37711-27fe-4fef-a9d9-5c9f3a007b16",
+    "kind": "autonomy",
+    "metadata": {
+      "competence": 1.0
+    },
+    "proposed_action": "Maintain verified competence on held-out compose task",
+    "receipt_id": "autonomy-b0e6ca8d-6dc3-4a14-b2f2-e51ab93c9b70"
+  },
+  "schema": "receipt_autonomy",
+  "schema_name": "receipt_autonomy",
+  "schema_version": 1
+}

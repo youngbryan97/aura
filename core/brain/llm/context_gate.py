@@ -68,11 +68,12 @@ def estimate_tokens(text: str) -> int:
     """
     text = str(text or "")
     if not text:
-        return 0
+        return 1
+    encoded_count = 0
     encoding = _optional_tiktoken_encoding()
     if encoding is not None:
         try:
-            return max(1, len(encoding.encode(text)))
+            encoded_count = max(1, len(encoding.encode(text)))
         except Exception:
             pass
 
@@ -86,7 +87,7 @@ def estimate_tokens(text: str) -> int:
     char_model = math.ceil(len(text) / 3.2)
     lexical_model = math.ceil(len(words) * 1.18 + punctuation * 0.18 + cjk * 0.9 + non_ascii * 0.45)
     structure_model = math.ceil(lines * 1.5 + codeish * 0.6)
-    return max(1, char_model, lexical_model, structure_model)
+    return max(1, encoded_count, char_model, lexical_model, structure_model)
 
 
 def _trim_to_token_budget(text: str, max_tokens: int) -> str:
@@ -95,11 +96,12 @@ def _trim_to_token_budget(text: str, max_tokens: int) -> str:
         return text
     marker = "\n...[compacted]"
     budget = max(1, int(max_tokens))
+    char_budget = max(1, int(budget * 3.5) - len(marker))
     low, high = 0, len(text)
     best = ""
     while low <= high:
         mid = (low + high) // 2
-        candidate = text[:mid].rstrip() + marker
+        candidate = text[: min(mid, char_budget)].rstrip() + marker
         if estimate_tokens(candidate) <= budget:
             best = candidate
             low = mid + 1
