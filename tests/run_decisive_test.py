@@ -25,7 +25,7 @@ if str(ROOT) not in sys.path:
 from core.autonomic.resource_stakes import ResourceStakesLedger, ViabilityState
 from core.brain.llm.context_assembler import ContextAssembler
 from core.consciousness.phi_core import PhiCore
-from core.evaluation.hardware_reality import HardwareRealityAuditor, m1_pro_16gb_profile
+from core.evaluation.hardware_reality import HardwareRealityAuditor, bryan_m5_64gb_profile
 from core.evaluation.statistics import mutual_information_permutation_baseline
 from core.evaluation.steering_ab import analyze_steering_ab
 from core.identity.id_rag import IdentityChronicle
@@ -274,7 +274,7 @@ def _mi_permutation() -> dict[str, object]:
 
 
 def _hardware_truth() -> dict[str, object]:
-    auditor = HardwareRealityAuditor(m1_pro_16gb_profile())
+    auditor = HardwareRealityAuditor(bryan_m5_64gb_profile())
     verdicts = [verdict.as_dict() for verdict in auditor.evaluate_all()]
     model_32b = next(v for v in verdicts if v["model"] == "32B-4bit")
     return {

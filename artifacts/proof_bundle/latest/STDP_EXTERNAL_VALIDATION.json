@@ -1,19 +1,19 @@
 {
-  "generated_at": 1777516851.176511,
+  "generated_at": 1778115722.5169978,
   "groups": [
     {
       "group": "external_environment",
-      "heldout_mse": 0.082547,
-      "instability": 0.06801,
+      "heldout_mse": 0.082393,
+      "instability": 0.069298,
       "updates": 95,
-      "weight_norm": 1.088158
+      "weight_norm": 1.108771
     },
     {
       "group": "self_generated",
-      "heldout_mse": 0.102105,
-      "instability": 0.008848,
+      "heldout_mse": 0.102103,
+      "instability": 0.008852,
       "updates": 95,
-      "weight_norm": 0.141568
+      "weight_norm": 0.141625
     },
     {
       "group": "frozen_matrix",
@@ -24,16 +24,16 @@
     },
     {
       "group": "shuffled_environment",
-      "heldout_mse": 0.103126,
-      "instability": 0.027453,
+      "heldout_mse": 0.102692,
+      "instability": 0.02736,
       "updates": 95,
-      "weight_norm": 0.439255
+      "weight_norm": 0.437757
     }
   ],
   "margins": {
-    "frozen_matrix": 0.01956,
-    "self_generated": 0.019558,
-    "shuffled_environment": 0.02058
+    "frozen_matrix": 0.019713,
+    "self_generated": 0.01971,
+    "shuffled_environment": 0.020299
   },
   "passed": true,
   "seed": 7,

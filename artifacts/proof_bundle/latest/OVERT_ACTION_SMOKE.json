@@ -1,0 +1,26 @@
+{
+  "generated_at": 1778115752.376481,
+  "passed": true,
+  "result": {
+    "action_id": "9b78022286977267",
+    "autonomy_receipt_id": "autonomy-79250911-066e-4424-b72b-d3d577e3b79e",
+    "duration_ms": 58.498,
+    "error": "",
+    "finished_at": 1778115752.3749309,
+    "goal_id": "",
+    "life_trace_id": "proof-bundle-smoke",
+    "next_step_hint": "",
+    "objective": "Run a real environment self-audit through the overt action loop",
+    "params": {
+      "detail": "basic"
+    },
+    "result_summary": "Running on Bryans-MacBook-Pro-2.local (Local/Workstation)",
+    "skill": "environment_info",
+    "source": "proof_bundle",
+    "started_at": 1778115752.316433,
+    "status": "verified",
+    "tool_receipt_id": "tool_execution-357e2645-2111-4efc-9fdf-cebe49852d2b",
+    "verified": true,
+    "will_receipt_id": "will-proof-bundle-overt-action-smoke"
+  }
+}

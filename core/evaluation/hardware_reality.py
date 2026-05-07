@@ -4,7 +4,7 @@ The point of this module is deliberately unromantic: it gives the runtime and
 the tests a way to say "this configuration is a simulation/prototype on this
 machine" instead of laundering a memory-bound setup into a real-time autonomy
 claim.  It is intentionally conservative because optimistic memory math is how
-32B-on-16GB claims become theater.
+32B-on-low-memory heartbeat claims become theater.
 """
 from __future__ import annotations
 
@@ -212,9 +212,16 @@ class HardwareRealityAuditor:
         return [self.evaluate(tier) for tier in self.tiers]
 
     def recommend_tier(self) -> ModelMemoryProfile:
-        feasible = [verdict for verdict in self.evaluate_all_shallow() if verdict[1] >= 3.0]
+        realtime_candidates = [
+            tier
+            for tier, headroom in self.evaluate_all_shallow()
+            if headroom >= 3.0 and tier.parameters_b <= 8.0
+        ]
+        if realtime_candidates:
+            return realtime_candidates[0]
+        feasible = [tier for tier, headroom in self.evaluate_all_shallow() if headroom >= 3.0]
         if feasible:
-            return feasible[0][0]
+            return feasible[0]
         return self.tiers[-1]
 
     def evaluate_all_shallow(self) -> list[tuple[ModelMemoryProfile, float]]:
@@ -225,11 +232,22 @@ class HardwareRealityAuditor:
         return results
 
 
-def m1_pro_16gb_profile() -> MachineProfile:
+def bryan_m5_64gb_profile() -> MachineProfile:
     return MachineProfile(
-        name="Apple M1 Pro 16GB",
+        name="Bryan M5-class Apple Silicon 64GB",
+        unified_memory_gib=64.0,
+        gpu="Apple Metal unified-memory GPU",
+        notes=(
+            "Bryan's current target machine",
+            "32B 4-bit is a high-level cortex tier, not a subsecond heartbeat loop",
+        ),
+    )
+
+
+def legacy_low_memory_profile() -> MachineProfile:
+    return MachineProfile(
+        name="Legacy low-memory Apple Silicon",
         unified_memory_gib=16.0,
         gpu="Apple Metal unified-memory GPU",
         notes=("shared CPU/GPU memory", "swap pressure affects inference latency"),
     )
-

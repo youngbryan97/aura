@@ -8,13 +8,35 @@ from core.evaluation.hardware_reality import (
     HardwareRealityAuditor,
     ModelMemoryProfile,
     WorkloadProfile,
-    m1_pro_16gb_profile,
+    bryan_m5_64gb_profile,
+    legacy_low_memory_profile,
 )
 
 
-def test_m1_pro_16gb_rejects_32b_realtime_claim():
+def test_bryan_m5_64gb_treats_32b_as_cortex_not_heartbeat():
     auditor = HardwareRealityAuditor(
-        m1_pro_16gb_profile(),
+        bryan_m5_64gb_profile(),
+        workload=WorkloadProfile(os_reserved_gib=4.0, safety_margin_gib=2.0),
+    )
+    verdict = auditor.evaluate(
+        ModelMemoryProfile(
+            name="32B-4bit",
+            parameters_b=32,
+            quantization_bits=4,
+            hidden_size=5120,
+            layers=64,
+        )
+    )
+
+    assert verdict.feasible is True
+    assert verdict.classification == "batch_or_high_level_cortex"
+    assert verdict.realtime_heartbeat_feasible is False
+    assert verdict.recommended_tier == "7B-4bit"
+
+
+def test_legacy_low_memory_profile_rejects_32b_realtime_claim():
+    auditor = HardwareRealityAuditor(
+        legacy_low_memory_profile(),
         workload=WorkloadProfile(os_reserved_gib=4.0, safety_margin_gib=2.0),
     )
     verdict = auditor.evaluate(

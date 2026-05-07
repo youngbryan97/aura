@@ -25,11 +25,12 @@ from core.runtime.errors import record_degradation
 
 
 import asyncio
+import inspect
 import json
 import logging
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
@@ -79,7 +80,49 @@ class ActionReceipt:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _receipt_json_safe(self)
+
+
+def _receipt_json_safe(value: Any, *, _depth: int = 0) -> Any:
+    """Serialize receipts without deepcopying coroutine or runtime objects."""
+    if _depth > 8:
+        return repr(value)
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if inspect.iscoroutine(value):
+        # A coroutine in a receipt is itself a receipt-chain bug. Close it so
+        # serialization does not leak RuntimeWarning noise, then make the
+        # failure visible in the stored evidence.
+        try:
+            value.close()
+        except Exception:
+            pass
+        return {
+            "error": "coroutine_in_receipt",
+            "repr": repr(value),
+        }
+    if inspect.isawaitable(value):
+        return {
+            "error": "awaitable_in_receipt",
+            "repr": repr(value),
+        }
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            item.name: _receipt_json_safe(getattr(value, item.name), _depth=_depth + 1)
+            for item in fields(value)
+        }
+    if isinstance(value, dict):
+        return {
+            str(_receipt_json_safe(key, _depth=_depth + 1)): _receipt_json_safe(item, _depth=_depth + 1)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [_receipt_json_safe(item, _depth=_depth + 1) for item in value]
+    try:
+        json.dumps(value)
+        return value
+    except Exception:
+        return repr(value)
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +247,8 @@ class AgencyOrchestrator:
 
         # 1. perceive / 2. update state
         try:
-            state_snapshot = await perceive() if perceive else self._default_perceive()
+            perceived = perceive() if perceive else self._default_perceive()
+            state_snapshot = await perceived if inspect.isawaitable(perceived) else perceived
         except Exception as exc:
             record_degradation('agency_orchestrator', exc)
             return await self._block(receipt, "perceive", str(exc))

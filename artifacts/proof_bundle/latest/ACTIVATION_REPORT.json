@@ -21,7 +21,7 @@
       "core/runtime/activation_audit.py"
     ]
   },
-  "generated_at": 1777516851.2359512,
+  "generated_at": 1778115722.614856,
   "live_missing_required": [
     "mind_tick",
     "scheduler",
@@ -32,7 +32,7 @@
   "missing_required": [],
   "offline_snapshot": true,
   "passed": true,
-  "required_active_ratio": 0.5,
+  "required_active_ratio": 0.6429,
   "statuses": [
     {
       "active": true,
@@ -42,7 +42,87 @@
         "service_hits": [
           "autonomy_conductor"
         ],
-        "starter_result": "<core.runtime.autonomy_conductor.AutonomyConductor object at 0x11518a240>",
+        "service_status": {
+          "autonomy_conductor": {
+            "active": true,
+            "jobs": {
+              "architecture_auto_cycle": {
+                "failures": 0,
+                "interval_s": 600.0,
+                "last_finished_at": 0.0,
+                "last_result": {},
+                "last_started_at": 0.0,
+                "last_status": "never_run",
+                "name": "architecture_auto_cycle"
+              },
+              "caa_32b_validation": {
+                "failures": 0,
+                "interval_s": 21600.0,
+                "last_finished_at": 0.0,
+                "last_result": {},
+                "last_started_at": 0.0,
+                "last_status": "never_run",
+                "name": "caa_32b_validation"
+              },
+              "metabolic_budget": {
+                "failures": 0,
+                "interval_s": 300.0,
+                "last_finished_at": 0.0,
+                "last_result": {},
+                "last_started_at": 0.0,
+                "last_status": "never_run",
+                "name": "metabolic_budget"
+              },
+              "online_lora_status": {
+                "failures": 0,
+                "interval_s": 900.0,
+                "last_finished_at": 0.0,
+                "last_result": {},
+                "last_started_at": 0.0,
+                "last_status": "never_run",
+                "name": "online_lora_status"
+              },
+              "overt_action_cycle": {
+                "failures": 0,
+                "interval_s": 120.0,
+                "last_finished_at": 0.0,
+                "last_result": {},
+                "last_started_at": 0.0,
+                "last_status": "never_run",
+                "name": "overt_action_cycle"
+              },
+              "proof_bundle": {
+                "failures": 0,
+                "interval_s": 43200.0,
+                "last_finished_at": 0.0,
+                "last_result": {},
+                "last_started_at": 0.0,
+                "last_status": "never_run",
+                "name": "proof_bundle"
+              },
+              "self_test_synthesis": {
+                "failures": 0,
+                "interval_s": 86400.0,
+                "last_finished_at": 0.0,
+                "last_result": {},
+                "last_started_at": 0.0,
+                "last_status": "never_run",
+                "name": "self_test_synthesis"
+              },
+              "stdp_external_validation": {
+                "failures": 0,
+                "interval_s": 21600.0,
+                "last_finished_at": 0.0,
+                "last_result": {},
+                "last_started_at": 0.0,
+                "last_status": "never_run",
+                "name": "stdp_external_validation"
+              }
+            },
+            "ledger_path": "/Users/bryan/.aura/data/runtime/autonomy_conductor.jsonl"
+          }
+        },
+        "starter_result": "<core.runtime.autonomy_conductor.AutonomyConductor object at 0x11a0b17c0>",
         "task_hits": []
       },
       "name": "autonomy_conductor",
@@ -97,7 +177,7 @@
         "service_hits": [
           "scar_formation"
         ],
-        "starter_result": "<core.memory.scar_formation.ScarFormationSystem object at 0x1176816d0>",
+        "starter_result": "<core.memory.scar_formation.ScarFormationSystem object at 0x119968770>",
         "task_hits": []
       },
       "name": "scar_formation",
@@ -211,6 +291,411 @@
       "required": true
     },
     {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "proof_kernel_bridge"
+        ],
+        "service_status": {
+          "proof_kernel_bridge": {
+            "active": true,
+            "claim_scope": {
+              "does_not_support": [
+                "proof of subjective experience",
+                "LLM-final proof obligations",
+                "environment mastery by itself"
+              ],
+              "supports": [
+                "live runtime evidence is sampled",
+                "homeostatic and attention proxies are computed over live inputs",
+                "activation audit can prove the bridge is registered"
+              ]
+            },
+            "errors": [],
+            "generated_at": 1778115722.598516,
+            "live_inputs": {
+              "degradation_pressure": 0.0,
+              "governance_score": 0.85,
+              "resource_pressure": 0.0,
+              "thermal_pressure": 0.0
+            },
+            "proof_metrics": {
+              "homeostasis": {
+                "curiosity": 0.501,
+                "integrity": 0.998,
+                "metabolism": 0.503,
+                "persistence": 0.997,
+                "sovereignty": 0.984,
+                "will_to_live": 0.856
+              },
+              "winner_source": "proof_kernel_bridge",
+              "workspace": {
+                "broadcast_history_len": 1,
+                "ignited": true,
+                "ignition_count": 1,
+                "ignition_level": 1.0,
+                "inhibited_sources": [],
+                "last_content": "runtime evidence sample",
+                "last_priority": 1.0,
+                "last_winner": "proof_kernel_bridge",
+                "pending_candidates": 0,
+                "phi": 0.0,
+                "tick": 1
+              }
+            }
+          }
+        },
+        "starter_result": {
+          "active": true,
+          "claim_scope": {
+            "does_not_support": [
+              "proof of subjective experience",
+              "LLM-final proof obligations",
+              "environment mastery by itself"
+            ],
+            "supports": [
+              "live runtime evidence is sampled",
+              "homeostatic and attention proxies are computed over live inputs",
+              "activation audit can prove the bridge is registered"
+            ]
+          },
+          "errors": [],
+          "generated_at": 1778115722.598516,
+          "live_inputs": {
+            "degradation_pressure": 0.0,
+            "governance_score": 0.85,
+            "resource_pressure": 0.0,
+            "thermal_pressure": 0.0
+          },
+          "proof_metrics": {
+            "homeostasis": {
+              "curiosity": 0.501,
+              "integrity": 0.998,
+              "metabolism": 0.503,
+              "persistence": 0.997,
+              "sovereignty": 0.984,
+              "will_to_live": 0.856
+            },
+            "winner_source": "proof_kernel_bridge",
+            "workspace": {
+              "broadcast_history_len": 1,
+              "ignited": true,
+              "ignition_count": 1,
+              "ignition_level": 1.0,
+              "inhibited_sources": [],
+              "last_content": "runtime evidence sample",
+              "last_priority": 1.0,
+              "last_winner": "proof_kernel_bridge",
+              "pending_candidates": 0,
+              "phi": 0.0,
+              "tick": 1
+            }
+          }
+        },
+        "task_hits": []
+      },
+      "name": "proof_kernel_bridge",
+      "reason": "connects standalone proof-kernel proxies to live runtime evidence and honest claim scope",
+      "reconciled": true,
+      "required": true
+    },
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "lock_watchdog"
+        ],
+        "starter_result": {
+          "active_count": 0,
+          "check_interval_s": 10.0,
+          "locks": [],
+          "threshold_s": 180.0
+        },
+        "task_hits": [
+          "aura.lock_watchdog"
+        ]
+      },
+      "name": "lock_watchdog",
+      "reason": "detects and recovers stalled lock acquisition/hold paths",
+      "reconciled": true,
+      "required": true
+    },
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "concurrency_health"
+        ],
+        "service_status": {
+          "concurrency_health": {
+            "active_tasks": 1,
+            "degradation_total": 0,
+            "dlq_recent": 0,
+            "dlq_total": 196,
+            "evidence": {
+              "dead_letter_queue": {
+                "recent": [
+                  {
+                    "created_at": 1778041146.5427752,
+                    "error": "Test error",
+                    "id": "34de4065",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1778039570.9179251,
+                    "error": "Test error",
+                    "id": "35f5286b",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1778038909.434674,
+                    "error": "Test error",
+                    "id": "740e7b0d",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1778015349.980772,
+                    "error": "Test error",
+                    "id": "627426c3",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1778014247.212539,
+                    "error": "Test error",
+                    "id": "8e64d8e6",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1777980710.989762,
+                    "error": "Test error",
+                    "id": "c257f0ec",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1777967463.597922,
+                    "error": "Test error",
+                    "id": "3d74e545",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1777967371.062052,
+                    "error": "Test error",
+                    "id": "fa4f9d39",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1777956531.0522392,
+                    "error": "Test error",
+                    "id": "b13eef77",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1777956099.331711,
+                    "error": "Test error",
+                    "id": "52798d5d",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  }
+                ],
+                "recent_count": 0,
+                "recent_window_s": 900.0,
+                "total": 196
+              },
+              "degradations": {
+                "counts_by_subsystem": {},
+                "last_5": [],
+                "total_degradations": 0
+              },
+              "lock_watchdog": {
+                "active_count": 0,
+                "check_interval_s": 10.0,
+                "locks": [],
+                "threshold_s": 180.0
+              },
+              "task_tracker": {
+                "active": 1,
+                "cancelled_total": 0,
+                "completed_total": 0,
+                "explicit_active": 1,
+                "failed_total": 0,
+                "high_water": 1,
+                "implicit_active": 0,
+                "max_concurrent": 20,
+                "recently_completed": [],
+                "stale_tasks": [],
+                "total_observed": 1,
+                "total_tracked": 1
+              }
+            },
+            "failed_tasks_total": 0,
+            "passed": true,
+            "pressure": 0.0,
+            "recently_failed_tasks": 0,
+            "sampled_at": 1778115722.599908,
+            "stale_tasks": 0,
+            "stalled_locks": 0
+          }
+        },
+        "starter_result": {
+          "active_tasks": 1,
+          "degradation_total": 0,
+          "dlq_recent": 0,
+          "dlq_total": 196,
+          "evidence": {
+            "dead_letter_queue": {
+              "recent": [
+                {
+                  "created_at": 1778041146.5427752,
+                  "error": "Test error",
+                  "id": "34de4065",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1778039570.9179251,
+                  "error": "Test error",
+                  "id": "35f5286b",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1778038909.434674,
+                  "error": "Test error",
+                  "id": "740e7b0d",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1778015349.980772,
+                  "error": "Test error",
+                  "id": "627426c3",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1778014247.212539,
+                  "error": "Test error",
+                  "id": "8e64d8e6",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1777980710.989762,
+                  "error": "Test error",
+                  "id": "c257f0ec",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1777967463.597922,
+                  "error": "Test error",
+                  "id": "3d74e545",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1777967371.062052,
+                  "error": "Test error",
+                  "id": "fa4f9d39",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1777956531.0522392,
+                  "error": "Test error",
+                  "id": "b13eef77",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1777956099.331711,
+                  "error": "Test error",
+                  "id": "52798d5d",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                }
+              ],
+              "recent_count": 0,
+              "recent_window_s": 900.0,
+              "total": 196
+            },
+            "degradations": {
+              "counts_by_subsystem": {},
+              "last_5": [],
+              "total_degradations": 0
+            },
+            "lock_watchdog": {
+              "active_count": 0,
+              "check_interval_s": 10.0,
+              "locks": [],
+              "threshold_s": 180.0
+            },
+            "task_tracker": {
+              "active": 1,
+              "cancelled_total": 0,
+              "completed_total": 0,
+              "explicit_active": 1,
+              "failed_total": 0,
+              "high_water": 1,
+              "implicit_active": 0,
+              "max_concurrent": 20,
+              "recently_completed": [],
+              "stale_tasks": [],
+              "total_observed": 1,
+              "total_tracked": 1
+            }
+          },
+          "failed_tasks_total": 0,
+          "passed": true,
+          "pressure": 0.0,
+          "recently_failed_tasks": 0,
+          "sampled_at": 1778115722.599908,
+          "stale_tasks": 0,
+          "stalled_locks": 0
+        },
+        "task_hits": []
+      },
+      "name": "concurrency_health",
+      "reason": "causally samples task liveness, lock stalls, DLQ backlog, and degradation pressure",
+      "reconciled": true,
+      "required": true
+    },
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "aura_workspace",
+          "agent_workspace"
+        ],
+        "starter_result": {
+          "registered": true,
+          "storage_path": "/Users/bryan/.aura/data/markdown_workspace/workspace.json"
+        },
+        "task_hits": []
+      },
+      "name": "agent_workspace",
+      "reason": "governed durable workspace for evidence, memory, decisions, repairs, and versioned artifacts",
+      "reconciled": true,
+      "required": true
+    },
+    {
       "active": false,
       "auto_start": false,
       "error": "",
@@ -234,6 +719,28 @@
       "name": "autonomous_self_modification",
       "reason": "Will-gated improvement proposals and repair loops",
       "reconciled": false,
+      "required": false
+    },
+    {
+      "active": true,
+      "auto_start": true,
+      "error": "",
+      "evidence": {
+        "service_hits": [
+          "architecture_governor",
+          "autonomous_architecture_governor"
+        ],
+        "starter_result": {
+          "boot_audit_scheduled": true,
+          "max_tier": "T1_CLEANUP",
+          "mode": "audit_only",
+          "registered": true
+        },
+        "task_hits": []
+      },
+      "name": "architecture_governor",
+      "reason": "audit-first autonomous software architect with shadow proof, rollback, and monitor gates",
+      "reconciled": true,
       "required": false
     },
     {

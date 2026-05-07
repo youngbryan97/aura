@@ -3,8 +3,8 @@
 This document is the runbook for running Aura on your own hardware.
 
 ## Requirements
-- macOS Apple Silicon (M1 → M5) recommended.
-- 32 GB+ RAM for the 32B Cortex; 64 GB+ to keep 32B and 72B warm.
+- macOS Apple Silicon recommended; Bryan's tracked target is M5-class.
+- 64 GB+ RAM is the reference target for the 32B Cortex and sustained background loops.
 - 50 GB+ free disk for models + data.
 - Python 3.12.
 

@@ -48,7 +48,7 @@ class LocalVoiceCortex:
             self.CHANNELS = 1
             self.RATE = 16000
             self.CHUNK = 320        # 20ms VAD frame @ 16kHz (valid WebRTCVAD size)
-            self.DMA_BUFFER = 2048  # PyAudio DMA buffer for M1 stability
+            self.DMA_BUFFER = 2048  # PyAudio DMA buffer for Apple Silicon stability
         else:
             self.FORMAT = self.CHANNELS = self.RATE = self.CHUNK = self.DMA_BUFFER = None
         

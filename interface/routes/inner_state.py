@@ -240,6 +240,36 @@ async def get_inner_state() -> JSONResponse:
         record_degradation('inner_state', e)
         result["affect"] = {"error": str(e)}
 
+    # 11. Philosophy / proof stream surfaces
+    try:
+        grounding = ServiceContainer.get("sensorimotor_grounding_bridge", default=None)
+        generator = ServiceContainer.get("substrate_token_generator", default=None)
+        lora = ServiceContainer.get("online_lora_governor", default=None)
+        overt = ServiceContainer.get("overt_action_loop", default=None)
+        result["philosophy_surface"] = {
+            "cli_flag": "python aura_main.py --philosophy",
+            "sensorimotor_grounding": grounding.status() if grounding and hasattr(grounding, "status") else {"status": "not_booted"},
+            "substrate_token_generator": (
+                generator.last_generation.to_dict()
+                if generator and getattr(generator, "last_generation", None)
+                else {"status": "no_generation_yet"}
+            ),
+            "online_lora": (
+                {
+                    "enabled": lora.enabled(),
+                    "last_receipt": lora.last_receipt.to_dict() if lora.last_receipt else None,
+                }
+                if lora
+                else {"status": "not_booted"}
+            ),
+            "overt_action_loop": (
+                overt.status() if overt and hasattr(overt, "status") else {"status": "not_booted"}
+            ),
+        }
+    except Exception as e:
+        record_degradation('inner_state', e)
+        result["philosophy_surface"] = {"error": str(e)}
+
     return JSONResponse(content=result)
 
 

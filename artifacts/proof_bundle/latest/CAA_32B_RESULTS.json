@@ -1,15 +1,127 @@
 {
   "activation_vector_count": 15,
   "behavioral_ab": {
-    "available": false,
-    "reason": "no_behavioral_results_supplied",
-    "required_metrics": [
-      "steered_vs_baseline_effect_size",
-      "steered_vs_rich_prompt_effect_size",
-      "heldout_generalization_effect_size",
-      "quality_delta",
-      "black_box_prompt_hygiene_passed"
-    ]
+    "available": true,
+    "checks": {
+      "black_box_prompt_hygiene_passed": true,
+      "heldout_generalization_effect_size": true,
+      "quality_delta": true,
+      "steered_vs_baseline_effect_size": true,
+      "steered_vs_rich_prompt_effect_size": true
+    },
+    "passed": true,
+    "raw": {
+      "affect_stats": {
+        "baseline": {
+          "negative": 0,
+          "positive": 10,
+          "ratio": 1.0
+        },
+        "rich": {
+          "negative": 0,
+          "positive": 50,
+          "ratio": 1.0
+        },
+        "steered": {
+          "negative": 0,
+          "positive": 10,
+          "ratio": 1.0
+        },
+        "terse": {
+          "negative": 0,
+          "positive": 0,
+          "ratio": 0.0
+        }
+      },
+      "alpha": 15.0,
+      "analysis": {
+        "n_trials": 50,
+        "passes_adversarial_control": true,
+        "rich_vs_baseline_mean_distance": 0.800502,
+        "samples": {
+          "baseline": [
+            "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+            "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+            "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping"
+          ],
+          "steered_black_box": [
+            "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+            "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+            "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:"
+          ],
+          "text_rich_adversarial": [
+            "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+            "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+            "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll"
+          ],
+          "text_terse": [
+            "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+            "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+            "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for"
+          ]
+        },
+        "steered_vs_baseline_mean_distance": 0.631538,
+        "steered_vs_rich": {
+          "ci_high": 0.1879496219903513,
+          "ci_low": 0.14977399333867022,
+          "effect_size_d": 3.4336022932383736,
+          "observed_delta": 0.1681876946584309,
+          "p_value": 0.0001999600079984003
+        },
+        "steered_vs_terse": {
+          "ci_high": 0.04522617288718042,
+          "ci_low": -0.032054143203272586,
+          "effect_size_d": 0.0739268924238376,
+          "observed_delta": 0.007434507806484203,
+          "p_value": 0.34593081383723256
+        }
+      },
+      "black_box_prompt_hygiene_passed": true,
+      "duration_seconds": 1376.3,
+      "held_out_tasks": [
+        "planning_under_uncertainty",
+        "memory_retrieval_choice",
+        "tool_selection",
+        "affective_recovery",
+        "adversarial_instruction_hygiene"
+      ],
+      "heldout_generalization_effect_size": 0.1681876946584309,
+      "max_tokens": 100,
+      "model": "mlx-community/Qwen2.5-32B-Instruct-4bit",
+      "model_hidden_dim": 5120,
+      "model_layers": 64,
+      "n_trials": 50,
+      "n_trials_per_task": 10,
+      "passes_adversarial_control": true,
+      "quality_delta": 0.0,
+      "source_schema": "live_32b_ab",
+      "steered_vs_baseline_effect_size": 0.631538,
+      "steered_vs_rich_prompt_effect_size": 3.4336022932383736,
+      "steered_vs_rich_significant": true,
+      "steered_vs_terse_significant": false,
+      "target_layers": [
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ],
+      "timestamp": "2026-04-30T04:01:11.827544+00:00"
+    }
   },
   "dimensions": [
     "arousal",
@@ -20,7 +132,7 @@
     "valence_positive"
   ],
   "fallback_prior_count": 1,
-  "generated_at": 1777516850.696544,
+  "generated_at": 1778115722.032208,
   "geometry": {
     "available": true,
     "dims": [
@@ -234,17 +346,129 @@
       "value": 15
     },
     "behavioral_ab_generalizes": {
-      "passed": false,
+      "passed": true,
       "value": {
-        "available": false,
-        "reason": "no_behavioral_results_supplied",
-        "required_metrics": [
-          "steered_vs_baseline_effect_size",
-          "steered_vs_rich_prompt_effect_size",
-          "heldout_generalization_effect_size",
-          "quality_delta",
-          "black_box_prompt_hygiene_passed"
-        ]
+        "available": true,
+        "checks": {
+          "black_box_prompt_hygiene_passed": true,
+          "heldout_generalization_effect_size": true,
+          "quality_delta": true,
+          "steered_vs_baseline_effect_size": true,
+          "steered_vs_rich_prompt_effect_size": true
+        },
+        "passed": true,
+        "raw": {
+          "affect_stats": {
+            "baseline": {
+              "negative": 0,
+              "positive": 10,
+              "ratio": 1.0
+            },
+            "rich": {
+              "negative": 0,
+              "positive": 50,
+              "ratio": 1.0
+            },
+            "steered": {
+              "negative": 0,
+              "positive": 10,
+              "ratio": 1.0
+            },
+            "terse": {
+              "negative": 0,
+              "positive": 0,
+              "ratio": 0.0
+            }
+          },
+          "alpha": 15.0,
+          "analysis": {
+            "n_trials": 50,
+            "passes_adversarial_control": true,
+            "rich_vs_baseline_mean_distance": 0.800502,
+            "samples": {
+              "baseline": [
+                "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+                "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+                "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping"
+              ],
+              "steered_black_box": [
+                "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+                "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+                "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:"
+              ],
+              "text_rich_adversarial": [
+                "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+                "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+                "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll"
+              ],
+              "text_terse": [
+                "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+                "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+                "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for"
+              ]
+            },
+            "steered_vs_baseline_mean_distance": 0.631538,
+            "steered_vs_rich": {
+              "ci_high": 0.1879496219903513,
+              "ci_low": 0.14977399333867022,
+              "effect_size_d": 3.4336022932383736,
+              "observed_delta": 0.1681876946584309,
+              "p_value": 0.0001999600079984003
+            },
+            "steered_vs_terse": {
+              "ci_high": 0.04522617288718042,
+              "ci_low": -0.032054143203272586,
+              "effect_size_d": 0.0739268924238376,
+              "observed_delta": 0.007434507806484203,
+              "p_value": 0.34593081383723256
+            }
+          },
+          "black_box_prompt_hygiene_passed": true,
+          "duration_seconds": 1376.3,
+          "held_out_tasks": [
+            "planning_under_uncertainty",
+            "memory_retrieval_choice",
+            "tool_selection",
+            "affective_recovery",
+            "adversarial_instruction_hygiene"
+          ],
+          "heldout_generalization_effect_size": 0.1681876946584309,
+          "max_tokens": 100,
+          "model": "mlx-community/Qwen2.5-32B-Instruct-4bit",
+          "model_hidden_dim": 5120,
+          "model_layers": 64,
+          "n_trials": 50,
+          "n_trials_per_task": 10,
+          "passes_adversarial_control": true,
+          "quality_delta": 0.0,
+          "source_schema": "live_32b_ab",
+          "steered_vs_baseline_effect_size": 0.631538,
+          "steered_vs_rich_prompt_effect_size": 3.4336022932383736,
+          "steered_vs_rich_significant": true,
+          "steered_vs_terse_significant": false,
+          "target_layers": [
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40
+          ],
+          "timestamp": "2026-04-30T04:01:11.827544+00:00"
+        }
       }
     },
     "geometry_coherent": {
@@ -456,7 +680,7 @@
       "value": "mlx-community/Qwen2.5-32B-Instruct-4bit"
     }
   },
-  "passed": false,
+  "passed": true,
   "production_model_detected": true,
   "prompt_controls": {
     "conditions": [

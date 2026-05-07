@@ -57,10 +57,10 @@ def enrich_telemetry(data: Dict[str, Any]) -> Dict[str, Any]:
             if len(per_cpu) >= 16:       # M5/M4 Pro/Max/Ultra (4E, 12+P)
                 data["p_core_usage"] = sum(per_cpu[4:]) / (len(per_cpu) - 4)
                 data["e_core_usage"] = sum(per_cpu[:4]) / 4
-            elif len(per_cpu) >= 10:     # M1/M2/M3 Pro/Max (2E, 8+P)
+            elif len(per_cpu) >= 10:     # Earlier Pro/Max Apple Silicon layouts
                 data["p_core_usage"] = sum(per_cpu[2:]) / (len(per_cpu) - 2)
                 data["e_core_usage"] = sum(per_cpu[:2]) / 2
-            elif len(per_cpu) == 8:      # M1/M2 base (4E, 4P)
+            elif len(per_cpu) == 8:      # Base Apple Silicon layouts
                 data["p_core_usage"] = sum(per_cpu[4:]) / 4
                 data["e_core_usage"] = sum(per_cpu[:4]) / 4
             else:

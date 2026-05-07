@@ -2,10 +2,11 @@
 
 ## Requirements
 
-- macOS with Apple Silicon (M1 / M2 / M3 / M4)
+- macOS with Apple Silicon. Bryan's tracked target is M5-class with 64 GB RAM.
 - Python 3.12+
-- 32 GB RAM at minimum. 64 GB is comfortable — you'll have room for the
-  32B Cortex at 8-bit plus the 7B Brainstem loaded on demand.
+- 32 GB RAM at minimum. Bryan's tracked deployment target is an M5-class
+  Apple Silicon Mac with 64 GB unified memory, which has room for the 32B
+  Cortex plus the 7B Brainstem on demand.
 
 ## Setup
 
@@ -27,6 +28,9 @@ python aura_main.py --desktop
 
 # Headless (background cognition only, no UI)
 python aura_main.py --headless
+
+# Philosophy/proof stream: live substrate, phi, affect, and Will receipts
+python aura_main.py --philosophy
 ```
 
 Once the server is up, the UI lives at `http://localhost:8000`.
@@ -75,6 +79,9 @@ boot picks it up automatically.
 | `AURA_BRAINSTEM_MODEL` | `Qwen2.5-7B-Instruct-4bit` | Fast fallback |
 | `AURA_FALLBACK_MODEL` | `Qwen2.5-1.5B-Instruct-4bit` | CPU emergency fallback |
 | `AURA_LOCAL_BACKEND` | `llama_cpp` | `mlx` or `llama_cpp` |
+| `AURA_SUBSTRATE_PRIMARY` | `1` | Try substrate token readout before transformer fallback |
+| `AURA_SUBSTRATE_DIM` | `64` | Continuous substrate dimension, clamped to 16-512 |
+| `AURA_ONLINE_LORA` | `1` | Enable governed reflection-to-LoRA update attempts |
 | `AURA_ROOT` | auto-detected | Project root |
 | `AURA_SAFE_BOOT_DESKTOP` | `0` | Set to `1` for a lightweight boot |
 | `AURA_ENV` | `development` | Use `production` inside Docker |

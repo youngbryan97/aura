@@ -7,8 +7,10 @@ import asyncio
 import json
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -28,6 +30,8 @@ REQUIRED_FILES = (
     "BOOT_HEALTH.json",
     "ACTIVATION_REPORT.json",
     "SECURITY_SCAN.json",
+    "OVERT_ACTION_SMOKE.json",
+    "CANONICAL_PROOF_BUNDLE.json",
 )
 
 
@@ -46,6 +50,11 @@ def build_proof_bundle(output_dir: str | Path = "artifacts/proof_bundle/latest")
     generated["BOOT_HEALTH.json"] = _write(out / "BOOT_HEALTH.json", _boot_health())
     generated["ACTIVATION_REPORT.json"] = _write(out / "ACTIVATION_REPORT.json", _activation_report())
     generated["SECURITY_SCAN.json"] = _write(out / "SECURITY_SCAN.json", _security_scan())
+    generated["OVERT_ACTION_SMOKE.json"] = _write(out / "OVERT_ACTION_SMOKE.json", _overt_action_smoke())
+    generated["CANONICAL_PROOF_BUNDLE.json"] = _write(
+        out / "CANONICAL_PROOF_BUNDLE.json",
+        _canonical_proof_bundle(out),
+    )
 
     manifest = {
         "generated_at": time.time(),
@@ -78,8 +87,9 @@ def _git_info() -> dict[str, Any]:
 
 
 def _decisive_results() -> dict[str, Any]:
-    existing = ROOT / "DECISIVE_RESULTS.json"
-    if existing.exists():
+    for existing in (ROOT / "DECISIVE_RESULTS.json", ROOT / "tests" / "DECISIVE_RESULTS.json"):
+        if not existing.exists():
+            continue
         try:
             return {"source": str(existing), "data": json.loads(existing.read_text(encoding="utf-8"))}
         except Exception:
@@ -234,6 +244,173 @@ def _security_scan() -> dict[str, Any]:
     from tools.security_scan import scan
 
     return scan()
+
+
+def _overt_action_smoke() -> dict[str, Any]:
+    """Run one real, bounded overt action through the production skill engine."""
+
+    async def run() -> dict[str, Any]:
+        from core.capability_engine import CapabilityEngine
+        from core.runtime.overt_action_loop import OvertActionLoop
+        from core.runtime.receipts import ReceiptStore
+
+        class SmokeSynth:
+            async def start(self) -> None:
+                return None
+
+            async def synthesize(self, state: Any) -> Any:
+                return SimpleNamespace(
+                    winner={
+                        "goal": "Run a real environment self-audit through the overt action loop",
+                        "source": "proof_bundle",
+                        "urgency": 0.7,
+                        "metadata": {"required_skills": ["environment_info"]},
+                    },
+                    will_receipt_id="will-proof-bundle-overt-action-smoke",
+                )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            loop = OvertActionLoop(
+                capability_engine=CapabilityEngine(),
+                synthesizer=SmokeSynth(),
+                receipt_store=ReceiptStore(Path(tmp) / "receipts"),
+                state_provider=lambda: SimpleNamespace(cognition=SimpleNamespace(pending_initiatives=[])),
+            )
+            loop._record_life_trace = lambda result, raw: setattr(result, "life_trace_id", "proof-bundle-smoke")
+            result = await loop.run_once(force=True)
+        return {
+            "generated_at": time.time(),
+            "passed": bool(
+                result.get("status") == "verified"
+                and result.get("verified") is True
+                and str(result.get("tool_receipt_id", "")).startswith("tool_execution-")
+                and str(result.get("autonomy_receipt_id", "")).startswith("autonomy-")
+            ),
+            "result": result,
+        }
+
+    return asyncio.run(run())
+
+
+def _safe_json(path: Path) -> dict[str, Any]:
+    try:
+        if not path.exists():
+            return {}
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {"data": data}
+    except Exception as exc:
+        return {"passed": False, "error": repr(exc), "source": str(path)}
+
+
+def _latest_baselines() -> dict[str, Any]:
+    path = ROOT / "aura_bench" / "baselines" / "results.jsonl"
+    if not path.exists():
+        return {"passed": False, "status": "not_run", "source": str(path), "rows": []}
+    rows: list[dict[str, Any]] = []
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines()[-50:]:
+            if line.strip():
+                rows.append(json.loads(line))
+    except Exception as exc:
+        return {"passed": False, "status": "unreadable", "error": repr(exc), "source": str(path)}
+
+    latest: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        bid = str(row.get("baseline_id") or "")
+        if bid:
+            latest[bid] = row
+    full = float(latest.get("full_aura", {}).get("mean_score", 0.0) or 0.0)
+    prompt = float(latest.get("prompt_only", {}).get("mean_score", 0.0) or 0.0)
+    return {
+        "passed": bool(latest and full >= prompt),
+        "status": "ok" if latest else "empty",
+        "source": str(path),
+        "latest": latest,
+        "full_aura_score": full,
+        "prompt_only_score": prompt,
+    }
+
+
+def _asa_messy_refactors() -> dict[str, Any]:
+    promoted = ROOT / "artifacts" / "architect" / "latest.json"
+    if promoted.exists():
+        payload = _safe_json(promoted)
+        payload.setdefault("source", str(promoted))
+        return payload
+
+    audit_path = ROOT / ".aura_architect" / "reports" / "audit-latest.json"
+    boot_audit_path = ROOT / ".aura_architect" / "reports" / "boot-audit-latest.json"
+    audit = _safe_json(audit_path)
+    boot_audit = _safe_json(boot_audit_path)
+    if audit:
+        return {
+            "passed": False,
+            "status": "audit_only_missing_shadow_refactor_artifact",
+            "source": str(audit_path),
+            "boot_audit_source": str(boot_audit_path) if boot_audit else "",
+            "repo_root": audit.get("repo_root"),
+            "smell_count": audit.get("smell_count"),
+            "smells_by_kind": audit.get("smells_by_kind", {}),
+            "smells_by_severity": audit.get("smells_by_severity", {}),
+            "graph_metrics": audit.get("graph_metrics", {}),
+            "high_risk_proposals": boot_audit.get("high_risk_proposals", []) if boot_audit else [],
+            "note": (
+                "ASA has a real non-toy architecture audit, but this lane is not "
+                "promoted until a shadow refactor/proof receipt is present."
+            ),
+        }
+    return {
+        "passed": False,
+        "status": "missing_artifact",
+        "source": str(promoted),
+    }
+
+
+def _canonical_proof_bundle(out: Path) -> dict[str, Any]:
+    """One manifest that keeps passes, missing artifacts, and failures visible."""
+    artifacts = {
+        "hidden_external_tasks": _safe_json(ROOT / "artifacts" / "behavioral_proof" / "latest.json"),
+        "strong_agent_baselines": _latest_baselines(),
+        "causal_lesions": _safe_json(ROOT / "tests" / "CAUSAL_EXCLUSION_RESULTS.json"),
+        "self_repair_real_bugs": _safe_json(ROOT / "tests" / "SELF_REPAIR_DEMO_RESULTS.json"),
+        "asa_messy_refactors": _asa_messy_refactors(),
+        "long_run_continuity": _safe_json(ROOT / "tests" / "CONTINUITY_TORTURE_RESULTS.json"),
+        "prompt_only_substrate_delta": _safe_json(ROOT / "tests" / "STEERING_AB_RESULTS.json"),
+        "caa_prompt_only_control": _safe_json(out / "CAA_32B_RESULTS.json"),
+        "governance_receipts": _safe_json(out / "GOVERNANCE_COVERAGE.json"),
+        "overt_action_smoke": _safe_json(out / "OVERT_ACTION_SMOKE.json"),
+    }
+    failures: list[dict[str, Any]] = []
+    for name, payload in artifacts.items():
+        if not payload:
+            failures.append({"lane": name, "reason": "missing_artifact"})
+            continue
+        if payload.get("passed") is False:
+            failures.append(
+                {
+                    "lane": name,
+                    "reason": payload.get("status") or payload.get("error") or "reported_failed",
+                    "source": payload.get("source", ""),
+                }
+            )
+    return {
+        "generated_at": time.time(),
+        "schema": "aura.canonical_proof_bundle.v1",
+        "principle": "Keep failures explicit; do not promote absence as evidence.",
+        "claims": {
+            "hidden_external_tasks": "sealed task evaluation with answer hashes",
+            "strong_agent_baselines": "prompt-only and ablated agent comparisons",
+            "causal_lesions": "same-task state-dependence through subsystem lesions",
+            "self_repair_real_bugs": "fault to localization to patch to verification lineage",
+            "asa_messy_refactors": "architecture governor on non-toy code changes",
+            "long_run_continuity": "restart/continuity torture artifacts",
+            "substrate_stack_delta": "substrate/affect/CAA/STDP changes outcomes beyond prompt-only controls",
+            "overt_action_smoke": "one real skill execution through the overt-action loop with tool and autonomy receipts",
+        },
+        "artifacts": artifacts,
+        "failures": failures,
+        "passed": not failures,
+    }
 
 
 def _boot_wiring_report() -> dict[str, Any]:

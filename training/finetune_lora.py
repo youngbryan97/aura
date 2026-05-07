@@ -39,7 +39,7 @@ VAL_FILE = DATA_DIR / "valid.jsonl"
 # ── Hyperparameters — Project Zenith ──────────────────────────────────────
 LORA_RANK = 32          # Up from 8 — architecture knowledge needs density
 LORA_LAYERS = 64        # All layers — personality permeates the full model
-EPOCHS = 3
+EPOCHS = 1.5            # Balanced: 1.5 epochs (90k steps) for depth without overfitting
 BATCH_SIZE = 1          # Keep small for M-series memory
 LEARNING_RATE = 5e-6    # Lower — larger dataset + higher rank = more careful
 WARMUP_STEPS = 200      # Up from 50 — larger dataset needs longer warmup
@@ -124,7 +124,7 @@ def main():
     model_path = find_base_model()
 
     # Calculate total iterations
-    total_iters = EPOCHS * n_train // BATCH_SIZE
+    total_iters = int(EPOCHS * n_train // BATCH_SIZE)
 
     print("=" * 60)
     print("  PROJECT ZENITH — AURA PERSONALITY LoRA FINE-TUNE")

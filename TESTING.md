@@ -15,7 +15,10 @@ their evidence artifacts.
 | `core/consciousness/stdp_external_validation.py` | **real external validation experiment** | external signal vs self-generated/frozen/shuffled controls |
 | Memory stack (episodic, semantic, vector, knowledge graph, WAL) | **real** | memory continuity tests, decisive evidence runner |
 | Decision/Will/Identity gate | **real** | hardened discriminative suite, identity-gate behaviour tests |
-| `core/brain/llm/continuous_substrate.py` (always-on substrate ODE) | **real** — 64-neuron LTC ODE, ~20 Hz, CPU-only numpy with explicit-Euler integration; readouts derive from the 64-D state vector via fixed projections | tests reading `get_state_summary()` exercise real dynamics |
+| `core/brain/llm/continuous_substrate.py` (always-on substrate ODE) | **real** — 64-neuron LTC ODE by default, scalable to 512-D via `AURA_SUBSTRATE_DIM`, ~20 Hz, CPU-only numpy with explicit-Euler integration; readouts derive from the state vector via fixed projections | tests reading `get_state_summary()` exercise real dynamics |
+| `core/brain/llm/substrate_token_generator.py` | **real substrate-first readout** — tries live substrate logits before transformer fallback when prediction error is low | substrate primary architecture tests |
+| `core/brain/llm/sensorimotor_grounding.py` | **real sensor-to-substrate bridge** — maps camera/screen/audio observations into the ODE input bus | sensor grounding tests |
+| `core/runtime/overt_action_loop.py` | **real overt action executor** — turns a Will-approved initiative into one governed skill execution, verifies the result, emits receipts, records LifeTrace, and updates goal evidence | substrate primary architecture tests plus autonomy pipeline tests |
 | Substrate-driven affect telemetry feeding into latent_bridge | **real** | telemetry-coupling tests now exercise live substrate output |
 
 **What this means for the test count:** the test headline includes tests
@@ -70,8 +73,9 @@ The runner is deliberately narrower than the full battery and harder to inflate:
 - **Phi reference validation**: the phi implementation is checked against toy
   decomposable and coupled systems so a constant or independent network cannot
   masquerade as integration.
-- **Hardware reality**: the auditor classifies 32B 4-bit/8-bit on 16 GB M1 Pro
-  as non-real-time/high-pressure, not a heartbeat tier.
+- **Hardware reality**: Bryan's tracked deployment target is M5-class Apple
+  Silicon with 64 GB unified memory; the auditor still classifies 32B 4-bit/8-bit
+  on lower-memory machines as non-real-time/high-pressure, not a heartbeat tier.
 - **Resource stakes**: the resource ledger persists degradation, exposes action
   envelopes, and can throttle large-model/tool use when viability drops.
 - **Scale caution**: the scale sweep is explicitly a proxy artifact, not a full
@@ -145,8 +149,9 @@ end, under stress, repeatedly, without hiccups".
 ~/.aura/live-source/.venv/bin/python3.12 tests/live_harness_aura_v2_deep.py
 ```
 
-Current status as of 2026-04-20: **v1 145/145 green, v2 14/14 green (159/159
-total)**. Both are fail-fast — exit code 0 only when every check passes.
+Preserved status from the 2026-04-20 live harness run: **v1 145/145 green,
+v2 14/14 green (159/159 total)**. Both harnesses are fail-fast — exit code 0
+only when every check passes.
 
 Historical snapshot: on April 16, 2026, this suite recorded `1013 passed,
 3 warnings` in about 122 seconds on a local machine. Treat the counts and
@@ -515,8 +520,9 @@ These tests show the computational architecture is real. They don't show:
 
 1. Phenomenal consciousness (qualia). No current test can. Open philosophical
    question.
-2. Scale generalization. The 8-node phi computation and 64-neuron substrate are
-   small. Emergence under scale is untested.
+2. Scale generalization. The 8-node phi computation and default 64-neuron
+   substrate are small, even though the ODE path can scale to 512 dimensions.
+   Emergence under scale is untested.
 3. That the full system is conscious. IIT measures integration, GWT measures
    access, HOT measures meta-cognition. Whether any of these constitutes
    phenomenal consciousness remains unsettled science.

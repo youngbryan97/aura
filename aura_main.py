@@ -40,7 +40,7 @@ from typing import Optional, List, Any, Dict
 import multiprocessing
 from core.utils.task_tracker import get_task_tracker
 
-# Phase 31: Native M1 Pro Resilience Fixes
+# Phase 31: Native Apple Silicon Resilience Fixes
 # 0. Force 'spawn' on macOS to prevent Cocoa/XPC deadlocks in child actors
 if sys.platform == "darwin":
     try:
@@ -136,7 +136,7 @@ try:
 except Exception as _mlx_guard_exc:
     logger.debug("In-process MLX boot guard unavailable: %s", _mlx_guard_exc)
 
-# Phase 31: Native M1 Pro Resilience Fixes
+# Phase 31: Native Apple Silicon Resilience Fixes
 # 1. Address AVFFrameReceiver conflict (cv2 vs av/PyAV) on macOS
 # This prevents the "AVFFrameReceiver: ... is already established" crash
 if sys.platform == "darwin":
@@ -589,14 +589,53 @@ async def _boot_runtime_orchestrator(
         logger.debug("performance guard start skipped: %s", exc)
 
     try:
-        from core.runtime.autonomy_conductor import start_default_conductor
+        from core.goals.default_goals import seed_default_autonomy_goals
 
+        goal_engine = ServiceContainer.get("goal_engine", default=None)
+        seeded = await seed_default_autonomy_goals(goal_engine)
+        if seeded:
+            logger.info("🎯 Seeded %d durable autonomy goals.", len(seeded))
+    except Exception as exc:
+        record_degradation("aura_main", exc)
+        logger.warning("Default autonomy goal seeding failed: %s", exc)
+
+    try:
+        from core.runtime.autonomy_conductor import start_default_conductor
+        from core.runtime.overt_action_loop import get_overt_action_loop
+
+        ServiceContainer.register_instance("overt_action_loop", get_overt_action_loop(), required=False)
         conductor = await start_default_conductor()
         ServiceContainer.register_instance("autonomy_conductor", conductor, required=False)
         logger.info("🧭 AutonomyConductor online — proof, validation, and maintenance loops scheduled.")
     except Exception as exc:
         record_degradation("aura_main", exc)
         logger.warning("AutonomyConductor start failed: %s", exc)
+
+    try:
+        from core.adaptation.online_lora_governor import get_online_lora_governor
+
+        ServiceContainer.register_instance("online_lora_governor", get_online_lora_governor(), required=False)
+    except Exception as exc:
+        record_degradation("aura_main", exc)
+        logger.debug("online_lora_governor registration skipped: %s", exc)
+
+    try:
+        from core.brain.llm.sensorimotor_grounding import SensorimotorGroundingBridge
+
+        substrate = (
+            ServiceContainer.get("continuous_substrate", default=None)
+            or ServiceContainer.get("liquid_state", default=None)
+            or ServiceContainer.get("liquid_substrate", default=None)
+            or getattr(orchestrator, "substrate", None)
+        )
+        if substrate is not None:
+            bridge = SensorimotorGroundingBridge(substrate=substrate)
+            await bridge.start()
+            ServiceContainer.register_instance("sensorimotor_grounding_bridge", bridge, required=False)
+            logger.info("👁️🎙️ Sensorimotor grounding bridge online — substrate receives live sensor observations.")
+    except Exception as exc:
+        record_degradation("aura_main", exc)
+        logger.warning("Sensorimotor grounding bridge start failed: %s", exc)
 
     try:
         from core.runtime.activation_audit import get_activation_auditor
@@ -831,6 +870,82 @@ async def run_console():
     from core.main import conversation_loop
     await conversation_loop(orchestrator=orchestrator)
 
+
+async def run_philosophy_stream(port: int = 8000):
+    """Stream the live qualia-gap proof surface as JSON lines."""
+    import json
+    from core.container import ServiceContainer
+
+    orchestrator = await _boot_runtime_orchestrator(
+        ready_label="Philosophy",
+        readiness_context="philosophy_stream",
+    )
+    from core.utils.task_tracker import get_task_tracker
+
+    get_task_tracker().create_task(orchestrator.run(), name="OrchestratorMainLoop")
+    logger.info("🧾 Philosophy stream active. Press Ctrl-C to stop.")
+
+    while True:
+        payload = {"timestamp": time.time(), "mode": "philosophy"}
+        try:
+            substrate = (
+                ServiceContainer.get("continuous_substrate", default=None)
+                or ServiceContainer.get("liquid_state", default=None)
+                or ServiceContainer.get("liquid_substrate", default=None)
+            )
+            if substrate is not None:
+                summary = substrate.get_state_summary() if hasattr(substrate, "get_state_summary") else {}
+                if asyncio.iscoroutine(summary):
+                    summary = await summary
+                payload["substrate"] = summary
+                if hasattr(substrate, "get_state_vector"):
+                    vec = substrate.get_state_vector()
+                elif hasattr(substrate, "x"):
+                    vec = getattr(substrate, "x")
+                else:
+                    vec = []
+                payload["trajectory_head"] = [round(float(x), 5) for x in list(vec)[:16]]
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+            payload["substrate_error"] = str(exc)
+
+        try:
+            phi = ServiceContainer.get("phi_core", default=None)
+            if phi and hasattr(phi, "get_live_phi"):
+                payload["phi"] = float(phi.get_live_phi(include_surrogate=True))
+            elif phi and hasattr(phi, "current_phi"):
+                payload["phi"] = float(phi.current_phi)
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+            payload["phi_error"] = str(exc)
+
+        try:
+            affect = ServiceContainer.get("affect_engine", default=None) or ServiceContainer.get("affect_facade", default=None)
+            if affect and hasattr(affect, "get_state_sync"):
+                payload["affect"] = affect.get_state_sync()
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+            payload["affect_error"] = str(exc)
+
+        try:
+            from core.will import get_will
+
+            payload["will_receipts"] = get_will().get_recent_decisions(n=5)
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+            payload["will_error"] = str(exc)
+
+        try:
+            overt = ServiceContainer.get("overt_action_loop", default=None)
+            if overt is not None and hasattr(overt, "status"):
+                payload["overt_action_loop"] = overt.status()
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+            payload["overt_action_error"] = str(exc)
+
+        print(json.dumps(payload, sort_keys=True, default=str), flush=True)
+        await asyncio.sleep(float(os.getenv("AURA_PHILOSOPHY_STREAM_INTERVAL", "1.0")))
+
 async def run_server_async(host: str, port: int):
     """API Server Mode (Unified Loop)"""
     import uvicorn
@@ -913,7 +1028,7 @@ async def run_desktop(port: int):
             logger.critical("🛑 API THREAD CRITICAL FAILURE: %s", e, exc_info=True)
 
     async def _run_api_server():
-        logger.info("📡 API Server task starting (offloading to thread for M1 stability)...")
+        logger.info("📡 API Server task starting (offloading to thread for Apple Silicon stability)...")
         await asyncio.to_thread(_serve_api_sync)
 
     async def _main_loop():
@@ -1314,6 +1429,7 @@ def main():
     parser.add_argument("--desktop", action="store_true", help="Desktop GUI Mode")
     parser.add_argument("--gui-window", action="store_true", help="Open a desktop GUI window attached to an existing Aura server")
     parser.add_argument("--watchdog", action="store_true", help="Watchdog / Keep-alive Mode")
+    parser.add_argument("--philosophy", action="store_true", help="Stream live substrate/phi/affect/Will proof surface as JSONL")
     parser.add_argument("--stop", action="store_true", help="Stop any running Aura instance")
     parser.add_argument("--reboot", action="store_true", help="Force cleanup and restart (Standardize)")
     parser.add_argument("--port", type=int, default=8000, help="Port for Server/GUI")
@@ -1408,7 +1524,9 @@ def main():
 
     # Perplexity Audit Fix: Use asyncio.run for cleaner entry points
     try:
-        if args.server:
+        if args.philosophy:
+            asyncio.run(run_philosophy_stream(args.port))
+        elif args.server:
             # Dynamic host selection if default was used
             host = args.host
             if (

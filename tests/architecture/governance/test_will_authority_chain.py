@@ -42,6 +42,32 @@ async def test_agency_orchestrator_authorize_gets_will_decision(monkeypatch):
         execute=lambda proposal, state, token: _async_dict({"receipt": "exec-1"}),
     )
     assert receipt.will_receipt_id == "will-1"
+    assert receipt.state_snapshot == {}
+    assert "coroutine_in_receipt" not in str(receipt.to_dict())
+
+
+@pytest.mark.asyncio
+async def test_action_receipt_serializes_runtime_mistakes_without_crashing(monkeypatch):
+    import core.governance.will_client as wc
+
+    monkeypatch.setattr(wc.WillClient, "_resolve_will", lambda self: FakeWill())
+
+    async def accidental_coroutine():
+        return {"late": True}
+
+    receipt = await AgencyOrchestrator().run(
+        Proposal("drive", "run diagnostic", "diagnostic result", "tool_execution"),
+        perceive=lambda: accidental_coroutine(),
+        execute=lambda proposal, state, token: _async_dict({"receipt": "exec-1"}),
+    )
+
+    payload = receipt.to_dict()
+    assert payload["state_snapshot"] == {"late": True}
+
+    broken = receipt
+    broken.state_snapshot = {"bad": accidental_coroutine()}
+    payload = broken.to_dict()
+    assert payload["state_snapshot"]["bad"]["error"] == "coroutine_in_receipt"
 
 
 async def _async_dict(value):

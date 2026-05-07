@@ -8,6 +8,7 @@ import json
 import base64
 import os
 import sys
+import asyncio
 from datetime import datetime
 
 # Try to import mss for screenshots

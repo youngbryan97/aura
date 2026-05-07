@@ -15,11 +15,16 @@
     },
     "CAA_32B_RESULTS.json": {
       "exists": true,
-      "passed": false,
+      "passed": true,
       "summary": {
         "activation_vector_count": 15,
         "vector_count": 16
       }
+    },
+    "CANONICAL_PROOF_BUNDLE.json": {
+      "exists": true,
+      "passed": false,
+      "summary": {}
     },
     "DECISIVE_RESULTS.json": {
       "exists": true,
@@ -45,11 +50,16 @@
       "passed": true,
       "summary": {}
     },
+    "OVERT_ACTION_SMOKE.json": {
+      "exists": true,
+      "passed": true,
+      "summary": {}
+    },
     "SECURITY_SCAN.json": {
       "exists": true,
       "passed": true,
       "summary": {
-        "files_scanned": 1442
+        "files_scanned": 1664
       }
     },
     "SELF_REPAIR_LINEAGE.json": {
@@ -67,18 +77,20 @@
     "ACTIVATION_REPORT.json": "artifacts/proof_bundle/latest/ACTIVATION_REPORT.json",
     "BOOT_HEALTH.json": "artifacts/proof_bundle/latest/BOOT_HEALTH.json",
     "CAA_32B_RESULTS.json": "artifacts/proof_bundle/latest/CAA_32B_RESULTS.json",
+    "CANONICAL_PROOF_BUNDLE.json": "artifacts/proof_bundle/latest/CANONICAL_PROOF_BUNDLE.json",
     "DECISIVE_RESULTS.json": "artifacts/proof_bundle/latest/DECISIVE_RESULTS.json",
     "GOVERNANCE_COVERAGE.json": "artifacts/proof_bundle/latest/GOVERNANCE_COVERAGE.json",
     "LONGEVITY_RUN.json": "artifacts/proof_bundle/latest/LONGEVITY_RUN.json",
     "MUTATION_TEST_REPORT.json": "artifacts/proof_bundle/latest/MUTATION_TEST_REPORT.json",
+    "OVERT_ACTION_SMOKE.json": "artifacts/proof_bundle/latest/OVERT_ACTION_SMOKE.json",
     "SECURITY_SCAN.json": "artifacts/proof_bundle/latest/SECURITY_SCAN.json",
     "SELF_REPAIR_LINEAGE.json": "artifacts/proof_bundle/latest/SELF_REPAIR_LINEAGE.json",
     "STDP_EXTERNAL_VALIDATION.json": "artifacts/proof_bundle/latest/STDP_EXTERNAL_VALIDATION.json"
   },
-  "generated_at": 1777516853.142735,
+  "generated_at": 1778115752.379512,
   "git": {
-    "commit": "f45a85b61e2822972852a22b512ceabfe8e0d009",
-    "status": "M CITATION.cff\n M Makefile\n M README.md\n M TESTING.md\n M aura_main.py\n M core/adaptation/safe_optimizer.py\n M core/affect/affect_facade.py\n M core/agency/compute_orchestrator.py\n M core/agency/tool_orchestrator.py\n M core/apply_response_patches.py\n M core/autonomous_initiative_loop.py\n M core/autonomy/curiosity_scheduler.py\n M core/brain/inference_gate.py\n M core/brain/llm/context_assembler.py\n M core/brain/llm/continuous_substrate.py\n M core/brain/llm/local_llm_setup.py\n M core/brain/llm/provider.py\n M core/brain/llm_interface.py\n M core/bus/shared_mem_bus.py\n M core/cognitive_integration_layer.py\n M core/config.py\n M core/consciousness/affective_steering.py\n M core/consciousness/crsm_lora_bridge.py\n M core/consciousness/integration.py\n M core/conversation/engine.py\n M core/coordinators/metabolic_coordinator.py\n M core/embodiment/iot_bridge.py\n M core/embodiment/voice_presence.py\n M core/evolution/persona_evolver.py\n M core/graceful_shutdown.py\n M core/kernel/bridge.py\n M core/memory/scar_formation.py\n M core/narrative_thread.py\n M core/orchestrator/mixins/autonomy.py\n M core/orchestrator/mixins/context_streaming.py\n M core/orchestrator/mixins/learning_evolution.py\n M core/patch_library.py\n M core/resilience/circuit_dash.py\n M core/resilience/dream_cycle.py\n M core/runtime/organ_supervisor.py\n M core/runtime/restore_drill.py\n M core/runtime/update_manager.py\n M core/safe_mode.py\n M core/self_modification/safe_modification.py\n M core/self_modification/safe_pipeline.py\n M core/self_modification/shadow_ast_healer.py\n M core/self_modification/structural_improver.py\n M core/senses/entropy_anchor.py\n M core/senses/gps_interface.py\n M core/skills/auto_refactor.py\n M core/skills/base_skill.py\n M core/skills/listen.py\n M core/skills/web_search.py\n M core/social/community.py\n M core/sovereignty/migration.py\n M core/sovereignty/wallet.py\n M core/utils/output_gate.py\n M interface/static/memory/src/utils/memoryEngine.js\n M tests/test_self_modification_sandbox_policy.py\n M tests/test_skill_surface_contracts.py\n M training/convert_lora_to_gguf.py\n M training/extract_steering_vectors.py\n?? artifacts/proof_bundle/\n?? core/agency/specialist_society.py\n?? core/autonomy/metabolic_budget.py\n?? core/cognition/synthetic_language_genesis.py\n?? core/consciousness/stdp_external_validation.py\n?? core/consciousness/substrate_policy_head.py\n?? core/embodiment/simulator_bridge.py\n?? core/evaluation/self_test_synthesizer.py\n?? core/evolution/generational_handoff.py\n?? core/governance/constitutional_amendment.py\n?? core/learning/continual_lora_merge.py\n?? core/learning/meta_plasticity.py\n?? core/learning/synthetic_data_flywheel.py\n?? core/memory/adversarial_memory.py\n?? core/memory/memory_benchmarking.py\n?? core/memory/predictive_graph.py\n?? core/memory/scar_court.py\n?? core/morphogenesis/native_compiler.py\n?? core/neuroweb/mycelial_bridge.py\n?? core/promotion/behavioral_contracts.py\n?? core/promotion/canary_runtime.py\n?? core/reasoning/\n?? core/runtime/activation_audit.py\n?? core/runtime/autonomy_conductor.py\n?? core/runtime/causal_trace.py\n?? core/runtime/consequential_primitives.py\n?? core/runtime/keep_awake.py\n?? core/self_modification/fault_pipeline.py\n?? core/self_modification/mutation_tiers.py\n?? core/self_modification/patch_genealogy.py\n?? core/self_modification/repair_approval.py\n?? core/self_modification/repair_calibration.py\n?? core/skills/toolbox_web_agent.py\n?? core/tools/toolweaver.py\n?? tests/test_endgame_grand_update.py\n?? tools/activation_audit.py\n?? tools/keep_awake.py\n?? tools/proof_bundle.py\n?? tools/security_scan.py\n?? training/caa_32b_validation.py"
+    "commit": "db7e7ce73eb6739da69fc55503faa722adb2b4d6",
+    "status": "M .aura/memfs/user.txt\n M .gitignore\n M ARCHITECTURE.md\n M HOW_IT_WORKS.md\n M INSTALL.md\n M README.md\n M TESTING.md\n M artifacts/proof_bundle/latest/ACTIVATION_REPORT.json\n M artifacts/proof_bundle/latest/BOOT_HEALTH.json\n M artifacts/proof_bundle/latest/CAA_32B_RESULTS.json\n M artifacts/proof_bundle/latest/DECISIVE_RESULTS.json\n M artifacts/proof_bundle/latest/GOVERNANCE_COVERAGE.json\n M artifacts/proof_bundle/latest/LONGEVITY_RUN.json\n M artifacts/proof_bundle/latest/MANIFEST.json\n M artifacts/proof_bundle/latest/MUTATION_TEST_REPORT.json\n M artifacts/proof_bundle/latest/SECURITY_SCAN.json\n M artifacts/proof_bundle/latest/SELF_REPAIR_LINEAGE.json\n M artifacts/proof_bundle/latest/STDP_EXTERNAL_VALIDATION.json\n M aura_main.py\n M core/agency/agency_orchestrator.py\n M core/brain/llm/continuous_substrate.py\n M core/brain/llm/llm_router.py\n M core/cognitive/topology_evolution.py\n M core/consciousness/phenomenological_experiencer.py\n M core/conversation_reflection.py\n M core/evaluation/hardware_reality.py\n M core/local_voice_cortex.py\n M core/memory/governor.py\n M core/patches/pending_patch.py\n M core/runtime/autonomy_conductor.py\n M core/utils/telemetry_enrichment.py\n M docs/OPERATOR_GUIDE.md\n M interface/routes/inner_state.py\n M senses/vision_service.py\n M tests/CONTINUITY_TORTURE_RESULTS.json\n M tests/DECISIVE_RESULTS.json\n M tests/SCALE_SWEEP_RESULTS.json\n M tests/STEERING_AB_RESULTS.json\n M tests/architecture/governance/test_will_authority_chain.py\n M tests/run_decisive_test.py\n M tests/run_scale_sweep.py\n M tests/test_hardware_resource_baselines.py\n M tests/test_projects.db\n M tools/proof_bundle.py\n M training/adapters/aura-personality/adapter_config.json\n M training/architecture_knowledge.py\n M training/build_dataset_v3.py\n M training/character_voices.py\n M training/data/train.jsonl\n M training/data/valid.jsonl\n M training/finetune_lora.py\n?? artifacts/proof_bundle/latest/CANONICAL_PROOF_BUNDLE.json\n?? artifacts/proof_bundle/latest/OVERT_ACTION_SMOKE.json\n?? aura_bench/baselines/results.jsonl\n?? core/adaptation/online_lora_governor.py\n?? core/brain/llm/sensorimotor_grounding.py\n?? core/brain/llm/substrate_token_generator.py\n?? core/goals/default_goals.py\n?? core/runtime/overt_action_loop.py\n?? tests/test_substrate_primary_architecture.py\n?? training/raw_data/new_scraped_quotes.json\n?? training/raw_data/scrape_new_characters.py"
   },
   "passed": true,
   "readiness_passed": false,
@@ -92,7 +104,9 @@
     "MUTATION_TEST_REPORT.json",
     "BOOT_HEALTH.json",
     "ACTIVATION_REPORT.json",
-    "SECURITY_SCAN.json"
+    "SECURITY_SCAN.json",
+    "OVERT_ACTION_SMOKE.json",
+    "CANONICAL_PROOF_BUNDLE.json"
   ],
   "root": "/Users/bryan/.aura/live-source"
 }

@@ -2,10 +2,10 @@
 ────────────────────────────────────────
 Aura v5.0: Continuous Latent Streaming (Substrate Pacing Inversion).
 
-A 64-neuron Liquid Time-Constant ODE that runs at ~20 Hz, integrating affect
-inputs with stochastic perturbation to produce a state vector and a derived
-telemetry summary (valence/arousal/dominance/phi/etc.) that downstream
-subsystems can read.
+A configurable 64-to-512 neuron Liquid Time-Constant ODE that runs at ~20 Hz,
+integrating affect and sensorimotor inputs with stochastic perturbation to
+produce a state vector and a derived telemetry summary
+(valence/arousal/dominance/phi/etc.) that downstream subsystems can read.
 
 Implementation notes
 --------------------
@@ -13,11 +13,12 @@ Implementation notes
 - Pure-Python ODE with explicit-Euler integration; sufficient given the
   20 Hz step rate and the bounded tanh nonlinearity.
 - ``get_state_summary`` derives valence/arousal/dominance/phi from the
-  64-D state vector via fixed projections rather than returning hardcoded
+  configured state vector via fixed projections rather than returning hardcoded
   values. The projections are intentionally simple so the readouts are
   legible while reflecting actual dynamics.
-- This module is the runtime dynamical substrate: a real 64-neuron LTC ODE
-  with telemetry projections, stochastic perturbation, and bounded integration.
+- This module is the runtime dynamical substrate: a real LTC ODE with telemetry
+  projections, stochastic perturbation, grounded observations, and bounded
+  integration.
 
 Public API:
 - ``ContinuousSubstrate(model_path, device)``
@@ -36,6 +37,7 @@ from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import math
+import os
 import time
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional
@@ -46,7 +48,16 @@ from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Substrate")
 
-NEURONS = 64
+def _configured_neurons() -> int:
+    raw = os.getenv("AURA_SUBSTRATE_DIM", "64")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = 64
+    return max(16, min(512, value))
+
+
+NEURONS = _configured_neurons()
 STEP_HZ = 20.0
 STEP_DT = 1.0 / STEP_HZ
 DECAY = 0.05
@@ -55,13 +66,13 @@ INPUT_GAIN = 0.5
 SNAPSHOT_BUFFER = 100
 
 
-def _make_recurrent_matrix(seed: int = 17) -> np.ndarray:
+def _make_recurrent_matrix(size: int = NEURONS, seed: int = 17) -> np.ndarray:
     """Sparse, slightly anti-symmetric recurrent connectivity. Anti-symmetry
     encourages oscillatory dynamics rather than fixed-point convergence,
     which gives the substrate something to "do" even with steady input."""
     rng = np.random.default_rng(seed)
-    raw = rng.standard_normal((NEURONS, NEURONS)) * 0.15
-    sparse_mask = rng.random((NEURONS, NEURONS)) < 0.25
+    raw = rng.standard_normal((size, size)) * 0.15
+    sparse_mask = rng.random((size, size)) < 0.25
     raw = raw * sparse_mask
     skew = 0.5 * (raw - raw.T)
     sym = 0.5 * (raw + raw.T)
@@ -70,7 +81,7 @@ def _make_recurrent_matrix(seed: int = 17) -> np.ndarray:
     return W.astype(np.float32)
 
 
-# Fixed readout projections from 64-D state to interpretable scalars.
+# Fixed readout projections from the configured state to interpretable scalars.
 _RNG = np.random.default_rng(42)
 _VALENCE_PROJ = _RNG.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
 _AROUSAL_PROJ = _RNG.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
@@ -86,11 +97,12 @@ class ContinuousSubstrate:
         self._task: Optional[asyncio.Task] = None
         self._snapshot_buffer: Deque[Dict[str, Any]] = deque(maxlen=SNAPSHOT_BUFFER)
         self._state = np.zeros(NEURONS, dtype=np.float32)
-        self._W = _make_recurrent_matrix()
+        self._W = _make_recurrent_matrix(NEURONS)
         self._input_signal = np.zeros(NEURONS, dtype=np.float32)
         self._step_count = 0
         self._last_phi_estimate = 0.0
         self._phi_window: Deque[np.ndarray] = deque(maxlen=64)
+        self._last_observation: Dict[str, Any] = {}
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -116,13 +128,26 @@ class ContinuousSubstrate:
 
     def inject_input(self, vector: np.ndarray) -> None:
         """Apply an external affect signal to the substrate's input bus.
-        Vector should be 64-D; shorter inputs are zero-padded, longer are truncated.
+        Shorter inputs are zero-padded, longer inputs are truncated.
         """
         v = np.asarray(vector, dtype=np.float32).ravel()
         buf = np.zeros(NEURONS, dtype=np.float32)
         n = min(NEURONS, v.size)
         buf[:n] = v[:n]
         self._input_signal = buf
+
+    def inject_observation(self, observation: Dict[str, Any]) -> None:
+        """Project a grounded sensor observation into the substrate input bus.
+
+        This is the physical-world coupling path: camera/screen/audio events are
+        converted into a deterministic 64-D to 512-D perturbation and injected
+        before the ODE step. Text embeddings are not required; the vector is
+        derived from source, confidence, energy, and observed bytes/metadata.
+        """
+        from core.brain.llm.sensorimotor_grounding import observation_to_vector
+
+        self._last_observation = dict(observation or {})
+        self.inject_input(observation_to_vector(observation, dim=NEURONS))
 
     def get_state_summary(self) -> Dict[str, Any]:
         """Telemetry-compatible summary derived from live dynamics."""
@@ -136,6 +161,8 @@ class ContinuousSubstrate:
                 "status": "idle",
                 "buffer_depth": 0,
                 "step_count": 0,
+                "dimension": NEURONS,
+                "grounded_observation": False,
             }
         s = self._state
         return {
@@ -148,11 +175,17 @@ class ContinuousSubstrate:
             "status": "active" if self.running else "halted",
             "buffer_depth": len(self._snapshot_buffer),
             "step_count": self._step_count,
+            "dimension": NEURONS,
+            "grounded_observation": bool(self._last_observation),
+            "last_observation_source": str(self._last_observation.get("source", ""))[:40],
         }
 
     def get_state_vector(self) -> np.ndarray:
-        """Returns the live 64-D state vector (copy)."""
+        """Returns the live configured-dimension state vector (copy)."""
         return self._state.copy()
+
+    def get_state_dim(self) -> int:
+        return int(self._state.size)
 
     def get_latest_monologue(self, limit: int = 5) -> str:
         """Repurposed: returns most-recent human-readable substrate snapshots,

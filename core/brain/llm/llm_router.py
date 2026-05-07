@@ -1,9 +1,10 @@
 """Intelligent LLM Router - Multi-tier failover with local models
 
 Routing Priority:
-1. Primary: External LLMs (GPT-4, Claude) - Best quality
-2. Secondary: Local powerful model (Llama 3.1 70B, Qwen) - Good quality, no quota
-3. Tertiary: Local lightweight model (Llama 3.2 3B) - Basic quality, always works
+1. Substrate readout for low-error stateful continuations.
+2. Local powerful model (Qwen/Cortex lane) for high-coherence language work.
+3. External/API solver lanes when explicitly configured or required.
+4. Emergency rule-based fallback when model endpoints are unavailable.
 
 Never fails. Always has a working brain.
 """
@@ -11,6 +12,7 @@ from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
+import os
 import time
 import hashlib
 from enum import Enum
@@ -617,6 +619,57 @@ class IntelligentLLMRouter:
             record_degradation('llm_router', exc)
             logger.debug("LegacyRouter background deferral probe failed: %s", exc)
         return ""
+
+    @staticmethod
+    def _substrate_primary_enabled() -> bool:
+        return os.getenv("AURA_SUBSTRATE_PRIMARY", "1").strip().lower() not in {"0", "false", "off", "no"}
+
+    @staticmethod
+    def _substrate_user_facing_enabled() -> bool:
+        return os.getenv("AURA_SUBSTRATE_PRIMARY_USER", "1").strip().lower() not in {"0", "false", "off", "no"}
+
+    async def _try_substrate_primary(self, prompt: str, kwargs: Dict[str, Any], *, is_background: bool) -> Optional[str]:
+        """Attempt substrate readout before calling the transformer cortex.
+
+        A high prediction error returns ``None`` and the normal LLM path runs.
+        A low prediction error returns text generated directly from the live
+        substrate state.
+        """
+        if not self._substrate_primary_enabled():
+            return None
+        if not is_background and not self._substrate_user_facing_enabled():
+            return None
+        if kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff") or kwargs.get("force_transformer"):
+            return None
+
+        try:
+            from core.brain.llm.substrate_token_generator import get_substrate_token_generator
+            from core.container import ServiceContainer
+
+            substrate = (
+                ServiceContainer.get("continuous_substrate", default=None)
+                or ServiceContainer.get("liquid_state", default=None)
+            )
+            if substrate is None:
+                return None
+
+            generator = get_substrate_token_generator(substrate)
+            result = generator.generate(
+                prompt,
+                max_tokens=int(kwargs.get("max_tokens", 24) or 24),
+                force=bool(kwargs.get("force_substrate")),
+            )
+            kwargs["substrate_generation"] = result.to_dict()
+            self.stats["last_substrate_generation"] = result.to_dict()
+            if result.used_substrate and result.text.strip():
+                self.last_tier = "substrate"
+                if not is_background:
+                    self.last_user_tier = "substrate"
+                return result.text
+        except Exception as exc:
+            record_degradation("llm_router", exc)
+            logger.debug("Substrate primary path skipped: %s", exc)
+        return None
     
     async def think(
         self,
@@ -724,6 +777,10 @@ class IntelligentLLMRouter:
             kwargs["messages"] = _messages
         else:
             kwargs.pop("messages", None)
+
+        substrate_text = await self._try_substrate_primary(prompt, kwargs, is_background=is_background)
+        if substrate_text:
+            return substrate_text
 
         if should_force_tool_handoff(contract, is_background=is_background) and not kwargs.pop("_contract_tool_handoff", False):
             tools = build_agentic_tool_map(

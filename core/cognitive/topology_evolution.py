@@ -88,7 +88,7 @@ def _same_tier(a: int, b: int) -> bool:
 @dataclass(frozen=True)
 class TopologyConfig:
     """Tuning knobs for structural plasticity.  All defaults are conservative
-    enough to run on a single MacBook without destabilizing the mesh."""
+    enough to run on a single Apple Silicon workstation without destabilizing the mesh."""
 
     # -- Co-activation sliding window --
     correlation_window: int = 100          # ticks of history to keep

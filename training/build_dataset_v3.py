@@ -151,18 +151,23 @@ def main():
         with open("/Users/bryan/.aura/live-source/training/raw_data/verbatim_quotes_final.json", "r") as f:
             raw_quotes = json.load(f)
             direct_quotes = [(q["user"], q["assistant"]) for q in raw_quotes]
+
+        with open("/Users/bryan/.aura/live-source/training/raw_data/new_scraped_quotes.json", "r") as f2:
+            new_quotes = json.load(f2)
+            direct_quotes.extend([(q["user"], q["assistant"]) for q in new_quotes])
     except Exception:
-        print("Warning: verbatim_quotes_final.json not found. Falling back.")
+        print("Warning: verbatim_quotes_final.json or new_scraped_quotes.json not found. Falling back.")
         direct_quotes = get_all_direct_quotes()
 
     try:
         with open("/Users/bryan/.aura/live-source/training/raw_data/human_conversations.json", "r") as f:
             raw_human = json.load(f)
-            # DYNAMIC SAMPLING: To prevent human conversations from drowning out the character voices,
-            # we sample exactly a 1:1 ratio with the verbatim quotes.
-            target_human_count = max(len(direct_quotes), 100)
-            sampled_human = random.sample(raw_human, min(target_human_count, len(raw_human)))
+            # REDUCED SAMPLING: As requested, we are sampling a smaller subset (15,000)
+            # to ensure the character voices remain dominant while maintaining conversational variety.
+            sampled_human = random.sample(raw_human, min(15000, len(raw_human)))
             human_speech = [(q["user"], q["assistant"]) for q in sampled_human]
+
+
     except Exception:
         print("Warning: human_conversations.json not found.")
         human_speech = []

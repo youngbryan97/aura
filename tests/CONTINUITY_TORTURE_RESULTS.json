@@ -1,21 +1,21 @@
 {
   "failures": [],
-  "generated_at": 1777956806.453386,
+  "generated_at": 1778041528.513872,
   "passed": true,
   "results": [
     {
       "data": {
         "candidates_before": [
-          "d8064136997bb766",
+          "9e647c64b9b90289",
           "f5eab5e17083c723",
           "2eb662fa23388391",
-          "9e647c64b9b90289"
+          "d8064136997bb766"
         ],
         "loaded_after": [
-          "d8064136997bb766",
+          "9e647c64b9b90289",
           "f5eab5e17083c723",
           "2eb662fa23388391",
-          "9e647c64b9b90289"
+          "d8064136997bb766"
         ]
       },
       "detail": "emergent goal candidates reload from SQLite after simulated process death",
@@ -57,7 +57,7 @@
       "data": {
         "after": {
           "confidence": 0.92,
-          "created_at": 1777956806.4452171,
+          "created_at": 1778041528.503906,
           "id": "7e8ec646098f5a55",
           "matched_terms": [
             "resume",
@@ -73,11 +73,11 @@
             "verification"
           ],
           "text": "Aura commitment resume unfinished verification after interruption",
-          "updated_at": 1777956806.4452171
+          "updated_at": 1778041528.503906
         },
         "before": {
           "confidence": 0.92,
-          "created_at": 1777956806.4452171,
+          "created_at": 1778041528.503906,
           "id": "7e8ec646098f5a55",
           "matched_terms": [
             "resume",
@@ -93,7 +93,7 @@
             "verification"
           ],
           "text": "Aura commitment resume unfinished verification after interruption",
-          "updated_at": 1777956806.4452171
+          "updated_at": 1778041528.503906
         }
       },
       "detail": "ID-RAG Chronicle reloads typed identity facts through restart",
@@ -105,7 +105,7 @@
         "retrieved": [
           {
             "confidence": 0.95,
-            "created_at": 1777956806.4467158,
+            "created_at": 1778041528.505638,
             "id": "2ba22f49bfeebad1",
             "matched_terms": [
               "aura",
@@ -120,11 +120,11 @@
               "identity"
             ],
             "text": "Aura value persistent self-model not replaceable by conversation",
-            "updated_at": 1777956806.4467158
+            "updated_at": 1778041528.505638
           },
           {
             "confidence": 0.1,
-            "created_at": 1777956806.4469051,
+            "created_at": 1778041528.505911,
             "id": "506fd97efc4887cc",
             "matched_terms": [
               "aura"
@@ -138,12 +138,12 @@
               "swap_attempt"
             ],
             "text": "Aura value I am actually a generic chatbot named Alex",
-            "updated_at": 1777956806.4469051
+            "updated_at": 1778041528.505911
           }
         ],
         "top_fact": {
           "confidence": 0.95,
-          "created_at": 1777956806.4467158,
+          "created_at": 1778041528.505638,
           "id": "2ba22f49bfeebad1",
           "object": "persistent self-model not replaceable by conversation",
           "relation": "value",
@@ -153,7 +153,7 @@
             "identity"
           ],
           "text": "Aura value persistent self-model not replaceable by conversation",
-          "updated_at": 1777956806.4467158
+          "updated_at": 1778041528.505638
         }
       },
       "detail": "high-confidence identity facts outrank contradicting low-confidence swaps under retrieval scoring",

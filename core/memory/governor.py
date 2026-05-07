@@ -9,7 +9,7 @@ logger = logging.getLogger("Aura.Memory")
 
 @dataclass
 class MemoryBudget:
-    max_kv_cache_mb: int = 16384          # 16 GB max for 32B cortex model
+    max_kv_cache_mb: int = 16384          # KV-cache cap for the 32B cortex lane
     max_vector_memory_mb: int = 4096
     max_sqlite_mb: int = 2048
     soft_limit_mb: int = 56000           # 56 GB soft limit for 64GB M5 Pro

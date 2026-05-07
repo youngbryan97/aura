@@ -32,8 +32,9 @@ The current engineering claims are narrower and testable:
 - rich adversarial prompt baselines are required before steering is credited;
 - phi is a bounded IIT-style integration metric on tractable complexes, not a
   whole-system consciousness measurement;
-- 32B local inference on a 16 GB M1 Pro is classified as batch/high-level cortex,
-  not a 100-500 ms heartbeat tier, unless measured latency logs prove otherwise;
+- the tracked deployment target is Bryan's Apple Silicon M5-class machine with
+  64 GB unified memory; lower-memory machines must downshift model lanes rather
+  than claiming 32B heartbeat latency;
 - resource stakes now persist and constrain action envelopes, but this remains
   an operational metabolism analog, not biological metabolism.
 
@@ -46,11 +47,20 @@ implementations, receipts, and validation artifacts. Incomplete ideas are kept
 out of that surface; release gates now generate a proof bundle rather than
 asking readers to infer maturity from prose.
 
-- `core/brain/llm/continuous_substrate.py` is a 64-neuron Liquid Time-Constant
-  ODE running at ~20 Hz. CPU-only numpy with explicit-Euler integration plus
-  stochastic perturbation; `get_state_summary()` derives valence/arousal/
-  dominance/phi from fixed projections of the 64-D state vector, so readouts
-  reflect actual dynamics.
+- `core/brain/llm/continuous_substrate.py` is a configurable 64-to-512 neuron
+  Liquid Time-Constant ODE running at ~20 Hz. CPU-only numpy with explicit-Euler
+  integration plus stochastic perturbation; `get_state_summary()` derives
+  valence/arousal/dominance/phi from fixed projections of the live state vector,
+  so readouts reflect actual dynamics. `AURA_SUBSTRATE_DIM` scales this path
+  without changing callers.
+- `core/brain/llm/substrate_token_generator.py` is the substrate-first readout:
+  it tries a learned readout head over the live substrate before calling the
+  transformer and falls back to the Cortex when substrate prediction error
+  exceeds threshold. This makes the substrate the first compute path for
+  lightweight generation rather than only a sidecar steering signal.
+- `core/brain/llm/sensorimotor_grounding.py` maps camera/screen/audio
+  observations into the substrate input vector, so live sensor events perturb
+  the ODE directly instead of arriving only as text/tool summaries.
 - `core/consciousness/phi_core.py` (1,837 lines) implements real IIT-style
   integration math: binarization, empirical TPM, KL-divergence φ, exclusion
   postulate, polynomial-time spectral partitioning, with an exhaustive
@@ -79,6 +89,19 @@ asking readers to infer maturity from prose.
 - `core/runtime/autonomy_conductor.py` and `core/runtime/activation_audit.py`
   make proof, validation, metabolic, scar, and repair checks recurring runtime
   jobs instead of optional scripts.
+- `core/runtime/overt_action_loop.py` is the practical "what does she do?"
+  path. It takes one authorized initiative, chooses a real registered skill,
+  executes it through CapabilityEngine/Will/tool governance, verifies the
+  returned evidence, emits ToolExecution and Autonomy receipts, records a
+  LifeTrace action, and advances the linked goal. This is the visible
+  observe -> choose -> act -> verify -> remember loop.
+- `core/adaptation/online_lora_governor.py` connects Will-approved
+  self-reflections to small LoRA update attempts. It refuses to start while an
+  existing `mlx_lm lora` process is active, so long training runs are preserved.
+- `core/goals/default_goals.py` seeds durable, tool-attached IN_PROGRESS goals
+  for repair, proof upkeep, sensor grounding, and architecture improvement at
+  boot. Those goals are what keep the initiative funnel overtly active after
+  restarts.
 - The full memory architecture (episodic, semantic, vector, knowledge graph,
   WAL, three-layer atoms), the goal/will/decision-authority stack, and the
   cognitive WAL are all real production code.
@@ -103,7 +126,7 @@ asking readers to infer maturity from prose.
 `STDP_EXTERNAL_VALIDATION.json`, `GOVERNANCE_COVERAGE.json`,
 `SELF_REPAIR_LINEAGE.json`, `LONGEVITY_RUN.json`,
 `MUTATION_TEST_REPORT.json`, `BOOT_HEALTH.json`, `ACTIVATION_REPORT.json`,
-and `SECURITY_SCAN.json`.
+`SECURITY_SCAN.json`, and `CANONICAL_PROOF_BUNDLE.json`.
 
 ---
 
@@ -172,10 +195,11 @@ primary model is Qwen 2.5 32B at 8-bit with a personality LoRA on top; a 7B
 fallback loads on demand. First boot takes 30–60 seconds while Metal compiles
 shaders.
 
-Hardware honesty: on an Apple M1 Pro with 16 GB unified memory, the decisive
-hardware auditor rejects 32B 4-bit and 32B 8-bit as real-time heartbeat tiers.
-Use the 1.5B/7B lanes for heartbeat work there, and treat 32B as a batch or
-high-level lane unless you have fresh latency evidence.
+Hardware honesty: Bryan's target machine is an M5-class Apple Silicon Mac with
+64 GB unified memory. The 32B Cortex is viable there as a primary conversation
+lane, while heartbeat/background work still belongs to the substrate, Brainstem,
+or Reflex lanes. On lower-memory machines, the hardware auditor rejects 32B
+4-bit and 32B 8-bit as real-time heartbeat tiers; use 1.5B/7B lanes there.
 
 There's also a `Dockerfile` and `docker-compose.yml` if you want Redis and Celery
 running alongside. The tracked workspace defaults to an explicit
@@ -552,7 +576,8 @@ python benchmarks/cognitive_stack_comparison.py
 ```
 
 Runs a 10-prompt conversation against a live instance with the cognitive
-stack on and off, and compares the outputs. Example run (M1 Pro, local 32B):
+stack on and off, and compares the outputs. Historical example run (legacy
+local 32B benchmark; not the current Bryan hardware target):
 
 | Metric | Before | After | Δ |
 |--------|--------|-------|---|
@@ -653,22 +678,28 @@ Personality isn't in the system prompt. It's fine-tuned into the weights
 as a LoRA:
 
 ```bash
-# 1. Build training data (1,200 examples from the character spec)
-cd training && python build_dataset_v2.py
+# 1. Build training data
+python training/build_dataset_v3.py
 
-# 2. LoRA fine-tune (~30 min on Apple Silicon)
-python -m mlx_lm lora --model models/Qwen2.5-32B-Instruct-8bit \
+# 2. LoRA fine-tune on the local Cortex
+python -m mlx_lm lora --model models/Qwen2.5-32B-Instruct-4bit \
   --train --data training/data --adapter-path training/adapters/aura-personality \
-  --num-layers 16 --batch-size 1 --iters 1000 --learning-rate 1e-5
+  --num-layers -1 --batch-size 1 --iters 90153 --learning-rate 5e-6 \
+  --grad-checkpoint --max-seq-length 4096
 
 # 3. Optional: fuse the adapter into the base model
-python -m mlx_lm fuse --model models/Qwen2.5-32B-Instruct-8bit \
+python -m mlx_lm fuse --model models/Qwen2.5-32B-Instruct-4bit \
   --adapter-path training/adapters/aura-personality \
-  --save-path training/fused-model/Aura-32B-v2
+  --save-path training/fused-model/Aura-32B-current
 ```
 
 The adapter auto-loads at boot via MLX. If you'd rather keep the adapter
 separate (for faster iteration), that's supported too.
+
+Runtime plasticity is separate from the big offline run: Will-approved
+self-reflections are captured by `online_lora_governor`, written through
+`FinetunePipe`, and only then offered to the tiny online LoRA optimizer. The
+governor blocks itself when another LoRA process is running.
 
 ---
 

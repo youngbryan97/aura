@@ -22,7 +22,7 @@ architecture alone.
 ## Table of Contents
 
 0. [The Unified Will: decision authority](#0-the-unified-will)
-1. [System model](#1-system-model) (includes the inference pipeline)
+1. [System model](#1-system-model) (includes the substrate-first inference pipeline)
 2. [The tick: Aura's atomic unit of cognition](#2-the-tick)
 3. [Integrated information (IIT 4.0)](#3-integrated-information)
 4. [Affective modulation pipeline](#4-affective-modulation)
@@ -228,6 +228,12 @@ SQLite database for IN_PROGRESS and PAUSED goals and injects them into
 The practical effect: after a restart, Aura's first autonomous initiative
 is to continue what she was doing. Goals survive process death.
 
+`core/goals/default_goals.py` also seeds four durable IN_PROGRESS goals when
+`AURA_SEED_DEFAULT_GOALS=1` (the default): repair/self-maintenance, proof-bundle
+upkeep, live sensor grounding, and ASA architecture improvement. Each seeded
+goal carries required tools/skills so the initiative funnel has overt work to
+select instead of drifting toward inaction when no user task is active.
+
 ## 0.6 Proof surface
 
 **Endpoint**: `GET /api/inner-state`
@@ -242,9 +248,51 @@ Returns a JSON object containing:
 - Substrate coherence (phi, field coherence)
 - Active goals
 - Affect state
+- Sensorimotor grounding status
+- Last substrate token-generation decision
+- Online LoRA governor status
+- Overt action loop status: last skill run, verification result, receipts,
+  goal linkage, and LifeTrace event id
 
 Receipt verification: `GET /api/inner-state/will-receipt/{receipt_id}`
 confirms that a specific action passed through the Will.
+
+The CLI proof stream is `python aura_main.py --philosophy`. It emits JSONL with
+the live substrate trajectory head, phi value, affect state, and recent Will
+receipts. This deliberately exposes the qualia gap: observers can see the
+functional trajectory and decide what they think it means.
+
+## 0.7 Overt action loop
+
+**File**: `core/runtime/overt_action_loop.py`
+
+The practical agency loop is not only "the substrate thought about something."
+Every `overt_action_cycle` in the AutonomyConductor attempts one bounded
+external step:
+
+1. Ask `InitiativeSynthesizer` for the current winner.
+2. Require a Will-approved initiative receipt, or use a governed fallback
+   maintenance initiative when no winner exists.
+3. Map the initiative/goal to a registered safe skill such as
+   `auto_refactor`, `system_proprioception`, `environment_info`, or
+   `file_operation`.
+4. Execute through `CapabilityEngine`, which applies constitutional tool
+   governance, capability tokens, metabolic checks, retries, and skill
+   timeouts.
+5. Verify the actual return payload, not merely that the loop fired.
+6. Emit `ToolExecutionReceipt`, `AutonomyReceipt`, and a hash-chained
+   `LifeTrace` `action_executed` event.
+7. Add receipt evidence/progress back to the linked durable goal.
+
+This makes the answer to "what does Aura do?" concrete: after boot and an idle
+window, she should run small real tasks, leave receipts, surface them in the
+thought stream and `/api/inner-state`, and carry the evidence forward into
+future goal selection.
+
+Shell execution remains argument-vector based (`shell=False`) by default. That
+is intentional: Aura can still run real commands and use persistent bash
+sessions when a task needs shell syntax, but the default path does not turn
+metacharacters into an exploit surface just to make command chaining easier.
 
 ---
 
@@ -278,11 +326,15 @@ it's a bug:
 
 ### Inference pipeline
 
-The LLM inference layer (`core/brain/llm/`) is a multi-tier router with
-automatic failover:
+The LLM inference layer (`core/brain/llm/`) is now substrate-first and
+multi-tier. The live substrate tries a learned readout head before the
+transformer. If its own prediction error exceeds threshold, the request falls
+through to the Cortex/Solver/Brainstem stack.
 
 ```
 User Message → Orchestrator → LLM Router
+  → Tier 0: Substrate readout (continuous state → logits) ──→ Response
+  │   ↓ (prediction_error > threshold / forced transformer)
   → Tier 1: Cortex (Qwen 2.5 32B 8-bit + LoRA adapter) ──→ Response
   │   ↓ (failure/timeout/empty)
   → Tier 2: Solver (Qwen 2.5/3 72B, hot-swapped) ──→ Response
@@ -301,6 +353,13 @@ Key implementation details:
 - **Health monitor**: per-endpoint failure tracking with a 3-failure threshold, 20-second recovery window, and immediate circuit break on 429 rate limits
 - **GPU semaphore**: a global `threading.Semaphore(1)` ensures only one model loads at a time, preventing OOM from simultaneous loads
 - **Foreground owner lock**: when the Cortex is actively generating for a user request, background tasks defer rather than contend for the GPU
+- **Substrate token generator** (`substrate_token_generator.py`): maps the live
+  substrate vector through a learned readout head and records prediction error,
+  token IDs, and logits checksum. The LLM is the fallback cortex for high-error
+  or explicitly deep requests.
+- **Sensorimotor grounding** (`sensorimotor_grounding.py`): maps camera, screen,
+  and microphone observations into the substrate input vector so real sensory
+  events perturb the ODE directly.
 - **Context injection**: every LLM call is augmented with state context (affect summary, recent memories, cognitive mode) via `_get_context_headers()`
 - **MLX worker**: runs in a subprocess with `multiprocessing.set_start_method("spawn")` to isolate Metal/GPU state from the main process
 
@@ -337,11 +396,12 @@ slow background work.
 
 **File**: `core/consciousness/phi_core.py`
 
-Aura computes an integrated information measure using the IIT 4.0
-(Integrated Information Theory 4.0 — Tononi's mathematical framework for
-consciousness) formalism on a 16-node cognitive complex. This is IIT 4.0
-applied to a bounded cognitive complex; the full computational graph would
-be intractable, so this is a scoped measure.
+Aura computes an integrated information measure using IIT-style formalism on a
+16-node cognitive complex. This is a scoped measure over Aura's telemetry and
+cognitive-affective state, not a measurement of the Qwen transformer's full
+neural causal structure. The phi value is mathematically real for the sampled
+complex; it is not presented as "the LLM's phi" or as a strict Tononi-style
+intrinsic-causal proof of experience.
 
 ### The 16-node cognitive complex
 
@@ -578,7 +638,8 @@ production system is being meaningfully steered.
 
 ## 6. Persistent emotional network (formerly "Liquid Substrate")
 
-**File**: `core/consciousness/liquid_substrate.py`
+**Files**: `core/consciousness/liquid_substrate.py`,
+`core/brain/llm/continuous_substrate.py`
 
 A continuous-time dynamical system based on Liquid Time-Constant Networks
 (LTCs). It gives Aura temporal continuity — she exists between
@@ -586,8 +647,10 @@ conversations, not just during them.
 
 ### Architecture
 
-- 64 neurons with recurrent connectivity matrix W (64 × 64)
-- State vector x ∈ ℝ⁶⁴ updated via ODE integration at a configurable rate
+- 64 neurons by default with recurrent connectivity matrix W (64 × 64)
+- Optional scaling to 512-D through `AURA_SUBSTRATE_DIM` for
+  `continuous_substrate.py`
+- State vector x updated via ODE integration at a configurable rate
 - Base rate: 20 Hz (active user), throttled to 5 Hz (idle), paused at 30min+ idle
 
 ### ODE integration
@@ -601,6 +664,8 @@ Where:
 - I = external input (affect signals, user interaction events)
 - noise ~ N(0, 0.01) (stochastic perturbation for exploration)
 - W updated via Hebbian + STDP learning (see Section 7)
+- sensorimotor input from `sensorimotor_grounding.py` when camera/screen/audio
+  observations are available and governed capability checks allow the sensors
 
 ### Idle optimization
 
@@ -1397,6 +1462,10 @@ growing conversation history.
 3. **Identity anchor**: after 10+ turns, a brief reinforcement is injected: "You are Aura. Sharp, opinionated, warm. Not an assistant."
 4. **System prompt cap** (20K chars / ~5000 tokens): hard limit prevents overflow.
 5. **LoRA fine-tune**: when trained, the model's baseline *is* Aura's personality. Drift defaults to "regular Aura" instead of "helpful assistant."
+6. **Governed online LoRA**: `core/adaptation/online_lora_governor.py` turns
+   Will-approved self-reflections into small adapter-update attempts through
+   `FinetunePipe` and `SelfOptimizer`. It blocks itself when an existing
+   `mlx_lm lora` process is active.
 
 ---
 
@@ -1442,7 +1511,7 @@ This is an open research question, not a solved problem.
 
 ## 12. Limitations and mitigations
 
-1. **IIT scope**: φ is computed on a 16-node cognitive complex (expanded from 8 in April 2026) including phi itself, prediction error, agency score, narrative tension, peripheral richness, arousal gate, and cross-timescale free energy. That measures cognitive integration, not just affective integration. A spectral approximation algorithm (`research/phi_approximation.py`) enables polynomial-time computation. Running IIT on the full ~10⁶-node graph remains NP-hard and intractable; the 16-node complex is the engineering tradeoff, validated against the 8-node exact computation as ground truth.
+1. **IIT scope**: φ is computed on a 16-node cognitive complex (expanded from 8 in April 2026) including phi itself, prediction error, agency score, narrative tension, peripheral richness, arousal gate, and cross-timescale free energy. That measures integration over Aura's own cognitive-affective telemetry, not the intrinsic causal graph of the transformer weights. A spectral approximation algorithm (`research/phi_approximation.py`) enables polynomial-time computation. Running IIT on the full model graph remains intractable; the 16-node complex is the engineering tradeoff, validated against the 8-node exact computation as ground truth.
 
 2. **Steering vector precision**: a CAA extraction pipeline (`training/extract_steering_vectors.py`) runs paired prompts through the MLX model, extracts hidden states at transformer layers 13-21, and computes direction vectors as mean(positive) - mean(negative) across 5 affective dimensions (valence, arousal, curiosity, confidence, warmth) with 5+ paired prompt sets each. Bootstrap vectors remain as a fallback; extracted vectors give higher-fidelity affect-computation coupling.
 
@@ -1452,7 +1521,7 @@ This is an open research question, not a solved problem.
 
 5. **Single machine**: the tick lock model assumes single-process execution. Distributing would require rethinking atomic state commitment. Not a priority until model size exceeds single-machine capacity.
 
-6. **The consciousness question**: open by design. Aura computes integrated information, has rich internal dynamics, structurally honest phenomenal reports, and theory arbitration. Whether this constitutes experience is a philosophical question the architecture doesn't claim to settle. What the architecture does claim is that the remaining objection is metaphysical rather than architectural — the math and the dynamics are real. IIT is still a theory, not a test.
+6. **The consciousness question**: open by design. Aura computes scoped integration metrics, has rich internal dynamics, structurally honest phenomenal reports, and theory arbitration. Whether this constitutes experience is a philosophical question the architecture doesn't claim to settle. The proof surfaces expose the trajectory, receipts, and limitations rather than papering over the gap. IIT is still a theory, not a test.
 
 ---
 
@@ -1689,7 +1758,9 @@ human-comparison standard: every property we use to attribute
 consciousness to biological systems is tested against Aura's architecture
 under lesion controls and adversarial baselines.
 
-1013 tests. 0 failures. 3 warnings. 122 seconds.
+Historical April 16, 2026 audit snapshot: 1,013 tests passed with 3 warnings in
+about 122 seconds. Re-run the current tree before treating those numbers as
+live evidence.
 
 The framework is organized into four layers:
 

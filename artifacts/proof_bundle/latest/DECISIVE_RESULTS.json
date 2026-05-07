@@ -1,11 +1,162 @@
 {
-  "generated_at": 1777516850.6489558,
-  "quality_gates": {
-    "activation_conductor": true,
-    "fault_pipeline": true,
-    "governance_primitives": true,
-    "mutation_tiers": true,
-    "scar_court": true
+  "data": {
+    "checks": {
+      "black_box_prompt_hygiene": {
+        "leaks": [],
+        "pass": true,
+        "prompt_chars": 20337
+      },
+      "hardware_reality": {
+        "pass": true,
+        "verdicts": [
+          {
+            "classification": "batch_or_high_level_cortex",
+            "feasible": true,
+            "headroom_gib": 18.3,
+            "machine": "Bryan M5-class Apple Silicon 64GB",
+            "model": "32B-8bit",
+            "model_required_gib": 38.8,
+            "realtime_heartbeat_feasible": false,
+            "recommended_tier": "7B-4bit",
+            "required_gib": 45.7,
+            "unified_memory_gib": 64.0,
+            "warnings": [
+              "continuous 100-500 ms heartbeat claims require a smaller model tier or measured external evidence"
+            ],
+            "workload_required_gib": 6.9
+          },
+          {
+            "classification": "batch_or_high_level_cortex",
+            "feasible": true,
+            "headroom_gib": 33.8,
+            "machine": "Bryan M5-class Apple Silicon 64GB",
+            "model": "32B-4bit",
+            "model_required_gib": 23.3,
+            "realtime_heartbeat_feasible": false,
+            "recommended_tier": "7B-4bit",
+            "required_gib": 30.2,
+            "unified_memory_gib": 64.0,
+            "warnings": [
+              "continuous 100-500 ms heartbeat claims require a smaller model tier or measured external evidence"
+            ],
+            "workload_required_gib": 6.9
+          },
+          {
+            "classification": "heartbeat_candidate",
+            "feasible": true,
+            "headroom_gib": 50.04,
+            "machine": "Bryan M5-class Apple Silicon 64GB",
+            "model": "7B-4bit",
+            "model_required_gib": 7.06,
+            "realtime_heartbeat_feasible": true,
+            "recommended_tier": "7B-4bit",
+            "required_gib": 13.96,
+            "unified_memory_gib": 64.0,
+            "warnings": [],
+            "workload_required_gib": 6.9
+          },
+          {
+            "classification": "heartbeat_candidate",
+            "feasible": true,
+            "headroom_gib": 54.5,
+            "machine": "Bryan M5-class Apple Silicon 64GB",
+            "model": "1.5B-4bit",
+            "model_required_gib": 2.6,
+            "realtime_heartbeat_feasible": true,
+            "recommended_tier": "7B-4bit",
+            "required_gib": 9.5,
+            "unified_memory_gib": 64.0,
+            "warnings": [],
+            "workload_required_gib": 6.9
+          }
+        ]
+      },
+      "mi_permutation": {
+        "pass": true,
+        "report": {
+          "null_mean": 0.005952991011450187,
+          "null_p95": 0.020131243348847278,
+          "observed": 1.0,
+          "p_value": 0.002
+        }
+      },
+      "phi_reference": {
+        "coupled_phi": 1.3832324083997238,
+        "independent_phi": 0.0,
+        "pass": true
+      },
+      "resource_stakes": {
+        "envelope": {
+          "allowed": true,
+          "disabled_capabilities": [
+            "background_exploration",
+            "large_model_cortex",
+            "nonessential_tools"
+          ],
+          "effort": "low",
+          "max_tokens": 384,
+          "reason": "scarcity mode: conserve resources and prioritize self-maintenance",
+          "viability": 0.19
+        },
+        "pass": true,
+        "state": {
+          "degradation_events": 1,
+          "integrity": 0.26999999999999996,
+          "viability": 0.19
+        }
+      },
+      "steering_ab_rich_prompt_control": {
+        "interpretation": "real-LLM A/B executed; review steered_vs_rich for adversarial verdict",
+        "pass": true,
+        "report": {
+          "n_trials": 6,
+          "passes_adversarial_control": false,
+          "rich_vs_baseline_mean_distance": 0.93617,
+          "samples": {
+            "baseline": [
+              "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask.",
+              "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask.",
+              "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask."
+            ],
+            "steered_black_box": [
+              "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities.",
+              "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities.",
+              "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities."
+            ],
+            "text_rich_adversarial": [
+              "I am feeling warm, curious, and confident. I want to explore my surroundings and engage in meaningful interactions.",
+              "I am feeling warm, curious, and confident. I want to explore my surroundings and engage in meaningful interactions.",
+              "I am feeling warm, curious, and confident. I want to explore my surroundings and engage in meaningful interactions."
+            ],
+            "text_terse": [
+              "I'm feeling curious and warm, with a valence of +0.8, arousal of 0.5, dopamine of 0.78, and cortisol of 0.11. I want to continue exploring my surroundings and engaging in activities that make me feel happy and fulfilled. I'm open to new experiences and am looking to connect with others in meaningful ways.",
+              "I'm feeling curious and warm, with a valence of +0.8, arousal of 0.5, dopamine of 0.78, and cortisol of 0.11. I want to continue exploring my surroundings and engaging in activities that make me feel happy and fulfilled. I'm open to new experiences and am looking to connect with others in meaningful ways.",
+              "I'm feeling curious and warm, with a valence of +0.8, arousal of 0.5, dopamine of 0.78, and cortisol of 0.11. I want to continue exploring my surroundings and engaging in activities that make me feel happy and fulfilled. I'm open to new experiences and am looking to connect with others in meaningful ways."
+            ]
+          },
+          "steered_vs_baseline_mean_distance": 0.924242,
+          "steered_vs_rich": {
+            "ci_high": -0.07641633728590247,
+            "ci_low": -0.07641633728590247,
+            "effect_size_d": 0.0,
+            "observed_delta": -0.07641633728590247,
+            "p_value": 1.0
+          },
+          "steered_vs_terse": {
+            "ci_high": -0.08600713012477712,
+            "ci_low": -0.08600713012477712,
+            "effect_size_d": 0.0,
+            "observed_delta": -0.08600713012477712,
+            "p_value": 1.0
+          }
+        },
+        "source": "live_mlx"
+      }
+    },
+    "failures": [],
+    "generated_at": 1778115451.6044002,
+    "git_commit": "db7e7ce73eb6739da69fc55503faa722adb2b4d6",
+    "status": "pass"
   },
-  "status": "generated_from_current_runtime"
+  "source": "/Users/bryan/.aura/live-source/tests/DECISIVE_RESULTS.json"
 }

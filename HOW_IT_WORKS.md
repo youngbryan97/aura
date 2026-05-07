@@ -200,12 +200,12 @@ a built-in reason to move.
 
 ### Persistent emotional network (continuity)
 
-A 64-neuron network runs continuously, giving the system persistent
-emotional state across sessions. When you close the chat, the network
-keeps running at a reduced rate, drifting slowly back toward baseline.
-When you come back, it picks up from a real emotional context, not a
-fresh start. The connections inside this network also evolve through
-learning — the emotional wiring changes with experience.
+A configurable 64-to-512 neuron network runs continuously, giving the system
+persistent emotional and sensorimotor state across sessions. When you close the
+chat, the network keeps running at a reduced rate, drifting slowly back toward
+baseline. When you come back, it picks up from a real emotional context, not a
+fresh start. The connections inside this network also evolve through learning,
+so the emotional wiring changes with experience.
 
 ### Cortical mesh (parallel processing)
 
@@ -289,6 +289,18 @@ recorded with evidence. Completed goals populate a real completed list
 with timestamps and summaries. That's how you can ask "what has Aura
 actually finished?" and get an answer instead of a plan.
 
+### What you actually see
+
+The overt action loop is the bridge between "Aura has an initiative" and "Aura
+did something measurable." During idle windows it selects one governed
+initiative, runs one real skill through the same tool gate user-requested tools
+use, verifies the payload, emits tool/autonomy receipts, records a LifeTrace
+event, and writes receipt evidence back to the goal. In practice the first
+visible actions are small: a self-audit, a safe codebase scan, a proof-bundle
+existence check, or a sensor-grounding check. The important part is that the
+action is reconstructible: `/api/inner-state` shows the last overt action, the
+skill, the verification result, and the receipts.
+
 ### Autonomous action
 
 Aura can run multi-step plans with dependency resolution, safety checks,
@@ -343,8 +355,9 @@ compete, complement, and constrain each other:
 ## What the tests show
 
 Every claim the architecture makes is backed by something you can run
-with `pytest`. The full suite is 1,013 tests, 0 failures, about 122
-seconds.
+with `pytest`. The preserved April 16, 2026 audit snapshot recorded 1,013
+passing tests with 3 warnings in about 122 seconds; the current tree should be
+treated as live only after re-running the relevant suite.
 
 The foundational suites:
 

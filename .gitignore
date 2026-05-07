@@ -19,6 +19,7 @@ server.log
 server.pid
 *.npy
 *.log
+nohup.out
 MUJOCO_LOG.TXT
 FINAL_BOOT_LOG.txt
 FINAL_STABLE_BOOT.txt
@@ -97,6 +98,9 @@ compile_full_arch.sh
 tests/diag_mlx.py
 tests/integration/verify_phase_*.py
 tests/integration/verify_audit_fixes.py
+scratch/check_registration.py
+scratch/repro_*deadlock.py
+scratch/test_phi_init.py
 
 # Large binaries
 *.apk

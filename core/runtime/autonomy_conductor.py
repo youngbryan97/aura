@@ -69,6 +69,8 @@ class AutonomyConductor:
         self.register("proof_bundle", 12 * 3600.0, self._job_proof_bundle, run_immediately=False)
         self.register("self_test_synthesis", 24 * 3600.0, self._job_self_test_synthesis, run_immediately=False)
         self.register("architecture_auto_cycle", 600.0, self._job_architecture_auto, run_immediately=False)
+        self.register("overt_action_cycle", 120.0, self._job_overt_action_cycle, run_immediately=True)
+        self.register("online_lora_status", 900.0, self._job_online_lora_status, run_immediately=True)
 
     async def start(self) -> None:
         if self._task and not self._task.done():
@@ -177,6 +179,21 @@ class AutonomyConductor:
             return {"status": "disabled", "enabled": config.enabled, "autopromote": config.autopromote}
         governor = AutonomousArchitectureGovernor(config)
         return await asyncio.to_thread(governor.auto, tier_max=config.max_tier)
+
+    async def _job_overt_action_cycle(self) -> dict[str, Any]:
+        from core.runtime.overt_action_loop import get_overt_action_loop
+
+        return await get_overt_action_loop().run_once()
+
+    async def _job_online_lora_status(self) -> dict[str, Any]:
+        from core.adaptation.online_lora_governor import get_online_lora_governor
+
+        governor = get_online_lora_governor()
+        return {
+            "enabled": governor.enabled(),
+            "active_lora_processes": governor.active_lora_processes(),
+            "last_receipt": governor.last_receipt.to_dict() if governor.last_receipt else None,
+        }
 
 
 _instance: AutonomyConductor | None = None

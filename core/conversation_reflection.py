@@ -91,7 +91,16 @@ class ConversationReflector:
                     get_task_tracker().create_task(
                         self._extract_and_store_lessons(
                             reflection, conversation_history, brain
-                        )
+                        ),
+                        name="conversation_reflection.extract_lessons",
+                    )
+
+                    # Governed online LoRA path: every successful reflection can
+                    # become a tiny adapter-update signal, but the governor
+                    # refuses to run while another mlx-lm LoRA process is active.
+                    get_task_tracker().create_task(
+                        self._submit_reflection_for_lora(reflection, conversation_history),
+                        name="conversation_reflection.online_lora",
                     )
                     
                     return reflection
@@ -103,6 +112,27 @@ class ConversationReflector:
                 return None
 
         return None
+
+    async def _submit_reflection_for_lora(
+        self,
+        reflection: str,
+        conversation_history: List[Dict[str, str]],
+    ) -> None:
+        try:
+            from core.adaptation.online_lora_governor import get_online_lora_governor
+
+            context = "\n".join(
+                f"{item.get('role', 'unknown')}: {item.get('content', '')[:240]}"
+                for item in list(conversation_history or [])[-6:]
+                if isinstance(item, dict)
+            )
+            await get_online_lora_governor().maybe_update_from_reflection(
+                reflection,
+                conversation_context=context,
+            )
+        except Exception as exc:
+            record_degradation("conversation_reflection", exc)
+            logger.debug("Online LoRA reflection submission skipped: %s", exc)
 
     async def _generate_reflection(
         self,

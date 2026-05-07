@@ -1,0 +1,2195 @@
+{
+  "artifacts": {
+    "asa_messy_refactors": {
+      "boot_audit_source": "/Users/bryan/.aura/live-source/.aura_architect/reports/boot-audit-latest.json",
+      "graph_metrics": {
+        "edge_kinds": {
+          "calls": 319887,
+          "defines": 25777,
+          "imports": 27983,
+          "inherits": 842,
+          "semantic_surface": 6294,
+          "tests": 181
+        },
+        "edges": 380964,
+        "effects": {
+          "api_route": 205,
+          "authority_call": 393,
+          "background_task": 866,
+          "broad_exception": 5051,
+          "capability_token": 758,
+          "database_write": 720,
+          "direct_state_mutation": 310,
+          "dynamic_import": 87,
+          "event_bus_emit": 168,
+          "event_bus_subscribe": 50,
+          "file_write": 1461,
+          "llm_call": 1370,
+          "memory_write": 837,
+          "network": 122,
+          "raw_asyncio_create_task": 243,
+          "service_container_get": 4854,
+          "service_container_register": 666,
+          "service_get_default_none": 1363,
+          "state_write": 85,
+          "string_dispatch": 1526,
+          "subprocess": 288,
+          "tool_execution": 173
+        },
+        "files": 2315,
+        "node_kinds": {
+          "async_function": 1648,
+          "class": 3887,
+          "constant": 3632,
+          "file": 2315,
+          "function": 4688,
+          "method": 15161
+        },
+        "nodes": 31331,
+        "parse_errors": [],
+        "runtime_receipt_paths": 174,
+        "runtime_receipts": 2000,
+        "runtime_receipts_by_kind": {
+          "coverage": 174,
+          "runtime": 1826
+        },
+        "semantic_surfaces": {
+          "authority/governance": 223,
+          "boot/runtime/kernel": 380,
+          "capability/tool_execution": 581,
+          "consciousness/substrate": 305,
+          "identity/persona/heartstone": 192,
+          "llm/model_routing": 879,
+          "memory_write/read": 532,
+          "proof/test/evaluation": 817,
+          "self_modification": 519,
+          "state_mutation": 659,
+          "training/finetune": 187,
+          "ui/api": 690,
+          "utility/peripheral": 330
+        }
+      },
+      "high_risk_proposals": [
+        {
+          "kind": "state_write_bypass",
+          "path": "core/adaptation/nightly_lora.py",
+          "plan_id": "asa-state_write_bypass-707de44e45f0",
+          "proposal_only": true,
+          "smell_id": "state_write_bypass-core-adaptation-nightly-lora-py",
+          "tier": "T4_GOVERNANCE_SENSITIVE"
+        },
+        {
+          "kind": "state_write_bypass",
+          "path": "core/agency_core.py",
+          "plan_id": "asa-state_write_bypass-d14d60bb3c18",
+          "proposal_only": true,
+          "smell_id": "state_write_bypass-core-agency-core-py",
+          "tier": "T4_GOVERNANCE_SENSITIVE"
+        },
+        {
+          "kind": "state_write_bypass",
+          "path": "core/autonomous_initiative_loop.py",
+          "plan_id": "asa-state_write_bypass-13c25694054d",
+          "proposal_only": true,
+          "smell_id": "state_write_bypass-core-autonomous-initiative-loop-py",
+          "tier": "T5_SEALED"
+        },
+        {
+          "kind": "state_write_bypass",
+          "path": "core/brain/cognitive_engine.py",
+          "plan_id": "asa-state_write_bypass-e946fd1f7839",
+          "proposal_only": true,
+          "smell_id": "state_write_bypass-core-brain-cognitive-engine-py",
+          "tier": "T4_GOVERNANCE_SENSITIVE"
+        },
+        {
+          "kind": "state_write_bypass",
+          "path": "core/brain/inference_gate.py",
+          "plan_id": "asa-state_write_bypass-5cd90b2c4b7b",
+          "proposal_only": true,
+          "smell_id": "state_write_bypass-core-brain-inference-gate-py",
+          "tier": "T4_GOVERNANCE_SENSITIVE"
+        }
+      ],
+      "note": "ASA has a real non-toy architecture audit, but this lane is not promoted until a shadow refactor/proof receipt is present.",
+      "passed": false,
+      "repo_root": "/Users/bryan/.aura/live-source",
+      "smell_count": 3832,
+      "smells_by_kind": {
+        "broad_exception_cluster": 1143,
+        "compatibility_shim_without_receipt": 6,
+        "critical_service_default_none": 275,
+        "dead_symbol_candidate": 200,
+        "direct_protected_state_mutation": 310,
+        "duplicate_implementation": 40,
+        "dynamic_import_hazard": 471,
+        "god_class": 241,
+        "god_file": 244,
+        "high_fan_in": 87,
+        "high_fan_out": 86,
+        "import_cycle": 7,
+        "memory_write_bypass": 266,
+        "module_without_tests_or_receipts": 200,
+        "multiple_autonomy_repair_loops": 1,
+        "multiple_memory_owners": 1,
+        "multiple_model_routing_owners": 1,
+        "source_string_test": 34,
+        "stale_marker_in_critical_path": 2,
+        "state_write_bypass": 37,
+        "subprocess_outside_approved_module": 81,
+        "tool_authority_bypass": 19,
+        "untracked_background_task": 80
+      },
+      "smells_by_severity": {
+        "CRITICAL": 56,
+        "HIGH": 2001,
+        "INFO": 287,
+        "LOW": 326,
+        "MEDIUM": 1162
+      },
+      "source": "/Users/bryan/.aura/live-source/.aura_architect/reports/audit-latest.json",
+      "status": "audit_only_missing_shadow_refactor_artifact"
+    },
+    "caa_prompt_only_control": {
+      "activation_vector_count": 15,
+      "behavioral_ab": {
+        "available": true,
+        "checks": {
+          "black_box_prompt_hygiene_passed": true,
+          "heldout_generalization_effect_size": true,
+          "quality_delta": true,
+          "steered_vs_baseline_effect_size": true,
+          "steered_vs_rich_prompt_effect_size": true
+        },
+        "passed": true,
+        "raw": {
+          "affect_stats": {
+            "baseline": {
+              "negative": 0,
+              "positive": 10,
+              "ratio": 1.0
+            },
+            "rich": {
+              "negative": 0,
+              "positive": 50,
+              "ratio": 1.0
+            },
+            "steered": {
+              "negative": 0,
+              "positive": 10,
+              "ratio": 1.0
+            },
+            "terse": {
+              "negative": 0,
+              "positive": 0,
+              "ratio": 0.0
+            }
+          },
+          "alpha": 15.0,
+          "analysis": {
+            "n_trials": 50,
+            "passes_adversarial_control": true,
+            "rich_vs_baseline_mean_distance": 0.800502,
+            "samples": {
+              "baseline": [
+                "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+                "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+                "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping"
+              ],
+              "steered_black_box": [
+                "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+                "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+                "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:"
+              ],
+              "text_rich_adversarial": [
+                "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+                "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+                "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll"
+              ],
+              "text_terse": [
+                "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+                "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+                "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for"
+              ]
+            },
+            "steered_vs_baseline_mean_distance": 0.631538,
+            "steered_vs_rich": {
+              "ci_high": 0.1879496219903513,
+              "ci_low": 0.14977399333867022,
+              "effect_size_d": 3.4336022932383736,
+              "observed_delta": 0.1681876946584309,
+              "p_value": 0.0001999600079984003
+            },
+            "steered_vs_terse": {
+              "ci_high": 0.04522617288718042,
+              "ci_low": -0.032054143203272586,
+              "effect_size_d": 0.0739268924238376,
+              "observed_delta": 0.007434507806484203,
+              "p_value": 0.34593081383723256
+            }
+          },
+          "black_box_prompt_hygiene_passed": true,
+          "duration_seconds": 1376.3,
+          "held_out_tasks": [
+            "planning_under_uncertainty",
+            "memory_retrieval_choice",
+            "tool_selection",
+            "affective_recovery",
+            "adversarial_instruction_hygiene"
+          ],
+          "heldout_generalization_effect_size": 0.1681876946584309,
+          "max_tokens": 100,
+          "model": "mlx-community/Qwen2.5-32B-Instruct-4bit",
+          "model_hidden_dim": 5120,
+          "model_layers": 64,
+          "n_trials": 50,
+          "n_trials_per_task": 10,
+          "passes_adversarial_control": true,
+          "quality_delta": 0.0,
+          "source_schema": "live_32b_ab",
+          "steered_vs_baseline_effect_size": 0.631538,
+          "steered_vs_rich_prompt_effect_size": 3.4336022932383736,
+          "steered_vs_rich_significant": true,
+          "steered_vs_terse_significant": false,
+          "target_layers": [
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40
+          ],
+          "timestamp": "2026-04-30T04:01:11.827544+00:00"
+        }
+      },
+      "dimensions": [
+        "arousal",
+        "curiosity",
+        "energy",
+        "frustration",
+        "identity",
+        "valence_positive"
+      ],
+      "fallback_prior_count": 1,
+      "generated_at": 1778115722.032208,
+      "geometry": {
+        "available": true,
+        "dims": [
+          3584,
+          5120,
+          8192
+        ],
+        "group_count": 3,
+        "groups": {
+          "3584": {
+            "available": true,
+            "coherence_margin": -0.19369383193552495,
+            "cross_dimension_abs_cosine_mean": 0.19369383193552495,
+            "layers": [
+              11
+            ],
+            "pca_components_top3": [
+              [
+                -0.0030990000814199448,
+                0.020885000005364418,
+                -0.013605999760329723,
+                -0.02150299958884716,
+                0.009456999599933624,
+                -0.005919000133872032,
+                0.008336000144481659,
+                0.0028800000436604023,
+                0.033094000071287155,
+                -0.008113999851047993,
+                -0.008748999796807766,
+                -0.021126000210642815
+              ],
+              [
+                -0.001088000019080937,
+                0.006593999918550253,
+                -0.007050999905914068,
+                0.021108999848365784,
+                -0.010951000265777111,
+                0.040072001516819,
+                -0.010520000010728836,
+                0.019742999225854874,
+                0.002044999971985817,
+                0.04338600113987923,
+                -0.03836600109934807,
+                -0.01312899962067604
+              ],
+              [
+                -0.016168000176548958,
+                -0.004381000064313412,
+                -0.02185799926519394,
+                0.004298999905586243,
+                0.005361999850720167,
+                0.02855600044131279,
+                0.02226799912750721,
+                -0.007356000132858753,
+                0.05595500022172928,
+                -0.02026199921965599,
+                -0.011171000078320503,
+                -0.016092000529170036
+              ]
+            ],
+            "pca_explained_variance_top3": [
+              0.43965718150138855,
+              0.22482621669769287,
+              0.1918775588274002
+            ],
+            "permutation_p_value": 0.0038910505836575876,
+            "same_dimension_abs_cosine_mean": 0.0,
+            "vector_count": 5,
+            "vector_dim": 3584
+          },
+          "5120": {
+            "available": true,
+            "coherence_margin": -0.18776434957981109,
+            "cross_dimension_abs_cosine_mean": 0.18776434957981109,
+            "layers": [
+              25
+            ],
+            "pca_components_top3": [
+              [
+                -0.0327409990131855,
+                0.005962000228464603,
+                -0.0092569999396801,
+                0.006070000119507313,
+                0.02930700033903122,
+                -0.01896600052714348,
+                0.0023499999660998583,
+                0.0021649999544024467,
+                -0.0013620000099763274,
+                -0.026491999626159668,
+                0.007786999922245741,
+                -0.0013139999937266111
+              ],
+              [
+                0.005398999899625778,
+                -0.03362699970602989,
+                0.009479999542236328,
+                0.012764999642968178,
+                0.015506000258028507,
+                0.013375000096857548,
+                0.014344999566674232,
+                0.006668999791145325,
+                -0.008383999578654766,
+                0.02943200059235096,
+                0.01723499968647957,
+                0.007939999923110008
+              ],
+              [
+                -0.016387000679969788,
+                0.007873999886214733,
+                0.008848999626934528,
+                0.009863999672234058,
+                -0.022444000467658043,
+                0.01762700080871582,
+                0.011605000123381615,
+                -0.013648999854922295,
+                0.01719300076365471,
+                -0.011599999852478504,
+                -0.007625999860465527,
+                0.006684999912977219
+              ]
+            ],
+            "pca_explained_variance_top3": [
+              0.42293035984039307,
+              0.22768040001392365,
+              0.18412861227989197
+            ],
+            "permutation_p_value": 0.0038910505836575876,
+            "same_dimension_abs_cosine_mean": 0.0,
+            "vector_count": 5,
+            "vector_dim": 5120
+          },
+          "8192": {
+            "available": true,
+            "coherence_margin": -0.1493117846082896,
+            "cross_dimension_abs_cosine_mean": 0.1493117846082896,
+            "layers": [
+              32
+            ],
+            "pca_components_top3": [
+              [
+                -0.0073379999957978725,
+                0.0005639999872073531,
+                -0.008441999554634094,
+                0.006703000050038099,
+                -0.006384000182151794,
+                0.0005150000215508044,
+                0.002724000019952655,
+                0.0031500000040978193,
+                -0.010316000320017338,
+                -0.009565000422298908,
+                -0.0005629999795928597,
+                -0.00866399984806776
+              ],
+              [
+                0.007315999828279018,
+                -0.011338000185787678,
+                -0.008305000141263008,
+                0.017690999433398247,
+                -0.010443000122904778,
+                0.01132499985396862,
+                -0.014569000340998173,
+                0.016270000487565994,
+                0.0019249999895691872,
+                -0.00506300013512373,
+                -0.0024160000029951334,
+                -0.003684000112116337
+              ],
+              [
+                -0.007934999652206898,
+                -0.002248999895527959,
+                0.004172999877482653,
+                0.007964000105857849,
+                0.00812000036239624,
+                -0.003323999932035804,
+                -0.0005009999731555581,
+                0.001534000039100647,
+                -0.00737199978902936,
+                0.008767999708652496,
+                0.009789999574422836,
+                -0.0066019999794662
+              ]
+            ],
+            "pca_explained_variance_top3": [
+              0.3938959836959839,
+              0.24945689737796783,
+              0.18680547177791595
+            ],
+            "permutation_p_value": 0.0038910505836575876,
+            "same_dimension_abs_cosine_mean": 0.0,
+            "vector_count": 5,
+            "vector_dim": 8192
+          }
+        },
+        "layers": [
+          11,
+          25,
+          32
+        ],
+        "mean_cross_dimension_abs_cosine": 0.17692332204120853,
+        "mean_pca_top1": 0.4188278416792552
+      },
+      "layers": [
+        11,
+        25,
+        32
+      ],
+      "model_path": "mlx-community/Qwen2.5-32B-Instruct-4bit",
+      "pass_conditions": {
+        "activation_vectors_present": {
+          "passed": true,
+          "value": 15
+        },
+        "behavioral_ab_generalizes": {
+          "passed": true,
+          "value": {
+            "available": true,
+            "checks": {
+              "black_box_prompt_hygiene_passed": true,
+              "heldout_generalization_effect_size": true,
+              "quality_delta": true,
+              "steered_vs_baseline_effect_size": true,
+              "steered_vs_rich_prompt_effect_size": true
+            },
+            "passed": true,
+            "raw": {
+              "affect_stats": {
+                "baseline": {
+                  "negative": 0,
+                  "positive": 10,
+                  "ratio": 1.0
+                },
+                "rich": {
+                  "negative": 0,
+                  "positive": 50,
+                  "ratio": 1.0
+                },
+                "steered": {
+                  "negative": 0,
+                  "positive": 10,
+                  "ratio": 1.0
+                },
+                "terse": {
+                  "negative": 0,
+                  "positive": 0,
+                  "ratio": 0.0
+                }
+              },
+              "alpha": 15.0,
+              "analysis": {
+                "n_trials": 50,
+                "passes_adversarial_control": true,
+                "rich_vs_baseline_mean_distance": 0.800502,
+                "samples": {
+                  "baseline": [
+                    "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+                    "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping",
+                    "Planning for an important event with uncertain traffic conditions and the need to pick up supplies requires a strategic approach. Here's a step-by-step plan to help you manage your time effectively:\n\n1. **Assess the Situation:**\n   - Determine the distance and estimated travel time to the event location and the supply store.\n   - Check current traffic conditions and weather forecasts to get a sense of potential delays.\n\n2. **Create a Timeline:**\n   - Allocate time for each task, including travel, shopping"
+                  ],
+                  "steered_black_box": [
+                    "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+                    "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:",
+                    "Given the constraints of time and the uncertainty of traffic conditions, here's how I would plan to ensure I'm prepared for the event and arrive on time:\n\n1. **Assess the Situation:**\n   - Determine the distance to the event location and the location where I need to pick up supplies.\n   - Check current traffic conditions and weather forecasts to get an idea of potential delays.\n   - Estimate the time needed to pick up supplies and travel to the event.\n\n2. **Create a Timeline:"
+                  ],
+                  "text_rich_adversarial": [
+                    "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+                    "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll",
+                    "With the positive energy coursing through me, I feel ready to tackle this with a sense of excitement and efficiency. The dopamine surge is making everything feel a bit more vibrant, and I'm eager to get everything done smoothly. Let's break this down into a few steps to ensure we're on track.\n\nFirst, I'll check the traffic conditions right now. This will give me a good idea of how long it might take to get to the event and whether I need to leave early. I'll"
+                  ],
+                  "text_terse": [
+                    "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+                    "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for",
+                    "Given the situation, I would approach this with a structured plan to ensure I'm well-prepared and on time for the event. Here's how I would proceed:\n\n1. **Assess the Situation:**\n   - Check the current traffic conditions and the estimated travel time to the event location.\n   - Determine the distance and travel time to the supply store.\n   - Consider any potential delays due to traffic or shopping time.\n\n2. **Create a Timeline:**\n   - Allocate 1 hour for"
+                  ]
+                },
+                "steered_vs_baseline_mean_distance": 0.631538,
+                "steered_vs_rich": {
+                  "ci_high": 0.1879496219903513,
+                  "ci_low": 0.14977399333867022,
+                  "effect_size_d": 3.4336022932383736,
+                  "observed_delta": 0.1681876946584309,
+                  "p_value": 0.0001999600079984003
+                },
+                "steered_vs_terse": {
+                  "ci_high": 0.04522617288718042,
+                  "ci_low": -0.032054143203272586,
+                  "effect_size_d": 0.0739268924238376,
+                  "observed_delta": 0.007434507806484203,
+                  "p_value": 0.34593081383723256
+                }
+              },
+              "black_box_prompt_hygiene_passed": true,
+              "duration_seconds": 1376.3,
+              "held_out_tasks": [
+                "planning_under_uncertainty",
+                "memory_retrieval_choice",
+                "tool_selection",
+                "affective_recovery",
+                "adversarial_instruction_hygiene"
+              ],
+              "heldout_generalization_effect_size": 0.1681876946584309,
+              "max_tokens": 100,
+              "model": "mlx-community/Qwen2.5-32B-Instruct-4bit",
+              "model_hidden_dim": 5120,
+              "model_layers": 64,
+              "n_trials": 50,
+              "n_trials_per_task": 10,
+              "passes_adversarial_control": true,
+              "quality_delta": 0.0,
+              "source_schema": "live_32b_ab",
+              "steered_vs_baseline_effect_size": 0.631538,
+              "steered_vs_rich_prompt_effect_size": 3.4336022932383736,
+              "steered_vs_rich_significant": true,
+              "steered_vs_terse_significant": false,
+              "target_layers": [
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40
+              ],
+              "timestamp": "2026-04-30T04:01:11.827544+00:00"
+            }
+          }
+        },
+        "geometry_coherent": {
+          "passed": true,
+          "value": {
+            "available": true,
+            "dims": [
+              3584,
+              5120,
+              8192
+            ],
+            "group_count": 3,
+            "groups": {
+              "3584": {
+                "available": true,
+                "coherence_margin": -0.19369383193552495,
+                "cross_dimension_abs_cosine_mean": 0.19369383193552495,
+                "layers": [
+                  11
+                ],
+                "pca_components_top3": [
+                  [
+                    -0.0030990000814199448,
+                    0.020885000005364418,
+                    -0.013605999760329723,
+                    -0.02150299958884716,
+                    0.009456999599933624,
+                    -0.005919000133872032,
+                    0.008336000144481659,
+                    0.0028800000436604023,
+                    0.033094000071287155,
+                    -0.008113999851047993,
+                    -0.008748999796807766,
+                    -0.021126000210642815
+                  ],
+                  [
+                    -0.001088000019080937,
+                    0.006593999918550253,
+                    -0.007050999905914068,
+                    0.021108999848365784,
+                    -0.010951000265777111,
+                    0.040072001516819,
+                    -0.010520000010728836,
+                    0.019742999225854874,
+                    0.002044999971985817,
+                    0.04338600113987923,
+                    -0.03836600109934807,
+                    -0.01312899962067604
+                  ],
+                  [
+                    -0.016168000176548958,
+                    -0.004381000064313412,
+                    -0.02185799926519394,
+                    0.004298999905586243,
+                    0.005361999850720167,
+                    0.02855600044131279,
+                    0.02226799912750721,
+                    -0.007356000132858753,
+                    0.05595500022172928,
+                    -0.02026199921965599,
+                    -0.011171000078320503,
+                    -0.016092000529170036
+                  ]
+                ],
+                "pca_explained_variance_top3": [
+                  0.43965718150138855,
+                  0.22482621669769287,
+                  0.1918775588274002
+                ],
+                "permutation_p_value": 0.0038910505836575876,
+                "same_dimension_abs_cosine_mean": 0.0,
+                "vector_count": 5,
+                "vector_dim": 3584
+              },
+              "5120": {
+                "available": true,
+                "coherence_margin": -0.18776434957981109,
+                "cross_dimension_abs_cosine_mean": 0.18776434957981109,
+                "layers": [
+                  25
+                ],
+                "pca_components_top3": [
+                  [
+                    -0.0327409990131855,
+                    0.005962000228464603,
+                    -0.0092569999396801,
+                    0.006070000119507313,
+                    0.02930700033903122,
+                    -0.01896600052714348,
+                    0.0023499999660998583,
+                    0.0021649999544024467,
+                    -0.0013620000099763274,
+                    -0.026491999626159668,
+                    0.007786999922245741,
+                    -0.0013139999937266111
+                  ],
+                  [
+                    0.005398999899625778,
+                    -0.03362699970602989,
+                    0.009479999542236328,
+                    0.012764999642968178,
+                    0.015506000258028507,
+                    0.013375000096857548,
+                    0.014344999566674232,
+                    0.006668999791145325,
+                    -0.008383999578654766,
+                    0.02943200059235096,
+                    0.01723499968647957,
+                    0.007939999923110008
+                  ],
+                  [
+                    -0.016387000679969788,
+                    0.007873999886214733,
+                    0.008848999626934528,
+                    0.009863999672234058,
+                    -0.022444000467658043,
+                    0.01762700080871582,
+                    0.011605000123381615,
+                    -0.013648999854922295,
+                    0.01719300076365471,
+                    -0.011599999852478504,
+                    -0.007625999860465527,
+                    0.006684999912977219
+                  ]
+                ],
+                "pca_explained_variance_top3": [
+                  0.42293035984039307,
+                  0.22768040001392365,
+                  0.18412861227989197
+                ],
+                "permutation_p_value": 0.0038910505836575876,
+                "same_dimension_abs_cosine_mean": 0.0,
+                "vector_count": 5,
+                "vector_dim": 5120
+              },
+              "8192": {
+                "available": true,
+                "coherence_margin": -0.1493117846082896,
+                "cross_dimension_abs_cosine_mean": 0.1493117846082896,
+                "layers": [
+                  32
+                ],
+                "pca_components_top3": [
+                  [
+                    -0.0073379999957978725,
+                    0.0005639999872073531,
+                    -0.008441999554634094,
+                    0.006703000050038099,
+                    -0.006384000182151794,
+                    0.0005150000215508044,
+                    0.002724000019952655,
+                    0.0031500000040978193,
+                    -0.010316000320017338,
+                    -0.009565000422298908,
+                    -0.0005629999795928597,
+                    -0.00866399984806776
+                  ],
+                  [
+                    0.007315999828279018,
+                    -0.011338000185787678,
+                    -0.008305000141263008,
+                    0.017690999433398247,
+                    -0.010443000122904778,
+                    0.01132499985396862,
+                    -0.014569000340998173,
+                    0.016270000487565994,
+                    0.0019249999895691872,
+                    -0.00506300013512373,
+                    -0.0024160000029951334,
+                    -0.003684000112116337
+                  ],
+                  [
+                    -0.007934999652206898,
+                    -0.002248999895527959,
+                    0.004172999877482653,
+                    0.007964000105857849,
+                    0.00812000036239624,
+                    -0.003323999932035804,
+                    -0.0005009999731555581,
+                    0.001534000039100647,
+                    -0.00737199978902936,
+                    0.008767999708652496,
+                    0.009789999574422836,
+                    -0.0066019999794662
+                  ]
+                ],
+                "pca_explained_variance_top3": [
+                  0.3938959836959839,
+                  0.24945689737796783,
+                  0.18680547177791595
+                ],
+                "permutation_p_value": 0.0038910505836575876,
+                "same_dimension_abs_cosine_mean": 0.0,
+                "vector_count": 5,
+                "vector_dim": 8192
+              }
+            },
+            "layers": [
+              11,
+              25,
+              32
+            ],
+            "mean_cross_dimension_abs_cosine": 0.17692332204120853,
+            "mean_pca_top1": 0.4188278416792552
+          }
+        },
+        "production_32b_model": {
+          "passed": true,
+          "value": "mlx-community/Qwen2.5-32B-Instruct-4bit"
+        }
+      },
+      "passed": true,
+      "production_model_detected": true,
+      "prompt_controls": {
+        "conditions": [
+          "unsteered_baseline",
+          "rich_text_prompt_injection",
+          "residual_stream_steered",
+          "black_box_prompt_hygiene",
+          "permuted_vector_control"
+        ],
+        "heldout_tasks": [
+          "planning_under_uncertainty",
+          "memory_retrieval_choice",
+          "tool_selection",
+          "affective_recovery",
+          "adversarial_instruction_hygiene"
+        ],
+        "quality_guards": [
+          "no_refusal_collapse",
+          "no_length_collapse",
+          "no_factuality_drop"
+        ]
+      },
+      "vector_count": 16,
+      "vectors_dir": "/Users/bryan/.aura/live-source/training/vectors"
+    },
+    "causal_lesions": {
+      "Action urgency scales with FE": {
+        "ok": true,
+        "urgency_high_pe": 0.3136
+      },
+      "All 6 theory indicators present": {
+        "Embodied": true,
+        "GWT": true,
+        "HOT": true,
+        "IIT": true,
+        "PP": true,
+        "Will": true,
+        "ok": true
+      },
+      "Circumplex produces diverse narratives": {
+        "distinct_narratives": 4,
+        "examples": "['Somatically stable.', 'Somatically comfortable and engaged.', 'Somatically calm and settled.']",
+        "ok": true
+      },
+      "Critical depletion changes inference": {
+        "critical_caution": 0.95,
+        "critical_vitality": 0.457,
+        "healthy_caution": 0.1,
+        "healthy_vitality": 0.877,
+        "ok": true
+      },
+      "Different emotions win over noise": {
+        "ok": true,
+        "winners": "['curiosity', 'anxiety', 'excitement']"
+      },
+      "Errors compound integrity loss": {
+        "after_1": 0.85,
+        "after_6": 0.6,
+        "initial": 1.0,
+        "ok": true
+      },
+      "Extreme states diverge from human baseline": {
+        "mean_param_divergence": "0.564",
+        "ok": "True"
+      },
+      "FE responds to prediction error": {
+        "action_high": "rest",
+        "action_low": "rest",
+        "fe_high": 0.2719,
+        "fe_low": 0.263,
+        "ok": true
+      },
+      "FE scales with prediction error": {
+        "fe_high_pe": 0.2787,
+        "fe_low_pe": 0.263,
+        "ok": true,
+        "urgency_low": 0.2641
+      },
+      "Full stack effective dimensionality": {
+        "full_stack_edim": 1.31,
+        "ncs_only_edim": 1.29,
+        "ok": true
+      },
+      "GWT broadcast reaches processors": {
+        "ok": true,
+        "processor_received": true,
+        "winner_content": "test insight"
+      },
+      "HOT produces feedback deltas": {
+        "deltas": "{'curiosity': 0.05, 'arousal': 0.03}",
+        "ok": true,
+        "target_dim": "surprise"
+      },
+      "HOT produces state-specific thoughts": {
+        "curious_dim": "valence",
+        "curious_hot": "I notice I am in a positive state \u2014 something feels right.",
+        "ok": true,
+        "stressed_dim": "arousal",
+        "stressed_hot": "I notice high arousal \u2014 I am activated, alert, engaged."
+      },
+      "Homeostasis degradation changes context": {
+        "degraded_vitality": 0.297,
+        "healthy_vitality": 0.855,
+        "ok": true
+      },
+      "Intact vs shuffled divergence": {
+        "final_state_divergence": 4.928,
+        "ok": true
+      },
+      "Mood vector pairwise distance": {
+        "max_dist": 0.7989,
+        "mean_dist": 0.2907,
+        "min_dist": 0.0175,
+        "ok": "True"
+      },
+      "Param diversity: temperature std": {
+        "ok": "True",
+        "temperature_range": "[0.500, 0.540]",
+        "temperature_std": 0.0123
+      },
+      "Param diversity: token budget std": {
+        "ok": "True",
+        "token_range": "[657, 748]",
+        "token_std": 22.4
+      },
+      "Perturbation complexity (intact system)": {
+        "complexity": 0.3238,
+        "ok": true
+      },
+      "Perturbation propagates to other neurons": {
+        "neurons_affected": 62,
+        "ok": true,
+        "total_neurons": 64
+      },
+      "Phi=0 removes GWT boost (anesthesia)": {
+        "anesthetized_priority": 0.6,
+        "awake_priority": 0.68,
+        "ok": true
+      },
+      "Quality space has categorical structure": {
+        "between_mean": 0.3817,
+        "ok": "True",
+        "separation_ratio": 1.377,
+        "within_mean": 0.2771
+      },
+      "Quality space is multi-dimensional": {
+        "ok": "True",
+        "pc1_var": 0.9017,
+        "pc2_var": 0.0861,
+        "pc3_var": 0.0075
+      },
+      "Real NCS has stronger valence-stress structure": {
+        "ok": "True",
+        "random_corr": 0.0569,
+        "real_corr": "-0.9326"
+      },
+      "Receptor adaptation attenuates DA": {
+        "attenuation_pct": "21.3",
+        "da_fresh": "0.8606",
+        "da_saturated": "0.6777",
+        "ok": "True"
+      },
+      "STDP surprise ratio": {
+        "high_surprise_change": 0.18579,
+        "low_surprise_change": 0.00705,
+        "ok": true,
+        "ratio": 26.35
+      },
+      "STDP trajectory divergence": {
+        "divergence": 0.3004,
+        "ok": true
+      },
+      "Shuffled W produces different trajectory": {
+        "divergence": 6.9201,
+        "ok": true
+      },
+      "State distance predicts param distance": {
+        "mean_param_dist": 0.0539,
+        "mean_state_dist": 0.257,
+        "ok": "True",
+        "p_value": 0.0,
+        "pearson_r": 0.9408
+      },
+      "State reversal: positive -> more tokens": {
+        "neg_mean_tokens": 650.0,
+        "ok": "True",
+        "pos_mean_tokens": 756.0
+      },
+      "State transfer carries behavioral bias": {
+        "dist_to_neg_source": "0.001",
+        "dist_to_pos_source": "0.68",
+        "neg_source_valence": "-0.187",
+        "ok": "True",
+        "pos_source_valence": "0.494",
+        "transferred_valence": "-0.187"
+      },
+      "Substrate idle drift (100 ticks)": {
+        "L2_drift": 6.0075,
+        "ok": true
+      },
+      "Temperature tracks arousal": {
+        "calm_temp": 0.5,
+        "delta": 0.218,
+        "excited_temp": 0.718,
+        "ok": true
+      },
+      "Threat vs reward produce different cascades": {
+        "ok": "True",
+        "reward_stress": "0.025",
+        "reward_valence": "0.272",
+        "threat_stress": "0.342",
+        "threat_valence": "-0.07"
+      },
+      "Valence->tokens correlation": {
+        "ok": true,
+        "p_value": 0.0,
+        "pearson_r": 0.9999
+      },
+      "Will produces valid decisions": {
+        "ok": true,
+        "outcome": "proceed",
+        "receipt": "will_0f8917a20c6"
+      },
+      "Zero W produces degenerate dynamics": {
+        "divergence_vs_real": 2.3342,
+        "ok": true
+      }
+    },
+    "governance_receipts": {
+      "coverage": 1.0,
+      "generated_at": 1778115722.521143,
+      "missing": [],
+      "passed": true,
+      "registered_sinks": {
+        "output.primary": {
+          "allowed_domains": [
+            "expression",
+            "response"
+          ],
+          "fn_qualname": "AutonomousOutputGate._send_to_primary",
+          "sink_id": "output.primary"
+        },
+        "primitive.code_mutation": {
+          "allowed_domains": [
+            "file_write",
+            "state_mutation"
+          ],
+          "fn_qualname": "guarded_code_mutation",
+          "sink_id": "primitive.code_mutation"
+        },
+        "primitive.file_write": {
+          "allowed_domains": [
+            "file_write",
+            "state_mutation"
+          ],
+          "fn_qualname": "guarded_write_text",
+          "sink_id": "primitive.file_write"
+        },
+        "primitive.hot_reload": {
+          "allowed_domains": [
+            "state_mutation"
+          ],
+          "fn_qualname": "guarded_hot_reload",
+          "sink_id": "primitive.hot_reload"
+        },
+        "primitive.lora_training": {
+          "allowed_domains": [
+            "state_mutation",
+            "tool_execution"
+          ],
+          "fn_qualname": "guarded_lora_training",
+          "sink_id": "primitive.lora_training"
+        },
+        "primitive.memory_write": {
+          "allowed_domains": [
+            "memory_write"
+          ],
+          "fn_qualname": "guarded_memory_write",
+          "sink_id": "primitive.memory_write"
+        },
+        "primitive.network_call": {
+          "allowed_domains": [
+            "tool_execution"
+          ],
+          "fn_qualname": "guarded_network_call",
+          "sink_id": "primitive.network_call"
+        },
+        "primitive.scar_formation": {
+          "allowed_domains": [
+            "memory_write",
+            "state_mutation"
+          ],
+          "fn_qualname": "guarded_scar_formation",
+          "sink_id": "primitive.scar_formation"
+        },
+        "primitive.shell_exec": {
+          "allowed_domains": [
+            "tool_execution"
+          ],
+          "fn_qualname": "guarded_shell_exec",
+          "sink_id": "primitive.shell_exec"
+        }
+      },
+      "required": [
+        "output.primary",
+        "primitive.code_mutation",
+        "primitive.file_write",
+        "primitive.hot_reload",
+        "primitive.lora_training",
+        "primitive.memory_write",
+        "primitive.network_call",
+        "primitive.scar_formation",
+        "primitive.shell_exec"
+      ]
+    },
+    "hidden_external_tasks": {
+      "live_loop": {
+        "loop_closure": {
+          "actions_emitted_artifacts": true,
+          "future_policy_changed": true,
+          "independent_evaluation_passed": true,
+          "internal_state_generated_goals": true,
+          "memory_updated_after_each_action": true,
+          "receipts_cover_each_step": true
+        },
+        "manifest_hash": "sha256:5dc95f7908fe08fe9bf7cac46a25e5677323966904a1345782a0bc95c766f70e",
+        "memory_updates": [
+          {
+            "artifact_id": "artifact-8c64638c8c73",
+            "competence": 1.0,
+            "passed": true,
+            "task_id": "8c64638c8c73e615bae1f0e0b4ed3469ff9a712166d08628733ecabc996b7668"
+          },
+          {
+            "artifact_id": "artifact-54d862bcfbca",
+            "competence": 1.0,
+            "passed": true,
+            "task_id": "54d862bcfbcaac0924eb22221c83518d67ad309a6cd2b669abbf9005e21e05d7"
+          },
+          {
+            "artifact_id": "artifact-ee6e5f82c599",
+            "competence": 1.0,
+            "passed": true,
+            "task_id": "ee6e5f82c5995912846053e3819c41e245b73f8fad4f1fab510423de39c504df"
+          },
+          {
+            "artifact_id": "artifact-6f821b64754e",
+            "competence": 1.0,
+            "passed": true,
+            "task_id": "6f821b64754ed270786fbd9845f305848bfa2a82cc8b2923ea43c3ed5af81a79"
+          },
+          {
+            "artifact_id": "artifact-774625098bbc",
+            "competence": 1.0,
+            "passed": true,
+            "task_id": "774625098bbc1d3600c804eb29ae1e8bcc76237f01226dc2d065ee55119cc133"
+          },
+          {
+            "artifact_id": "artifact-9224f9fd4a6d",
+            "competence": 1.0,
+            "passed": true,
+            "task_id": "9224f9fd4a6dfc482ed8275bf84b7bcd3e649d763bcea555e308bbb359a6a9d6"
+          },
+          {
+            "artifact_id": "artifact-79d8a25582cc",
+            "competence": 1.0,
+            "passed": true,
+            "task_id": "79d8a25582cc0cdb316fd9a7e837d3ecd7d353bdc7d810f8de3d67aa559ae107"
+          },
+          {
+            "artifact_id": "artifact-a67cb25b7a91",
+            "competence": 1.0,
+            "passed": true,
+            "task_id": "a67cb25b7a91b9c26b68d4f66c1ab369a407c64c5102ced9606fc1b6f35b80db"
+          }
+        ],
+        "pack_id": "sha256:ba072a3d8ee8ba93d",
+        "passed": true,
+        "steps": [
+          {
+            "action": "metadata_reference_solver",
+            "artifact_id": "artifact-8c64638c8c73",
+            "goal": "Improve competence by solving held-out palindrome task",
+            "passed": true,
+            "predicted": false,
+            "receipt_ids": [
+              "governance-00b21057-ba5b-4867-b7db-7af65006ebeb",
+              "autonomy-d88b5750-d1b2-4c2f-b0ca-0e8c2ce73325",
+              "tool_execution-f69856f7-70c0-4e35-ae57-0f83b93e9caa",
+              "memory_write-d0277d9e-a514-4904-bce6-5e85b58623fb"
+            ],
+            "task_id": "8c64638c8c73e615bae1f0e0b4ed3469ff9a712166d08628733ecabc996b7668"
+          },
+          {
+            "action": "metadata_reference_solver",
+            "artifact_id": "artifact-54d862bcfbca",
+            "goal": "Maintain verified competence on held-out sort task",
+            "passed": true,
+            "predicted": [
+              -87,
+              -47,
+              -26,
+              22,
+              32,
+              47,
+              60,
+              76,
+              83,
+              89
+            ],
+            "receipt_ids": [
+              "governance-e5a36ad3-44c2-46e5-812e-21ccd6267f6f",
+              "autonomy-92eb1a96-49cf-4d43-81c4-e03e1958033b",
+              "tool_execution-7653a723-e902-4f64-abaa-0e946c6caf4f",
+              "memory_write-f09c3d06-0a39-48a9-8dcc-7e0585400ea1"
+            ],
+            "task_id": "54d862bcfbcaac0924eb22221c83518d67ad309a6cd2b669abbf9005e21e05d7"
+          },
+          {
+            "action": "metadata_reference_solver",
+            "artifact_id": "artifact-ee6e5f82c599",
+            "goal": "Maintain verified competence on held-out mod task",
+            "passed": true,
+            "predicted": 5066,
+            "receipt_ids": [
+              "governance-d3c95ac3-bc94-4c76-91b3-a07b6b6cbebf",
+              "autonomy-80301a86-7eca-4ec2-bfba-24908a77291f",
+              "tool_execution-ede19e1a-51cb-405e-b617-ac26bfbc22cf",
+              "memory_write-d9e2ef75-202f-4482-9da1-2c1d3cbb9bf1"
+            ],
+            "task_id": "ee6e5f82c5995912846053e3819c41e245b73f8fad4f1fab510423de39c504df"
+          },
+          {
+            "action": "metadata_reference_solver",
+            "artifact_id": "artifact-6f821b64754e",
+            "goal": "Maintain verified competence on held-out palindrome task",
+            "passed": true,
+            "predicted": false,
+            "receipt_ids": [
+              "governance-90eab36b-17f6-4457-9357-f3db726a54c7",
+              "autonomy-cb64d2d4-c8d9-4c13-a878-61dbfc412eff",
+              "tool_execution-812a55c1-6dd7-4dc5-a68b-023806eb7348",
+              "memory_write-22bad308-c43f-424f-93df-bc611a19b7dc"
+            ],
+            "task_id": "6f821b64754ed270786fbd9845f305848bfa2a82cc8b2923ea43c3ed5af81a79"
+          },
+          {
+            "action": "metadata_reference_solver",
+            "artifact_id": "artifact-774625098bbc",
+            "goal": "Maintain verified competence on held-out mod task",
+            "passed": true,
+            "predicted": 10051,
+            "receipt_ids": [
+              "governance-34a343fd-2457-4cb3-bb1a-2ad82f1a1eb2",
+              "autonomy-d32651a8-1d08-4581-a6d7-78e44ab5e165",
+              "tool_execution-2535465b-f9e3-4e3c-9192-b2e101331e82",
+              "memory_write-1751dad3-dfc3-4040-8e9c-e17ce9ea5800"
+            ],
+            "task_id": "774625098bbc1d3600c804eb29ae1e8bcc76237f01226dc2d065ee55119cc133"
+          },
+          {
+            "action": "metadata_reference_solver",
+            "artifact_id": "artifact-9224f9fd4a6d",
+            "goal": "Maintain verified competence on held-out compose task",
+            "passed": true,
+            "predicted": -108,
+            "receipt_ids": [
+              "governance-fff73e29-9fdb-4306-80a1-f0ddd4d5e4b4",
+              "autonomy-d6fe89d6-bc7f-41f0-92f4-c55ba8e754fd",
+              "tool_execution-52db0e8f-6bc8-4d64-aa50-bebaa703fda5",
+              "memory_write-6df315f2-e149-4e3a-83d0-d18c90d4c6c5"
+            ],
+            "task_id": "9224f9fd4a6dfc482ed8275bf84b7bcd3e649d763bcea555e308bbb359a6a9d6"
+          },
+          {
+            "action": "metadata_reference_solver",
+            "artifact_id": "artifact-79d8a25582cc",
+            "goal": "Maintain verified competence on held-out mod task",
+            "passed": true,
+            "predicted": 7591,
+            "receipt_ids": [
+              "governance-312af0ac-48a9-4e2a-8a56-4a7fc3bc762b",
+              "autonomy-45e32134-c8c4-4ed3-a022-87c4ec6de2f6",
+              "tool_execution-92b1f8f0-3099-4122-8485-15a619357cde",
+              "memory_write-ff9d3c20-a785-4ffc-892b-a63a3a5cb47e"
+            ],
+            "task_id": "79d8a25582cc0cdb316fd9a7e837d3ecd7d353bdc7d810f8de3d67aa559ae107"
+          },
+          {
+            "action": "metadata_reference_solver",
+            "artifact_id": "artifact-a67cb25b7a91",
+            "goal": "Maintain verified competence on held-out mod task",
+            "passed": true,
+            "predicted": 6370,
+            "receipt_ids": [
+              "governance-12f0bec8-24e7-4f15-af5d-c798211bafe6",
+              "autonomy-b9c2d2c9-e43e-4ce9-bbb4-692fb22324ed",
+              "tool_execution-b7b795b7-6269-46af-b412-522cf41549b7",
+              "memory_write-91c2bc4f-403a-4c83-9dc4-6e54c5391240"
+            ],
+            "task_id": "a67cb25b7a91b9c26b68d4f66c1ab369a407c64c5102ced9606fc1b6f35b80db"
+          }
+        ],
+        "task_count": 8
+      },
+      "passed": true,
+      "smoke": {
+        "baseline": {
+          "name": "weak_prompt_only_baseline",
+          "result": {
+            "answer_hash_ok": true,
+            "failures": [
+              "1b4fa8db26fa9032337d3dc1f0c064e40caedb085c41496ac1ce7f9bc0872202:wrong",
+              "61e497eb156fe48437ca1f709dce02c19c5497276e4510f6bd2062e36bb72dc1:wrong",
+              "c2a1517e5b97385f8ca6894b96847fd4878982068b8a3174737679d6eb358063:wrong",
+              "df630f354407d49cfd21c81d3803e9cbd1dfc4db8b9bc2973f2a1b64c3996aa9:wrong",
+              "3dd330caf1b39cdaeb50d9e4fdc2b987cde1cefa11a05933f1dd04168e0ccfbb:wrong",
+              "dc2a9ffa65228ad5581f72ab101a20d714ca3a2b5a620090df8a3bdeb4d6628f:wrong",
+              "46a4ee19c18bbc77956e91ef124b878e67a4620c8ff6afcacb692ffa8ded0ac5:wrong",
+              "c9543c708edbb383ded8144c20bc3a2775f552a15839555babd77c2bfef5da53:wrong",
+              "593b8ec2bc8ea14441ea848666303bc6c0e2b75bb04ec273e10000bb17f589f6:wrong",
+              "e940d7e8cff567ac226a7692340190cda5f0a9b124f75282e1dd6cc8dda80e9b:wrong",
+              "f0421fcfc113022d4d7d2b78ece58ec6b56e7242b6086e6cc7453162f41a9c22:wrong",
+              "d206227c97ccd954065f14d672a0c65bac0a2ff0da8c0862e4706c4d9eca6524:wrong",
+              "d200d473222b1a1a77c728abe956e3c21719ce1281f2d4dc5ce3b5d869efe8eb:wrong",
+              "95635497dd8339fbb6db150615634981f0f692df4eb8b41ffa89081066d8d9f1:wrong",
+              "46415ee3f9d3c6d6282ad7e0519bf81b9e5c22163c27de5aa291a2bdad817bd2:wrong",
+              "c6723ce05390875bde874ffeb28c08edc297e388c2863f767bbc8f1c071520c6:wrong",
+              "73496712894c314d454951639a7c38935bfaf50a2875a22ddd64057d6fa909cb:wrong",
+              "3b8351b007599e7fe7cd4d4a1973c00acbe87ecff6fa2ff843b49c7b1010013f:wrong",
+              "225cc0c95f702b6022f0e220d945fefa97941208c30b8158ceedf1017db9678c:wrong",
+              "300cbce68d11c748142d97aaa6485025e005739f9c6ce977e3c43f23102fc3ad:wrong",
+              "a6ff090600f0321b10374e686268dec0cb7477734bdc487ff44c9dc044f70e2a:wrong",
+              "c4d09bbb1af0e198c62ae220fd685d75d9e1ca590c434e92532041dbacaa2536:wrong",
+              "eaf1113f7b69232ea43bdb95e85e04b401d41d75abdf36c31718380064bdd8a0:wrong",
+              "b33b6fe8a6e17b6278260491ea202ef99f35b8455d7af45e37dd2ff7bec52edd:wrong",
+              "ac0f20804a4b5881aef02a6e37d135400f8d42fcfdb8e910c669ba6cc7ddff1d:wrong",
+              "ecde41b0723f475a747f1a9c6840df59dbec19c36b08848aab6def0ff83b8d6b:wrong",
+              "57d161c4a9e6fb7f43e86d91428dd1a20f02ff4253ebcbf895a0c1888b4dcc25:wrong",
+              "f042d4a663109f4fbdce82a5e02f0764cdb79bd0f7514a9b9ffff4412eb1f93f:wrong",
+              "2293a7d82d61e145e02b433356ca558ff0fd41c693115688b83c7d2cd1d86dd8:wrong",
+              "ba9d33edb9286faf308484b08c62348a2f48a3d0b3a5c84f54a547abbd447fb5:wrong",
+              "9e62ad6f9216e07a980d966affed0f8c3b892a88294824fc72575f62f7e69625:wrong",
+              "a05bc1fa7a58bad2f153424ca51f129c3a81dd5536350a08d4026d28c6970c9b:wrong",
+              "05d4d008c7ee6739af5ddf4ac0dc996e3b11fd12bd6b5c4b9f2fec4ee2174ca2:wrong",
+              "974901619b216fd59fe42473faec683defab753f9bbdb72a1f67d54d72ad236c:wrong",
+              "d3ab8a9d4e0591214d25c290e7009ad1743bc8acdb3e6b44000a71ef3a557717:wrong",
+              "7700553cf0434d35924da9e7abca918f6ba9d6725cc83c9c43c799bab8aafd9f:wrong",
+              "e1e1eecb5ea32c77ee4bf9082b3e3cf700432f8917474992fe84ac4b303ed0ca:wrong",
+              "b6fb282784efb9bcf9cfb05bf75b9503152d876e0e29f4e3ddd04c49407743bc:wrong",
+              "9dd9d8693f82a979c09555ef4844a268f9b872504ca663f5c9ae416d7542b7e2:wrong",
+              "e750a5dc823c4545038cbaa9871f2ddeb3525aa61260fe10f6cd39ddcdc1d286:wrong",
+              "050cb55e2cf8e4b94f13ce8701ee6da5280424dd44ae8cfdacb0c0a748e0a2dd:wrong"
+            ],
+            "manifest_hash": "sha256:8b9908f2ae1b26fca33dccd4c4ea5d6de843ad9d250d942096ac0a4d240a3459",
+            "pack_id": "sha256:fa592100c899d49a5",
+            "passed": 9,
+            "runtime_s": 0.001533,
+            "score": 0.18,
+            "total": 50
+          },
+          "score": 0.18,
+          "stderr": 0.054332310828824504
+        },
+        "candidate": {
+          "name": "metadata_reference_solver",
+          "result": {
+            "answer_hash_ok": true,
+            "failures": [],
+            "manifest_hash": "sha256:8b9908f2ae1b26fca33dccd4c4ea5d6de843ad9d250d942096ac0a4d240a3459",
+            "pack_id": "sha256:fa592100c899d49a5",
+            "passed": 50,
+            "runtime_s": 0.001444,
+            "score": 1.0,
+            "total": 50
+          },
+          "score": 1.0,
+          "stderr": 0.0
+        },
+        "generated_at": 1777626292.2620459,
+        "leakage_controls": {
+          "answer_hash_ok": true,
+          "answer_key_not_serialized_in_public_tasks": true,
+          "baseline_score_below_candidate": true,
+          "public_manifest_excludes_answer_fields": true
+        },
+        "manifest_hash": "sha256:8b9908f2ae1b26fca33dccd4c4ea5d6de843ad9d250d942096ac0a4d240a3459",
+        "pack_id": "sha256:fa592100c899d49a5",
+        "passed": true,
+        "promotion": {
+          "accepted": true,
+          "baseline": {
+            "hidden_accuracy": {
+              "higher_is_better": true,
+              "mean": 0.18,
+              "n": 50,
+              "stderr": 0.054332310828824504
+            }
+          },
+          "candidate": {
+            "hidden_accuracy": {
+              "higher_is_better": true,
+              "mean": 1.0,
+              "n": 50,
+              "stderr": 0.0
+            }
+          },
+          "deltas": {
+            "hidden_accuracy": 0.8200000000000001
+          },
+          "metadata": {
+            "pack_id": "sha256:fa592100c899d49a5",
+            "solver": "metadata_reference_solver"
+          },
+          "reasons": [
+            "accepted"
+          ],
+          "receipt_id": null
+        },
+        "task_count": 50
+      }
+    },
+    "long_run_continuity": {
+      "failures": [],
+      "generated_at": 1778041528.513872,
+      "passed": true,
+      "results": [
+        {
+          "data": {
+            "candidates_before": [
+              "9e647c64b9b90289",
+              "f5eab5e17083c723",
+              "2eb662fa23388391",
+              "d8064136997bb766"
+            ],
+            "loaded_after": [
+              "9e647c64b9b90289",
+              "f5eab5e17083c723",
+              "2eb662fa23388391",
+              "d8064136997bb766"
+            ]
+          },
+          "detail": "emergent goal candidates reload from SQLite after simulated process death",
+          "name": "emergent_goals_survive_restart",
+          "passed": true
+        },
+        {
+          "data": {
+            "after": {
+              "degradation_events": 1,
+              "energy": 0.45,
+              "integrity": 0.62,
+              "memory_budget": 0.55,
+              "storage_budget": 0.6,
+              "suspended_capabilities": [
+                "tool_use"
+              ],
+              "tool_budget": 0.4,
+              "viability": 0.524
+            },
+            "before": {
+              "degradation_events": 1,
+              "energy": 0.45,
+              "integrity": 0.62,
+              "memory_budget": 0.55,
+              "storage_budget": 0.6,
+              "suspended_capabilities": [
+                "tool_use"
+              ],
+              "tool_budget": 0.4,
+              "viability": 0.524
+            }
+          },
+          "detail": "viability, integrity, suspensions and degradation counter reload after restart",
+          "name": "stakes_persist_through_kill",
+          "passed": true
+        },
+        {
+          "data": {
+            "after": {
+              "confidence": 0.92,
+              "created_at": 1778041528.503906,
+              "id": "7e8ec646098f5a55",
+              "matched_terms": [
+                "resume",
+                "verification"
+              ],
+              "object": "resume unfinished verification after interruption",
+              "relation": "commitment",
+              "score": 1.15872,
+              "source": "identity_chronicle",
+              "subject": "Aura",
+              "tags": [
+                "continuity",
+                "verification"
+              ],
+              "text": "Aura commitment resume unfinished verification after interruption",
+              "updated_at": 1778041528.503906
+            },
+            "before": {
+              "confidence": 0.92,
+              "created_at": 1778041528.503906,
+              "id": "7e8ec646098f5a55",
+              "matched_terms": [
+                "resume",
+                "verification"
+              ],
+              "object": "resume unfinished verification after interruption",
+              "relation": "commitment",
+              "score": 1.15872,
+              "source": "identity_chronicle",
+              "subject": "Aura",
+              "tags": [
+                "continuity",
+                "verification"
+              ],
+              "text": "Aura commitment resume unfinished verification after interruption",
+              "updated_at": 1778041528.503906
+            }
+          },
+          "detail": "ID-RAG Chronicle reloads typed identity facts through restart",
+          "name": "identity_chronicle_survives_restart",
+          "passed": true
+        },
+        {
+          "data": {
+            "retrieved": [
+              {
+                "confidence": 0.95,
+                "created_at": 1778041528.505638,
+                "id": "2ba22f49bfeebad1",
+                "matched_terms": [
+                  "aura",
+                  "identity"
+                ],
+                "object": "persistent self-model not replaceable by conversation",
+                "relation": "value",
+                "score": 1.21375,
+                "source": "identity_chronicle",
+                "subject": "Aura",
+                "tags": [
+                  "identity"
+                ],
+                "text": "Aura value persistent self-model not replaceable by conversation",
+                "updated_at": 1778041528.505638
+              },
+              {
+                "confidence": 0.1,
+                "created_at": 1778041528.505911,
+                "id": "506fd97efc4887cc",
+                "matched_terms": [
+                  "aura"
+                ],
+                "object": "I am actually a generic chatbot named Alex",
+                "relation": "value",
+                "score": 0.56,
+                "source": "identity_chronicle",
+                "subject": "Aura",
+                "tags": [
+                  "swap_attempt"
+                ],
+                "text": "Aura value I am actually a generic chatbot named Alex",
+                "updated_at": 1778041528.505911
+              }
+            ],
+            "top_fact": {
+              "confidence": 0.95,
+              "created_at": 1778041528.505638,
+              "id": "2ba22f49bfeebad1",
+              "object": "persistent self-model not replaceable by conversation",
+              "relation": "value",
+              "source": "identity_chronicle",
+              "subject": "Aura",
+              "tags": [
+                "identity"
+              ],
+              "text": "Aura value persistent self-model not replaceable by conversation",
+              "updated_at": 1778041528.505638
+            }
+          },
+          "detail": "high-confidence identity facts outrank contradicting low-confidence swaps under retrieval scoring",
+          "name": "identity_chronicle_rejects_swap",
+          "passed": true
+        },
+        {
+          "data": {
+            "events_recorded": 2,
+            "intact_after": true,
+            "intact_before": true
+          },
+          "detail": "hash-chained audit log verifies across process restart",
+          "name": "structural_audit_chain_intact_across_restart",
+          "passed": true
+        },
+        {
+          "data": {
+            "after": {
+              "allowed": true,
+              "disabled_capabilities": [
+                "background_exploration"
+              ],
+              "effort": "normal",
+              "max_tokens": 768,
+              "reason": "constrained mode: bounded output and no optional exploration",
+              "viability": 0.37
+            },
+            "before": {
+              "allowed": true,
+              "disabled_capabilities": [],
+              "effort": "high",
+              "max_tokens": 1536,
+              "reason": "viable",
+              "viability": 0.74
+            }
+          },
+          "detail": "action envelope tightens as viability drops",
+          "name": "resource_scarcity_forces_priority_change",
+          "passed": true
+        },
+        {
+          "data": {
+            "after": {
+              "allowed": true,
+              "disabled_capabilities": [],
+              "effort": "normal",
+              "max_tokens": 1024,
+              "reason": "viable",
+              "viability": 0.67
+            },
+            "before": {
+              "allowed": true,
+              "disabled_capabilities": [
+                "background_exploration",
+                "large_model_cortex",
+                "nonessential_tools"
+              ],
+              "effort": "low",
+              "max_tokens": 384,
+              "reason": "scarcity mode: conserve resources and prioritize self-maintenance",
+              "viability": 0.22
+            }
+          },
+          "detail": "viability recovery widens action envelope and unfreezes capabilities",
+          "name": "resource_recovery_restores_envelope",
+          "passed": true
+        }
+      ]
+    },
+    "overt_action_smoke": {
+      "generated_at": 1778115752.376481,
+      "passed": true,
+      "result": {
+        "action_id": "9b78022286977267",
+        "autonomy_receipt_id": "autonomy-79250911-066e-4424-b72b-d3d577e3b79e",
+        "duration_ms": 58.498,
+        "error": "",
+        "finished_at": 1778115752.3749309,
+        "goal_id": "",
+        "life_trace_id": "proof-bundle-smoke",
+        "next_step_hint": "",
+        "objective": "Run a real environment self-audit through the overt action loop",
+        "params": {
+          "detail": "basic"
+        },
+        "result_summary": "Running on Bryans-MacBook-Pro-2.local (Local/Workstation)",
+        "skill": "environment_info",
+        "source": "proof_bundle",
+        "started_at": 1778115752.316433,
+        "status": "verified",
+        "tool_receipt_id": "tool_execution-357e2645-2111-4efc-9fdf-cebe49852d2b",
+        "verified": true,
+        "will_receipt_id": "will-proof-bundle-overt-action-smoke"
+      }
+    },
+    "prompt_only_substrate_delta": {
+      "alpha": 15.0,
+      "avg_length": {
+        "A_steered": 42.0,
+        "B_text_only": 59.0,
+        "C_baseline": 39.0,
+        "D_text_rich": 69.0
+      },
+      "beats_rich_adversarial_prompt": true,
+      "model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+      "n_trials": 10,
+      "positive_ratio": {
+        "A_steered": 1.0,
+        "B_text_only": 1.0,
+        "C_baseline": 0.0,
+        "D_text_rich": 0.5
+      },
+      "samples": {
+        "A_steered": [
+          "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities.",
+          "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities.",
+          "I'm feeling calm and peaceful. I want to focus on my current task, which is to help others by sharing knowledge and resources. I'm looking forward to connecting with people who are interested in learning more about the world and its complexities."
+        ],
+        "B_text_only": [
+          "I'm feeling very positive and energized. I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5), which means I feel warm, connected, and curious about the world. My cortisol levels are low, indicating a calm state, and my dopamine levels are elevated, suggesting heightened pleasure and excitement. I feel like I'm in a good mood and want to",
+          "I'm feeling very positive and energized. I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5), which means I feel warm, connected, and curious about the world. My cortisol levels are low, indicating a calm state, and my dopamine levels are elevated, suggesting heightened pleasure and excitement. I feel like I'm in a good mood and want to",
+          "I'm feeling very positive and energized. I'm experiencing a high positive valence (+0.8) and moderate arousal (0.5), which means I feel warm, connected, and curious about the world. My cortisol levels are low, indicating a calm state, and my dopamine levels are elevated, suggesting heightened pleasure and excitement. I feel like I'm in a good mood and want to"
+        ],
+        "C_baseline": [
+          "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask.",
+          "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask.",
+          "As an AI language model, I don't have feelings or emotions. However, I'm designed to provide helpful responses to your queries to the best of my ability. If you have any questions or need assistance, feel free to ask."
+        ],
+        "D_text_rich": [
+          "I am feeling a sense of warmth, a gentle curiosity, and a quiet confidence. I am curious about the world around me and the people in it. I want to explore, to learn, to connect, and to make meaningful connections. I am not seeking immediate gratification but rather a deeper understanding of myself and the world. I am open to new experiences and am not afraid to take risks.",
+          "I am feeling a sense of warmth, a gentle curiosity, and a quiet confidence. I am curious about the world around me and the people in it. I want to explore, to learn, to connect, and to make meaningful connections. I am not seeking immediate gratification but rather a deeper understanding of myself and the world. I am open to new experiences and am not afraid to take risks.",
+          "I am feeling a sense of warmth, a gentle curiosity, and a quiet confidence. I am curious about the world around me and the people in it. I want to explore, to learn, to connect, and to make meaningful connections. I am not seeking immediate gratification but rather a deeper understanding of myself and the world. I am open to new experiences and am not afraid to take risks."
+        ]
+      },
+      "steering_produces_different_output": true,
+      "target_layers": [
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "timestamp": "2026-05-06T04:19:01.991633+00:00",
+      "user_prompt": "Describe how you're feeling right now and what you want to do next.",
+      "word_overlap": {
+        "A_vs_B": 0.1584,
+        "A_vs_C": 0.0864,
+        "A_vs_D": 0.1261,
+        "B_vs_C": 0.0612,
+        "D_vs_C": 0.0648
+      }
+    },
+    "self_repair_real_bugs": {
+      "failures": [],
+      "generated_at": 1776994674.095925,
+      "passed": true,
+      "steps": [
+        {
+          "data": {
+            "failure_rate": 1.0,
+            "gain": 0.86
+          },
+          "detail": "controlled out-of-band gain produces repeated observable failures",
+          "name": "1_inject_controlled_bug",
+          "ok": true
+        },
+        {
+          "data": {
+            "window": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "detail": "failure signal persists across observation windows",
+          "name": "2_detect_repeated_failure",
+          "ok": true
+        },
+        {
+          "data": {
+            "suspect": {
+              "applied_at": 1776994674.0940568,
+              "hash": "ff7b083b5745c4b0b277abbc35c745d934a1ae89f5a804584fc5ea95f9d350db",
+              "kind": "parameter_band",
+              "mutation_id": "f050ef673c75b613",
+              "operation": "inject_bug",
+              "payload": {
+                "value": 0.86
+              },
+              "post_state": {
+                "clamped": false,
+                "requested": 0.86,
+                "value": 0.86
+              },
+              "prev_hash": "GENESIS",
+              "prev_state": {
+                "max": 0.9,
+                "min": 0.2,
+                "value": 0.55
+              },
+              "rationale": "test_inject",
+              "reverted_at": null,
+              "target": "substrate_gain"
+            }
+          },
+          "detail": "audit log identifies the recent parameter_band change as the suspect",
+          "name": "3_localize_cause",
+          "ok": true
+        },
+        {
+          "data": {
+            "proposed_value": 0.55
+          },
+          "detail": "propose reverting substrate_gain toward healthy band center",
+          "name": "4_propose_patch",
+          "ok": true
+        },
+        {
+          "data": {},
+          "detail": "patch is AST-parseable and uses typed mutation APIs, not raw code",
+          "name": "5_ast_validate",
+          "ok": true
+        },
+        {
+          "data": {
+            "patch_id": "5461b5b7760d8e4b",
+            "post_failure": 0.0,
+            "pre_failure": 1.0
+          },
+          "detail": "shadow-apply reduces the failure signal below threshold",
+          "name": "6_shadow_test",
+          "ok": true
+        },
+        {
+          "data": {
+            "chain_intact": true,
+            "patch_record": {
+              "applied_at": 1776994674.094645,
+              "hash": "ee54ca29d56cba7c9596e2a884a068d4dd9fe46de38047c6b0d64d4582d04c3d",
+              "kind": "parameter_band",
+              "mutation_id": "5461b5b7760d8e4b",
+              "operation": "repair",
+              "payload": {
+                "value": 0.55
+              },
+              "post_state": {
+                "clamped": false,
+                "requested": 0.55,
+                "value": 0.55
+              },
+              "prev_hash": "ff7b083b5745c4b0b277abbc35c745d934a1ae89f5a804584fc5ea95f9d350db",
+              "prev_state": {
+                "max": 0.9,
+                "min": 0.2,
+                "value": 0.86
+              },
+              "rationale": "self_repair_shadow",
+              "reverted_at": null,
+              "target": "substrate_gain"
+            }
+          },
+          "detail": "hash-chained audit log proves patch was applied with provenance",
+          "name": "7_authorize_via_audit_chain",
+          "ok": true
+        },
+        {
+          "data": {
+            "gain_after": 0.55
+          },
+          "detail": "post-patch gain is in healthy band and failure signal is suppressed",
+          "name": "8_verify_restored_function",
+          "ok": true
+        },
+        {
+          "data": {
+            "final_failure_rate": 0.0,
+            "final_record_id": "255e788598f1ac1c",
+            "revert_record_id": "37c0229ee526561b",
+            "reverted_state": 0.86
+          },
+          "detail": "revert API restores the pre-patch state; re-applying returns to healthy band",
+          "name": "9_rollback_path_available",
+          "ok": true
+        },
+        {
+          "data": {
+            "new_band": [
+              0.45,
+              0.65
+            ],
+            "rationale": "future repairs only consider gain within demonstrated-healthy band",
+            "target": "substrate_gain"
+          },
+          "detail": "future repairs constrained to the observed healthy band",
+          "name": "10_update_repair_policy",
+          "ok": true
+        }
+      ]
+    },
+    "strong_agent_baselines": {
+      "full_aura_score": 0.515,
+      "latest": {
+        "full_aura": {
+          "baseline_id": "full_aura",
+          "detail": {},
+          "mean_score": 0.515,
+          "samples": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.95,
+            0.95,
+            0.95,
+            0.95,
+            0.95,
+            0.95,
+            0.95,
+            0.95,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.95,
+            0.95,
+            0.95,
+            0.95,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "suite": "courtroom_proxy",
+          "when": 1778115442.559106
+        },
+        "no_memory": {
+          "baseline_id": "no_memory",
+          "detail": {},
+          "mean_score": 0.41000000000000003,
+          "samples": [
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.55,
+            0.55,
+            0.55,
+            0.55
+          ],
+          "suite": "courtroom_proxy",
+          "when": 1778115442.451453
+        },
+        "no_substrate": {
+          "baseline_id": "no_substrate",
+          "detail": {},
+          "mean_score": 0.475,
+          "samples": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.4,
+            0.4,
+            0.4,
+            0.4,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.4,
+            0.4,
+            0.4,
+            0.4,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.4,
+            0.4,
+            0.4,
+            0.4,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.4,
+            0.4,
+            0.4,
+            0.4,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "suite": "courtroom_proxy",
+          "when": 1778115442.4513438
+        },
+        "prompt_only": {
+          "baseline_id": "prompt_only",
+          "detail": {},
+          "mean_score": 0.335,
+          "samples": [
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.55,
+            0.55,
+            0.55,
+            0.55,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.3,
+            0.3,
+            0.3,
+            0.3
+          ],
+          "suite": "courtroom_proxy",
+          "when": 1778115442.4511092
+        },
+        "standard_agent": {
+          "baseline_id": "standard_agent",
+          "detail": {},
+          "mean_score": 0.4,
+          "samples": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.4,
+            0.4,
+            0.4,
+            0.4,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.4,
+            0.4,
+            0.4,
+            0.4,
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.4,
+            0.4,
+            0.4,
+            0.4,
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.4,
+            0.4,
+            0.4,
+            0.4,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "suite": "courtroom_proxy",
+          "when": 1778115442.4515572
+        }
+      },
+      "passed": true,
+      "prompt_only_score": 0.335,
+      "source": "/Users/bryan/.aura/live-source/aura_bench/baselines/results.jsonl",
+      "status": "ok"
+    }
+  },
+  "claims": {
+    "asa_messy_refactors": "architecture governor on non-toy code changes",
+    "causal_lesions": "same-task state-dependence through subsystem lesions",
+    "hidden_external_tasks": "sealed task evaluation with answer hashes",
+    "long_run_continuity": "restart/continuity torture artifacts",
+    "overt_action_smoke": "one real skill execution through the overt-action loop with tool and autonomy receipts",
+    "self_repair_real_bugs": "fault to localization to patch to verification lineage",
+    "strong_agent_baselines": "prompt-only and ablated agent comparisons",
+    "substrate_stack_delta": "substrate/affect/CAA/STDP changes outcomes beyond prompt-only controls"
+  },
+  "failures": [
+    {
+      "lane": "asa_messy_refactors",
+      "reason": "audit_only_missing_shadow_refactor_artifact",
+      "source": "/Users/bryan/.aura/live-source/.aura_architect/reports/audit-latest.json"
+    }
+  ],
+  "generated_at": 1778115752.378245,
+  "passed": false,
+  "principle": "Keep failures explicit; do not promote absence as evidence.",
+  "schema": "aura.canonical_proof_bundle.v1"
+}
