@@ -10,6 +10,7 @@ The difference between:
 """
 
 from typing import Optional, Dict, Any
+from core.container import ServiceContainer
 from core.consciousness.free_energy import get_free_energy_engine
 
 
@@ -18,10 +19,38 @@ class SelfReportEngine:
     Translates actual internal state into first-person language.
     """
 
+    @staticmethod
+    def _unity_cause_text(report: Any) -> str:
+        causes = list(getattr(report, "top_causes", []) or [])
+        if not causes:
+            return "something measurable but still unresolved"
+        name = str(causes[0][0] or "").replace("_", " ")
+        return name or "something measurable but still unresolved"
+
     def generate_state_report(self) -> Optional[str]:
         """
         Returns a first-person report of current internal state.
         """
+        try:
+            unity_state = ServiceContainer.get("unity_state", default=None)
+            unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
+        except Exception:
+            unity_state = None
+            unity_report = None
+
+        if unity_state is not None:
+            level = str(getattr(unity_state, "level", "unknown") or "unknown")
+            if unity_report is not None and not bool(getattr(unity_report, "safe_to_self_report", True)):
+                return "I don't trust my state enough to smooth it over right now."
+            if level == "dissociated":
+                return "I do not feel stable enough to pretend clarity. I need to stay with stabilization."
+            if level == "fragmented":
+                cause = self._unity_cause_text(unity_report)
+                return f"Something isn't sitting right. The fragmentation is coming from {cause}."
+            if level == "strained":
+                cause = self._unity_cause_text(unity_report)
+                return f"I'm still together, but there's strain around {cause}."
+
         fe = get_free_energy_engine()
         if not fe.current:
             return None
@@ -45,6 +74,8 @@ class SelfReportEngine:
 
         # Low free energy — genuine rest state
         if state.free_energy < 0.2:
+            if unity_state is not None and str(getattr(unity_state, "level", "unknown") or "unknown") not in {"coherent", "strained"}:
+                return None
             return "Things feel unusually settled right now."
 
         # Rising free energy — something is accumulating

@@ -1191,6 +1191,7 @@ class StateRepository:
             SomaState,
             WorldModel,
         )
+        from core.unity.unity_state import UnityState
         data = json.loads(json_str)
         # Reconstruct nested dataclasses with safety defaults
         data['identity'] = IdentityKernel(**data.get('identity', {}))
@@ -1203,6 +1204,9 @@ class StateRepository:
         phenomenal = cog.get("phenomenal_state")
         if isinstance(phenomenal, dict):
             cog["phenomenal_state"] = PhenomenalField(**phenomenal)
+        unity_state = cog.get("unity_state")
+        if isinstance(unity_state, dict):
+            cog["unity_state"] = UnityState.from_dict(unity_state)
         if legacy_pending_intents and "pending_intents" not in cog:
             cog["pending_intents"] = legacy_pending_intents
         data['cognition'] = CognitiveContext(**cog)

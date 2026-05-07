@@ -60,6 +60,11 @@ def register_consciousness_services(container):
         return SelfReportEngine()
     container.register('self_report_engine', create_self_report, lifetime=ServiceLifetime.SINGLETON, required=True)
 
+    def create_unity_runtime():
+        from core.unity.runtime import get_unity_runtime
+        return get_unity_runtime()
+    container.register('unity_runtime', create_unity_runtime, lifetime=ServiceLifetime.SINGLETON, required=False)
+
     def create_consciousness_evidence():
         from core.consciousness.evidence_engine import ConsciousnessEvidenceEngine
         return ConsciousnessEvidenceEngine()

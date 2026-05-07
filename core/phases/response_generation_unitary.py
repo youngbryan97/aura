@@ -300,7 +300,10 @@ class UnitaryResponsePhase(Phase):
             now = ServiceContainer.get("phenomenal_now", default=None)
             claim = self._normalize_text(getattr(now, "phenomenal_claim", "") if now else "", 260)
             if claim:
-                state.cognition.phenomenal_state = claim
+                if hasattr(state, "make_phenomenal_field"):
+                    state.cognition.phenomenal_state = state.make_phenomenal_field(claim, source="integrated_present")
+                else:
+                    state.cognition.phenomenal_state = claim
                 state.response_modifiers["integrated_present_claim"] = claim
         except Exception as exc:
             record_degradation('response_generation_unitary', exc)
@@ -567,6 +570,20 @@ class UnitaryResponsePhase(Phase):
         return "fragmented; simplify and speak from one through-line"
 
     def _integrated_phenomenal_claim(self, state: AuraState, *, limit: int = 220) -> str:
+        unity_claim = self._normalize_text(state.response_modifiers.get("unity_claim", "") or "", limit)
+        if unity_claim:
+            return unity_claim
+        try:
+            unity_state = getattr(state.cognition, "unity_state", None) or ServiceContainer.get("unity_state", default=None)
+            if unity_state is not None:
+                unity_runtime = ServiceContainer.get("unity_runtime", default=None)
+                unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
+                if unity_runtime and hasattr(unity_runtime, "render_phenomenal_claim"):
+                    claim = self._normalize_text(unity_runtime.render_phenomenal_claim(unity_state, unity_report), limit)
+                    if claim:
+                        return claim
+        except Exception:
+            pass  # no-op: intentional
         try:
             now = ServiceContainer.get("phenomenal_now", default=None)
             claim = self._normalize_text(getattr(now, "phenomenal_claim", "") if now else "", limit)
@@ -585,6 +602,18 @@ class UnitaryResponsePhase(Phase):
             report = ServiceContainer.get("coherence_report", default=None)
         except Exception:
             report = None
+        try:
+            unity_state = getattr(state.cognition, "unity_state", None) or ServiceContainer.get("unity_state", default=None)
+        except Exception:
+            unity_state = None
+        try:
+            unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
+        except Exception:
+            unity_report = None
+        try:
+            repair_plan = ServiceContainer.get("unity_repair_plan", default=None)
+        except Exception:
+            repair_plan = None
 
         claim = self._integrated_phenomenal_claim(state, limit=180 if compact else 240)
         interior = self._normalize_text(getattr(now, "interior_narrative", "") if now else "", 220)
@@ -614,6 +643,19 @@ class UnitaryResponsePhase(Phase):
             f"Coherence posture: {posture}.",
             "Speak from the integrated through-line. Do not stack subsystem names, raw metrics, or invented mechanisms.",
         ]
+        if unity_state is not None:
+            lines.append(
+                f"Unity level: {self._normalize_text(getattr(unity_state, 'level', 'unknown'), 40)}."
+            )
+        if unity_report is not None and getattr(unity_report, "top_causes", None):
+            cause_name = str(unity_report.top_causes[0][0]).replace("_", " ")
+            lines.append(f"If you mention strain or fog, ground it in {cause_name}.")
+        if unity_report is not None and not bool(getattr(unity_report, "safe_to_self_report", True)):
+            lines.append("Do not claim clarity, certainty, or seamlessness that the live unity state cannot support.")
+        if repair_plan is not None and not compact:
+            next_step = self._normalize_text((getattr(repair_plan, "steps", []) or [""])[0], 140)
+            if next_step:
+                lines.append(f"Current repair bias: {next_step}.")
         if interior and interior != claim and not compact:
             lines.insert(3, f"Interior through-line: {interior}")
         if focus:

@@ -259,6 +259,42 @@ class BindingEngine:
         )
         report.overall_coherence = round(max(0.0, min(1.0, report.overall_coherence)), 3)
 
+        try:
+            from core.unity import get_unity_runtime
+
+            unity_state = get_unity_runtime().apply_to_state(
+                state,
+                objective=str(getattr(getattr(state, "cognition", None), "current_objective", "") or ""),
+                tick_id=f"binding_{self._tick_count}",
+            ).cognition.unity_state
+            if unity_state is not None:
+                report.self_continuity = round(
+                    max(0.0, min(1.0, (report.self_continuity * 0.55) + (unity_state.temporal_continuity_score * 0.45))),
+                    3,
+                )
+                report.phenomenal_coherence = round(
+                    max(report.phenomenal_coherence, float(getattr(unity_state, "cross_modal_coherence_score", 0.0) or 0.0)),
+                    3,
+                )
+                report.initiative_alignment = round(
+                    max(0.0, min(1.0, (report.initiative_alignment * 0.65) + (unity_state.action_readiness_score * 0.35))),
+                    3,
+                )
+                report.tension_pressure = round(
+                    max(report.tension_pressure, float(getattr(unity_state, "fragmentation_score", 0.0) or 0.0)),
+                    3,
+                )
+                report.overall_coherence = round(
+                    max(0.0, min(1.0, (report.overall_coherence * 0.45) + (float(unity_state.unity_score or 0.0) * 0.55))),
+                    3,
+                )
+                if getattr(unity_state, "repair_needed", False):
+                    for reason in list(getattr(unity_state, "repair_reasons", []) or [])[:3]:
+                        report.threats.append(f"unity:{reason}")
+        except Exception as exc:
+            record_degradation('binding_engine', exc)
+            logger.debug("BindingEngine: Unity integration skipped: %s", exc)
+
         # ── Determine recommended action ─────────────────────────────────────
         if report.overall_coherence < COHERENCE_CRISIS_THRESHOLD:
             report.recommended_action = "rest"

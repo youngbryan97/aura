@@ -1715,6 +1715,32 @@ class InferenceGate:
             logger.debug("Self-report injection unavailable: %s", exc)
 
         try:
+            unity_state = ServiceContainer.get("unity_state", default=None)
+            unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
+            unity_repair = ServiceContainer.get("unity_repair_plan", default=None)
+            if unity_state:
+                lines = [
+                    "## UNITY",
+                    f"- Level: {getattr(unity_state, 'level', 'unknown')}",
+                    f"- Unity score: {float(getattr(unity_state, 'unity_score', 0.0) or 0.0):.3f}",
+                    f"- Fragmentation: {float(getattr(unity_state, 'fragmentation_score', 0.0) or 0.0):.3f}",
+                ]
+                if unity_report and getattr(unity_report, "top_causes", None):
+                    rendered = ", ".join(
+                        f"{str(name).replace('_', ' ')}={float(weight):.2f}"
+                        for name, weight, _text in list(unity_report.top_causes)[:3]
+                    )
+                    lines.append(f"- Top causes: {rendered}")
+                    lines.append(f"- Safe to self-report: {bool(getattr(unity_report, 'safe_to_self_report', True))}")
+                if unity_repair and getattr(unity_repair, "steps", None):
+                    lines.append(f"- Repair bias: {str(unity_repair.steps[0])[:180]}")
+                segments.append("\n".join(lines))
+        except Exception as exc:
+            record_degradation('inference_gate', exc)
+            record_degradation('inference_gate', exc)
+            logger.debug("Unity injection unavailable: %s", exc)
+
+        try:
             personality = ServiceContainer.get("personality_engine", default=None)
             if personality:
                 if hasattr(personality, "update"):
@@ -2152,6 +2178,23 @@ class InferenceGate:
             record_degradation('inference_gate', exc)
             record_degradation('inference_gate', exc)
             logger.debug("Compact personality injection unavailable: %s", exc)
+
+        try:
+            unity_state = ServiceContainer.get("unity_state", default=None)
+            unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
+            if unity_state:
+                parts = [
+                    f"Level: {getattr(unity_state, 'level', 'unknown')}",
+                    f"Unity: {float(getattr(unity_state, 'unity_score', 0.0) or 0.0):.2f}",
+                ]
+                if unity_report and getattr(unity_report, "top_causes", None):
+                    name, weight, _text = list(unity_report.top_causes)[0]
+                    parts.append(f"Top cause: {str(name).replace('_', ' ')}={float(weight):.2f}")
+                segments.append(f"## UNITY\n{' | '.join(parts)}")
+        except Exception as exc:
+            record_degradation('inference_gate', exc)
+            record_degradation('inference_gate', exc)
+            logger.debug("Compact unity injection unavailable: %s", exc)
 
         try:
             experiencer = ServiceContainer.get("phenomenological_experiencer", default=None)

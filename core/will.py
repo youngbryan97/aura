@@ -140,6 +140,11 @@ class WillDecision:
     substrate_coherence: float = 0.6    # [0, 1] unified field coherence
     somatic_approach: float = 0.0       # [-1, 1] somatic marker
     memory_relevance: float = 0.0       # [0, 1] how much memory context was found
+    unity_level: str = "unknown"
+    unity_score: float = 1.0
+    fragmentation_score: float = 0.0
+    ownership_confidence: float = 1.0
+    unity_repair_needed: bool = False
 
     # Constraints (if outcome is CONSTRAIN)
     constraints: List[str] = field(default_factory=list)
@@ -308,25 +313,31 @@ class UnifiedWill:
         # ── 5. SCAR CHECK: Does past experience advise caution? ─────
         scar_constraints = self._check_behavioral_scars(content, source, domain, context)
 
-        # ── 6. PHENOMENOLOGICAL INPUT: What is my experiential state? ─
+        # ── 6. UNITY INPUT: What is my current togetherness? ─────────
+        unity_context = self._read_unity_context()
+
+        # ── 7. PHENOMENOLOGICAL INPUT: What is my experiential state? ─
         self._apply_phenomenological_modulation()
 
-        # ── 7. WORLD STATE INPUT: What is happening in the environment? ─
+        # ── 8. WORLD STATE INPUT: What is happening in the environment? ─
         self._apply_world_state_modulation(domain, context)
 
-        # ── 8. COMPOSE THE DECISION ─────────────────────────────────
+        # ── 9. COMPOSE THE DECISION ─────────────────────────────────
         outcome, reason, constraints = self._compose_decision(
             domain=domain,
             source=source,
             priority=priority,
+            context=context,
+            content=content,
             identity_alignment=identity_alignment,
             affect_valence=affect_valence,
             substrate_coherence=substrate_coherence,
             somatic_approach=somatic_approach,
             memory_relevance=memory_relevance,
+            unity_context=unity_context,
         )
 
-        # ── 8b. Inject scar constraints (learned caution from experience) ─
+        # ── 9b. Inject scar constraints (learned caution from experience) ─
         if scar_constraints:
             constraints.extend(scar_constraints)
             if outcome == WillOutcome.PROCEED:
@@ -343,6 +354,11 @@ class UnifiedWill:
             substrate_coherence=substrate_coherence,
             somatic_approach=somatic_approach,
             memory_relevance=memory_relevance,
+            unity_level=str(unity_context.get("level", "unknown") or "unknown"),
+            unity_score=float(unity_context.get("unity_score", 1.0) or 1.0),
+            fragmentation_score=float(unity_context.get("fragmentation_score", 0.0) or 0.0),
+            ownership_confidence=float(unity_context.get("ownership_confidence", 1.0) or 1.0),
+            unity_repair_needed=bool(unity_context.get("repair_needed", False)),
             constraints=constraints,
             source=source,
             content_hash=content_hash,
@@ -647,6 +663,62 @@ class UnifiedWill:
             record_degradation('will', e)
             logger.debug("Will: world state modulation failed: %s", e)
 
+    def _read_unity_context(self) -> Dict[str, Any]:
+        """Read the live unity state without hard-failing if the layer is absent."""
+        context: Dict[str, Any] = {
+            "level": "unknown",
+            "unity_score": 1.0,
+            "fragmentation_score": 0.0,
+            "safe_to_act": True,
+            "safe_to_self_report": True,
+            "repair_needed": False,
+            "memory_commit_mode": "clean",
+            "ownership_confidence": 1.0,
+            "top_causes": [],
+        }
+        try:
+            unity_state = ServiceContainer.get("unity_state", default=None)
+            if unity_state is not None:
+                context.update(
+                    {
+                        "level": str(getattr(unity_state, "level", "unknown") or "unknown"),
+                        "unity_score": float(getattr(unity_state, "unity_score", 1.0) or 1.0),
+                        "fragmentation_score": float(getattr(unity_state, "fragmentation_score", 0.0) or 0.0),
+                        "repair_needed": bool(getattr(unity_state, "repair_needed", False)),
+                    }
+                )
+                metadata = dict(getattr(unity_state, "metadata", {}) or {})
+                context["memory_commit_mode"] = str(metadata.get("draft_commit_mode") or "clean")
+                binding = dict(metadata.get("self_world_binding") or {})
+                if binding:
+                    context["ownership_confidence"] = float(binding.get("ownership_confidence", 1.0) or 1.0)
+        except Exception as e:
+            record_degradation('will', e)
+            logger.debug("Will: unity state read failed: %s", e)
+
+        try:
+            report = ServiceContainer.get("unity_fragmentation_report", default=None)
+            if report is not None:
+                context["safe_to_act"] = bool(getattr(report, "safe_to_act", True))
+                context["safe_to_self_report"] = bool(getattr(report, "safe_to_self_report", True))
+                context["top_causes"] = list(getattr(report, "top_causes", []) or [])
+        except Exception as e:
+            record_degradation('will', e)
+            logger.debug("Will: unity report read failed: %s", e)
+        return context
+
+    @staticmethod
+    def _looks_external_social_action(content: str, context: Dict[str, Any]) -> bool:
+        payload = str(content or "").lower()
+        if any(marker in payload for marker in ("post ", "publish", "email", "send", "tweet", "message ", "slack", "discord", "github", "commit", "push")):
+            return True
+        return bool(
+            context.get("external_action")
+            or context.get("public_action")
+            or context.get("social_action")
+            or context.get("world_affecting")
+        )
+
     # ------------------------------------------------------------------
     # Decision composition
     # ------------------------------------------------------------------
@@ -657,11 +729,14 @@ class UnifiedWill:
         domain: ActionDomain,
         source: str,
         priority: float,
+        context: Dict[str, Any],
+        content: str,
         identity_alignment: IdentityAlignment,
         affect_valence: float,
         substrate_coherence: float,
         somatic_approach: float,
         memory_relevance: float,
+        unity_context: Dict[str, Any],
     ) -> Tuple[WillOutcome, str, List[str]]:
         """Compose all advisory inputs into a single decision.
 
@@ -706,6 +781,53 @@ class UnifiedWill:
                 reasons.append("affect_block: too negative for exploration")
                 return WillOutcome.DEFER, "; ".join(reasons), constraints
             constraints.append(f"low_affect: valence={affect_valence:.3f}")
+
+        # ── Unity gate (functional togetherness / repair state) ────
+        unity_level = str(unity_context.get("level", "unknown") or "unknown")
+        unity_score = float(unity_context.get("unity_score", 1.0) or 1.0)
+        fragmentation_score = float(unity_context.get("fragmentation_score", 0.0) or 0.0)
+        safe_to_act = bool(unity_context.get("safe_to_act", True))
+        memory_commit_mode = str(unity_context.get("memory_commit_mode", "clean") or "clean")
+        ownership_confidence = float(unity_context.get("ownership_confidence", 1.0) or 1.0)
+
+        if ownership_confidence < 0.45:
+            constraints.append(f"ownership_ambiguity: confidence={ownership_confidence:.3f}")
+
+        if domain in {ActionDomain.SEMANTIC_WEIGHT_UPDATE, ActionDomain.STATE_MUTATION} and unity_level != "coherent":
+            reasons.append(f"unity_block: {domain.value} requires coherent unity (current={unity_level})")
+            return WillOutcome.REFUSE, "; ".join(reasons), constraints
+
+        if domain == ActionDomain.MEMORY_WRITE and memory_commit_mode in {"qualified", "conflicted", "repair_only"}:
+            constraints.append(f"memory_commit_mode:{memory_commit_mode}")
+        if domain == ActionDomain.MEMORY_WRITE and memory_commit_mode == "defer":
+            reasons.append("unity_memory_defer: conflicting drafts too unstable for a clean memory write")
+            return WillOutcome.DEFER, "; ".join(reasons), constraints
+
+        if unity_level in {"fragmented", "dissociated"} or not safe_to_act:
+            constraints.append(
+                f"low_unity:{unity_level}(unity={unity_score:.3f}, fragmentation={fragmentation_score:.3f})"
+            )
+            if domain == ActionDomain.STABILIZATION:
+                return (
+                    WillOutcome.CONSTRAIN if constraints else WillOutcome.PROCEED,
+                    "stabilization_allowed_under_low_unity",
+                    constraints,
+                )
+            if domain in {ActionDomain.RESPONSE, ActionDomain.EXPRESSION, ActionDomain.REFLECTION, ActionDomain.MEMORY_WRITE}:
+                constraints.append("qualified_self_report_only")
+            elif domain == ActionDomain.TOOL_EXECUTION:
+                reasons.append("unity_block: external action blocked until repair completes")
+                return WillOutcome.REFUSE, "; ".join(reasons), constraints
+            elif domain in {ActionDomain.INITIATIVE, ActionDomain.EXPLORATION}:
+                reasons.append("unity_defer: noncritical initiative deferred until repair completes")
+                return WillOutcome.DEFER, "; ".join(reasons), constraints
+
+        elif unity_level == "strained":
+            constraints.append(f"unity_strain: score={unity_score:.3f}")
+            if domain == ActionDomain.TOOL_EXECUTION and self._looks_external_social_action(content, context):
+                constraints.append("external_action_requires_explicit_caution")
+            if domain in {ActionDomain.RESPONSE, ActionDomain.EXPRESSION}:
+                constraints.append("qualify_uncertainty_when_self_reporting")
 
         # ── User-granted action override ────────────────────────────
         # If the current context carries an explicit permission grant
@@ -834,6 +956,10 @@ class UnifiedWill:
                 "identity_alignment": d.identity_alignment.value,
                 "affect_valence": round(d.affect_valence, 4),
                 "substrate_coherence": round(d.substrate_coherence, 4),
+                "unity_level": d.unity_level,
+                "unity_score": round(d.unity_score, 4),
+                "fragmentation_score": round(d.fragmentation_score, 4),
+                "ownership_confidence": round(d.ownership_confidence, 4),
                 "timestamp": d.timestamp,
                 "latency_ms": round(d.latency_ms, 3),
             }
