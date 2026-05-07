@@ -3,11 +3,13 @@ from __future__ import annotations
 from dataclasses import replace
 import hashlib
 import time
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
-from .co_presence_graph import CoPresenceGraphBuilder, CoPresenceGraphSnapshot
+from .co_presence_graph import CoPresenceGraphBuilder
 from .draft_reconciliation import DraftReconciliationEngine
 from .self_world_binding import SelfWorldBindingModel
 from .temporal_binding import TemporalBindingField
@@ -449,7 +451,52 @@ class UnityRuntime:
             self._last_draft_set.memory_commit_mode if self._last_draft_set else "clean"
         )
         state.response_modifiers["unity_summary"] = unity_summary_payload(unity_state, report, repair_plan)
+        self._record_continuous_experience_frame(
+            state,
+            unity_state=unity_state,
+            report=report,
+            objective=objective,
+        )
         return state
+
+    def _record_continuous_experience_frame(
+        self,
+        state: Any,
+        *,
+        unity_state: UnityState,
+        report: FragmentationReport | None,
+        objective: str,
+    ) -> None:
+        try:
+            stream = ServiceContainer.get("continuous_experience_stream", default=None)
+            if stream is None:
+                from core.consciousness.continuous_experience import get_continuous_experience_stream
+
+                stream = get_continuous_experience_stream()
+            frame = stream.append_from_unity(
+                unity_state,
+                report=report,
+                objective=objective,
+                privacy_tier="standard",
+            )
+            summary = stream.learning_context()
+            state.response_modifiers["experience_stream"] = {
+                "frame_id": frame.frame_id,
+                "sequence": frame.sequence,
+                "scene_id": frame.scene_id,
+                "frame_hash": frame.frame_hash,
+                "compounding_error": summary["compounding_error"],
+                "recommended_mode": summary["recommended_mode"],
+                "safe_to_act": summary["safe_to_act"],
+            }
+            ServiceContainer.set("continuous_experience_frame", frame, required=False)
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "unity_runtime",
+                exc,
+                severity="warning",
+                action="continued after continuous experience frame write failed",
+            )
 
 
 _UNITY_RUNTIME: UnityRuntime | None = None

@@ -1,4 +1,4 @@
-.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity longevity-24h chaos governance-lint security enterprise-gate enterprise-collect enterprise-strict decisive proof-bundle behavioral-proof activation-audit clean-bench
+.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity longevity-24h chaos governance-lint security enterprise-gate enterprise-collect enterprise-strict production-gate provenance decisive proof-bundle behavioral-proof activation-audit clean-bench
 
 PYTHON ?= python
 RUFF_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_assembler.py core/brain/llm/context_limit.py core/cognitive_integration_layer.py core/safe_mode.py core/coordinators/metabolic_coordinator.py core/evolution/persona_evolver.py core/orchestrator/mixins/autonomy.py core/orchestrator/mixins/context_streaming.py core/orchestrator/mixins/learning_evolution.py core/resilience/dream_cycle.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_consciousness_patch_retirement.py
@@ -71,6 +71,16 @@ enterprise-strict:
 	@echo "🏢 Running strict enterprise certification gate..."
 	@AURA_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) tools/aura_enterprise_gate.py --root . --strict
 
+production-gate:
+	@echo "🚦 Running production readiness contract..."
+	@AURA_TEST_MODE=1 $(PYTHON) tools/aura_production_readiness_gate.py --out /tmp/aura_production_readiness.json
+	@echo "✅ Production readiness contract passed; report written to /tmp/aura_production_readiness.json"
+
+provenance:
+	@echo "📦 Generating SBOM and release provenance..."
+	@$(PYTHON) tools/build_provenance.py --output-dir artifacts/provenance
+	@echo "✅ Provenance written to artifacts/provenance"
+
 activation-audit:
 	@echo "🧭 Auditing active Aura loops..."
 	@$(PYTHON) tools/activation_audit.py --output artifacts/activation_report.json
@@ -90,7 +100,7 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: enterprise-gate compile lint governance-lint security typecheck smoke
+quality: enterprise-gate production-gate compile lint governance-lint security typecheck smoke
 	@echo "🏁 Quality gates passed"
 
 decisive:

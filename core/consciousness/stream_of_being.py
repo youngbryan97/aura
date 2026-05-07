@@ -730,6 +730,16 @@ class StreamOfBeing:
         
         self._integrator = ExperienceIntegrator()
         self._thread = ExperientialThread()
+        self._continuous_experience = None
+        try:
+            from core.consciousness.continuous_experience import get_continuous_experience_stream
+
+            self._continuous_experience = get_continuous_experience_stream(
+                persist_path=self._save_dir / "continuous_experience.json"
+            )
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
+            record_degradation('stream_of_being', e)
+            logger.debug("Could not wire ContinuousExperienceStream: %s", e)
         
         # The deep narrative — LLM-generated interior text
         self._deep_narrative: str = ""
@@ -820,6 +830,20 @@ class StreamOfBeing:
                 # ── Synthesize a new NowMoment ───────────────────────────────
                 moment = await asyncio.to_thread(self._integrator.synthesize)
                 self._thread.add(moment)
+                if self._continuous_experience is not None:
+                    try:
+                        self._continuous_experience.append_now_moment(
+                            moment,
+                            objective=moment.attentional_focus,
+                            privacy_tier="standard",
+                        )
+                    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                        record_degradation(
+                            'stream_of_being',
+                            exc,
+                            severity="warning",
+                            action="continued after continuous experience append failed",
+                        )
                 
                 # ── LLM deep narrative (when not in active chat) ─────────────
                 now = time.time()

@@ -127,6 +127,7 @@ class TestBoot:
                     "ConversationalDynamicsPhase",
                     "BondingPhase",
                     "CognitiveRoutingPhase",
+                    "UnityBindingPhase",
                     "GodModeToolPhase",
                     "UnitaryResponsePhase",
                     "RepairPhase",

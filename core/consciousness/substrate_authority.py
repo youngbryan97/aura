@@ -255,13 +255,17 @@ class SubstrateAuthority:
         # ── Gate 3: Neurochemical constraints ────────────────────────
         chem_decision = AuthorizationDecision.ALLOW
         if chem_state in ("cortisol_crisis", "gaba_collapse"):
-            # During crisis, direct user asks can still use tools/memory, but only in a constrained mode.
-            # FIX: Allow MEMORY_WRITE during crisis if priority > 0.6 to prevent "functional lobotomy".
+            # During crisis, direct user asks can still use tools/memory, but
+            # only in a constrained mode. Autonomous memory writes stay blocked
+            # so background loops cannot preserve bad state while the substrate
+            # is explicitly saying "stabilize first."
             if category not in (ActionCategory.STABILIZATION, ActionCategory.RESPONSE):
-                if (user_facing_request or priority > 0.6) and category in (
-                    ActionCategory.TOOL_EXECUTION,
-                    ActionCategory.MEMORY_WRITE,
-                ):
+                if category == ActionCategory.MEMORY_WRITE and user_facing_request:
+                    chem_decision = AuthorizationDecision.CONSTRAIN
+                    constraints.append(
+                        f"neurochemical_{chem_state}: user_facing_memory_write_constrained"
+                    )
+                elif category == ActionCategory.TOOL_EXECUTION and (user_facing_request or priority > 0.6):
                     chem_decision = AuthorizationDecision.CONSTRAIN
                     constraints.append(
                         f"neurochemical_{chem_state}: {category.name.lower()}_constrained_by_priority"
