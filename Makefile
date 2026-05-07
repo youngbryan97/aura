@@ -1,4 +1,4 @@
-.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity longevity-24h chaos governance-lint security decisive proof-bundle behavioral-proof activation-audit clean-bench
+.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity longevity-24h chaos governance-lint security enterprise-gate enterprise-collect enterprise-strict decisive proof-bundle behavioral-proof activation-audit clean-bench
 
 PYTHON ?= python
 RUFF_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_assembler.py core/brain/llm/context_limit.py core/cognitive_integration_layer.py core/safe_mode.py core/coordinators/metabolic_coordinator.py core/evolution/persona_evolver.py core/orchestrator/mixins/autonomy.py core/orchestrator/mixins/context_streaming.py core/orchestrator/mixins/learning_evolution.py core/resilience/dream_cycle.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_consciousness_patch_retirement.py
@@ -6,6 +6,7 @@ MYPY_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_limit.py c
 MYPY_FLAGS ?= --follow-imports=skip --explicit-package-bases
 PYTEST_TARGETS ?= tests -q
 SMOKE_TEST_TARGETS ?= tests/test_response_contract.py tests/test_chat_format.py tests/test_effect_closure.py tests/test_local_server_client.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_consciousness_patch_retirement.py -q
+ENTERPRISE_BASELINE ?= config/aura_enterprise_gate_baseline.json
 
 # ─── Reproducible build (one-command path for external reviewers) ────────
 
@@ -56,6 +57,20 @@ security:
 	@echo "🔐 Running local security scan..."
 	@$(PYTHON) tools/security_scan.py
 
+enterprise-gate:
+	@echo "🏢 Running enterprise static ratchet gate..."
+	@AURA_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) tools/aura_enterprise_gate.py --root . --baseline $(ENTERPRISE_BASELINE) --fail-on-regression --skip-pytest-collect --out /tmp/aura_enterprise_gate.json
+	@echo "✅ Enterprise gate passed; report written to /tmp/aura_enterprise_gate.json"
+
+enterprise-collect:
+	@echo "🏢 Running enterprise pytest collection gate..."
+	@AURA_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) tools/aura_enterprise_gate.py --root . --baseline $(ENTERPRISE_BASELINE) --fail-on-regression --skip-compile --out /tmp/aura_enterprise_collect_gate.json
+	@echo "✅ Enterprise collection gate passed; report written to /tmp/aura_enterprise_collect_gate.json"
+
+enterprise-strict:
+	@echo "🏢 Running strict enterprise certification gate..."
+	@AURA_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) tools/aura_enterprise_gate.py --root . --strict
+
 activation-audit:
 	@echo "🧭 Auditing active Aura loops..."
 	@$(PYTHON) tools/activation_audit.py --output artifacts/activation_report.json
@@ -75,7 +90,7 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: compile lint governance-lint security typecheck smoke
+quality: enterprise-gate compile lint governance-lint security typecheck smoke
 	@echo "🏁 Quality gates passed"
 
 decisive:

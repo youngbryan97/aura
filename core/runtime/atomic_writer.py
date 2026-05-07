@@ -65,16 +65,6 @@ def atomic_write_bytes(path: PathLike, payload: bytes) -> None:
     """Atomically replace `path` with `payload`."""
     target = Path(path)
     parent = target.parent
-    # Storage gateway provides durable async dir creation in production;
-    # fall back to a synchronous mkdir for test and bootstrap contexts.
-    try:
-        get_task_tracker().create_task(  # type: ignore[name-defined]
-            get_storage_gateway().create_dir(  # type: ignore[name-defined]
-                parent, cause='atomic_write_bytes'
-            )
-        )
-    except NameError:
-        pass
     parent.mkdir(parents=True, exist_ok=True)
 
     fd, tmp_path_str = tempfile.mkstemp(prefix=DEFAULT_TEMP_PREFIX, dir=str(parent))
@@ -110,9 +100,11 @@ def atomic_write_json(
     """Atomically write a JSON envelope `{schema, version, payload}`."""
     if not isinstance(schema_version, int) or schema_version < 1:
         raise AtomicWriteError("schema_version must be a positive int")
+    target = Path(path)
+    inferred_schema = schema_name or target.stem or target.name or "atomic_json"
     envelope = {
-        "schema": schema_name or path.__class__.__name__,
-        "schema_name": schema_name or path.__class__.__name__,
+        "schema": inferred_schema,
+        "schema_name": inferred_schema,
         "schema_version": schema_version,
         "payload": obj,
     }
