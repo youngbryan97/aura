@@ -8,7 +8,7 @@ cycle where it replays the day and edits itself. No cloud API required.
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg)
 
-If you want the technical deep dive, read [ARCHITECTURE.md](ARCHITECTURE.md). If you
+For the technical deep dive, read [ARCHITECTURE.md](ARCHITECTURE.md). If you
 want the same ideas without the math, read [HOW_IT_WORKS.md](HOW_IT_WORKS.md). If
 you want the evidence standard for autonomy and novel output claims, read
 [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md). If you
