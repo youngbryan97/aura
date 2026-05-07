@@ -5,10 +5,13 @@ import copy
 import asyncio
 import math
 from dataclasses import dataclass, field, fields
-from typing import Any, Dict, List, Optional, Type, Final
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Final
 from enum import Enum
 import hashlib
 from core.motivation.constants import clone_motivation_budget_defaults
+
+if TYPE_CHECKING:
+    from core.unity.unity_state import UnityState
 
 MAX_WORKING_MEMORY: Final[int] = 150   # [FRONTIER UPGRADE] Expanded capacity for M5 64GB node to prevent context loss
 MAX_PERCEPTS: Final[int] = 200        # More sensory history
@@ -372,6 +375,7 @@ class CognitiveContext:
     pending_initiatives: list[dict] = field(default_factory=list)
     attention_focus: Optional[str] = None   # What is Aura attending to right now
     phenomenal_state: Optional[PhenomenalField | str] = None  # Layer 8: Structured phenomenal claim
+    unity_state: Optional["UnityState"] = None
     current_objective: Optional[str] = None # The specific goal of the current cognitive cycle
     current_origin: str = "system"        # Source of the current objective (user, motivation, etc.)
     rolling_summary: str = ""             # Rolling compacted summary of older context
@@ -876,6 +880,7 @@ class AuraState:
         pending_factor = min(1.0, pending_count / 10.0)
         goal_factor = min(1.0, active_goal_count / 10.0)
         contradiction_factor = min(1.0, contradiction_count / 5.0)
+        unity_state = getattr(self.cognition, "unity_state", None)
         fragmentation = min(
             1.0,
             (0.45 * load_factor)
@@ -897,6 +902,9 @@ class AuraState:
                 - (0.08 * failure_pressure),
             ),
         )
+        if unity_state is not None:
+            fragmentation = max(fragmentation, float(getattr(unity_state, "fragmentation_score", 0.0) or 0.0))
+            coherence = min(coherence, float(getattr(unity_state, "unity_score", coherence) or coherence))
         self.cognition.fragmentation_score = round(fragmentation, 4)
         self.cognition.coherence_score = round(coherence, 4)
         self.health = copy.deepcopy(getattr(self, "health", {}) or {})
@@ -912,6 +920,15 @@ class AuraState:
             "cognitive_signature": self.affect.get_cognitive_signature(),
             "updated_at": time.time(),
         }
+        if unity_state is not None:
+            self.health["unity"] = {
+                "unity_id": getattr(unity_state, "unity_id", ""),
+                "level": getattr(unity_state, "level", "unknown"),
+                "unity_score": round(float(getattr(unity_state, "unity_score", 0.0) or 0.0), 4),
+                "fragmentation_score": round(float(getattr(unity_state, "fragmentation_score", 0.0) or 0.0), 4),
+                "repair_needed": bool(getattr(unity_state, "repair_needed", False)),
+                "repair_reasons": list(getattr(unity_state, "repair_reasons", []) or []),
+            }
 
     def compact(self, *, trigger_threshold: int = MAX_WORKING_MEMORY, keep_turns: int = 20) -> bool:
         """Compact hot conversational state into a rolling summary.

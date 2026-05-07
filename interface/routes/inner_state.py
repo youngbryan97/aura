@@ -31,6 +31,51 @@ logger = logging.getLogger("Aura.ProofSurface")
 router = APIRouter(prefix="/api", tags=["inner-state"])
 
 
+def _build_unity_surface() -> Dict[str, Any]:
+    from core.unity.unity_receipts import unity_summary_payload
+
+    unity_state = ServiceContainer.get("unity_state", default=None)
+    unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
+    unity_repair = ServiceContainer.get("unity_repair_plan", default=None)
+    unity_workspace = ServiceContainer.get("unity_workspace_frame", default=None)
+
+    payload = unity_summary_payload(unity_state, unity_report, unity_repair)
+    if unity_state is None:
+        return payload
+
+    focus_summary = ""
+    contents = list(getattr(unity_state, "contents", []) or [])
+    focus_id = getattr(unity_state, "global_focus_id", None)
+    for item in contents:
+        if getattr(item, "content_id", "") == focus_id:
+            focus_summary = str(getattr(item, "summary", "") or "")
+            break
+
+    payload["focus"] = focus_summary
+    payload["suppressed_drafts"] = [
+        {
+            "draft_id": str(getattr(item, "draft_id", "") or ""),
+            "claim": str(getattr(item, "claim", "") or "")[:180],
+            "support": float(getattr(item, "support", 0.0) or 0.0),
+            "conflict": float(getattr(item, "conflict", 0.0) or 0.0),
+            "suppressed_reason": str(getattr(item, "suppressed_reason", "") or ""),
+        }
+        for item in list(getattr(unity_state, "draft_bindings", []) or [])[1:5]
+    ]
+    payload["workspace_frame"] = (
+        unity_workspace.to_dict()
+        if unity_workspace and hasattr(unity_workspace, "to_dict")
+        else {"status": "unavailable"}
+    )
+    payload["repair_plan"] = (
+        unity_repair.to_dict()
+        if unity_repair and hasattr(unity_repair, "to_dict")
+        else None
+    )
+    payload["created_at"] = float(getattr(unity_state, "created_at", time.time()) or time.time())
+    return payload
+
+
 @router.get("/inner-state")
 async def get_inner_state() -> JSONResponse:
     """Return the full inner state proof surface.
@@ -161,6 +206,16 @@ async def get_inner_state() -> JSONResponse:
         record_degradation('inner_state', e)
         result["coherence"] = {"error": str(e)}
 
+    # 8b. Unity layer
+    try:
+        result["unity"] = _build_unity_surface()
+        if isinstance(result.get("coherence"), dict) and isinstance(result["unity"], dict):
+            result["coherence"]["unity_score"] = result["unity"].get("unity_score")
+            result["coherence"]["fragmentation_score"] = result["unity"].get("fragmentation_score")
+    except Exception as e:
+        record_degradation('inner_state', e)
+        result["unity"] = {"error": str(e)}
+
     # 8. Active goals
     try:
         goal_engine = ServiceContainer.get("goal_engine", default=None)
@@ -271,6 +326,15 @@ async def get_inner_state() -> JSONResponse:
         result["philosophy_surface"] = {"error": str(e)}
 
     return JSONResponse(content=result)
+
+
+@router.get("/unity")
+async def get_unity_state() -> JSONResponse:
+    try:
+        return JSONResponse(content=_build_unity_surface())
+    except Exception as e:
+        record_degradation('inner_state', e)
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 @router.get("/inner-state/will-receipt/{receipt_id}")

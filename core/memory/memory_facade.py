@@ -226,6 +226,58 @@ class MemoryFacade:
             return True
         return str(action or "").startswith(("conversation", "execute_tool("))
 
+    def _current_unity_metadata(self) -> Dict[str, Any]:
+        try:
+            unity_state = ServiceContainer.get("unity_state", default=None)
+            unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
+        except Exception:
+            unity_state = None
+            unity_report = None
+
+        if unity_state is None:
+            return {}
+
+        metadata = dict(getattr(unity_state, "metadata", {}) or {})
+        draft_mode = str(metadata.get("draft_commit_mode") or "clean")
+        self_world = dict(metadata.get("self_world_binding") or {})
+        draft_bindings = list(getattr(unity_state, "draft_bindings", []) or [])
+        chosen_id = str(draft_bindings[0].draft_id) if draft_bindings else ""
+        suppressed = [str(item.draft_id) for item in draft_bindings[1:]]
+
+        payload: Dict[str, Any] = {
+            "unity_id": str(getattr(unity_state, "unity_id", "") or ""),
+            "unity_level": str(getattr(unity_state, "level", "unknown") or "unknown"),
+            "unity_score": float(getattr(unity_state, "unity_score", 0.0) or 0.0),
+            "fragmentation_score": float(getattr(unity_state, "fragmentation_score", 0.0) or 0.0),
+            "unity_memory_commit_mode": draft_mode,
+            "unity_will_receipt_id": str(getattr(unity_state, "will_receipt_id", "") or ""),
+            "unity_repair_needed": bool(getattr(unity_state, "repair_needed", False)),
+            "unity_repair_reasons": list(getattr(unity_state, "repair_reasons", []) or []),
+            "unity_chosen_draft_id": chosen_id,
+            "unity_suppressed_draft_ids": suppressed,
+            "unity_ownership_confidence": float(self_world.get("ownership_confidence", 1.0) or 1.0),
+        }
+        if unity_report is not None:
+            payload["unity_safe_to_act"] = bool(getattr(unity_report, "safe_to_act", True))
+            payload["unity_safe_to_self_report"] = bool(getattr(unity_report, "safe_to_self_report", True))
+            payload["unity_top_causes"] = list(getattr(unity_report, "top_causes", []) or [])
+        return payload
+
+    def _merge_unity_metadata(self, metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        payload = dict(metadata or {})
+        for key, value in self._current_unity_metadata().items():
+            payload.setdefault(key, value)
+        return payload
+
+    @staticmethod
+    def _unity_requires_write_deferral(metadata: Dict[str, Any]) -> bool:
+        mode = str(metadata.get("unity_memory_commit_mode", "clean") or "clean")
+        if mode != "defer":
+            return False
+        if metadata.get("allow_low_unity_write") or metadata.get("repair_only"):
+            return False
+        return True
+
     @staticmethod
     def _build_semantic_interaction_text(
         *,
@@ -452,6 +504,10 @@ class MemoryFacade:
                                  importance: float = 0.5,
                                  metadata: Optional[Dict[str, Any]] = None):
         """Unified commit for an interaction across all relevant systems."""
+        metadata = self._merge_unity_metadata(metadata)
+        if self._unity_requires_write_deferral(metadata):
+            logger.info("MemoryFacade: deferring interaction commit under low-unity draft conflict.")
+            return None
         resolved_source = self._resolve_memory_write_source(metadata)
         governance_decision = None
         try:
@@ -485,7 +541,6 @@ class MemoryFacade:
                 return None
 
         self._last_commit_time = datetime.now()
-        metadata = metadata or {}
 
         async def _commit_interaction_effects() -> Optional[Any]:
             if os.environ.get("AURA_STRICT_RUNTIME") == "1":
@@ -705,7 +760,7 @@ class MemoryFacade:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Compatibility API for legacy callers expecting async long-term memory writes."""
-        payload = dict(metadata or {})
+        payload = self._merge_unity_metadata(metadata)
         # Provenance envelope: every memory write gets stamped with
         # source / confidence / identity_relevant / contested so downstream
         # readers can distinguish memory from inference / fantasy.
@@ -733,6 +788,11 @@ class MemoryFacade:
         resolved_source = self._resolve_memory_write_source(payload)
         self._last_add_memory_status = {"ok": False, "reason": "pending"}
         governance_decision = None
+
+        if self._unity_requires_write_deferral(payload):
+            self._last_add_memory_status = {"ok": False, "reason": "unity_memory_defer"}
+            logger.info("MemoryFacade add_memory deferred under low-unity draft conflict.")
+            return False
 
         try:
             from core.container import ServiceContainer

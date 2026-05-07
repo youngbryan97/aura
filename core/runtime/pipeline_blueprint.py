@@ -15,6 +15,7 @@ from core.phases.proprioceptive_loop import ProprioceptiveLoop
 from core.phases.response_generation import ResponseGenerationPhase
 from core.phases.sensory_ingestion import SensoryIngestionPhase
 from core.phases.social_context_phase import SocialContextPhase
+from core.phases.unity_binding import UnityBindingPhase
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ _LEGACY_PIPELINE_PREFIX: tuple[PhaseSpec, ...] = (
 
 _LEGACY_PIPELINE_SUFFIX: tuple[PhaseSpec, ...] = (
     PhaseSpec("cognitive_routing", "routing_phase", CognitiveRoutingPhase),
+    PhaseSpec("unity_binding", "unity_phase", UnityBindingPhase),
     PhaseSpec("response_generation", "response_phase", ResponseGenerationPhase),
     PhaseSpec("memory_consolidation", "memory_consolidation_phase", MemoryConsolidationPhase),
     PhaseSpec("identity_reflection", "identity_reflection_phase", IdentityReflectionPhase),
@@ -67,6 +69,7 @@ _KERNEL_PIPELINE_ATTRIBUTE_ORDER: tuple[str, ...] = (
     "conversational_dynamics_phase",
     "bonding_phase",
     "routing_phase",
+    "unity_phase",
     "godmode_tools",
     "response_phase",
     "repair_phase",

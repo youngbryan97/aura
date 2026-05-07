@@ -37,6 +37,7 @@ from core.phases.motivation_update import MotivationUpdatePhase
 from core.phases.phi_consciousness import PhiConsciousnessPhase
 from core.phases.repair_phase import RepairPhase
 from core.phases.response_generation_unitary import UnitaryResponsePhase
+from core.phases.unity_binding import UnityBindingPhase
 from core.resilience.error_boundary import wrap_phase
 from core.runtime.pipeline_blueprint import (
     bind_legacy_runtime_phase_attributes,
@@ -131,6 +132,7 @@ class AuraKernel:
         self.cognitive_integration = CognitiveIntegrationPhase(self)
         self.motivation_phase = MotivationUpdatePhase(self)
         self.routing_phase = CognitiveRoutingPhase(self)
+        self.unity_phase = UnityBindingPhase(self)
         self.response_phase = UnitaryResponsePhase(self)
         self.learning_phase = LearningPhase(self)
         self.self_review_phase = SelfReviewPhase(self)
@@ -458,6 +460,7 @@ class AuraKernel:
         self._services[MotivationUpdatePhase] = self.motivation_phase
         self._services[PhiConsciousnessPhase] = self.phi_phase
         self._services[CognitiveRoutingPhase] = self.routing_phase
+        self._services[UnityBindingPhase] = self.unity_phase
         self._services[UnitaryResponsePhase] = self.response_phase
         self._services[EternalMemoryPhase] = self.eternal
         self._services[LegacyPhase] = self.legacy_bridge

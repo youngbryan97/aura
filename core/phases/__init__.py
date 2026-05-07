@@ -40,3 +40,4 @@ from .social_context_phase import SocialContextPhase
 from .inference_phase import InferencePhase
 from .bonding_phase import BondingPhase
 from .repair_phase import RepairPhase
+from .unity_binding import UnityBindingPhase

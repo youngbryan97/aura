@@ -1,0 +1,21 @@
+{
+  "action_gating_success_rate": 1.0,
+  "false_fragmentation_claims": 0,
+  "false_unity_claims": 0,
+  "fragmentation_cases": {
+    "gated": true,
+    "repaired": true,
+    "self_reported": true
+  },
+  "lesion_effects": {
+    "draft_reconciliation": true,
+    "ownership_binding": true,
+    "temporal_binding": true
+  },
+  "memory_conflict_preservation_rate": 1.0,
+  "repair_success_rate": 1.0,
+  "tests_passed": 25,
+  "tests_total": 25,
+  "timestamp": 1778124823.1283789,
+  "unity_layer_version": "1.0"
+}

@@ -295,6 +295,14 @@ class GlobalWorkspace:
             record_degradation('global_workspace', _pa_exc)
             logger.debug("GW peripheral awareness feed skipped: %s", _pa_exc)
 
+        try:
+            from core.unity import get_unity_runtime
+
+            get_unity_runtime().record_workspace_competition(winner, losers)
+        except Exception as exc:
+            record_degradation('global_workspace', exc)
+            logger.debug("GW unity workspace frame skipped: %s", exc)
+
         # --- Ignition Detection ---
         winner_priority = winner.effective_priority
         self.ignition_level = min(1.0, winner_priority / self._IGNITION_THRESHOLD)
