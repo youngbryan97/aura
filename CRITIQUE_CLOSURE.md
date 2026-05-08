@@ -51,6 +51,13 @@ implemented, what remains empirical, and what cannot be closed by code alone.
 | "Self-repair is talked about, not demonstrated." | Self-repair public demo performs the 10-step loop end-to-end: inject controlled bug → detect → localize via audit log → propose → AST validate → shadow test → authorize via hash chain → verify → prove rollback path → update repair policy. | `tests/self_repair_demo.py`, `tests/SELF_REPAIR_DEMO_RESULTS.json` |
 | "Long-run test is synthetic (1000 ticks in 2.4s)." | Long-run harness now executes a real phi bipartition computation every tick so the soak is CPU-bound, not a noop loop. | `tests/long_run_autonomy.py` |
 | "No infrastructure for a 30-day trial." | Persistent trial runner with configurable duration, daily markdown summaries derived from the LifeTrace ledger, signal-safe shutdown, and a JSON trial index. Operator-triggered, not automated. | `tests/life_trial.py` |
+| "Vector embeddings are stored as raw JSON arrays." | Tracked `memory_store/long_term.json` removed; legacy dumps migrate into local SQLite with `float32` BLOB embeddings. Both `VectorMemory` and `MemoryVault` fallback paths use SQLite vector persistence instead of plaintext arrays or process-only memory. | `core/memory/sqlite_vector_store.py`, `core/memory/vector_memory.py`, `core/memory/vector_memory_engine.py`, `scripts/migrate_long_term_vectors.py` |
+| "UI/mobile build artifacts pollute the cognitive repo." | `node_modules`, `dist`, APKs, and `memory_store` runtime dumps are ignored and the local ignored artifacts were removed from `interface/static`. Source truth remains package manifests and first-party UI files only. | `.gitignore`, `interface/static/memory/package.json`, `interface/static/shell/package.json` |
+| "BeliefSync deduplicates principles by substring." | Peer principle import now normalizes existing principle records and uses dependency-free semantic hash similarity to block paraphrase duplicates before committing. | `core/collective/belief_sync.py` |
+| "Swarm debates bottleneck on static parallelism and one LLM synthesis." | AgentDelegator now computes effective parallelism from live IntegrityMonitor CPU/RAM/thermal telemetry and returns deterministic consensus if the final LLM synthesis is missing, failed, or timed out. | `core/collective/delegator.py`, `core/resilience/substrate_monitor.py`, `core/resilience/integrity_monitor.py` |
+| "Thermal monitoring assumes macOS and psutil." | A substrate monitor provides macOS sysctl, Linux thermal-zone, Windows WMI best-effort, and generic resource fallbacks; WorldState and IntegrityMonitor use it for thermal pressure. | `core/resilience/substrate_monitor.py`, `core/resilience/integrity_monitor.py`, `core/world_state.py` |
+| "Will closure can create catatonia." | UnifiedWill signs receipts and includes a reserved self-repair/stabilization relief lane: refusal storms can lower field/unity blocks only for internal repair domains, never for tools, memory writes, external actions, or identity violations. | `core/will.py` |
+| "Steering attach failures are warning-level even in evidence mode." | MLX worker now records the degraded attach and fails closed when `AURA_EVIDENCE_MODE=1`, so missing steering cannot be counted as live steering evidence. | `core/brain/llm/mlx_worker.py`, `core/evaluation/evidence_mode.py` |
 
 ## New Acceptance Standard
 
@@ -101,4 +108,3 @@ does not demonstrate that syntactic computation instantiates subjective
 experience. The implemented response is therefore an ontological boundary:
 Aura may report functional state and run adversarial evidence, but it must not
 convert those results into a claim that consciousness has been proven.
-

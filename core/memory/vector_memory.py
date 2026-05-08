@@ -3,13 +3,15 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
+import sqlite3
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Memory.Vector")
+
+_SQLITE_FALLBACK_ERRORS = (OSError, sqlite3.Error, RuntimeError, TypeError, ValueError)
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +79,7 @@ class AuraEmbeddingFunction:
 
 class VectorMemory:
     """Semantic vector store backed by ChromaDB + Internal Aura embeddings.
-    Fails over to local JSON persistence if ChromaDB is unavailable.
+    Fails over to local SQLite BLOB persistence if ChromaDB is unavailable.
     """
 
     def __init__(
@@ -98,6 +100,7 @@ class VectorMemory:
         
         from core.utils.core_db import get_core_db
         self.db = get_core_db()
+        self._sqlite_vectors = None
 
         if _CHROMA_AVAILABLE:
             try:
@@ -123,29 +126,23 @@ class VectorMemory:
             self._fallback_mode = True
 
         if self._fallback_mode:
+            from core.memory.sqlite_vector_store import SQLiteVectorStore
+            self._sqlite_vectors = SQLiteVectorStore(
+                self.persist_directory / "vectors.sqlite3",
+                collection_name=self.collection_name,
+            )
             self._store = self._load_fallback()
             logger.info("VectorMemory: Sovereign Fallback Active (records: %d)", len(self._store))
 
     def _load_fallback(self) -> List[Dict[str, Any]]:
-        """Load memories from local SQLite DB with legacy JSON migration."""
-        memories = []
-        conn = self.db.get_connection()
-        try:
-            cursor = conn.execute(
-                "SELECT id, content, metadata FROM vector_fallback WHERE collection = ?", 
-                (self.collection_name,)
-            )
-            for row in cursor.fetchall():
-                memories.append({
-                    "id": row[0],
-                    "content": row[1],
-                    "metadata": json.loads(row[2])
-                })
-        except Exception as e:
-            record_degradation('vector_memory', e)
-            logger.error("Failed to load fallback memory from DB: %s", e)
-        finally:
-            conn.close()
+        """Load memories from local SQLite BLOB store with legacy JSON migration."""
+        memories: List[Dict[str, Any]] = []
+        if self._sqlite_vectors is not None:
+            try:
+                memories = self._sqlite_vectors.list_records()
+            except _SQLITE_FALLBACK_ERRORS as e:
+                record_degradation('vector_memory', e)
+                logger.error("Failed to load fallback vectors from SQLite: %s", e)
 
         # Phase 8 Migration: Check if legacy JSON file exists
         if not memories and self.fallback_file.exists():
@@ -154,10 +151,10 @@ class VectorMemory:
                 with open(self.fallback_file, 'r') as f:
                     legacy_store = json.load(f)
                 
-                # Bulk insert for O(1) transaction overhead instead of O(N) connections
+                # Bulk insert into binary-vector SQLite storage.
                 self._upsert_fallback_batch(legacy_store)
-                return legacy_store
-            except Exception as e:
+                return self._sqlite_vectors.list_records() if self._sqlite_vectors is not None else []
+            except (OSError, json.JSONDecodeError, sqlite3.Error, RuntimeError, TypeError, ValueError) as e:
                 record_degradation('vector_memory', e)
                 logger.error("Failed to migrate legacy memory file: %s", e)
 
@@ -165,35 +162,52 @@ class VectorMemory:
 
     def _upsert_fallback_batch(self, memories: List[Dict[str, Any]]):
         """Persist a batch of entries to SQLite fallback efficiently."""
-        if not memories:
+        if not memories or self._sqlite_vectors is None:
             return
-        conn = self.db.get_connection()
         try:
-            with conn:
-                conn.executemany(
-                    "INSERT OR REPLACE INTO vector_fallback (id, collection, content, metadata, timestamp) VALUES (?, ?, ?, ?, ?)",
-                    [(m["id"], self.collection_name, m["content"], json.dumps(m["metadata"]), m["metadata"].get("timestamp", time.time())) for m in memories]
-                )
-        except Exception as e:
+            records = []
+            embedder = AuraEmbeddingFunction()
+            for memory in memories:
+                content = str(memory.get("content") or memory.get("text") or "")
+                metadata = dict(memory.get("metadata") or {})
+                vector = memory.get("vector")
+                if vector is None:
+                    vector = embedder._pseudo_embed(content)
+                records.append((memory["id"], content, vector, metadata))
+            self._sqlite_vectors.upsert_many(records)
+        except _SQLITE_FALLBACK_ERRORS as e:
             record_degradation('vector_memory', e)
             logger.error("Failed to batch upsert fallback memories to DB: %s", e)
-        finally:
-            conn.close()
 
     def _upsert_fallback(self, doc_id: str, content: str, metadata: Dict[str, Any]):
         """Persist a single entry to SQLite fallback."""
-        conn = self.db.get_connection()
+        if self._sqlite_vectors is None:
+            return
         try:
-            with conn:
-                conn.execute(
-                    "INSERT OR REPLACE INTO vector_fallback (id, collection, content, metadata, timestamp) VALUES (?, ?, ?, ?, ?)",
-                    (doc_id, self.collection_name, content, json.dumps(metadata), metadata.get("timestamp", time.time()))
-                )
-        except Exception as e:
+            vector = AuraEmbeddingFunction()._pseudo_embed(content)
+            self._sqlite_vectors.upsert(doc_id, content, vector, metadata=metadata)
+        except _SQLITE_FALLBACK_ERRORS as e:
             record_degradation('vector_memory', e)
             logger.error("Failed to upsert fallback memory to DB: %s", e)
-        finally:
-            conn.close()
+
+    def _fallback_keyword_search(self, query: str, limit: int) -> List[Dict[str, Any]]:
+        """Compatibility path for tests that inject ``_store`` directly."""
+        query_words = set(query.lower().split())
+        if not query_words:
+            return []
+
+        scored_memories = []
+        for m in self._store:
+            content_low = str(m.get('content', '')).lower()
+            metadata = dict(m.get("metadata") or {})
+            matches = sum(1 for w in query_words if w in content_low)
+            if matches > 0:
+                overlap = matches / len(query_words)
+                recency = max(0, 1.0 - (time.time() - metadata.get('timestamp', 0)) / 86400) * 0.1
+                scored_memories.append({**m, "score": overlap + recency})
+
+        scored_memories.sort(key=lambda x: x['score'], reverse=True)
+        return scored_memories[:limit]
 
     # ------------------------------------------------------------------
     # Primary API
@@ -262,28 +276,37 @@ class VectorMemory:
             return []
 
         if self._fallback_mode:
-            # v14.9 Improved Fallback: Weighted Word Match + Recency
-            query_words = set(query.lower().split())
-            if not query_words:
-                return []
-            
-            scored_memories = []
-            for m in self._store:
-                content_low = m['content'].lower()
-                content_words = content_low.split()
-                # Count matches
-                matches = sum(1 for w in query_words if w in content_low)
-                if matches > 0:
-                    # Score = overlap % + recency boost
-                    overlap = matches / len(query_words)
-                    # Timestamp scaling (0.0 to 0.1 boost for last 24h)
-                    recency = max(0, 1.0 - (time.time() - m['metadata'].get('timestamp', 0)) / 86400) * 0.1
-                    final_score = overlap + recency
-                    scored_memories.append({**m, "score": final_score})
-            
-            # Sort by highest match score
-            scored_memories.sort(key=lambda x: x['score'], reverse=True)
-            return scored_memories[:limit]
+            if self._sqlite_vectors is not None:
+                try:
+                    embedder = AuraEmbeddingFunction()
+                    query_vector = embedder._pseudo_embed(query)
+                    results = self._sqlite_vectors.query(query_vector, limit=limit)
+                    if results:
+                        now = time.time()
+                        out = []
+                        for record in results:
+                            metadata = dict(record.metadata)
+                            metadata["last_accessed"] = now
+                            self._sqlite_vectors.upsert(
+                                record.id,
+                                record.content,
+                                embedder._pseudo_embed(record.content),
+                                metadata=metadata,
+                            )
+                            out.append(
+                                {
+                                    "id": record.id,
+                                    "content": record.content,
+                                    "metadata": metadata,
+                                    "score": record.score,
+                                    "distance": record.distance,
+                                }
+                            )
+                        return out
+                except _SQLITE_FALLBACK_ERRORS as e:
+                    record_degradation('vector_memory', e)
+                    logger.error("SQLite vector fallback search failed: %s", e)
+            return self._fallback_keyword_search(query, limit)
 
         try:
             # --- Pillar 4: Emotional Salience (Re-ranking) ---
@@ -377,7 +400,8 @@ class VectorMemory:
     def get_stats(self) -> Dict[str, Any]:
         """Return collection statistics."""
         if self._fallback_mode:
-            return {"total_vectors": len(self._store), "engine": "sovereign_fallback", "status": "degraded"}
+            total = self._sqlite_vectors.count() if self._sqlite_vectors is not None else len(self._store)
+            return {"total_vectors": total, "engine": "sqlite_vector", "status": "active_local"}
         try:
             count = self._collection.count()
             return {"total_vectors": count, "engine": "chromadb", "status": "active"}
@@ -405,12 +429,8 @@ class VectorMemory:
         """Delete all vectors in the collection."""
         if self._fallback_mode:
             self._store.clear()
-            conn = self.db.get_connection()
-            try:
-                with conn:
-                    conn.execute("DELETE FROM vector_fallback WHERE collection = ?", (self.collection_name,))
-            finally:
-                conn.close()
+            if self._sqlite_vectors is not None:
+                self._sqlite_vectors.clear()
             return
         try:
             ids = self._collection.get()["ids"]
@@ -449,18 +469,9 @@ class VectorMemory:
             ]
             final_count = len(self._store)
             if initial_count != final_count:
-                # Synchronize DB with the remaining store for this collection
-                conn = self.db.get_connection()
-                try:
-                    with conn:
-                        conn.execute("DELETE FROM vector_fallback WHERE collection = ?", (self.collection_name,))
-                        if self._store:
-                            conn.executemany(
-                                "INSERT INTO vector_fallback (id, collection, content, metadata, timestamp) VALUES (?, ?, ?, ?, ?)",
-                                [(m["id"], self.collection_name, m["content"], json.dumps(m["metadata"]), m["metadata"].get("timestamp", 0)) for m in self._store]
-                            )
-                finally:
-                    conn.close()
+                if self._sqlite_vectors is not None:
+                    self._sqlite_vectors.clear()
+                    self._upsert_fallback_batch(self._store)
             return initial_count - final_count
 
         try:

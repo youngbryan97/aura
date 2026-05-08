@@ -54,6 +54,7 @@ import hashlib
 import json
 import logging
 import math
+import sqlite3
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -65,6 +66,38 @@ from core.health.degraded_events import record_degraded_event
 from core.runtime.effect_boundary import effect_sink
 
 logger = logging.getLogger("Aura.VectorMemory")
+
+_VECTOR_SQLITE_ERRORS = (OSError, sqlite3.Error, RuntimeError, TypeError, ValueError)
+
+
+def _loads_list(value: Any) -> List[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    if not value:
+        return []
+    try:
+        parsed = json.loads(str(value))
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return []
+    return []
+
+
+def _metadata_matches_where(metadata: Dict[str, Any], where: Optional[Dict[str, Any]]) -> bool:
+    if not where:
+        return True
+    for key, expected in where.items():
+        actual = metadata.get(key)
+        if isinstance(expected, dict):
+            if "$gte" in expected and not (float(actual or 0.0) >= float(expected["$gte"])):
+                return False
+            if "$lte" in expected and not (float(actual or 0.0) <= float(expected["$lte"])):
+                return False
+            continue
+        if actual != expected:
+            return False
+    return True
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -220,7 +253,7 @@ class MemoryVault:
     ChromaDB-backed persistent vector store.
     
     ChromaDB stores vectors on disk and supports fast ANN search.
-    If ChromaDB is unavailable, falls back to in-memory numpy search.
+    If ChromaDB is unavailable, falls back to local SQLite BLOB vectors.
     """
 
     def __init__(self, db_path: str, collection_name: str = "aura_memories"):
@@ -231,6 +264,7 @@ class MemoryVault:
         self._collection = None
         self._fallback_store: Dict[str, Dict] = {}
         self._fallback_vectors: Dict[str, np.ndarray] = {}
+        self._sqlite_vectors = None
         self._init_storage()
 
     def _init_storage(self):
@@ -247,27 +281,32 @@ class MemoryVault:
         except ImportError:
             logger.warning(
                 "⚠️ chromadb not installed. Install with: pip install chromadb\n"
-                "Using in-memory fallback (memories lost on restart)"
+                "Using local SQLite vector fallback"
             )
         except Exception as e:
             record_degradation('vector_memory_engine', e)
-            logger.error("ChromaDB init failed: %s. Using in-memory fallback.", e)
+            logger.error("ChromaDB init failed: %s. Using local SQLite vector fallback.", e)
+        if self._collection is None:
+            try:
+                from core.memory.sqlite_vector_store import SQLiteVectorStore
+
+                self._sqlite_vectors = SQLiteVectorStore(
+                    self.db_path / "vectors.sqlite3",
+                    collection_name=self.collection_name,
+                )
+                for record in self._sqlite_vectors.list_records():
+                    mem = self._memory_from_sqlite_record(record)
+                    metadata = self._metadata_from_memory(mem)
+                    self._fallback_store[mem.id] = {"memory": asdict(mem), "metadata": metadata}
+                logger.info("✅ MemoryVault: SQLite vector fallback initialized with %d memories", len(self._fallback_store))
+            except _VECTOR_SQLITE_ERRORS as exc:
+                record_degradation('vector_memory_engine', exc)
+                logger.error("SQLite vector fallback init failed: %s. Using process memory only.", exc)
 
     @effect_sink("memory.vault_store", allowed_domains=("memory_write",))
     def store(self, memory: Memory, vector: np.ndarray):
         """Persist a memory with its embedding."""
-        metadata = {
-            "memory_type": memory.memory_type,
-            "timestamp": memory.timestamp,
-            "importance": memory.importance,
-            "emotional_valence": memory.emotional_valence,
-            "emotional_arousal": memory.emotional_arousal,
-            "source": memory.source,
-            "access_count": memory.access_count,
-            "last_accessed": memory.last_accessed,
-            "tags": json.dumps(memory.tags),
-            "linked_ids": json.dumps(memory.linked_ids),
-        }
+        metadata = self._metadata_from_memory(memory)
 
         if self._collection is not None:
             try:
@@ -282,9 +321,52 @@ class MemoryVault:
                 record_degradation('vector_memory_engine', e)
                 logger.error("ChromaDB store failed: %s", e)
 
-        # Fallback
+        if self._sqlite_vectors is not None:
+            try:
+                self._sqlite_vectors.upsert(
+                    memory.id,
+                    memory.content,
+                    vector,
+                    metadata=metadata,
+                )
+            except _VECTOR_SQLITE_ERRORS as e:
+                record_degradation('vector_memory_engine', e)
+                logger.error("SQLite vector store failed: %s", e)
+
+        # Process fallback mirror for compatibility and immediate reads.
         self._fallback_store[memory.id] = {"memory": asdict(memory), "metadata": metadata}
         self._fallback_vectors[memory.id] = vector
+
+    def _metadata_from_memory(self, memory: Memory) -> Dict[str, Any]:
+        return {
+            "memory_type": memory.memory_type,
+            "timestamp": memory.timestamp,
+            "importance": memory.importance,
+            "emotional_valence": memory.emotional_valence,
+            "emotional_arousal": memory.emotional_arousal,
+            "source": memory.source,
+            "access_count": memory.access_count,
+            "last_accessed": memory.last_accessed,
+            "tags": json.dumps(memory.tags),
+            "linked_ids": json.dumps(memory.linked_ids),
+        }
+
+    def _memory_from_sqlite_record(self, record: Dict[str, Any]) -> Memory:
+        metadata = dict(record.get("metadata") or {})
+        return Memory(
+            id=str(record.get("id") or ""),
+            content=str(record.get("content") or ""),
+            memory_type=str(metadata.get("memory_type") or "episodic"),
+            timestamp=float(metadata.get("timestamp") or time.time()),
+            importance=float(metadata.get("importance") or 0.5),
+            emotional_valence=float(metadata.get("emotional_valence") or 0.0),
+            emotional_arousal=float(metadata.get("emotional_arousal") or 0.0),
+            source=str(metadata.get("source") or "conversation"),
+            tags=_loads_list(metadata.get("tags")),
+            access_count=int(metadata.get("access_count") or 0),
+            last_accessed=float(metadata.get("last_accessed") or 0.0),
+            linked_ids=_loads_list(metadata.get("linked_ids")),
+        )
 
     def query(
         self,
@@ -321,7 +403,19 @@ class MemoryVault:
                 record_degradation('vector_memory_engine', e)
                 logger.error("ChromaDB query failed: %s", e)
 
-        # Fallback: brute-force numpy search
+        if self._sqlite_vectors is not None:
+            try:
+                rows = self._sqlite_vectors.query(query_vector, limit=n_results)
+                return [
+                    (row.id, row.content, row.metadata, row.distance)
+                    for row in rows
+                    if _metadata_matches_where(row.metadata, where)
+                ]
+            except _VECTOR_SQLITE_ERRORS as e:
+                record_degradation('vector_memory_engine', e)
+                logger.error("SQLite vector query failed: %s", e)
+
+        # Last-resort process mirror search.
         if not self._fallback_vectors:
             return []
 
@@ -343,6 +437,8 @@ class MemoryVault:
     def count(self) -> int:
         if self._collection is not None:
             return self._collection.count()
+        if self._sqlite_vectors is not None:
+            return self._sqlite_vectors.count()
         return len(self._fallback_store)
 
 

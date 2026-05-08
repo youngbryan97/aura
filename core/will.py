@@ -43,6 +43,34 @@ from core.container import ServiceContainer
 logger = logging.getLogger("Aura.Will")
 
 
+def _score_memory_results(results: Any) -> float:
+    try:
+        items = list(results or [])
+    except TypeError:
+        return 0.0
+    if not items:
+        return 0.0
+    best = 0.0
+    for item in items[:5]:
+        if isinstance(item, dict):
+            raw = item.get("score")
+            if raw is None:
+                raw = item.get("relevance")
+            if raw is None and item.get("content"):
+                raw = 0.45
+        else:
+            raw = getattr(item, "combined_score", None)
+            if raw is None:
+                raw = getattr(item, "relevance", None)
+            if raw is None:
+                raw = 0.45
+        try:
+            best = max(best, float(raw))
+        except (TypeError, ValueError):
+            best = max(best, 0.35)
+    return max(0.0, min(1.0, best))
+
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -158,6 +186,8 @@ class WillDecision:
     # Downstream references
     substrate_receipt_id: str = ""
     executive_intent_id: str = ""
+    signature: str = ""
+    signature_scheme: str = ""
 
     def is_approved(self) -> bool:
         return self.outcome in (WillOutcome.PROCEED, WillOutcome.CONSTRAIN,
@@ -178,6 +208,7 @@ class WillState:
     confidence: float = 0.7     # how confident the Will is in its decisions
     assertiveness: float = 0.5  # bias toward action vs caution
     identity_coherence: float = 0.8  # how coherent the self-model is
+    catatonia_relief_until: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -323,6 +354,7 @@ class UnifiedWill:
         self._apply_world_state_modulation(domain, context)
 
         # ── 9. COMPOSE THE DECISION ─────────────────────────────────
+        catatonia_relief = self._catatonia_relief_allowed(domain, source, context)
         outcome, reason, constraints = self._compose_decision(
             domain=domain,
             source=source,
@@ -335,6 +367,7 @@ class UnifiedWill:
             somatic_approach=somatic_approach,
             memory_relevance=memory_relevance,
             unity_context=unity_context,
+            catatonia_relief=catatonia_relief,
         )
 
         # ── 9b. Inject scar constraints (learned caution from experience) ─
@@ -343,6 +376,12 @@ class UnifiedWill:
             if outcome == WillOutcome.PROCEED:
                 outcome = WillOutcome.CONSTRAIN
                 reason = "scar_caution: " + "; ".join(scar_constraints)
+
+        if catatonia_relief and outcome in (WillOutcome.PROCEED, WillOutcome.CONSTRAIN):
+            constraints.append("catatonia_relief:self_repair_lane")
+            if outcome == WillOutcome.PROCEED:
+                outcome = WillOutcome.CONSTRAIN
+                reason = "catatonia_relief: reserved self-repair lane"
 
         decision = WillDecision(
             receipt_id=receipt_id,
@@ -565,6 +604,20 @@ class UnifiedWill:
     ) -> float:
         """Check if memory has relevant context for this decision."""
         relevance = 0.0
+        explicit_memories = (
+            context.get("retrieved_memories")
+            or context.get("memory_evidence")
+            or context.get("memory_context")
+            or context.get("recalled_context")
+        )
+        if explicit_memories:
+            try:
+                if isinstance(explicit_memories, str):
+                    relevance = max(relevance, 0.75 if explicit_memories.strip() else 0.0)
+                else:
+                    relevance = max(relevance, min(1.0, 0.35 + 0.15 * len(list(explicit_memories)[:5])))
+            except (TypeError, ValueError):
+                relevance = max(relevance, 0.35)
         try:
             memory = ServiceContainer.get("memory_facade", default=None)
             if memory is None:
@@ -573,6 +626,15 @@ class UnifiedWill:
                 # Simple relevance check: does the memory system have anything?
                 if hasattr(memory, "has_relevant_context"):
                     relevance = max(relevance, float(memory.has_relevant_context(content[:100])))
+                elif hasattr(memory, "search_sync"):
+                    results = memory.search_sync(content[:160], limit=3)
+                    relevance = max(relevance, _score_memory_results(results))
+                elif hasattr(memory, "search_similar"):
+                    results = memory.search_similar(content[:160], limit=3)
+                    relevance = max(relevance, _score_memory_results(results))
+                elif hasattr(memory, "search_memories"):
+                    results = memory.search_memories(content[:160], top_k=3)
+                    relevance = max(relevance, _score_memory_results(results))
                 else:
                     relevance = max(relevance, 0.3)  # memory exists but no relevance API
         except Exception as e:
@@ -719,6 +781,58 @@ class UnifiedWill:
             or context.get("world_affecting")
         )
 
+    def _catatonia_relief_allowed(
+        self,
+        domain: ActionDomain,
+        source: str,
+        context: Dict[str, Any],
+    ) -> bool:
+        """Reserved emergency lane for self-repair under refusal storms.
+
+        This does not allow external effects, memory writes, tools, or identity
+        violations. It only lowers the field/unity block for stabilization,
+        reflection, and internal state repair when the recent Will window is
+        overwhelmingly REFUSE/DEFER.
+        """
+        if domain not in {
+            ActionDomain.STABILIZATION,
+            ActionDomain.REFLECTION,
+            ActionDomain.STATE_MUTATION,
+        }:
+            return False
+        source_l = str(source or "").lower()
+        source_allowed = any(
+            marker in source_l
+            for marker in (
+                "self_repair",
+                "daily_introspection",
+                "self_audit",
+                "architecture_governor",
+                "asa",
+                "stabilization",
+                "mind_tick",
+            )
+        )
+        context_allowed = bool(
+            context.get("emergency_self_repair")
+            or context.get("catatonia_relief")
+            or context.get("reserved_repair_lane")
+        )
+        if not (source_allowed or context_allowed):
+            return False
+
+        now = time.time()
+        if self._state.catatonia_relief_until > now:
+            return True
+        window = [d for d in self._audit_trail if now - float(d.timestamp or 0.0) <= 300.0]
+        if len(window) < 10:
+            return False
+        blocked = sum(1 for d in window if d.outcome in {WillOutcome.REFUSE, WillOutcome.DEFER})
+        if (blocked / max(1, len(window))) >= 0.70:
+            self._state.catatonia_relief_until = now + 120.0
+            return True
+        return False
+
     # ------------------------------------------------------------------
     # Decision composition
     # ------------------------------------------------------------------
@@ -737,6 +851,7 @@ class UnifiedWill:
         somatic_approach: float,
         memory_relevance: float,
         unity_context: Dict[str, Any],
+        catatonia_relief: bool = False,
     ) -> Tuple[WillOutcome, str, List[str]]:
         """Compose all advisory inputs into a single decision.
 
@@ -756,12 +871,17 @@ class UnifiedWill:
             constraints.append("identity_tension: self-coherence is low")
 
         # ── Substrate gate (embodied constraints) ───────────────────
-        if substrate_coherence < 0.25:
+        field_crisis_threshold = 0.15 if catatonia_relief else 0.25
+        if substrate_coherence < field_crisis_threshold:
             if domain not in (ActionDomain.STABILIZATION, ActionDomain.RESPONSE):
                 reasons.append(f"field_crisis: coherence={substrate_coherence:.3f}")
                 return WillOutcome.REFUSE, "; ".join(reasons), constraints
             constraints.append(f"field_crisis: coherence={substrate_coherence:.3f}")
 
+        elif substrate_coherence < 0.25 and catatonia_relief:
+            constraints.append(
+                f"field_crisis_relief: coherence={substrate_coherence:.3f}"
+            )
         elif substrate_coherence < 0.40:
             constraints.append(f"field_warning: coherence={substrate_coherence:.3f}")
 
@@ -794,8 +914,11 @@ class UnifiedWill:
             constraints.append(f"ownership_ambiguity: confidence={ownership_confidence:.3f}")
 
         if domain in {ActionDomain.SEMANTIC_WEIGHT_UPDATE, ActionDomain.STATE_MUTATION} and unity_level != "coherent":
-            reasons.append(f"unity_block: {domain.value} requires coherent unity (current={unity_level})")
-            return WillOutcome.REFUSE, "; ".join(reasons), constraints
+            if catatonia_relief and domain == ActionDomain.STATE_MUTATION:
+                constraints.append(f"unity_repair_relief:{unity_level}")
+            else:
+                reasons.append(f"unity_block: {domain.value} requires coherent unity (current={unity_level})")
+                return WillOutcome.REFUSE, "; ".join(reasons), constraints
 
         if domain == ActionDomain.MEMORY_WRITE and memory_commit_mode in {"qualified", "conflicted", "repair_only"}:
             constraints.append(f"memory_commit_mode:{memory_commit_mode}")
@@ -898,6 +1021,8 @@ class UnifiedWill:
 
     def _record(self, decision: WillDecision) -> None:
         """Record decision in audit trail."""
+        if not decision.signature:
+            decision.signature, decision.signature_scheme = self._sign_decision(decision)
         self._audit_trail.append(decision)
 
         # Also publish to event bus for system-wide observability
@@ -909,6 +1034,7 @@ class UnifiedWill:
                 "domain": decision.domain.value,
                 "source": decision.source,
                 "reason": decision.reason,
+                "signature_scheme": decision.signature_scheme,
                 "timestamp": decision.timestamp,
             })
         except Exception:
@@ -918,6 +1044,33 @@ class UnifiedWill:
     def _make_receipt_id(ts: float, source: str, content: str) -> str:
         raw = f"{ts:.6f}:{source}:{content[:50]}"
         return "will_" + hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+    def _sign_decision(self, decision: WillDecision) -> tuple[str, str]:
+        payload = self._signature_payload(decision)
+        try:
+            from core.runtime_tools import CRYPTO_AVAILABLE, _sign_payload
+
+            signature = _sign_payload(payload)
+            scheme = "ed25519" if CRYPTO_AVAILABLE else "hmac-sha256"
+            return signature, scheme
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation('will', exc)
+            return hashlib.sha256(payload).hexdigest(), "sha256-fallback"
+
+    @staticmethod
+    def _signature_payload(decision: WillDecision) -> bytes:
+        raw = "|".join(
+            [
+                decision.receipt_id,
+                decision.outcome.value,
+                decision.domain.value,
+                decision.source,
+                decision.content_hash,
+                f"{decision.timestamp:.6f}",
+                decision.reason,
+            ]
+        )
+        return raw.encode("utf-8")
 
     # ------------------------------------------------------------------
     # Public API
@@ -940,6 +1093,7 @@ class UnifiedWill:
             "identity_stance": self._identity_stance,
             "identity_coherence": round(self._state.identity_coherence, 4),
             "confidence": round(self._state.confidence, 4),
+            "catatonia_relief_active": self._state.catatonia_relief_until > time.time(),
             "uptime_s": round(time.time() - self._boot_time, 1),
         }
 
@@ -960,6 +1114,8 @@ class UnifiedWill:
                 "unity_score": round(d.unity_score, 4),
                 "fragmentation_score": round(d.fragmentation_score, 4),
                 "ownership_confidence": round(d.ownership_confidence, 4),
+                "signature_scheme": d.signature_scheme,
+                "signature": d.signature,
                 "timestamp": d.timestamp,
                 "latency_ms": round(d.latency_ms, 3),
             }
@@ -985,7 +1141,29 @@ class UnifiedWill:
         """Verify that a receipt ID exists in the audit trail.
         This is the provability mechanism: any action can be traced back
         to a Will decision."""
-        return any(d.receipt_id == receipt_id for d in self._audit_trail)
+        return any(getattr(d, "receipt_id", None) == receipt_id for d in self._audit_trail)
+
+    def verify_receipt_signature(self, receipt_id: str) -> bool:
+        """Verify that the receipt exists and carries a non-empty signature."""
+        for decision in self._audit_trail:
+            if getattr(decision, "receipt_id", None) == receipt_id:
+                return bool(
+                    getattr(decision, "signature", None)
+                    and getattr(decision, "signature_scheme", None)
+                )
+        return False
+
+    def get_receipt_verification_material(self, receipt_id: str) -> Dict[str, Any]:
+        """Return payload/signature material for external receipt verification."""
+        for decision in self._audit_trail:
+            if getattr(decision, "receipt_id", None) == receipt_id:
+                return {
+                    "receipt_id": decision.receipt_id,
+                    "payload": self._signature_payload(decision).decode("utf-8"),
+                    "signature": decision.signature,
+                    "signature_scheme": decision.signature_scheme,
+                }
+        return {}
 
     def verify_closure(self, receipt_id: str, effect_verified: bool, telemetry_logged: bool) -> bool:
         """Verify full closure of an action.

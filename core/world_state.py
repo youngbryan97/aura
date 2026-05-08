@@ -171,17 +171,24 @@ class WorldState:
             if battery:
                 self.battery_percent = battery.percent
                 self.battery_charging = battery.power_plugged or False
-            # Thermal (macOS)
+            # Thermal pressure through psutil when available, with substrate fallback.
             try:
                 temps = psutil.sensors_temperatures()
-                if temps:
-                    max_temp = max(t.current for sensors in temps.values() for t in sensors)
-                    self.thermal_pressure = min(1.0, max(0.0, (max_temp - 60) / 40))
-            except (AttributeError, Exception):
-                self.thermal_pressure = 0.0
+            except (AttributeError, OSError, RuntimeError, ValueError):
+                temps = None
+            if temps:
+                max_temp = max(t.current for sensors in temps.values() for t in sensors)
+                self.thermal_pressure = min(1.0, max(0.0, (max_temp - 60) / 40))
+            else:
+                try:
+                    from core.resilience.substrate_monitor import SubstrateMonitor
+                    _level, pressure, _source = SubstrateMonitor().thermal()
+                    self.thermal_pressure = pressure
+                except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+                    self.thermal_pressure = 0.0
         except ImportError:
             pass  # no-op: intentional
-        except Exception as e:
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
             record_degradation('world_state', e)
             logger.debug("WorldState telemetry failed: %s", e)
 

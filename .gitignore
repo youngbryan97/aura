@@ -15,6 +15,11 @@ models_gguf/
 # Data and Logs
 data/
 logs/
+memory_store/*.json
+memory_store/*.sqlite
+memory_store/*.sqlite3
+memory_store/*.db
+memory_store/*.db-*
 server.log
 server.pid
 *.npy

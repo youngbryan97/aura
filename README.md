@@ -104,7 +104,10 @@ asking readers to infer maturity from prose.
   restarts.
 - The full memory architecture (episodic, semantic, vector, knowledge graph,
   WAL, three-layer atoms), the goal/will/decision-authority stack, and the
-  cognitive WAL are all real production code.
+  cognitive WAL are all real production code. Vector embeddings are no longer
+  tracked as plaintext JSON arrays; local fallback vector persistence uses
+  SQLite rows with `float32` embedding BLOBs via
+  `core/memory/sqlite_vector_store.py`.
 
 **Evidence boundaries on the production parts:**
 
@@ -712,8 +715,10 @@ governor blocks itself when another LoRA process is running.
   the base.
 - **Memory** — episodic memory in SQLite, working memory in-process,
   semantic memory via the vector engine (`core/memory/vector_memory_engine.py`),
-  a graph for log-N retrieval, and three-layer knowledge atoms for
-  compression.
+  local SQLite/BLOB vector fallback (`core/memory/sqlite_vector_store.py`), a
+  graph for log-N retrieval, and three-layer knowledge atoms for compression.
+  Legacy `memory_store/*.json` vector dumps are ignored and migrated with
+  `scripts/migrate_long_term_vectors.py` rather than committed.
 - **Training** — LoRA via `mlx-lm`, steering vector extraction in
   `training/extract_steering_vectors.py`, the personality spec, the
   character voice generator.

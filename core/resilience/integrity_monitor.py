@@ -14,11 +14,11 @@ import asyncio
 import logging
 import os
 import sqlite3
-import platform
-import subprocess
 import time
 from pathlib import Path
 from typing import Optional
+
+from core.resilience.substrate_monitor import SubstrateMonitor
 
 logger = logging.getLogger("Aura.IntegrityMonitor")
 
@@ -54,6 +54,7 @@ class SystemIntegrityMonitor:
         self._last_report: Optional[IntegrityReport] = None
         self._check_count = 0
         self._proc = None
+        self._substrate_monitor = SubstrateMonitor()
         try:
             import psutil
             self._proc = psutil.Process(os.getpid())
@@ -235,19 +236,14 @@ class SystemIntegrityMonitor:
     def _check_resources(self, report: IntegrityReport):
         """Check system resource usage."""
         try:
-            import psutil
-            if not self._proc:
-                self._proc = psutil.Process(os.getpid())
-            
-            # Use cached process to get meaningful diffs
-            report.memory_mb = self._proc.memory_info().rss / (1024 * 1024)
-            report.memory_percent = self._proc.memory_percent()
-            
-            # Normalize CPU usage by core count for 0-100% scale
-            raw_cpu = self._proc.cpu_percent(interval=0.1)
-            report.cpu_percent = raw_cpu / psutil.cpu_count()
-            
-            # --- Phase 7: Thermal Resonance ---
+            telemetry = self._substrate_monitor.sample(process=self._proc)
+            report.memory_mb = telemetry.memory_mb
+            report.memory_percent = telemetry.memory_percent
+            report.cpu_percent = telemetry.cpu_percent
+            if not telemetry.psutil_available:
+                report.warnings.append("psutil unavailable; using generic resource fallback")
+            # Preserve the overridable method for existing tests/operators while
+            # the monitor supplies cross-platform thermal adapters underneath.
             report.thermal_level = self._get_thermal_level()
             if report.thermal_level >= 2: # Serious or Critical
                 report.errors.append(f"CRITICAL thermal pressure: level {report.thermal_level}")
@@ -279,47 +275,24 @@ class SystemIntegrityMonitor:
                 except Exception as e:
                     record_degradation('integrity_monitor', e)
                     capture_and_log(e, {'module': __name__})
-        except ImportError:
-            report.warnings.append("psutil not available for resource checks")
         except Exception as e:
             record_degradation('integrity_monitor', e)
             report.warnings.append(f"Resource check failed: {e}")
 
     def _get_thermal_level(self) -> int:
         """
-        Retrieves the thermal level on macOS using sysctl.
+        Retrieves host thermal level through the substrate monitor.
         Returns:
             int: 0=Nominal, 1=Fair, 2=Serious, 3=Critical.
-                 Returns 0 if not macOS or sysctl fails.
+                 Returns 0 if unavailable.
         """
-        if platform.system() == "Darwin":
-            try:
-                # sysctl -n hw.thermallevel (Standard Intel/Some M1)
-                result = subprocess.run(
-                    ["sysctl", "-n", "hw.thermallevel"],
-                    capture_output=True,
-                    text=True,
-                    check=False # Don't raise if missing
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    return int(result.stdout.strip())
-            except (subprocess.CalledProcessError, ValueError):
-                logger.debug('Ignored Exception in integrity_monitor.py: %s', "unknown_error")
-            
-            try:
-                # Alternate check: Thermal Pressure
-                # (This is often 0 for nominal, 1 for fair, etc.)
-                result_alt = subprocess.run(
-                    ["sysctl", "-n", "kern.thermal_pressure"],
-                    capture_output=True,
-                    text=True,
-                    check=False
-                )
-                if result_alt.returncode == 0 and result_alt.stdout.strip():
-                    return int(result_alt.stdout.strip())
-            except (subprocess.CalledProcessError, ValueError):
-                logger.debug('Ignored Exception in integrity_monitor.py: %s', "unknown_error")
-        return 0 # Default to nominal if not macOS or error
+        try:
+            level, _pressure, _source = self._substrate_monitor.thermal()
+            return int(level)
+        except (RuntimeError, TypeError, ValueError, OSError) as exc:
+            record_degradation('integrity_monitor', exc)
+            logger.debug("Thermal probe failed: %s", exc)
+            return 0
 
     def get_stats(self) -> dict:
         report = self._last_report

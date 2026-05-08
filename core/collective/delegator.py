@@ -5,6 +5,7 @@ Allows the primary orchestrator to spawn specialized sub-tasks and synthesize co
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
+import json
 import logging
 import uuid
 import time
@@ -78,14 +79,45 @@ class AgentDelegator(AuraBaseModule):
 
     def get_status(self) -> Dict[str, Any]:
         return {
-            "active_count": len(self.active_agents),
+            "active_count": self._busy_count(),
             "agents": {aid: {"specialty": a.specialty, "status": a.status} for aid, a in self.active_agents.items()},
-            "capacity": f"{len(self.active_agents)}/{self.max_parallel}"
+            "capacity": f"{self._busy_count()}/{self.effective_max_parallel()}",
+            "configured_max_parallel": self.max_parallel,
         }
+
+    def _busy_count(self) -> int:
+        return sum(1 for agent in self.active_agents.values() if agent.status == "BUSY")
+
+    def effective_max_parallel(self) -> int:
+        """Throttle swarm width from live integrity telemetry."""
+        limit = max(1, int(self.max_parallel))
+        try:
+            from core.container import ServiceContainer
+
+            monitor = ServiceContainer.get("integrity_monitor", default=None)
+            report = getattr(monitor, "_last_report", None)
+            if report is None and hasattr(monitor, "get_stats"):
+                stats = monitor.get_stats()
+                cpu = float(stats.get("cpu_percent", 0.0) or 0.0)
+                memory = float(stats.get("memory_percent", 0.0) or 0.0)
+                thermal = 0
+            else:
+                cpu = float(getattr(report, "cpu_percent", 0.0) or 0.0)
+                memory = float(getattr(report, "memory_percent", 0.0) or 0.0)
+                thermal = int(getattr(report, "thermal_level", 0) or 0)
+
+            if thermal >= 2 or cpu >= 90.0 or memory >= 90.0:
+                return min(limit, 1)
+            if thermal == 1 or cpu >= 75.0 or memory >= 80.0:
+                return min(limit, 2)
+        except (LookupError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation('delegator', exc)
+            self.logger.debug("Swarm resource throttle probe failed: %s", exc)
+        return limit
 
     async def delegate(self, specialty: str, task_prompt: str, callback: Optional[Callable] = None, parent_id: Optional[str] = None, **kwargs) -> str:
         """Spawns a sub-task and returns the agent ID (Swarm 2.0 recursive delegation support)."""
-        if len(self.active_agents) >= self.max_parallel:
+        if self._busy_count() >= self.effective_max_parallel():
             self.logger.warning("🚫 Swarm capacity reached. Blocking delegation.")
             return ""
 
@@ -123,8 +155,14 @@ class AgentDelegator(AuraBaseModule):
         self.logger.info("🧠 Forming swarm debate on: %s...", topic[:50])
         
         agent_ids = []
+        agent_timeout = min(float(timeout or 60.0), 60.0)
         for role in roles:
-            aid = await self.delegate(role, f"Analyze this topic from your perspective: {topic}", **kwargs)
+            aid = await self.delegate(
+                role,
+                f"Analyze this topic from your perspective and return compact JSON with keys claim, evidence_refs, confidence, flaws: {topic}",
+                agent_timeout=agent_timeout,
+                **kwargs,
+            )
             if aid:
                 agent_ids.append(aid)
                 
@@ -158,13 +196,15 @@ class AgentDelegator(AuraBaseModule):
         if not results:
             return "Swarm failed to produce a consensus (timeout or execution failure)."
             
-        # Synthesize consensus
+        # Synthesize consensus. This path has a deterministic reducer so a
+        # single blocked LLM synthesis no longer kills the debate result.
         return await self.synthesize_consensus(topic, results, **kwargs)
 
     async def synthesize_consensus(self, original_topic: str, agent_outputs: List[str], **kwargs) -> str:
         """Synthesizes the outputs of multiple swarm agents into a single conclusion."""
+        deterministic = self._deterministic_consensus(original_topic, agent_outputs)
         if not hasattr(self.orchestrator, 'cognitive_engine') or not self.orchestrator.cognitive_engine:
-            return "No cognitive engine available for synthesis."
+            return deterministic
             
         combined_outputs = "\n\n---\n\n".join(agent_outputs)
         prompt = f"""You are the Master Synthesizer. Review the original problem and the analyses from your specialized swarm agents.
@@ -189,21 +229,73 @@ FINAL SYNTHESIS:"""
                 engine.think(prompt, mode=ThinkingMode.DEEP, block_user=True, **kwargs),
                 timeout=60.0
             )
-            return res.content if hasattr(res, 'content') else str(res)
+            content = res.content if hasattr(res, 'content') else str(res)
+            return content or deterministic
         except asyncio.TimeoutError:
             self.logger.error("❌ Synthesis FAILED: Cognitive engine timed out (>60s).")
-            return "Consensus synthesis failed due to cognitive engine timeout."
+            return deterministic
         except Exception as e:
             record_degradation('delegator', e)
             self.logger.error("Failed to synthesize consensus: %s", e)
-            return f"Synthesis error: {e}"
+            return deterministic
+
+    def _deterministic_consensus(self, original_topic: str, agent_outputs: List[str]) -> str:
+        claims = []
+        flaws = []
+        confidences = []
+        for output in agent_outputs:
+            parsed = self._parse_agent_output(output)
+            claim = str(parsed.get("claim") or "").strip()
+            if claim:
+                claims.append(claim)
+            flaws.extend(str(item).strip() for item in parsed.get("flaws", []) if str(item).strip())
+            try:
+                confidences.append(float(parsed.get("confidence")))
+            except (TypeError, ValueError):
+                pass
+        if not claims:
+            claims = [str(output).strip()[:240] for output in agent_outputs if str(output).strip()]
+        confidence = sum(confidences) / len(confidences) if confidences else 0.5
+        unique_flaws = list(dict.fromkeys(flaws))[:6]
+        parts = [
+            "Deterministic swarm consensus:",
+            f"Topic: {original_topic[:240]}",
+            "Claims:",
+            *[f"- {claim[:300]}" for claim in claims[:6]],
+            f"Confidence: {confidence:.2f}",
+        ]
+        if unique_flaws:
+            parts.extend(["Flaws / cautions:", *[f"- {flaw[:240]}" for flaw in unique_flaws]])
+        return "\n".join(parts)
+
+    def _parse_agent_output(self, output: str) -> Dict[str, Any]:
+        text = str(output or "").strip()
+        if not text:
+            return {}
+        if text.startswith("[") and "]:" in text:
+            text = text.split("]:", 1)[1].strip()
+        candidates = [text]
+        if "```" in text:
+            candidates.extend(part.strip() for part in text.split("```") if part.strip())
+        for candidate in candidates:
+            candidate = candidate.strip()
+            if candidate.startswith("json"):
+                candidate = candidate[4:].strip()
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, dict):
+                    parsed.setdefault("flaws", [])
+                    return parsed
+            except json.JSONDecodeError:
+                continue
+        return {"claim": text[:500], "evidence_refs": [], "confidence": 0.5, "flaws": []}
 
     async def delegate_agentic(self, goal: str, timeout: float = 120.0, callback: Optional[Callable] = None) -> str:
         """Spawn an agent that can USE TOOLS (not just think).
         Uses AutonomousTaskEngine for multi-step goal execution with full skill access.
         Returns agent_id immediately; agent executes in background.
         """
-        if len(self.active_agents) >= self.max_parallel:
+        if self._busy_count() >= self.effective_max_parallel():
             self.logger.warning("🚫 Swarm capacity reached. Blocking agentic delegation.")
             return ""
 
@@ -348,9 +440,10 @@ FINAL SYNTHESIS:"""
             self.logger.debug("🐝 Swarm Agent %s waiting for GPU semaphore.", agent.id)
             async with self.gpu_semaphore:
                 self.logger.debug("🐝 Swarm Agent %s acquired GPU. Beginning inference.", agent.id)
+                agent_timeout = float(kwargs.pop("agent_timeout", 60.0) or 60.0)
                 res = await asyncio.wait_for(
                     local_brain.think(swarm_context + prompt, mode="fast", **kwargs),
-                    timeout=60.0
+                    timeout=agent_timeout
                 )
 
             agent.result = res.content if hasattr(res, 'content') else str(res)
@@ -379,7 +472,7 @@ FINAL SYNTHESIS:"""
             self.logger.info("✅ Swarm Agent %s completed task.", agent.id)
 
         except asyncio.TimeoutError:
-            self.logger.error("❌ Swarm Agent %s FAILED: Inference timeout (>60s).", agent.id)
+            self.logger.error("❌ Swarm Agent %s FAILED: Inference timeout.", agent.id)
             agent.status = "FAILED"
             agent.result = "[CRITICAL] Cognitive timeout. Agent failed to reach consensus."
 

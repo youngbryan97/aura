@@ -7,8 +7,10 @@ import asyncio
 import logging
 import secrets
 import aiohttp
+import hashlib
 import json
 import time
+import math
 from typing import Dict, List, Any, Optional
 from core.container import ServiceContainer
 from core.adaptation.immune_system import get_immune_system
@@ -21,6 +23,70 @@ logger = logging.getLogger("Aura.Collective.BeliefSync")
 def _generate_instance_secret() -> str:
     """Generate a cryptographically secure per-instance auth token."""
     return secrets.token_urlsafe(32)
+
+
+def _semantic_hash_vector(text: str, dim: int = 256) -> List[float]:
+    """Small dependency-free semantic-ish vector for principle dedup.
+
+    This is not credited as embedding evidence; it is a guardrail against
+    obvious paraphrase duplication when a real vector service is unavailable.
+    """
+    vec = [0.0] * dim
+    words = [
+        "".join(ch for ch in word.lower() if ch.isalnum())
+        for word in str(text or "").split()
+    ]
+    for word in words:
+        if not word:
+            continue
+        for token in _word_features(word):
+            digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+            idx = int.from_bytes(digest[:4], "big") % dim
+            sign = 1.0 if digest[4] & 1 else -1.0
+            vec[idx] += sign
+    norm = math.sqrt(sum(v * v for v in vec))
+    if norm > 1e-12:
+        vec = [v / norm for v in vec]
+    return vec
+
+
+def _word_features(word: str) -> List[str]:
+    features = {word}
+    if len(word) > 4:
+        features.add(word[:4])
+        features.add(word[-4:])
+    if word.endswith("ing"):
+        features.add(word[:-3])
+    if word.endswith("ed"):
+        features.add(word[:-2])
+    if word.endswith("s"):
+        features.add(word[:-1])
+    synonyms = {
+        "must": "should",
+        "never": "not",
+        "cannot": "not",
+        "can't": "not",
+        "write": "persist",
+        "writes": "persist",
+        "store": "persist",
+        "stored": "persist",
+        "memory": "memory",
+        "receipt": "receipt",
+        "receipts": "receipt",
+        "governance": "authority",
+        "will": "authority",
+        "approved": "authorized",
+        "approval": "authorized",
+    }
+    if word in synonyms:
+        features.add(synonyms[word])
+    return list(features)
+
+
+def _cosine(a: List[float], b: List[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    return sum(x * y for x, y in zip(a, b))
 
 
 class BeliefSync:
@@ -90,7 +156,8 @@ class BeliefSync:
                     try:
                         import json
                         content = abs_engine.storage_path.read_text()
-                        principles = json.loads(content)
+                        parsed = json.loads(content)
+                        principles = parsed.get("payload", parsed) if isinstance(parsed, dict) else parsed
                     except Exception as e:
                         record_degradation('belief_sync', e)
                         logger.error(f"Failed to read principles for sync: {e}")
@@ -389,14 +456,41 @@ class BeliefSync:
         logger.info("🌌 Integrating %d principles from external node: %s", len(principles), payload.get("origin"))
 
         for p_data in principles:
-            principle = p_data.get("principle")
+            principle = p_data.get("principle") if isinstance(p_data, dict) else str(p_data or "")
             if principle:
-                # Use the internal commit method to save if it doesn't already exist
-                # Simple deduplication by checking content
-                existing_raw = abs_engine.storage_path.read_text()
-                if principle not in existing_raw:
+                existing = self._load_existing_principles(abs_engine)
+                if not self._principle_semantically_duplicate(principle, existing):
                     await abs_engine._commit_principle(principle)
                     logger.debug("🌌 New principle learned from swarm: %s", principle[:40])
+
+    def _load_existing_principles(self, abs_engine) -> List[str]:
+        try:
+            if not abs_engine.storage_path.exists():
+                return []
+            parsed = json.loads(abs_engine.storage_path.read_text())
+            records = parsed.get("payload", parsed) if isinstance(parsed, dict) else parsed
+            if not isinstance(records, list):
+                return []
+            out = []
+            for item in records:
+                if isinstance(item, dict):
+                    text = item.get("principle")
+                else:
+                    text = item
+                if text:
+                    out.append(str(text))
+            return out
+        except (OSError, json.JSONDecodeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation('belief_sync', exc)
+            logger.debug("BeliefSync principle load failed: %s", exc)
+            return []
+
+    def _principle_semantically_duplicate(self, principle: str, existing: List[str], threshold: float = 0.62) -> bool:
+        candidate = _semantic_hash_vector(principle)
+        for prior in existing:
+            if _cosine(candidate, _semantic_hash_vector(prior)) >= threshold:
+                return True
+        return False
 
     async def _discovery_loop(self):
         """Background task to discover peers via SovereignNetworkSkill."""

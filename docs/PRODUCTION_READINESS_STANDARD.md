@@ -21,12 +21,25 @@ these repeatable controls from a clean clone.
 ## Runtime Controls
 
 - Every consequential action routes through Will and Authority receipts.
+- Will receipts must be signed and verifiable at the receipt layer; unsigned
+  consequential decisions are evidence failures.
 - Memory and state writes use the gateway or `core/runtime/atomic_writer.py`.
+- Vector embeddings must be stored in local binary/vector storage, not
+  plaintext JSON arrays committed to source.
 - Continuous experience frames are hash-chained and replay-validated.
 - Repeated harm, high surprise, or fragmented Unity switches mode to
   observe/stabilize/replay before more action.
+- Refusal storms must leave the reserved self-repair/stabilization lane
+  available without opening tools, memory writes, or external actions.
 - Failures must call `record_degradation(...)` or return an explicit refusal;
   silent success is not allowed.
+
+## Current Readiness Note
+
+Aura should not be described as production-grade until the enterprise gate
+ratchet is below the accepted threshold. A completed gate run reported 961
+high-or-critical findings; the fixes in this closure pass address named
+architectural blockers but do not erase that broader hardening debt.
 
 ## Security Controls
 

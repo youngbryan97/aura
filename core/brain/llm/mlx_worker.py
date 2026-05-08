@@ -594,6 +594,16 @@ def _mlx_worker_loop(
             logger.info("🎯 Affective Steering Engine ONLINE.")
         except Exception as se:
             record_degradation('mlx_worker', se)
+            try:
+                from core.evaluation.evidence_mode import require
+            except ImportError as import_exc:
+                record_degradation('mlx_worker', import_exc)
+            else:
+                require(
+                    "steering_attach",
+                    False,
+                    f"affective steering failed to attach: {se}",
+                )
             logger.warning(f"Failed to attach steering: {se}")
 
         # Apply Recurrent Depth — Mythos-inspired layer looping.

@@ -993,6 +993,22 @@ or refuses, dream consolidation is skipped. The dream logic still performs
 its own Heartstone consistency checks, but those checks are now downstream
 of the central governance chain rather than a substitute for it.
 
+### 9.8.1 Vector memory substrate
+
+Vector memory is local and sovereign, but it is no longer represented as raw
+JSON float arrays in tracked source. The fallback store is
+`core/memory/sqlite_vector_store.py`: each record stores text/metadata in
+SQLite columns and the embedding as a contiguous `float32` BLOB. Queries stream
+rows and compute cosine similarity without deserializing a giant JSON file into
+RAM. Operators migrate legacy dumps with
+`scripts/migrate_long_term_vectors.py`; `memory_store/*.json` and local SQLite
+memory files are ignored.
+
+This is not a cloud-vector-database dependency and not a claim that every
+memory path has perfect ANN indexing. It is the current local substrate that
+removes the severe plaintext-vector storage flaw while keeping the repo
+headless and cloneable.
+
 ### 9.9 Consciousness bridge
 
 **File**: `core/consciousness/consciousness_bridge.py`
