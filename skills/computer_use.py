@@ -7,6 +7,10 @@ possibly stale class object at import time.
 """
 
 from importlib import import_module
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.skills.computer_use import ComputerUseParams, ComputerUseSkill
 
 __all__ = ["ComputerUseParams", "ComputerUseSkill"]
 

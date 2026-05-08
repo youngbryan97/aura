@@ -5,7 +5,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import subprocess
+import os
+import py_compile
 import sys
 import tempfile
 import time
@@ -65,8 +66,8 @@ def build_proof_bundle(output_dir: str | Path = "artifacts/proof_bundle/latest")
         "all_files_generated": all(Path(path).exists() for path in generated.values()),
         "artifact_readiness": _artifact_readiness(out),
     }
-    manifest["passed"] = bool(manifest["all_files_generated"])
     manifest["readiness_passed"] = all(item.get("passed", True) for item in manifest["artifact_readiness"].values())
+    manifest["passed"] = bool(manifest["all_files_generated"] and manifest["readiness_passed"])
     _write(out / "MANIFEST.json", manifest)
     return manifest
 
@@ -77,13 +78,31 @@ def _write(path: Path, data: dict[str, Any]) -> str:
 
 
 def _git_info() -> dict[str, Any]:
-    def run(args: list[str]) -> str:
+    git_dir = ROOT / ".git"
+    if git_dir.is_file():
         try:
-            return subprocess.check_output(args, cwd=ROOT, text=True, stderr=subprocess.DEVNULL, timeout=5).strip()
-        except Exception:
-            return ""
+            content = git_dir.read_text(encoding="utf-8", errors="ignore").strip()
+        except OSError:
+            content = ""
+        if content.startswith("gitdir:"):
+            git_dir = (ROOT / content.split(":", 1)[1].strip()).resolve()
 
-    return {"commit": run(["git", "rev-parse", "HEAD"]), "status": run(["git", "status", "--short"])}
+    commit = ""
+    head = git_dir / "HEAD"
+    try:
+        value = head.read_text(encoding="utf-8", errors="ignore").strip()
+        if value.startswith("ref:"):
+            ref = git_dir / value.split(" ", 1)[1].strip()
+            commit = ref.read_text(encoding="utf-8", errors="ignore").strip() if ref.exists() else ""
+        else:
+            commit = value
+    except OSError:
+        commit = ""
+
+    return {
+        "commit": commit,
+        "status": os.environ.get("AURA_GIT_STATUS_SHORT", "unavailable_without_git_subprocess"),
+    }
 
 
 def _decisive_results() -> dict[str, Any]:
@@ -92,8 +111,8 @@ def _decisive_results() -> dict[str, Any]:
             continue
         try:
             return {"source": str(existing), "data": json.loads(existing.read_text(encoding="utf-8"))}
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError, UnicodeError) as exc:
+            return {"source": str(existing), "passed": False, "error": repr(exc)}
     return {
         "generated_at": time.time(),
         "status": "generated_from_current_runtime",
@@ -181,8 +200,8 @@ def _longevity_summary() -> dict[str, Any]:
         if candidate.exists():
             try:
                 return {"source": str(candidate), "data": json.loads(candidate.read_text(encoding="utf-8"))}
-            except Exception:
-                pass
+            except (json.JSONDecodeError, OSError, UnicodeError) as exc:
+                return {"source": str(candidate), "passed": False, "error": repr(exc)}
     return {
         "generated_at": time.time(),
         "profile": "instant_readiness_snapshot",
@@ -212,7 +231,7 @@ def _mutation_report() -> dict[str, Any]:
 def _boot_health() -> dict[str, Any]:
     return {
         "generated_at": time.time(),
-        "compile_probe": _run_probe(["python", "-m", "compileall", "-q", "core/runtime", "core/self_modification", "core/consciousness", "core/memory"]),
+        "compile_probe": _compile_probe(["core/runtime", "core/self_modification", "core/consciousness", "core/memory"]),
         "boot_probe_available": (ROOT / "core" / "runtime" / "boot_probes.py").exists(),
     }
 
@@ -298,7 +317,7 @@ def _safe_json(path: Path) -> dict[str, Any]:
             return {}
         data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {"data": data}
-    except Exception as exc:
+    except (json.JSONDecodeError, OSError, UnicodeError) as exc:
         return {"passed": False, "error": repr(exc), "source": str(path)}
 
 
@@ -311,7 +330,7 @@ def _latest_baselines() -> dict[str, Any]:
         for line in path.read_text(encoding="utf-8").splitlines()[-50:]:
             if line.strip():
                 rows.append(json.loads(line))
-    except Exception as exc:
+    except (json.JSONDecodeError, OSError, UnicodeError) as exc:
         return {"passed": False, "status": "unreadable", "error": repr(exc), "source": str(path)}
 
     latest: dict[str, dict[str, Any]] = {}
@@ -449,7 +468,7 @@ def _artifact_readiness(out: Path) -> dict[str, Any]:
             continue
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
+        except (json.JSONDecodeError, OSError, UnicodeError):
             readiness[name] = {"exists": True, "passed": False, "reason": "unreadable_json"}
             continue
         readiness[name] = {
@@ -465,12 +484,28 @@ def _artifact_summary(payload: dict[str, Any]) -> dict[str, Any]:
     return {key: payload[key] for key in keys if key in payload}
 
 
-def _run_probe(args: list[str]) -> dict[str, Any]:
-    try:
-        proc = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, timeout=60)
-        return {"returncode": proc.returncode, "stdout": proc.stdout[-1000:], "stderr": proc.stderr[-1000:], "passed": proc.returncode == 0}
-    except Exception as exc:
-        return {"returncode": -1, "stderr": repr(exc), "passed": False}
+def _compile_probe(paths: list[str]) -> dict[str, Any]:
+    errors: list[dict[str, str]] = []
+    checked = 0
+    with tempfile.TemporaryDirectory(prefix="aura_proof_compile_") as tmp_dir:
+        tmp_root = Path(tmp_dir)
+        for rel in paths:
+            base = ROOT / rel
+            candidates = [base] if base.is_file() else sorted(base.rglob("*.py"))
+            for index, path in enumerate(candidates):
+                if not path.is_file() or "__pycache__" in path.parts:
+                    continue
+                checked += 1
+                try:
+                    py_compile.compile(str(path), cfile=str(tmp_root / f"{checked}_{index}.pyc"), doraise=True)
+                except py_compile.PyCompileError as exc:
+                    errors.append(
+                        {
+                            "file": path.relative_to(ROOT).as_posix(),
+                            "error": str(exc)[-1000:],
+                        }
+                    )
+    return {"checked": checked, "errors": errors[:25], "passed": not errors}
 
 
 def main() -> int:

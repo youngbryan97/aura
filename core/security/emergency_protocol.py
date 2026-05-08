@@ -62,6 +62,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.runtime.atomic_writer import atomic_write_text
+
 logger = logging.getLogger("Aura.EmergencyProtocol")
 
 # Threat levels that trigger actions

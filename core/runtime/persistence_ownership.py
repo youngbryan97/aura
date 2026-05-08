@@ -22,8 +22,8 @@ def _fsync_parent(path: Path) -> None:
             os.fsync(fd)
         finally:
             os.close(fd)
-    except Exception:
-        pass  # no-op: intentional
+    except OSError:
+        pass
 
 
 def atomic_write_text_owned(
@@ -39,16 +39,16 @@ def atomic_write_text_owned(
     Use for non-JSON durable state. For JSON, prefer atomic_write_json_owned.
     """
     path = Path(path)
-    get_task_tracker().create_task(get_storage_gateway().create_dir(path.parent, cause='atomic_write_text_owned'))
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     # Prefer canonical writer if it supports text; many Aura versions only
     # expose JSON, so fallback remains important.
     try:
         from core.runtime.atomic_writer import atomic_write_text  # type: ignore
-        atomic_write_text(path, text, schema_version=schema_version, schema_name=schema_name)
+        atomic_write_text(path, text, encoding=encoding)
         return
-    except Exception:
-        pass  # no-op: intentional
+    except (ImportError, OSError, TypeError):
+        pass
 
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
     tmp = Path(tmp_name)
@@ -62,9 +62,9 @@ def atomic_write_text_owned(
     finally:
         try:
             if tmp.exists():
-                get_task_tracker().create_task(get_storage_gateway().delete(tmp, cause='atomic_write_text_owned'))
-        except Exception:
-            pass  # no-op: intentional
+                tmp.unlink()
+        except OSError:
+            pass
 
 
 def atomic_write_json_owned(
@@ -78,7 +78,7 @@ def atomic_write_json_owned(
 ) -> None:
     """Durably write JSON with Aura's AtomicWriter when available."""
     path = Path(path)
-    get_task_tracker().create_task(get_storage_gateway().create_dir(path.parent, cause='atomic_write_json_owned'))
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         from core.runtime.atomic_writer import atomic_write_json
@@ -89,8 +89,8 @@ def atomic_write_json_owned(
             schema_name=schema_name,
         )
         return
-    except Exception:
-        pass  # no-op: intentional
+    except (ImportError, OSError, TypeError):
+        pass
 
     envelope = {
         "schema_name": schema_name,
@@ -128,7 +128,7 @@ def emit_persistence_receipt(
         if bytes_written is None:
             try:
                 bytes_written = path.stat().st_size
-            except Exception:
+            except OSError:
                 bytes_written = 0
 
         get_receipt_store().emit(
@@ -143,7 +143,7 @@ def emit_persistence_receipt(
             )
         )
         return True
-    except Exception:
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
         return False
 
 

@@ -672,7 +672,7 @@ def default_experience_stream_path() -> Path | None:
     try:
         from core.config import config
 
-        return config.paths.data_dir / "continuous_experience" / "stream.json"
+        return Path(config.paths.data_dir) / "continuous_experience" / "stream.json"
     except (ImportError, AttributeError, OSError, RuntimeError) as exc:
         record_degradation("continuous_experience", exc, severity="debug", action="using in-memory experience stream")
         return None

@@ -104,8 +104,8 @@ class CodeRepairSandbox:
                 # Always cleanup temp file
                 if tmp_file_path and tmp_file_path.exists():
                     try:
-                        get_task_tracker().create_task(get_storage_gateway().delete(tmp_file_path, cause='CodeRepairSandbox.verify_patch'))
-                    except Exception as e:
+                        tmp_file_path.unlink()
+                    except OSError as e:
                         logger.debug("Temp file cleanup failed: %s", e)
 
             return results

@@ -46,7 +46,6 @@ async def fetch_deep_context(user_query: str, threshold_words: int = 4) -> str:
         # Pull any ecosystem context cached by the orchestrator
         ecosystem_context = ""
         try:
-            from core.container import ServiceContainer
             orchestrator = ServiceContainer.get("orchestrator", default=None)
             if orchestrator and hasattr(orchestrator, "_current_ecosystem_context"):
                 ecosystem_context = orchestrator._current_ecosystem_context

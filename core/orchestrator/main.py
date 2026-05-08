@@ -28,6 +28,7 @@ from core.meta.cognitive_trace import CognitiveTrace
 from core.scheduler import TaskSpec, scheduler
 from core.health.degraded_events import record_degraded_event
 from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 from core.utils.queues import BackpressuredQueue, USER_FACING_ORIGINS
 from core.utils.concurrency import run_io_bound, LOCK_SENTINEL, RobustLock

@@ -345,8 +345,8 @@ class RedditAdapterSkill(BaseSkill):
                             logger.debug("Visual cortex failed to analyze CAPTCHA: %s", ve)
                             
                         return {"ok": False, "error": "CAPTCHA_DETECTED", "message": f"Reddit has presented a CAPTCHA. Operation halted.{visual_note}"}
-                except:
-                    pass
+                except (AttributeError, RuntimeError) as captcha_probe_error:
+                    logger.debug("Reddit CAPTCHA probe unavailable: %s", captcha_probe_error)
             record_degradation('reddit_adapter', e)
             logger.error("Reddit operation failed: %s", e)
             return {"ok": False, "error": str(e)}

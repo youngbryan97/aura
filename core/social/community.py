@@ -33,6 +33,7 @@ import logging
 import os
 import time
 import uuid
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -71,14 +72,16 @@ class InboundMessage:
 # ─── transport interface ──────────────────────────────────────────────────
 
 
-class CommunityTransport:
+class CommunityTransport(ABC):
     name: str = "abstract"
 
+    @abstractmethod
     async def send(self, msg: OutboundMessage) -> Dict[str, Any]:  # pragma: no cover
-        raise RuntimeError(f"{type(self).__name__}.send must be implemented by a transport")
+        raise NotImplementedError
 
+    @abstractmethod
     async def receive(self) -> Optional[InboundMessage]:  # pragma: no cover
-        raise RuntimeError(f"{type(self).__name__}.receive must be implemented by a transport")
+        raise NotImplementedError
 
 
 class LocalLogTransport(CommunityTransport):

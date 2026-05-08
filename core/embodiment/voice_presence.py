@@ -9,6 +9,7 @@ import asyncio.subprocess
 import subprocess
 import logging
 import time
+from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional
 
 import sys
@@ -17,10 +18,11 @@ import os
 logger = logging.getLogger("Aura.VoicePresence")
 
 
-class TTSEngine:
+class TTSEngine(ABC):
+    @abstractmethod
     async def speak(self, text: str) -> None:
         """Speak the given text. Subclasses must implement."""
-        raise RuntimeError(f"{type(self).__name__}.speak must be implemented by a TTS engine")
+        raise NotImplementedError
 
     async def stop(self) -> None:
         """Stop any ongoing speech."""

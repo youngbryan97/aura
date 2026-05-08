@@ -164,7 +164,7 @@ def _decode_owner_session_cookie(token: Optional[str]) -> Optional[Dict[str, Any
     padded = encoded + "=" * (-len(encoded) % 4)
     try:
         payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
-    except Exception:
+    except (ValueError, UnicodeDecodeError):
         return None
     if payload.get("scope") != "sovereign_owner":
         return None

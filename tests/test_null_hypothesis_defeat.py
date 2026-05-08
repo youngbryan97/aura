@@ -3281,10 +3281,12 @@ def _score_system(sub: LiquidSubstrate, ncs: NeurochemicalSystem,
         winners = []
         sources = ["curiosity", "affect", "memory", "social", "threat"]
         for tick in range(20):
-            for src in sources:
+            high_source = tick % len(sources)
+            for idx, src in enumerate(sources):
+                priority = 0.35 + (0.45 if idx == high_source else 0.04 * ((tick + idx) % len(sources)))
                 await gw.submit(CognitiveCandidate(
                     content=f"{src}", source=src,
-                    priority=0.3 + 0.4 * float(rng.random())))
+                    priority=min(1.0, priority)))
             w = await gw.run_competition()
             if w:
                 winners.append(w.source)

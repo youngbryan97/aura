@@ -5,6 +5,7 @@ from core.runtime.errors import record_degradation
 import inspect
 import logging
 import asyncio
+import re
 import time
 from typing import Any, Optional
 

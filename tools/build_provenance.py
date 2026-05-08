@@ -11,6 +11,7 @@ import tempfile
 import time
 import tomllib
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -121,7 +122,7 @@ def _important_files() -> list[dict[str, str]]:
     return out
 
 
-def build(output_dir: Path = DEFAULT_OUTPUT_DIR) -> dict[str, object]:
+def build(output_dir: Path = DEFAULT_OUTPUT_DIR) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     commit = os.environ.get("GITHUB_SHA") or _git_head()
     status = os.environ.get("AURA_GIT_STATUS_SHORT")
@@ -158,7 +159,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     args = parser.parse_args(argv)
     report = build(Path(args.output_dir))
-    print(json.dumps({"ok": True, "output_dir": args.output_dir, "dependency_count": report["sbom"]["dependency_count"]}, indent=2))
+    sbom = report["sbom"]
+    print(json.dumps({"ok": True, "output_dir": args.output_dir, "dependency_count": sbom["dependency_count"]}, indent=2))
     return 0
 
 

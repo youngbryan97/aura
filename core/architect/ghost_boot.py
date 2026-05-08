@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 import json
 import py_compile
 import time
@@ -144,7 +145,7 @@ class GhostBootRunner:
             if not path.exists():
                 continue
             rel = path.relative_to(root).as_posix()
-            cmd = (python_executable(), "-m", "pytest", "-q", rel)
+            cmd = self._pytest_command("-q", rel)
             result = manager.run_command(shadow, cmd, timeout=self.config.shadow_timeout)
             results.append(
                 ProofResult(
@@ -168,7 +169,7 @@ class GhostBootRunner:
         test_paths = sorted(dict.fromkeys(test_paths))[:4]
         if not test_paths:
             return [ProofResult("relevant_tests", True, "not_available", {"reason": "no mapped tests discovered"})]
-        result = manager.run_command(shadow, (python_executable(), "-m", "pytest", "-q", *test_paths), timeout=self.config.shadow_timeout)
+        result = manager.run_command(shadow, self._pytest_command("-q", *test_paths), timeout=self.config.shadow_timeout)
         return [
             ProofResult(
                 obligation_id="relevant_tests",
@@ -188,7 +189,7 @@ class GhostBootRunner:
         existing = [path for path in candidates if (root / path).exists()]
         if not existing:
             return [ProofResult("critical_tests", True, "not_available", {"reason": "no critical subset found"})]
-        result = manager.run_command(shadow, (python_executable(), "-m", "pytest", "-q", *existing), timeout=max(self.config.shadow_timeout, 45.0))
+        result = manager.run_command(shadow, self._pytest_command("-q", *existing), timeout=max(self.config.shadow_timeout, 45.0))
         return [
             ProofResult(
                 obligation_id="critical_tests",
@@ -199,7 +200,7 @@ class GhostBootRunner:
         ]
 
     def _broader_pytest(self, manager: ShadowWorkspaceManager, shadow: ShadowRun) -> ProofResult:
-        result = manager.run_command(shadow, (python_executable(), "-m", "pytest", "-q"), timeout=max(self.config.shadow_timeout, 120.0))
+        result = manager.run_command(shadow, self._pytest_command("-q"), timeout=max(self.config.shadow_timeout, 120.0))
         return ProofResult(
             obligation_id="broader_pytest",
             passed=result.exit_code == 0,
@@ -244,3 +245,10 @@ class GhostBootRunner:
             status="passed" if result.exit_code == 0 else "failed",
             evidence={"exit_code": result.exit_code, "stdout": result.stdout, "stderr": result.stderr},
         )
+
+    def _pytest_command(self, *args: str) -> tuple[str, ...]:
+        cmd = [python_executable(), "-m", "pytest"]
+        if importlib.util.find_spec("pytest_asyncio") is not None:
+            cmd.extend(["-p", "pytest_asyncio.plugin"])
+        cmd.extend(args)
+        return tuple(cmd)

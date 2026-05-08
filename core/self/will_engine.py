@@ -103,7 +103,6 @@ class WillEngine:
             # Tier 4 Hardening: Temporal Dilation (Biological Time vs Wall Time)
             # Dilate biological time based on flow state (arousal + curiosity)
             try:
-                from core.container import ServiceContainer
                 ls = ServiceContainer.get("liquid_substrate")
                 arousal = float((ls.x[ls.idx_arousal] + 1.0) / 2.0) if hasattr(ls, 'x') else 0.5
             except Exception:

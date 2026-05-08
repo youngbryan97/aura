@@ -112,7 +112,7 @@ def atomic_write_json(
     atomic_write_text(path, text)
 
 
-def read_json_envelope(path: PathLike) -> dict:
+def read_json_envelope(path: PathLike) -> dict[str, Any]:
     target = Path(path)
     raw = target.read_text(encoding="utf-8")
     data = json.loads(raw)

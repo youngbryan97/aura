@@ -3,6 +3,7 @@ Enforces resource constraints for 64GB M5 Pro stability.
 """
 from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import os

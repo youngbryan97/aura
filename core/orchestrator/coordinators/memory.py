@@ -177,7 +177,7 @@ class MemoryCoordinator:
             "manager_ready": self.memory_manager is not None
         }
 
-    async def consolidate_working_memory(self, state: 'AuraState', **kwargs) -> None:
+    async def consolidate_working_memory(self, state: Any, **kwargs) -> None:
         """
         [PHASE 48] Subconscious Memory Consolidation ("Dreaming")
         Synthesizes recent working memory events and commits abstract insights to the vault,

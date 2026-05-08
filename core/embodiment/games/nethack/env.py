@@ -37,8 +37,8 @@ class NetHackEnv:
         # Wait for the first screen to populate buffer
         try:
             self.child.expect(pexpect.TIMEOUT, timeout=1.0)
-        except:
-            pass
+        except (pexpect.TIMEOUT, pexpect.EOF):
+            logger.debug("NetHack reset screen did not settle before timeout.")
             
         raw_text = str(self.child.before or "") + str(self.child.after or "")
         logger.debug(f"NetHack Initial Screen: {raw_text[:200]}...")
@@ -61,8 +61,8 @@ class NetHackEnv:
         # Wait for update
         try:
             self.child.expect(pexpect.TIMEOUT, timeout=0.1)
-        except:
-            pass
+        except (pexpect.TIMEOUT, pexpect.EOF):
+            logger.debug("NetHack step screen did not settle before timeout.")
         
         raw_text = str(self.child.before or "") + str(self.child.after or "")
         obs = self.parser.parse(raw_text)

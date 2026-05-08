@@ -90,7 +90,7 @@ class ProgressLog:
             entry.validate()
         if self.last_updated is None:
             self.last_updated = _iso_now()
-        get_task_tracker().create_task(get_storage_gateway().create_dir(path.parent, cause='ProgressLog.save'))
+        path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(path.suffix + ".tmp")
         payload = {
             "schema_version": self.schema_version,

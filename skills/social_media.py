@@ -38,6 +38,7 @@ import logging
 import os
 import random
 import time
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -169,7 +170,7 @@ class SocialEngagementSignal:
 # Platform Adapters
 # ────────────────────────────────────────────────────────────────────────────
 
-class PlatformAdapter:
+class PlatformAdapter(ABC):
     """Abstract base. All adapters share the same async surface."""
     platform: Platform = Platform.MOCK
 
@@ -179,18 +180,23 @@ class PlatformAdapter:
         self.rate_limit_reset_at: float = 0.0
         self._post_history: List[SocialPost] = []
 
+    @abstractmethod
     async def post(self, content: str, reply_to_id: Optional[str] = None) -> Optional[str]:
         raise NotImplementedError
 
+    @abstractmethod
     async def like(self, post_id: str) -> bool:
         raise NotImplementedError
 
+    @abstractmethod
     async def get_timeline(self, limit: int = 20) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
+    @abstractmethod
     async def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
+    @abstractmethod
     async def get_notifications(self) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
@@ -747,7 +753,7 @@ class SocialMediaEngine:
 
     def _save_state(self) -> None:
         try:
-            get_task_tracker().create_task(get_storage_gateway().create_dir(self.PERSIST_PATH.parent, cause='SocialMediaEngine._save_state'))
+            self.PERSIST_PATH.parent.mkdir(parents=True, exist_ok=True)
             payload = {
                 "relationships": {k: asdict(v) for k, v in self._relationships.items()},
                 "last_post_time": self._last_post_time,
@@ -755,7 +761,7 @@ class SocialMediaEngine:
             }
             atomic_write_text(self.PERSIST_PATH, json.dumps(payload, indent=2), encoding="utf-8")
 
-            get_task_tracker().create_task(get_storage_gateway().create_dir(self.INTERACTION_LOG.parent, cause='SocialMediaEngine._save_state'))
+            self.INTERACTION_LOG.parent.mkdir(parents=True, exist_ok=True)
             log_raw = [asdict(i) for i in self._interaction_log[-600:]]
             atomic_write_text(self.INTERACTION_LOG, json.dumps(log_raw, indent=2), encoding="utf-8")
         except Exception as exc:

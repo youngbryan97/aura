@@ -22,6 +22,7 @@ import threading as _threading
 import time
 import weakref
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import psutil

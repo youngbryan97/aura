@@ -12,6 +12,11 @@ except ImportError:
             return f
         return decorator
         
-    def stop_after_attempt(*args, **kwargs): pass
-    def wait_exponential(*args, **kwargs): pass
-    def retry_if_exception_type(*args, **kwargs): pass
+    def stop_after_attempt(*args, **kwargs):
+        return None
+
+    def wait_exponential(*args, **kwargs):
+        return None
+
+    def retry_if_exception_type(*args, **kwargs):
+        return None

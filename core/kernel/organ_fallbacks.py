@@ -32,14 +32,14 @@ class FallbackVision:
         return None
 
     async def load(self) -> None:
-        pass  # no-op: intentional
+        return None
 
 
 class FallbackNeural:
     """Lightweight stand-in when NeuralBridge can't initialize."""
 
     async def load(self) -> None:
-        pass  # no-op: intentional
+        return None
 
     def get_status(self) -> dict[str, bool]:
         return {"is_running": False, "lightweight_mode": True}
@@ -49,17 +49,17 @@ class FallbackVoice:
     """Silent voice when TTS engine isn't available."""
 
     async def speak(self, text: str) -> None:
-        pass  # no-op: intentional
+        return None
 
     async def say(self, text: str) -> None:
-        pass  # no-op: intentional
+        return None
 
     async def load(self) -> None:
-        pass  # no-op: intentional
+        return None
 
 
 class FallbackOrgan:
     """Generic fallback for any organ that failed to load."""
 
     async def load(self) -> None:
-        pass  # no-op: intentional
+        return None

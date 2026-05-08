@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Dict, Iterable, Tuple
+from typing import Any
 
 from core.governance_context import normalize_governance_domain, require_governance
+
+logger = logging.getLogger("Aura.EffectBoundary")
 
 
 @dataclass(frozen=True)
 class EffectSinkSpec:
     sink_id: str
     fn_qualname: str
-    allowed_domains: Tuple[str, ...]
+    allowed_domains: tuple[str, ...]
 
 
-_REGISTERED_SINKS: Dict[str, EffectSinkSpec] = {}
+_REGISTERED_SINKS: dict[str, EffectSinkSpec] = {}
 
 
 def _register_sink(sink_id: str, fn: Callable[..., Any], allowed_domains: Iterable[str]) -> None:
@@ -35,7 +39,7 @@ def _register_sink(sink_id: str, fn: Callable[..., Any], allowed_domains: Iterab
     )
 
 
-def get_registered_effect_sinks() -> Dict[str, EffectSinkSpec]:
+def get_registered_effect_sinks() -> dict[str, EffectSinkSpec]:
     return dict(_REGISTERED_SINKS)
 
 
@@ -54,8 +58,8 @@ def _record_sink_commit(sink_id: str, token: Any) -> None:
                 "domain": getattr(token, "domain", ""),
             },
         )
-    except Exception:
-        pass  # no-op: intentional
+    except (ImportError, RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("Effect sink commit receipt logging skipped for %s: %s", sink_id, exc)
 
 
 def effect_sink(

@@ -11,14 +11,16 @@ CAPABILITIES:
 Used for self-preservation - finding safe havens for replication.
 """
 from core.runtime.errors import record_degradation
+import asyncio
 import logging
 import os
 import platform
 import re
 import socket
-import subprocess
 import time
 from typing import Any, Dict, List, Optional, Tuple
+
+from core.agency.agency_orchestrator import Proposal, get_orchestrator
 
 logger = logging.getLogger("DeviceDiscovery.Advanced")
 
@@ -34,6 +36,38 @@ class EnhancedDeviceScanner:
         self.discovered_devices = {}
         
         logger.info("✓ Enhanced Device Scanner initialized")
+
+    def _run_local_probe(self, argv: List[str], context: str, *, timeout: float = 3.0) -> Optional[str]:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            logger.warning("%s skipped: synchronous scanner cannot run an agency receipt inside an active loop", context)
+            return None
+
+        proposal = Proposal(
+            drive="device_discovery",
+            intent=f"{context}: {' '.join(argv)}",
+            expected_outcome="Collect bounded local network probe output through the agency receipt path.",
+            primitive="shell_execution",
+            payload={"argv": argv, "timeout": timeout},
+            priority=0.35,
+        )
+        try:
+            receipt = asyncio.run(get_orchestrator().run(proposal))
+        except (OSError, RuntimeError, ValueError) as exc:
+            record_degradation('device_discovery', exc)
+            logger.warning("%s unavailable or denied: %s", context, exc)
+            return None
+        observed = receipt.outcome_assessment.get("observed", {}) if isinstance(receipt.outcome_assessment, dict) else {}
+        if receipt.blocked_at or not observed.get("executed"):
+            logger.warning("%s blocked at %s: %s", context, receipt.blocked_at, receipt.blocked_reason)
+            return None
+        if observed.get("returncode") != 0:
+            logger.debug("%s returned %s: %s", context, observed.get("returncode"), str(observed.get("stderr", "")).strip())
+            return None
+        return str(observed.get("stdout", ""))
     
     def comprehensive_scan(self) -> List[Dict[str, Any]]:
         """Comprehensive network scan.
@@ -77,43 +111,25 @@ class EnhancedDeviceScanner:
         """ARP scan for local devices"""
         devices = []
         
-        try:
-            if self.system == "Linux" or self.system == "Darwin":
-                result = subprocess.run(
-                    ["arp", "-a"],
-                    capture_output=True,
-                    text=True
-                )
-                
-                for line in result.stdout.split('\n'):
-                    # Parse: hostname (192.168.1.1) at aa:bb:cc:dd:ee:ff [ether] on eth0
-                    match = re.search(r'\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([\w:]+)', line)
-                    if match:
-                        devices.append({
-                            "ip": match.group(1),
-                            "mac": match.group(2),
-                            "discovery_method": "arp"
-                        })
-            
-            elif self.system == "Windows":
-                result = subprocess.run(
-                    ["arp", "-a"],
-                    capture_output=True,
-                    text=True
-                )
-                
-                for line in result.stdout.split('\n'):
-                    match = re.search(r'(\d+\.\d+\.\d+\.\d+)\s+([\w-]+)', line)
-                    if match:
-                        devices.append({
-                            "ip": match.group(1),
-                            "mac": match.group(2),
-                            "discovery_method": "arp"
-                        })
-        
-        except Exception as e:
-            record_degradation('device_discovery', e)
-            logger.error("ARP scan failed: %s", e)
+        if self.system not in {"Linux", "Darwin", "Windows"}:
+            return devices
+
+        output = self._run_local_probe(["arp", "-a"], "ARP scan")
+        if not output:
+            return devices
+
+        for line in output.split('\n'):
+            if self.system == "Windows":
+                match = re.search(r'(\d+\.\d+\.\d+\.\d+)\s+([\w-]+)', line)
+            else:
+                # Parse: hostname (192.168.1.1) at aa:bb:cc:dd:ee:ff [ether] on eth0
+                match = re.search(r'\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([\w:]+)', line)
+            if match:
+                devices.append({
+                    "ip": match.group(1),
+                    "mac": match.group(2),
+                    "discovery_method": "arp"
+                })
         
         return devices
     
@@ -145,21 +161,14 @@ class EnhancedDeviceScanner:
                 if self.system == "Windows":
                     cmd = ["ping", "-n", "1", "-w", "100", ip]
 
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                
-                if result.returncode == 0:
+                if self._run_local_probe(cmd, f"ping probe for {ip}", timeout=2.0) is not None:
                     devices.append({
                         "ip": ip,
                         "discovery_method": "ping",
                         "responsive": True
                     })
         
-        except Exception as e:
+        except (IndexError, ValueError) as e:
             record_degradation('device_discovery', e)
             logger.error("Ping sweep failed: %s", e)
         
@@ -192,12 +201,11 @@ class EnhancedDeviceScanner:
     def _is_port_open(self, ip: str, port: int, timeout: float = 0.2) -> bool:
         """Check if port is open"""
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(timeout)
-            result = sock.connect_ex((ip, port))
-            sock.close()
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(timeout)
+                result = sock.connect_ex((ip, port))
             return result == 0
-        except Exception:
+        except OSError:
             return False
     
     def _identify_services(self, device: Dict):
@@ -229,18 +237,16 @@ class EnhancedDeviceScanner:
         try:
             hostname = socket.gethostbyaddr(device["ip"])[0]
             device["hostname"] = hostname
-        except Exception:
+        except (socket.herror, socket.gaierror, OSError):
             device["hostname"] = "unknown"
     
     def _get_local_ip(self) -> Optional[str]:
         """Get local IP address"""
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            local_ip = s.getsockname()[0]
-            s.close()
-            return local_ip
-        except Exception:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.connect(("8.8.8.8", 80))
+                return sock.getsockname()[0]
+        except OSError:
             return None
 
 
@@ -259,8 +265,10 @@ class DeviceAccessManager:
         """Connect to device via SSH.
         """
         logger.info("🔐 Connecting to %s via SSH...", ip)
+        ssh_errors: tuple[type[BaseException], ...] = (ImportError, OSError, RuntimeError)
         try:
             import paramiko
+            ssh_errors = (OSError, RuntimeError, paramiko.SSHException)
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
@@ -279,7 +287,8 @@ class DeviceAccessManager:
                         try:
                             client.connect(ip, username=username, key_filename=key_path)
                             break
-                        except Exception:
+                        except ssh_errors as e:
+                            logger.debug("SSH key connection failed for %s: %s", key_path, e)
                             continue
             
             self.active_connections[ip] = {
@@ -289,7 +298,7 @@ class DeviceAccessManager:
             }
             logger.info("✅ SSH connection established: %s@%s", username, ip)
             return True
-        except Exception as e:
+        except ssh_errors as e:
             record_degradation('device_discovery', e)
             logger.error("SSH connection failed: %s", e)
             return False
@@ -311,7 +320,7 @@ class DeviceAccessManager:
             if error:
                 logger.warning("Remote command stderr: %s", error)
             return True, output
-        except Exception as e:
+        except (AttributeError, OSError, RuntimeError, UnicodeDecodeError) as e:
             record_degradation('device_discovery', e)
             logger.error("Remote command failed: %s", e)
             return False, str(e)
@@ -329,7 +338,7 @@ class DeviceAccessManager:
             sftp.close()
             logger.info("✅ File transferred: %s → %s:%s", local_path, ip, remote_path)
             return True
-        except Exception as e:
+        except (AttributeError, OSError, RuntimeError) as e:
             record_degradation('device_discovery', e)
             logger.error("File transfer failed: %s", e)
             return False
@@ -375,7 +384,7 @@ class DeviceAccessManager:
             else:
                 logger.error("Failed to start Aura on remote device")
                 return False
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             record_degradation('device_discovery', e)
             logger.error("Deployment failed: %s", e)
             return False

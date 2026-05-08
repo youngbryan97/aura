@@ -5,6 +5,7 @@ import hashlib
 import json
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from core.runtime.atomic_writer import AtomicWriteError, atomic_write_json, read_json_envelope
 
@@ -40,7 +41,7 @@ class ProceduralMemoryStore:
         self.records[record.procedure_id] = record
         return record
 
-    def record(self, environment_family: str, context_signature: str, procedure: dict) -> None:
+    def record(self, environment_family: str, context_signature: str, procedure: dict[str, Any]) -> None:
         action = procedure.get("action", "unknown")
         pid = f"{environment_family}_{context_signature}_{action}"
         pid_hash = hashlib.sha256(pid.encode("utf-8")).hexdigest()[:12]
@@ -74,7 +75,7 @@ class ProceduralMemoryStore:
         environment_family: str,
         context_signature: str,
         action: str,
-        parameters: dict | None = None,
+        parameters: dict[str, Any] | None = None,
         observed_events: list[str] | None = None,
         success: bool,
         outcome_score: float,

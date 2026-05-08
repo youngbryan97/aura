@@ -1,8 +1,15 @@
 import json
 import logging
 
-import netifaces
-import nmap
+try:
+    import netifaces
+except ImportError:  # pragma: no cover - optional host dependency
+    netifaces = None
+
+try:
+    import nmap
+except ImportError:  # pragma: no cover - optional host dependency
+    nmap = None
 
 from infrastructure import BaseSkill
 
@@ -18,14 +25,21 @@ class NetworkDiscovery(BaseSkill):
 
     def __init__(self):
         super().__init__()
+        if nmap is None:
+            logger.warning("python-nmap not installed; network discovery will report unavailable.")
+            self.nm = None
+            return
         try:
             self.nm = nmap.PortScanner()
-        except Exception as e:
+        except (nmap.PortScannerError, OSError) as e:
             logger.error("Nmap not found: %s. Please install nmap (brew install nmap).", e)
             self.nm = None
 
     def _get_local_subnet(self):
         """Auto-detects the local subnet (e.g., 192.168.1.0/24)."""
+        if netifaces is None:
+            logger.warning("netifaces not installed; falling back to loopback subnet.")
+            return "127.0.0.1"
         try:
             # Get default gateway interface
             gws = netifaces.gateways()
@@ -39,7 +53,7 @@ class NetworkDiscovery(BaseSkill):
             # Rough subnet calculation (assuming /24 for home networks)
             subnet = ".".join(ip.split('.')[:3]) + ".0/24"
             return subnet
-        except Exception as e:
+        except (KeyError, IndexError, OSError, ValueError) as e:
             logger.error("Could not detect subnet: %s", e)
             return "127.0.0.1"
 

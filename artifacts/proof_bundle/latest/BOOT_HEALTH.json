@@ -1,10 +1,9 @@
 {
   "boot_probe_available": true,
   "compile_probe": {
-    "passed": true,
-    "returncode": 0,
-    "stderr": "",
-    "stdout": ""
+    "checked": 287,
+    "errors": [],
+    "passed": true
   },
-  "generated_at": 1778115722.530324
+  "generated_at": 1778215004.90129
 }

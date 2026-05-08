@@ -44,6 +44,7 @@ from core.brain.llm.runtime_wiring import (
     prepare_runtime_payload,
     should_force_tool_handoff,
 )
+from core.phases.response_contract import ResponseContract
 from core.runtime.turn_analysis import analyze_turn
 
 logger = logging.getLogger("Brain.HealthRouter")

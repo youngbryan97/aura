@@ -5,6 +5,7 @@ into the service container for use by the cognitive pipeline.
 """
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
+import asyncio
 import logging
 
 logger = logging.getLogger("Aura.Init.CognitiveSensory")

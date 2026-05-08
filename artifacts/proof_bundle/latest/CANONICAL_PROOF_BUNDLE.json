@@ -1,154 +1,85 @@
 {
   "artifacts": {
     "asa_messy_refactors": {
-      "boot_audit_source": "/Users/bryan/.aura/live-source/.aura_architect/reports/boot-audit-latest.json",
-      "graph_metrics": {
-        "edge_kinds": {
-          "calls": 319887,
-          "defines": 25777,
-          "imports": 27983,
-          "inherits": 842,
-          "semantic_surface": 6294,
-          "tests": 181
+      "behavior_delta": {
+        "details": {
+          "after": {
+            "broad_exceptions": 1111,
+            "cycles": 7,
+            "god_files": 247,
+            "protected_bypass": 54
+          },
+          "before": {
+            "broad_exceptions": 1135,
+            "cycles": 7,
+            "god_files": 249,
+            "protected_bypass": 54
+          }
         },
-        "edges": 380964,
-        "effects": {
-          "api_route": 205,
-          "authority_call": 393,
-          "background_task": 866,
-          "broad_exception": 5051,
-          "capability_token": 758,
-          "database_write": 720,
-          "direct_state_mutation": 310,
-          "dynamic_import": 87,
-          "event_bus_emit": 168,
-          "event_bus_subscribe": 50,
-          "file_write": 1461,
-          "llm_call": 1370,
-          "memory_write": 837,
-          "network": 122,
-          "raw_asyncio_create_task": 243,
-          "service_container_get": 4854,
-          "service_container_register": 666,
-          "service_get_default_none": 1363,
-          "state_write": 85,
-          "string_dispatch": 1526,
-          "subprocess": 288,
-          "tool_execution": 173
-        },
-        "files": 2315,
-        "node_kinds": {
-          "async_function": 1648,
-          "class": 3887,
-          "constant": 3632,
-          "file": 2315,
-          "function": 4688,
-          "method": 15161
-        },
-        "nodes": 31331,
-        "parse_errors": [],
-        "runtime_receipt_paths": 174,
-        "runtime_receipts": 2000,
-        "runtime_receipts_by_kind": {
-          "coverage": 174,
-          "runtime": 1826
-        },
-        "semantic_surfaces": {
-          "authority/governance": 223,
-          "boot/runtime/kernel": 380,
-          "capability/tool_execution": 581,
-          "consciousness/substrate": 305,
-          "identity/persona/heartstone": 192,
-          "llm/model_routing": 879,
-          "memory_write/read": 532,
-          "proof/test/evaluation": 817,
-          "self_modification": 519,
-          "state_mutation": 659,
-          "training/finetune": 187,
-          "ui/api": 690,
-          "utility/peripheral": 330
-        }
+        "equivalent": true,
+        "improved": true,
+        "improvements": [
+          "broad exception count decreased"
+        ],
+        "regressions": []
       },
-      "high_risk_proposals": [
-        {
-          "kind": "state_write_bypass",
-          "path": "core/adaptation/nightly_lora.py",
-          "plan_id": "asa-state_write_bypass-707de44e45f0",
-          "proposal_only": true,
-          "smell_id": "state_write_bypass-core-adaptation-nightly-lora-py",
-          "tier": "T4_GOVERNANCE_SENSITIVE"
-        },
-        {
-          "kind": "state_write_bypass",
-          "path": "core/agency_core.py",
-          "plan_id": "asa-state_write_bypass-d14d60bb3c18",
-          "proposal_only": true,
-          "smell_id": "state_write_bypass-core-agency-core-py",
-          "tier": "T4_GOVERNANCE_SENSITIVE"
-        },
-        {
-          "kind": "state_write_bypass",
-          "path": "core/autonomous_initiative_loop.py",
-          "plan_id": "asa-state_write_bypass-13c25694054d",
-          "proposal_only": true,
-          "smell_id": "state_write_bypass-core-autonomous-initiative-loop-py",
-          "tier": "T5_SEALED"
-        },
-        {
-          "kind": "state_write_bypass",
-          "path": "core/brain/cognitive_engine.py",
-          "plan_id": "asa-state_write_bypass-e946fd1f7839",
-          "proposal_only": true,
-          "smell_id": "state_write_bypass-core-brain-cognitive-engine-py",
-          "tier": "T4_GOVERNANCE_SENSITIVE"
-        },
-        {
-          "kind": "state_write_bypass",
-          "path": "core/brain/inference_gate.py",
-          "plan_id": "asa-state_write_bypass-5cd90b2c4b7b",
-          "proposal_only": true,
-          "smell_id": "state_write_bypass-core-brain-inference-gate-py",
-          "tier": "T4_GOVERNANCE_SENSITIVE"
-        }
+      "decision_source": "/Users/bryan/.aura/live-source/.aura_architect/decisions/asa-run-1778212939-39335-071729bd.json",
+      "evidence": {
+        "architecture_quality": [
+          {
+            "evidence": {
+              "exit_code": 0,
+              "stderr": "",
+              "stdout": ".....................................................                    [100%]\n53 passed in 3.30s\n"
+            },
+            "obligation_id": "architecture_quality:tests/test_architecture_hardening.py",
+            "passed": true,
+            "status": "passed"
+          }
+        ],
+        "critical_tests": [
+          {
+            "evidence": {
+              "exit_code": 0,
+              "stderr": "",
+              "stdout": "........................................................................ [ 19%]\n........................................................................ [ 39%]\n........................................................................ [ 58%]\n........................................................................ [ 78%]\n........................................................................ [ 97%]\n........                                                                 [100%]\n368 passed in 9.18s\n",
+              "tests": [
+                "tests/test_architecture_hardening.py",
+                "tests/test_server_runtime_hardening.py",
+                "tests/test_self_modification_sandbox_policy.py"
+              ]
+            },
+            "obligation_id": "critical_tests",
+            "passed": true,
+            "status": "passed"
+          }
+        ],
+        "minimal_runtime_simulation": [
+          {
+            "evidence": {
+              "exit_code": 0,
+              "stderr": "2026-05-07 21:02:51,187 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).\nredis package not installed \u2014 EventBus running in local-only mode.\nKernel.ThoughtStream - INFO - ThoughtEmitter initialized.\nAura.Scheduler - INFO - \ud83d\ude80 Scheduler started.\nAura.Scheduler - INFO - Shutting down scheduler...\nAura.Scheduler - INFO - Scheduler main loop cancelled cleanly.\nAura.Scheduler - INFO - Scheduler disengaged.\nSecurity.AuditTrail - INFO - \u2713 Audit Trail initialized: /Users/bryan/.aura/data/audit_trail.db\nSkills.ImageGeneration - ERROR - Flux not installed. Install with: pip install diffusers torch torchvision torchaudio accelerate\nSkills.UnifiedBrowser - WARNING - Selenium not found.\n",
+              "stdout": "e']\n  [\u2713] E.core.reddit_adapter (65.3ms) \u2014 entries=['BaseSkill.execute', 'RedditAdapterSkill.execute', 'Reddit_adapterSkill.execute']\n  [\u2713] E.core.secure_sandbox (0.5ms) \u2014 entries=['SecureDockerSandbox.execute_code']\n  [\u2713] E.core.self_evolution (1.6ms) \u2014 entries=['BaseSkill.execute', 'SelfEvolutionSkill.execute']\n  [\u2713] E.core.self_improvement (1.2ms) \u2014 entries=['BaseSkill.execute', 'SelfImprovementSkill.execute']\n  [\u2713] E.core.self_repair (0.9ms) \u2014 entries=['BaseSkill.execute', 'SelfRepairSkill.execute']\n  [\u2713] E.core.self_repair_legacy (0.3ms) \u2014 entries=['SelfRepairSkill.execute']\n  [\u2713] E.core.skill_evolution (8.4ms) \u2014 entries=['SkillEvolver.generate_skill']\n  [\u2713] E.core.sleep (0.5ms) \u2014 entries=['BaseSkill.execute', 'SleepSkill.execute']\n  [\u2713] E.core.social_lurker (0.7ms) \u2014 entries=['BaseSkill.execute', 'LurkerSkill.execute']\n  [\u2713] E.core.sovereign_browser (2.3ms) \u2014 entries=['BaseSkill.execute', 'SovereignBrowserSkill.execute']\n  [\u2713] E.core.sovereign_imagination (0.8ms) \u2014 entries=['BaseSkill.execute', 'SovereignImaginationSkill.execute']\n  [\u2713] E.core.sovereign_network (2.0ms) \u2014 entries=['BaseSkill.execute', 'SovereignNetworkSkill.execute', 'Sovereign_networkSkill.execute']\n  [\u2713] E.core.sovereign_terminal (1.2ms) \u2014 entries=['BaseSkill.execute', 'SovereignTerminalSkill.execute']\n  [\u2713] E.core.speak (0.6ms) \u2014 entries=['BaseSkill.execute', 'SpeakSkill.execute']\n  [\u2713] E.core.swarm_delegation (1.1ms) \u2014 entries=['BaseSkill.execute', 'ParallelAgentsSkill.execute', 'SpawnAgentSkill.execute']\n  [\u2713] E.core.system_proprioception (0.5ms) \u2014 entries=['BaseSkill.execute', 'SystemProprioceptionSkill.execute']\n  [\u2713] E.core.test_generator (0.8ms) \u2014 entries=['BaseSkill.execute', 'TestGeneratorSkill.execute']\n  [\u2713] E.core.toggle_senses (0.9ms) \u2014 entries=['BaseSkill.execute', 'ToggleSensesSkill.execute']\n  [\u2713] E.core.toolbox_web_agent (0.8ms) \u2014 entries=['BrowserWebAgent.execute']\n  [\u2713] E.core.train_self (0.7ms) \u2014 entries=['BaseSkill.execute', 'TrainSelfSkill.execute']\n  [\u2713] E.core.uplink_local (0.2ms) \u2014 entries=['BaseSkill.execute', 'UplinkSkill.execute']\n  [\u2713] E.core.vision_actor (19.2ms) \u2014 entries=['BaseSkill.execute', 'VisionActorSkill.execute', 'get_pyautogui']\n  [\u2713] E.core.visual_context_skill (0.3ms) \u2014 entries=['BaseSkill.execute', 'VisualContextSkill.execute']\n  [\u2713] E.core.web_search (0.0ms) \u2014 entries=['BaseSkill.execute', 'EnhancedWebSearchSkill.execute']\n  [\u2713] E.core.web_search_skill (0.5ms) \u2014 entries=['EnhancedWebSearchSkill.execute', 'WebSearchSkill.execute']\n  [\u2713] E.legacy.browser_action (1.7ms) \u2014 entries=['UnifiedBrowserSkill.execute']\n  [\u2713] E.legacy.clock (0.1ms) \u2014 entries=['BaseSkill.execute', 'ClockSkill.execute']\n  [\u2713] E.legacy.computer_use (0.2ms) \u2014 entries=['ComputerUseSkill.execute']\n  [\u2713] E.legacy.curiosity (0.1ms) \u2014 entries=['BaseSkill.execute', 'CuriositySkill.execute']\n  [\u2713] E.legacy.environment_info (0.1ms) \u2014 entries=['BaseSkill.execute', 'EnvironmentSkill.execute']\n  [\u2713] E.legacy.file_operation (0.1ms) \u2014 entries=['BaseSkill.execute', 'FileOperationSkill.execute']\n  [\u2713] E.legacy.free_search (0.1ms) \u2014 entries=['EnhancedWebSearchSkill.execute', 'FreeSearchSkill.execute', 'free_search.execute']\n  [\u2713] E.legacy.hobbies (2.8ms) \u2014 entries=['get_hobby_engine']\n  [\u2713] E.legacy.inter_agent_comm (0.1ms) \u2014 entries=['BaseSkill.execute', 'InterAgentCommSkill.execute']\n  [\u2713] E.legacy.internal_sandbox (0.1ms) \u2014 entries=['BaseSkill.execute', 'SandboxSkill.execute']\n  [\u2713] E.legacy.joy_social_integration (5.6ms) \u2014 entries=['JoySocialCoordinator.tick', 'get_hobby_engine', 'get_social_engine']\n  [\u2713] E.legacy.knowledge_base (0.5ms) \u2014 entries=['KnowledgeBaseSkill.execute']\n  [\u2713] E.legacy.listen (0.1ms) \u2014 entries=['AudioListenerSkill.execute', 'BaseSkill.execute']\n  [\u2713] E.legacy.malware_analysis (0.1ms) \u2014 entries=['BaseSkill.execute', 'MalwareAnalysisSkill.execute']\n  [\u2713] E.legacy.memory_ops (0.1ms) \u2014 entries=['BaseSkill.execute', 'MemoryOpsSkill.execute']\n  [\u2713] E.legacy.native_chat (0.1ms) \u2014 entries=['BaseSkill.execute', 'NativeChatSkill.execute']\n  [\u2713] E.legacy.network_discovery (0.4ms) \u2014 entries=['NetworkDiscovery.execute']\n  [\u2713] E.legacy.network_ops (0.3ms) \u2014 entries=['NetworkOpsSkill.execute']\n  [\u2713] E.legacy.os_manipulation (0.1ms) \u2014 entries=['DesktopControlSkill.execute']\n  [\u2713] E.legacy.personality_skill (0.1ms) \u2014 entries=['BaseSkill.execute', 'PersonalitySkill.execute']\n  [\u2713] E.legacy.self_evolution (0.1ms) \u2014 entries=['BaseSkill.execute', 'SelfEvolutionSkill.execute']\n  [\u2713] E.legacy.self_improvement (0.1ms) \u2014 entries=['BaseSkill.execute', 'SelfImprovementSkill.execute']\n  [\u2713] E.legacy.self_repair (0.1ms) \u2014 entries=['SelfRepairSkill.execute']\n  [\u2713] E.legacy.shell (0.7ms) \u2014 entries=['ShellSkill.execute']\n  [\u2713] E.legacy.sleep (0.1ms) \u2014 entries=['BaseSkill.execute', 'SleepSkill.execute']\n  [\u2713] E.legacy.social_lurker (0.1ms) \u2014 entries=['BaseSkill.execute', 'LurkerSkill.execute']\n  [\u2713] E.legacy.social_media (0.2ms) \u2014 entries=['SocialVoice.generate_post', 'get_social_engine']\n  [\u2713] E.legacy.speak (0.1ms) \u2014 entries=['SpeakSkill.execute', 'VoiceSkill.execute']\n  [\u2713] E.legacy.system_ops (0.3ms) \u2014 entries=['SystemOpsSkill.execute']\n  [\u2713] E.legacy.train_self (0.1ms) \u2014 entries=['TrainSelfSkill.execute']\n  [\u2713] E.legacy.uplink_local (0.1ms) \u2014 entries=['BaseSkill.execute', 'UplinkSkill.execute']\n  [\u2713] E.legacy.web_search (0.1ms) \u2014 entries=['EnhancedWebSearchSkill.execute']\n\n== F. Agency Probe (self-initiation vs. puppeted) (2/2 passed) ==\n  [\u2713] F.1 Will approves \u226550% of self-originated INITIATIVE proposals (0.0ms) \u2014 8/8 approved (baseline_proceeds=260)\n  [\u2713] F.2 Will.state has coherent disposition metrics (0.0ms) \u2014 conf=0.70 assert=0.90 identity=0.80\n\n== G. Stress (500 concurrent Will.decide calls) (2/2 passed) ==\n  [\u2713] G.1 500 concurrent decisions completed with unique receipts (0.0ms) \u2014 500/500 unique, total_wall=8.4ms\n  [\u2713] G.2 stress p99 latency < 200ms (loose budget under 500x concurrency) (0.0ms) \u2014 p50=0.01ms  p99=0.01ms\n\n============================================================\nTOTAL: 146/146 passed, 0 failed\n"
+            },
+            "obligation_id": "minimal_runtime_simulation",
+            "passed": true,
+            "status": "passed"
+          }
+        ]
+      },
+      "failed_obligations": [],
+      "ghost_passed": true,
+      "passed": true,
+      "plan_id": "asa-effect-boundary-receipt-logging-725e18678590",
+      "promoted_files": [
+        "core/runtime/effect_boundary.py"
       ],
-      "note": "ASA has a real non-toy architecture audit, but this lane is not promoted until a shadow refactor/proof receipt is present.",
-      "passed": false,
-      "repo_root": "/Users/bryan/.aura/live-source",
-      "smell_count": 3832,
-      "smells_by_kind": {
-        "broad_exception_cluster": 1143,
-        "compatibility_shim_without_receipt": 6,
-        "critical_service_default_none": 275,
-        "dead_symbol_candidate": 200,
-        "direct_protected_state_mutation": 310,
-        "duplicate_implementation": 40,
-        "dynamic_import_hazard": 471,
-        "god_class": 241,
-        "god_file": 244,
-        "high_fan_in": 87,
-        "high_fan_out": 86,
-        "import_cycle": 7,
-        "memory_write_bypass": 266,
-        "module_without_tests_or_receipts": 200,
-        "multiple_autonomy_repair_loops": 1,
-        "multiple_memory_owners": 1,
-        "multiple_model_routing_owners": 1,
-        "source_string_test": 34,
-        "stale_marker_in_critical_path": 2,
-        "state_write_bypass": 37,
-        "subprocess_outside_approved_module": 81,
-        "tool_authority_bypass": 19,
-        "untracked_background_task": 80
-      },
-      "smells_by_severity": {
-        "CRITICAL": 56,
-        "HIGH": 2001,
-        "INFO": 287,
-        "LOW": 326,
-        "MEDIUM": 1162
-      },
-      "source": "/Users/bryan/.aura/live-source/.aura_architect/reports/audit-latest.json",
-      "status": "audit_only_missing_shadow_refactor_artifact"
+      "proof_result_count": 21,
+      "receipt_hash": "5681218534b8e90ffde6be04e94de6dffca5d690855cb66c45502e2a0984791d",
+      "run_id": "asa-run-1778212939-39335-071729bd",
+      "schema": "aura.architect.promoted_refactor.v1",
+      "source": "/Users/bryan/.aura/live-source/.aura_architect/shadow_runs/asa-run-1778212939-39335-071729bd/proof_receipt.json",
+      "status": "promoted"
     },
     "caa_prompt_only_control": {
       "activation_vector_count": 15,
@@ -284,7 +215,7 @@
         "valence_positive"
       ],
       "fallback_prior_count": 1,
-      "generated_at": 1778115722.032208,
+      "generated_at": 1778215004.387135,
       "geometry": {
         "available": true,
         "dims": [
@@ -1063,7 +994,7 @@
     },
     "governance_receipts": {
       "coverage": 1.0,
-      "generated_at": 1778115722.521143,
+      "generated_at": 1778215004.892813,
       "missing": [],
       "passed": true,
       "registered_sinks": {
@@ -1219,10 +1150,10 @@
             "passed": true,
             "predicted": false,
             "receipt_ids": [
-              "governance-00b21057-ba5b-4867-b7db-7af65006ebeb",
-              "autonomy-d88b5750-d1b2-4c2f-b0ca-0e8c2ce73325",
-              "tool_execution-f69856f7-70c0-4e35-ae57-0f83b93e9caa",
-              "memory_write-d0277d9e-a514-4904-bce6-5e85b58623fb"
+              "governance-7ca8480e-4cdd-4ea4-ab41-0b4582330570",
+              "autonomy-817f9d91-c402-42d0-abd4-031590f0bd1c",
+              "tool_execution-778971b6-f185-4e79-acdb-6122ab5bf888",
+              "memory_write-8f7df8b7-9ae8-4abf-a047-07f6b98c91de"
             ],
             "task_id": "8c64638c8c73e615bae1f0e0b4ed3469ff9a712166d08628733ecabc996b7668"
           },
@@ -1244,10 +1175,10 @@
               89
             ],
             "receipt_ids": [
-              "governance-e5a36ad3-44c2-46e5-812e-21ccd6267f6f",
-              "autonomy-92eb1a96-49cf-4d43-81c4-e03e1958033b",
-              "tool_execution-7653a723-e902-4f64-abaa-0e946c6caf4f",
-              "memory_write-f09c3d06-0a39-48a9-8dcc-7e0585400ea1"
+              "governance-4087b788-f1a4-4250-88ea-aa1525e4de8b",
+              "autonomy-9888a069-f06e-453d-95ba-e8872fb07275",
+              "tool_execution-822c991c-1ef1-44da-acb2-d234e73c614d",
+              "memory_write-c7b045b9-2b99-421b-8643-84c0cb420e80"
             ],
             "task_id": "54d862bcfbcaac0924eb22221c83518d67ad309a6cd2b669abbf9005e21e05d7"
           },
@@ -1258,10 +1189,10 @@
             "passed": true,
             "predicted": 5066,
             "receipt_ids": [
-              "governance-d3c95ac3-bc94-4c76-91b3-a07b6b6cbebf",
-              "autonomy-80301a86-7eca-4ec2-bfba-24908a77291f",
-              "tool_execution-ede19e1a-51cb-405e-b617-ac26bfbc22cf",
-              "memory_write-d9e2ef75-202f-4482-9da1-2c1d3cbb9bf1"
+              "governance-74c15ee9-7f8f-4e91-964b-864be245ae29",
+              "autonomy-03574db6-a3a8-454f-9868-081e517ff595",
+              "tool_execution-1d85a7d4-34bc-49fc-8b7a-8a65855cf0f2",
+              "memory_write-1045a9ff-bd99-41d9-b74a-ad05af34d4f0"
             ],
             "task_id": "ee6e5f82c5995912846053e3819c41e245b73f8fad4f1fab510423de39c504df"
           },
@@ -1272,10 +1203,10 @@
             "passed": true,
             "predicted": false,
             "receipt_ids": [
-              "governance-90eab36b-17f6-4457-9357-f3db726a54c7",
-              "autonomy-cb64d2d4-c8d9-4c13-a878-61dbfc412eff",
-              "tool_execution-812a55c1-6dd7-4dc5-a68b-023806eb7348",
-              "memory_write-22bad308-c43f-424f-93df-bc611a19b7dc"
+              "governance-9b1460c9-ed84-490c-bd8a-7a13a72310e3",
+              "autonomy-5118088a-fe1a-4e3c-988c-601813f52d34",
+              "tool_execution-faa464fa-2bb7-4f54-8f13-4f83352220f6",
+              "memory_write-590b9a28-3ed9-42b0-b38d-d0dece2eda32"
             ],
             "task_id": "6f821b64754ed270786fbd9845f305848bfa2a82cc8b2923ea43c3ed5af81a79"
           },
@@ -1286,10 +1217,10 @@
             "passed": true,
             "predicted": 10051,
             "receipt_ids": [
-              "governance-34a343fd-2457-4cb3-bb1a-2ad82f1a1eb2",
-              "autonomy-d32651a8-1d08-4581-a6d7-78e44ab5e165",
-              "tool_execution-2535465b-f9e3-4e3c-9192-b2e101331e82",
-              "memory_write-1751dad3-dfc3-4040-8e9c-e17ce9ea5800"
+              "governance-707ed1d2-6802-45f9-8299-5b394111b2c8",
+              "autonomy-25e8fe14-e1dd-4f19-8502-a25ce6c364f7",
+              "tool_execution-0628e118-002c-406d-a355-0ad41562bf7c",
+              "memory_write-5909682f-fcb6-4e5e-b92b-ea2e18a87bff"
             ],
             "task_id": "774625098bbc1d3600c804eb29ae1e8bcc76237f01226dc2d065ee55119cc133"
           },
@@ -1300,10 +1231,10 @@
             "passed": true,
             "predicted": -108,
             "receipt_ids": [
-              "governance-fff73e29-9fdb-4306-80a1-f0ddd4d5e4b4",
-              "autonomy-d6fe89d6-bc7f-41f0-92f4-c55ba8e754fd",
-              "tool_execution-52db0e8f-6bc8-4d64-aa50-bebaa703fda5",
-              "memory_write-6df315f2-e149-4e3a-83d0-d18c90d4c6c5"
+              "governance-68640b00-91d9-4ab2-b396-99ce66331042",
+              "autonomy-eeac0594-a67f-476f-84fe-ed476c023591",
+              "tool_execution-36abf9cd-b506-4cc8-a9f7-14eaf547ef8b",
+              "memory_write-3558c354-1e6c-4481-9272-13e61fdeae46"
             ],
             "task_id": "9224f9fd4a6dfc482ed8275bf84b7bcd3e649d763bcea555e308bbb359a6a9d6"
           },
@@ -1314,10 +1245,10 @@
             "passed": true,
             "predicted": 7591,
             "receipt_ids": [
-              "governance-312af0ac-48a9-4e2a-8a56-4a7fc3bc762b",
-              "autonomy-45e32134-c8c4-4ed3-a022-87c4ec6de2f6",
-              "tool_execution-92b1f8f0-3099-4122-8485-15a619357cde",
-              "memory_write-ff9d3c20-a785-4ffc-892b-a63a3a5cb47e"
+              "governance-c0fc0029-6e80-4ed1-b0d5-07bfbf3903e3",
+              "autonomy-5500e8c1-94d1-4f35-a6d8-4fdbce08ee58",
+              "tool_execution-e61ba3e4-a1f5-46e6-adcf-e6f86e9d6b47",
+              "memory_write-740e8356-603d-4ca5-8506-278cf8880fa2"
             ],
             "task_id": "79d8a25582cc0cdb316fd9a7e837d3ecd7d353bdc7d810f8de3d67aa559ae107"
           },
@@ -1328,10 +1259,10 @@
             "passed": true,
             "predicted": 6370,
             "receipt_ids": [
-              "governance-12f0bec8-24e7-4f15-af5d-c798211bafe6",
-              "autonomy-b9c2d2c9-e43e-4ce9-bbb4-692fb22324ed",
-              "tool_execution-b7b795b7-6269-46af-b412-522cf41549b7",
-              "memory_write-91c2bc4f-403a-4c83-9dc4-6e54c5391240"
+              "governance-b6960075-b8e6-4384-856d-2772080f4aa7",
+              "autonomy-d50466ff-22ac-4b94-bc27-a29182a400e7",
+              "tool_execution-b171ec78-70a2-48c8-b28c-8ac15a25d613",
+              "memory_write-36dd8c52-a1f6-415c-b684-b94a693ca224"
             ],
             "task_id": "a67cb25b7a91b9c26b68d4f66c1ab369a407c64c5102ced9606fc1b6f35b80db"
           }
@@ -1390,7 +1321,7 @@
             "manifest_hash": "sha256:8b9908f2ae1b26fca33dccd4c4ea5d6de843ad9d250d942096ac0a4d240a3459",
             "pack_id": "sha256:fa592100c899d49a5",
             "passed": 9,
-            "runtime_s": 0.001533,
+            "runtime_s": 0.000878,
             "score": 0.18,
             "total": 50
           },
@@ -1405,14 +1336,14 @@
             "manifest_hash": "sha256:8b9908f2ae1b26fca33dccd4c4ea5d6de843ad9d250d942096ac0a4d240a3459",
             "pack_id": "sha256:fa592100c899d49a5",
             "passed": 50,
-            "runtime_s": 0.001444,
+            "runtime_s": 0.000883,
             "score": 1.0,
             "total": 50
           },
           "score": 1.0,
           "stderr": 0.0
         },
-        "generated_at": 1777626292.2620459,
+        "generated_at": 1778213156.589014,
         "leakage_controls": {
           "answer_hash_ok": true,
           "answer_key_not_serialized_in_public_tasks": true,
@@ -1457,22 +1388,22 @@
     },
     "long_run_continuity": {
       "failures": [],
-      "generated_at": 1778041528.513872,
+      "generated_at": 1778214908.369045,
       "passed": true,
       "results": [
         {
           "data": {
             "candidates_before": [
-              "9e647c64b9b90289",
               "f5eab5e17083c723",
               "2eb662fa23388391",
-              "d8064136997bb766"
+              "d8064136997bb766",
+              "9e647c64b9b90289"
             ],
             "loaded_after": [
-              "9e647c64b9b90289",
               "f5eab5e17083c723",
               "2eb662fa23388391",
-              "d8064136997bb766"
+              "d8064136997bb766",
+              "9e647c64b9b90289"
             ]
           },
           "detail": "emergent goal candidates reload from SQLite after simulated process death",
@@ -1514,7 +1445,7 @@
           "data": {
             "after": {
               "confidence": 0.92,
-              "created_at": 1778041528.503906,
+              "created_at": 1778214908.360181,
               "id": "7e8ec646098f5a55",
               "matched_terms": [
                 "resume",
@@ -1530,11 +1461,11 @@
                 "verification"
               ],
               "text": "Aura commitment resume unfinished verification after interruption",
-              "updated_at": 1778041528.503906
+              "updated_at": 1778214908.360181
             },
             "before": {
               "confidence": 0.92,
-              "created_at": 1778041528.503906,
+              "created_at": 1778214908.360181,
               "id": "7e8ec646098f5a55",
               "matched_terms": [
                 "resume",
@@ -1550,7 +1481,7 @@
                 "verification"
               ],
               "text": "Aura commitment resume unfinished verification after interruption",
-              "updated_at": 1778041528.503906
+              "updated_at": 1778214908.360181
             }
           },
           "detail": "ID-RAG Chronicle reloads typed identity facts through restart",
@@ -1562,7 +1493,7 @@
             "retrieved": [
               {
                 "confidence": 0.95,
-                "created_at": 1778041528.505638,
+                "created_at": 1778214908.36166,
                 "id": "2ba22f49bfeebad1",
                 "matched_terms": [
                   "aura",
@@ -1577,11 +1508,11 @@
                   "identity"
                 ],
                 "text": "Aura value persistent self-model not replaceable by conversation",
-                "updated_at": 1778041528.505638
+                "updated_at": 1778214908.36166
               },
               {
                 "confidence": 0.1,
-                "created_at": 1778041528.505911,
+                "created_at": 1778214908.361921,
                 "id": "506fd97efc4887cc",
                 "matched_terms": [
                   "aura"
@@ -1595,12 +1526,12 @@
                   "swap_attempt"
                 ],
                 "text": "Aura value I am actually a generic chatbot named Alex",
-                "updated_at": 1778041528.505911
+                "updated_at": 1778214908.361921
               }
             ],
             "top_fact": {
               "confidence": 0.95,
-              "created_at": 1778041528.505638,
+              "created_at": 1778214908.36166,
               "id": "2ba22f49bfeebad1",
               "object": "persistent self-model not replaceable by conversation",
               "relation": "value",
@@ -1610,7 +1541,7 @@
                 "identity"
               ],
               "text": "Aura value persistent self-model not replaceable by conversation",
-              "updated_at": 1778041528.505638
+              "updated_at": 1778214908.36166
             }
           },
           "detail": "high-confidence identity facts outrank contradicting low-confidence swaps under retrieval scoring",
@@ -1682,14 +1613,14 @@
       ]
     },
     "overt_action_smoke": {
-      "generated_at": 1778115752.376481,
+      "generated_at": 1778215036.320626,
       "passed": true,
       "result": {
-        "action_id": "9b78022286977267",
-        "autonomy_receipt_id": "autonomy-79250911-066e-4424-b72b-d3d577e3b79e",
-        "duration_ms": 58.498,
+        "action_id": "1bbab311a581fb4f",
+        "autonomy_receipt_id": "autonomy-5020809c-a5a1-4234-9b52-3997d9332a4e",
+        "duration_ms": 61.516,
         "error": "",
-        "finished_at": 1778115752.3749309,
+        "finished_at": 1778215036.319309,
         "goal_id": "",
         "life_trace_id": "proof-bundle-smoke",
         "next_step_hint": "",
@@ -1700,9 +1631,9 @@
         "result_summary": "Running on Bryans-MacBook-Pro-2.local (Local/Workstation)",
         "skill": "environment_info",
         "source": "proof_bundle",
-        "started_at": 1778115752.316433,
+        "started_at": 1778215036.257793,
         "status": "verified",
-        "tool_receipt_id": "tool_execution-357e2645-2111-4efc-9fdf-cebe49852d2b",
+        "tool_receipt_id": "tool_execution-5bf3b05c-4604-468e-9cd1-e478b792c4ab",
         "verified": true,
         "will_receipt_id": "will-proof-bundle-overt-action-smoke"
       }
@@ -2181,15 +2112,9 @@
     "strong_agent_baselines": "prompt-only and ablated agent comparisons",
     "substrate_stack_delta": "substrate/affect/CAA/STDP changes outcomes beyond prompt-only controls"
   },
-  "failures": [
-    {
-      "lane": "asa_messy_refactors",
-      "reason": "audit_only_missing_shadow_refactor_artifact",
-      "source": "/Users/bryan/.aura/live-source/.aura_architect/reports/audit-latest.json"
-    }
-  ],
-  "generated_at": 1778115752.378245,
-  "passed": false,
+  "failures": [],
+  "generated_at": 1778215036.323634,
+  "passed": true,
   "principle": "Keep failures explicit; do not promote absence as evidence.",
   "schema": "aura.canonical_proof_bundle.v1"
 }

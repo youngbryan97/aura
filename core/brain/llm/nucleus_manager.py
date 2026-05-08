@@ -4,7 +4,7 @@ from core.utils.exceptions import capture_and_log
 import logging
 import asyncio
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from .provider import LLMProvider
 
 logger = logging.getLogger("LLM.Nucleus")

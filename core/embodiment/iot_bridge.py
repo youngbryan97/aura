@@ -39,6 +39,7 @@ import json
 import logging
 import os
 import time
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
@@ -56,14 +57,16 @@ class IoTEffect:
     reason: str = ""   # human-readable rationale (logged, never user-visible)
 
 
-class IoTTransport:
+class IoTTransport(ABC):
     name: str = "abstract"
 
+    @abstractmethod
     async def apply(self, effect: IoTEffect) -> Dict[str, Any]:  # pragma: no cover - interface
-        raise RuntimeError(f"{type(self).__name__}.apply must be implemented by an IoT transport")
+        raise NotImplementedError
 
+    @abstractmethod
     async def observe(self) -> Optional[Dict[str, Any]]:  # pragma: no cover - interface
-        raise RuntimeError(f"{type(self).__name__}.observe must be implemented by an IoT transport")
+        raise NotImplementedError
 
 
 class NoopTransport(IoTTransport):

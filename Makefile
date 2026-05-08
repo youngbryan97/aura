@@ -1,8 +1,11 @@
-.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity longevity-24h chaos governance-lint security enterprise-gate enterprise-collect enterprise-strict production-gate provenance decisive proof-bundle behavioral-proof activation-audit clean-bench
+.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity longevity-24h chaos governance-lint security enterprise-gate enterprise-collect enterprise-strict production-gate provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench
 
 PYTHON ?= python
+RUFF_SURFACE_TARGETS ?= core interface llm security senses skills executors infrastructure aura_main.py tools tests
+RUFF_CRITICAL_TARGETS ?= core interface llm security senses skills executors infrastructure aura_main.py
+RUFF_CRITICAL_SELECT ?= F821,F822,F823,F601
 RUFF_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_assembler.py core/brain/llm/context_limit.py core/cognitive_integration_layer.py core/safe_mode.py core/coordinators/metabolic_coordinator.py core/evolution/persona_evolver.py core/orchestrator/mixins/autonomy.py core/orchestrator/mixins/context_streaming.py core/orchestrator/mixins/learning_evolution.py core/resilience/dream_cycle.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_consciousness_patch_retirement.py
-MYPY_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_limit.py core/safe_mode.py
+MYPY_TARGETS ?= core/apply_response_patches.py core/brain/llm/context_limit.py core/safe_mode.py core/runtime/atomic_writer.py core/consciousness/continuous_experience.py core/environment/experience_replay.py core/memory/procedural/store.py core/unity/runtime.py tools/aura_production_readiness_gate.py tools/build_provenance.py
 MYPY_FLAGS ?= --follow-imports=skip --explicit-package-bases
 PYTEST_TARGETS ?= tests -q
 SMOKE_TEST_TARGETS ?= tests/test_response_contract.py tests/test_chat_format.py tests/test_effect_closure.py tests/test_local_server_client.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_consciousness_patch_retirement.py -q
@@ -46,8 +49,20 @@ compile:
 
 lint:
 	@echo "🧹 Running ruff..."
+	@$(PYTHON) -m ruff check $(RUFF_SURFACE_TARGETS) --select E9
+	@$(PYTHON) -m ruff check $(RUFF_CRITICAL_TARGETS) --select $(RUFF_CRITICAL_SELECT)
 	@$(PYTHON) -m ruff check $(RUFF_TARGETS)
 	@echo "✅ Ruff passed"
+
+source-hygiene:
+	@echo "🧼 Checking source snapshot hygiene..."
+	@tracked="$$(git ls-files | grep -E '(^|/)__pycache__/|\.py[cod]$$|\$$py\.class$$|(^|/)\.(pytest|mypy|ruff)_cache/' || true)"; \
+	if [ -n "$$tracked" ]; then \
+		echo "Generated cache artifacts are tracked:"; \
+		echo "$$tracked"; \
+		exit 1; \
+	fi
+	@echo "✅ Source snapshot hygiene passed"
 
 governance-lint:
 	@echo "🛡  Running governance lint..."
@@ -100,7 +115,7 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: enterprise-gate production-gate compile lint governance-lint security typecheck smoke
+quality: source-hygiene enterprise-gate enterprise-collect production-gate compile lint governance-lint security typecheck smoke
 	@echo "🏁 Quality gates passed"
 
 decisive:

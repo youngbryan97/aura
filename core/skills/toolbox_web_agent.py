@@ -25,6 +25,13 @@ class WebAgentResult:
 
 
 class BrowserWebAgent:
+    async def execute(self, params: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
+        url = str(params.get("url") or params.get("target") or "").strip()
+        if not url:
+            return WebAgentResult(url="", title="", text="", engine="none", ok=False, error="url required").to_dict()
+        timeout_ms = int(params.get("timeout_ms") or 15000)
+        return (await self.read(url, timeout_ms=timeout_ms)).to_dict()
+
     async def read(self, url: str, *, timeout_ms: int = 15000) -> WebAgentResult:
         try:
             return await self._read_playwright(url, timeout_ms=timeout_ms)

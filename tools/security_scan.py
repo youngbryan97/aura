@@ -36,7 +36,7 @@ def scan() -> dict:
             files_scanned += 1
             try:
                 text = path.read_text(encoding="utf-8", errors="ignore")
-            except Exception:
+            except OSError:
                 continue
             rel = path.relative_to(ROOT).as_posix()
             findings.extend(_scan_text_literals(text, rel))

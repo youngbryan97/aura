@@ -4,6 +4,7 @@ import inspect
 import logging
 from typing import Any, Optional
 
+from core.config import config
 from core.container import ServiceContainer
 
 logger = logging.getLogger(__name__)

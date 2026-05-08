@@ -1,12 +1,12 @@
 {
-  "generated_at": 1778115752.376481,
+  "generated_at": 1778215036.320626,
   "passed": true,
   "result": {
-    "action_id": "9b78022286977267",
-    "autonomy_receipt_id": "autonomy-79250911-066e-4424-b72b-d3d577e3b79e",
-    "duration_ms": 58.498,
+    "action_id": "1bbab311a581fb4f",
+    "autonomy_receipt_id": "autonomy-5020809c-a5a1-4234-9b52-3997d9332a4e",
+    "duration_ms": 61.516,
     "error": "",
-    "finished_at": 1778115752.3749309,
+    "finished_at": 1778215036.319309,
     "goal_id": "",
     "life_trace_id": "proof-bundle-smoke",
     "next_step_hint": "",
@@ -17,9 +17,9 @@
     "result_summary": "Running on Bryans-MacBook-Pro-2.local (Local/Workstation)",
     "skill": "environment_info",
     "source": "proof_bundle",
-    "started_at": 1778115752.316433,
+    "started_at": 1778215036.257793,
     "status": "verified",
-    "tool_receipt_id": "tool_execution-357e2645-2111-4efc-9fdf-cebe49852d2b",
+    "tool_receipt_id": "tool_execution-5bf3b05c-4604-468e-9cd1-e478b792c4ab",
     "verified": true,
     "will_receipt_id": "will-proof-bundle-overt-action-smoke"
   }

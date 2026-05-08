@@ -23,6 +23,9 @@ import os
 import time
 import re
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
+
+logger = logging.getLogger("Aura.APIAdapter")
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -33,7 +36,6 @@ try:
     from core.schemas import ChatStreamEvent
 except ImportError:
     ChatStreamEvent = Any
-logger = logging.getLogger("Aura.APIAdapter")
 
 
 # ─── Model definitions ───────────────────────────────────────────────────────

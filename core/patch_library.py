@@ -3,19 +3,21 @@ import logging
 import re
 import subprocess
 import sys
+from abc import ABC, abstractmethod
 from typing import Optional, List, Dict
 
 logger = logging.getLogger("Optimizer.PatchLibrary")
 
-class PatchStrategy:
+class PatchStrategy(ABC):
     name = "base_patch"
     
     def match(self, failure_reason: str) -> bool:
         return False
         
+    @abstractmethod
     async def apply(self, failure_reason: str) -> bool:
         """Applies the fix. Returns True if successful, False otherwise."""
-        raise RuntimeError(f"{type(self).__name__} must implement apply()")
+        raise NotImplementedError
 
 class GitInitPatch(PatchStrategy):
     name = "git_init_fix"

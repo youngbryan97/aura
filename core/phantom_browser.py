@@ -230,7 +230,8 @@ class PhantomBrowser:
 
         # Apply Stealth to new context/page
         try:
-            await Stealth().apply_stealth_async(self.page)
+            if STEALTH_AVAILABLE:
+                await stealth_async(self.page)
         except Exception as e:
             record_degradation('phantom_browser', e)
             capture_and_log(e, {'module': __name__})
@@ -330,8 +331,9 @@ class PhantomBrowser:
                         loc = self.page.get_by_text(re.compile(text_match, re.IGNORECASE)).first
                         if await loc.is_visible(timeout=2000):
                             element = loc
-                    except Exception:
-                        logger.debug('Exception caught during execution: %s', e if 'e' in locals() or 'e' in globals() else 'unknown')
+                    except Exception as exc:
+                        record_degradation('phantom_browser', exc, severity="debug", action="fuzzy text selector failed")
+                        logger.debug("Fuzzy text selector failed: %s", exc)
             elif selector:
                 element = self.page.locator(selector).first
 

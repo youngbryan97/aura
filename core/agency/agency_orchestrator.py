@@ -28,6 +28,7 @@ import asyncio
 import inspect
 import json
 import logging
+import subprocess
 import time
 import uuid
 from dataclasses import dataclass, field, fields, is_dataclass
@@ -280,7 +281,11 @@ class AgencyOrchestrator:
 
         # 7. execute
         try:
-            exec_result = await execute(proposal, state_snapshot, receipt.capability_token or "") if execute else {"executed": False}
+            exec_result = (
+                await execute(proposal, state_snapshot, receipt.capability_token or "")
+                if execute
+                else await self._default_execute(proposal)
+            )
         except Exception as exc:
             record_degradation('agency_orchestrator', exc)
             return await self._block(receipt, "execute", str(exc))
@@ -314,6 +319,31 @@ class AgencyOrchestrator:
             record_degradation('agency_orchestrator', exc)
             logger.debug("default perceive snapshot failed: %s", exc)
         return {}
+
+    async def _default_execute(self, proposal: Proposal) -> Dict[str, Any]:
+        if proposal.primitive == "shell_execution":
+            argv = proposal.payload.get("argv")
+            if not isinstance(argv, list) or not all(isinstance(part, str) for part in argv):
+                return {"executed": False, "receipt": "shell_execution:invalid_argv", "error": "argv must be list[str]"}
+            timeout = float(proposal.payload.get("timeout") or 30.0)
+            cwd = proposal.payload.get("cwd")
+            proc = await asyncio.to_thread(
+                subprocess.run,
+                argv,
+                cwd=cwd if isinstance(cwd, str) else None,
+                timeout=timeout,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return {
+                "executed": True,
+                "receipt": f"shell_execution:{proc.returncode}",
+                "returncode": proc.returncode,
+                "stdout": proc.stdout,
+                "stderr": proc.stderr,
+            }
+        return {"executed": False, "receipt": f"{proposal.primitive}:no_default_executor"}
 
     async def _authorize(
         self,

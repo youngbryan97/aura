@@ -165,15 +165,55 @@ class ShadowWorkspaceManager:
             shutil.rmtree(root, ignore_errors=True)
 
     def _copy_tree(self, source: Path, destination: Path) -> None:
+        tracked = self._git_worktree_files(source)
+        if tracked:
+            for rel in tracked:
+                if self.config.is_excluded(rel):
+                    continue
+                src = source / rel
+                if not src.is_file():
+                    continue
+                self._copy_file(src, destination / rel)
+            return
+
         for child in source.iterdir():
             rel = child.relative_to(source).as_posix()
             if self.config.is_excluded(rel):
                 continue
             dest = destination / child.name
             if child.is_dir():
-                shutil.copytree(child, dest, ignore=self._ignore, dirs_exist_ok=True)
+                shutil.copytree(child, dest, ignore=self._ignore, dirs_exist_ok=True, copy_function=self._copy_file)
             else:
-                shutil.copy2(child, dest)
+                self._copy_file(child, dest)
+
+    def _copy_file(self, source: str | Path, destination: str | Path) -> None:
+        """Use hard links for shadow copies when possible; fall back to bytes copy."""
+        src = Path(source)
+        dest = Path(destination)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.link(src, dest)
+        except OSError:
+            shutil.copyfile(src, dest)
+
+    def _git_worktree_files(self, source: Path) -> list[str]:
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(source), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                capture_output=True,
+                check=False,
+                text=False,
+                timeout=15.0,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return []
+        if proc.returncode != 0:
+            return []
+        return [
+            item.decode("utf-8", errors="ignore")
+            for item in proc.stdout.split(b"\0")
+            if item
+        ]
 
     def _ignore(self, directory: str, names: list[str]) -> set[str]:
         base = Path(directory)

@@ -18,6 +18,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+from core.container import ServiceContainer
 from core.meta.mirror_layer import MirrorLayer
 
 logger = logging.getLogger("AGI.MetaCognition")

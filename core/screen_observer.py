@@ -19,6 +19,7 @@ Dependencies: mss, sounddevice, scipy (install via pip if missing)
 """
 
 from core.runtime.errors import record_degradation
+import asyncio
 import json
 import logging
 import os

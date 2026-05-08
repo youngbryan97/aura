@@ -1,0 +1,81 @@
+{
+  "behavior_delta": {
+    "details": {
+      "after": {
+        "broad_exceptions": 1111,
+        "cycles": 7,
+        "god_files": 247,
+        "protected_bypass": 54
+      },
+      "before": {
+        "broad_exceptions": 1135,
+        "cycles": 7,
+        "god_files": 249,
+        "protected_bypass": 54
+      }
+    },
+    "equivalent": true,
+    "improved": true,
+    "improvements": [
+      "broad exception count decreased"
+    ],
+    "regressions": []
+  },
+  "decision_source": "/Users/bryan/.aura/live-source/.aura_architect/decisions/asa-run-1778212939-39335-071729bd.json",
+  "evidence": {
+    "architecture_quality": [
+      {
+        "evidence": {
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": ".....................................................                    [100%]\n53 passed in 3.30s\n"
+        },
+        "obligation_id": "architecture_quality:tests/test_architecture_hardening.py",
+        "passed": true,
+        "status": "passed"
+      }
+    ],
+    "critical_tests": [
+      {
+        "evidence": {
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "........................................................................ [ 19%]\n........................................................................ [ 39%]\n........................................................................ [ 58%]\n........................................................................ [ 78%]\n........................................................................ [ 97%]\n........                                                                 [100%]\n368 passed in 9.18s\n",
+          "tests": [
+            "tests/test_architecture_hardening.py",
+            "tests/test_server_runtime_hardening.py",
+            "tests/test_self_modification_sandbox_policy.py"
+          ]
+        },
+        "obligation_id": "critical_tests",
+        "passed": true,
+        "status": "passed"
+      }
+    ],
+    "minimal_runtime_simulation": [
+      {
+        "evidence": {
+          "exit_code": 0,
+          "stderr": "2026-05-07 21:02:51,187 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).\nredis package not installed \u2014 EventBus running in local-only mode.\nKernel.ThoughtStream - INFO - ThoughtEmitter initialized.\nAura.Scheduler - INFO - \ud83d\ude80 Scheduler started.\nAura.Scheduler - INFO - Shutting down scheduler...\nAura.Scheduler - INFO - Scheduler main loop cancelled cleanly.\nAura.Scheduler - INFO - Scheduler disengaged.\nSecurity.AuditTrail - INFO - \u2713 Audit Trail initialized: /Users/bryan/.aura/data/audit_trail.db\nSkills.ImageGeneration - ERROR - Flux not installed. Install with: pip install diffusers torch torchvision torchaudio accelerate\nSkills.UnifiedBrowser - WARNING - Selenium not found.\n",
+          "stdout": "e']\n  [\u2713] E.core.reddit_adapter (65.3ms) \u2014 entries=['BaseSkill.execute', 'RedditAdapterSkill.execute', 'Reddit_adapterSkill.execute']\n  [\u2713] E.core.secure_sandbox (0.5ms) \u2014 entries=['SecureDockerSandbox.execute_code']\n  [\u2713] E.core.self_evolution (1.6ms) \u2014 entries=['BaseSkill.execute', 'SelfEvolutionSkill.execute']\n  [\u2713] E.core.self_improvement (1.2ms) \u2014 entries=['BaseSkill.execute', 'SelfImprovementSkill.execute']\n  [\u2713] E.core.self_repair (0.9ms) \u2014 entries=['BaseSkill.execute', 'SelfRepairSkill.execute']\n  [\u2713] E.core.self_repair_legacy (0.3ms) \u2014 entries=['SelfRepairSkill.execute']\n  [\u2713] E.core.skill_evolution (8.4ms) \u2014 entries=['SkillEvolver.generate_skill']\n  [\u2713] E.core.sleep (0.5ms) \u2014 entries=['BaseSkill.execute', 'SleepSkill.execute']\n  [\u2713] E.core.social_lurker (0.7ms) \u2014 entries=['BaseSkill.execute', 'LurkerSkill.execute']\n  [\u2713] E.core.sovereign_browser (2.3ms) \u2014 entries=['BaseSkill.execute', 'SovereignBrowserSkill.execute']\n  [\u2713] E.core.sovereign_imagination (0.8ms) \u2014 entries=['BaseSkill.execute', 'SovereignImaginationSkill.execute']\n  [\u2713] E.core.sovereign_network (2.0ms) \u2014 entries=['BaseSkill.execute', 'SovereignNetworkSkill.execute', 'Sovereign_networkSkill.execute']\n  [\u2713] E.core.sovereign_terminal (1.2ms) \u2014 entries=['BaseSkill.execute', 'SovereignTerminalSkill.execute']\n  [\u2713] E.core.speak (0.6ms) \u2014 entries=['BaseSkill.execute', 'SpeakSkill.execute']\n  [\u2713] E.core.swarm_delegation (1.1ms) \u2014 entries=['BaseSkill.execute', 'ParallelAgentsSkill.execute', 'SpawnAgentSkill.execute']\n  [\u2713] E.core.system_proprioception (0.5ms) \u2014 entries=['BaseSkill.execute', 'SystemProprioceptionSkill.execute']\n  [\u2713] E.core.test_generator (0.8ms) \u2014 entries=['BaseSkill.execute', 'TestGeneratorSkill.execute']\n  [\u2713] E.core.toggle_senses (0.9ms) \u2014 entries=['BaseSkill.execute', 'ToggleSensesSkill.execute']\n  [\u2713] E.core.toolbox_web_agent (0.8ms) \u2014 entries=['BrowserWebAgent.execute']\n  [\u2713] E.core.train_self (0.7ms) \u2014 entries=['BaseSkill.execute', 'TrainSelfSkill.execute']\n  [\u2713] E.core.uplink_local (0.2ms) \u2014 entries=['BaseSkill.execute', 'UplinkSkill.execute']\n  [\u2713] E.core.vision_actor (19.2ms) \u2014 entries=['BaseSkill.execute', 'VisionActorSkill.execute', 'get_pyautogui']\n  [\u2713] E.core.visual_context_skill (0.3ms) \u2014 entries=['BaseSkill.execute', 'VisualContextSkill.execute']\n  [\u2713] E.core.web_search (0.0ms) \u2014 entries=['BaseSkill.execute', 'EnhancedWebSearchSkill.execute']\n  [\u2713] E.core.web_search_skill (0.5ms) \u2014 entries=['EnhancedWebSearchSkill.execute', 'WebSearchSkill.execute']\n  [\u2713] E.legacy.browser_action (1.7ms) \u2014 entries=['UnifiedBrowserSkill.execute']\n  [\u2713] E.legacy.clock (0.1ms) \u2014 entries=['BaseSkill.execute', 'ClockSkill.execute']\n  [\u2713] E.legacy.computer_use (0.2ms) \u2014 entries=['ComputerUseSkill.execute']\n  [\u2713] E.legacy.curiosity (0.1ms) \u2014 entries=['BaseSkill.execute', 'CuriositySkill.execute']\n  [\u2713] E.legacy.environment_info (0.1ms) \u2014 entries=['BaseSkill.execute', 'EnvironmentSkill.execute']\n  [\u2713] E.legacy.file_operation (0.1ms) \u2014 entries=['BaseSkill.execute', 'FileOperationSkill.execute']\n  [\u2713] E.legacy.free_search (0.1ms) \u2014 entries=['EnhancedWebSearchSkill.execute', 'FreeSearchSkill.execute', 'free_search.execute']\n  [\u2713] E.legacy.hobbies (2.8ms) \u2014 entries=['get_hobby_engine']\n  [\u2713] E.legacy.inter_agent_comm (0.1ms) \u2014 entries=['BaseSkill.execute', 'InterAgentCommSkill.execute']\n  [\u2713] E.legacy.internal_sandbox (0.1ms) \u2014 entries=['BaseSkill.execute', 'SandboxSkill.execute']\n  [\u2713] E.legacy.joy_social_integration (5.6ms) \u2014 entries=['JoySocialCoordinator.tick', 'get_hobby_engine', 'get_social_engine']\n  [\u2713] E.legacy.knowledge_base (0.5ms) \u2014 entries=['KnowledgeBaseSkill.execute']\n  [\u2713] E.legacy.listen (0.1ms) \u2014 entries=['AudioListenerSkill.execute', 'BaseSkill.execute']\n  [\u2713] E.legacy.malware_analysis (0.1ms) \u2014 entries=['BaseSkill.execute', 'MalwareAnalysisSkill.execute']\n  [\u2713] E.legacy.memory_ops (0.1ms) \u2014 entries=['BaseSkill.execute', 'MemoryOpsSkill.execute']\n  [\u2713] E.legacy.native_chat (0.1ms) \u2014 entries=['BaseSkill.execute', 'NativeChatSkill.execute']\n  [\u2713] E.legacy.network_discovery (0.4ms) \u2014 entries=['NetworkDiscovery.execute']\n  [\u2713] E.legacy.network_ops (0.3ms) \u2014 entries=['NetworkOpsSkill.execute']\n  [\u2713] E.legacy.os_manipulation (0.1ms) \u2014 entries=['DesktopControlSkill.execute']\n  [\u2713] E.legacy.personality_skill (0.1ms) \u2014 entries=['BaseSkill.execute', 'PersonalitySkill.execute']\n  [\u2713] E.legacy.self_evolution (0.1ms) \u2014 entries=['BaseSkill.execute', 'SelfEvolutionSkill.execute']\n  [\u2713] E.legacy.self_improvement (0.1ms) \u2014 entries=['BaseSkill.execute', 'SelfImprovementSkill.execute']\n  [\u2713] E.legacy.self_repair (0.1ms) \u2014 entries=['SelfRepairSkill.execute']\n  [\u2713] E.legacy.shell (0.7ms) \u2014 entries=['ShellSkill.execute']\n  [\u2713] E.legacy.sleep (0.1ms) \u2014 entries=['BaseSkill.execute', 'SleepSkill.execute']\n  [\u2713] E.legacy.social_lurker (0.1ms) \u2014 entries=['BaseSkill.execute', 'LurkerSkill.execute']\n  [\u2713] E.legacy.social_media (0.2ms) \u2014 entries=['SocialVoice.generate_post', 'get_social_engine']\n  [\u2713] E.legacy.speak (0.1ms) \u2014 entries=['SpeakSkill.execute', 'VoiceSkill.execute']\n  [\u2713] E.legacy.system_ops (0.3ms) \u2014 entries=['SystemOpsSkill.execute']\n  [\u2713] E.legacy.train_self (0.1ms) \u2014 entries=['TrainSelfSkill.execute']\n  [\u2713] E.legacy.uplink_local (0.1ms) \u2014 entries=['BaseSkill.execute', 'UplinkSkill.execute']\n  [\u2713] E.legacy.web_search (0.1ms) \u2014 entries=['EnhancedWebSearchSkill.execute']\n\n== F. Agency Probe (self-initiation vs. puppeted) (2/2 passed) ==\n  [\u2713] F.1 Will approves \u226550% of self-originated INITIATIVE proposals (0.0ms) \u2014 8/8 approved (baseline_proceeds=260)\n  [\u2713] F.2 Will.state has coherent disposition metrics (0.0ms) \u2014 conf=0.70 assert=0.90 identity=0.80\n\n== G. Stress (500 concurrent Will.decide calls) (2/2 passed) ==\n  [\u2713] G.1 500 concurrent decisions completed with unique receipts (0.0ms) \u2014 500/500 unique, total_wall=8.4ms\n  [\u2713] G.2 stress p99 latency < 200ms (loose budget under 500x concurrency) (0.0ms) \u2014 p50=0.01ms  p99=0.01ms\n\n============================================================\nTOTAL: 146/146 passed, 0 failed\n"
+        },
+        "obligation_id": "minimal_runtime_simulation",
+        "passed": true,
+        "status": "passed"
+      }
+    ]
+  },
+  "failed_obligations": [],
+  "ghost_passed": true,
+  "passed": true,
+  "plan_id": "asa-effect-boundary-receipt-logging-725e18678590",
+  "promoted_files": [
+    "core/runtime/effect_boundary.py"
+  ],
+  "proof_result_count": 21,
+  "receipt_hash": "5681218534b8e90ffde6be04e94de6dffca5d690855cb66c45502e2a0984791d",
+  "run_id": "asa-run-1778212939-39335-071729bd",
+  "schema": "aura.architect.promoted_refactor.v1",
+  "source": "/Users/bryan/.aura/live-source/.aura_architect/shadow_runs/asa-run-1778212939-39335-071729bd/proof_receipt.json",
+  "status": "promoted"
+}

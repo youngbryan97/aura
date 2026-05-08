@@ -43,6 +43,7 @@ import logging
 import os
 import time
 import uuid
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from threading import RLock
@@ -97,16 +98,18 @@ class SpendIntent:
 # ─── adapters ──────────────────────────────────────────────────────────────
 
 
-class WalletAdapter:
+class WalletAdapter(ABC):
     name: str = "abstract"
     native_unit: str = "?"
 
+    @abstractmethod
     async def balance(self) -> float:  # pragma: no cover
-        raise RuntimeError(f"{type(self).__name__}.balance must be implemented by a wallet adapter")
+        raise NotImplementedError
 
+    @abstractmethod
     async def submit_spend(self, intent: SpendIntent) -> str:  # pragma: no cover
         """Returns a transaction id."""
-        raise RuntimeError(f"{type(self).__name__}.submit_spend must be implemented by a wallet adapter")
+        raise NotImplementedError
 
 
 class InMemoryAdapter(WalletAdapter):

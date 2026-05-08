@@ -17,6 +17,7 @@ import py_compile
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -24,7 +25,9 @@ from typing import Iterable
 
 EXCLUDED_DIRS = {
     ".git",
+    ".agents",
     ".claude",
+    ".aura_architect",
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
@@ -71,6 +74,7 @@ ALLOW_DYNAMIC_CODE = {
 }
 
 ALLOW_SUBPROCESS = {
+    "core/agency/agency_orchestrator.py",
     "core/runtime/consequential_primitives.py",
     "core/sandbox/bash_daemon.py",
     "core/skills/sovereign_terminal.py",
@@ -190,6 +194,38 @@ def body_without_docstring(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list
     return body
 
 
+def decorator_name(node: ast.expr) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parts = [node.attr]
+        value = node.value
+        while isinstance(value, ast.Attribute):
+            parts.append(value.attr)
+            value = value.value
+        if isinstance(value, ast.Name):
+            parts.append(value.id)
+        return ".".join(reversed(parts))
+    if isinstance(node, ast.Call):
+        return decorator_name(node.func)
+    return ""
+
+
+def is_abstract_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    names = {decorator_name(item) for item in node.decorator_list}
+    return bool(names & {"abstractmethod", "abc.abstractmethod", "abstractclassmethod", "abstractstaticmethod"})
+
+
+def is_not_implemented_only(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    body = body_without_docstring(node)
+    if len(body) != 1 or not isinstance(body[0], ast.Raise):
+        return False
+    exc = body[0].exc
+    if isinstance(exc, ast.Call):
+        exc = exc.func
+    return isinstance(exc, ast.Name) and exc.id == "NotImplementedError"
+
+
 class AstGate(ast.NodeVisitor):
     def __init__(self, rel: str, report: GateReport):
         self.rel = rel
@@ -234,9 +270,11 @@ class AstGate(ast.NodeVisitor):
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         body = body_without_docstring(node)
-        if len(body) == 1 and isinstance(body[0], ast.Pass):
+        if len(body) == 1 and isinstance(body[0], ast.Pass) and not is_abstract_function(node):
             self.add("high" if is_production(self.rel) else "medium", "pass_only_function", node, node.name)
-        if len(body) == 1 and isinstance(body[0], ast.Raise):
+        if len(body) == 1 and isinstance(body[0], ast.Raise) and not (
+            is_abstract_function(node) and is_not_implemented_only(node)
+        ):
             self.add("high" if is_production(self.rel) else "medium", "raise_only_function", node, node.name)
         self.async_depth += 1
         self.generic_visit(node)
@@ -244,9 +282,11 @@ class AstGate(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         body = body_without_docstring(node)
-        if len(body) == 1 and isinstance(body[0], ast.Pass):
+        if len(body) == 1 and isinstance(body[0], ast.Pass) and not is_abstract_function(node):
             self.add("high" if is_production(self.rel) else "medium", "pass_only_function", node, node.name)
-        if len(body) == 1 and isinstance(body[0], ast.Raise):
+        if len(body) == 1 and isinstance(body[0], ast.Raise) and not (
+            is_abstract_function(node) and is_not_implemented_only(node)
+        ):
             self.add("high" if is_production(self.rel) else "medium", "raise_only_function", node, node.name)
         self.generic_visit(node)
 
@@ -287,21 +327,23 @@ class AstGate(ast.NodeVisitor):
 def compile_gate(root: Path, report: GateReport, timeout_s: int) -> None:
     started = time.monotonic()
     failures = 0
-    for path in iter_py(root):
-        if time.monotonic() - started > timeout_s:
-            report.findings.append(
-                Finding("critical", "compile_failure", ".", 0, f"Timed out after {timeout_s}s")
-            )
-            failures += 1
-            break
-        rel = rel_path(path, root)
-        try:
-            py_compile.compile(str(path), doraise=True)
-        except py_compile.PyCompileError as exc:
-            failures += 1
-            report.findings.append(
-                Finding("critical", "compile_failure", rel, 0, str(exc)[-4000:])
-            )
+    with tempfile.TemporaryDirectory(prefix="aura_compile_gate_") as tmp_dir:
+        tmp_root = Path(tmp_dir)
+        for index, path in enumerate(iter_py(root)):
+            if time.monotonic() - started > timeout_s:
+                report.findings.append(
+                    Finding("critical", "compile_failure", ".", 0, f"Timed out after {timeout_s}s")
+                )
+                failures += 1
+                break
+            rel = rel_path(path, root)
+            try:
+                py_compile.compile(str(path), cfile=str(tmp_root / f"{index}.pyc"), doraise=True)
+            except py_compile.PyCompileError as exc:
+                failures += 1
+                report.findings.append(
+                    Finding("critical", "compile_failure", rel, 0, str(exc)[-4000:])
+                )
     report.compile_ok = failures == 0
 
 

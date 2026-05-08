@@ -114,7 +114,7 @@ class GlobalWorkspace:
         and forces genuine competition.
     """
 
-    _INHIBIT_TICKS: int = 3       # How many ticks a loser is inhibited
+    _INHIBIT_TICKS: int = 1       # One refractory tick keeps competition moving without winner lock-in
     _MAX_CANDIDATES: int = 20     # Hard cap — prevents memory leak if submissions pile up
     _IGNITION_THRESHOLD: float = 0.6  # Priority above which workspace "ignites"
     _PHI_PRIORITY_BOOST: float = 0.15  # Max priority bonus for high-Φ sources

@@ -6,6 +6,7 @@ but this module is already executable and deterministic.
 """
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,12 +27,14 @@ class SimObservation:
         return {"position": self.position, "velocity": self.velocity, "target": self.target, "distance": self.distance}
 
 
-class SimulatorInterface:
+class SimulatorInterface(ABC):
+    @abstractmethod
     def reset(self, seed: int = 0) -> SimObservation:
-        raise RuntimeError("SimulatorInterface.reset must be implemented by a concrete simulator")
+        raise NotImplementedError
 
+    @abstractmethod
     def step(self, action: tuple[float, float]) -> SimObservation:
-        raise RuntimeError("SimulatorInterface.step must be implemented by a concrete simulator")
+        raise NotImplementedError
 
 
 class LocalPhysics2DSimulator(SimulatorInterface):

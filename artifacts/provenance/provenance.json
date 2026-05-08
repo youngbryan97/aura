@@ -1,0 +1,72 @@
+{
+  "builder": "tools/build_provenance.py",
+  "generated_at": 1778214999.918463,
+  "git_commit": "aaf26f48790a5c40e8e16ec9ddbae2bc95c11b9b",
+  "git_dirty": null,
+  "git_status_short": "unavailable_without_git_subprocess",
+  "materials": [
+    {
+      "path": "pyproject.toml",
+      "sha256": "66fc6dd2549027a84bd36f23aca5d86303cdb5b65200fedc4c0f6c3e15ee9702"
+    },
+    {
+      "path": "requirements/core.txt",
+      "sha256": "d0fc81d475c9ddfa570a9e19e94381504cb27997f06b81c1db9ff25347dcbb98"
+    },
+    {
+      "path": "requirements/dev.txt",
+      "sha256": "7eea70a48b1b9a7bc3bccc517d6d26cd3c591b90d3cadeaab4d06348598f36f7"
+    },
+    {
+      "path": "Makefile",
+      "sha256": "4347870f0b3736acf4abf5487d505c38812d87bdcdf05af7991d394b06665a5f"
+    },
+    {
+      "path": ".github/workflows/enterprise-gate.yml",
+      "sha256": "9f5207c7a37de3b3c9232b2b45eee2fd618f10ac1d303ae7e3ab76a0ac89b04a"
+    },
+    {
+      "path": ".github/workflows/production-readiness.yml",
+      "sha256": "a2d02078623991b24adb5a85ea0a1033cbd85292d5bcd6284d62d6e04ede91ad"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "sha256": "1380d8db086d01dc4e11578ec9f6a1307d25e76197f1f0a88519fc4b47b479d8"
+    },
+    {
+      "path": "tools/aura_enterprise_gate.py",
+      "sha256": "124eb94451d1734d13b990998c57ed4383edb884119cd9945ef291e009894fcb"
+    },
+    {
+      "path": "tools/aura_production_readiness_gate.py",
+      "sha256": "6605fd9e933cff42a06ef1dc1d5f9dbf429fdeb35f188af496160b820937e28b"
+    },
+    {
+      "path": "tools/security_scan.py",
+      "sha256": "3ca8385ad2ac802241d0c34d9602805b0a41b5f30603f615cf82e2ed416a7e84"
+    },
+    {
+      "path": "tools/proof_bundle.py",
+      "sha256": "3d39fa7e20ccea083989ad9e3e935c529b812a3925896ac37cefd620bb91b1af"
+    },
+    {
+      "path": "docs/PRODUCTION_READINESS_STANDARD.md",
+      "sha256": "0559be783da03fb08b5882a4087dbfb5aa8f97619cf20f46044d6f9d64ea8e19"
+    },
+    {
+      "path": "docs/DATA_RETENTION_DELETION_POLICY.md",
+      "sha256": "6e2d31bef93cabd3bb21f3421005d193718daa33316135b37762a3f4266d3b8f"
+    },
+    {
+      "path": "docs/MODEL_PROVIDER_FAILURE_POLICY.md",
+      "sha256": "75113630f3ae505d32c8a2d30e3b573e8fd831f0f791041a6ccb7aa8d5620f3e"
+    },
+    {
+      "path": "docs/OPERATOR_GUIDE.md",
+      "sha256": "2a4ce662efc3cd51d19ce5f71f442c0fcbc163b83e8b199f99738d1f0676f9cb"
+    }
+  ],
+  "python_version": "3.12.13",
+  "sbom_path": "sbom.json",
+  "schema": "aura-release-provenance/v1"
+}

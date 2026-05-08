@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
-from core.skills.base_skill import BaseSkill
+from core.skills.base_skill import BaseSkill, SkillResult
 
 logger = logging.getLogger("Skills.BeliefOps")
 

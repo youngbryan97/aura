@@ -21,7 +21,7 @@
       "core/runtime/activation_audit.py"
     ]
   },
-  "generated_at": 1778115722.614856,
+  "generated_at": 1778215005.210627,
   "live_missing_required": [
     "mind_tick",
     "scheduler",
@@ -122,7 +122,7 @@
             "ledger_path": "/Users/bryan/.aura/data/runtime/autonomy_conductor.jsonl"
           }
         },
-        "starter_result": "<core.runtime.autonomy_conductor.AutonomyConductor object at 0x11a0b17c0>",
+        "starter_result": "<core.runtime.autonomy_conductor.AutonomyConductor object at 0x11542e270>",
         "task_hits": []
       },
       "name": "autonomy_conductor",
@@ -177,7 +177,7 @@
         "service_hits": [
           "scar_formation"
         ],
-        "starter_result": "<core.memory.scar_formation.ScarFormationSystem object at 0x119968770>",
+        "starter_result": "<core.memory.scar_formation.ScarFormationSystem object at 0x115383e30>",
         "task_hits": []
       },
       "name": "scar_formation",
@@ -314,7 +314,7 @@
               ]
             },
             "errors": [],
-            "generated_at": 1778115722.598516,
+            "generated_at": 1778215005.195969,
             "live_inputs": {
               "degradation_pressure": 0.0,
               "governance_score": 0.85,
@@ -362,7 +362,7 @@
             ]
           },
           "errors": [],
-          "generated_at": 1778115722.598516,
+          "generated_at": 1778215005.195969,
           "live_inputs": {
             "degradation_pressure": 0.0,
             "governance_score": 0.85,
@@ -436,11 +436,53 @@
           "concurrency_health": {
             "active_tasks": 1,
             "degradation_total": 0,
-            "dlq_recent": 0,
-            "dlq_total": 196,
+            "dlq_recent": 1,
+            "dlq_total": 202,
             "evidence": {
               "dead_letter_queue": {
                 "recent": [
+                  {
+                    "created_at": 1778214596.800864,
+                    "error": "Test error",
+                    "id": "e4cb0981",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1778213917.32214,
+                    "error": "Test error",
+                    "id": "346cdcf1",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1778213389.381782,
+                    "error": "Test error",
+                    "id": "e5e6fe46",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1778200829.4143329,
+                    "error": "Test error",
+                    "id": "94277c88",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1778197111.0937889,
+                    "error": "Test error",
+                    "id": "142ea8a9",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
+                  {
+                    "created_at": 1778196453.033342,
+                    "error": "Test error",
+                    "id": "0e1afa42",
+                    "params": "{\"param\": 1}",
+                    "skill_name": "test_skill"
+                  },
                   {
                     "created_at": 1778041146.5427752,
                     "error": "Test error",
@@ -468,53 +510,11 @@
                     "id": "627426c3",
                     "params": "{\"param\": 1}",
                     "skill_name": "test_skill"
-                  },
-                  {
-                    "created_at": 1778014247.212539,
-                    "error": "Test error",
-                    "id": "8e64d8e6",
-                    "params": "{\"param\": 1}",
-                    "skill_name": "test_skill"
-                  },
-                  {
-                    "created_at": 1777980710.989762,
-                    "error": "Test error",
-                    "id": "c257f0ec",
-                    "params": "{\"param\": 1}",
-                    "skill_name": "test_skill"
-                  },
-                  {
-                    "created_at": 1777967463.597922,
-                    "error": "Test error",
-                    "id": "3d74e545",
-                    "params": "{\"param\": 1}",
-                    "skill_name": "test_skill"
-                  },
-                  {
-                    "created_at": 1777967371.062052,
-                    "error": "Test error",
-                    "id": "fa4f9d39",
-                    "params": "{\"param\": 1}",
-                    "skill_name": "test_skill"
-                  },
-                  {
-                    "created_at": 1777956531.0522392,
-                    "error": "Test error",
-                    "id": "b13eef77",
-                    "params": "{\"param\": 1}",
-                    "skill_name": "test_skill"
-                  },
-                  {
-                    "created_at": 1777956099.331711,
-                    "error": "Test error",
-                    "id": "52798d5d",
-                    "params": "{\"param\": 1}",
-                    "skill_name": "test_skill"
                   }
                 ],
-                "recent_count": 0,
+                "recent_count": 1,
                 "recent_window_s": 900.0,
-                "total": 196
+                "total": 202
               },
               "degradations": {
                 "counts_by_subsystem": {},
@@ -544,9 +544,9 @@
             },
             "failed_tasks_total": 0,
             "passed": true,
-            "pressure": 0.0,
+            "pressure": 0.04,
             "recently_failed_tasks": 0,
-            "sampled_at": 1778115722.599908,
+            "sampled_at": 1778215005.197046,
             "stale_tasks": 0,
             "stalled_locks": 0
           }
@@ -554,11 +554,53 @@
         "starter_result": {
           "active_tasks": 1,
           "degradation_total": 0,
-          "dlq_recent": 0,
-          "dlq_total": 196,
+          "dlq_recent": 1,
+          "dlq_total": 202,
           "evidence": {
             "dead_letter_queue": {
               "recent": [
+                {
+                  "created_at": 1778214596.800864,
+                  "error": "Test error",
+                  "id": "e4cb0981",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1778213917.32214,
+                  "error": "Test error",
+                  "id": "346cdcf1",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1778213389.381782,
+                  "error": "Test error",
+                  "id": "e5e6fe46",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1778200829.4143329,
+                  "error": "Test error",
+                  "id": "94277c88",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1778197111.0937889,
+                  "error": "Test error",
+                  "id": "142ea8a9",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
+                {
+                  "created_at": 1778196453.033342,
+                  "error": "Test error",
+                  "id": "0e1afa42",
+                  "params": "{\"param\": 1}",
+                  "skill_name": "test_skill"
+                },
                 {
                   "created_at": 1778041146.5427752,
                   "error": "Test error",
@@ -586,53 +628,11 @@
                   "id": "627426c3",
                   "params": "{\"param\": 1}",
                   "skill_name": "test_skill"
-                },
-                {
-                  "created_at": 1778014247.212539,
-                  "error": "Test error",
-                  "id": "8e64d8e6",
-                  "params": "{\"param\": 1}",
-                  "skill_name": "test_skill"
-                },
-                {
-                  "created_at": 1777980710.989762,
-                  "error": "Test error",
-                  "id": "c257f0ec",
-                  "params": "{\"param\": 1}",
-                  "skill_name": "test_skill"
-                },
-                {
-                  "created_at": 1777967463.597922,
-                  "error": "Test error",
-                  "id": "3d74e545",
-                  "params": "{\"param\": 1}",
-                  "skill_name": "test_skill"
-                },
-                {
-                  "created_at": 1777967371.062052,
-                  "error": "Test error",
-                  "id": "fa4f9d39",
-                  "params": "{\"param\": 1}",
-                  "skill_name": "test_skill"
-                },
-                {
-                  "created_at": 1777956531.0522392,
-                  "error": "Test error",
-                  "id": "b13eef77",
-                  "params": "{\"param\": 1}",
-                  "skill_name": "test_skill"
-                },
-                {
-                  "created_at": 1777956099.331711,
-                  "error": "Test error",
-                  "id": "52798d5d",
-                  "params": "{\"param\": 1}",
-                  "skill_name": "test_skill"
                 }
               ],
-              "recent_count": 0,
+              "recent_count": 1,
               "recent_window_s": 900.0,
-              "total": 196
+              "total": 202
             },
             "degradations": {
               "counts_by_subsystem": {},
@@ -662,9 +662,9 @@
           },
           "failed_tasks_total": 0,
           "passed": true,
-          "pressure": 0.0,
+          "pressure": 0.04,
           "recently_failed_tasks": 0,
-          "sampled_at": 1778115722.599908,
+          "sampled_at": 1778215005.197046,
           "stale_tasks": 0,
           "stalled_locks": 0
         },

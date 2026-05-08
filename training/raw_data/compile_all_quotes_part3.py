@@ -54,7 +54,7 @@ def append_part_3():
     try:
         with open('/Users/bryan/.aura/live-source/training/raw_data/verbatim_quotes_final.json', 'r') as f:
             existing_quotes = json.load(f)
-    except:
+    except (OSError, json.JSONDecodeError):
         existing_quotes = []
 
     compiled = []

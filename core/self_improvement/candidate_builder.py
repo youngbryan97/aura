@@ -11,11 +11,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Protocol
+from typing import Any, Optional, Protocol
 
 from core.self_improvement.blinded_workspace import BlindedWorkspace
 from core.self_improvement.interface_contract import (
     CandidateModule,
+    DiscrepancyReport,
     ModuleSpec,
 )
 

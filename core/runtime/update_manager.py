@@ -41,6 +41,7 @@ import tarfile
 import tempfile
 import time
 import uuid
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -88,11 +89,12 @@ class UpdateAttempt:
 # ─── transport ─────────────────────────────────────────────────────────────
 
 
-class UpdateTransport:
+class UpdateTransport(ABC):
     name: str = "abstract"
 
+    @abstractmethod
     async def list_available(self, channel: Channel) -> List[Release]:  # pragma: no cover
-        raise RuntimeError(f"{type(self).__name__}.list_available must be implemented by a transport")
+        raise NotImplementedError
 
 
 class LocalFileTransport(UpdateTransport):

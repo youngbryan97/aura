@@ -211,6 +211,8 @@ class CodeValidator:
     
     def calculate_checksum(self, code: str) -> str:
         """Calculate checksum of code"""
+        import hashlib
+
         return hashlib.sha256(code.encode('utf-8')).hexdigest()[:16]
 
 

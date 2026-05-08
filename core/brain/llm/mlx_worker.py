@@ -21,7 +21,7 @@ from .model_registry import resolve_personality_adapter
 
 import re
 
-from typing import Optional
+logger = logging.getLogger("MLXWorker")
 
 def _sanitize_telemetry_leakage(text: str) -> Optional[str]:
     """Strip leaked internal telemetry labels and paths that occasionally 
@@ -945,19 +945,20 @@ def _mlx_worker_loop(
                         try:
                             if prompt_cache_lru is not None:
                                 prompt_cache_lru.clear()
-                        except Exception:
-                            pass  # no-op: intentional
+                        except (AttributeError, RuntimeError) as exc:
+                            logger.debug("Prompt cache clear failed after zero-token generation: %s", exc)
                         if mx and device != "cpu":
                             _clear_mlx_cache(mx)
                     
                     # [v12.0 HARDENING] Post-generation telemetry sanitizer
                     sanitized_text = _sanitize_telemetry_leakage(response_text)
                     if sanitized_text is None:
-                        if internal_attempt < max_retries - 1:
+                        if internal_attempt < max_internal_retries:
                             logger.warning("🚨 [WORKER] Hallucination detected by sanitizer. Retrying generation cleanly...")
                             try:
                                 if prompt_cache_lru is not None: prompt_cache_lru.clear()
-                            except Exception: pass
+                            except (AttributeError, RuntimeError) as exc:
+                                logger.debug("Prompt cache clear failed after sanitizer retry: %s", exc)
                             if mx and device != "cpu": _clear_mlx_cache(mx)
                             
                             kwargs["temperature"] = min(1.0, kwargs.get("temperature", 0.7) + 0.1)

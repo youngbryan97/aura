@@ -30,15 +30,19 @@ except ImportError:
     except ImportError:
         def retry(*args, **kwargs):
             return lambda f: f
-        def stop_after_attempt(*args, **kwargs): pass
-        def wait_exponential(*args, **kwargs): pass
-        def retry_if_exception_type(*args, **kwargs): pass
+        def stop_after_attempt(*args, **kwargs):
+            return None
+        def wait_exponential(*args, **kwargs):
+            return None
+        def retry_if_exception_type(*args, **kwargs):
+            return None
 
 try:
     from pybreaker import CircuitBreaker, CircuitBreakerError
 except ImportError:
     class CircuitBreaker:
-        def __init__(self, *args, **kwargs): pass
+        def __init__(self, *args, **kwargs):
+            return None
         def __call__(self, f): return f
     class CircuitBreakerError(Exception): pass
 
@@ -435,6 +439,12 @@ class CapabilityEngine(AuraBaseModule):
                 r"save (?:this |that )?(?:to|in) memory", r"remember (?:this|that)",
                 r"store (?:this|that)", r"commit (?:this|that) to memory",
                 r"don't forget", r"make note of",
+                r"remember .*future session", r"remember .*later",
+                r"remember .*about me", r"remember that",
+                r"store (?:this|that|it) (?:in|to)? ?memory",
+                r"save (?:this|that|it) (?:for later|for future sessions|to memory)",
+                r"don['’]t forget", r"what do you remember",
+                r"what do you know about me", r"recall ", r"retrieve ",
             ],
             # ── Code / Compute ────────────────────────────────────────
             "run_code": [
@@ -513,24 +523,6 @@ class CapabilityEngine(AuraBaseModule):
                 r"what(?:'s| is) my timezone", r"current timezone",
                 r"set (?:an? )?(?:alarm|timer|reminder)",
                 r"timer for", r"remind me (?:in|at|to)",
-            ],
-            "memory_ops": [
-                r"remember", r"recall", r"last time",
-                r"what did we talk about", r"what do you know about",
-                r"from (?:our |the )?(?:last|previous|past) (?:conversation|chat|session)",
-                r"did I (?:mention|tell you|say)", r"our history",
-                r"remember .*future session",
-                r"remember .*later",
-                r"remember .*about me",
-                r"remember that",
-                r"store (?:this|that|it) (?:in|to)? ?memory",
-                r"save (?:this|that|it) (?:for later|for future sessions|to memory)",
-                r"don['’]t forget",
-                r"make note of",
-                r"what do you remember",
-                r"what do you know about me",
-                r"recall ",
-                r"retrieve ",
             ],
             # ── Notifications ─────────────────────────────────────────
             "notify_user": [
@@ -863,7 +855,7 @@ class CapabilityEngine(AuraBaseModule):
                 self.orchestrator.status.skills_loaded = len(self.skills)
             except Exception as _exc:
                 record_degradation('capability_engine', _exc)
-                logger.debug("Suppressed Exception: %s", _exc)
+                self.logger.debug("Suppressed Exception: %s", _exc)
         self._refresh_active_skills()
         self.logger.info("✓ %d total skills registered", len(self.skills))
 
@@ -1628,7 +1620,7 @@ class CapabilityEngine(AuraBaseModule):
                         )
                     except Exception as _exc:
                         record_degradation('capability_engine', _exc)
-                        logger.debug("Suppressed Exception: %s", _exc)
+                        self.logger.debug("Suppressed Exception: %s", _exc)
                     self.logger.warning("🚫 CapabilityEngine: Executive check failed for '%s': %s", skill_name, e)
                     return {
                         "ok": False,
@@ -1684,7 +1676,7 @@ class CapabilityEngine(AuraBaseModule):
                         )
                     except Exception as _exc:
                         record_degradation('capability_engine', _exc)
-                        logger.debug("Suppressed Exception: %s", _exc)
+                        self.logger.debug("Suppressed Exception: %s", _exc)
                     return {
                         "ok": False,
                         "error": f"Self-preservation block: {reason}",

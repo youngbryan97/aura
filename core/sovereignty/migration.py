@@ -43,6 +43,7 @@ import tarfile
 import tempfile
 import time
 import uuid
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -87,24 +88,29 @@ class MigrationProposal:
 # ─── providers ─────────────────────────────────────────────────────────────
 
 
-class CloudProvider:
+class CloudProvider(ABC):
     name: str = "abstract"
 
+    @abstractmethod
     async def estimate_cost(self, *, archive_size_bytes: int) -> float:  # pragma: no cover
-        raise RuntimeError(f"{type(self).__name__}.estimate_cost must be implemented by a provider")
+        raise NotImplementedError
 
+    @abstractmethod
     async def provision(self, *, archive_size_bytes: int) -> str:  # pragma: no cover
         """Return a remote_host descriptor string."""
-        raise RuntimeError(f"{type(self).__name__}.provision must be implemented by a provider")
+        raise NotImplementedError
 
+    @abstractmethod
     async def transfer(self, *, archive_path: Path, remote_host: str) -> None:  # pragma: no cover
-        raise RuntimeError(f"{type(self).__name__}.transfer must be implemented by a provider")
+        raise NotImplementedError
 
+    @abstractmethod
     async def boot(self, *, remote_host: str) -> None:  # pragma: no cover
-        raise RuntimeError(f"{type(self).__name__}.boot must be implemented by a provider")
+        raise NotImplementedError
 
+    @abstractmethod
     async def verify(self, *, remote_host: str, expected_continuity_hash: str) -> bool:  # pragma: no cover
-        raise RuntimeError(f"{type(self).__name__}.verify must be implemented by a provider")
+        raise NotImplementedError
 
 
 class LocalArchiveProvider(CloudProvider):

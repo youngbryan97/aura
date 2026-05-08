@@ -3,6 +3,7 @@ Sets up and manages local LLM servers for complete autonomy.
 Includes failsafes to ensure the "Titan" model is pulled and loaded.
 """
 from core.runtime.errors import record_degradation
+import asyncio
 import logging
 import os
 import subprocess

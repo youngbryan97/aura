@@ -112,7 +112,7 @@ def _violations_in_file(path: Path) -> List[Tuple[Path, int, str]]:
         return []
     try:
         src = path.read_text(encoding="utf-8")
-    except Exception:
+    except OSError:
         return []
     try:
         tree = ast.parse(src, filename=str(path))

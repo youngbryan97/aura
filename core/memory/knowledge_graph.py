@@ -3,6 +3,7 @@ Aura's knowledge persists forever across sessions.
 v5.0: Thread-safe with WAL mode.
 """
 from core.runtime.errors import record_degradation
+import asyncio
 import hashlib
 import json
 import logging
