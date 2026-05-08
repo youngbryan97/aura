@@ -1,7 +1,7 @@
 """Hindsight replay and transferable causal policy extraction."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from .command import ActionIntent
@@ -20,7 +20,10 @@ class ReplayTransition:
     before_hash: str
     after_hash: str
     success_score: float
+    harm_score: float
+    surprise: float
     is_death: bool
+    lesson: str
     observed_events: tuple[str, ...]
 
 
@@ -66,7 +69,10 @@ class HindsightReplayBuffer:
             before_hash=before.stable_hash(),
             after_hash=after.stable_hash(),
             success_score=float(outcome.success_score),
+            harm_score=float(outcome.harm_score),
+            surprise=float(outcome.surprise),
             is_death=bool(outcome.is_death),
+            lesson=str(outcome.lesson or ""),
             observed_events=tuple(observed_events),
         )
         self.transitions.append(transition)
@@ -81,6 +87,10 @@ class HindsightReplayBuffer:
             if trigger == "unknown_direct_action" and "unknown" in tags:
                 rules.append(rule)
             elif trigger == f"action_failed:{action.name}":
+                rules.append(rule)
+            elif trigger == "prediction_mismatch_requires_observation":
+                rules.append(rule)
+            elif trigger == "harmful_repetition_requires_stabilization":
                 rules.append(rule)
             elif environment_family and environment_family in rule.transfer_tags:
                 rules.append(rule)
@@ -98,6 +108,30 @@ class HindsightReplayBuffer:
                 "Prefer low-cost information gathering before direct use of uncertain assets.",
                 unknown_failures,
                 ("terminal_grid", "browser", "desktop", "shell", "api"),
+            )
+        surprise_failures = [
+            item for item in self.transitions
+            if item.surprise >= 0.5 and item.success_score < 0.55
+        ]
+        if len(surprise_failures) >= 2:
+            self._set_rule(
+                "prediction_mismatch_requires_observation",
+                "prediction_mismatch_requires_observation",
+                "When prediction error repeats, stop the current tactic and gather fresh evidence before acting again.",
+                surprise_failures,
+                ("terminal_grid", "browser", "desktop", "shell", "api", "code", "social"),
+            )
+        harmful = [
+            item for item in self.transitions
+            if item.harm_score >= 0.2 or item.is_death
+        ]
+        if harmful:
+            self._set_rule(
+                "harmful_repetition_requires_stabilization",
+                "harmful_repetition_requires_stabilization",
+                "Treat repeated harm as a mode switch: stabilize, checkpoint, or rollback before pursuing the goal.",
+                harmful,
+                tuple(sorted({item.environment_family for item in harmful} | {"desktop", "shell", "api"})),
             )
         by_action: dict[str, list[ReplayTransition]] = {}
         for item in self.transitions:

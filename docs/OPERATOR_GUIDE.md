@@ -14,6 +14,8 @@ git clone https://github.com/youngbryan97/aura
 cd aura
 make setup        # creates .venv, installs runtime requirements
 make quality      # compile + lint + governance-lint + typecheck + smoke
+make production-gate
+make provenance   # writes artifacts/provenance/{sbom,provenance}.json
 make run          # foreground launch
 ```
 
@@ -58,6 +60,20 @@ The trace defaults to `~/.aura/logs/nethack/kernel_trace.jsonl`.
 The deliberate platform decisions — RBAC, SSO, tenant isolation, DR,
 plugin signing — are declared in [`docs/PLATFORM_POSTURE.md`](PLATFORM_POSTURE.md)
 along with what enforces each one in code.
+
+## Production readiness
+The non-longevity production bar is
+[`docs/PRODUCTION_READINESS_STANDARD.md`](PRODUCTION_READINESS_STANDARD.md).
+It covers clean-clone install, compile, collection, full tests, quality,
+governance bypass sweeps, proof bundle regeneration, signed release,
+SBOM/provenance, privacy, incident response, rollback, model/provider failure,
+and replayable memory/state writes.
+
+## Privacy and retention
+Retention/deletion rules are in
+[`docs/DATA_RETENTION_DELETION_POLICY.md`](DATA_RETENTION_DELETION_POLICY.md).
+Continuous experience frames enforce private and standard retention windows and
+redact private exports by default.
 
 ## Service-level objectives
 The contract operators can hold Aura to lives in [`docs/SLO.md`](SLO.md).
@@ -116,6 +132,7 @@ malformed mutation cannot crash the parent process.
 - `AURA_DEEP_MODEL`   — heavy lane for solver tier
 - `AURA_LLM__MLX_DEEP_MODEL_PATH` — explicit on-disk path
 - Cloud fallback: Settings → Models → Cloud Fallback (off by default).
+- Failure policy: [`docs/MODEL_PROVIDER_FAILURE_POLICY.md`](MODEL_PROVIDER_FAILURE_POLICY.md).
 
 ## Performance tuning
 - Settings → Performance: cap on warm models (1, 2, or 3 concurrent

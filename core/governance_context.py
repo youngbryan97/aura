@@ -37,6 +37,7 @@ from __future__ import annotations
 import contextvars
 import functools
 import logging
+import os
 import time
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
@@ -78,7 +79,26 @@ class GovernanceViolation(RuntimeError):
 
 
 def governance_runtime_active() -> bool:
-    """Return True when the runtime should enforce hard governance."""
+    """Return True when the runtime should enforce hard governance.
+
+    Operator overrides let CI, release canaries, and adversarial audits force
+    governance checks to fail closed before the service container has completed
+    boot. That closes the early-boot/test bypass where critical sinks could
+    otherwise receive degraded tokens.
+    """
+    if os.getenv("AURA_GOVERNANCE_MODE", "").strip().lower() in {
+        "strict",
+        "enforce",
+        "production",
+    }:
+        return True
+    if os.getenv("AURA_REQUIRE_GOVERNANCE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "strict",
+    }:
+        return True
     try:
         from core.container import ServiceContainer
 
@@ -270,12 +290,12 @@ def governed(fn: Callable) -> Callable:
     """
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
-        require_governance(fn.__qualname__)
+        require_governance(fn.__qualname__, strict=True)
         return fn(*args, **kwargs)
 
     @functools.wraps(fn)
     async def async_wrapper(*args, **kwargs):
-        require_governance(fn.__qualname__)
+        require_governance(fn.__qualname__, strict=True)
         return await fn(*args, **kwargs)
 
     if _is_coroutine_function(fn):

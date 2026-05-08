@@ -1,0 +1,33 @@
+name: production-readiness
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  production-readiness:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run production readiness contract
+        env:
+          AURA_TEST_MODE: "1"
+        run: |
+          python tools/aura_production_readiness_gate.py --out production_readiness_report.json
+      - name: Generate provenance smoke
+        run: |
+          python tools/build_provenance.py --output-dir artifacts/provenance
+      - name: Upload readiness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-readiness
+          path: |
+            production_readiness_report.json
+            artifacts/provenance/sbom.json
+            artifacts/provenance/provenance.json

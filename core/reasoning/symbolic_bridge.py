@@ -33,10 +33,7 @@ class SymbolicBridge:
     def check_python_boolean(self, expression: str) -> SymbolicResult:
         try:
             tree = ast.parse(expression, mode="eval")
-            allowed = (ast.Expression, ast.BoolOp, ast.UnaryOp, ast.Compare, ast.NameConstant, ast.Constant, ast.And, ast.Or, ast.Not, ast.Eq, ast.NotEq)
-            if not all(isinstance(node, allowed) for node in ast.walk(tree)):
-                return SymbolicResult(False, "python_ast", "unsupported_expression", "restricted_ast_rejected")
-            value = eval(compile(tree, "<symbolic-boolean>", "eval"), {"__builtins__": {}}, {})
+            value = _evaluate_boolean_ast(tree)
             return SymbolicResult(True, "python_ast", bool(value), "restricted_ast_eval")
         except Exception as exc:
             return SymbolicResult(False, "python_ast", repr(exc), "solver_error")
@@ -48,14 +45,109 @@ class SymbolicBridge:
             solver = z3.Solver()
             names: dict[str, Any] = {}
             for raw in constraints:
-                for token in raw.replace("(", " ").replace(")", " ").replace("<=", " ").replace(">=", " ").replace("==", " ").replace("<", " ").replace(">", " ").split():
-                    if token.isidentifier() and token not in {"and", "or", "not"}:
-                        names.setdefault(token, z3.Real(token))
-                solver.add(eval(raw, {"__builtins__": {}}, names))
+                tree = ast.parse(raw, mode="eval")
+                solver.add(_z3_from_ast(tree, names, z3))
             status = solver.check()
             return SymbolicResult(True, "z3", status, str(solver.model()) if status == z3.sat else str(status))
         except Exception as exc:
             return SymbolicResult(False, "z3", repr(exc), "solver_unavailable_or_error")
+
+
+def _evaluate_boolean_ast(tree: ast.Expression) -> bool:
+    def value(node: ast.AST) -> Any:
+        if isinstance(node, ast.Expression):
+            return value(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (bool, int, float, str)):
+            return node.value
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            return not bool(value(node.operand))
+        if isinstance(node, ast.BoolOp):
+            vals = [bool(value(item)) for item in node.values]
+            if isinstance(node.op, ast.And):
+                return all(vals)
+            if isinstance(node.op, ast.Or):
+                return any(vals)
+        if isinstance(node, ast.Compare):
+            left = value(node.left)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = value(comparator)
+                if isinstance(op, ast.Eq):
+                    ok = left == right
+                elif isinstance(op, ast.NotEq):
+                    ok = left != right
+                elif isinstance(op, ast.Lt):
+                    ok = left < right
+                elif isinstance(op, ast.LtE):
+                    ok = left <= right
+                elif isinstance(op, ast.Gt):
+                    ok = left > right
+                elif isinstance(op, ast.GtE):
+                    ok = left >= right
+                else:
+                    raise ValueError(f"unsupported comparator: {type(op).__name__}")
+                if not ok:
+                    return False
+                left = right
+            return True
+        raise ValueError(f"unsupported boolean AST node: {type(node).__name__}")
+
+    return bool(value(tree))
+
+
+def _z3_from_ast(tree: ast.Expression, names: dict[str, Any], z3: Any) -> Any:
+    def value(node: ast.AST) -> Any:
+        if isinstance(node, ast.Expression):
+            return value(node.body)
+        if isinstance(node, ast.Name):
+            return names.setdefault(node.id, z3.Real(node.id))
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float, bool)):
+            return node.value
+        if isinstance(node, ast.UnaryOp):
+            if isinstance(node.op, ast.USub):
+                return -value(node.operand)
+            if isinstance(node.op, ast.Not):
+                return z3.Not(value(node.operand))
+        if isinstance(node, ast.BinOp):
+            left = value(node.left)
+            right = value(node.right)
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            if isinstance(node.op, ast.Div):
+                return left / right
+        if isinstance(node, ast.BoolOp):
+            values = [value(item) for item in node.values]
+            if isinstance(node.op, ast.And):
+                return z3.And(*values)
+            if isinstance(node.op, ast.Or):
+                return z3.Or(*values)
+        if isinstance(node, ast.Compare):
+            clauses = []
+            left = value(node.left)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = value(comparator)
+                if isinstance(op, ast.Eq):
+                    clauses.append(left == right)
+                elif isinstance(op, ast.NotEq):
+                    clauses.append(left != right)
+                elif isinstance(op, ast.Lt):
+                    clauses.append(left < right)
+                elif isinstance(op, ast.LtE):
+                    clauses.append(left <= right)
+                elif isinstance(op, ast.Gt):
+                    clauses.append(left > right)
+                elif isinstance(op, ast.GtE):
+                    clauses.append(left >= right)
+                else:
+                    raise ValueError(f"unsupported comparator: {type(op).__name__}")
+                left = right
+            return z3.And(*clauses) if len(clauses) > 1 else clauses[0]
+        raise ValueError(f"unsupported constraint AST node: {type(node).__name__}")
+
+    return value(tree)
 
 
 __all__ = ["SymbolicBridge", "SymbolicResult"]

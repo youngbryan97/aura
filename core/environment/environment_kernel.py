@@ -12,7 +12,7 @@ from .action_gateway import EnvironmentActionGateway, GatewayDecision
 from .adapter import EnvironmentAdapter, ExecutionResult
 from .belief_graph import EnvironmentBeliefGraph
 from .blackbox import BlackBoxRecorder, BlackBoxRow
-from .command import ActionIntent, CommandCompiler, CommandSpec
+from .command import ActionIntent, CommandCompiler
 from .crisis import CrisisManager
 from .episode_manager import EpisodeManager
 from .homeostasis import Homeostasis
@@ -375,13 +375,20 @@ class EnvironmentKernel:
                 from core.runtime.errors import record_degradation
                 record_degradation("environment_kernel", exc, severity="warning", action="continued after outcome ledger write failed")
 
-        # 3. Procedural memory: record successful procedures
-        if self.procedural_store and outcome.success_score > 0.7:
+        # 3. Procedural memory: record both wins and failures so future
+        # retrieval can avoid compounding an attractive but brittle tactic.
+        if self.procedural_store:
             try:
-                self.procedural_store.record(
+                self.procedural_store.record_outcome(
                     environment_family=self.environment_id.split(":")[0],
                     context_signature=parsed.context_id or "default",
-                    procedure={"action": intent.name, "parameters": intent.parameters, "effect": observed_events},
+                    action=intent.name,
+                    parameters=intent.parameters,
+                    observed_events=observed_events,
+                    success=outcome.success_score > 0.5,
+                    outcome_score=outcome.success_score,
+                    risk_score=max(outcome.harm_score, outcome.surprise if outcome.surprise >= 0.5 else 0.0),
+                    failure_conditions=[] if outcome.success_score > 0.5 else [outcome.lesson or "low_outcome_score"],
                 )
             except Exception as exc:
                 from core.runtime.errors import record_degradation
@@ -453,6 +460,7 @@ class EnvironmentKernel:
             parsed_after=parsed_after,
         ):
             frame.metadata.setdefault("emergent_abstractions", []).append(abstraction.to_dict())
+        self._publish_experience_outcome(frame, intent, outcome, observed_events)
 
         # 8. RunManager: record step
         self.run_manager.record_step(frame)
@@ -582,6 +590,65 @@ class EnvironmentKernel:
             )
         except Exception as exc:
             record_degradation("environment_kernel", exc, severity="warning", action="continued after outcome publish failed")
+
+    def _publish_experience_outcome(
+        self,
+        frame: EnvironmentFrame,
+        intent: ActionIntent,
+        outcome: OutcomeAssessment,
+        observed_events: list[str],
+    ) -> None:
+        try:
+            from core.consciousness.continuous_experience import (
+                ExperienceFrame,
+                get_continuous_experience_stream,
+            )
+
+            stream = get_continuous_experience_stream()
+            transfer_tags = {
+                self.environment_id.split(":", 1)[0],
+                f"environment:{self.environment_id}",
+                f"action:{intent.name}",
+                *intent.tags,
+                *observed_events[:6],
+            }
+            if outcome.surprise >= 0.5:
+                transfer_tags.add("prediction_mismatch")
+            if outcome.harm_score > 0.0:
+                transfer_tags.add("harm")
+            stream.append_frame(
+                ExperienceFrame(
+                    frame_id="",
+                    sequence=0,
+                    timestamp=time.time(),
+                    scene_id="",
+                    summary=(
+                        f"{self.environment_id} {intent.name} "
+                        f"score={outcome.success_score:.2f} events={','.join(observed_events[:4])}"
+                    ),
+                    focus=f"{intent.name} in {frame.parsed_state.context_id or 'default'}",
+                    objective=intent.expected_effect,
+                    source="environment_kernel",
+                    outcome_score=outcome.success_score,
+                    harm_score=outcome.harm_score,
+                    surprise=outcome.surprise,
+                    lesson=outcome.lesson or "",
+                    transfer_tags=tuple(sorted(str(tag) for tag in transfer_tags if str(tag))),
+                    repair_needed=outcome.success_score < 0.35 or outcome.harm_score > 0.0,
+                    repair_reasons=tuple(
+                        reason for reason in (outcome.lesson, "low_outcome_score" if outcome.success_score < 0.35 else "")
+                        if reason
+                    ),
+                    source_refs=(frame.receipt.receipt_id if frame.receipt else frame.observation.stable_hash(),),
+                )
+            )
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "environment_kernel",
+                exc,
+                severity="warning",
+                action="continued after continuous experience outcome publish failed",
+            )
 
     def _record_action_budget(
         self,

@@ -40,8 +40,9 @@ def test_redact_strips_known_secret_keys():
 
 
 def test_redact_recognizes_high_entropy_tokens_in_values():
+    fake_key = "sk-" + "ABCDEFGHIJKLMNOPQRSTUVWX"
     payload = {
-        "note": "leaking sk-ABCDEFGHIJKLMNOPQRSTUVWX in a casual log",
+        "note": f"leaking {fake_key} in a casual log",
         "ok": "perfectly innocent",
     }
     out = redact_value(payload)

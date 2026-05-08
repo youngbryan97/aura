@@ -9,6 +9,11 @@ from core.consciousness.integration import (
     ConsciousnessIntegration,
     get_consciousness_integration,
 )
+from core.consciousness.continuous_experience import (
+    ContinuousExperienceStream,
+    ExperienceFrame,
+    get_continuous_experience_stream,
+)
 from core.consciousness.phenomenological_experiencer import (
     AttentionSchema,
     PhenomenologicalExperiencer,
@@ -25,4 +30,7 @@ __all__ = [
     "ConsciousnessAugmentor",
     "ConsciousnessIntegration",
     "get_consciousness_integration",
+    "ContinuousExperienceStream",
+    "ExperienceFrame",
+    "get_continuous_experience_stream",
 ]

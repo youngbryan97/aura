@@ -81,6 +81,7 @@ filterwarnings = [
     "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
 ]
 markers = [
+    "asyncio: marks async tests that require pytest-asyncio when executed",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks full-pipeline integration tests",
     "stress: marks load/stress tests",

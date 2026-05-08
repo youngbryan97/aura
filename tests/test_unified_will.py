@@ -11,6 +11,7 @@ Verifies:
 """
 import time
 import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from core.will import (
@@ -407,8 +408,16 @@ class TestActionCoverage:
         assert d.is_approved()
 
     def test_state_mutation_path(self, will):
-        d = will.decide(content="update belief graph", source="cognition",
-                        domain=ActionDomain.STATE_MUTATION)
+        unity = SimpleNamespace(
+            level="coherent",
+            unity_score=1.0,
+            fragmentation_score=0.0,
+            repair_needed=False,
+            metadata={},
+        )
+        with patch("core.will.ServiceContainer.get", return_value=unity):
+            d = will.decide(content="update belief graph", source="cognition",
+                            domain=ActionDomain.STATE_MUTATION)
         assert d.is_approved()
 
     def test_expression_path(self, will):

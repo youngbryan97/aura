@@ -1,6 +1,7 @@
 """SelfImprovingResearchCore — the autonomous research-loop driver."""
 from __future__ import annotations
 
+import ast
 import dataclasses
 import math
 import time
@@ -97,7 +98,7 @@ def deterministic_task_solver(prompt: str) -> Any:
             return pow(a, b, m)
         if p.startswith("Sort"):
             arr_str = p.split(":", 1)[1].strip()
-            arr = eval(arr_str, {"__builtins__": {}}, {})  # safe — only literals
+            arr = ast.literal_eval(arr_str)
             if not isinstance(arr, list):
                 raise ValueError
             return sorted(arr)

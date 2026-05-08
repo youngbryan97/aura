@@ -24,6 +24,18 @@ jobs:
           . .venv/bin/activate
           pip install -U pip
           pip install -r requirements/runtime.txt || pip install -r requirements.txt || true
+      - name: Require signing credentials
+        env:
+          APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+          APPLE_ID:           ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD:     ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID:      ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$APPLE_DEVELOPER_ID"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
       - name: Build (unsigned)
         env:
           AURA_BUILD_PROFILE: release
@@ -31,7 +43,6 @@ jobs:
         run: |
           cargo tauri build
       - name: Sign + notarize
-        if: ${{ secrets.APPLE_DEVELOPER_ID && secrets.APPLE_ID && secrets.APPLE_PASSWORD }}
         env:
           APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
           APPLE_ID:           ${{ secrets.APPLE_ID }}
@@ -48,6 +59,10 @@ jobs:
             --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" --wait
           xcrun stapler staple "$BUNDLE"
+      - name: Generate SBOM and provenance
+        run: |
+          . .venv/bin/activate
+          python tools/build_provenance.py --output-dir artifacts/provenance
       - name: Upload bundle
         uses: actions/upload-artifact@v4
         with:
@@ -55,3 +70,5 @@ jobs:
           path: |
             native/aura-shell/target/release/bundle/macos/*.app
             native/aura-shell/target/release/bundle/dmg/*.dmg
+            artifacts/provenance/sbom.json
+            artifacts/provenance/provenance.json

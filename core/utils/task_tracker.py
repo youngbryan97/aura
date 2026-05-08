@@ -398,19 +398,21 @@ class TaskTracker:
         }
 
 
-_task_tracker = None
+_task_tracker = TaskTracker(name="Global")
 
 
 def get_task_tracker() -> TaskTracker:
-    global _task_tracker
-    if _task_tracker is None:
-        _task_tracker = TaskTracker(name="Global")
+    """Return the canonical process-wide task tracker.
+
+    Both compatibility paths in this module must resolve to the same object.
+    Otherwise tasks can be supervised by one tracker while shutdown, health
+    checks, or imports of ``task_tracker`` query a different tracker.
+    """
     return _task_tracker
 
 
-# For backward compatibility if any module imports task_tracker directly
-# Note: it's better to use get_task_tracker() in async contexts.
-task_tracker = TaskTracker()
+# Backward compatibility for modules that import ``task_tracker`` directly.
+task_tracker = _task_tracker
 
 
 def fire_and_track(coro, name: Optional[str] = None) -> asyncio.Task:

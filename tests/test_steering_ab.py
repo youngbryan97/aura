@@ -22,12 +22,21 @@ then the steering vectors are doing real computational work that text cannot fak
 Requirements: mlx-lm, a local model, ~30 seconds to run.
 """
 
+import os
 import time
 import json
 import numpy as np
+import pytest
 from pathlib import Path
 from collections import Counter
 from datetime import datetime, timezone
+
+
+if os.getenv("AURA_RUN_LIVE_STEERING_AB") != "1":
+    pytest.skip(
+        "live MLX steering A/B proof requires AURA_RUN_LIVE_STEERING_AB=1",
+        allow_module_level=True,
+    )
 
 print("=" * 72)
 print("STEERING A/B TEST — ACTIVATION STEERING vs PROMPT-ONLY")
