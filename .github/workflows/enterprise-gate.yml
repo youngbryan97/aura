@@ -25,10 +25,14 @@ jobs:
             --fail-on-regression \
             --skip-pytest-collect \
             --out enterprise_gate_report.json
-      - name: Install focused test dependency
+      - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install \
+            pydantic pydantic-settings \
+            pytest pytest-asyncio \
+            pyyaml structlog pybreaker psutil tenacity \
+            prometheus-client prometheus-fastapi-instrumentator
       - name: Run enterprise regression tests
         env:
           AURA_TEST_MODE: "1"
