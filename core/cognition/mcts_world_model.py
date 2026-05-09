@@ -120,15 +120,20 @@ class LearnedMCTSPlanner:
             self._backpropagate(search_path, value)
 
         # Select the best action based on visit counts
-        best_action_idx = max(
-            root.children.items(),
-            key=lambda item: item[1].visit_count
-        )[0]
-        
+        if not root.children:
+            best_action_idx = 0
+            best_q = 0.0
+        else:
+            best_action_idx = max(
+                root.children.items(),
+                key=lambda item: item[1].visit_count
+            )[0]
+            best_q = root.children[best_action_idx].q_value
+            
         info = {
             "root_visits": root.visit_count,
-            "best_q": root.children[best_action_idx].q_value,
-            "max_depth_reached": max((len(search_path) for _ in range(10))), # approx
+            "best_q": best_q,
+            "max_depth_reached": max((len(search_path) for _ in range(10))) if 'search_path' in locals() else 0,
         }
 
         return self.action_space[best_action_idx], info
