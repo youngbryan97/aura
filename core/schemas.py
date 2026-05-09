@@ -3,6 +3,7 @@ Strict Pydantic payloads for all internal state passing in the new Zenith archit
 """
 
 from typing import Any, Dict, List, Optional, Union
+import time
 from pydantic import BaseModel, Field, ConfigDict, AliasChoices
 
 class WebsocketMessage(BaseModel):
@@ -83,3 +84,18 @@ class ShardResponse(BaseModel):
     tool_name: Optional[str] = Field(None, description="[Legacy] The tool to invoke")
     tool_payload: Optional[str] = Field(None, description="[Legacy] The script or query for the tool")
     conclusion: str = Field(..., description="Final takeaway or message.")
+
+class IPCMessage(BaseModel):
+    """Strictly validated payload for inter-process communication and task queues."""
+    model_config = ConfigDict(extra='allow', arbitrary_types_allowed=True)
+    
+    priority: int = Field(default=20)
+    timestamp: float = Field(default_factory=time.monotonic)
+    sequence: int = Field(default=0)
+    payload: Any = Field(...)
+    origin: str = Field(default="background")
+
+    def __lt__(self, other):
+        if not hasattr(other, 'priority'):
+            return NotImplemented
+        return (self.priority, self.timestamp, self.sequence) < (other.priority, other.timestamp, getattr(other, 'sequence', 0))

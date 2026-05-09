@@ -470,7 +470,19 @@ class LocalPipeBus:
             except Exception as e:
                 record_degradation('local_pipe_bus', e)
                 logger.exception("❌ Error in Bus read loop: %s", e)
-                await asyncio.sleep(0.1)
+                
+                # Component Hardening: Active Self-Repair Invocation
+                try:
+                    from core.runtime.self_healing import get_healer
+                    get_healer().schedule_deep_repair(
+                        "core/bus/local_pipe_bus.py",
+                        reason="read_loop_exception",
+                        metadata={"error": str(e)}
+                    )
+                except Exception as _heal_e:
+                    logger.debug(f"Deep repair scheduling failed: {_heal_e}")
+                    
+                await asyncio.sleep(1.0)
 
     async def _dispatch_loop(self):
         """Process inbound messages in arrival order with bounded backpressure."""
@@ -489,7 +501,19 @@ class LocalPipeBus:
             except Exception as e:
                 record_degradation('local_pipe_bus', e)
                 logger.error("❌ Error in Bus dispatch loop: %s", e)
-                await asyncio.sleep(0.1)
+                
+                # Component Hardening: Active Self-Repair Invocation
+                try:
+                    from core.runtime.self_healing import get_healer
+                    get_healer().schedule_deep_repair(
+                        "core/bus/local_pipe_bus.py",
+                        reason="dispatch_loop_exception",
+                        metadata={"error": str(e)}
+                    )
+                except Exception as _heal_e:
+                    logger.debug(f"Deep repair scheduling failed: {_heal_e}")
+                    
+                await asyncio.sleep(1.0)
 
     def _cancel_pending_requests(self, exception: Optional[Exception] = None, cancel: bool = False):
         """[GENESIS FIX] Ensure all awaiting requests are rejected immediately if the pipe dies."""
@@ -523,6 +547,18 @@ class LocalPipeBus:
         except Exception as e:
             record_degradation('local_pipe_bus', e)
             logger.error("❌ Bus handler error (%s): %s", msg.get("type"), e)
+            
+            # Component Hardening: Active Self-Repair Invocation
+            try:
+                from core.runtime.self_healing import get_healer
+                get_healer().schedule_deep_repair(
+                    "core/bus/local_pipe_bus.py",
+                    reason="handler_exception",
+                    metadata={"error": str(e), "msg_type": msg.get("type")}
+                )
+            except Exception as _heal_e:
+                logger.debug(f"Deep repair scheduling failed: {_heal_e}")
+                
             if msg.get("is_request") and "request_id" in msg:
                 err_resp = {
                     "response_to": msg["request_id"],

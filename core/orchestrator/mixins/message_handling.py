@@ -59,30 +59,8 @@ class MessageHandlingMixin:
 
             message, _origin = unpack_priority_message(item)
 
-            # v48 RECURSION GUARD: If the payload itself is a stringified tuple
-            # (the "Russian Doll" bug), recursively unpack it to reach the raw content.
-            # v49: Added length cap (2000 chars) to prevent ast.literal_eval from
-            # blocking on huge payloads, and reduced max depth from 5 to 3.
-            _MAX_DOLL_LEN = 2000
-            recursion_depth = 0
-            while (isinstance(message, str)
-                   and len(message) <= _MAX_DOLL_LEN
-                   and message.startswith("(") and message.endswith(")")
-                   and recursion_depth < 3):
-                try:
-                    import ast
-
-                    possible_tuple = ast.literal_eval(message)
-                    if isinstance(possible_tuple, tuple):
-                        message, nested_origin = unpack_priority_message(possible_tuple)
-                        recursion_depth += 1
-                        logger.info("Russian Doll: Decoded nested tuple at depth %d", recursion_depth)
-                        if nested_origin and isinstance(message, dict) and "origin" not in message:
-                            message = {**message, "origin": nested_origin}
-                    else:
-                        break
-                except Exception:
-                    break
+            # Legacy tuple formatting is removed in Zenith. We expect strictly typed IPCMessage.
+            # Any remaining tuple formats are caught by unpack_priority_message.
 
             logger.info("📦 Decoded message from queue: %s", str(message)[:60])
 
@@ -265,6 +243,11 @@ class MessageHandlingMixin:
             logger.info("🛡️ Background enqueue blocked for %s.", origin)
             return False
 
+        # Zenith v47 Hardening: Deeply sanitize all messages before they enter
+        # the queue to prevent circular references in AuraState.
+        message = self._deep_circular_safe_sanitize(message)
+
+
         try:
             current_loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -284,8 +267,15 @@ class MessageHandlingMixin:
             message = self._deep_circular_safe_sanitize(message)
 
             self._message_counter += 1
-            # v61: Include origin in the payload to prevent double-processing in run() loop
-            item = (priority, time.monotonic(), self._message_counter, message, origin)
+            from core.schemas import IPCMessage
+            import time
+            item = IPCMessage(
+                priority=priority,
+                timestamp=time.monotonic(),
+                sequence=self._message_counter,
+                payload=message,
+                origin=origin
+            )
             self.message_queue.put_nowait(item)
         except asyncio.QueueFull:
             logger.warning("⚠️ Message queue full. Dropped %s message from %s: %s",
@@ -330,9 +320,15 @@ class MessageHandlingMixin:
             message = {"content": str(message), "origin": origin}
 
         self._message_counter += 1
-        # Standard format for PriorityQueue: (priority, timestamp, counter, payload, origin)
-        # v61: Added origin to tuple for loop-drain transparency
-        item = (priority, time.monotonic(), self._message_counter, message, origin)
+        from core.schemas import IPCMessage
+        import time
+        item = IPCMessage(
+            priority=priority,
+            timestamp=time.monotonic(),
+            sequence=self._message_counter,
+            payload=message,
+            origin=origin
+        )
 
         # FIX: Never use self.loop. Resolve the running loop at the call site.
         # If we're already inside an async context, use call_soon_threadsafe.

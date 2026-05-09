@@ -38,7 +38,12 @@ def unpack_priority_message(item: Any) -> Tuple[Any, Optional[str]]:
     payload = item
     origin: Optional[str] = None
 
-    if isinstance(item, tuple):
+    if hasattr(item, "payload") and hasattr(item, "origin"):
+        # Type-Safe IPCMessage path
+        payload = item.payload
+        origin = item.origin
+    elif isinstance(item, tuple):
+        # Legacy tuple unpacking
         if len(item) >= 5:
             _, _, _, payload, origin = item[:5]
         elif len(item) == 4:
@@ -191,33 +196,45 @@ class PriorityBackpressuredQueue(BackpressuredQueue):
         self.maxsize = maxsize
 
     async def put(self, item, timeout: float = 5.0):
-        """Standardize item to (priority, timestamp, sequence, payload)."""
-        if isinstance(item, tuple) and len(item) == 3:
-            p, t, payload = item
-            standardized = (p, t, next(self._count), payload)
+        """Standardize item to strict IPCMessage if not already."""
+        from core.schemas import IPCMessage
+        import time
+        if not isinstance(item, IPCMessage):
+            if isinstance(item, tuple) and len(item) == 3:
+                p, t, payload = item
+                standardized = IPCMessage(priority=p, timestamp=t, sequence=next(self._count), payload=payload, origin="unknown")
+            elif isinstance(item, tuple) and len(item) == 5:
+                p, t, seq, payload, origin = item
+                standardized = IPCMessage(priority=p, timestamp=t, sequence=seq, payload=payload, origin=origin)
+            else:
+                standardized = IPCMessage(priority=20, sequence=next(self._count), payload=item, origin="unknown")
         else:
             standardized = item
         await super().put(standardized, timeout=timeout)
 
     def put_nowait(self, item):
-        """Standardize item to (priority, timestamp, sequence, payload)."""
-        if isinstance(item, tuple) and len(item) == 3:
-            p, t, payload = item
-            standardized = (p, t, next(self._count), payload)
+        """Standardize item to strict IPCMessage if not already."""
+        from core.schemas import IPCMessage
+        import time
+        if not isinstance(item, IPCMessage):
+            if isinstance(item, tuple) and len(item) == 3:
+                p, t, payload = item
+                standardized = IPCMessage(priority=p, timestamp=t, sequence=next(self._count), payload=payload, origin="unknown")
+            elif isinstance(item, tuple) and len(item) == 5:
+                p, t, seq, payload, origin = item
+                standardized = IPCMessage(priority=p, timestamp=t, sequence=seq, payload=payload, origin=origin)
+            else:
+                standardized = IPCMessage(priority=20, sequence=next(self._count), payload=item, origin="unknown")
         else:
             standardized = item
         super().put_nowait(standardized)
 
     async def get(self):
-        """Unpack the standardized item."""
+        """Return the standardized IPCMessage."""
         item = await super().get()
-        if isinstance(item, tuple) and len(item) == 4:
-            return (item[0], item[1], item[3])
         return item
 
     def get_nowait(self):
-        """Unpack the standardized item."""
+        """Return the standardized IPCMessage."""
         item = self._q.get_nowait()
-        if isinstance(item, tuple) and len(item) == 4:
-            return (item[0], item[1], item[3])
         return item

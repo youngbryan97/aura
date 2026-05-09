@@ -198,6 +198,16 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                     )
                 except Exception as e:
                     record_degradation('agency_core', e)
+                    
+                # ACTIVE SELF-REPAIR: Spawn a background task to fix the prompt
+                try:
+                    from core.utils.task_tracker import get_task_tracker
+                    get_task_tracker().create_task(
+                        self._active_self_repair_formatting(shard_id, goal),
+                        name=f"swarm_self_repair_{shard_id}"
+                    )
+                except Exception as e:
+                    logger.error("Failed to spawn self-repair task: %s", e)
                 
                 # Mark shard as completed with degradation so audit can track it
                 setattr(shard_res, "completed_with_degradation", True)
@@ -248,7 +258,28 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                         blocked_tools.append((name, "blocked_by_provisional_value"))
                         logger.warning(f"🛡️ Value Graph Blocked tool {name} due to provisional status.")
                     else:
-                        approved_tools.append((name, payload))
+                        # Grounding the Will in Causal World Model (MCTS)
+                        if name in ["python_sandbox", "shell_executor", "file_operations"]:
+                            try:
+                                cwm = ServiceContainer.get("causal_world_model", default=None)
+                                if cwm:
+                                    do_interventions = {f"execute_{name}": 1.0}
+                                    if "rm -rf" in str(payload) or "delete" in str(payload):
+                                        do_interventions["file_deletion"] = 1.0
+                                        
+                                    logger.info(f"🌐 Running MCTS simulation for {name}...")
+                                    rollout_state = cwm.simulate_counterfactual(do_interventions, steps=2)
+                                    
+                                    # Veto if catastrophic outcome is highly probable
+                                    if rollout_state.get("orchestrator crash", 0) > 0.5 or rollout_state.get("sandbox violation", 0) > 0.5:
+                                        is_blocked = True
+                                        blocked_tools.append((name, "vetoed_by_causal_mcts_rollout"))
+                                        logger.warning(f"🛡️ MCTS Simulation Vetoed {name}: Predicted catastrophic system degradation.")
+                            except Exception as mcts_e:
+                                logger.error(f"Failed to run MCTS simulation: {mcts_e}")
+
+                        if not is_blocked:
+                            approved_tools.append((name, payload))
                         
                 for name, payload in approved_tools:
                     tasks.append(self.orch.agency_core.tool_orchestrator.route_and_execute(name, payload))
