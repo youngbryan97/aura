@@ -84,13 +84,22 @@ class RobustLock:
                 name=f"lock_acquire:{self.name}",
             )
             try:
-                return await asyncio.shield(acquire_task)
+                # Pulse the watchdog while waiting so it doesn't trigger a stall on long adaptive timeouts
+                start_wait = time.monotonic()
+                while not acquire_task.done():
+                    elapsed = time.monotonic() - start_wait
+                    if elapsed > 0:
+                        watchdog.heartbeat(self.id) # Notify watchdog we are actively waiting
+                    done, pending = await asyncio.wait([acquire_task], timeout=5.0)
+                    if done:
+                        break
+                return acquire_task.result()
             except asyncio.CancelledError:
                 # asyncio.to_thread cannot be cancelled safely; wait for the worker to
                 # finish and immediately release any lock it may have acquired so we
                 # don't strand the mutex or its watchdog entry forever.
                 try:
-                    acquired = await acquire_task
+                    acquired = await asyncio.wait_for(acquire_task, timeout=1.0)
                 except Exception:
                     acquired = False
                 if acquired:

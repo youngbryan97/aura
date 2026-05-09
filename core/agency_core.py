@@ -179,8 +179,13 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                 shard_res = await structured_brain.generate(prompt, context=context)
             
             if not shard_res:
-                logger.error("💀 Swarm: Shard %s failed to generate valid response after retries.", shard_id)
-                return
+                logger.error("💀 Swarm: Shard %s failed to generate valid response after retries. Applying fallback logic.", shard_id)
+                # Apply fallback instead of silent death to avoid zombie state
+                shard_res = ShardResponse(
+                    analysis="Structured output failed. Engaging safe fallback mode.",
+                    action_type="conclusion",
+                    conclusion="I am experiencing cognitive formatting degradation. Taking a defensive posture."
+                )
 
             analysis_text = shard_res.analysis
             output_text = shard_res.conclusion
@@ -215,6 +220,20 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                     
                     for i, t in enumerate(valid_tools):
                         name = t.get("name", t.get("tool_name"))
+                        
+                        # Value Graph Protection: Block high-risk tools if value is provisional
+                        try:
+                            from core.container import ServiceContainer
+                            dvg = ServiceContainer.get("dynamic_value_graph", default=None)
+                            if dvg and name in ["python_sandbox", "shell_executor", "file_operations"]:
+                                # Check if highest weight values are provisional
+                                top_values = sorted(dvg.nodes.values(), key=lambda v: v.weight, reverse=True)[:3]
+                                if any(v.status == "provisional" for v in top_values):
+                                    results[i] = Exception(f"Action blocked: High-risk tool '{name}' prohibited while provisional values are steering behavior.")
+                                    logger.warning(f"🛡️ Value Graph Blocked tool {name} due to provisional status.")
+                        except Exception as e:
+                            logger.error(f"Error checking provisional values: {e}")
+                            
                         res = results[i]
                         res_text = res if not isinstance(res, Exception) else f"Exception: {res}"
                         output_text = f"{output_text}\n\n[Tool Result - {name}]:\n{res_text}"

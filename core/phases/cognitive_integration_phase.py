@@ -40,6 +40,7 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
+from core.utils.task_tracker import get_task_tracker
 from core.kernel.bridge import Phase
 from core.state.aura_state import AuraState
 
@@ -156,19 +157,19 @@ class CognitiveIntegrationPhase(Phase):
         # Tune the neural mesh toward the edge of chaos — the critical
         # point where computation is richest. Adjusts gain, noise, and
         # excitation/inhibition balance via a PID controller.
-        await self._run_criticality(new_state)
+        get_task_tracker().create_task(self._run_criticality(new_state))
 
         # ── 10. ALife Dynamics (Lenia + Evochora + Avida) ───────────────
         # Lenia continuous convolution kernels for inter-column coupling,
         # entropy tracking (Evochora's dual thermodynamic constraint),
         # and differential CPU allocation (Avida's compute-as-reward).
-        await self._run_alife_dynamics(new_state)
+        get_task_tracker().create_task(self._run_alife_dynamics(new_state))
 
         # ── 11. ALife Extensions (pattern replication, speciation, etc.) ─
         # Autopoietic pattern replication (Avida), speciation-driven
         # column specialization (EcoSim), toroidal wrapping, thermodynamic
         # operation costs, and ownership-based access costs (Evochora).
-        await self._run_alife_extensions(new_state)
+        get_task_tracker().create_task(self._run_alife_extensions(new_state))
 
         elapsed_ms = (time.monotonic() - t0) * 1000
         if elapsed_ms > 50:
