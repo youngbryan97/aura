@@ -20,7 +20,7 @@ class AbstractionEngine:
         # Use workspace-relative path if not absolute
         if not storage_path.startswith("/"):
             from core.config import config
-            self.storage_path = config.paths.data_dir / "first_principles.json"
+            self.storage_path = config.paths.data_dir / Path(storage_path).name
         else:
             self.storage_path = Path(storage_path)
             
