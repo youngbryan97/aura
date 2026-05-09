@@ -140,13 +140,18 @@ class BackpressuredQueue:
     """Async queue that tracks dropped items and supports backpressure circuit breaking.
     """
     def __init__(self, maxsize: int = 1000):
-        self._q: Any = asyncio.Queue(maxsize=maxsize)
+        self._q: Any = None
         self.dropped_count = 0
         self.maxsize = maxsize
+
+    def _ensure_queue(self):
+        if self._q is None:
+            self._q = asyncio.Queue(maxsize=self.maxsize)
 
     async def put(self, item, timeout: float = 5.0):
         """Put item with timeout. If queue is full after timeout, increment dropped count.
         """
+        self._ensure_queue()
         try:
             await asyncio.wait_for(self._q.put(item), timeout=timeout)
         except asyncio.TimeoutError:
@@ -155,6 +160,7 @@ class BackpressuredQueue:
 
     def put_nowait(self, item):
         """Standard put_nowait with drop tracking."""
+        self._ensure_queue()
         try:
             self._q.put_nowait(item)
         except asyncio.QueueFull:
@@ -162,22 +168,25 @@ class BackpressuredQueue:
             logger.warning(f"⚠️ Queue Full (nowait): Dropped item {type(item).__name__}")
 
     async def get(self):
+        self._ensure_queue()
         return await self._q.get()
 
     def task_done(self):
+        self._ensure_queue()
         self._q.task_done()
 
     def qsize(self):
-        return self._q.qsize()
+        return self._q.qsize() if self._q else 0
 
     def full(self):
-        return self._q.full()
+        return self._q.full() if self._q else False
 
     def empty(self):
-        return self._q.empty()
+        return self._q.empty() if self._q else True
 
     def get_nowait(self):
         """Standard get_nowait wrapper."""
+        self._ensure_queue()
         return self._q.get_nowait()
 
 

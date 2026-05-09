@@ -367,7 +367,7 @@ class AuraKernel:
             await get_runtime_hygiene().start()
         except Exception as hygiene_exc:
             record_degradation('aura_kernel', hygiene_exc)
-            logger.debug("Kernel boot runtime hygiene install skipped: %s", hygiene_exc)
+            logger.error("Kernel boot runtime hygiene install failed: %s", hygiene_exc, exc_info=True)
         
         # Initialize Lock Watchdog before anything else
         try:
@@ -626,7 +626,7 @@ class AuraKernel:
                 state = continuity.apply_to_state(state)
             except Exception as continuity_exc:
                 record_degradation('aura_kernel', continuity_exc)
-                logger.debug("Continuity hydration skipped: %s", continuity_exc)
+                logger.error("Continuity hydration failed: %s", continuity_exc, exc_info=True)
 
             self.state = state
             logger.info("🧬 State successfully initialized (version %d)", self.state.version)
@@ -903,7 +903,7 @@ class AuraKernel:
                     ][-5:]
             except Exception as _cc_err:
                 record_degradation('aura_kernel', _cc_err)
-                logger.debug("Constitutional closure stamp skipped: %s", _cc_err)
+                logger.error("Constitutional closure stamp failed: %s", _cc_err, exc_info=True)
             # ────────────────────────────────────────────────────────────────
 
             # Persistence

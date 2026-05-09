@@ -100,7 +100,7 @@ class ResponseGenerationPhase(BasePhase):
                 )
             except Exception as _sve_exc:
                 record_degradation('response_generation', _sve_exc)
-                logger.debug("SubstrateVoiceEngine compile skipped: %s", _sve_exc)
+                logger.error("SubstrateVoiceEngine compile failed: %s", _sve_exc, exc_info=True)
 
             is_background = not background_policy.is_user_facing_origin(origin)
             if is_background:
@@ -120,7 +120,7 @@ class ResponseGenerationPhase(BasePhase):
                         return state
                 except Exception as exc:
                     record_degradation('response_generation', exc)
-                    logger.debug("ResponseGeneration background policy check skipped: %s", exc)
+                    logger.error("ResponseGeneration background policy check failed: %s", exc, exc_info=True)
 
             # 2. Build structured messages purely from State via ContextAssembler
             messages = ContextAssembler.build_messages(state, objective)
@@ -278,7 +278,8 @@ class ResponseGenerationPhase(BasePhase):
                     match = re.search(r'(\{.*\})', response_text, re.DOTALL)
                     if match:
                         potential_json = match.group(1)
-                        data = json.loads(potential_json)
+                        from core.utils.json_utils import extract_json
+                        data = extract_json(potential_json)
                         if isinstance(data, dict):
                             # Try both "content" and deeper "response": {"content": ...}
                             ext_content = data.get("content")

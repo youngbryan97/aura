@@ -24,12 +24,12 @@ logger = logging.getLogger("Aura.Cognition")
 _INLINE_INFERENCE_PROMPT = (
     "Analyze the following user message for IMPLICIT INTENT, AFFECTIVE SUBTEXT, "
     "and CONVERSATION HOOKS. Return ONLY a JSON object with these fields:\n"
-    "{\n"
+    '{\n'
     '  "implicit_intent": "one sentence",\n'
     '  "user_subtext": "one sentence",\n'
     '  "momentum": "stalled|flowing|intense",\n'
     '  "conversation_hooks": ["2-3 specific topics or emotional threads to address"]\n'
-    "}"
+    '}'
 )
 _INLINE_INFERENCE_SYSTEM = "You are Aura's subtext processor. Extract the unsaid. Return only JSON."
 
@@ -126,7 +126,7 @@ def _inject_live_modifiers(data: dict[str, Any]) -> None:
         modifiers["conversation_hooks"] = data.get("conversation_hooks", [])
     except Exception as exc:
         record_degradation('cognitive_integration_layer', exc)
-        logger.debug("Inline modifier injection skipped: %s", exc)
+        logger.error("Inline modifier injection failed: %s", exc, exc_info=True)
 
 
 def _inject_packet_context(packet: Any) -> None:
@@ -138,7 +138,7 @@ def _inject_packet_context(packet: Any) -> None:
             fragments.append(f"[Phenomenal state: {str(pcs)[:300]}]")
     except Exception as exc:
         record_degradation('cognitive_integration_layer', exc)
-        logger.debug("Phenomenological context injection skipped: %s", exc)
+        logger.error("Phenomenological context injection failed: %s", exc, exc_info=True)
 
     try:
         synth = ServiceContainer.get("qualia_synthesizer", default=None)
@@ -148,7 +148,7 @@ def _inject_packet_context(packet: Any) -> None:
                 fragments.append(f"[Qualia: {str(qctx)[:200]}]")
     except Exception as exc:
         record_degradation('cognitive_integration_layer', exc)
-        logger.debug("Qualia injection skipped: %s", exc)
+        logger.error("Qualia injection failed: %s", exc, exc_info=True)
 
     if not fragments:
         return
@@ -161,7 +161,7 @@ def _inject_packet_context(packet: Any) -> None:
         packet.llm_briefing = f"{getattr(packet, 'llm_briefing', '') or ''}\n" + "\n".join(fragments) + identity_anchor
     except Exception as exc:
         record_degradation('cognitive_integration_layer', exc)
-        logger.debug("Packet context injection skipped: %s", exc)
+        logger.error("Packet context injection failed: %s", exc, exc_info=True)
 
 class CognitiveIntegrationLayer:
     """
@@ -304,7 +304,7 @@ class CognitiveIntegrationLayer:
             )
         except Exception as _sve_exc:
             record_degradation('cognitive_integration_layer', _sve_exc)
-            logger.debug("SubstrateVoiceEngine compile in Phase 7 skipped: %s", _sve_exc)
+            logger.error("SubstrateVoiceEngine compile in Phase 7 failed: %s", _sve_exc, exc_info=True)
 
         if not self.is_active:
             await self.initialize()

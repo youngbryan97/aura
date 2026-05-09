@@ -38,12 +38,12 @@ class InferencePhase(Phase):
             inference_prompt = (
                 "Analyze the following user message for IMPLICIT INTENT, AFFECTIVE SUBTEXT, and CONVERSATION HOOKS. "
                 "Do not respond to the user. Only return a JSON object with: "
-                "{\n"
-                "  'implicit_intent': '...',\n"
-                "  'user_subtext': '...',\n"
-                "  'momentum': 'stalled|flowing|intense',\n"
-                "  'conversation_hooks': ['list of 2-3 specific topics or entities to address']\n"
-                "}\n\n"
+                '{\n'
+                '  "implicit_intent": "...",\n'
+                '  "user_subtext": "...",\n'
+                '  "momentum": "stalled|flowing|intense",\n'
+                '  "conversation_hooks": ["list of 2-3 specific topics or entities to address"]\n'
+                '}\n\n'
                 f"User Message: {objective}"
             )
 

@@ -162,6 +162,14 @@ class StructuredLLM:
         if "```" in text:
             # Fallback for generic code blocks
             return text.split("```")[1].strip()
+        
+        # Fallback to finding the first { and last }
+        if "{" in text and "}" in text:
+            start = text.find("{")
+            end = text.rfind("}")
+            if end > start:
+                return text[start:end+1]
+                
         return text.strip()
 
     def _generate_ghost_example(self) -> str:

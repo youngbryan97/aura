@@ -26,7 +26,9 @@ class ManagedTask:
     def __init__(self, task: asyncio.Task, created_at: float, name: Optional[str], meta: Optional[dict]):
         self.task = task
         self.created_at = created_at
-        self.name = name or f"task-{int(created_at)}"
+        import uuid
+        base_name = name or f"task-{int(created_at)}"
+        self.name = f"{base_name}_{uuid.uuid4().hex[:6]}"
         self.meta = meta or {}
         self.cancel_reason: Optional[str] = None
 
@@ -53,14 +55,22 @@ class Supervisor:
         except RuntimeError:
             self.loop = loop  # Will be set when the event loop starts
         self._tasks: Dict[str, ManagedTask] = {}
-        self._lock = asyncio.Lock()
+        import threading
+        self._tasks_lock = threading.Lock()  # Protect against cross-thread mutation
         self.memory_high_percent = memory_high_percent
         self.memory_critical_percent = memory_critical_percent
-        self._memory_watcher_task: Optional[asyncio.Task] = None
+        self._memory_watcher_task: Optional[ManagedTask] = None
         self._optional_task_tags: Set[str] = set()  # tasks allowed to be auto-evicted
 
     def start_memory_watcher(self) -> None:
-        if self._memory_watcher_task is None:
+        # Ensure we have a valid event loop
+        if self.loop is None:
+            try:
+                self.loop = asyncio.get_running_loop()
+            except RuntimeError:
+                logger.warning("Supervisor: Cannot start memory watcher — no event loop")
+                return
+        if self._memory_watcher_task is None or self._memory_watcher_task.done:
             self._memory_watcher_task = self.create_managed_task(self._memory_watcher(), name="memory_watcher", meta={"system": True})
 
     def stop_memory_watcher(self) -> None:
@@ -73,6 +83,13 @@ class Supervisor:
         Schedule a coroutine and return a ManagedTask wrapper.
         Use this instead of asyncio.create_task across the codebase.
         """
+        # Ensure we have a valid event loop
+        if self.loop is None:
+            try:
+                self.loop = asyncio.get_running_loop()
+            except RuntimeError:
+                raise RuntimeError("Supervisor: No event loop available for task creation")
+
         if asyncio.iscoroutine(coro):
             task = self.loop.create_task(coro)
         elif callable(coro):
@@ -82,9 +99,10 @@ class Supervisor:
 
         created_at = time.time()
         managed = ManagedTask(task, created_at, name, meta)
-        # register
+        # register (thread-safe)
         key = managed.name
-        self._tasks[key] = managed
+        with self._tasks_lock:
+            self._tasks[key] = managed
 
         def _on_done(t: asyncio.Task):
             try:
@@ -92,11 +110,12 @@ class Supervisor:
             except asyncio.CancelledError:
                 exc = None
             if exc:
-                logger.exception("ManagedTask '%s' finished with exception: %s", key, exc)
+                logger.error("ManagedTask '%s' finished with exception: %s", key, exc, exc_info=exc)
             else:
                 logger.debug("ManagedTask '%s' finished successfully", key)
-            # cleanup
-            self._tasks.pop(key, None)
+            # cleanup (thread-safe)
+            with self._tasks_lock:
+                self._tasks.pop(key, None)
 
         task.add_done_callback(_on_done)
         logger.debug("Created ManagedTask %s (meta=%s)", key, meta)
@@ -127,23 +146,35 @@ class Supervisor:
 
     async def cancel_optional_tasks(self, reason: str):
         """Cancel tasks that are marked optional (by meta tag or registered name)."""
-        async with self._lock:
-            to_cancel = [m for m in self._tasks.values() if m.meta.get("optional") or m.name in self._optional_task_tags]
-            for m in to_cancel:
-                logger.info("Evicting optional task %s (reason=%s)", m.name, reason)
-                m.cancel(reason)
+        with self._tasks_lock:
+            snapshot = list(self._tasks.values())
+        to_cancel = [m for m in snapshot if m.meta.get("optional") or m.name in self._optional_task_tags]
+        for m in to_cancel:
+            logger.info("Evicting optional task %s (reason=%s)", m.name, reason)
+            m.cancel(reason)
 
     async def cancel_all(self, reason: Optional[str] = "shutdown"):
-        async with self._lock:
-            for m in list(self._tasks.values()):
-                logger.info("Cancelling task %s (reason=%s)", m.name, reason)
-                m.cancel(reason)
+        with self._tasks_lock:
+            snapshot = list(self._tasks.values())
+        for m in snapshot:
+            logger.info("Cancelling task %s (reason=%s)", m.name, reason)
+            m.cancel(reason)
 
     def register_optional_tag(self, name: str):
         self._optional_task_tags.add(name)
 
     def get_task_names(self):
-        return list(self._tasks.keys())
+        with self._tasks_lock:
+            return list(self._tasks.keys())
 
     def get_task(self, name: str) -> Optional[ManagedTask]:
-        return self._tasks.get(name)
+        with self._tasks_lock:
+            return self._tasks.get(name)
+
+    def prune_done_tasks(self) -> int:
+        """Remove completed tasks from the registry. Returns count pruned."""
+        with self._tasks_lock:
+            done_keys = [k for k, m in self._tasks.items() if m.done]
+            for k in done_keys:
+                del self._tasks[k]
+        return len(done_keys)

@@ -527,7 +527,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             except Exception as exc:
                 record_degradation('main', exc)
                 record_degradation('main', exc)
-                logger.debug("Graceful shutdown signal setup skipped: %s", exc)
+                logger.warning("Graceful shutdown signal setup failed: %s", exc, exc_info=True)
 
             if lightweight_test_boot:
                 logger.info("🧪 Lightweight pytest runtime boot: skipping continuous background services.")
@@ -1502,7 +1502,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             except Exception as df_err:
                 record_degradation('main', df_err)
                 record_degradation('main', df_err)
-                logger.debug("Substrate defrag during recovery skipped: %s", df_err)
+                logger.error("Substrate defrag during recovery failed: %s", df_err, exc_info=True)
 
             # 3.5 Soft-restart cognitive connection
             await self.retry_cognitive_connection()
@@ -1797,7 +1797,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     except Exception as e:
                         record_degradation('main', e)
                         record_degradation('main', e)
-                        logger.debug("Vector pruning skipped: %s", e)
+                        logger.error("Vector pruning failed: %s", e, exc_info=True)
 
 
     # _deduplicate_history -> ContextStreamingMixin

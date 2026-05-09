@@ -541,7 +541,7 @@ class AutonomousInitiativeLoop:
                 )
             except Exception as finish_exc:
                 record_degradation('autonomous_initiative_loop', finish_exc)
-                logger.debug("AutonomousInitiativeLoop tool finish skipped: %s", finish_exc)
+                logger.error("AutonomousInitiativeLoop tool finish failed: %s", finish_exc, exc_info=True)
 
         if _emit_thought and content:
             _emit_thought(

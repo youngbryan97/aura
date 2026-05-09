@@ -148,7 +148,9 @@ class StrategicSynthesizer:
             
         except Exception as e:
             record_degradation('strategic_synthesis', e)
-            logger.error("StrategicSynthesizer: Final synthesis failed: %s", e)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(e, {"module": "StrategicSynthesis", "method": "synthesize_strategic_plan"})
+            logger.error("StrategicSynthesizer: Final synthesis failed: %s", e, exc_info=True)
             return None
 
 _synthesizer_instance = None
@@ -157,4 +159,6 @@ def get_strategic_synthesizer(orchestrator=None) -> StrategicSynthesizer:
     global _synthesizer_instance
     if _synthesizer_instance is None:
         _synthesizer_instance = StrategicSynthesizer(orchestrator)
+    elif orchestrator is not None and getattr(_synthesizer_instance, 'orchestrator', None) is None:
+        _synthesizer_instance.orchestrator = orchestrator
     return _synthesizer_instance

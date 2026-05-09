@@ -123,7 +123,7 @@ class GoalHierarchy:
                     record_degradation('goal_hierarchy', degraded_exc)
                     logger.debug("GoalHierarchy degraded-event logging failed: %s", degraded_exc)
                 return ""
-            logger.debug("GoalHierarchy executive gate skipped: %s", exc)
+            logger.error("GoalHierarchy executive gate failed: %s", exc, exc_info=True)
 
         goal_id = str(uuid.uuid4())[:8]
         goal = Goal(
@@ -178,7 +178,9 @@ class GoalHierarchy:
             import re
             json_match = re.search(r"\[.*\]", response.content, re.DOTALL)
             if json_match:
-                subtasks = json.loads(json_match.group(0))
+                from core.utils.json_utils import extract_json
+                subtasks_raw = extract_json(json_match.group(0))
+                subtasks = subtasks_raw if isinstance(subtasks_raw, list) else []
                 new_ids = []
                 
                 # ALIGNMENT AUDIT (v13.0)
@@ -335,7 +337,9 @@ class GoalHierarchy:
             if not json_match:
                 return []
             
-            conflicts = json.loads(json_match.group(0))
+            from core.utils.json_utils import extract_json
+            conflicts_raw = extract_json(json_match.group(0))
+            conflicts = conflicts_raw if isinstance(conflicts_raw, list) else []
             resolved = []
             
             for conflict in conflicts:
@@ -383,7 +387,7 @@ class GoalHierarchy:
             
         except Exception as e:
             record_degradation('goal_hierarchy', e)
-            logger.debug("Conflict detection failed (non-critical): %s", e)
+            logger.error("Conflict detection failed: %s", e, exc_info=True)
             return []
 
     def mark_complete(self, goal_id: str):

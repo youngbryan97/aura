@@ -604,7 +604,7 @@ class MessageHandlingMixin:
                         return None  # Internal messages can be refused
         except Exception as _will_err:
             record_degradation('message_handling', _will_err)
-            logger.debug("Unified Will gate skipped (degraded): %s", _will_err)
+            logger.warning("Unified Will gate failed (degraded): %s", _will_err, exc_info=True)
 
         # ZENITH BYPASS: ALL user-origin messages go through InferenceGate. NO EXCEPTIONS.
         # This completely decouples user requests from the Legacy Pipeline (CognitiveEngine →

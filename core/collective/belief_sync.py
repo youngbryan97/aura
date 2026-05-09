@@ -154,13 +154,15 @@ class BeliefSync:
                 abs_engine = ServiceContainer.get("abstraction_engine", default=None)
                 if abs_engine and hasattr(abs_engine, 'storage_path'):
                     try:
-                        import json
+                        from core.utils.json_utils import extract_json
                         content = abs_engine.storage_path.read_text()
-                        parsed = json.loads(content)
+                        parsed = extract_json(content)
                         principles = parsed.get("payload", parsed) if isinstance(parsed, dict) else parsed
                     except Exception as e:
                         record_degradation('belief_sync', e)
-                        logger.error(f"Failed to read principles for sync: {e}")
+                        from core.utils.exceptions import capture_and_log
+                        capture_and_log(e, {"module": "BeliefSync", "method": "_sync_loop"})
+                        logger.error("Failed to read principles for sync: %s", e, exc_info=True)
 
                 if not strong_beliefs and not principles: 
                     continue
@@ -467,7 +469,8 @@ class BeliefSync:
         try:
             if not abs_engine.storage_path.exists():
                 return []
-            parsed = json.loads(abs_engine.storage_path.read_text())
+            from core.utils.json_utils import extract_json
+            parsed = extract_json(abs_engine.storage_path.read_text())
             records = parsed.get("payload", parsed) if isinstance(parsed, dict) else parsed
             if not isinstance(records, list):
                 return []
@@ -482,7 +485,7 @@ class BeliefSync:
             return out
         except (OSError, json.JSONDecodeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation('belief_sync', exc)
-            logger.debug("BeliefSync principle load failed: %s", exc)
+            logger.error("BeliefSync principle load failed: %s", exc, exc_info=True)
             return []
 
     def _principle_semantically_duplicate(self, principle: str, existing: List[str], threshold: float = 0.62) -> bool:

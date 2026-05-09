@@ -135,11 +135,18 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
                 # Optionally: Inject into the BlackHoleVault for semantic retrieval
                 memory_facade = ServiceContainer.get("memory_facade", default=None)
                 if memory_facade and hasattr(memory_facade, 'store'):
-                    await asyncio.to_thread(
-                        memory_facade.store, 
-                        content=f"[FIRST PRINCIPLE] {principle}", 
-                        metadata={"type": "abstract_heuristic"}
-                    )
+                    import inspect
+                    if inspect.iscoroutinefunction(memory_facade.store):
+                        await memory_facade.store(
+                            content=f"[FIRST PRINCIPLE] {principle}", 
+                            metadata={"type": "abstract_heuristic"}
+                        )
+                    else:
+                        await asyncio.to_thread(
+                            memory_facade.store, 
+                            content=f"[FIRST PRINCIPLE] {principle}", 
+                            metadata={"type": "abstract_heuristic"}
+                        )
                 
                 # Phase 15.2: Instant Swarm Propagation
                 belief_sync = ServiceContainer.get("belief_sync", default=None)

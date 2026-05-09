@@ -229,7 +229,7 @@ async def orchestrator_shutdown(orch: "RobustOrchestrator") -> None:
         await get_event_bus().shutdown()
     except Exception as exc:
         record_degradation('shutdown', exc)
-        logger.debug("Event bus shutdown skipped: %s", exc)
+        logger.warning("Event bus shutdown failed: %s", exc, exc_info=True)
 
     from core.utils.task_tracker import get_task_tracker
     tracker_shutdown = get_task_tracker().shutdown(timeout=3.0)

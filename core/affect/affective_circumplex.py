@@ -151,7 +151,7 @@ class AffectiveCircumplex:
                 max_tokens = max(_TOKENS_MIN, min(_TOKENS_MAX, max_tokens))
             except Exception as exc:
                 record_degradation('affective_circumplex', exc)
-                logger.debug("Circumplex: neurochemical modulation skipped: %s", exc)
+                logger.error("Circumplex: neurochemical modulation failed: %s", exc, exc_info=True)
 
         narrative = self._make_narrative(valence, arousal)
 

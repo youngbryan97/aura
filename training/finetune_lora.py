@@ -58,7 +58,7 @@ def find_base_model() -> str:
     # Prefer the canonical 8-bit base inside the repo before falling back to
     # caches — this is what train_and_fuse.py expects to fuse against.
     candidates = [
-        repo_root / "models" / "Qwen2.5-32B-Instruct-8bit",
+        repo_root / "models" / "Qwen2.5-32B-Instruct-4bit",
         repo_root / "models",
         Path(os.path.expanduser("~/.aura/models")),
         Path(os.path.expanduser("~/models")),

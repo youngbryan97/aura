@@ -333,7 +333,7 @@ class ContinuityEngine:
                     )
             except Exception as e:
                 record_degradation('continuity', e)
-                logger.debug("Continuity auto-capture skipped: %s", e)
+                logger.error("Continuity auto-capture failed: %s", e, exc_info=True)
 
         current_objective = _sanitize_restored_text(current_objective)
         active_commitments = _sanitize_restored_items(active_commitments)
@@ -610,7 +610,7 @@ class ContinuityEngine:
                 json.dump(asdict(self._record), f, indent=2)
         except Exception as e:
             record_degradation('continuity', e)
-            logger.debug("Continuity failure obligation save skipped: %s", e)
+            logger.error("Continuity failure obligation save failed: %s", e, exc_info=True)
 
     def _get_live_identity_hash(self) -> str:
         try:

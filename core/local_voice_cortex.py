@@ -69,8 +69,13 @@ class LocalVoiceCortex:
 
     def _audio_callback(self, in_data, frame_count, time_info, status):
         """Fires in a separate C-thread by PyAudio."""
-        if not self._shutdown_event.is_set():
-            self.loop.call_soon_threadsafe(self.audio_queue.put_nowait, in_data)
+        if self._shutdown_event and not self._shutdown_event.is_set() and self.loop and self.audio_queue:
+            def safe_put():
+                try:
+                    self.audio_queue.put_nowait(in_data)
+                except asyncio.QueueFull:
+                    pass  # Drop frame silently on overflow
+            self.loop.call_soon_threadsafe(safe_put)
         return (None, pyaudio.paContinue)
 
     async def start(self):
@@ -111,8 +116,8 @@ class LocalVoiceCortex:
             self._loop_task.cancel()
             try:
                 await asyncio.wait_for(self._loop_task, timeout=2.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                logger.debug('Ignored Exception in local_voice_cortex.py: %s', "unknown_error")
+            except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+                logger.debug('Ignored Exception in local_voice_cortex.py: %s', type(e).__name__)
 
         if self.audio_interface:
             self.audio_interface.terminate()

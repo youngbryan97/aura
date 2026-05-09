@@ -84,7 +84,7 @@ def build_app():
         desktop = Path.home() / "Desktop"
         target = desktop / "Aura.app"
         if target.exists():
-            get_task_tracker().create_task(get_storage_gateway().delete_tree(target, cause='build_app'))
+            shutil.rmtree(target)
         
         try:
              # PyInstaller 'onedir' + 'windowed' on Mac creates an .app bundle in dist/
@@ -104,11 +104,13 @@ def build_app():
                  print(f"📦 Copied to Desktop: {target}")
                  
                  # 2. Applications (The Sovereign Throne)
-                 apps_path = Path("/Applications/Aura.app")
+                 apps_path = Path.home() / "Applications" / "Aura.app"
+                 if not apps_path.parent.exists():
+                     apps_path.parent.mkdir(parents=True, exist_ok=True)
                  if apps_path.exists():
-                     get_task_tracker().create_task(get_storage_gateway().delete_tree(apps_path, cause='build_app'))
+                     shutil.rmtree(apps_path)
                  shutil.copytree(source_app, apps_path)
-                 print(f"📦 Force-Updated in Applications: {apps_path}")
+                 print(f"📦 Force-Updated in User Applications: {apps_path}")
              else:
                  # It might be just a binary if something went wrong or config diff
                  print(f"⚠️ .app bundle not found in {dist_dir}, check raw binary.")

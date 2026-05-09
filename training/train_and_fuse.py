@@ -41,7 +41,7 @@ ADAPTER_DIR = TRAINING_DIR / "adapters" / "aura-personality"
 FUSED_BASE_DIR = TRAINING_DIR / "fused-model"
 ACTIVE_MANIFEST = FUSED_BASE_DIR / "active.json"
 
-DEFAULT_BASE_MODEL = REPO_DIR / "models" / "Qwen2.5-32B-Instruct-8bit"
+DEFAULT_BASE_MODEL = REPO_DIR / "models" / "Qwen2.5-32B-Instruct-4bit"
 
 
 def _run(cmd: list[str], *, timeout: float | None = None) -> int:

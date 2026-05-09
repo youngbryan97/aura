@@ -29,6 +29,7 @@ class SystemWatchdog:
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
+        self._stalled: set[str] = set()
         
     def register_component(
         self, 
@@ -79,7 +80,11 @@ class SystemWatchdog:
                 for name, last_seen in self._heartbeats.items():
                     timeout = self._timeouts.get(name, 60.0)
                     if now - last_seen > timeout:
-                        stalled_components.append(name)
+                        if name not in self._stalled:
+                            stalled_components.append(name)
+                            self._stalled.add(name)
+                    else:
+                        self._stalled.discard(name)
             
             for name in stalled_components:
                 logger.critical(
@@ -108,10 +113,7 @@ class SystemWatchdog:
                     except Exception as e:
                         logger.error("Watchdog rollback failed: %s", e)
 
-                # Update heartbeat to prevent spamming logs for the same stall
-                with self._lock:
-                    self._heartbeats[name] = now
-            
+                pass
             self._stop_event.wait(self._check_interval)
 
 _global_watchdog: Optional[SystemWatchdog] = None

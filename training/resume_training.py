@@ -12,13 +12,13 @@ import sys
 from pathlib import Path
 import re
 
-BASE_MODEL = "/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-8bit"
+BASE_MODEL = "/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-4bit"
 ADAPTER_PATH = Path("/Users/bryan/.aura/live-source/training/adapters/aura-personality")
 DATA_DIR = "/Users/bryan/.aura/live-source/training/data"
-LOG_PATH = Path("/Users/bryan/.aura/live-source/training/train_log.txt")
+LOG_PATH = Path("/Users/bryan/.aura/live-source/training/logs/train_and_fuse.log")
 TRAINING_CONFIG_PATH = ADAPTER_PATH / "training_config.json"
 
-TOTAL_ITERS_FALLBACK = 9504
+TOTAL_ITERS_FALLBACK = 90153
 SAVE_RE = re.compile(r"Iter (\d+): Saved adapter weights .*?/([0-9]+_adapters\.safetensors)")
 RESUME_RE = re.compile(r"--- Resume from ([^,]+), (\d+) iters")
 
@@ -44,8 +44,21 @@ def _latest_base_checkpoint(total_iterations: int) -> tuple[Path, int]:
     if not checkpoints:
         raise FileNotFoundError(f"No checkpoints found under {ADAPTER_PATH}")
 
+    # Identify the highest checkpoint number
     checkpoint = checkpoints[-1]
     completed = int(checkpoint.stem.split("_", 1)[0])
+    
+    # Check if we accidentally grabbed a small number (from the 8-bit run)
+    # The 4-bit run was already at 66,000.
+    if completed < 66000:
+        # Scan for the actual 4-bit maximum
+        for cp in reversed(checkpoints):
+            val = int(cp.stem.split("_", 1)[0])
+            if val >= 66000:
+                checkpoint = cp
+                completed = val
+                break
+
     remaining = total_iterations - completed
     if remaining <= 0:
         raise RuntimeError("Training already appears complete; no iterations remaining.")
@@ -95,9 +108,11 @@ def _resume_state_from_log() -> tuple[Path, int] | None:
 
 def _resolve_resume_state() -> tuple[Path, int]:
     total_iterations = _load_total_iterations()
+    # Prioritize log-based resume for accuracy
     log_state = _resume_state_from_log()
     if log_state is not None:
         return log_state
+    # Fallback to filesystem glob
     return _latest_base_checkpoint(total_iterations)
 
 
@@ -125,23 +140,33 @@ def main() -> int:
         "--batch-size",
         "1",
         "--learning-rate",
-        "2e-6",
+        "5e-6",
         "--save-every",
-        "250",
-        "--val-batches",
-        "1",
+        "500",
+        "--steps-per-eval",
+        "500",
         "--max-seq-length",
-        "2048",
+        "4096",
         "--grad-checkpoint",
         "-c",
         str(ADAPTER_PATH / "lora_config.yaml"),
     ]
 
-    print(f"Resuming from {resume_file.name}, {remaining_iters} iters remaining.")
+    print(f"Resuming Zenith v3.3 from {resume_file.name}, {remaining_iters} iters remaining.")
     with LOG_PATH.open("a") as log:
         log.write(
-            f"\n--- Resume from {resume_file.name}, {remaining_iters} iters, seq=2048 ---\n"
+            f"\n--- Resume Zenith from {resume_file.name}, targeting 90153 total iters, seq=4096 ---\n"
         )
+        log.flush()
+        process = subprocess.Popen(
+            cmd,
+            cwd="/Users/bryan/.aura/live-source",
+            stdout=log,
+            stderr=subprocess.STDOUT,
+        )
+        process.wait()
+        return process.returncode
+
         log.flush()
         process = subprocess.Popen(
             cmd,

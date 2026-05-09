@@ -1051,6 +1051,16 @@ class SovereignVoiceEngine:
 
         await self._play_locally(audio_data)
 
+    async def synthesize_speech(self, text: str):
+        """Single-string wrapper for TTS synthesis (used by local_voice_cortex)."""
+        async def _iter():
+            yield text
+        await self.speak_stream(_iter())
+
+    async def speak(self, text: str):
+        """Alias for synthesize_speech."""
+        await self.synthesize_speech(text)
+
     async def speak_stream(self, text_iterator) -> str:
         """Plays TTS audio and returns exactly what was successfully spoken."""
         if not await self.tts_async_lock.acquire_robust(timeout=5.0):

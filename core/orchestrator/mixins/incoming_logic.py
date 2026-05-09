@@ -438,7 +438,7 @@ class IncomingLogicMixin:
                 except Exception as _dt_err:
                     record_degradation('incoming_logic', _dt_err)
                     record_degradation('incoming_logic', _dt_err)
-                    logger.debug("DiscourseTracker update skipped: %s", _dt_err)
+                    logger.error("DiscourseTracker update failed: %s", _dt_err, exc_info=True)
 
                 # Update Theory of Mind user model (rapport, trust, emotional state)
                 try:
@@ -452,7 +452,7 @@ class IncomingLogicMixin:
                 except Exception as _tom_err:
                     record_degradation('incoming_logic', _tom_err)
                     record_degradation('incoming_logic', _tom_err)
-                    logger.debug("TheoryOfMind update skipped: %s", _tom_err)
+                    logger.error("TheoryOfMind update failed: %s", _tom_err, exc_info=True)
 
         # Initialize AutonomyGuardian if not present
         if not hasattr(self, '_autonomy_guardian'):
@@ -681,7 +681,7 @@ class IncomingLogicMixin:
                                 except Exception as _exec_err:
                                     record_degradation('incoming_logic', _exec_err)
                                     record_degradation('incoming_logic', _exec_err)
-                                    logger.debug("Hardwired direct-response emission approval skipped: %s", _exec_err)
+                                    logger.error("Hardwired direct-response emission approval failed: %s", _exec_err, exc_info=True)
 
                         if hardwired_result:
                             try:
@@ -709,7 +709,7 @@ class IncomingLogicMixin:
                                     except Exception as audit_exc:
                                         record_degradation('incoming_logic', audit_exc)
                                         record_degradation('incoming_logic', audit_exc)
-                                        logger.debug("Hardwired direct-response audit skipped: %s", audit_exc)
+                                        logger.error("Hardwired direct-response audit failed: %s", audit_exc, exc_info=True)
                                     res = {"ok": True, "response": pathway.direct_response}
                                 else:
                                     if pathway.skill_name in ("generate_image", "sovereign_imagination") and "prompt" not in extracted_params:
@@ -742,7 +742,7 @@ class IncomingLogicMixin:
                             except Exception as history_err:
                                 record_degradation('incoming_logic', history_err)
                                 record_degradation('incoming_logic', history_err)
-                                logger.debug("Hardwired action history skipped: %s", history_err)
+                                logger.error("Hardwired action history failed: %s", history_err, exc_info=True)
 
                             try:
                                 from core.world_model.expectation_engine import ExpectationEngine
@@ -752,7 +752,7 @@ class IncomingLogicMixin:
                             except Exception as belief_err:
                                 record_degradation('incoming_logic', belief_err)
                                 record_degradation('incoming_logic', belief_err)
-                                logger.debug("Hardwired belief update skipped: %s", belief_err)
+                                logger.error("Hardwired belief update failed: %s", belief_err, exc_info=True)
 
                             self._publish_telemetry({
                                 "type": "action_result",

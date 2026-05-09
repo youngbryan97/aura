@@ -1161,5 +1161,5 @@ def get_executive_core() -> ExecutiveCore:
             ServiceContainer.register_instance("executive_core", _instance, required=False)
         except Exception as exc:
             record_degradation('executive_core', exc)
-            logger.debug("ExecutiveCore registration skipped: %s", exc)
+            logger.error("ExecutiveCore registration failed: %s", exc, exc_info=True)
     return _instance

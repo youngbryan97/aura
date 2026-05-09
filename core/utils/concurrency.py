@@ -170,15 +170,12 @@ class RobustLock:
     def force_release(self):
         """CRITICAL: Force release the lock to break a detected deadlock.
 
-        Releases the EXISTING lock object instead of reinitializing it.
-        Reinitializing would orphan any thread still holding the old reference,
-        causing a permanent deadlock when the finally block tries to release
-        the wrong object.
+        Replaces the lock entirely so that the blocked thread can proceed.
+        The thread holding the old lock will release the old lock safely.
         """
         logger.critical(f"⚠️ FORCE RELEASING LOCK '{self.name}' due to deadlock watchdog!")
         try:
-            if self._lock.locked():
-                self._lock.release()
+            self._lock = threading.Lock()
         except RuntimeError:
             # release() on an unlocked lock — harmless
             pass  # no-op: intentional

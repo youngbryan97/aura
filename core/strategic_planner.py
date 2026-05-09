@@ -37,7 +37,8 @@ Return the response as a valid JSON object with the following structure:
   ]
 }}
 """
-        thought = await self.brain.think(prompt, mode="SLOW")
+        from core.brain.cognitive_engine import ThinkingMode
+        thought = await self.brain.think(prompt, mode=ThinkingMode.DEEP)
         if not thought or not thought.content:
             logger.error("Failed to generate strategic plan")
             return None
@@ -50,10 +51,8 @@ Return the response as a valid JSON object with the following structure:
             elif "{" in content:
                 content = content[content.find("{"):content.rfind("}")+1]
             
-            # Robust parsing (handle quotes and trailing commas)
-            import re
-            content = re.sub(r',\s*([\]}])', r'\1', content)
-            plan_data = json.loads(content)
+            from core.utils.json_utils import extract_json
+            plan_data = extract_json(content, brain=self.brain)
             
             project, tasks = await asyncio.to_thread(
                 self._persist_plan_sync,
@@ -158,9 +157,8 @@ Return as JSON as before:
             elif "{" in content:
                 content = content[content.find("{"):content.rfind("}")+1]
             
-            import re
-            content = re.sub(r',\s*([\]}])', r'\1', content)
-            plan_data = json.loads(content)
+            from core.utils.json_utils import extract_json
+            plan_data = extract_json(content, brain=self.brain)
             
             new_tasks = await asyncio.to_thread(
                 self._replan_project_sync,

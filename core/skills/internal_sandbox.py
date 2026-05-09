@@ -25,23 +25,47 @@ try:
     MAX_CPU = 10
     resource.setrlimit(resource.RLIMIT_CPU, (MAX_CPU, MAX_CPU))
 except ImportError:
-    pass # Windows fallback
+    pass  # Windows/macOS fallback
 
 # Block dangerous builtins
-_forbidden_builtins = ['eval', 'exec', 'open']
+_forbidden_builtins = ['eval', 'exec', 'open', 'compile', '__import__']
 for b in _forbidden_builtins:
     if hasattr(builtins, b):
         setattr(builtins, b, None)
 
-# Disable os.system and subprocess
-if hasattr(os, 'system'):
-    os.system = None
-if hasattr(os, 'popen'):
-    os.popen = None
-    
+# Disable os.system, os.popen, os.exec*, os.spawn*, os.fork
+for _attr in ['system', 'popen', 'execl', 'execle', 'execlp', 'execlpe',
+              'execv', 'execve', 'execvp', 'execvpe', 'spawnl', 'spawnle',
+              'spawnlp', 'spawnlpe', 'spawnv', 'spawnve', 'spawnvp',
+              'spawnvpe', 'fork', 'forkpty', 'kill', 'killpg', 'remove',
+              'unlink', 'rmdir', 'removedirs']:
+    if hasattr(os, _attr):
+        setattr(os, _attr, None)
+
 import subprocess
 subprocess.Popen = None
 subprocess.run = None
+subprocess.call = None
+subprocess.check_call = None
+subprocess.check_output = None
+
+# Block dangerous module imports via custom import hook
+_BLOCKED_MODULES = frozenset({
+    'shutil', 'socket', 'http', 'urllib', 'requests', 'ctypes',
+    'multiprocessing', 'signal', 'pty', 'fcntl', 'termios',
+    'webbrowser', 'ftplib', 'smtplib', 'telnetlib', 'xmlrpc',
+    'importlib', 'code', 'codeop', 'compileall', 'py_compile',
+})
+
+_original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+
+def _safe_import(name, *args, **kwargs):
+    top_level = name.split('.')[0]
+    if top_level in _BLOCKED_MODULES:
+        raise ImportError(f"Module '{name}' is blocked in sandbox environment")
+    return _original_import(name, *args, **kwargs)
+
+builtins.__import__ = _safe_import
 """
 
 from pydantic import BaseModel, Field

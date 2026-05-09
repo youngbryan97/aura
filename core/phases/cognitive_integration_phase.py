@@ -98,7 +98,9 @@ class CognitiveIntegrationPhase(Phase):
             self._endogenous_fitness = ServiceContainer.get("endogenous_fitness", default=None)
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("CognitiveIntegration: service resolution deferred: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_resolve_services"})
+            logger.error("CognitiveIntegration: service resolution deferred: %s", exc, exc_info=True)
         self._resolved = True
 
     async def execute(
@@ -174,6 +176,9 @@ class CognitiveIntegrationPhase(Phase):
                     self._pending_deltas.append(bg_state.response_modifiers)
             except Exception as e:
                 record_degradation('alife_bg', e)
+                from core.utils.exceptions import capture_and_log
+                capture_and_log(e, {"module": "CognitiveIntegrationPhase", "method": "_run_alife_background"})
+                logger.error("ALife background task failed: %s", e, exc_info=True)
 
         get_task_tracker().create_task(_run_alife_background(self._run_criticality))
 
@@ -229,7 +234,9 @@ class CognitiveIntegrationPhase(Phase):
                 state.response_modifiers["mood_narrative"] = mood
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("Sentiment analysis skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_sentiment"})
+            logger.error("Sentiment analysis failed: %s", exc, exc_info=True)
 
     async def _run_anomaly_detection(self, state: AuraState, text: str):
         if not self._anomaly_detector:
@@ -274,7 +281,9 @@ class CognitiveIntegrationPhase(Phase):
             return score
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("Anomaly detection skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_anomaly_detection"})
+            logger.error("Anomaly detection failed: %s", exc, exc_info=True)
             return None
 
     async def _run_autonomous_resilience(self, state: AuraState, text: str) -> Dict[str, Any] | None:
@@ -292,7 +301,9 @@ class CognitiveIntegrationPhase(Phase):
             return report
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("Autonomous resilience skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_autonomous_resilience"})
+            logger.error("Autonomous resilience failed: %s", exc, exc_info=True)
             return None
 
     async def _run_adaptive_immunity(
@@ -377,7 +388,9 @@ class CognitiveIntegrationPhase(Phase):
                     state.response_modifiers["autonomous_resilience_immune"] = secondary_responses
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("Adaptive immunity skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_adaptive_immunity"})
+            logger.error("Adaptive immunity failed: %s", exc, exc_info=True)
 
     async def _run_strange_loop(self, state: AuraState) -> None:
         if not self._strange_loop:
@@ -402,7 +415,9 @@ class CognitiveIntegrationPhase(Phase):
                 state.response_modifiers["self_narrative"] = loop_state.self_narrative
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("Strange loop skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_strange_loop"})
+            logger.error("Strange loop failed: %s", exc, exc_info=True)
 
     async def _run_homeostatic_rl(self, state: AuraState) -> None:
         if not self._homeostatic_rl:
@@ -419,7 +434,9 @@ class CognitiveIntegrationPhase(Phase):
                 state.affect.energy = energy / 100.0  # Normalize to 0-1
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("Homeostatic RL skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_homeostatic_rl"})
+            logger.error("Homeostatic RL failed: %s", exc, exc_info=True)
 
     async def _run_topology_evolution(self, state: AuraState) -> None:
         if not self._topology_evolution:
@@ -450,7 +467,9 @@ class CognitiveIntegrationPhase(Phase):
                     }
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("Topology evolution skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_topology_evolution"})
+            logger.error("Topology evolution failed: %s", exc, exc_info=True)
 
     async def _run_autopoiesis(self, state: AuraState) -> None:
         if not self._autopoiesis:
@@ -466,7 +485,9 @@ class CognitiveIntegrationPhase(Phase):
                 )
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("Autopoiesis skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_autopoiesis"})
+            logger.error("Autopoiesis failed: %s", exc, exc_info=True)
 
     # ── ALife System Runners ─────────────────────────────────────────────
 
@@ -516,7 +537,9 @@ class CognitiveIntegrationPhase(Phase):
                 pass  # no-op: intentional
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("Criticality regulation skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_criticality"})
+            logger.error("Criticality regulation failed: %s", exc, exc_info=True)
 
     async def _run_alife_dynamics(self, state: AuraState) -> None:
         """ALife Dynamics — Lenia kernels, entropy tracking, CPU allocation.
@@ -555,7 +578,9 @@ class CognitiveIntegrationPhase(Phase):
                 )
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("ALife dynamics skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_alife_dynamics"})
+            logger.error("ALife dynamics failed: %s", exc, exc_info=True)
 
     async def _run_alife_extensions(self, state: AuraState) -> None:
         """ALife Extensions — replication, speciation, toroidal topology, costs.
@@ -589,4 +614,6 @@ class CognitiveIntegrationPhase(Phase):
                 )
         except Exception as exc:
             record_degradation('cognitive_integration_phase', exc)
-            logger.debug("ALife extensions skipped: %s", exc)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_alife_extensions"})
+            logger.error("ALife extensions failed: %s", exc, exc_info=True)

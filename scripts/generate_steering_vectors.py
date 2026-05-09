@@ -31,7 +31,7 @@ import numpy as np
 
 logger = logging.getLogger("Aura.SteeringVectors")
 
-_OUTPUT_DIR = Path.home() / ".aura" / "data" / "steering_vectors"
+_OUTPUT_DIR = Path("memory/caa_vectors")
 
 
 @dataclass
@@ -199,12 +199,70 @@ class SteeringVectorGenerator:
         output_dir: Optional[Path] = None,
         seed: int = 42,
         vector_dim: int = 256,
+        model_path: Optional[str] = None,
+        target_layer: int = 16,
     ) -> None:
         self.output_dir = Path(output_dir or _OUTPUT_DIR)
         self.seed = seed
         self.vector_dim = vector_dim
         self._rng = np.random.default_rng(seed)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.use_gpu = False
+        self.model = None
+        self.tokenizer = None
+        self.target_layer = target_layer
+        
+        if model_path:
+            logger.info(f"Loading MLX model from {model_path} for real CAA extraction...")
+            import mlx.core as mx
+            from mlx_lm import load
+            self.model, self.tokenizer = load(model_path)
+            self.use_gpu = True
+
+    def _get_model_layers(self, model) -> Optional[List[Any]]:
+        layers = getattr(model, "layers", None)
+        if not layers and hasattr(model, "model"):
+            layers = getattr(model.model, "layers", None)
+        return layers
+
+    def _get_activation(self, text: str) -> np.ndarray:
+        if not self.use_gpu:
+            return self._text_to_activation(text)
+            
+        import mlx.core as mx
+        captured = [None]
+        layers = self._get_model_layers(self.model)
+        if not layers or self.target_layer >= len(layers):
+            logger.error("Target layer out of range")
+            return self._text_to_activation(text)
+            
+        target_block = layers[self.target_layer]
+        original_class = target_block.__class__
+
+        class CapturingBlock(original_class):
+            def __call__(self, x, *args, **kwargs):
+                res = super().__call__(x, *args, **kwargs)
+                h = res[0] if isinstance(res, tuple) else res
+                if h is not None:
+                    captured[0] = np.array(h[0, -1, :])
+                return res
+
+        target_block.__class__ = CapturingBlock
+        try:
+            tokens = self.tokenizer.encode(text)
+            input_ids = tokens.input_ids if hasattr(tokens, "input_ids") else tokens
+            input_tensor = mx.array([input_ids])
+            _ = self.model(input_tensor)
+            mx.eval(_)
+        except Exception as e:
+            logger.error(f"Failed to extract activation: {e}")
+        finally:
+            target_block.__class__ = original_class
+            
+        if captured[0] is not None:
+            return captured[0].astype(np.float32)
+        return self._text_to_activation(text)
 
     def _text_to_activation(self, text: str) -> np.ndarray:
         """Convert text to a pseudo-activation vector.
@@ -256,8 +314,8 @@ class SteeringVectorGenerator:
         negative_activations = []
 
         for pair in pairs:
-            pos_act = self._text_to_activation(pair.positive)
-            neg_act = self._text_to_activation(pair.negative)
+            pos_act = self._get_activation(pair.positive)
+            neg_act = self._get_activation(pair.negative)
             positive_activations.append(pos_act * pair.weight)
             negative_activations.append(neg_act * pair.weight)
 
@@ -373,6 +431,14 @@ def main() -> None:
         "--dim", type=int, default=256,
         help="Vector dimension",
     )
+    parser.add_argument(
+        "--model-path", type=str, default=None,
+        help="Path to MLX model for real extraction. If omitted, uses CPU proxies.",
+    )
+    parser.add_argument(
+        "--target-layer", type=int, default=16,
+        help="Target transformer layer for extraction.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(name)s | %(message)s")
@@ -381,6 +447,8 @@ def main() -> None:
         output_dir=args.output_dir,
         seed=args.seed,
         vector_dim=args.dim,
+        model_path=args.model_path,
+        target_layer=args.target_layer,
     )
 
     vectors = generator.generate_all()

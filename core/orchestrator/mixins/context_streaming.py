@@ -96,7 +96,7 @@ class ContextStreamingMixin:
                         ctx["emotional_state"] = mood
             except Exception as e:
                 record_degradation('context_streaming', e)
-                logger.debug("Affect extraction skipped: %s", e)
+                logger.error("Affect extraction failed: %s", e, exc_info=True)
 
         # Theory of Mind Projection
         if self.mind_model:

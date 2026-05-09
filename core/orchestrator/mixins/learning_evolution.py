@@ -265,7 +265,7 @@ class LearningEvolutionMixin:
                     continue
             except Exception as exc:
                 record_degradation('learning_evolution', exc)
-                logger.debug("Self-modification runtime-mode check skipped: %s", exc)
+                logger.error("Self-modification runtime-mode check failed: %s", exc, exc_info=True)
 
             # : Safety Lock — No patches while processing.
             if getattr(self.status, 'is_processing', False):

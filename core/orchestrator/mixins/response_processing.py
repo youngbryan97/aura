@@ -90,7 +90,7 @@ class ResponseProcessingMixin:
                     pass  # no-op: intentional
         except Exception as _ground_err:
             record_degradation('response_processing', _ground_err)
-            logger.debug("Action grounding skipped: %s", _ground_err)
+            logger.error("Action grounding failed: %s", _ground_err, exc_info=True)
 
         # ── UNIFIED WILL: Identity alignment check on outgoing response ──
         try:
@@ -585,7 +585,7 @@ class ResponseProcessingMixin:
                 )
             except Exception as exc:
                 record_degradation('response_processing', exc)
-                logger.debug("Fast-path response contract skipped: %s", exc)
+                logger.error("Fast-path response contract failed: %s", exc, exc_info=True)
 
         analysis = analyze_turn(message)
         if contract is not None and (

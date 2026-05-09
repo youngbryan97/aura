@@ -63,7 +63,7 @@ class AgentDelegator(AuraBaseModule):
                 await asyncio.sleep(30)
                 now = time.time()
                 to_prune = []
-                for aid, agent in self.active_agents.items():
+                for aid, agent in list(self.active_agents.items()):
                     if agent.status in ["COMPLETED", "FAILED"] and agent.completed_at:
                         if now - agent.completed_at > 60: # 60s retention
                             to_prune.append(aid)
@@ -94,13 +94,13 @@ class AgentDelegator(AuraBaseModule):
     def get_status(self) -> Dict[str, Any]:
         return {
             "active_count": self._busy_count(),
-            "agents": {aid: {"specialty": a.specialty, "status": a.status} for aid, a in self.active_agents.items()},
+            "agents": {aid: {"specialty": a.specialty, "status": a.status} for aid, a in list(self.active_agents.items())},
             "capacity": f"{self._busy_count()}/{self.effective_max_parallel()}",
             "configured_max_parallel": self.max_parallel,
         }
 
     def _busy_count(self) -> int:
-        return sum(1 for agent in self.active_agents.values() if agent.status == "BUSY")
+        return sum(1 for agent in list(self.active_agents.values()) if agent.status == "BUSY")
 
     def effective_max_parallel(self) -> int:
         """Throttle swarm width from live integrity telemetry."""
@@ -163,9 +163,9 @@ class AgentDelegator(AuraBaseModule):
         return results
 
     async def delegate_debate(self, topic: str, roles: Optional[List[str]] = None, timeout: float = 60.0, **kwargs) -> str:
+        """Spawns multiple agents, waits for them, and synthesizes a consensus."""
         if roles is None:
             roles = ["architect", "critic"]
-        """Spawns multiple agents, waits for them, and synthesizes a consensus."""
         self.logger.info("🧠 Forming swarm debate on: %s...", topic[:50])
         
         agent_ids = []
@@ -418,7 +418,9 @@ FINAL SYNTHESIS:"""
             agent.result = f"[TIMEOUT] Agent could not complete goal within {timeout}s"
         except Exception as e:
             record_degradation('delegator', e)
-            self.logger.error("❌ Agentic Agent %s failed: %s", agent.id, e)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(e, {"module": "AgentDelegator", "method": "_run_agentic_agent"})
+            self.logger.error("❌ Agentic Agent %s failed: %s", agent.id, e, exc_info=True)
             agent.status = "FAILED"
             agent.result = f"[ERROR] {str(e)}"
         finally:
@@ -452,13 +454,25 @@ FINAL SYNTHESIS:"""
 
             # 3. Explicit Timeout + Hardware Semaphore For M5 Pro Limit
             self.logger.debug("🐝 Swarm Agent %s waiting for GPU semaphore.", agent.id)
-            async with self.gpu_semaphore:
+            try:
+                if hasattr(asyncio, "timeout"):
+                    async with asyncio.timeout(120.0):
+                        await self.gpu_semaphore.acquire()
+                else:
+                    await asyncio.wait_for(self.gpu_semaphore.acquire(), timeout=120.0)
+            except (asyncio.TimeoutError, TimeoutError):
+                self.logger.error("🚨 DEADLOCK DETECTED: Could not acquire GPU semaphore within 120s for Swarm Agent %s", agent.id)
+                raise RuntimeError(f"GPU semaphore deadlock for {agent.id}")
+            
+            try:
                 self.logger.debug("🐝 Swarm Agent %s acquired GPU. Beginning inference.", agent.id)
                 agent_timeout = float(kwargs.pop("agent_timeout", 60.0) or 60.0)
                 res = await asyncio.wait_for(
                     local_brain.think(swarm_context + prompt, mode="fast", **kwargs),
                     timeout=agent_timeout
                 )
+            finally:
+                self.gpu_semaphore.release()
 
             agent.result = res.content if hasattr(res, 'content') else str(res)
             agent.status = "COMPLETED"
@@ -492,7 +506,9 @@ FINAL SYNTHESIS:"""
 
         except Exception as e:
             record_degradation('delegator', e)
-            self.logger.error("❌ Swarm Agent %s FAILED: %s", agent.id, e)
+            from core.utils.exceptions import capture_and_log
+            capture_and_log(e, {"module": "AgentDelegator", "method": "_run_agent"})
+            self.logger.error("❌ Swarm Agent %s FAILED: %s", agent.id, e, exc_info=True)
             agent.status = "FAILED"
             agent.result = f"[ERROR] {str(e)}"
         finally:

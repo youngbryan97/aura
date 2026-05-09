@@ -585,7 +585,7 @@ def schedule_background_retry(
                     )
                 except Exception as emit_exc:
                     record_degradation('chat_preflight', emit_exc)
-                    logger.debug("Background retry proactive resume emit skipped: %s", emit_exc)
+                    logger.error("Background retry proactive resume emit failed: %s", emit_exc, exc_info=True)
             else:
                 logger.warning("Background retry produced empty result for session %s", session_id)
         except Exception as e:

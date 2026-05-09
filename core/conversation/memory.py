@@ -100,7 +100,9 @@ If no facts found, return [].
             import re
             json_match = re.search(r'\[.*\]', content, re.DOTALL)
             if json_match:
-                facts = json.loads(json_match.group(0))
+                from core.utils.json_utils import extract_json
+                facts_raw = extract_json(json_match.group(0))
+                facts = facts_raw if isinstance(facts_raw, list) else facts_raw.get("payload", []) if isinstance(facts_raw, dict) else []
                 for f in facts:
                     self.dual.learn_fact(
                         concept=f.get("concept", "unknown"),

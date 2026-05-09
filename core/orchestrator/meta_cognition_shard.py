@@ -48,7 +48,7 @@ class MetaCognitionShard:
             )
         except Exception as exc:
             record_degradation('meta_cognition_shard', exc)
-            logger.debug("Meta-Cognition background gate skipped: %s", exc)
+            logger.error("Meta-Cognition background gate failed: %s", exc, exc_info=True)
             return ""
 
     async def _audit_loop(self):

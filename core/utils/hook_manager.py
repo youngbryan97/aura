@@ -31,9 +31,7 @@ class HookManager:
 
     async def trigger(self, event: str, *args, **kwargs) -> List[Any]:
         """Trigger all callbacks for a specific event and return results."""
-        callbacks = []
-        with self._lock:
-            callbacks = list(self.hooks.get(event, []))
+        callbacks = list(self.hooks.get(event, []))
         
         results = []
         for cb in callbacks:

@@ -728,13 +728,13 @@ class AuthorityGateway:
                 self._get_executive_core().complete_intent(executive_intent_id, success=success)
             except Exception as exc:
                 record_degradation('authority_gateway', exc)
-                logger.debug("Executive intent completion skipped: %s", exc)
+                logger.error("Executive intent completion failed: %s", exc, exc_info=True)
         if capability_token_id:
             try:
                 self._capabilities.revoke_token(capability_token_id)
             except Exception as exc:
                 record_degradation('authority_gateway', exc)
-                logger.debug("Capability token revoke skipped: %s", exc)
+                logger.error("Capability token revoke failed: %s", exc, exc_info=True)
 
     def _complete_intent_safely(self, intent_id: Optional[str], *, success: bool = True) -> None:
         if not intent_id:
@@ -743,7 +743,7 @@ class AuthorityGateway:
             self._get_executive_core().complete_intent(intent_id, success=success)
         except Exception as exc:
             record_degradation('authority_gateway', exc)
-            logger.debug("Executive intent completion skipped: %s", exc)
+            logger.error("Executive intent completion failed: %s", exc, exc_info=True)
 
     def _get_executive_core(self) -> Any:
         from core.executive import executive_core as executive_core_module
@@ -891,7 +891,7 @@ class AuthorityGateway:
                     {},
                     None,
                 )
-            logger.debug("Substrate preflight skipped for %s: %s", category.name, exc)
+            logger.error("Substrate preflight failed for %s: %s", category.name, exc, exc_info=True)
             return None, {}, None
 
         if verdict.decision == AuthorizationDecision.BLOCK:
@@ -934,5 +934,5 @@ def get_authority_gateway() -> AuthorityGateway:
             ServiceContainer.register_instance("authority_gateway", _instance, required=False)
         except Exception as exc:
             record_degradation('authority_gateway', exc)
-            logger.debug("AuthorityGateway registration skipped: %s", exc)
+            logger.error("AuthorityGateway registration failed: %s", exc, exc_info=True)
     return _instance

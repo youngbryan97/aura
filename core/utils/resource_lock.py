@@ -20,6 +20,8 @@ class ResourceLock:
         self._gpu_semaphore = None
         self._browser_sessions = 0
         self._total_browser_sessions = 0
+        import threading
+        self._init_lock = threading.Lock()
 
     def _ensure_primitives(self):
         """Lazily create async primitives for the current event loop."""
@@ -28,11 +30,12 @@ class ResourceLock:
         except RuntimeError:
             return
 
-        if self._loop is not loop:
-            self._loop = loop
-            self._browser_idle = asyncio.Event()
-            self._browser_idle.set()
-            self._gpu_semaphore = asyncio.Semaphore(1)
+        with self._init_lock:
+            if self._loop is not loop:
+                self._loop = loop
+                self._browser_idle = asyncio.Event()
+                self._browser_idle.set()
+                self._gpu_semaphore = asyncio.Semaphore(1)
 
     @asynccontextmanager
     async def browser_session(self):

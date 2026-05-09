@@ -98,7 +98,7 @@ class ToolExecutionMixin:
                 )
             except Exception as _coding_exc:
                 record_degradation('tool_execution', _coding_exc)
-                logger.debug("Coding session tool recording skipped: %s", _coding_exc)
+                logger.error("Coding session tool recording failed: %s", _coding_exc, exc_info=True)
 
         # ── UNIFIED WILL GATE ────────────────────────────────────────────
         try:

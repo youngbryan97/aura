@@ -94,6 +94,11 @@ class SovereignSwarm:
         safe_goal = str(goal)[:50]
         task.set_name(f"ShardJob:{safe_goal}")
         self.active_shards[shard_id] = task
+        
+        def _cleanup(t):
+            self.active_shards.pop(shard_id, None)
+        task.add_done_callback(_cleanup)
+        
         return True
 
     async def start_permanent_debate(self, *args, **kwargs):
@@ -149,13 +154,10 @@ CONTEXT: {context}
 
 You are an autonomous cognitive shard. If you encounter a domain you do not understand, DO NOT GUESS. You have tools available.
 
-To run Python code to solve math or process data, output exactly:
-<TOOL:python_sandbox>
-# logic here
-</TOOL>
-
-To search the web for live data, output exactly:
-<TOOL:web_search>query</TOOL>
+To use a tool, specify it in the JSON fields "tool_name" and "tool_payload".
+Available tools:
+- "python_sandbox": Run Python code. Pass the code as the payload.
+- "web_search": Search the web. Pass the query as the payload.
 
 Synthesize a brief, insightful conclusion or action.
 
@@ -588,7 +590,7 @@ class AgencyCore:
                 return None
         except Exception as _vexc:
             record_degradation('agency_core', _vexc)
-            logger.debug("viability gate skipped: %s", _vexc)
+            logger.error("viability gate failed: %s", _vexc, exc_info=True)
 
         # Sync state from orchestrator subsystems
         self._sync_from_orchestrator()

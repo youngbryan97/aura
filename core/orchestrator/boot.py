@@ -172,7 +172,7 @@ class OrchestratorBootMixin(
             self.executive_authority = get_executive_authority(self)
         except Exception as exc:
             record_degradation('boot', exc)
-            logger.debug("Executive authority bootstrap skipped: %s", exc)
+            logger.error("Executive authority bootstrap failed: %s", exc, exc_info=True)
 
         try:
             from core.constitution import get_constitutional_core
@@ -180,7 +180,7 @@ class OrchestratorBootMixin(
             self.constitutional_core = get_constitutional_core(self)
         except Exception as exc:
             record_degradation('boot', exc)
-            logger.debug("Constitutional core bootstrap skipped: %s", exc)
+            logger.error("Constitutional core bootstrap failed: %s", exc, exc_info=True)
 
         # [PATCH 23] Integrity Guard (File Verification)
         try:
