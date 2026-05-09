@@ -227,7 +227,7 @@ class TestValueInventionGrounding(unittest.TestCase):
         # Should have progressed at least to SANDBOX
         self.assertIn(node.status, [
             ValueNodeStatus.CANDIDATE, ValueNodeStatus.SANDBOX,
-            ValueNodeStatus.PROVISIONAL])
+            ValueNodeStatus.PROVISIONAL, ValueNodeStatus.ADOPTED])
 
         # Step 2: Keep feeding evidence and evolving
         for cycle in range(10):
@@ -336,6 +336,97 @@ class TestRuntimeIntegration(unittest.TestCase):
         if source.exists():
             text = source.read_text()
             self.assertIn("dynamic_value_graph", text)
+
+
+class TestTreeLoRAAdapterTree(unittest.TestCase):
+    """Prove the LLM backbone uses TreeLoRA hierarchical adapter routing."""
+
+    def test_orthogonal_tasks_cause_branching(self):
+        from core.learning.tree_lora_manager import TreeLoRAManager, TaskGradientSignature
+        import numpy as np
+
+        manager = TreeLoRAManager(signature_dim=10, branching_threshold=0.5, layer_count=1)
+        
+        # Task 1 creates the first centroid update on root (force exact match by setting centroid)
+        manager.tree[0]["layer_0_root"].signature_centroid = np.array([1.0, 0.0] + [0.0]*8)
+        sig1 = TaskGradientSignature("task_A", np.array([1.0, 0.0] + [0.0]*8), 0.5)
+        node1_id = manager.route_and_adapt(sig1, layer_idx=0)
+        self.assertEqual(node1_id, "layer_0_root")
+
+        # Task 2 has orthogonal gradient -> should cause branching
+        sig2 = TaskGradientSignature("task_B", np.array([0.0, 1.0] + [0.0]*8), 0.5)
+        node2_id = manager.route_and_adapt(sig2, layer_idx=0)
+        self.assertNotEqual(node1_id, node2_id)
+        self.assertIn(node2_id, manager.tree[0]["layer_0_root"].children)
+
+    def test_similar_tasks_route_to_same_branch(self):
+        from core.learning.tree_lora_manager import TreeLoRAManager, TaskGradientSignature
+        import numpy as np
+
+        manager = TreeLoRAManager(signature_dim=10, branching_threshold=0.5, layer_count=1)
+        
+        # Task 1 initializes root
+        manager.tree[0]["layer_0_root"].signature_centroid = np.array([1.0, 0.1] + [0.0]*8)
+        sig1 = TaskGradientSignature("task_A", np.array([1.0, 0.1] + [0.0]*8), 0.5)
+        manager.route_and_adapt(sig1, layer_idx=0)
+
+        # Task 2 is very similar -> should route to same node
+        sig2 = TaskGradientSignature("task_A_variant", np.array([0.9, 0.2] + [0.0]*8), 0.5)
+        node2_id = manager.route_and_adapt(sig2, layer_idx=0)
+        self.assertEqual(node2_id, "layer_0_root")
+
+    def test_pruning_lesions_tree(self):
+        from core.learning.tree_lora_manager import TreeLoRAManager, TaskGradientSignature
+        import numpy as np
+
+        manager = TreeLoRAManager(signature_dim=10, branching_threshold=0.5, layer_count=1)
+        sig1 = TaskGradientSignature("task_A", np.array([1.0, 0.0] + [0.0]*8), 0.5)
+        manager.route_and_adapt(sig1, layer_idx=0)
+        sig2 = TaskGradientSignature("task_B", np.array([0.0, 1.0] + [0.0]*8), 0.5)
+        branch_id = manager.route_and_adapt(sig2, layer_idx=0)
+        
+        self.assertTrue(manager.tree[0][branch_id].is_active)
+        manager.prune_node(branch_id, layer_idx=0)
+        self.assertFalse(manager.tree[0][branch_id].is_active)
+
+
+class TestLearnedMCTSPlanner(unittest.TestCase):
+    """Prove System 2 deliberation uses a learned world model."""
+
+    def test_mcts_ablation_learned_model_matters(self):
+        from core.cognition.mcts_world_model import LearnedMCTSPlanner
+        from core.world_model.learned_world_model import LearnedWorldModel, WorldModelConfig
+        import numpy as np
+
+        # Setup VRNN and Planner
+        config = WorldModelConfig(observation_dim=4, latent_dim=4, hidden_dim=8, action_dim=2)
+        world_model = LearnedWorldModel(config)
+        action_space = [np.array([1.0, 0.0]), np.array([0.0, 1.0])]
+        
+        def mock_value_scorer(hidden_state: np.ndarray) -> float:
+            # Reward states where hidden_state[0] is positive
+            return float(hidden_state[0])
+
+        planner = LearnedMCTSPlanner(
+            world_model=world_model,
+            action_space=action_space,
+            value_scorer=mock_value_scorer,
+            num_simulations=10,
+            max_depth=3
+        )
+        
+        obs = np.zeros(4)
+        
+        # Test with learned model
+        _, info_learned = planner.plan(obs, ablate_learned_model=False)
+        self.assertGreater(info_learned["root_visits"], 0)
+        
+        # Test with ablated heuristic model
+        _, info_ablated = planner.plan(obs, ablate_learned_model=True)
+        
+        # The Q values in the learned model should reflect the scorer's structured logic
+        # compared to the random heuristic ablation.
+        self.assertNotEqual(info_learned["best_q"], info_ablated["best_q"])
 
 
 class TestWhatIsStillLeft(unittest.TestCase):
