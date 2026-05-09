@@ -629,6 +629,20 @@ class ClosedCausalLoop:
                     self._loop_state.mean_free_energy = self._predictor.mean_free_energy
                     self._loop_state.cycle_count += 1
 
+                    # Feed MetaCognitive Monitor (continuous observation)
+                    try:
+                        metacog = self._get_research_metacog()
+                        if metacog is not None:
+                            metacog.observe(
+                                gradient_norm=cycle.prediction_error_magnitude,
+                                loss=cycle.free_energy,
+                                prediction_error=cycle.prediction_error_magnitude,
+                                confidence=max(0.0, 1.0 - cycle.free_energy),
+                                accuracy=max(0.0, 1.0 - cycle.prediction_error_magnitude),
+                            )
+                    except (ImportError, TypeError, ValueError):
+                        pass  # no-op: research module not available
+
                     # STEP 3: Inject prediction error as stimulus
                     feedback = self._predictor.get_feedback_stimulus(cycle.error_vector)
                     if np.linalg.norm(feedback) > 0.01:
@@ -796,6 +810,16 @@ class ClosedCausalLoop:
                 f"Φ_est={phi:.4f}: Non-zero causal integration. "
                 f"The open-loop partition has been broken. Φ > 0."
             )
+
+    def _get_research_metacog(self):
+        """Lazy-load the metacognitive monitor singleton."""
+        if not hasattr(self, '_research_metacog'):
+            try:
+                from core.meta.metacognitive_monitor import MetaCognitiveMonitor
+                self._research_metacog = MetaCognitiveMonitor()
+            except ImportError:
+                self._research_metacog = None
+        return self._research_metacog
 
     def get_status(self) -> Dict[str, Any]:
         """Full diagnostic status."""

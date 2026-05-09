@@ -65,10 +65,49 @@ def init_cognitive_sensory_layer(container):
         from core.consciousness.stdp_learning import get_stdp_engine
         stdp = get_stdp_engine()
         container.register_instance("stdp_engine", stdp, required=False)
-        logger.debug("STDP learning engine registered.")
+        logger.debug("STDP learning engine registered (with MESU plasticity).")
     except Exception as e:
         record_degradation('cognitive_sensory', e)
         logger.debug("STDP engine init deferred: %s", e)
+
+    # ── Phase 3/4: Research-grade cognitive modules ──
+    # All non-required — boot never fails on these.
+
+    try:
+        from core.meta.metacognitive_monitor import MetaCognitiveMonitor
+        metacog = MetaCognitiveMonitor()
+        container.register_instance("metacognitive_monitor", metacog, required=False)
+        logger.debug("MetaCognitive monitor registered.")
+    except Exception as e:
+        record_degradation('cognitive_sensory', e)
+        logger.debug("MetaCognitive monitor init deferred: %s", e)
+
+    try:
+        from core.adaptation.intrinsic_motivation import IntrinsicMotivationEngine
+        im_engine = IntrinsicMotivationEngine()
+        container.register_instance("intrinsic_motivation", im_engine, required=False)
+        logger.debug("Intrinsic motivation engine registered.")
+    except Exception as e:
+        record_degradation('cognitive_sensory', e)
+        logger.debug("Intrinsic motivation init deferred: %s", e)
+
+    try:
+        from core.meta.experience_distillery import ExperienceDistillery
+        distillery = ExperienceDistillery()
+        container.register_instance("experience_distillery", distillery, required=False)
+        logger.debug("Experience distillery registered.")
+    except Exception as e:
+        record_degradation('cognitive_sensory', e)
+        logger.debug("Experience distillery init deferred: %s", e)
+
+    try:
+        from core.adaptation.plasticity_governor import PlasticityGovernor
+        gov = PlasticityGovernor()
+        container.register_instance("plasticity_governor", gov, required=False)
+        logger.debug("Plasticity governor (EWC) registered.")
+    except Exception as e:
+        record_degradation('cognitive_sensory', e)
+        logger.debug("Plasticity governor init deferred: %s", e)
 
     # Code graph — Aura's self-knowledge of her own codebase
     try:

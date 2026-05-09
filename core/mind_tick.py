@@ -691,6 +691,18 @@ class MindTick:
                         goal_engine = ServiceContainer.get("goal_engine", default=None)
                         if goal_engine and hasattr(goal_engine, "evaluate_goals"):
                             await asyncio.wait_for(goal_engine.evaluate_goals(), timeout=5.0)
+
+                            # Feed completed/failed goals to intrinsic motivation
+                            try:
+                                im = ServiceContainer.get("intrinsic_motivation", default=None)
+                                if im and hasattr(goal_engine, "get_recent_completions"):
+                                    for goal in goal_engine.get_recent_completions(limit=5):
+                                        name = str(goal.get("name", goal.get("objective", "unknown")))
+                                        success = str(goal.get("status", "")).lower() in ("completed", "succeeded")
+                                        im.record_competence(name, success)
+                            except (TypeError, ValueError, AttributeError):
+                                pass  # no-op: IM not available or goal engine doesn't support it
+
                     except asyncio.TimeoutError:
                         logger.debug("MindTick: Goal evaluation timed out.")
                     except Exception as _ge_err:
@@ -833,6 +845,12 @@ class MindTick:
                                         name="mind_tick.consolidate_working_memory",
                                     )
                                 )
+                                # ── DREAM CYCLE: Phase 3/4 Research Module Integration ──
+                                # These run during dream consolidation, not on every tick.
+                                try:
+                                    self._dream_research_modules()
+                                except (TypeError, ValueError, RuntimeError, ImportError) as _drm:
+                                    logger.debug("MindTick: Dream research modules skipped: %s", _drm)
                                 self.set_mode(CognitiveMode.SLEEP)
                 
                 # NOTE: tick_count and cycle_count increment moved to finally block
@@ -902,6 +920,95 @@ class MindTick:
             last_msg = state.cognition.working_memory[-1]
             return last_msg.get("content")
         return None
+
+    def _dream_research_modules(self) -> None:
+        """Run Phase 3/4 research modules during dream consolidation.
+
+        Called once per dream cycle (20+ min idle). Executes:
+          1. MetaCognitive assessment → strategy adjustments
+          2. Intrinsic motivation → feed to DynamicValueGraph
+          3. DVG evolution cycle
+          4. Hidden eval suite → drift detection
+          5. STDP MESU diagnostics logging
+
+        Uses container-registered singletons (same instances that
+        collect observations during regular ticks).
+        """
+        # 1. Meta-cognitive reflection (uses boot-registered singleton)
+        try:
+            metacog = ServiceContainer.get("metacognitive_monitor", default=None)
+            if metacog is not None:
+                reflection = metacog.assess()
+                logger.info(
+                    "🧠 Dream: MetaCognitive assessment: %s → %s",
+                    reflection.condition.value,
+                    [a.value for a in reflection.recommended_actions],
+                )
+                metacog.execute_actions(reflection)
+        except (TypeError, ValueError) as exc:
+            logger.debug("Dream: MetaCognitive skipped: %s", exc)
+
+        # 2. Intrinsic motivation → feed to value graph
+        try:
+            im = ServiceContainer.get("intrinsic_motivation", default=None)
+            if im is not None:
+                count = im.feed_to_value_graph()
+                if count > 0:
+                    logger.info("🧠 Dream: Fed %d intrinsic motivation signals to DVG", count)
+        except (TypeError, ValueError) as exc:
+            logger.debug("Dream: IntrinsicMotivation skipped: %s", exc)
+
+        # 3. Dynamic value graph evolution
+        try:
+            from core.adaptation.dynamic_value_graph import get_dynamic_value_graph
+            dvg = get_dynamic_value_graph()
+            mutations = dvg.evolve()
+            if mutations:
+                logger.info("🧠 Dream: DVG evolved: %d mutation(s)", len(mutations))
+        except (ImportError, TypeError, ValueError) as exc:
+            logger.debug("Dream: DVG evolution skipped: %s", exc)
+
+        # 4. Hidden eval suite
+        try:
+            from core.architect.hidden_eval import HiddenEvalRunner
+            if not hasattr(self, '_research_eval'):
+                self._research_eval = HiddenEvalRunner.create_default_suite()
+            result = self._research_eval.run_suite()
+            if result.drift_detected:
+                logger.warning(
+                    "⚠️ Dream: Hidden eval DRIFT DETECTED! health=%.2f",
+                    result.overall_health,
+                )
+            elif result.failed > 0:
+                logger.warning(
+                    "⚠️ Dream: Hidden eval: %d/%d failed, health=%.2f",
+                    result.failed, result.total_scenarios, result.overall_health,
+                )
+        except (ImportError, TypeError, ValueError) as exc:
+            logger.debug("Dream: HiddenEval skipped: %s", exc)
+
+        # 5. STDP MESU diagnostics
+        try:
+            stdp = ServiceContainer.get("stdp_engine", default=None)
+            if stdp is not None and hasattr(stdp, 'get_mesu_diagnostics'):
+                diag = stdp.get_mesu_diagnostics()
+                logger.info(
+                    "🧠 Dream: MESU diagnostics: locked=%d (%.1f%%), uncertainty=%.4f",
+                    diag["locked_count"],
+                    diag["locked_fraction"] * 100,
+                    diag["uncertainty_mean"],
+                )
+        except (TypeError, ValueError) as exc:
+            logger.debug("Dream: MESU diagnostics skipped: %s", exc)
+
+        # 6. EWC consolidation (trigger during dream for weight protection)
+        try:
+            gov = ServiceContainer.get("plasticity_governor", default=None)
+            if gov is not None and hasattr(gov, 'consolidate'):
+                gov.consolidate()
+                logger.info("🧠 Dream: EWC plasticity governor consolidated.")
+        except (TypeError, ValueError) as exc:
+            logger.debug("Dream: EWC consolidation skipped: %s", exc)
 
     def set_mode(self, mode: CognitiveMode):
         """Update the cognitive mode and tick interval."""
