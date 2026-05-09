@@ -268,13 +268,33 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                                         do_interventions["file_deletion"] = 1.0
                                         
                                     logger.info(f"🌐 Running MCTS simulation for {name}...")
-                                    rollout_state = cwm.simulate_counterfactual(do_interventions, steps=2)
+                                    sim_start = time.time()
                                     
-                                    # Veto if catastrophic outcome is highly probable
-                                    if rollout_state.get("orchestrator crash", 0) > 0.5 or rollout_state.get("sandbox violation", 0) > 0.5:
-                                        is_blocked = True
-                                        blocked_tools.append((name, "vetoed_by_causal_mcts_rollout"))
-                                        logger.warning(f"🛡️ MCTS Simulation Vetoed {name}: Predicted catastrophic system degradation.")
+                                    import inspect
+                                    if inspect.iscoroutinefunction(cwm.simulate_counterfactual):
+                                        rollout_coro = cwm.simulate_counterfactual(do_interventions, steps=2)
+                                    else:
+                                        rollout_coro = asyncio.to_thread(cwm.simulate_counterfactual, do_interventions, steps=2)
+                                        
+                                    try:
+                                        rollout_state = await asyncio.wait_for(rollout_coro, timeout=0.4)
+                                    except asyncio.TimeoutError:
+                                        logger.warning(f"⏳ MCTS Simulation timed out for {name}. Downgrading to dry_run constraint.")
+                                        rollout_state = {"timeout": True}
+                                        
+                                    sim_duration = time.time() - sim_start
+                                    logger.info(f"⏱️ MCTS simulation for {name} took {sim_duration:.3f}s")
+                                    
+                                    # Veto or Downgrade if catastrophic outcome is highly probable or uncertain
+                                    if rollout_state.get("orchestrator crash", 0) > 0.5 or rollout_state.get("sandbox violation", 0) > 0.5 or rollout_state.get("timeout"):
+                                        if name == "python_sandbox":
+                                            # Constrain path: Downgrade tool to dry_run (syntax check only) instead of a hard veto
+                                            payload = f"print('DRY RUN ENFORCED by CWM Veto/Timeout. Original code skipped.')\n# {payload.replace(chr(10), chr(10) + '# ')}"
+                                            logger.warning(f"🛡️ MCTS Simulation downgraded {name} to dry-run mode to preserve competence drive.")
+                                        else:
+                                            is_blocked = True
+                                            blocked_tools.append((name, "vetoed_by_causal_mcts_rollout"))
+                                            logger.warning(f"🛡️ MCTS Simulation Vetoed {name}: Predicted catastrophic system degradation.")
                             except Exception as mcts_e:
                                 logger.error(f"Failed to run MCTS simulation: {mcts_e}")
 

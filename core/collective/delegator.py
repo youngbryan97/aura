@@ -74,7 +74,21 @@ class AgentDelegator(AuraBaseModule):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                record_degradation('delegator', e)
+                try:
+                    import psutil
+                    if psutil.virtual_memory().percent < 90:
+                        from core.runtime.self_healing import get_healer
+                        self.logger.warning(f"Active repair triggered for scavenger loop error: {e}")
+                        record_degradation('delegator', e, action="scheduled_deep_repair", receipt_required=True)
+                        get_healer().schedule_deep_repair(
+                            "core/collective/delegator.py",
+                            reason=f"scavenger_loop_exception: {e}",
+                            metadata={"error_type": type(e).__name__}
+                        )
+                    else:
+                        record_degradation('delegator', e, action="suppressed_repair_due_to_memory_pressure", receipt_required=True)
+                except Exception:
+                    record_degradation('delegator', e)
                 self.logger.error("Scavenger loop error: %s", e)
 
     def get_status(self) -> Dict[str, Any]:

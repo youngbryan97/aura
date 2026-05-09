@@ -114,7 +114,22 @@ class ActorBus:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                record_degradation('actor_bus', e)
+                try:
+                    import psutil
+                    if psutil.virtual_memory().percent < 90:
+                        from core.runtime.self_healing import get_healer
+                        logger.warning(f"Active repair triggered for telemetry broadcast error: {e}")
+                        record_degradation('actor_bus', e, action="scheduled_deep_repair", receipt_required=True)
+                        get_healer().schedule_deep_repair(
+                            "core/bus/actor_bus.py",
+                            reason=f"telemetry_broadcast_exception: {e}",
+                            metadata={"error_type": type(e).__name__}
+                        )
+                    else:
+                        record_degradation('actor_bus', e, action="suppressed_repair_due_to_memory_pressure", receipt_required=True)
+                except Exception:
+                    record_degradation('actor_bus', e)
+                    
                 logger.error(f"Telemetry broadcast error: {e}")
                 await asyncio.sleep(0.1)
 

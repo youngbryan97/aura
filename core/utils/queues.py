@@ -200,14 +200,26 @@ class PriorityBackpressuredQueue(BackpressuredQueue):
         from core.schemas import IPCMessage
         import time
         if not isinstance(item, IPCMessage):
+            origin_from_payload = "unknown"
+            payload_data = None
             if isinstance(item, tuple) and len(item) == 3:
                 p, t, payload = item
+                payload_data = payload
                 standardized = IPCMessage(priority=p, timestamp=t, sequence=next(self._count), payload=payload, origin="unknown")
             elif isinstance(item, tuple) and len(item) == 5:
                 p, t, seq, payload, origin = item
+                payload_data = payload
                 standardized = IPCMessage(priority=p, timestamp=t, sequence=seq, payload=payload, origin=origin)
             else:
+                payload_data = item
                 standardized = IPCMessage(priority=20, sequence=next(self._count), payload=item, origin="unknown")
+                
+            # Legacy origin extraction from dict payload
+            if isinstance(payload_data, dict) and payload_data.get("origin"):
+                standardized.origin = str(payload_data["origin"])
+            elif standardized.origin == "unknown":
+                logger.warning(f"Message lacked explicit origin, defaulting to system. Payload: {str(payload_data)[:50]}")
+                standardized.origin = "system"
         else:
             standardized = item
         await super().put(standardized, timeout=timeout)
@@ -217,14 +229,25 @@ class PriorityBackpressuredQueue(BackpressuredQueue):
         from core.schemas import IPCMessage
         import time
         if not isinstance(item, IPCMessage):
+            origin_from_payload = "unknown"
+            payload_data = None
             if isinstance(item, tuple) and len(item) == 3:
                 p, t, payload = item
+                payload_data = payload
                 standardized = IPCMessage(priority=p, timestamp=t, sequence=next(self._count), payload=payload, origin="unknown")
             elif isinstance(item, tuple) and len(item) == 5:
                 p, t, seq, payload, origin = item
+                payload_data = payload
                 standardized = IPCMessage(priority=p, timestamp=t, sequence=seq, payload=payload, origin=origin)
             else:
+                payload_data = item
                 standardized = IPCMessage(priority=20, sequence=next(self._count), payload=item, origin="unknown")
+                
+            # Legacy origin extraction from dict payload
+            if isinstance(payload_data, dict) and payload_data.get("origin"):
+                standardized.origin = str(payload_data["origin"])
+            elif standardized.origin == "unknown":
+                standardized.origin = "system"
         else:
             standardized = item
         super().put_nowait(standardized)
