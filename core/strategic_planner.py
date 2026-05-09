@@ -51,6 +51,8 @@ Return the response as a valid JSON object with the following structure:
                 content = content[content.find("{"):content.rfind("}")+1]
             
             # Robust parsing (handle quotes and trailing commas)
+            import re
+            content = re.sub(r',\s*([\]}])', r'\1', content)
             plan_data = json.loads(content)
             
             project, tasks = await asyncio.to_thread(
@@ -156,6 +158,8 @@ Return as JSON as before:
             elif "{" in content:
                 content = content[content.find("{"):content.rfind("}")+1]
             
+            import re
+            content = re.sub(r',\s*([\]}])', r'\1', content)
             plan_data = json.loads(content)
             
             new_tasks = await asyncio.to_thread(

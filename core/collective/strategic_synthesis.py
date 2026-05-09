@@ -63,19 +63,18 @@ class StrategicSynthesizer:
             logger.warning("StrategicSynthesizer: No agents spawned. Falling back to standard planning.")
             return None
             
-        # 3. Wait for agents to complete (with timeout)
-        start_time = time.time()
-        timeout = 90.0
-        while time.time() - start_time < timeout:
-            all_done = True
-            for aid in agent_ids:
-                agent = self.delegator.active_agents.get(aid)
-                if not agent or agent.status not in ["COMPLETED", "FAILED"]:
-                    all_done = False
-                    break
-            if all_done:
-                break
-            await asyncio.sleep(1.0)
+        # 3. Wait for agents to complete (event-driven with timeout)
+        wait_tasks = []
+        for aid in agent_ids:
+            agent = self.delegator.active_agents.get(aid)
+            if agent and hasattr(agent, "done_event"):
+                wait_tasks.append(agent.done_event.wait())
+        
+        if wait_tasks:
+            try:
+                await asyncio.wait_for(asyncio.gather(*wait_tasks), timeout=90.0)
+            except asyncio.TimeoutError:
+                logger.warning("StrategicSynthesizer: Swarm agents timed out during synthesis.")
             
         # 4. Gather results
         analyses = []

@@ -63,6 +63,13 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
             logger.info("🧠 First Principle Abstracted: %s...", abstracted_principle[:50])
             await self._commit_principle(abstracted_principle)
             
+        # Feedback loop: Increment application count for principles active during this success
+        active_principles_str = await self.get_core_principles(limit=5)
+        if active_principles_str:
+            lines = [line.strip().lstrip('- ') for line in active_principles_str.split('\n') if line.strip().startswith('- ')]
+            if lines:
+                await self.increment_application_counts(lines)
+            
         return abstracted_principle
 
     async def _commit_principle(self, principle: str):
@@ -179,6 +186,42 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
             record_degradation('abstraction_engine', e)
             logger.error(f"Failed to load principles: {e}")
             return ""
+
+    async def increment_application_counts(self, active_principles: list[str]):
+        """Increments application_count for principles that were successfully used."""
+        async with self._lock:
+            try:
+                if not self.storage_path.exists():
+                    return
+                content = await asyncio.to_thread(self.storage_path.read_text)
+                if not content:
+                    return
+                parsed = json.loads(content)
+                if isinstance(parsed, dict) and "payload" in parsed:
+                    principles_list = parsed.get("payload") or []
+                elif isinstance(parsed, list):
+                    principles_list = parsed
+                else:
+                    principles_list = []
+                    
+                updated = False
+                for p in principles_list:
+                    if p['principle'] in active_principles:
+                        p['application_count'] = p.get('application_count', 0) + 1
+                        updated = True
+                        
+                if updated:
+                    from core.runtime.atomic_writer import atomic_write_json
+                    await asyncio.to_thread(
+                        atomic_write_json,
+                        self.storage_path,
+                        principles_list,
+                        schema_version=1,
+                        schema_name="abstraction.principles",
+                    )
+            except Exception as e:
+                record_degradation('abstraction_engine', e)
+                logger.error(f"Failed to increment principle counts: {e}")
 
 def register_abstraction_engine():
     """Register the abstraction engine in the service container."""
