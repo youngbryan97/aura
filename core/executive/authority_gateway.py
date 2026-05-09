@@ -844,31 +844,23 @@ class AuthorityGateway:
     ) -> tuple[Optional[AuthorityDecision], Dict[str, Any], Optional[str]]:
         authority = optional_service("substrate_authority", default=None)
         if authority is None and require_substrate:
-            if self._strict_runtime_active():
-                return (
-                    self._contextualize(
-                        approved=False,
-                        outcome="rejected",
-                        reason=f"substrate_authority_required:{domain or category.name.lower()}",
-                        constraints={"blocked": True, "missing": "substrate_authority"},
-                        will_receipt_id=will_receipt_id,
-                        domain=domain,
-                        source=source,
-                    ),
-                    {"error": "substrate_authority_required"},
-                    None,
-                )
-            logger.warning("🛡️ Substrate Authority not yet registered (Boot Blind Spot). FAILING OPEN for critical signal integrity.")
+            # FAIL-CLOSED: if substrate authority is required but not available,
+            # block the action regardless of boot state. No "blind spot" bypass.
+            logger.warning(
+                "🛡️ Substrate Authority not registered — BLOCKING action (fail-closed). "
+                "domain=%s, source=%s", domain or category.name.lower(), source,
+            )
             return (
                 self._contextualize(
-                    approved=True,
-                    outcome="degraded_pass",
-                    reason="boot_blind_spot_bypass",
-                    constraints={"fail_open": True},
+                    approved=False,
+                    outcome="rejected",
+                    reason=f"substrate_authority_required:{domain or category.name.lower()}",
+                    constraints={"blocked": True, "missing": "substrate_authority"},
                     will_receipt_id=will_receipt_id,
                     domain=domain,
+                    source=source,
                 ),
-                {"error": "substrate_authority_initializing"},
+                {"error": "substrate_authority_required"},
                 None,
             )
         

@@ -82,11 +82,12 @@ class ProofVerifier:
             harness = SafeModificationHarness(candidate)
             harness_coro = harness.run(list(plan.changed_files))
             try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
                 harness_result = asyncio.run(harness_coro)
-            else:
-                harness_result = loop.run_until_complete(harness_coro)
+            except RuntimeError:
+                # Already inside a running event loop — use nest_asyncio or thread
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    harness_result = pool.submit(asyncio.run, harness_coro).result(timeout=30)
             results.append(ProofResult(
                 "safe_harness_gate",
                 harness_result.passed,

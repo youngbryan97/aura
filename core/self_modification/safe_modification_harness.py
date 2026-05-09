@@ -207,7 +207,8 @@ class SafeModificationHarness:
 
         try:
             env = dict(os.environ)
-            env["PYTHONPATH"] = str(self.codebase_root)
+            existing_pp = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = str(self.codebase_root) + (os.pathsep + existing_pp if existing_pp else "")
             result = await asyncio.to_thread(
                 subprocess.run,
                 [sys.executable, "-m", "pytest", "-x"] + test_files,

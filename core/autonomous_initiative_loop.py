@@ -711,11 +711,18 @@ class AutonomousInitiativeLoop:
         """Check for unread emails and potentially initiate a response."""
         logger.info("📧 Checking email for autonomous initiatives...")
         try:
-            from core.skills.email_adapter import EmailAdapterSkill, EmailInput
-            skill = EmailAdapterSkill()
-            
-            # Check for unread emails
-            result = await skill.execute(EmailInput(mode="check", limit=5), {})
+            # Route through CapabilityEngine rather than direct instantiation
+            from core.container import ServiceContainer
+            cap_engine = ServiceContainer.get("capability_engine", default=None)
+            if cap_engine is not None and hasattr(cap_engine, "execute"):
+                result = await cap_engine.execute(
+                    "email_adapter", {"mode": "check", "limit": 5}
+                )
+            else:
+                # Fallback: direct instantiation only if CapabilityEngine unavailable
+                from core.skills.email_adapter import EmailAdapterSkill, EmailInput
+                skill = EmailAdapterSkill()
+                result = await skill.execute(EmailInput(mode="check", limit=5), {})
             if not result.get("ok"):
                 return
 
@@ -744,11 +751,17 @@ class AutonomousInitiativeLoop:
         """Browse Reddit and potentially find something to engage with."""
         logger.info("📱 Browsing Reddit for autonomous initiatives...")
         try:
-            from core.skills.reddit_adapter import RedditAdapterSkill, RedditInput
-            skill = RedditAdapterSkill()
-            
-            # Check inbox first
-            inbox = await skill.execute(RedditInput(mode="check_inbox"), {})
+            # Route through CapabilityEngine rather than direct instantiation
+            from core.container import ServiceContainer
+            cap_engine = ServiceContainer.get("capability_engine", default=None)
+            if cap_engine is not None and hasattr(cap_engine, "execute"):
+                inbox = await cap_engine.execute(
+                    "reddit_adapter", {"mode": "check_inbox"}
+                )
+            else:
+                from core.skills.reddit_adapter import RedditAdapterSkill, RedditInput
+                skill = RedditAdapterSkill()
+                inbox = await skill.execute(RedditInput(mode="check_inbox"), {})
             if inbox.get("ok") and "unread" in str(inbox.get("content", "")).lower():
                 self._emit_feed(
                     "Reddit Update",
@@ -761,7 +774,15 @@ class AutonomousInitiativeLoop:
             import random
             sub = random.choice(subreddits)
             
-            result = await skill.execute(RedditInput(mode="browse", subreddit=sub, limit=5), {})
+            if cap_engine is not None and hasattr(cap_engine, "execute"):
+                result = await cap_engine.execute(
+                    "reddit_adapter", {"mode": "browse", "subreddit": sub, "limit": 5}
+                )
+            else:
+                if not skill:
+                    from core.skills.reddit_adapter import RedditAdapterSkill, RedditInput
+                    skill = RedditAdapterSkill()
+                result = await skill.execute(RedditInput(mode="browse", subreddit=sub, limit=5), {})
             if result.get("ok") and result.get("posts"):
                 posts = result.get("posts")
                 top_post = posts[0]

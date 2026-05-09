@@ -35,6 +35,7 @@ from core.runtime.errors import record_degradation
 
 
 import asyncio
+import hashlib
 import logging
 import math
 import os
@@ -103,15 +104,20 @@ class ContinuousSubstrate:
         self._last_phi_estimate = 0.0
         self._phi_window: Deque[np.ndarray] = deque(maxlen=64)
         self._last_observation: Dict[str, Any] = {}
+        # Deterministic RNG for reproducible noise
+        self._rng = np.random.default_rng(seed=913)
 
     # ── Public API ────────────────────────────────────────────────────────
 
     async def start(self) -> None:
         if self.running:
             return
+        # Reproducibility manifest
+        w_checksum = hashlib.sha256(self._W.tobytes()).hexdigest()[:16]
         logger.info(
-            "🧠 [SUBSTRATE] Initializing real ODE substrate (%d neurons, %.0f Hz)",
-            NEURONS, STEP_HZ,
+            "🧠 [SUBSTRATE] Initializing real ODE substrate (%d neurons, %.0f Hz, "
+            "seed=913, W_checksum=%s)",
+            NEURONS, STEP_HZ, w_checksum,
         )
         self.running = True
         self._task = get_task_tracker().create_task(self._integration_loop())
@@ -224,7 +230,7 @@ class ContinuousSubstrate:
             -DECAY * self._state
             + np.tanh(self._W @ self._state + INPUT_GAIN * self._input_signal)
         ) * STEP_DT
-        noise = np.random.normal(0.0, NOISE_SIGMA, NEURONS).astype(np.float32)
+        noise = self._rng.normal(0.0, NOISE_SIGMA, NEURONS).astype(np.float32)
         self._state = self._state + dx + noise * STEP_DT
 
         # Soft saturation to keep norms bounded.

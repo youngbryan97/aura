@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import ast
-import importlib.util
 import json
 import py_compile
 import time
@@ -248,7 +247,8 @@ class GhostBootRunner:
 
     def _pytest_command(self, *args: str) -> tuple[str, ...]:
         cmd = [python_executable(), "-m", "pytest"]
-        if importlib.util.find_spec("pytest_asyncio") is not None:
-            cmd.extend(["-p", "pytest_asyncio.plugin"])
+        # Note: do NOT add '-p pytest_asyncio.plugin' explicitly —
+        # pytest_asyncio auto-registers via entrypoints when installed,
+        # and double-registration crashes with ValueError.
         cmd.extend(args)
         return tuple(cmd)

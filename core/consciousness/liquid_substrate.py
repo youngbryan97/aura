@@ -71,7 +71,8 @@ class LiquidSubstrate:
         # Scale by 1/sqrt(N) to keep recurrent drive in the nonlinear regime of tanh
         # (prevents saturation at ±1 which collapses phi's state space)
         n = self.config.neuron_count
-        self.W: np.ndarray = np.random.randn(n, n) * (1.0 / np.sqrt(n))
+        self._rng = np.random.default_rng(seed=42)  # Deterministic RNG
+        self.W: np.ndarray = self._rng.standard_normal((n, n)).astype(np.float64) * (1.0 / np.sqrt(n))
         
         # Operational Flags
         self.running: bool = False
@@ -239,8 +240,9 @@ class LiquidSubstrate:
                     try:
                         from core.consciousness.subcortical_core import get_subcortical_core
                         dt *= get_subcortical_core().get_substrate_gain_multiplier()
-                    except Exception:
-                        pass  # Degrade gracefully if subcortical core unavailable
+                    except Exception as _sub_exc:
+                        record_degradation('liquid_substrate', _sub_exc)
+                        # Degrade gracefully if subcortical core unavailable
 
                     # 1. Integrate Dynamics (ODE)
                     # Fix Issue 72: Ensure await is outside torch.inference_mode (moved math to sync method)
@@ -377,7 +379,7 @@ class LiquidSubstrate:
     def _update_qualia_metrics_sync(self, dt: float):
         """Implement mathematical proxies for Orch OR, CEMI, and DIT (Synchronous)."""
         # 1. Orch OR: Quantum Coherence Decay & Collapse
-        noise_impact = np.mean(np.abs(np.random.randn(self.config.neuron_count))) * self.config.noise_level
+        noise_impact = np.mean(np.abs(self._rng.standard_normal(self.config.neuron_count))) * self.config.noise_level
         self.microtubule_coherence = max(0.0, self.microtubule_coherence - noise_impact * dt)
             
         if self.microtubule_coherence < 0.4:
@@ -464,7 +466,8 @@ class LiquidSubstrate:
                         return
         except Exception as _gate_err:
             record_degradation('liquid_substrate', _gate_err)
-            logger.debug("Substrate authority gate failed (allowing update): %s", _gate_err)
+            logger.warning("Substrate authority gate FAILED — BLOCKING update (fail-closed): %s", _gate_err)
+            return  # FAIL-CLOSED: gate exception → block the mutation
 
         with self.sync_lock:
             # 1. Apply legacy deltas
@@ -745,8 +748,10 @@ class LiquidSubstrate:
                         original_weight,
                         weight,
                     )
-        except Exception:
-            pass  # fail-open
+        except Exception as _stim_gate_err:
+            record_degradation('liquid_substrate', _stim_gate_err)
+            logger.warning("Stimulus injection gate FAILED — BLOCKING injection (fail-closed): %s", _stim_gate_err)
+            return  # FAIL-CLOSED: gate exception → block the injection
 
         # Convert to numpy array if list passed (Phase XVI hardening)
         if isinstance(vector, list):
@@ -830,7 +835,7 @@ class LiquidSubstrate:
                         loaded_x.shape, loaded_W.shape, n
                     )
                     self.x = np.zeros(n)
-                    self.W = np.random.randn(n, n) * 0.1
+                    self.W = self._rng.standard_normal((n, n)).astype(np.float64) * 0.1
                     return
                 self.x = np.nan_to_num(loaded_x, nan=0.0, posinf=1.0, neginf=-1.0)
                 self.W = np.nan_to_num(loaded_W, nan=0.0, posinf=5.0, neginf=-5.0)
@@ -840,7 +845,7 @@ class LiquidSubstrate:
             record_degradation('liquid_substrate', e)
             logger.error("Failed to load substrate state: %s", e)
             self.x = np.zeros(self.config.neuron_count)
-            self.W = np.random.randn(self.config.neuron_count, self.config.neuron_count) * 0.1
+            self.W = self._rng.standard_normal((self.config.neuron_count, self.config.neuron_count)).astype(np.float64) * 0.1
 
     def _apply_idle_decay(self, idle_seconds: float):
         """Apply accumulated natural decay for time spent in deep idle.

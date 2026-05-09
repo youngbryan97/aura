@@ -165,8 +165,10 @@ class ValueAutopoiesis:
     async def evolve_cycle(self) -> List[ValueShift]:
         """Run one value evolution cycle (called during dream/sleep).
 
-        Aggregates evidence for each drive, computes recommended deltas,
-        checks drift thresholds, applies changes, and logs everything.
+        When the DynamicValueGraph is available, evidence is forwarded
+        to it for evidence-gated evolution with the full
+        Candidate→Sandbox→Evidence→Adoption pipeline. Falls back to
+        the original hard-capped logic otherwise.
         """
         self._cycle_count += 1
         cycle_id = self._cycle_count
@@ -182,6 +184,75 @@ class ValueAutopoiesis:
             )
             return []
 
+        # ── Try DynamicValueGraph first (V2 pipeline) ────────────────
+        try:
+            from core.adaptation.dynamic_value_graph import (
+                get_dynamic_value_graph,
+                EvidenceType,
+                ValueEvidence,
+            )
+            graph = get_dynamic_value_graph()
+
+            # Forward all evidence to the graph
+            for ev in self._evidence:
+                graph.record_evidence(ValueEvidence(
+                    evidence_type=EvidenceType.OUTCOME_QUALITY,
+                    value_name=ev.drive_name,
+                    signal=ev.outcome_quality,
+                    confidence=ev.engagement_level,
+                    source="value_autopoiesis",
+                    context=ev.context,
+                ))
+
+            # Run graph evolution
+            mutations = graph.evolve()
+
+            # Export updated values back to Heartstone
+            graph.export_to_heartstone()
+
+            # Convert mutations to ValueShift for compatibility
+            applied_shifts = []
+            for m in mutations:
+                shift = ValueShift(
+                    value_name=m.node_name,
+                    old_weight=m.old_weight,
+                    new_weight=m.new_weight,
+                    delta=m.delta,
+                    reason=f"[V2-graph] {m.reason}",
+                    evidence_count=m.evidence_count,
+                    cycle_id=cycle_id,
+                )
+                applied_shifts.append(shift)
+                self._shift_history.append(shift)
+                self._log_shift(shift)
+
+            # Clear consumed evidence
+            retain = max(10, len(self._evidence) // 5)
+            self._evidence = self._evidence[-retain:]
+            self._save_state()
+
+            if applied_shifts:
+                logger.info(
+                    "V2 value evolution cycle %d: %d mutation(s) via DynamicValueGraph",
+                    cycle_id, len(applied_shifts),
+                )
+                self._publish_event("value_autopoiesis.evolved", {
+                    "cycle_id": cycle_id,
+                    "pipeline": "dynamic_value_graph_v2",
+                    "shifts": [s.to_dict() for s in applied_shifts],
+                })
+            else:
+                logger.info("V2 value evolution cycle %d: no significant shifts", cycle_id)
+
+            return applied_shifts
+
+        except Exception as _graph_exc:
+            logger.debug(
+                "DynamicValueGraph unavailable, using legacy pipeline: %s",
+                _graph_exc,
+            )
+
+        # ── Fallback: original hard-capped logic ─────────────────────
         # 1. Aggregate evidence by drive
         drive_scores = self._aggregate_evidence()
 
@@ -224,6 +295,7 @@ class ValueAutopoiesis:
             )
             self._publish_event("value_autopoiesis.evolved", {
                 "cycle_id": cycle_id,
+                "pipeline": "legacy_hard_capped",
                 "shifts": [s.to_dict() for s in applied_shifts],
                 "drift_report": drift_report,
             })

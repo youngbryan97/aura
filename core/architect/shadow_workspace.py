@@ -104,7 +104,10 @@ class ShadowWorkspaceManager:
     ) -> CommandResult:
         cwd = Path(run.shadow_root)
         env = dict(os.environ)
-        env["PYTHONPATH"] = str(cwd)
+        # Prepend shadow root to PYTHONPATH so shadow modules take priority,
+        # but venv site-packages (pytest, etc.) remain discoverable.
+        existing_pp = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(cwd) + (os.pathsep + existing_pp if existing_pp else "")
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         start = time.monotonic()
         cmd = tuple(str(part) for part in command)

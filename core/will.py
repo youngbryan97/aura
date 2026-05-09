@@ -22,7 +22,7 @@ Design principles:
     1. SINGLE ENTRY: one decide() method, one WillDecision output
     2. COMPOSABLE: reads from existing services, does not duplicate logic
     3. PROVABLE: every decision is logged with full provenance
-    4. FAIL-SAFE: if any advisor is unavailable, the Will degrades gracefully
+    4. FAIL-CLOSED: if any advisor is unavailable, the Will degrades to REFUSE
     5. FAST: <5ms for typical decisions (no LLM calls)
     6. IDENTITY-ROOTED: CanonicalSelf feeds every decision
 """
