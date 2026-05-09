@@ -322,7 +322,7 @@ class GovernanceVault:
             from core.memory.scar_formation import get_scar_formation, ScarDomain
             scar_system = get_scar_formation()
             scar_system.form_scar(
-                domain=ScarDomain.SECURITY_BREACH,
+                domain=ScarDomain.CONSTITUTION_MODIFIED_EXTERNALLY,
                 description=(
                     f"External tampering detected on governance artifact '{artifact_id}'. "
                     f"Expected hash {expected_hash[:16]}..., got {actual_hash[:16]}... "

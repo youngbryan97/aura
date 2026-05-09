@@ -66,6 +66,11 @@ class ScarDomain(str, Enum):
     SOCIAL_CONFLICT = "social_conflict"
     REPEATED_FAILURE = "repeated_failure"
     UNKNOWN = "unknown"
+    # V2 Governance domains — added per architectural audit.
+    # These enable the system to detect and remember external edits to its
+    # constitutional core, and authority gate failures during runtime.
+    CONSTITUTION_MODIFIED_EXTERNALLY = "constitution_modified_externally"
+    AUTHORITY_GATE_FAILURE = "authority_gate_failure"
 
 
 @dataclass

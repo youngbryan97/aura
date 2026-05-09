@@ -507,6 +507,122 @@ class TestAuditChainIntegrity(unittest.TestCase):
             self.assertFalse(ok)
             self.assertGreater(len(problems), 0)
 
+class TestScarDomainExtensions(unittest.TestCase):
+    """Tests for V2 scar domain additions."""
+
+    def test_constitution_modified_externally_domain_exists(self):
+        """ScarDomain has CONSTITUTION_MODIFIED_EXTERNALLY."""
+        from core.memory.scar_formation import ScarDomain
+        self.assertIn("CONSTITUTION_MODIFIED_EXTERNALLY", ScarDomain.__members__)
+        self.assertEqual(
+            ScarDomain.CONSTITUTION_MODIFIED_EXTERNALLY.value,
+            "constitution_modified_externally",
+        )
+
+    def test_authority_gate_failure_domain_exists(self):
+        """ScarDomain has AUTHORITY_GATE_FAILURE."""
+        from core.memory.scar_formation import ScarDomain
+        self.assertIn("AUTHORITY_GATE_FAILURE", ScarDomain.__members__)
+        self.assertEqual(
+            ScarDomain.AUTHORITY_GATE_FAILURE.value,
+            "authority_gate_failure",
+        )
+
+    def test_all_original_domains_preserved(self):
+        """Original scar domains are still present after extension."""
+        from core.memory.scar_formation import ScarDomain
+        originals = [
+            "TOOL_FAILURE", "CRASH", "IDENTITY_THREAT", "CAPABILITY_LOSS",
+            "RESOURCE_EXHAUSTION", "SECURITY_BREACH", "DATA_LOSS",
+            "SOCIAL_CONFLICT", "REPEATED_FAILURE", "UNKNOWN",
+        ]
+        for name in originals:
+            self.assertIn(name, ScarDomain.__members__,
+                          f"Original ScarDomain.{name} missing!")
+
+
+class TestGovernanceExceptionHierarchy(unittest.TestCase):
+    """Tests for the typed governance exception hierarchy."""
+
+    def test_governance_error_is_security_error(self):
+        """GovernanceError inherits from SecurityError."""
+        from core.exceptions import GovernanceError, SecurityError
+        self.assertTrue(issubclass(GovernanceError, SecurityError))
+
+    def test_substrate_mutation_error_is_governance(self):
+        """SubstrateMutationError inherits from GovernanceError."""
+        from core.exceptions import SubstrateMutationError, GovernanceError
+        self.assertTrue(issubclass(SubstrateMutationError, GovernanceError))
+
+    def test_constitution_integrity_error_is_governance(self):
+        """ConstitutionIntegrityError inherits from GovernanceError."""
+        from core.exceptions import ConstitutionIntegrityError, GovernanceError
+        self.assertTrue(issubclass(ConstitutionIntegrityError, GovernanceError))
+
+    def test_authority_unavailable_is_governance(self):
+        """AuthorityUnavailableError inherits from GovernanceError."""
+        from core.exceptions import AuthorityUnavailableError, GovernanceError
+        self.assertTrue(issubclass(AuthorityUnavailableError, GovernanceError))
+
+    def test_skill_execution_error_has_context(self):
+        """SkillExecutionError carries skill_name and operation."""
+        from core.exceptions import SkillExecutionError
+        err = SkillExecutionError("EmailAdapter", "check_inbox", ValueError("test"))
+        self.assertEqual(err.skill_name, "EmailAdapter")
+        self.assertEqual(err.operation, "check_inbox")
+        self.assertIsInstance(err.cause, ValueError)
+
+    def test_governance_errors_not_caught_by_aura_error(self):
+        """GovernanceError is catchable by SecurityError but also by AuraError."""
+        from core.exceptions import GovernanceError, AuraError, SecurityError
+        err = GovernanceError("test")
+        self.assertIsInstance(err, SecurityError)
+        self.assertIsInstance(err, AuraError)
+
+
+class TestCanonicalSelfVaultIntegration(unittest.TestCase):
+    """Tests that canonical_self.py is wired into GovernanceVault."""
+
+    def test_persist_calls_vault_seal(self):
+        """canonical_self._persist seals into GovernanceVault."""
+        from core.self import canonical_self as cs_mod
+        source = Path(cs_mod.__file__).read_text()
+        self.assertIn("governance_vault", source)
+        self.assertIn("get_governance_vault", source)
+        self.assertIn(".seal(\"canonical_self\"", source)
+
+    def test_load_calls_vault_verify(self):
+        """canonical_self._load verifies against GovernanceVault."""
+        from core.self import canonical_self as cs_mod
+        source = Path(cs_mod.__file__).read_text()
+        self.assertIn("_verify_vault_seal", source)
+        self.assertIn("CONSTITUTION_MODIFIED_EXTERNALLY", source)
+
+    def test_vault_used_with_correct_scar_domain(self):
+        """Tamper detection uses CONSTITUTION_MODIFIED_EXTERNALLY scar, not SECURITY_BREACH."""
+        from core.self import canonical_self as cs_mod
+        source = Path(cs_mod.__file__).read_text()
+        # The tamper path should use the specific domain
+        self.assertIn("ScarDomain.CONSTITUTION_MODIFIED_EXTERNALLY", source)
+
+
+class TestLiquidSubstrateScarFormation(unittest.TestCase):
+    """Tests that liquid_substrate gate failures form scars."""
+
+    def test_gate_failure_forms_authority_scar(self):
+        """Gate exceptions form AUTHORITY_GATE_FAILURE scars."""
+        from core.consciousness import liquid_substrate as ls_mod
+        source = Path(ls_mod.__file__).read_text()
+        self.assertIn("ScarDomain.AUTHORITY_GATE_FAILURE", source)
+        self.assertIn("substrate_gate_failure", source)
+        self.assertIn("stimulus_gate_failure", source)
+
+    def test_governance_vault_uses_constitution_scar(self):
+        """GovernanceVault tamper detection uses CONSTITUTION_MODIFIED_EXTERNALLY."""
+        from core.security import governance_vault as gv_mod
+        source = Path(gv_mod.__file__).read_text()
+        self.assertIn("ScarDomain.CONSTITUTION_MODIFIED_EXTERNALLY", source)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

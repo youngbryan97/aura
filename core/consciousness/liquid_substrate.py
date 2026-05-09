@@ -467,6 +467,20 @@ class LiquidSubstrate:
         except Exception as _gate_err:
             record_degradation('liquid_substrate', _gate_err)
             logger.warning("Substrate authority gate FAILED — BLOCKING update (fail-closed): %s", _gate_err)
+            # Form a scar so the system remembers this gate failure
+            try:
+                from core.memory.scar_formation import get_scar_formation, ScarDomain
+                get_scar_formation().form_scar(
+                    domain=ScarDomain.AUTHORITY_GATE_FAILURE,
+                    description=f"Substrate mutation gate threw during update: {_gate_err}",
+                    avoidance_tag="substrate_gate_failure",
+                    severity=0.6,
+                    heal_rate=0.01,
+                    verified_threat=True,
+                    confidence=0.9,
+                )
+            except Exception:
+                pass  # Scar formation is best-effort during gate failure
             return  # FAIL-CLOSED: gate exception → block the mutation
 
         with self.sync_lock:
@@ -751,6 +765,20 @@ class LiquidSubstrate:
         except Exception as _stim_gate_err:
             record_degradation('liquid_substrate', _stim_gate_err)
             logger.warning("Stimulus injection gate FAILED — BLOCKING injection (fail-closed): %s", _stim_gate_err)
+            # Form a scar so the system remembers this gate failure
+            try:
+                from core.memory.scar_formation import get_scar_formation, ScarDomain
+                get_scar_formation().form_scar(
+                    domain=ScarDomain.AUTHORITY_GATE_FAILURE,
+                    description=f"Stimulus injection gate threw: {_stim_gate_err}",
+                    avoidance_tag="stimulus_gate_failure",
+                    severity=0.5,
+                    heal_rate=0.015,
+                    verified_threat=True,
+                    confidence=0.85,
+                )
+            except Exception:
+                pass  # Scar formation is best-effort during gate failure
             return  # FAIL-CLOSED: gate exception → block the injection
 
         # Convert to numpy array if list passed (Phase XVI hardening)

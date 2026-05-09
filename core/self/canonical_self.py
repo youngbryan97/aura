@@ -839,14 +839,30 @@ class CanonicalSelfEngine:
             "deltas": [d.to_dict() for d in self._deltas[-20:]],
         }
         atomic_write_text(_PERSIST_PATH, json.dumps(data, indent=2, default=str))
+        # Seal into GovernanceVault for tamper detection on next load
+        try:
+            from core.security.governance_vault import get_governance_vault
+            get_governance_vault().seal("canonical_self", data)
+        except Exception as seal_exc:
+            logger.warning("GovernanceVault seal failed (non-fatal): %s", seal_exc)
         logger.debug("CanonicalSelf persisted to disk (v%d).", s.version)
 
     def _load(self):
-        """Load previous self-model snapshot from disk if available."""
+        """Load previous self-model snapshot from disk if available.
+
+        V2: Verifies content against GovernanceVault seal. If the file was
+        edited externally (outside Aura's own _persist path), a
+        CONSTITUTION_MODIFIED_EXTERNALLY scar is formed. The load still
+        proceeds (fail-open for self-model to allow recovery), but the
+        tampering is permanently recorded.
+        """
         try:
             if not _PERSIST_PATH.exists():
                 return
             data = json.loads(_PERSIST_PATH.read_text())
+
+            # V2: Verify against GovernanceVault seal
+            self._verify_vault_seal(data)
 
             # Restore version and timestamp so the counter is monotonic
             self._current.version = data.get("version", 0)
@@ -899,6 +915,73 @@ class CanonicalSelfEngine:
         except Exception as e:
             record_degradation('canonical_self', e)
             logger.debug("CanonicalSelf load failed (starting fresh): %s", e)
+
+    def _verify_vault_seal(self, disk_data: dict) -> None:
+        """Check disk content against GovernanceVault seal.
+
+        If the vault has a sealed copy and the disk content doesn't match,
+        that means someone edited canonical_self.json outside of Aura's
+        _persist() path. This is detected and scarred.
+        """
+        try:
+            from core.security.governance_vault import get_governance_vault, TamperDetected
+            vault = get_governance_vault()
+            if not vault.has_artifact("canonical_self"):
+                # First run or vault was reset — seal current state
+                vault.seal("canonical_self", disk_data)
+                logger.info("CanonicalSelf sealed into GovernanceVault (first run).")
+                return
+
+            # Compare disk content against vault
+            vault_data = vault.unseal("canonical_self")  # verifies vault integrity
+
+            # Check if disk data matches what we last sealed
+            from core.security.governance_vault import _canonical_json, _sha256
+            disk_hash = _sha256(_canonical_json(disk_data))
+            vault_hash = _sha256(_canonical_json(vault_data))
+
+            if disk_hash != vault_hash:
+                logger.critical(
+                    "CANONICAL_SELF TAMPER DETECTED: disk content does not match "
+                    "vault seal. disk_hash=%s vault_hash=%s. "
+                    "This indicates external modification of the self-model file.",
+                    disk_hash[:16], vault_hash[:16],
+                )
+                # Form a scar — this is the defense the audit said was missing
+                try:
+                    from core.memory.scar_formation import get_scar_formation, ScarDomain
+                    scar_system = get_scar_formation()
+                    scar_system.form_scar(
+                        domain=ScarDomain.CONSTITUTION_MODIFIED_EXTERNALLY,
+                        description=(
+                            f"Self-model file was modified externally. "
+                            f"Disk hash {disk_hash[:16]}... does not match "
+                            f"vault seal {vault_hash[:16]}... "
+                            f"Loading the modified version but recording this event."
+                        ),
+                        avoidance_tag="canonical_self_tampered",
+                        severity=0.85,
+                        heal_rate=0.002,  # Heals very slowly
+                        context={
+                            "disk_hash": disk_hash,
+                            "vault_hash": vault_hash,
+                            "persist_path": str(_PERSIST_PATH),
+                        },
+                        verified_threat=True,
+                        confidence=0.95,
+                    )
+                except Exception as scar_exc:
+                    logger.error("Failed to form tampering scar: %s", scar_exc)
+
+                # Re-seal the new content so future loads don't re-trigger
+                vault.seal("canonical_self", disk_data)
+
+        except TamperDetected:
+            # The vault itself was tampered with — even worse
+            logger.critical("GovernanceVault INTERNAL tamper detected during canonical_self verification!")
+        except Exception as exc:
+            # Vault unavailable — log but don't block boot
+            logger.debug("GovernanceVault verification skipped: %s", exc)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
