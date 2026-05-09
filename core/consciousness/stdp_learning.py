@@ -24,6 +24,18 @@ Algorithm (Reward-modulated STDP, Izhikevich 2007):
 The STDP window follows the classical asymmetric shape:
   - Pre before post (causal): potentiation (strengthen)
   - Post before pre (anti-causal): depression (weaken)
+
+MESU Extension (Meta-learning with Elastic Synaptic Uncertainty):
+  Each synapse gets a per-parameter learning rate scaled by its posterior
+  uncertainty, approximated via the diagonal of the empirical Fisher
+  (Hessian diagonal). Weights that encode core identity (low uncertainty,
+  consistently activated) become "locked" while task-specific weights
+  (high uncertainty) remain flexible. This prevents catastrophic
+  forgetting at the STDP level.
+
+  uncertainty(w_ij) = running_var(grad(w_ij))
+  lr(w_ij) = base_lr * sigmoid(uncertainty(w_ij) / tau_mesu)
+  lock(w_ij) iff uncertainty(w_ij) < lock_threshold for > lock_window updates
 """
 import logging
 import time
@@ -44,9 +56,15 @@ MAX_LEARNING_RATE = 0.01
 MIN_LEARNING_RATE = 0.0001
 WEIGHT_CLIP = 2.0         # Max absolute weight value
 
+# MESU parameters
+MESU_TAU = 0.5           # Temperature for sigmoid scaling of uncertainty→lr
+MESU_LOCK_THRESHOLD = 0.01  # Uncertainty below this → identity-locked
+MESU_LOCK_WINDOW = 100   # Must be below threshold for this many updates
+MESU_EMA_ALPHA = 0.02    # Exponential moving average for uncertainty tracking
+
 
 class STDPLearningEngine:
-    """Reward-modulated STDP for the liquid substrate."""
+    """Reward-modulated STDP for the liquid substrate with MESU plasticity."""
 
     def __init__(self, n_neurons: int = 64):
         self.n = n_neurons
@@ -60,12 +78,28 @@ class STDPLearningEngine:
         # Current modulated learning rate
         self._learning_rate = BASE_LEARNING_RATE
 
+        # ── MESU: Per-synapse uncertainty tracking ──────────────────────
+        # Running mean and variance of weight deltas (Welford online)
+        self._mesu_mean = np.zeros((n_neurons, n_neurons), dtype=np.float64)
+        self._mesu_var = np.ones((n_neurons, n_neurons), dtype=np.float64) * 0.5
+        self._mesu_count = np.zeros((n_neurons, n_neurons), dtype=np.int32)
+
+        # Per-synapse learning rate multiplier (0..1)
+        self._mesu_lr_scale = np.ones((n_neurons, n_neurons), dtype=np.float32)
+
+        # Identity lock mask: True = weight is locked (core identity)
+        self._mesu_locked = np.zeros((n_neurons, n_neurons), dtype=bool)
+        # How many consecutive updates each weight has been below lock threshold
+        self._mesu_stable_count = np.zeros((n_neurons, n_neurons), dtype=np.int32)
+
         # Stats
         self._total_updates = 0
         self._total_potentiations = 0
         self._total_depressions = 0
         self._last_reward = 0.0
         self._last_surprise = 0.0
+        self._locked_count = 0
+        self._mesu_mean_uncertainty = 0.0
 
     def record_spikes(self, activations: np.ndarray, t: float):
         """Record which neurons fired and update eligibility traces.
@@ -125,7 +159,7 @@ class STDPLearningEngine:
         self._eligibility = np.nan_to_num(self._eligibility, nan=0.0)
 
     def deliver_reward(self, surprise: float, prediction_error: float) -> np.ndarray:
-        """Apply reward-modulated weight update based on prediction error.
+        """Apply reward-modulated weight update with MESU uncertainty scaling.
 
         Args:
             surprise: Current surprise value from free energy engine (0-1).
@@ -141,7 +175,7 @@ class STDPLearningEngine:
         self._last_reward = float(reward)
         self._last_surprise = float(surprise)
 
-        # Modulate learning rate by surprise. High surprise increases the
+        # Modulate global learning rate by surprise. High surprise increases the
         # magnitude of corrective plasticity; the reward sign above still
         # decides the direction of the update.
         self._learning_rate = np.clip(
@@ -150,8 +184,58 @@ class STDPLearningEngine:
             MAX_LEARNING_RATE,
         )
 
-        # Compute weight delta: dw = lr * reward * eligibility
-        dw = self._learning_rate * reward * self._eligibility
+        # Compute raw weight delta: dw = lr * reward * eligibility
+        dw_raw = self._learning_rate * reward * self._eligibility
+
+        # ── MESU: Update per-synapse uncertainty ──────────────────────
+        # Track running variance of weight deltas using Welford online algorithm
+        self._mesu_count += 1
+        delta_from_mean = dw_raw - self._mesu_mean
+        self._mesu_mean += MESU_EMA_ALPHA * delta_from_mean
+        self._mesu_var = (
+            (1.0 - MESU_EMA_ALPHA) * self._mesu_var
+            + MESU_EMA_ALPHA * delta_from_mean * (dw_raw - self._mesu_mean)
+        )
+        # Clamp variance to prevent numerical issues
+        self._mesu_var = np.clip(self._mesu_var, 1e-10, 10.0)
+
+        # Compute per-synapse learning rate: high uncertainty → high lr
+        # low uncertainty → low lr (identity protection)
+        uncertainty = np.sqrt(self._mesu_var)
+        self._mesu_mean_uncertainty = float(np.mean(uncertainty))
+
+        # Sigmoid scaling: lr_scale = sigmoid((uncertainty - threshold) / tau)
+        self._mesu_lr_scale = (
+            1.0 / (1.0 + np.exp(-(uncertainty - MESU_LOCK_THRESHOLD) / MESU_TAU))
+        ).astype(np.float32)
+
+        # ── MESU: Identity locking ────────────────────────────────────
+        # Weights that have been consistently low-uncertainty get locked
+        low_uncertainty_mask = uncertainty < MESU_LOCK_THRESHOLD
+        self._mesu_stable_count[low_uncertainty_mask] += 1
+        self._mesu_stable_count[~low_uncertainty_mask] = 0
+
+        # Lock weights that have been stable for long enough
+        newly_locked = (
+            (self._mesu_stable_count >= MESU_LOCK_WINDOW)
+            & (~self._mesu_locked)
+        )
+        self._mesu_locked |= newly_locked
+        self._locked_count = int(np.sum(self._mesu_locked))
+
+        if int(np.sum(newly_locked)) > 0:
+            logger.debug(
+                "MESU: %d synapses newly identity-locked (total locked: %d/%d)",
+                int(np.sum(newly_locked)),
+                self._locked_count,
+                self.n * self.n,
+            )
+
+        # Apply MESU scaling: locked weights get zero update
+        mesu_mask = self._mesu_lr_scale.copy()
+        mesu_mask[self._mesu_locked] = 0.0
+
+        dw = dw_raw * mesu_mask
 
         # Clip to prevent runaway weights
         dw = np.clip(dw, -WEIGHT_CLIP * 0.01, WEIGHT_CLIP * 0.01)
@@ -207,7 +291,61 @@ class STDPLearningEngine:
             "eligibility_sparsity": round(
                 float(np.sum(np.abs(self._eligibility) < 1e-6)) / max(self.n * self.n, 1), 3
             ),
+            # MESU telemetry
+            "mesu_locked_count": self._locked_count,
+            "mesu_locked_fraction": round(
+                self._locked_count / max(self.n * self.n, 1), 4
+            ),
+            "mesu_mean_uncertainty": round(self._mesu_mean_uncertainty, 6),
+            "mesu_mean_lr_scale": round(float(np.mean(self._mesu_lr_scale)), 4),
         }
+
+    def get_mesu_diagnostics(self) -> Dict:
+        """Return detailed MESU diagnostics for observability."""
+        uncertainty = np.sqrt(self._mesu_var)
+        return {
+            "uncertainty_mean": float(np.mean(uncertainty)),
+            "uncertainty_std": float(np.std(uncertainty)),
+            "uncertainty_min": float(np.min(uncertainty)),
+            "uncertainty_max": float(np.max(uncertainty)),
+            "lr_scale_mean": float(np.mean(self._mesu_lr_scale)),
+            "lr_scale_std": float(np.std(self._mesu_lr_scale)),
+            "locked_count": self._locked_count,
+            "locked_fraction": self._locked_count / max(self.n * self.n, 1),
+            "stable_count_mean": float(np.mean(self._mesu_stable_count)),
+            "total_synapses": self.n * self.n,
+        }
+
+    def unlock_weights(self, mask: Optional[np.ndarray] = None) -> int:
+        """Unlock identity-locked weights (requires Will approval).
+
+        Args:
+            mask: Optional (n x n) boolean mask. If provided, only unlock
+                  where mask is True. If None, unlock all.
+
+        Returns:
+            Number of weights unlocked.
+        """
+        if mask is None:
+            count = int(np.sum(self._mesu_locked))
+            self._mesu_locked[:] = False
+            self._mesu_stable_count[:] = 0
+        else:
+            count = int(np.sum(self._mesu_locked & mask))
+            self._mesu_locked[mask] = False
+            self._mesu_stable_count[mask] = 0
+
+        self._locked_count = int(np.sum(self._mesu_locked))
+        logger.info("MESU: Unlocked %d weights (remaining locked: %d)", count, self._locked_count)
+        return count
+
+    def get_uncertainty_map(self) -> np.ndarray:
+        """Return the per-synapse uncertainty matrix."""
+        return np.sqrt(self._mesu_var).astype(np.float32)
+
+    def get_locked_mask(self) -> np.ndarray:
+        """Return the identity-locked synapse mask."""
+        return self._mesu_locked.copy()
 
 
 _instance: Optional[STDPLearningEngine] = None
