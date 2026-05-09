@@ -80,6 +80,12 @@ class LockWatchdog:
         if tracked is not None:
             tracked.start_time = time.monotonic()
 
+    def report_wait_progress(self, lock_id: str):
+        """Called to indicate a lock is actively waiting, preventing false stalls."""
+        tracked = self._active_locks.get(lock_id)
+        if tracked is not None:
+            tracked.start_time = time.monotonic()
+
     def report_release(self, lock_id: str):
         """Called when a lock is released."""
         self._active_locks.pop(lock_id, None)

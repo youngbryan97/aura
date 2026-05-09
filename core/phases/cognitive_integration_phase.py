@@ -75,6 +75,7 @@ class CognitiveIntegrationPhase(Phase):
         self._alife_extensions = None
         self._endogenous_fitness = None
         self._resolved = False
+        self._pending_deltas = []
 
     def _resolve_services(self) -> None:
         """Lazy-load all cognitive services from the container."""
@@ -113,6 +114,11 @@ class CognitiveIntegrationPhase(Phase):
         # Derive a new state version for this phase
         new_state = state.derive("cognitive_integration")
         user_text = objective or getattr(new_state.cognition, "current_objective", "") or ""
+
+        # Drain pending ALife deltas from previous ticks to avoid temporal smearing
+        for delta in self._pending_deltas:
+            new_state.response_modifiers.update(delta)
+        self._pending_deltas.clear()
 
         # ── 1. Sentiment Analysis ────────────────────────────────────────
         # Analyze the emotional content of the latest user message and feed
@@ -157,19 +163,31 @@ class CognitiveIntegrationPhase(Phase):
         # Tune the neural mesh toward the edge of chaos — the critical
         # point where computation is richest. Adjusts gain, noise, and
         # excitation/inhibition balance via a PID controller.
-        get_task_tracker().create_task(self._run_criticality(new_state))
+        
+        async def _run_alife_background(func):
+            # Pass a derived state so it doesn't mutate the live tick state
+            bg_state = new_state.derive("alife_bg")
+            try:
+                await func(bg_state)
+                # Keep the queue bounded to prevent memory leaks if tick rate outpaces ALife
+                if len(self._pending_deltas) < 100:
+                    self._pending_deltas.append(bg_state.response_modifiers)
+            except Exception as e:
+                record_degradation('alife_bg', e)
+
+        get_task_tracker().create_task(_run_alife_background(self._run_criticality))
 
         # ── 10. ALife Dynamics (Lenia + Evochora + Avida) ───────────────
         # Lenia continuous convolution kernels for inter-column coupling,
         # entropy tracking (Evochora's dual thermodynamic constraint),
         # and differential CPU allocation (Avida's compute-as-reward).
-        get_task_tracker().create_task(self._run_alife_dynamics(new_state))
+        get_task_tracker().create_task(_run_alife_background(self._run_alife_dynamics))
 
         # ── 11. ALife Extensions (pattern replication, speciation, etc.) ─
         # Autopoietic pattern replication (Avida), speciation-driven
         # column specialization (EcoSim), toroidal wrapping, thermodynamic
         # operation costs, and ownership-based access costs (Evochora).
-        get_task_tracker().create_task(self._run_alife_extensions(new_state))
+        get_task_tracker().create_task(_run_alife_background(self._run_alife_extensions))
 
         elapsed_ms = (time.monotonic() - t0) * 1000
         if elapsed_ms > 50:

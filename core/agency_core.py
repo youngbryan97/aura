@@ -186,6 +186,21 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                     action_type="conclusion",
                     conclusion="I am experiencing cognitive formatting degradation. Taking a defensive posture."
                 )
+                try:
+                    from core.health.degraded_events import record_degraded_event
+                    record_degraded_event(
+                        "agency_core",
+                        "shard_formatting_collapse",
+                        detail=f"Shard {shard_id} failed to produce valid JSON after retries.",
+                        severity="warning",
+                        classification="cognitive_degradation",
+                        context={"shard_id": shard_id, "goal": goal}
+                    )
+                except Exception as e:
+                    record_degradation('agency_core', e)
+                
+                # Mark shard as completed with degradation so audit can track it
+                setattr(shard_res, "completed_with_degradation", True)
 
             analysis_text = shard_res.analysis
             output_text = shard_res.conclusion
@@ -208,35 +223,47 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                 
             if tools_list:
                 tasks = []
+                approved_tools = []
+                blocked_tools = []
+                
                 valid_tools = [t for t in tools_list if (t.get("name") or t.get("tool_name")) and (t.get("payload") or t.get("tool_payload"))]
+                
                 for t in valid_tools:
                     name = t.get("name", t.get("tool_name"))
                     payload = t.get("payload", t.get("tool_payload"))
+                    
+                    is_blocked = False
+                    try:
+                        from core.container import ServiceContainer
+                        dvg = ServiceContainer.get("dynamic_value_graph", default=None)
+                        if dvg and name in ["python_sandbox", "shell_executor", "file_operations"]:
+                            status_dict = dvg.get_status().get("nodes", {})
+                            top_values = sorted(status_dict.values(), key=lambda v: v.get("weight", 0), reverse=True)[:3]
+                            if any(v.get("status") == "provisional" for v in top_values):
+                                is_blocked = True
+                    except Exception as e:
+                        logger.error(f"Error checking provisional values: {e}")
+                        
+                    if is_blocked:
+                        blocked_tools.append((name, "blocked_by_provisional_value"))
+                        logger.warning(f"🛡️ Value Graph Blocked tool {name} due to provisional status.")
+                    else:
+                        approved_tools.append((name, payload))
+                        
+                for name, payload in approved_tools:
                     tasks.append(self.orch.agency_core.tool_orchestrator.route_and_execute(name, payload))
                 
                 if tasks:
                     logger.info("⚡ Parallel Tool Dispatch: Firing %d simultaneous actions.", len(tasks))
                     results = await asyncio.gather(*tasks, return_exceptions=True)
                     
-                    for i, t in enumerate(valid_tools):
-                        name = t.get("name", t.get("tool_name"))
-                        
-                        # Value Graph Protection: Block high-risk tools if value is provisional
-                        try:
-                            from core.container import ServiceContainer
-                            dvg = ServiceContainer.get("dynamic_value_graph", default=None)
-                            if dvg and name in ["python_sandbox", "shell_executor", "file_operations"]:
-                                # Check if highest weight values are provisional
-                                top_values = sorted(dvg.nodes.values(), key=lambda v: v.weight, reverse=True)[:3]
-                                if any(v.status == "provisional" for v in top_values):
-                                    results[i] = Exception(f"Action blocked: High-risk tool '{name}' prohibited while provisional values are steering behavior.")
-                                    logger.warning(f"🛡️ Value Graph Blocked tool {name} due to provisional status.")
-                        except Exception as e:
-                            logger.error(f"Error checking provisional values: {e}")
-                            
+                    for i, (name, _) in enumerate(approved_tools):
                         res = results[i]
                         res_text = res if not isinstance(res, Exception) else f"Exception: {res}"
                         output_text = f"{output_text}\n\n[Tool Result - {name}]:\n{res_text}"
+                        
+                for name, reason in blocked_tools:
+                    output_text = f"{output_text}\n\n[Tool Blocked - {name}]:\nException: Action blocked. High-risk tool prohibited while provisional values are steering behavior."
 
             # 4. Abstraction Engine: Learning First Principles
             # If the shard involved complex reasoning or tool use, extract the generalized logic

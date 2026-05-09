@@ -89,8 +89,8 @@ class RobustLock:
                 while not acquire_task.done():
                     elapsed = time.monotonic() - start_wait
                     if elapsed > 0:
-                        watchdog.heartbeat(self.id) # Notify watchdog we are actively waiting
-                    done, pending = await asyncio.wait([acquire_task], timeout=5.0)
+                        watchdog.report_wait_progress(self.id) # Notify watchdog we are actively waiting
+                    done, pending = await asyncio.wait([acquire_task], timeout=1.0)
                     if done:
                         break
                 return acquire_task.result()
