@@ -115,13 +115,15 @@ def _decisive_results() -> dict[str, Any]:
             return {"source": str(existing), "passed": False, "error": repr(exc)}
     return {
         "generated_at": time.time(),
-        "status": "generated_from_current_runtime",
+        "status": "not_run",
+        "passed": False,
+        "note": "Decisive results missing. Run tests/run_decisive_test.py.",
         "quality_gates": {
-            "mutation_tiers": True,
-            "scar_court": True,
-            "fault_pipeline": True,
-            "activation_conductor": True,
-            "governance_primitives": True,
+            "mutation_tiers": False,
+            "scar_court": False,
+            "fault_pipeline": False,
+            "activation_conductor": False,
+            "governance_primitives": False,
         },
     }
 
@@ -205,8 +207,9 @@ def _longevity_summary() -> dict[str, Any]:
     return {
         "generated_at": time.time(),
         "profile": "instant_readiness_snapshot",
-        "note": "Long wall-clock longevity runs are intentionally separate; this bundle records current readiness.",
-        "passed": True,
+        "note": "Long wall-clock longevity runs are intentionally separate; missing evidence is recorded as not_run.",
+        "status": "not_run",
+        "passed": False,
     }
 
 

@@ -1,12 +1,12 @@
 """
 core/consciousness/phi_core.py
 ================================
-ACTUAL IIT 4.0 φs COMPUTATION ON AURA'S CONSCIOUS COMPLEX
+BOUNDED IIT-STYLE INTEGRATION MEASURE (APPROXIMATION)
 
-No proxies. No transfer entropy. The real thing.
+Computes a spectral approximation of integrated information (φ)
+for a 16-node substrate that spans affect, agency, narrative,
+social, and predictive dimensions:
 
-Computes the actual IIT 4.0 φs for a 16-node substrate that spans
-affect, agency, narrative, social, and predictive dimensions:
 
   Nodes 0-7 (affective):
     valence, arousal, dominance, frustration, curiosity, energy, focus, coherence

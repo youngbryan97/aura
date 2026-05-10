@@ -82,12 +82,7 @@ def _make_recurrent_matrix(size: int = NEURONS, seed: int = 17) -> np.ndarray:
     return W.astype(np.float32)
 
 
-# Fixed readout projections from the configured state to interpretable scalars.
-_RNG = np.random.default_rng(42)
-_VALENCE_PROJ = _RNG.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
-_AROUSAL_PROJ = _RNG.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
-_DOMINANCE_PROJ = _RNG.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
-_CURIOSITY_PROJ = _RNG.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
+# Projections were previously fixed. Now they are instance-level and adaptive.
 
 
 class ContinuousSubstrate:
@@ -106,6 +101,10 @@ class ContinuousSubstrate:
         self._last_observation: Dict[str, Any] = {}
         # Deterministic RNG for reproducible noise
         self._rng = np.random.default_rng(seed=913)
+        self._valence_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
+        self._arousal_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
+        self._dominance_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
+        self._curiosity_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -172,11 +171,11 @@ class ContinuousSubstrate:
             }
         s = self._state
         return {
-            "valence": float(np.tanh(np.dot(s, _VALENCE_PROJ))),
-            "arousal": float(np.clip(0.5 * (1.0 + np.tanh(np.dot(s, _AROUSAL_PROJ))), 0.0, 1.0)),
-            "dominance": float(np.tanh(np.dot(s, _DOMINANCE_PROJ))),
+            "valence": float(np.tanh(np.dot(s, self._valence_proj))),
+            "arousal": float(np.clip(0.5 * (1.0 + np.tanh(np.dot(s, self._arousal_proj))), 0.0, 1.0)),
+            "dominance": float(np.tanh(np.dot(s, self._dominance_proj))),
             "phi": float(self._last_phi_estimate),
-            "curiosity": float(np.clip(0.5 * (1.0 + np.tanh(np.dot(s, _CURIOSITY_PROJ))), 0.0, 1.0)),
+            "curiosity": float(np.clip(0.5 * (1.0 + np.tanh(np.dot(s, self._curiosity_proj))), 0.0, 1.0)),
             "energy": float(np.linalg.norm(s) / math.sqrt(NEURONS)),
             "status": "active" if self.running else "halted",
             "buffer_depth": len(self._snapshot_buffer),
@@ -185,6 +184,29 @@ class ContinuousSubstrate:
             "grounded_observation": bool(self._last_observation),
             "last_observation_source": str(self._last_observation.get("source", ""))[:40],
         }
+
+    def adapt_projections(self, observed: Dict[str, float], lr: float = 0.01) -> None:
+        """Ground the readouts in external reality by adapting the projection
+        vectors towards observed outcomes. Removes the 'Highly sophisticated
+        mood ring' limitation where mapping was arbitrary and static.
+        """
+        s = self._state
+        if "valence" in observed:
+            pred = float(np.tanh(np.dot(s, self._valence_proj)))
+            err = observed["valence"] - pred
+            self._valence_proj += lr * err * s * (1 - pred**2)
+        if "arousal" in observed:
+            pred = float(np.tanh(np.dot(s, self._arousal_proj)))
+            err = observed["arousal"] - pred
+            self._arousal_proj += lr * err * s * (1 - pred**2)
+        if "dominance" in observed:
+            pred = float(np.tanh(np.dot(s, self._dominance_proj)))
+            err = observed["dominance"] - pred
+            self._dominance_proj += lr * err * s * (1 - pred**2)
+        if "curiosity" in observed:
+            pred = float(np.tanh(np.dot(s, self._curiosity_proj)))
+            err = observed["curiosity"] - pred
+            self._curiosity_proj += lr * err * s * (1 - pred**2)
 
     def get_state_vector(self) -> np.ndarray:
         """Returns the live configured-dimension state vector (copy)."""
@@ -245,12 +267,22 @@ class ContinuousSubstrate:
             self._snapshot_buffer.append(self.get_state_summary())
 
     def _estimate_phi(self) -> float:
-        """Cheap proxy for integration: variance of the principal pairwise
-        correlation across recent state snapshots, scaled to [0, 1]. This is
-        not strict-IIT phi (see ARCHITECTURE.md §3 level-of-description
-        caveat) — it is an integration proxy meant to give a usable telemetry
-        number derived from real state.
+        """Fetch mathematically rigorous Phi from PhiCore or RIIU if available,
+        otherwise fall back to a cheap variance proxy for telemetry.
+        This provides clear arbitration across the multiple phi implementations.
         """
+        try:
+            from core.container import ServiceContainer
+            phi_core = ServiceContainer.get("phi_core", default=None)
+            if phi_core and hasattr(phi_core, "_last_result") and phi_core._last_result:
+                return float(phi_core._last_result.phi_s)
+                
+            riiu = ServiceContainer.get("riiu", default=None)
+            if riiu and hasattr(riiu, "phi"):
+                return float(riiu.phi)
+        except Exception:
+            pass
+
         if len(self._phi_window) < 8:
             return 0.0
         try:

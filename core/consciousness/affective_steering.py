@@ -398,7 +398,7 @@ class SteeringVectorLibrary:
                 logger.info("🎯 Steering vectors: using AURA_STEERING_DIR=%s", cache_dir)
             else:
                 extracted_dir = Path(__file__).parent.parent.parent / "training" / "vectors"
-                if extracted_dir.exists() and any(extracted_dir.glob("*.npy")):
+                if extracted_dir.exists() and (any(extracted_dir.glob("*.npy")) or any(extracted_dir.glob("*.npz"))):
                     cache_dir = extracted_dir
                     logger.info("🎯 Steering vectors: using extracted vectors from training/vectors/")
                 else:

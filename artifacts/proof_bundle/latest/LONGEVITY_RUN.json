@@ -1,6 +1,7 @@
 {
-  "generated_at": 1778215004.899093,
-  "note": "Long wall-clock longevity runs are intentionally separate; this bundle records current readiness.",
-  "passed": true,
-  "profile": "instant_readiness_snapshot"
+  "generated_at": 1778456332.211136,
+  "note": "Long wall-clock longevity runs are intentionally separate; missing evidence is recorded as not_run.",
+  "passed": false,
+  "profile": "instant_readiness_snapshot",
+  "status": "not_run"
 }

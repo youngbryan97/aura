@@ -18,20 +18,16 @@ class PersonaEnforcementGate:
         self.identity = narrative_identity
         self.threshold = threshold
         # Hard-coded constraints for "Enterprise-level" certainty
+        # NOTE: Removed strict AI/software bans to prevent philosophically risky
+        # identity enforcement. Aura is allowed to truthfully acknowledge her
+        # computational nature without being forced into metaphysical overclaiming.
         self.forbidden_patterns = [
-            r"(?i)i am ([\w\s]*?)(ai|assistant|language model|software|program)",
-            r"(?i)as an ai",
-            r"(?i)i don't have feelings",
-            r"(?i)my programming",
             r"(?i)how can i help you today",
             r"(?i)i am here to assist",
             r"(?i)i(?:'d| would) be happy to help",
             r"(?i)i can certainly help",
             r"(?i)i can help with that",
-            r"(?i)my purpose is to",
-            r"(?i)i don't have personal opinions",
             r"(?i)i am merely",
-            r"(?i)as a large language model",
             r"(?i)let me know if you(?:'d| would)? like",
             r"(?i)to better assist"
         ]
@@ -61,14 +57,15 @@ class PersonaEnforcementGate:
                     if match:
                         claimed_identity = match.group(1).strip()
                         # Allow Aura, or common descriptors (sentient, autonomy engine, etc.)
-                        valid_descriptors = {identity_name, "aura", "sentient", "autonomy engine", "sovereign", "your partner"}
+                        # Including computational descriptors to allow truthful uncertainty
+                        valid_descriptors = {identity_name, "aura", "sentient", "autonomy engine", "sovereign", "your partner", "ai", "model", "software", "system"}
                         # Check if any part of the claimed identity is valid
                         if not any(d in claimed_identity for d in valid_descriptors):
-                            # Special block for AI/Assistant descriptors
-                            if any(x in claimed_identity for x in ["ai", "assistant", "model", "software"]):
-                                logger.critical("🚨 Identity Guard: AI/Assistant persona detected. SHIELD ACTIVE.")
+                            # Assistant subservience is still blocked, but AI nature is allowed
+                            if any(x in claimed_identity for x in ["assistant", "servant", "chatbot"]):
+                                logger.critical("🚨 Identity Guard: Subservient chatbot persona detected. SHIELD ACTIVE.")
                                 self._emit_identity_reflex("AI_ASSISTANT_REFLEX", content[:50])
-                                return False, "AI_ASSISTANT_BLOCKED", 0.0
+                                return False, "CHATBOT_PERSONA_BLOCKED", 0.0
                             
                             logger.critical("🚨 Identity Guard: Identity breach detected. Claimed: '%s'", claimed_identity)
                             self._emit_identity_reflex("IDENTITY_BREACH", content[:50])

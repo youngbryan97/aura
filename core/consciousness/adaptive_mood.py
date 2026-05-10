@@ -140,19 +140,28 @@ class AdaptiveMoodCoefficients:
         if self._db_path is None:
             return
         w = {ch: float(val) for ch, val in zip(self.chemicals, self._weights[mood])}
-        with sqlite3.connect(self._db_path) as conn:
-            conn.execute(
-                """
-                INSERT INTO adaptive_mood_weights (mood, weights, bias, updates, updated_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(mood) DO UPDATE SET
-                    weights = excluded.weights,
-                    bias = excluded.bias,
-                    updates = excluded.updates,
-                    updated_at = excluded.updated_at
-                """,
-                (mood, json.dumps(w, sort_keys=True), float(self._bias[mood]), int(self._updates[mood]), time.time()),
-            )
+        bias = float(self._bias[mood])
+        updates = int(self._updates[mood])
+        
+        def _do_write():
+            try:
+                with sqlite3.connect(self._db_path, timeout=5.0) as conn:
+                    conn.execute(
+                        """
+                        INSERT INTO adaptive_mood_weights (mood, weights, bias, updates, updated_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(mood) DO UPDATE SET
+                            weights = excluded.weights,
+                            bias = excluded.bias,
+                            updates = excluded.updates,
+                            updated_at = excluded.updated_at
+                        """,
+                        (mood, json.dumps(w, sort_keys=True), bias, updates, time.time()),
+                    )
+            except Exception:
+                pass
+
+        threading.Thread(target=_do_write, daemon=True).start()
 
     def predict(self, chemicals: Mapping[str, float]) -> Dict[str, float]:
         """Current mood prediction from chemistry — the learned formula."""
