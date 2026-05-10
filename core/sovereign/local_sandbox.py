@@ -45,6 +45,8 @@ _ALLOWED_COMMANDS = frozenset({
     "python",
     "python3",
     "python3.12",
+    "python3.13",
+    "python3.14",
     "pip",
     "pip3",
     "pytest",

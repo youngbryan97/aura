@@ -58,7 +58,6 @@ class BootAutonomyMixin:
             logger.info("🌌 Transcendence Infrastructure online")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("🌌 Transcendence Infrastructure failed: %s", e)
 
     async def _init_cognitive_modulators(self):
@@ -78,7 +77,6 @@ class BootAutonomyMixin:
             logger.info("🧠 Cognitive Modulators online")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("🧠 Cognitive Modulators failed: %s", e)
 
     async def _init_reflex_engine(self):
@@ -93,7 +91,6 @@ class BootAutonomyMixin:
             self.reflex_engine = None
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("Reflex Engine failed: %s", e)
 
         # Bridge 2: Hardened Reflex Core (SOMA)
@@ -106,7 +103,6 @@ class BootAutonomyMixin:
                 logger.info("⚡ Hardened Reflex Core (SOMA) bridged to Orchestrator")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("Failed to bridge Reflex Core: %s", e)
 
     async def _init_evolution_orchestrator(self):
@@ -118,7 +114,6 @@ class BootAutonomyMixin:
             logger.info("🧬 Evolution Orchestrator online — tracking 8 evolutionary axes")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("🧬 Evolution Orchestrator failed: %s", e)
 
     async def _init_singularity_loops(self):
@@ -129,7 +124,6 @@ class BootAutonomyMixin:
             await loops.start()
             logger.info("🔗 Singularity Loops online — 6 feedback loops active")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("🔗 Singularity Loops failed: %s", e)
 
@@ -146,7 +140,6 @@ class BootAutonomyMixin:
             logger.info("🌍 WorldState ONLINE — live perceptual feed active")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("🌍 WorldState init failed: %s", e)
 
         # InitiativeSynthesizer — single origin for all impulses
@@ -156,7 +149,6 @@ class BootAutonomyMixin:
             await synth.start()
             logger.info("🔀 InitiativeSynthesizer ONLINE — single impulse funnel active")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("🔀 InitiativeSynthesizer init failed: %s", e)
 
@@ -168,7 +160,6 @@ class BootAutonomyMixin:
             logger.info("🔮 InternalSimulator ONLINE — counterfactual reasoning active")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("🔮 InternalSimulator init failed: %s", e)
 
         # ContinuousCognitionLoop — non-LLM brainstem (exists between prompts)
@@ -178,7 +169,6 @@ class BootAutonomyMixin:
             await ccl.start()
             logger.info("🧠 ContinuousCognitionLoop ONLINE — brainstem active at 2Hz")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("🧠 ContinuousCognitionLoop init failed: %s", e)
 
@@ -224,7 +214,6 @@ class BootAutonomyMixin:
                     logger.debug("Goal Resumption: no interrupted goals found")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("🔄 Goal Resumption failed: %s", e)
 
     async def _init_final_foundations(self):
@@ -235,7 +224,6 @@ class BootAutonomyMixin:
             self.final_engines = register_final_engines(orchestrator=self)
             logger.info("🏛️ Final Foundations registered (World/Identity/Meta)")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("🏛️ Final Foundations failed: %s", e)
 
@@ -253,7 +241,6 @@ class BootAutonomyMixin:
             logger.info("SessionGuardian active — health monitoring engaged.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("SessionGuardian init failed: %s", e)
 
         # VolitionEngine — autonomous will, impulse-driven agency
@@ -263,7 +250,6 @@ class BootAutonomyMixin:
             ServiceContainer.register_instance("volition_engine", volition)
             logger.info("VolitionEngine online — autonomous agency active.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("VolitionEngine init failed: %s", e)
 
@@ -276,7 +262,6 @@ class BootAutonomyMixin:
             logger.info("BeliefRevisionEngine online — identity persistence active.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("BeliefRevisionEngine init failed: %s", e)
 
         # ValueSystem — ethical weights (curiosity, integrity, safety, autonomy, empathy)
@@ -287,7 +272,6 @@ class BootAutonomyMixin:
             ServiceContainer.register_instance("values_engine", values)
             logger.info("ValueSystem online — ethical foundation registered.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("ValueSystem init failed: %s", e)
 
@@ -302,7 +286,6 @@ class BootAutonomyMixin:
                 logger.info("DreamProcessor registered — memory consolidation available.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("DreamProcessor init failed: %s", e)
 
         # GoalDriftDetector — prevents rabbit-holing during long goal pursuit
@@ -314,7 +297,6 @@ class BootAutonomyMixin:
                 ServiceContainer.register_instance("goal_drift_detector", drift_detector)
                 logger.info("GoalDriftDetector registered — goal coherence monitoring active.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("GoalDriftDetector init failed: %s", e)
 
@@ -328,7 +310,6 @@ class BootAutonomyMixin:
                 logger.info("SelfDiagnosisTool registered — capability introspection active.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("SelfDiagnosisTool init failed: %s", e)
 
         # ReliabilityEngine — already has registration hook, ensure it activates
@@ -340,7 +321,6 @@ class BootAutonomyMixin:
             logger.info("ReliabilityEngine activated — stability guarantees enforced.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("ReliabilityEngine activation failed: %s", e)
 
         # StateAuthority — truth arbitration across distributed subsystems
@@ -349,7 +329,6 @@ class BootAutonomyMixin:
             register_state_authority()
             logger.info("StateAuthority registered — single source of truth active.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("StateAuthority init failed: %s", e)
 
@@ -363,7 +342,6 @@ class BootAutonomyMixin:
             logger.info("ExternalChatManager online — proactive chat windows available.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("ExternalChatManager init failed: %s", e)
 
         # ProcessManager — enterprise process lifecycle supervision
@@ -373,7 +351,6 @@ class BootAutonomyMixin:
             ServiceContainer.register_instance("process_manager", pm)
             logger.info("ProcessManager online — child process supervision active.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("ProcessManager init failed: %s", e)
 
@@ -385,7 +362,6 @@ class BootAutonomyMixin:
             logger.info("⚔️ DialecticalCrucible online — adversarial belief testing active.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("DialecticalCrucible init failed: %s", e)
 
         # HeuristicSynthesizer — learned instinct extraction
@@ -396,7 +372,6 @@ class BootAutonomyMixin:
             logger.info("📐 HeuristicSynthesizer online — %d active heuristics.", len(hs._active_heuristics))
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("HeuristicSynthesizer init failed: %s", e)
 
         # AbstractionEngine — first-principles extraction
@@ -406,7 +381,6 @@ class BootAutonomyMixin:
             ServiceContainer.register_instance("abstraction_engine", ae)
             logger.info("🧠 AbstractionEngine online — first-principles extraction active.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("AbstractionEngine init failed: %s", e)
 
@@ -420,7 +394,6 @@ class BootAutonomyMixin:
                 ServiceContainer.register_instance("dream_journal", dj)
                 logger.info("🌌 DreamJournal online — subconscious creativity active.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("DreamJournal init failed: %s", e)
 
@@ -439,7 +412,6 @@ class BootAutonomyMixin:
                 logger.info("🧠 BryanModelEngine already registered.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("BryanModelEngine init failed: %s", e)
 
         # BeliefGraph — persistent world model
@@ -454,7 +426,6 @@ class BootAutonomyMixin:
                 logger.info("🌐 BeliefGraph already registered — %d nodes.", existing_bg.graph.number_of_nodes())
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("BeliefGraph init failed: %s", e)
 
         # GoalBeliefManager — goals as first-class beliefs
@@ -466,7 +437,6 @@ class BootAutonomyMixin:
                 ServiceContainer.register_instance("goal_belief_manager", gbm)
                 logger.info("🎯 GoalBeliefManager online.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("GoalBeliefManager init failed: %s", e)
 
@@ -489,20 +459,17 @@ class BootAutonomyMixin:
                         logger.info("💾 [SHUTDOWN] Substrate state saved.")
                 except Exception as exc:
                     record_degradation('boot_autonomy', exc)
-                    record_degradation('boot_autonomy', exc)
                     logger.error("💾 [SHUTDOWN] Substrate save failed: %s", exc)
                 try:
                     sm.freeze()
                     logger.info("💾 [SHUTDOWN] Cognitive snapshot frozen.")
                 except Exception as exc:
                     record_degradation('boot_autonomy', exc)
-                    record_degradation('boot_autonomy', exc)
                     logger.error("💾 [SHUTDOWN] Snapshot freeze failed: %s", exc)
 
             register_shutdown_hook(_save_on_shutdown)
             logger.info("💾 Shutdown persistence hooks registered.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("SnapshotManager init failed: %s", e)
 
@@ -515,7 +482,6 @@ class BootAutonomyMixin:
             logger.info("🛠️ ShadowASTHealer online — self-repair active.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("ShadowASTHealer init failed: %s", e)
 
         # RefusalEngine — genuine autonomous refusal
@@ -525,7 +491,6 @@ class BootAutonomyMixin:
             ServiceContainer.register_instance("refusal_engine", re_engine)
             logger.info("🛡️ RefusalEngine online — sovereign identity protection active.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("RefusalEngine init failed: %s", e)
 
@@ -537,7 +502,6 @@ class BootAutonomyMixin:
             logger.info("🧬 AutonomousSelfModification online — Will-gated evolution active.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("AutonomousSelfModification init failed: %s", e)
 
         # ScarFormation — behavioral scars from critical experiences
@@ -547,7 +511,6 @@ class BootAutonomyMixin:
             await scars.start()
             logger.info("🩹 ScarFormation online — learned caution active.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("ScarFormation init failed: %s", e)
 
@@ -559,8 +522,53 @@ class BootAutonomyMixin:
             logger.info("🧬 ValueAutopoiesis online — value evolution active.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("ValueAutopoiesis init failed: %s", e)
+
+        # ConstitutionalGate — mathematical safety floor for self-modification
+        try:
+            from core.safety.constitutional_gate import get_constitutional_gate
+            const_gate = get_constitutional_gate()
+            await const_gate.start()
+            logger.info("🛡️ ConstitutionalGate ONLINE — %s", const_gate.get_status())
+        except Exception as e:
+            record_degradation('boot_autonomy', e)
+            logger.error("ConstitutionalGate init failed: %s", e)
+
+        # STaR Reasoner — autonomous training data generation from task traces
+        try:
+            from core.adaptation.star_reasoner import get_star_reasoner
+            star = get_star_reasoner()
+            await star.start()
+            logger.info("⭐ STaR Reasoner ONLINE — self-taught improvement active")
+        except Exception as e:
+            record_degradation('boot_autonomy', e)
+            logger.error("STaR Reasoner init failed: %s", e)
+
+        # ReimplementationLab — register but DON'T start (gated by memory/Zenith)
+        try:
+            from core.self_improvement.reimplementation_lab import ReimplementationLab
+            from core.config import config
+            lab = ReimplementationLab(project_root=str(config.paths.project_root))
+            ServiceContainer.register_instance("reimplementation_lab", lab, required=False)
+            logger.info("🔬 ReimplementationLab REGISTERED (gated — awaiting resource clearance)")
+        except Exception as e:
+            record_degradation('boot_autonomy', e)
+            logger.error("ReimplementationLab registration failed: %s", e)
+
+        # ContinuousSimulatorLoop — register but DON'T start (gated by memory)
+        try:
+            from core.environment.embodied_simulator import ContinuousSimulatorLoop
+            affordance_kb = ServiceContainer.get("affordance_kb", default=None)
+            causal_model = ServiceContainer.get("causal_world_model", default=None)
+            if affordance_kb and causal_model:
+                sim_loop = ContinuousSimulatorLoop(affordance_kb, causal_model)
+                ServiceContainer.register_instance("embodied_simulator", sim_loop, required=False)
+                logger.info("🌍 ContinuousSimulatorLoop REGISTERED (gated — awaiting resource clearance)")
+            else:
+                logger.debug("ContinuousSimulatorLoop skipped — missing affordance_kb or causal_model")
+        except Exception as e:
+            record_degradation('boot_autonomy', e)
+            logger.error("ContinuousSimulatorLoop registration failed: %s", e)
 
     async def _init_motivation_engine(self):
         """Initialize Motivation Engine (Aura's Awakening)."""
@@ -575,7 +583,6 @@ class BootAutonomyMixin:
             logger.info("✨ Motivation Engine Active: Aura is now self-directed.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("✨ Motivation Engine failed: %s", e)
 
     async def _init_autonomous_task_engine(self):
@@ -589,7 +596,6 @@ class BootAutonomyMixin:
             ServiceContainer.register_instance("task_engine", te)
             logger.info("✓ Autonomous Task Engine registered")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("🛑 Task Engine init failed: %s", e)
 
@@ -619,7 +625,6 @@ class BootAutonomyMixin:
             logger.info("✨ Phase 30 Presence Patch applied.")
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("Failed to apply Presence Patch: %s", e)
 
         # 🔬 Research Cycle Daemon — autonomous knowledge pursuit during idle
@@ -628,7 +633,6 @@ class BootAutonomyMixin:
             self.research_cycle = await start_research_daemon(self)
             logger.info("🔬 Research Cycle daemon activated.")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("Research Cycle init failed: %s", e)
             self.research_cycle = None
@@ -646,7 +650,6 @@ class BootAutonomyMixin:
             ServiceContainer.register_instance("proactive_comm", pcomm)
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("Proactive Communication init failed: %s", e)
             self.proactive_comm = None
             ServiceContainer.register_instance("proactive_comm", None)
@@ -662,7 +665,6 @@ class BootAutonomyMixin:
             )
         except Exception as e:
             record_degradation('boot_autonomy', e)
-            record_degradation('boot_autonomy', e)
             logger.error("AttentionSummarizer init failed: %s", e)
             ServiceContainer.register_instance("attention_summarizer", None)
 
@@ -674,7 +676,6 @@ class BootAutonomyMixin:
             self.probe_manager = ProbeManager(self)
             ServiceContainer.register_instance("probe_manager", self.probe_manager)
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("ProbeManager init failed: %s", e)
             ServiceContainer.register_instance("probe_manager", None)
@@ -689,7 +690,6 @@ class BootAutonomyMixin:
             self.curiosity = ce
             ServiceContainer.register_instance("curiosity_engine", ce)
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("CuriosityEngine init failed: %s", e)
             self.curiosity = None
@@ -715,7 +715,6 @@ class BootAutonomyMixin:
             tracker.create_task(ail.start(), name="ail")
             tracker.create_task(cme.start(), name="cme")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("Sensory-Motor Integration failed: %s", e)
             ServiceContainer.register_instance("sensory_motor_cortex", None)
@@ -762,7 +761,6 @@ class BootAutonomyMixin:
             self.sampler_modulator = ParameterSelfModulator()
             logger.info("✓ Parameter Self-Modulator active")
         except Exception as e:
-            record_degradation('boot_autonomy', e)
             record_degradation('boot_autonomy', e)
             logger.error("Failed to init Sampler Modulator: %s", e)
             self.sampler_modulator = None

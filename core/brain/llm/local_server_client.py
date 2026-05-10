@@ -528,11 +528,51 @@ class LocalServerClient:
             return True
         return False
 
+    # ── Cached health check state ──────────────────────────────────
+    _health_cache: bool = False
+    _health_cache_ts: float = 0.0
+    _HEALTH_CACHE_TTL: float = 5.0          # seconds
+    _health_check_running: bool = False     # guard against re-entrant calls
+
     def _http_health_check(self) -> bool:
-        """Quick synchronous HTTP health check to the inference server."""
+        """Non-blocking cached HTTP health check.
+
+        Returns the cached result if it's fresh (< 5 s old).
+        When the cache is stale it fires-and-forgets a background
+        thread refresh so the event loop is never blocked.
+        """
+        import time as _time
+        now = _time.monotonic()
+
+        # Return cached value if still fresh
+        if (now - self._health_cache_ts) < self._HEALTH_CACHE_TTL:
+            return self._health_cache
+
+        # If a refresh is already in-flight, return stale cache
+        if self._health_check_running:
+            return self._health_cache
+
+        # Fire a background thread to refresh the cache
+        self._health_check_running = True
+        import threading
+        def _probe():
+            try:
+                result = self._http_health_check_sync()
+                self._health_cache = result
+                self._health_cache_ts = _time.monotonic()
+            finally:
+                self._health_check_running = False
+        threading.Thread(target=_probe, daemon=True, name="health_probe").start()
+
+        # Return stale value for this call (next call gets fresh)
+        return self._health_cache
+
+    @staticmethod
+    def _http_health_check_sync_impl(runtime_url: str) -> bool:
+        """Raw synchronous HTTP probe — runs ONLY inside a background thread."""
         try:
             import urllib.request
-            url = f"{self._runtime_url}/health"
+            url = f"{runtime_url}/health"
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=2.0) as resp:
                 if resp.status == 200:
@@ -541,6 +581,10 @@ class LocalServerClient:
         except Exception:
             pass  # no-op: intentional
         return False
+
+    def _http_health_check_sync(self) -> bool:
+        """Instance wrapper that passes runtime URL to the static impl."""
+        return self._http_health_check_sync_impl(self._runtime_url)
 
     async def _client(self) -> httpx.AsyncClient:
         if self._http is None:

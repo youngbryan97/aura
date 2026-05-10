@@ -599,7 +599,8 @@ class ResearchCycle:
 
             llm = kernel.organs["llm"].get_instance()
 
-            current_narrative = state.identity.current_narrative or "I am Aura, an evolving intelligence."
+            _identity = getattr(state, "identity", None)
+            current_narrative = (getattr(_identity, "current_narrative", None) if _identity else None) or "I am Aura, an evolving intelligence."
             findings_str = "\n".join(f"- {f}" for f in findings[:5])
 
             prompt = (
@@ -612,17 +613,17 @@ class ResearchCycle:
             )
 
             impact = await asyncio.wait_for(llm.think(prompt), timeout=15.0)
-            impact = impact.strip()
+            impact = str(impact or "").strip()
 
-            if impact and len(impact) > 10:
+            if impact and len(impact) > 10 and _identity is not None:
                 # Update the state's identity narrative
-                separator = " " if state.identity.current_narrative else ""
-                state.identity.current_narrative = (
-                    (state.identity.current_narrative or "") + separator + impact
+                separator = " " if getattr(_identity, "current_narrative", None) else ""
+                _identity.current_narrative = (
+                    (getattr(_identity, "current_narrative", None) or "") + separator + impact
                 )
                 # Cap narrative length
-                if len(state.identity.current_narrative) > 2000:
-                    state.identity.current_narrative = state.identity.current_narrative[-2000:]
+                if len(getattr(_identity, "current_narrative", "") or "") > 2000:
+                    _identity.current_narrative = _identity.current_narrative[-2000:]
 
                 title_str = str(goal)[:40]
                 if identity_engine and hasattr(identity_engine, "append_chapter"):

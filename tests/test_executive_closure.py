@@ -73,8 +73,14 @@ async def test_executive_closure_engine_integrates_runtime_signals(service_conta
     service_container.register_instance("self_model", self_model)
     service_container.register_instance("volition_engine", SimpleNamespace(tick=AsyncMock(return_value=None)))
 
+    async def _mock_propose(state, goal, **kwargs):
+        import time as _time
+        state.cognition.pending_initiatives.append({"goal": goal, "ts": _time.time()})
+        return state, {"action": "queued", "reason": "test_approved"}
+
     engine = ExecutiveClosureEngine()
-    result = await engine.integrate(state)
+    with patch("core.consciousness.executive_closure.propose_governed_initiative_to_state", side_effect=_mock_propose):
+        result = await engine.integrate(state)
     await asyncio.sleep(0)
 
     assert result.free_energy == pytest.approx(0.28, abs=1e-6)
@@ -143,8 +149,14 @@ async def test_executive_closure_demotes_intrinsic_maintenance_objective(service
     )
     service_container.register_instance("volition_engine", SimpleNamespace(tick=AsyncMock(return_value=None)))
 
+    async def _mock_propose(state, goal, **kwargs):
+        import time as _time
+        state.cognition.pending_initiatives.append({"goal": goal, "ts": _time.time()})
+        return state, {"action": "queued", "reason": "test_approved"}
+
     engine = ExecutiveClosureEngine()
-    result = await engine.integrate(state)
+    with patch("core.consciousness.executive_closure.propose_governed_initiative_to_state", side_effect=_mock_propose):
+        result = await engine.integrate(state)
     await asyncio.sleep(0)
 
     assert result.cognition.current_objective is None

@@ -268,7 +268,6 @@ class MessageHandlingMixin:
 
             self._message_counter += 1
             from core.schemas import IPCMessage
-            import time
             item = IPCMessage(
                 priority=priority,
                 timestamp=time.monotonic(),
@@ -321,7 +320,6 @@ class MessageHandlingMixin:
 
         self._message_counter += 1
         from core.schemas import IPCMessage
-        import time
         item = IPCMessage(
             priority=priority,
             timestamp=time.monotonic(),

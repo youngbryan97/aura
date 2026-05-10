@@ -43,14 +43,17 @@ def install_strict_task_owner(loop: Optional[asyncio.AbstractEventLoop] = None) 
 
     _install_create_task_wrapper()
 
-    def _factory(factory_loop, coro, context=None):
+    def _factory(factory_loop, coro, context=None, **kwargs):
         def _create(l, c, ctx):
             if previous is not None:
                 try:
-                    return previous(l, c, context=ctx)
+                    return previous(l, c, context=ctx, **kwargs)
                 except TypeError:
-                    return previous(l, c)
-            return asyncio.Task(c, loop=l, context=ctx)
+                    try:
+                        return previous(l, c, context=ctx)
+                    except TypeError:
+                        return previous(l, c)
+            return asyncio.Task(c, loop=l, context=ctx, **kwargs)
 
         if _SKIP_FACTORY_TRACK.get():
             # Tracker-managed task — allowed.

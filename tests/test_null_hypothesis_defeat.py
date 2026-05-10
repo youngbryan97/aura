@@ -2096,6 +2096,7 @@ class TestNotShallowCoupling:
             levels_plus_sensitivity.append(effs + sensitivities)
             valences.append(ncs.get_mood_vector()["valence"])
 
+        sklearn = pytest.importorskip("sklearn")
         from sklearn.linear_model import LinearRegression
         from sklearn.metrics import r2_score
 
@@ -2163,6 +2164,7 @@ class TestNotShallowCoupling:
         """Over multi-step rollouts, the tanh nonlinearity must matter.
         A linear model from state_t → state_{t+N} should fail for large N.
         Single-step Euler linearizes any ODE, but multi-step doesn't."""
+        sklearn = pytest.importorskip("sklearn")
         from sklearn.linear_model import LinearRegression
         from sklearn.metrics import r2_score
 
@@ -3062,6 +3064,7 @@ class TestIrreducibility:
         """GWT competition outcomes should not be perfectly predictable
         from a linear model of input priorities alone (because of
         inhibition, phi-boost, and affect_weight)."""
+        sklearn = pytest.importorskip("sklearn")
         from sklearn.linear_model import LogisticRegression
         from sklearn.metrics import accuracy_score
 

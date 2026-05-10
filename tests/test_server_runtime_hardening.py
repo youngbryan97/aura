@@ -1146,6 +1146,9 @@ async def test_robust_lock_cancellation_clears_watchdog_entry(monkeypatch):
         def report_acquire_success(self, lock_id):
             self.active[lock_id] = self.active.get(lock_id, "lock")
 
+        def report_wait_progress(self, lock_id):
+            pass  # no-op: test stub
+
         def report_release(self, lock_id):
             self.active.pop(lock_id, None)
 

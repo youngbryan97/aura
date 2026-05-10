@@ -161,7 +161,7 @@ class TestGeneratorSkill(BaseSkill):
             
             logger.info("✨ Tests generated and saved to %s", test_file)
             
-            # 4. Run tests in Sandbox
+            # 4. Run tests — try sandbox first, fall back to subprocess
             sandbox = None
             try:
                 from core.sovereign.local_sandbox import LocalSandbox
@@ -187,7 +187,6 @@ class TestGeneratorSkill(BaseSkill):
                     res = await sandbox.run_command(command, timeout=command_timeout)
                     used_fallback_rerun = True
                 
-                # Cleanup (optional, but keep for result analysis)
                 return {
                     "ok": res.exit_code == 0,
                     "output": res.stdout,
@@ -195,10 +194,35 @@ class TestGeneratorSkill(BaseSkill):
                     "test_file": str(test_file),
                     "fallback_used": used_fallback_rerun,
                 }
-            except Exception as sandbox_err:
-                record_degradation('test_generator', sandbox_err)
-                logger.error("Sandbox execution failed: %s", sandbox_err)
-                return {"ok": False, "error": f"Sandbox error: {sandbox_err}"}
+            except (ImportError, PermissionError, Exception) as sandbox_err:
+                # LocalSandbox unavailable or failed — run via subprocess directly
+                if not isinstance(sandbox_err, ImportError):
+                    record_degradation('test_generator', sandbox_err)
+                    logger.warning("Sandbox execution failed for %s, falling back to subprocess: %s", target_file, sandbox_err)
+                else:
+                    logger.info("LocalSandbox unavailable, running tests via subprocess for %s", target_file)
+                try:
+                    import subprocess
+                    proc = await asyncio.create_subprocess_exec(
+                        sys.executable, "-m", "pytest", "-q", str(test_file),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(target_path.parent),
+                    )
+                    stdout, stderr = await asyncio.wait_for(
+                        proc.communicate(), timeout=command_timeout
+                    )
+                    return {
+                        "ok": proc.returncode == 0,
+                        "output": stdout.decode(errors="replace"),
+                        "error": stderr.decode(errors="replace"),
+                        "test_file": str(test_file),
+                        "fallback_used": not generated_with_brain,
+                        "sandbox": "subprocess",
+                    }
+                except Exception as sp_err:
+                    record_degradation('test_generator', sp_err)
+                    return {"ok": False, "error": f"Subprocess test run failed: {sp_err}"}
             finally:
                 if sandbox is not None:
                     try:

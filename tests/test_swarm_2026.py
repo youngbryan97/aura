@@ -38,7 +38,7 @@ async def test_agent_delegator_debate_synthesis():
     
     # Run a mock debate
     # We need to manually complete the agents since we are mocking the brain
-    async def mock_delegate(specialty, prompt):
+    async def mock_delegate(specialty, prompt, **kwargs):
         aid = f"mock-{specialty}"
         agent = SwarmAgent(aid, specialty)
         agent.status = "COMPLETED"

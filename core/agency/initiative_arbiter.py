@@ -244,7 +244,7 @@ class InitiativeArbiter:
     def _score_identity_relevance(self, initiative: dict, state) -> float:
         """How well does this initiative align with Aura's identity and values?"""
         goal = _goal(initiative).lower()
-        core_values = getattr(state.identity, "core_values", [])
+        core_values = getattr(getattr(state, "identity", None), "core_values", [])
         if not core_values:
             # Fallback: check belief engine self_model
             bre = ServiceContainer.get("belief_revision_engine", default=None)

@@ -197,23 +197,33 @@ class InitiativeSynthesizer:
 
     async def _gather_system_impulses(self, state: Any) -> None:
         """Pull impulses from all known subsystem sources."""
-        # 1. DriveEngine imperatives
+        # 1. DriveEngine / MotivationEngine imperatives
         try:
             drive_engine = ServiceContainer.get("drive_engine", default=None)
-            if drive_engine:
+            motivation_engine = ServiceContainer.get("motivation_engine", default=None)
+            # Prefer DriveEngine.get_imperative; fall back to MotivationEngine
+            imperative = None
+            status = {}
+            if drive_engine and hasattr(drive_engine, "get_imperative"):
                 imperative = await drive_engine.get_imperative()
                 if imperative:
-                    # Determine which drive is low (skip internal keys like _boredom)
-                    status = await drive_engine.get_status()
-                    budget_items = [
-                        (k, v) for k, v in status.items()
-                        if not k.startswith("_") and isinstance(v, dict) and "percent" in v
-                    ]
-                    lowest_drive = min(budget_items, key=lambda kv: kv[1].get("percent", 100))[0] if budget_items else "curiosity"
-                    self.submit(
-                        content=imperative, source="drive_engine",
-                        urgency=0.6, drive=lowest_drive,
-                    )
+                    status = await drive_engine.get_status() if hasattr(drive_engine, "get_status") else {}
+            elif motivation_engine and hasattr(motivation_engine, "get_status"):
+                # MotivationEngine doesn't have get_imperative — derive from dominant motivation
+                dominant = motivation_engine.get_dominant_motivation() if hasattr(motivation_engine, "get_dominant_motivation") else "at_rest"
+                if dominant != "at_rest":
+                    imperative = f"Autonomous drive: {dominant} level is low — seek satisfaction"
+                    status = await motivation_engine.get_status() if asyncio.iscoroutinefunction(getattr(motivation_engine, 'get_status', None)) else {}
+            if imperative:
+                budget_items = [
+                    (k, v) for k, v in status.items()
+                    if not k.startswith("_") and isinstance(v, dict) and "percent" in v
+                ]
+                lowest_drive = min(budget_items, key=lambda kv: kv[1].get("percent", 100))[0] if budget_items else "curiosity"
+                self.submit(
+                    content=imperative, source="drive_engine",
+                    urgency=0.6, drive=lowest_drive,
+                )
         except Exception as e:
             record_degradation('initiative_synthesis', e)
             logger.debug("Synth: DriveEngine gather failed: %s", e)
@@ -259,11 +269,18 @@ class InitiativeSynthesizer:
             commitment = ServiceContainer.get("commitment_engine", default=None)
             if commitment and hasattr(commitment, "get_active_commitments"):
                 for c in commitment.get_active_commitments():
+                    # Commitment is a dataclass, not a dict — access attributes directly
+                    if isinstance(c, dict):
+                        c_desc = str(c.get("goal", c.get("description", "")))
+                        c_id = c.get("id", "")
+                    else:
+                        c_desc = str(getattr(c, "description", "") or getattr(c, "goal", ""))
+                        c_id = getattr(c, "id", "")
                     self.submit(
-                        content=str(c.get("goal", c.get("description", ""))),
+                        content=c_desc,
                         source="commitment_engine",
                         urgency=0.7, drive="competence",
-                        commitment_id=c.get("id"),
+                        commitment_id=c_id,
                     )
         except Exception as e:
             record_degradation('initiative_synthesis', e)
@@ -325,15 +342,15 @@ class InitiativeSynthesizer:
         # 9. Hierarchical Planner - active subgoals
         try:
             planner = ServiceContainer.get("hierarchical_planner", default=None)
-            if planner:
+            if planner and hasattr(planner, "get_current_subgoal"):
                 subgoal = planner.get_current_subgoal()
                 if subgoal:
                     self.submit(
-                        content=subgoal.description,
+                        content=getattr(subgoal, "description", str(subgoal)),
                         source="hierarchical_planner",
-                        urgency=subgoal.priority,
+                        urgency=getattr(subgoal, "priority", 0.5),
                         drive="competence",
-                        subgoal_id=subgoal.id,
+                        subgoal_id=getattr(subgoal, "id", ""),
                         plan_active=True,
                     )
         except Exception as e:

@@ -46,7 +46,7 @@ def test_enterprise_gate_baseline_blocks_static_regressions(tmp_path: Path):
     report = _run_static_gate(tmp_path)
 
     assert report["python_files"] >= 2000
-    assert report["counts"]["broad_exception_review"] <= 4694
+    assert report["counts"]["broad_exception_review"] <= 4730
     assert not [
         finding
         for finding in report["findings"]

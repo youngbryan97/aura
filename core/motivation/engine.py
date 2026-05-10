@@ -354,6 +354,35 @@ class MotivationEngine:
             return "at_rest"
         return str(name)
 
+    async def get_imperative(self) -> Optional[str]:
+        """DriveEngine-compatible imperative generation.
+
+        Returns a high-level goal directive string when any drive is critically
+        low, or None when all drives are satisfied.  This method bridges the
+        MotivationEngine API to match the DriveEngine contract expected by
+        InitiativeSynthesizer._gather_system_impulses.
+        """
+        async with self._lock:
+            for b in self.budgets.values():
+                b.tick()
+
+        dominant = self.get_dominant_motivation()
+        if dominant == "at_rest":
+            return None
+
+        level_pct = self.get_drive_vector().get(dominant, 1.0) * 100
+        topic = random.choice(self.latent_interests)
+
+        if dominant == "curiosity":
+            return f"Research a novel fact about {topic} to satisfy curiosity"
+        if dominant == "social":
+            return "Initiate a conversation with the user about something genuine and interesting"
+        if dominant == "integrity":
+            return "Run a self-integrity scan to ensure system stability"
+        if dominant == "growth":
+            return "Find something productive to work on — a task, a fix, or an improvement"
+        return f"Address low {dominant} drive (at {level_pct:.0f}%)"
+
     async def get_status(self) -> Dict[str, Any]:
         """Snapshot for telemetry."""
         async with self._lock:
