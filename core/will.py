@@ -262,20 +262,21 @@ class UnifiedWill:
         logger.info("UnifiedWill ONLINE -- single locus of decision authority active")
 
     def _refresh_identity(self) -> None:
-        """Pull current identity state from CanonicalSelf."""
+        """Update identity anchors from CanonicalSelf. [PERF] Cached."""
+        now = time.time()
+        if hasattr(self, "_last_identity_refresh") and (now - self._last_identity_refresh) < 30.0:
+            return
+        self._last_identity_refresh = now
+        
         try:
-            canonical = ServiceContainer.get("canonical_self", default=None)
-            if canonical is not None:
-                identity = getattr(canonical, "identity", None)
-                if identity:
-                    self._identity_name = getattr(identity, "name", "Aura")
-                    self._identity_stance = getattr(identity, "stance", "sovereign")
-                values = getattr(canonical, "core_values", None) or getattr(canonical, "values", None)
-                if values and isinstance(values, (list, tuple)):
-                    self._core_values = [str(v) for v in values[:10]]
-        except Exception as e:
-            record_degradation('will', e)
-            logger.debug("Will: identity refresh failed (degraded): %s", e)
+            from core.consciousness.absorbed_voices import get_absorbed_voices
+            voices = get_absorbed_voices()
+            if voices and hasattr(voices, "canonical_self"):
+                cs = voices.canonical_self
+                self._identity_name = str(getattr(cs, "name", "Aura"))
+                self._identity_stance = str(getattr(cs, "stance", "sovereign"))
+        except Exception as exc:
+            logger.debug("Will: identity refresh skipped: %s", exc)
 
     # ------------------------------------------------------------------
     # THE SINGLE DECISION METHOD

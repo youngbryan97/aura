@@ -236,6 +236,7 @@ class ReceiptStore:
             body,
             schema_version=self.SCHEMA_VERSION,
             schema_name=f"receipt_{receipt.kind}",
+            indent=None,
         )
         with self._lock:
             self._index[receipt.receipt_id] = receipt

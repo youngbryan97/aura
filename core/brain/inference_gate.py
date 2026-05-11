@@ -889,7 +889,6 @@ class InferenceGate:
                     await asyncio.to_thread(self._mlx_client._kill_and_join_blocking, self._mlx_client._process)
                 except Exception as _e:
                     record_degradation('inference_gate', _e)
-                    record_degradation('inference_gate', _e)
                     logger.debug('Ignored Exception in inference_gate.py killing process: %s', _e)
 
             try:
@@ -909,8 +908,7 @@ class InferenceGate:
                 self._cortex_recovery_exhausted_at = 0.0
             except Exception as exc:
                 record_degradation('inference_gate', exc)
-                record_degradation('inference_gate', exc)
-                logger.error("⚠️ [RECOVERY] Primary 32B cortex respawn failed (attempt %d/5): %s", self._cortex_recovery_attempts, exc)
+                logger.error("⚠️ [RECOVERY] Primary 32B cortex is dead. Triggering background respawn (Attempt %d/5): %s", self._cortex_recovery_attempts, exc)
             finally:
                 # [STABILITY v51] ALWAYS clear the flag, even on unexpected exceptions.
                 self._cortex_recovery_in_progress = False
@@ -1000,7 +998,6 @@ class InferenceGate:
             else:
                 statuses["brainstem"] = "not_initialized"
         except Exception as e:
-            record_degradation('inference_gate', e)
             record_degradation('inference_gate', e)
             statuses["brainstem"] = f"error:{e}"
 

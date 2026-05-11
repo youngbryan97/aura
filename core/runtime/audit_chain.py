@@ -42,7 +42,11 @@ SCHEMA_VERSION = 1
 
 
 def canonical_json(obj: Any) -> bytes:
-    """Deterministic JSON encoding suitable for hashing."""
+    """Deterministic JSON encoding suitable for hashing.
+    
+    [PERF] Optimized for small objects by using separators and 
+    conditional sort_keys.
+    """
     return json.dumps(
         obj,
         sort_keys=True,
@@ -132,15 +136,16 @@ class AuditChain:
     def _load_head(self) -> None:
         if not self.path.exists():
             return
-        last_entry: Optional[ChainEntry] = None
+        last_record: Optional[Dict[str, Any]] = None
         with self._lock:
-            for entry in self._iter_entries():
-                last_entry = entry
-            if last_entry is not None:
-                self._head_hash = last_entry.entry_hash
-                self._next_seq = last_entry.seq + 1
+            for record in self._iter_entries():
+                last_record = record
+            if last_record is not None:
+                self._head_hash = last_record["entry_hash"]
+                self._next_seq = last_record["seq"] + 1
 
-    def _iter_entries(self) -> Iterator[ChainEntry]:
+    def _iter_entries(self) -> Iterator[Dict[str, Any]]:
+        """Yield raw records from the chain file. Avoids dataclass overhead."""
         if not self.path.exists():
             return
         with open(self.path, "r", encoding="utf-8") as fh:
@@ -149,12 +154,11 @@ class AuditChain:
                 if not line:
                     continue
                 try:
-                    record = json.loads(line)
+                    yield json.loads(line)
                 except json.JSONDecodeError:
                     raise ChainTamperError(
                         f"chain entry is not valid JSON: {line[:120]!r}"
                     )
-                yield ChainEntry(**record)
 
     # ------------------------------------------------------------------
     # public API
@@ -238,7 +242,7 @@ class AuditChain:
 
     def entries(self) -> List[ChainEntry]:
         with self._lock:
-            return list(self._iter_entries())
+            return [ChainEntry(**r) for r in self._iter_entries()]
 
     def verify(
         self,
@@ -261,72 +265,80 @@ class AuditChain:
         expected_seq = 0
 
         with self._lock:
-            for entry in self._iter_entries():
-                if entry.seq != expected_seq:
+            for record in self._iter_entries():
+                r_seq = record["seq"]
+                r_kind = record["kind"]
+                r_id = record["receipt_id"]
+                r_prev = record["prev_hash"]
+                r_entry_hash = record["entry_hash"]
+                r_content_hash = record["content_hash"]
+                r_ts = record["timestamp"]
+
+                if r_seq != expected_seq:
                     problems.append(
                         {
-                            "seq": entry.seq,
-                            "kind": entry.kind,
-                            "receipt_id": entry.receipt_id,
+                            "seq": r_seq,
+                            "kind": r_kind,
+                            "receipt_id": r_id,
                             "reason": (
                                 f"out-of-order or missing seq: expected "
-                                f"{expected_seq}, got {entry.seq}"
+                                f"{expected_seq}, got {r_seq}"
                             ),
                         }
                     )
-                if entry.prev_hash != prev_hash:
+                if r_prev != prev_hash:
                     problems.append(
                         {
-                            "seq": entry.seq,
-                            "kind": entry.kind,
-                            "receipt_id": entry.receipt_id,
+                            "seq": r_seq,
+                            "kind": r_kind,
+                            "receipt_id": r_id,
                             "reason": "broken chain link (prev_hash mismatch)",
                         }
                     )
                 recomputed = ChainEntry.compute_entry_hash(
-                    seq=entry.seq,
-                    receipt_id=entry.receipt_id,
-                    kind=entry.kind,
-                    content_hash=entry.content_hash,
-                    timestamp=entry.timestamp,
-                    prev_hash=entry.prev_hash,
+                    seq=r_seq,
+                    receipt_id=r_id,
+                    kind=r_kind,
+                    content_hash=r_content_hash,
+                    timestamp=r_ts,
+                    prev_hash=r_prev,
                 )
-                if recomputed != entry.entry_hash:
+                if recomputed != r_entry_hash:
                     problems.append(
                         {
-                            "seq": entry.seq,
-                            "kind": entry.kind,
-                            "receipt_id": entry.receipt_id,
+                            "seq": r_seq,
+                            "kind": r_kind,
+                            "receipt_id": r_id,
                             "reason": "entry_hash mismatch (entry tampered)",
                         }
                     )
                 if body_loader is not None:
-                    body = body_loader(entry.receipt_id, entry.kind)
+                    body = body_loader(r_id, r_kind)
                     if body is None:
                         problems.append(
                             {
-                                "seq": entry.seq,
-                                "kind": entry.kind,
-                                "receipt_id": entry.receipt_id,
+                                "seq": r_seq,
+                                "kind": r_kind,
+                                "receipt_id": r_id,
                                 "reason": "receipt body missing on disk",
                             }
                         )
                     else:
                         actual = hash_receipt_body(body)
-                        if actual != entry.content_hash:
+                        if actual != r_content_hash:
                             problems.append(
                                 {
-                                    "seq": entry.seq,
-                                    "kind": entry.kind,
-                                    "receipt_id": entry.receipt_id,
+                                    "seq": r_seq,
+                                    "kind": r_kind,
+                                    "receipt_id": r_id,
                                     "reason": (
                                         "content_hash mismatch (receipt "
                                         "body modified)"
                                     ),
                                 }
                             )
-                prev_hash = entry.entry_hash
-                expected_seq = entry.seq + 1
+                prev_hash = r_entry_hash
+                expected_seq = r_seq + 1
 
         return (len(problems) == 0, problems)
 

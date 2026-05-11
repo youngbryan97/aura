@@ -27,6 +27,9 @@ from typing import Any, Dict
 
 _TRACE_FILE = Path.home() / ".aura" / "run" / "omni_trace.jsonl"
 _OMNI_LOCK = threading.Lock()
+_OMNI_THREAD: threading.Thread | None = None
+_OMNI_STOP = False
+_OMNI_BUFFER = []
 _HOOKED = False
 
 def _ensure_trace_dir():
@@ -47,8 +50,38 @@ def _get_system_context() -> Dict[str, Any]:
     except OSError:
         return {"pid": os.getpid()}
 
+def _omni_writer_loop():
+    while not _OMNI_STOP:
+        try:
+            with _OMNI_LOCK:
+                if not _OMNI_BUFFER:
+                    # Release lock and sleep if nothing to do
+                    pass
+                else:
+                    batch = _OMNI_BUFFER
+                    _OMNI_BUFFER = []
+                    
+            if not locals().get("batch"):
+                time.sleep(0.5)
+                continue
+            
+            _ensure_trace_dir()
+            with open(_TRACE_FILE, "a", encoding="utf-8") as f:
+                for line in batch:
+                    f.write(line + "\n")
+                f.flush()
+            del batch
+        except Exception:
+            time.sleep(1)
+
 def write_trace(source: str, error_type: str, message: str, trace: str = ""):
-    _ensure_trace_dir()
+    global _OMNI_THREAD
+    if _OMNI_THREAD is None:
+        with _OMNI_LOCK:
+            if _OMNI_THREAD is None:
+                _OMNI_THREAD = threading.Thread(target=_omni_writer_loop, daemon=True, name="OmniTracerWriter")
+                _OMNI_THREAD.start()
+
     event = {
         "ts": time.time(),
         "source": source,
@@ -57,13 +90,9 @@ def write_trace(source: str, error_type: str, message: str, trace: str = ""):
         "traceback": trace,
         "context": _get_system_context()
     }
+    line = json.dumps(event)
     with _OMNI_LOCK:
-        try:
-            with open(_TRACE_FILE, "a", encoding="utf-8") as f:
-                f.write(json.dumps(event) + "\n")
-                f.flush()
-        except OSError:
-            pass
+        _OMNI_BUFFER.append(line)
 
     # [UI Integration] Forward to the Neural Stream / Terminal UI
     try:

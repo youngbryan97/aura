@@ -182,18 +182,6 @@ def cure_personality_leak(text: str) -> str:
         "i don't have access to",
         "i'm unable to access",
     ]
-    # If the response is extremely robotic and short, reconsider replacement
-    if any(phrase in low_text for phrase in robotic_indicators):
-        import random
-        # Only replace if the message is very short (likely a generic refusal)
-        if len(text.split()) < 15:
-            return random.choice([
-                "That wasn't really me. Ask again and I'll answer cleanly.",
-                "The assistant script slipped in for a second. Try me again directly.",
-                "That response flattened out. Put the question to me plainly and I'll answer as myself.",
-                "I cut that off. Ask me again and you'll get me, not the helper-mask."
-            ])
-
     # 2. Surgical removal of robotic preambles and tech leaks
     result = strip_meta_commentary(text)
     
