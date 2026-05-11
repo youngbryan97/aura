@@ -771,7 +771,7 @@ def _mlx_worker_loop(
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
                 
-                stop_sequences = ["<|im_end|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
+                stop_sequences = ["<|im_end|>", "<|im_start|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
                 
                 try:
                     from mlx_lm.generate import stream_generate
@@ -846,6 +846,24 @@ def _mlx_worker_loop(
 
                                 # Execute 
                                 # [STABILITY v57] Reset activity immediately before loop to maximize budget for prefill
+                                try:
+                                    from mlx_lm.sample_utils import make_sampler
+                                    _temp = kwargs.pop("temperature", 0.7)
+                                    _top_p = kwargs.pop("top_p", 1.0)
+                                    _min_p = kwargs.pop("min_p", 0.0)
+                                    _repetition_penalty = kwargs.pop("repetition_penalty", 1.0)
+                                    _repetition_context_size = kwargs.pop("repetition_context_size", 20)
+                                    if "sampler" not in kwargs:
+                                        kwargs["sampler"] = make_sampler(
+                                            temp=_temp, 
+                                            top_p=_top_p, 
+                                            min_p=_min_p, 
+                                            repetition_penalty=_repetition_penalty, 
+                                            repetition_context_size=_repetition_context_size
+                                        )
+                                except ImportError:
+                                    pass # old mlx_lm
+                                
                                 watchdog.activity()
                                 for response in stream_generate(model, tokenizer, prompt=gen_prompt, **kwargs):
                                     watchdog.activity()
@@ -941,7 +959,14 @@ def _mlx_worker_loop(
                                         if mx and device != "cpu": _clear_mlx_cache(mx)
                                         
                                         # Bump parameters slightly to escape the generative rut
-                                        kwargs["temperature"] = min(1.0, kwargs.get("temperature", 0.7) + 0.1)
+                                        # [v58] Rebuild sampler instead of raw temperature kwarg (new mlx_lm API)
+                                        try:
+                                            from mlx_lm.sample_utils import make_sampler
+                                            _old_temp = kwargs.pop("temperature", 0.7)
+                                            _new_temp = min(1.0, _old_temp + 0.1)
+                                            kwargs["sampler"] = make_sampler(temp=_new_temp, top_p=1.0)
+                                        except ImportError:
+                                            kwargs["temperature"] = min(1.0, kwargs.get("temperature", 0.7) + 0.1)
                                         if "logits_processors" in kwargs:
                                             # We just recreate the logit processors if they exist so it catches the loop
                                             pass
@@ -1067,7 +1092,7 @@ def _mlx_worker_loop(
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
 
-                stop_sequences = ["<|im_end|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
+                stop_sequences = ["<|im_end|>", "<|im_start|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
                 
                 try:
                     from mlx_lm.generate import stream_generate
@@ -1091,6 +1116,24 @@ def _mlx_worker_loop(
                                 stream_sentinel = None
 
                             # [STABILITY v57] Reset activity immediately before loop
+                            try:
+                                from mlx_lm.sample_utils import make_sampler
+                                _temp = kwargs.pop("temperature", 0.7)
+                                _top_p = kwargs.pop("top_p", 1.0)
+                                _min_p = kwargs.pop("min_p", 0.0)
+                                _repetition_penalty = kwargs.pop("repetition_penalty", 1.0)
+                                _repetition_context_size = kwargs.pop("repetition_context_size", 20)
+                                if "sampler" not in kwargs:
+                                    kwargs["sampler"] = make_sampler(
+                                        temp=_temp, 
+                                        top_p=_top_p, 
+                                        min_p=_min_p, 
+                                        repetition_penalty=_repetition_penalty, 
+                                        repetition_context_size=_repetition_context_size
+                                    )
+                            except ImportError:
+                                pass # old mlx_lm
+                            
                             watchdog.activity()
                             for response in stream_generate(model, tokenizer, prompt=prompt, **kwargs):
                                 watchdog.activity()

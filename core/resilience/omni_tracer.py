@@ -44,7 +44,7 @@ def _get_system_context() -> Dict[str, Any]:
             "proc_mem_mb": proc.memory_info().rss / (1024 * 1024),
             "open_fds": proc.num_fds() if hasattr(proc, "num_fds") else 0,
         }
-    except Exception:
+    except OSError:
         return {"pid": os.getpid()}
 
 def write_trace(source: str, error_type: str, message: str, trace: str = ""):
@@ -62,7 +62,7 @@ def write_trace(source: str, error_type: str, message: str, trace: str = ""):
             with open(_TRACE_FILE, "a", encoding="utf-8") as f:
                 f.write(json.dumps(event) + "\n")
                 f.flush()
-        except Exception:
+        except OSError:
             pass
 
     # [UI Integration] Forward to the Neural Stream / Terminal UI
@@ -77,7 +77,7 @@ def write_trace(source: str, error_type: str, message: str, trace: str = ""):
                 severity="critical",
                 classification="system_crash",
             )
-    except Exception:
+    except ImportError:
         pass
 
 class OmniLogHandler(logging.Handler):
@@ -90,7 +90,7 @@ class OmniLogHandler(logging.Handler):
                 if record.exc_info:
                     trace = "".join(traceback.format_exception(*record.exc_info))
                 write_trace(f"log_{record.levelname.lower()}", record.name, msg, trace)
-            except Exception:
+            except OSError:
                 pass
 
 def _sys_excepthook(exc_type, exc_value, exc_traceback):

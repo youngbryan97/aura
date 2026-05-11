@@ -188,6 +188,12 @@ class SovereignVoiceEngine:
         # Issue 34: Lazy initialize event if loop isn't ready
         self._interrupt_event = None 
         self.is_speaking = False
+        # [STABILITY v58] interrupt_flag used by speak_stream and barge-in detection
+        try:
+            self.interrupt_flag = asyncio.Event()
+        except RuntimeError:
+            # No running event loop yet; will be created on first use
+            self.interrupt_flag = threading.Event()
 
         # ── Callbacks ─────────────────────────────────────
         self._on_transcript: Optional[Callable[[str], Awaitable[None]]] = None

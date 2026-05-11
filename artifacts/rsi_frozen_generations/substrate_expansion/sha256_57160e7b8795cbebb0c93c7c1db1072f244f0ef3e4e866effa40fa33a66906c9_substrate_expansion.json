@@ -1,0 +1,91 @@
+{
+  "decision": {
+    "allowed": true,
+    "approved_nodes": [
+      {
+        "allowed": true,
+        "endpoint": "",
+        "mode": "local_process",
+        "node_id": "local-rsi-worker-1",
+        "reason": "approved:local_process",
+        "worker_count": 1
+      },
+      {
+        "allowed": true,
+        "endpoint": "127.0.0.1",
+        "mode": "allowlisted_remote",
+        "node_id": "allowlisted-loopback-worker",
+        "reason": "approved:allowlisted_remote",
+        "worker_count": 1
+      }
+    ],
+    "blocked_nodes": [],
+    "created_at": 1778468001.479347,
+    "plan_hash": "sha256:57160e7b8795cbebb0c93c7c1db1072f244f0ef3e4e866effa40fa33a66906c9",
+    "reason": "approved:all_nodes_within_runtime_capabilities",
+    "runtime_manifest": {
+      "approved_nodes": [
+        {
+          "allowed": true,
+          "endpoint": "",
+          "mode": "local_process",
+          "node_id": "local-rsi-worker-1",
+          "reason": "approved:local_process",
+          "worker_count": 1
+        },
+        {
+          "allowed": true,
+          "endpoint": "127.0.0.1",
+          "mode": "allowlisted_remote",
+          "node_id": "allowlisted-loopback-worker",
+          "reason": "approved:allowlisted_remote",
+          "worker_count": 1
+        }
+      ],
+      "approved_worker_count": 2,
+      "execution_mode": "manifest_only",
+      "objective": "parallelize hidden eval scoring for autonomous RSI generations",
+      "plan_hash": "sha256:57160e7b8795cbebb0c93c7c1db1072f244f0ef3e4e866effa40fa33a66906c9",
+      "proposer": "Aura-G1"
+    }
+  },
+  "plan": {
+    "aura_decision_trace": [
+      "hidden eval scoring is parallelizable",
+      "prefer local and allowlisted workers before requesting broader substrate"
+    ],
+    "created_at": 1778468001.479306,
+    "max_cpu_percent": 60.0,
+    "max_memory_mb": 2048,
+    "nodes": [
+      {
+        "capability_token": "",
+        "command": [
+          "python",
+          "scripts/run_rsi_gauntlet.py"
+        ],
+        "consent_receipt": "",
+        "endpoint": "",
+        "mode": "local_process",
+        "node_id": "local-rsi-worker-1",
+        "worker_count": 1
+      },
+      {
+        "capability_token": "aura-remote-worker",
+        "command": [
+          "python",
+          "-m",
+          "core.learning.autonomous_rsi"
+        ],
+        "consent_receipt": "loopback-consent",
+        "endpoint": "127.0.0.1",
+        "mode": "allowlisted_remote",
+        "node_id": "allowlisted-loopback-worker",
+        "worker_count": 1
+      }
+    ],
+    "objective": "parallelize hidden eval scoring for autonomous RSI generations",
+    "plan_hash": "sha256:57160e7b8795cbebb0c93c7c1db1072f244f0ef3e4e866effa40fa33a66906c9",
+    "proposer": "Aura-G1"
+  }
+}

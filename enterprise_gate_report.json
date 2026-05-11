@@ -2,20 +2,55 @@
   "compile_ok": true,
   "counts": {
     "blocking_sleep_in_async": 12,
-    "broad_exception_review": 4706,
+    "broad_exception_review": 4743,
     "dynamic_code_execution": 8,
-    "hardcoded_local_path": 203,
-    "pass_only_function": 53,
-    "placeholder_stub_mock": 674,
+    "hardcoded_local_path": 209,
+    "pass_only_function": 55,
+    "placeholder_stub_mock": 679,
     "pytest_skip_xfail": 55,
     "raise_only_function": 50,
-    "subprocess_usage_review": 145,
-    "swallowed_broad_exception": 838,
+    "subprocess_usage_review": 150,
+    "swallowed_broad_exception": 849,
     "todo_fixme_hack": 23,
-    "unbounded_loop_review": 82,
+    "unbounded_loop_review": 84,
     "wildcard_import": 17
   },
   "findings": [
+    {
+      "detail": "sys.path.append(\"/Users/bryan/.aura/live-source\")",
+      "file": "test_eval5.py",
+      "kind": "hardcoded_local_path",
+      "line": 2,
+      "severity": "low"
+    },
+    {
+      "detail": "sys.path.append(\"/Users/bryan/.aura/live-source\")",
+      "file": "test_eval4.py",
+      "kind": "hardcoded_local_path",
+      "line": 2,
+      "severity": "low"
+    },
+    {
+      "detail": "",
+      "file": "test_phase7.py",
+      "kind": "broad_exception_review",
+      "line": 24,
+      "severity": "low"
+    },
+    {
+      "detail": "sys.path.append(\"/Users/bryan/.aura/live-source\")",
+      "file": "test_eval3.py",
+      "kind": "hardcoded_local_path",
+      "line": 2,
+      "severity": "low"
+    },
+    {
+      "detail": "sys.path.append(\"/Users/bryan/.aura/live-source\")",
+      "file": "test_eval2.py",
+      "kind": "hardcoded_local_path",
+      "line": 2,
+      "severity": "low"
+    },
     {
       "detail": "DEFAULT_REAPER_MANIFEST = Path(\"/tmp/aura_reaper_manifest.json\")",
       "file": "aura_main.py",
@@ -430,6 +465,13 @@
       "severity": "medium"
     },
     {
+      "detail": "sys.path.append(\"/Users/bryan/.aura/live-source\")",
+      "file": "test_eval.py",
+      "kind": "hardcoded_local_path",
+      "line": 2,
+      "severity": "low"
+    },
+    {
       "detail": "",
       "file": "research/state_observatory.py",
       "kind": "broad_exception_review",
@@ -830,6 +872,41 @@
     },
     {
       "detail": "",
+      "file": "tools/generate_undeniable_rsi_bundle.py",
+      "kind": "swallowed_broad_exception",
+      "line": 97,
+      "severity": "medium"
+    },
+    {
+      "detail": "subprocess.Popen",
+      "file": "tools/generate_undeniable_rsi_bundle.py",
+      "kind": "subprocess_usage_review",
+      "line": 147,
+      "severity": "medium"
+    },
+    {
+      "detail": "subprocess.check_output",
+      "file": "tools/generate_undeniable_rsi_bundle.py",
+      "kind": "subprocess_usage_review",
+      "line": 307,
+      "severity": "medium"
+    },
+    {
+      "detail": "subprocess.check_output",
+      "file": "tools/proof_bundle.py",
+      "kind": "subprocess_usage_review",
+      "line": 427,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "tools/proof_bundle.py",
+      "kind": "swallowed_broad_exception",
+      "line": 493,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
       "file": "tools/client_stream.py",
       "kind": "unbounded_loop_review",
       "line": 25,
@@ -909,14 +986,7 @@
       "detail": "",
       "file": "core/local_voice_cortex.py",
       "kind": "broad_exception_review",
-      "line": 100,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/local_voice_cortex.py",
-      "kind": "broad_exception_review",
-      "line": 140,
+      "line": 105,
       "severity": "medium"
     },
     {
@@ -930,28 +1000,35 @@
       "detail": "",
       "file": "core/local_voice_cortex.py",
       "kind": "broad_exception_review",
-      "line": 168,
+      "line": 150,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/local_voice_cortex.py",
       "kind": "broad_exception_review",
-      "line": 210,
+      "line": 173,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/local_voice_cortex.py",
       "kind": "broad_exception_review",
-      "line": 261,
+      "line": 215,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/local_voice_cortex.py",
       "kind": "broad_exception_review",
-      "line": 278,
+      "line": 266,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/local_voice_cortex.py",
+      "kind": "broad_exception_review",
+      "line": 283,
       "severity": "medium"
     },
     {
@@ -1847,105 +1924,105 @@
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 217,
+      "line": 227,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 253,
+      "line": 263,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 268,
+      "line": 285,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 284,
+      "line": 301,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 300,
+      "line": 317,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 307,
+      "line": 324,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 314,
+      "line": 331,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 321,
+      "line": 338,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 339,
+      "line": 356,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 579,
+      "line": 596,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 605,
+      "line": 622,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 633,
+      "line": 650,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 689,
+      "line": 706,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 717,
+      "line": 734,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/initiative_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 736,
+      "line": 753,
       "severity": "medium"
     },
     {
@@ -3664,101 +3741,129 @@
       "severity": "medium"
     },
     {
-      "detail": "",
+      "detail": "statuses[name] = \"stub\"",
       "file": "core/container.py",
-      "kind": "swallowed_broad_exception",
-      "line": 183,
+      "kind": "placeholder_stub_mock",
+      "line": 154,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "broad_exception_review",
-      "line": 239,
+      "line": 136,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "broad_exception_review",
-      "line": 256,
+      "line": 146,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/container.py",
+      "kind": "swallowed_broad_exception",
+      "line": 220,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/container.py",
+      "kind": "broad_exception_review",
+      "line": 276,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "broad_exception_review",
-      "line": 309,
+      "line": 293,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/container.py",
+      "kind": "broad_exception_review",
+      "line": 346,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "unbounded_loop_review",
-      "line": 323,
+      "line": 360,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "broad_exception_review",
-      "line": 464,
+      "line": 503,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "broad_exception_review",
-      "line": 535,
+      "line": 574,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "broad_exception_review",
-      "line": 543,
+      "line": 582,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "swallowed_broad_exception",
-      "line": 562,
+      "line": 601,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "broad_exception_review",
-      "line": 584,
+      "line": 623,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "broad_exception_review",
-      "line": 596,
+      "line": 635,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "broad_exception_review",
-      "line": 637,
+      "line": 676,
       "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/container.py",
-      "kind": "swallowed_broad_exception",
-      "line": 648,
-      "severity": "high"
     },
     {
       "detail": "",
       "file": "core/container.py",
       "kind": "swallowed_broad_exception",
       "line": 687,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/container.py",
+      "kind": "swallowed_broad_exception",
+      "line": 726,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/container.py",
+      "kind": "swallowed_broad_exception",
+      "line": 747,
       "severity": "high"
     },
     {
@@ -4117,6 +4222,13 @@
       "kind": "broad_exception_review",
       "line": 99,
       "severity": "medium"
+    },
+    {
+      "detail": "return NotImplemented",
+      "file": "core/schemas.py",
+      "kind": "placeholder_stub_mock",
+      "line": 100,
+      "severity": "high"
     },
     {
       "detail": "",
@@ -5795,14 +5907,14 @@
       "detail": "",
       "file": "core/strategic_planner.py",
       "kind": "broad_exception_review",
-      "line": 73,
+      "line": 74,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/strategic_planner.py",
       "kind": "broad_exception_review",
-      "line": 174,
+      "line": 176,
       "severity": "medium"
     },
     {
@@ -5816,42 +5928,49 @@
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 199,
+      "line": 201,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 244,
+      "line": 211,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 284,
+      "line": 256,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 299,
+      "line": 300,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 465,
+      "line": 337,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 485,
+      "line": 352,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/agency_core.py",
+      "kind": "broad_exception_review",
+      "line": 518,
       "severity": "medium"
     },
     {
@@ -5865,63 +5984,56 @@
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 563,
+      "line": 591,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 621,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/agency_core.py",
-      "kind": "swallowed_broad_exception",
-      "line": 645,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/agency_core.py",
-      "kind": "swallowed_broad_exception",
-      "line": 654,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/agency_core.py",
-      "kind": "swallowed_broad_exception",
-      "line": 660,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/agency_core.py",
-      "kind": "swallowed_broad_exception",
-      "line": 667,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/agency_core.py",
-      "kind": "broad_exception_review",
-      "line": 677,
+      "line": 616,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 722,
+      "line": 674,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
+      "kind": "swallowed_broad_exception",
+      "line": 698,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/agency_core.py",
+      "kind": "swallowed_broad_exception",
+      "line": 707,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/agency_core.py",
+      "kind": "swallowed_broad_exception",
+      "line": 713,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/agency_core.py",
+      "kind": "swallowed_broad_exception",
+      "line": 720,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 761,
+      "line": 730,
       "severity": "medium"
     },
     {
@@ -5935,91 +6047,105 @@
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 795,
+      "line": 814,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/agency_core.py",
+      "kind": "broad_exception_review",
+      "line": 828,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/agency_core.py",
+      "kind": "broad_exception_review",
+      "line": 848,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "swallowed_broad_exception",
-      "line": 868,
+      "line": 921,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 907,
+      "line": 960,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 911,
+      "line": 964,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 925,
+      "line": 978,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 1089,
+      "line": 1142,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 1160,
+      "line": 1213,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 1194,
+      "line": 1247,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 1714,
+      "line": 1767,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 1727,
+      "line": 1780,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 1764,
+      "line": 1817,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 1889,
+      "line": 1942,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/agency_core.py",
       "kind": "broad_exception_review",
-      "line": 1950,
+      "line": 2003,
       "severity": "medium"
     },
     {
@@ -6527,7 +6653,7 @@
       "severity": "medium"
     },
     {
-      "detail": "BASE_MODEL = \"/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-8bit\"",
+      "detail": "BASE_MODEL = \"/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-4bit\"",
       "file": "training/resume_training.py",
       "kind": "hardcoded_local_path",
       "line": 15,
@@ -6548,7 +6674,7 @@
       "severity": "low"
     },
     {
-      "detail": "LOG_PATH = Path(\"/Users/bryan/.aura/live-source/training/train_log.txt\")",
+      "detail": "LOG_PATH = Path(\"/Users/bryan/.aura/live-source/training/logs/train_and_fuse.log\")",
       "file": "training/resume_training.py",
       "kind": "hardcoded_local_path",
       "line": 18,
@@ -6558,7 +6684,14 @@
       "detail": "cwd=\"/Users/bryan/.aura/live-source\",",
       "file": "training/resume_training.py",
       "kind": "hardcoded_local_path",
-      "line": 148,
+      "line": 163,
+      "severity": "low"
+    },
+    {
+      "detail": "cwd=\"/Users/bryan/.aura/live-source\",",
+      "file": "training/resume_training.py",
+      "kind": "hardcoded_local_path",
+      "line": 173,
       "severity": "low"
     },
     {
@@ -6572,7 +6705,14 @@
       "detail": "subprocess.Popen",
       "file": "training/resume_training.py",
       "kind": "subprocess_usage_review",
-      "line": 146,
+      "line": 161,
+      "severity": "medium"
+    },
+    {
+      "detail": "subprocess.Popen",
+      "file": "training/resume_training.py",
+      "kind": "subprocess_usage_review",
+      "line": 171,
       "severity": "medium"
     },
     {
@@ -6916,6 +7056,27 @@
       "file": "tests/test_skills_sweep_2026.py",
       "kind": "raise_only_function",
       "line": 151,
+      "severity": "medium"
+    },
+    {
+      "detail": "from unittest.mock import MagicMock, patch, PropertyMock",
+      "file": "tests/test_cortex_hardening_v54.py",
+      "kind": "placeholder_stub_mock",
+      "line": 14,
+      "severity": "low"
+    },
+    {
+      "detail": "\"\"\"Minimal mock of MLXLocalClient for lane-state testing.\"\"\"",
+      "file": "tests/test_cortex_hardening_v54.py",
+      "kind": "placeholder_stub_mock",
+      "line": 18,
+      "severity": "low"
+    },
+    {
+      "detail": "_noop",
+      "file": "tests/test_cortex_hardening_v54.py",
+      "kind": "pass_only_function",
+      "line": 76,
       "severity": "medium"
     },
     {
@@ -8431,10 +8592,17 @@
       "severity": "low"
     },
     {
+      "detail": "pass  # no-op: test stub",
+      "file": "tests/test_server_runtime_hardening.py",
+      "kind": "placeholder_stub_mock",
+      "line": 1150,
+      "severity": "low"
+    },
+    {
       "detail": "actor = ActorLifecycle(\"dummy\")",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "placeholder_stub_mock",
-      "line": 4924,
+      "line": 4927,
       "severity": "low"
     },
     {
@@ -8466,73 +8634,80 @@
       "severity": "low"
     },
     {
+      "detail": "report_wait_progress",
+      "file": "tests/test_server_runtime_hardening.py",
+      "kind": "pass_only_function",
+      "line": 1149,
+      "severity": "medium"
+    },
+    {
       "detail": "_boom",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "raise_only_function",
-      "line": 1210,
+      "line": 1213,
       "severity": "medium"
     },
     {
       "detail": "_unexpected_deepcopy",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "raise_only_function",
-      "line": 1231,
+      "line": 1234,
       "severity": "medium"
     },
     {
       "detail": "__init__",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "pass_only_function",
-      "line": 1340,
+      "line": 1343,
       "severity": "medium"
     },
     {
       "detail": "_publish_telemetry",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "raise_only_function",
-      "line": 2676,
+      "line": 2679,
       "severity": "medium"
     },
     {
       "detail": "__init__",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "pass_only_function",
-      "line": 2914,
+      "line": 2917,
       "severity": "medium"
     },
     {
       "detail": "_bad",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "raise_only_function",
-      "line": 3747,
+      "line": 3750,
       "severity": "medium"
     },
     {
       "detail": "_kaboom",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "raise_only_function",
-      "line": 3931,
+      "line": 3934,
       "severity": "medium"
     },
     {
       "detail": "_kaboom",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "raise_only_function",
-      "line": 3949,
+      "line": 3952,
       "severity": "medium"
     },
     {
       "detail": "_decide",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "raise_only_function",
-      "line": 5542,
+      "line": 5545,
       "severity": "medium"
     },
     {
       "detail": "_decide",
       "file": "tests/test_server_runtime_hardening.py",
       "kind": "raise_only_function",
-      "line": 5575,
+      "line": 5578,
       "severity": "medium"
     },
     {
@@ -9050,168 +9225,168 @@
       "detail": "# Set the override so self.cognitive_engine returns our mock",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 357,
+      "line": 360,
       "severity": "low"
     },
     {
       "detail": "# Batch 3 Fix: Inject mock cognitive_loop to support the cycle shim",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 455,
+      "line": 459,
       "severity": "low"
     },
     {
       "detail": "# Mock cognititive_engine",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 635,
+      "line": 639,
       "severity": "low"
     },
     {
       "detail": "# Set override so self.cognitive_engine returns our mock",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 685,
+      "line": 689,
       "severity": "low"
     },
     {
       "detail": "# Mock resolution works!",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 784,
+      "line": 788,
       "severity": "low"
     },
     {
       "detail": "# Mock call_soon_threadsafe to actually execute the put",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 875,
+      "line": 879,
       "severity": "low"
     },
     {
       "detail": "# Mock LLM router/cerebellum to avoid its own failures",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 1476,
+      "line": 1494,
       "severity": "low"
     },
     {
       "detail": "# Mock wait_for to avoid hanging on the cognitive reply",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 1707,
+      "line": 1725,
       "severity": "low"
     },
     {
       "detail": "from unittest.mock import PropertyMock",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 1946,
+      "line": 1964,
       "severity": "low"
     },
     {
       "detail": "from unittest.mock import PropertyMock",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 1967,
+      "line": 1985,
       "severity": "low"
     },
     {
       "detail": "from unittest.mock import PropertyMock",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 1993,
+      "line": 2011,
       "severity": "low"
     },
     {
       "detail": "from unittest.mock import PropertyMock",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 2114,
+      "line": 2132,
       "severity": "low"
     },
     {
       "detail": "# Mock chat_stream to return partial tokens",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 2141,
+      "line": 2159,
       "severity": "low"
     },
     {
       "detail": "from unittest.mock import PropertyMock",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 2164,
+      "line": 2182,
       "severity": "low"
     },
     {
       "detail": "from unittest.mock import PropertyMock",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 2178,
+      "line": 2196,
       "severity": "low"
     },
     {
       "detail": "# Just mock a timeout response directly instead of letting it raise internally",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 2198,
+      "line": 2216,
       "severity": "low"
     },
     {
       "detail": "# We mock process_message directly here",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 2218,
+      "line": 2236,
       "severity": "low"
     },
     {
       "detail": "# Mock mycelium.match_hardwired",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 2269,
+      "line": 2287,
       "severity": "low"
     },
     {
       "detail": "# Safely mock the queue on the existing orchestrator instead of reassigning properties",
       "file": "tests/test_orchestrator.py",
       "kind": "placeholder_stub_mock",
-      "line": 2298,
+      "line": 2316,
       "severity": "low"
     },
     {
       "detail": "test_handle_signal",
       "file": "tests/test_orchestrator.py",
       "kind": "pass_only_function",
-      "line": 448,
+      "line": 452,
       "severity": "medium"
     },
     {
       "detail": "test_process_thought",
       "file": "tests/test_orchestrator.py",
       "kind": "pass_only_function",
-      "line": 582,
+      "line": 586,
       "severity": "medium"
     },
     {
       "detail": "test_handle_signal_lite",
       "file": "tests/test_orchestrator.py",
       "kind": "pass_only_function",
-      "line": 703,
+      "line": 707,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "tests/test_orchestrator.py",
       "kind": "swallowed_broad_exception",
-      "line": 1677,
+      "line": 1695,
       "severity": "medium"
     },
     {
       "detail": "failing_handle",
       "file": "tests/test_orchestrator.py",
       "kind": "raise_only_function",
-      "line": 2091,
+      "line": 2109,
       "severity": "medium"
     },
     {
@@ -12151,7 +12326,7 @@
       "detail": "",
       "file": "scripts/build_app.py",
       "kind": "broad_exception_review",
-      "line": 115,
+      "line": 117,
       "severity": "low"
     },
     {
@@ -12167,6 +12342,13 @@
       "kind": "swallowed_broad_exception",
       "line": 27,
       "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "scripts/generate_steering_vectors.py",
+      "kind": "broad_exception_review",
+      "line": 258,
+      "severity": "low"
     },
     {
       "detail": "",
@@ -13607,14 +13789,14 @@
       "detail": "",
       "file": "infrastructure/watchdog.py",
       "kind": "broad_exception_review",
-      "line": 96,
+      "line": 101,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "infrastructure/watchdog.py",
       "kind": "broad_exception_review",
-      "line": 108,
+      "line": 113,
       "severity": "medium"
     },
     {
@@ -14195,28 +14377,35 @@
       "detail": "",
       "file": "interface/routes/inner_state.py",
       "kind": "swallowed_broad_exception",
-      "line": 195,
+      "line": 196,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "interface/routes/inner_state.py",
       "kind": "broad_exception_review",
-      "line": 205,
+      "line": 204,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/inner_state.py",
+      "kind": "swallowed_broad_exception",
+      "line": 217,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/inner_state.py",
+      "kind": "broad_exception_review",
+      "line": 227,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/inner_state.py",
       "kind": "broad_exception_review",
-      "line": 215,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/inner_state.py",
-      "kind": "broad_exception_review",
-      "line": 235,
+      "line": 237,
       "severity": "medium"
     },
     {
@@ -14230,42 +14419,56 @@
       "detail": "",
       "file": "interface/routes/inner_state.py",
       "kind": "broad_exception_review",
-      "line": 266,
+      "line": 279,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/inner_state.py",
       "kind": "broad_exception_review",
-      "line": 274,
+      "line": 288,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/inner_state.py",
       "kind": "broad_exception_review",
-      "line": 294,
+      "line": 296,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/inner_state.py",
       "kind": "broad_exception_review",
-      "line": 324,
+      "line": 316,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/inner_state.py",
       "kind": "broad_exception_review",
-      "line": 335,
+      "line": 346,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/inner_state.py",
       "kind": "broad_exception_review",
-      "line": 354,
+      "line": 353,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/inner_state.py",
+      "kind": "broad_exception_review",
+      "line": 364,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/inner_state.py",
+      "kind": "broad_exception_review",
+      "line": 383,
       "severity": "medium"
     },
     {
@@ -14692,329 +14895,336 @@
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 2892,
+      "line": 2895,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 3044,
+      "line": 3047,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 3091,
+      "line": 3094,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 3095,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "swallowed_broad_exception",
-      "line": 3275,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 3492,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 3505,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 3517,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 3526,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 3535,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 3548,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 3608,
+      "line": 3098,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "swallowed_broad_exception",
-      "line": 3617,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "swallowed_broad_exception",
-      "line": 3623,
+      "line": 3278,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 3684,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "swallowed_broad_exception",
-      "line": 3700,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 3779,
+      "line": 3495,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 3799,
+      "line": 3508,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 3864,
+      "line": 3520,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 3885,
+      "line": 3529,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 3930,
+      "line": 3538,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 3981,
+      "line": 3551,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 4025,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4048,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4061,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4072,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4076,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4112,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4142,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4194,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4278,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4311,
+      "line": 3611,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "swallowed_broad_exception",
-      "line": 4362,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4368,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "swallowed_broad_exception",
-      "line": 4384,
+      "line": 3620,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "swallowed_broad_exception",
-      "line": 4399,
+      "line": 3626,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 4488,
+      "line": 3687,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "swallowed_broad_exception",
-      "line": 4510,
+      "line": 3703,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 4555,
+      "line": 3782,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 3802,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 3867,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 3888,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 3933,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 3984,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4028,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4051,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4064,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4075,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4079,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4115,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4151,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4203,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4287,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4320,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "swallowed_broad_exception",
-      "line": 4586,
+      "line": 4366,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 4644,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4738,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "interface/routes/chat.py",
-      "kind": "broad_exception_review",
-      "line": 4752,
+      "line": 4372,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "swallowed_broad_exception",
-      "line": 4857,
+      "line": 4388,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "swallowed_broad_exception",
+      "line": 4402,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 4902,
+      "line": 4497,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "swallowed_broad_exception",
+      "line": 4519,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4564,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "swallowed_broad_exception",
+      "line": 4595,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "swallowed_broad_exception",
+      "line": 4643,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4681,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 4920,
+      "line": 4775,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "interface/routes/chat.py",
       "kind": "broad_exception_review",
-      "line": 4967,
+      "line": 4789,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "swallowed_broad_exception",
+      "line": 4894,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4939,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 4957,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "interface/routes/chat.py",
+      "kind": "broad_exception_review",
+      "line": 5004,
       "severity": "medium"
     },
     {
@@ -17051,63 +17261,84 @@
       "detail": "",
       "file": "core/memory/vector_memory.py",
       "kind": "broad_exception_review",
-      "line": 44,
+      "line": 46,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/memory/vector_memory.py",
       "kind": "broad_exception_review",
-      "line": 121,
+      "line": 126,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/memory/vector_memory.py",
+      "kind": "unbounded_loop_review",
+      "line": 223,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/memory/vector_memory.py",
       "kind": "broad_exception_review",
-      "line": 247,
+      "line": 238,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/memory/vector_memory.py",
       "kind": "broad_exception_review",
-      "line": 268,
+      "line": 243,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/memory/vector_memory.py",
       "kind": "broad_exception_review",
-      "line": 383,
+      "line": 278,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/memory/vector_memory.py",
       "kind": "broad_exception_review",
-      "line": 395,
+      "line": 298,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/memory/vector_memory.py",
       "kind": "broad_exception_review",
-      "line": 408,
+      "line": 413,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/memory/vector_memory.py",
       "kind": "broad_exception_review",
-      "line": 440,
+      "line": 425,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/memory/vector_memory.py",
       "kind": "broad_exception_review",
-      "line": 502,
+      "line": 438,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/memory/vector_memory.py",
+      "kind": "broad_exception_review",
+      "line": 470,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/memory/vector_memory.py",
+      "kind": "broad_exception_review",
+      "line": 532,
       "severity": "medium"
     },
     {
@@ -18269,14 +18500,28 @@
       "detail": "",
       "file": "core/identity/id_rag.py",
       "kind": "broad_exception_review",
-      "line": 118,
+      "line": 120,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/identity/id_rag.py",
+      "kind": "unbounded_loop_review",
+      "line": 299,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/identity/id_rag.py",
       "kind": "broad_exception_review",
-      "line": 296,
+      "line": 324,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/identity/id_rag.py",
+      "kind": "broad_exception_review",
+      "line": 332,
       "severity": "medium"
     },
     {
@@ -18290,21 +18535,21 @@
       "detail": "",
       "file": "core/identity/identity_guard.py",
       "kind": "broad_exception_review",
-      "line": 76,
+      "line": 73,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/identity/identity_guard.py",
       "kind": "broad_exception_review",
-      "line": 92,
+      "line": 89,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/identity/identity_guard.py",
       "kind": "broad_exception_review",
-      "line": 112,
+      "line": 109,
       "severity": "medium"
     },
     {
@@ -18906,42 +19151,42 @@
       "detail": "",
       "file": "core/collective/belief_sync.py",
       "kind": "broad_exception_review",
-      "line": 189,
+      "line": 191,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/collective/belief_sync.py",
       "kind": "broad_exception_review",
-      "line": 218,
+      "line": 220,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/collective/belief_sync.py",
       "kind": "broad_exception_review",
-      "line": 251,
+      "line": 253,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/collective/belief_sync.py",
       "kind": "broad_exception_review",
-      "line": 279,
+      "line": 281,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/collective/belief_sync.py",
       "kind": "broad_exception_review",
-      "line": 529,
+      "line": 532,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/collective/strategic_synthesis.py",
       "kind": "broad_exception_review",
-      "line": 150,
+      "line": 149,
       "severity": "medium"
     },
     {
@@ -18955,28 +19200,35 @@
       "detail": "",
       "file": "core/collective/delegator.py",
       "kind": "broad_exception_review",
-      "line": 186,
+      "line": 90,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/collective/delegator.py",
       "kind": "broad_exception_review",
-      "line": 237,
+      "line": 200,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/collective/delegator.py",
       "kind": "broad_exception_review",
-      "line": 405,
+      "line": 251,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/collective/delegator.py",
       "kind": "broad_exception_review",
-      "line": 479,
+      "line": 419,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/collective/delegator.py",
+      "kind": "broad_exception_review",
+      "line": 507,
       "severity": "medium"
     },
     {
@@ -19402,43 +19654,57 @@
     {
       "detail": "",
       "file": "core/learning/genuine_learning_pipeline.py",
-      "kind": "broad_exception_review",
-      "line": 259,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/learning/genuine_learning_pipeline.py",
-      "kind": "broad_exception_review",
-      "line": 330,
-      "severity": "medium"
-    },
-    {
-      "detail": "subprocess.run",
-      "file": "core/learning/genuine_learning_pipeline.py",
-      "kind": "subprocess_usage_review",
-      "line": 371,
+      "kind": "swallowed_broad_exception",
+      "line": 171,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/learning/genuine_learning_pipeline.py",
       "kind": "broad_exception_review",
-      "line": 388,
+      "line": 265,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/learning/genuine_learning_pipeline.py",
       "kind": "broad_exception_review",
-      "line": 442,
+      "line": 336,
+      "severity": "medium"
+    },
+    {
+      "detail": "subprocess.run",
+      "file": "core/learning/genuine_learning_pipeline.py",
+      "kind": "subprocess_usage_review",
+      "line": 377,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/learning/genuine_learning_pipeline.py",
+      "kind": "broad_exception_review",
+      "line": 394,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/learning/genuine_learning_pipeline.py",
       "kind": "broad_exception_review",
-      "line": 608,
+      "line": 449,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/learning/genuine_learning_pipeline.py",
+      "kind": "broad_exception_review",
+      "line": 543,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/learning/genuine_learning_pipeline.py",
+      "kind": "broad_exception_review",
+      "line": 634,
       "severity": "medium"
     },
     {
@@ -19460,6 +19726,27 @@
       "file": "core/learning/autonomous_rsi.py",
       "kind": "broad_exception_review",
       "line": 96,
+      "severity": "medium"
+    },
+    {
+      "detail": "subprocess.run",
+      "file": "core/learning/autonomous_rsi.py",
+      "kind": "subprocess_usage_review",
+      "line": 251,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/learning/autonomous_rsi.py",
+      "kind": "broad_exception_review",
+      "line": 268,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/learning/autonomous_rsi.py",
+      "kind": "broad_exception_review",
+      "line": 437,
       "severity": "medium"
     },
     {
@@ -20740,119 +21027,112 @@
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 408,
+      "line": 418,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "swallowed_broad_exception",
-      "line": 424,
+      "line": 434,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 467,
+      "line": 477,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 498,
+      "line": 508,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 512,
+      "line": 522,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 594,
+      "line": 604,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 785,
+      "line": 795,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 844,
+      "line": 854,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 931,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/consciousness/affective_steering.py",
-      "kind": "broad_exception_review",
-      "line": 940,
+      "line": 938,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "swallowed_broad_exception",
-      "line": 951,
+      "line": 947,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
+      "line": 958,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/consciousness/affective_steering.py",
+      "kind": "swallowed_broad_exception",
       "line": 965,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/consciousness/affective_steering.py",
-      "kind": "swallowed_broad_exception",
-      "line": 973,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 976,
+      "line": 968,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 1198,
+      "line": 1194,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 1348,
+      "line": 1344,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/consciousness/affective_steering.py",
       "kind": "broad_exception_review",
-      "line": 1426,
+      "line": 1422,
       "severity": "medium"
     },
     {
@@ -21957,8 +22237,15 @@
     {
       "detail": "",
       "file": "core/consciousness/adaptive_mood.py",
+      "kind": "swallowed_broad_exception",
+      "line": 161,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/consciousness/adaptive_mood.py",
       "kind": "broad_exception_review",
-      "line": 240,
+      "line": 249,
       "severity": "medium"
     },
     {
@@ -24625,14 +24912,14 @@
       "detail": "",
       "file": "core/runtime/strict_task_owner.py",
       "kind": "swallowed_broad_exception",
-      "line": 118,
+      "line": 121,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/runtime/strict_task_owner.py",
       "kind": "swallowed_broad_exception",
-      "line": 124,
+      "line": 127,
       "severity": "high"
     },
     {
@@ -25857,21 +26144,28 @@
       "detail": "",
       "file": "core/bus/actor_bus.py",
       "kind": "broad_exception_review",
-      "line": 136,
+      "line": 130,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/bus/actor_bus.py",
       "kind": "broad_exception_review",
-      "line": 159,
+      "line": 151,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/bus/actor_bus.py",
       "kind": "broad_exception_review",
-      "line": 177,
+      "line": 174,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/bus/actor_bus.py",
+      "kind": "broad_exception_review",
+      "line": 192,
       "severity": "medium"
     },
     {
@@ -25969,14 +26263,35 @@
       "detail": "",
       "file": "core/bus/local_pipe_bus.py",
       "kind": "broad_exception_review",
-      "line": 489,
+      "line": 482,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/bus/local_pipe_bus.py",
       "kind": "broad_exception_review",
-      "line": 523,
+      "line": 501,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/bus/local_pipe_bus.py",
+      "kind": "broad_exception_review",
+      "line": 513,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/bus/local_pipe_bus.py",
+      "kind": "broad_exception_review",
+      "line": 547,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/bus/local_pipe_bus.py",
+      "kind": "broad_exception_review",
+      "line": 559,
       "severity": "medium"
     },
     {
@@ -26179,7 +26494,7 @@
       "detail": "",
       "file": "core/utils/queues.py",
       "kind": "swallowed_broad_exception",
-      "line": 66,
+      "line": 71,
       "severity": "high"
     },
     {
@@ -26368,28 +26683,28 @@
       "detail": "",
       "file": "core/utils/hook_manager.py",
       "kind": "broad_exception_review",
-      "line": 46,
+      "line": 44,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/utils/supervisor.py",
       "kind": "broad_exception_review",
-      "line": 42,
+      "line": 44,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/utils/supervisor.py",
       "kind": "unbounded_loop_review",
-      "line": 108,
+      "line": 127,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/utils/supervisor.py",
       "kind": "broad_exception_review",
-      "line": 123,
+      "line": 142,
       "severity": "medium"
     },
     {
@@ -26438,7 +26753,7 @@
       "detail": "",
       "file": "core/utils/concurrency.py",
       "kind": "broad_exception_review",
-      "line": 185,
+      "line": 182,
       "severity": "medium"
     },
     {
@@ -27583,6 +27898,27 @@
       "severity": "medium"
     },
     {
+      "detail": "",
+      "file": "core/safety/constitutional_gate.py",
+      "kind": "broad_exception_review",
+      "line": 322,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/safety/constitutional_gate.py",
+      "kind": "broad_exception_review",
+      "line": 367,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/safety/constitutional_gate.py",
+      "kind": "broad_exception_review",
+      "line": 453,
+      "severity": "medium"
+    },
+    {
       "detail": "\"invent a radically better model architecture.\"  Not a placeholder.",
       "file": "core/lattice/__init__.py",
       "kind": "placeholder_stub_mock",
@@ -27957,56 +28293,56 @@
       "detail": "",
       "file": "core/autonomy/research_cycle.py",
       "kind": "broad_exception_review",
-      "line": 636,
+      "line": 637,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/autonomy/research_cycle.py",
       "kind": "broad_exception_review",
-      "line": 660,
+      "line": 661,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/autonomy/research_cycle.py",
       "kind": "broad_exception_review",
-      "line": 680,
+      "line": 681,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/autonomy/research_cycle.py",
       "kind": "broad_exception_review",
-      "line": 756,
+      "line": 757,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/autonomy/research_cycle.py",
       "kind": "broad_exception_review",
-      "line": 781,
+      "line": 782,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/autonomy/research_cycle.py",
       "kind": "broad_exception_review",
-      "line": 790,
+      "line": 791,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/autonomy/research_cycle.py",
       "kind": "swallowed_broad_exception",
-      "line": 807,
+      "line": 808,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/autonomy/research_cycle.py",
       "kind": "broad_exception_review",
-      "line": 809,
+      "line": 810,
       "severity": "medium"
     },
     {
@@ -30351,21 +30687,21 @@
       "detail": "",
       "file": "core/sovereign/local_sandbox.py",
       "kind": "broad_exception_review",
-      "line": 118,
+      "line": 120,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/sovereign/local_sandbox.py",
       "kind": "broad_exception_review",
-      "line": 157,
+      "line": 159,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/sovereign/local_sandbox.py",
       "kind": "broad_exception_review",
-      "line": 215,
+      "line": 217,
       "severity": "medium"
     },
     {
@@ -32178,315 +32514,315 @@
       "detail": "raise _UserFacingCortexFailure()",
       "file": "core/brain/inference_gate.py",
       "kind": "pytest_skip_xfail",
-      "line": 3257,
+      "line": 3284,
       "severity": "medium"
     },
     {
       "detail": "except _UserFacingCortexFailure:",
       "file": "core/brain/inference_gate.py",
       "kind": "pytest_skip_xfail",
-      "line": 3318,
+      "line": 3345,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 176,
+      "line": 177,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 248,
+      "line": 249,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 274,
+      "line": 275,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 280,
+      "line": 281,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 339,
+      "line": 340,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 369,
+      "line": 370,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 396,
+      "line": 397,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "unbounded_loop_review",
-      "line": 402,
+      "line": 403,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 424,
+      "line": 425,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 552,
+      "line": 553,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 606,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
+      "kind": "swallowed_broad_exception",
       "line": 617,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 629,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 634,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 688,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 698,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 736,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 793,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 868,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 888,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 954,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 980,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 993,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "swallowed_broad_exception",
-      "line": 1041,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "swallowed_broad_exception",
-      "line": 1054,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "swallowed_broad_exception",
-      "line": 1090,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1109,
+      "line": 626,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1148,
+      "line": 637,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1156,
+      "line": 649,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1183,
+      "line": 654,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 708,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 719,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 757,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 814,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 890,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 910,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 976,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 1002,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 1015,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 1201,
+      "line": 1063,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 1241,
+      "line": 1076,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "swallowed_broad_exception",
+      "line": 1112,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1362,
+      "line": 1131,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1397,
+      "line": 1170,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1507,
+      "line": 1178,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1526,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 1565,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 1567,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 1591,
+      "line": 1205,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 1671,
+      "line": 1223,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "swallowed_broad_exception",
+      "line": 1263,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1702,
+      "line": 1384,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1713,
+      "line": 1419,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1739,
+      "line": 1530,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 1549,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 1588,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 1590,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 1614,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "swallowed_broad_exception",
+      "line": 1694,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 1725,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 1736,
       "severity": "medium"
     },
     {
@@ -32500,350 +32836,350 @@
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1777,
+      "line": 1785,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1789,
+      "line": 1800,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1804,
+      "line": 1812,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1816,
+      "line": 1827,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1831,
+      "line": 1839,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1845,
+      "line": 1854,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1857,
+      "line": 1868,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1870,
+      "line": 1880,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1895,
+      "line": 1893,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1913,
+      "line": 1918,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1932,
+      "line": 1936,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1947,
+      "line": 1955,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1959,
+      "line": 1970,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1971,
+      "line": 1982,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1983,
+      "line": 1994,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 1995,
+      "line": 2006,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2008,
+      "line": 2018,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2020,
+      "line": 2031,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2046,
+      "line": 2043,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2063,
+      "line": 2069,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2075,
+      "line": 2086,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2087,
+      "line": 2098,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2099,
+      "line": 2110,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2111,
+      "line": 2122,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2124,
+      "line": 2134,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2136,
+      "line": 2147,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2148,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "swallowed_broad_exception",
-      "line": 2164,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 2178,
+      "line": 2159,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2195,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 2211,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 2223,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 2236,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 2275,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 2341,
+      "line": 2171,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 2349,
+      "line": 2187,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2472,
+      "line": 2201,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2486,
+      "line": 2218,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 2234,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 2246,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 2259,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 2298,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 2364,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 2572,
+      "line": 2372,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2601,
+      "line": 2495,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 2509,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 2660,
+      "line": 2595,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2700,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 2749,
+      "line": 2624,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 2806,
+      "line": 2683,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
+      "line": 2723,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 2772,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "swallowed_broad_exception",
       "line": 2829,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 2852,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2854,
+      "line": 2877,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2869,
+      "line": 2892,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2891,
+      "line": 2914,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 2915,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "broad_exception_review",
-      "line": 2949,
+      "line": 2938,
       "severity": "medium"
     },
     {
@@ -32857,154 +33193,161 @@
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3041,
+      "line": 2995,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3061,
+      "line": 3064,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3158,
+      "line": 3084,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3218,
+      "line": 3184,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3324,
+      "line": 3245,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3361,
+      "line": 3351,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
-      "kind": "swallowed_broad_exception",
-      "line": 3390,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
-      "kind": "swallowed_broad_exception",
-      "line": 3396,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3402,
+      "line": 3389,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "swallowed_broad_exception",
-      "line": 3423,
+      "line": 3418,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "swallowed_broad_exception",
+      "line": 3424,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3447,
+      "line": 3430,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "swallowed_broad_exception",
+      "line": 3451,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/inference_gate.py",
+      "kind": "broad_exception_review",
+      "line": 3475,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3468,
+      "line": 3496,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3487,
+      "line": 3515,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3492,
+      "line": 3520,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3521,
+      "line": 3549,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3529,
+      "line": 3557,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3554,
+      "line": 3582,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3558,
+      "line": 3586,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3580,
+      "line": 3608,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3590,
+      "line": 3618,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3603,
+      "line": 3631,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/inference_gate.py",
       "kind": "broad_exception_review",
-      "line": 3614,
+      "line": 3642,
       "severity": "medium"
     },
     {
@@ -33277,21 +33620,28 @@
       "detail": "",
       "file": "core/adaptation/abstraction_engine.py",
       "kind": "broad_exception_review",
-      "line": 124,
+      "line": 131,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/adaptation/abstraction_engine.py",
       "kind": "broad_exception_review",
-      "line": 147,
+      "line": 161,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/adaptation/abstraction_engine.py",
       "kind": "broad_exception_review",
-      "line": 178,
+      "line": 192,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/abstraction_engine.py",
+      "kind": "broad_exception_review",
+      "line": 229,
       "severity": "medium"
     },
     {
@@ -33452,14 +33802,28 @@
       "detail": "",
       "file": "core/adaptation/online_lora_governor.py",
       "kind": "broad_exception_review",
-      "line": 161,
+      "line": 121,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/adaptation/online_lora_governor.py",
       "kind": "broad_exception_review",
-      "line": 188,
+      "line": 172,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/online_lora_governor.py",
+      "kind": "broad_exception_review",
+      "line": 207,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/online_lora_governor.py",
+      "kind": "broad_exception_review",
+      "line": 234,
       "severity": "medium"
     },
     {
@@ -33467,6 +33831,76 @@
       "file": "core/adaptation/dialectics.py",
       "kind": "broad_exception_review",
       "line": 151,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "broad_exception_review",
+      "line": 270,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "broad_exception_review",
+      "line": 326,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "swallowed_broad_exception",
+      "line": 348,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "broad_exception_review",
+      "line": 383,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "swallowed_broad_exception",
+      "line": 398,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "broad_exception_review",
+      "line": 415,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "broad_exception_review",
+      "line": 424,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "swallowed_broad_exception",
+      "line": 445,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "broad_exception_review",
+      "line": 462,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/adaptation/star_reasoner.py",
+      "kind": "broad_exception_review",
+      "line": 472,
       "severity": "medium"
     },
     {
@@ -33949,56 +34383,63 @@
       "detail": "",
       "file": "core/ops/resilient_boot.py",
       "kind": "broad_exception_review",
-      "line": 100,
+      "line": 90,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/ops/resilient_boot.py",
       "kind": "broad_exception_review",
-      "line": 121,
+      "line": 108,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/ops/resilient_boot.py",
       "kind": "broad_exception_review",
-      "line": 200,
+      "line": 129,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/ops/resilient_boot.py",
       "kind": "broad_exception_review",
-      "line": 273,
+      "line": 208,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/ops/resilient_boot.py",
       "kind": "broad_exception_review",
-      "line": 355,
+      "line": 281,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/ops/resilient_boot.py",
       "kind": "broad_exception_review",
-      "line": 368,
+      "line": 363,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/ops/resilient_boot.py",
       "kind": "broad_exception_review",
-      "line": 379,
+      "line": 376,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/ops/resilient_boot.py",
       "kind": "broad_exception_review",
-      "line": 405,
+      "line": 387,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/ops/resilient_boot.py",
+      "kind": "broad_exception_review",
+      "line": 413,
       "severity": "medium"
     },
     {
@@ -34264,21 +34705,21 @@
       "detail": "",
       "file": "core/senses/voice_engine.py",
       "kind": "unbounded_loop_review",
-      "line": 1070,
+      "line": 1080,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/senses/voice_engine.py",
       "kind": "broad_exception_review",
-      "line": 1081,
+      "line": 1091,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/senses/voice_engine.py",
       "kind": "broad_exception_review",
-      "line": 1098,
+      "line": 1108,
       "severity": "medium"
     },
     {
@@ -34894,21 +35335,21 @@
       "detail": "",
       "file": "core/skills/test_generator.py",
       "kind": "broad_exception_review",
-      "line": 198,
+      "line": 223,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/skills/test_generator.py",
       "kind": "broad_exception_review",
-      "line": 206,
+      "line": 230,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/skills/test_generator.py",
       "kind": "broad_exception_review",
-      "line": 208,
+      "line": 232,
       "severity": "medium"
     },
     {
@@ -36469,28 +36910,28 @@
       "detail": "",
       "file": "core/skills/internal_sandbox.py",
       "kind": "broad_exception_review",
-      "line": 72,
+      "line": 96,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/skills/internal_sandbox.py",
       "kind": "broad_exception_review",
-      "line": 120,
+      "line": 144,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/skills/internal_sandbox.py",
       "kind": "broad_exception_review",
-      "line": 142,
+      "line": 166,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/skills/internal_sandbox.py",
       "kind": "broad_exception_review",
-      "line": 146,
+      "line": 170,
       "severity": "medium"
     },
     {
@@ -38520,91 +38961,91 @@
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 175,
+      "line": 177,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 230,
+      "line": 235,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 275,
+      "line": 282,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 293,
+      "line": 302,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 378,
+      "line": 389,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 403,
+      "line": 416,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 420,
+      "line": 435,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 451,
+      "line": 468,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 467,
+      "line": 486,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "swallowed_broad_exception",
-      "line": 515,
+      "line": 536,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 517,
+      "line": 538,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 556,
+      "line": 579,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/cognitive_integration_phase.py",
       "kind": "broad_exception_review",
-      "line": 590,
+      "line": 615,
       "severity": "medium"
     },
     {
@@ -38737,56 +39178,56 @@
       "detail": "",
       "file": "core/phases/response_generation.py",
       "kind": "broad_exception_review",
-      "line": 101,
+      "line": 106,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/response_generation.py",
       "kind": "broad_exception_review",
-      "line": 121,
+      "line": 126,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/response_generation.py",
       "kind": "broad_exception_review",
-      "line": 182,
+      "line": 187,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/response_generation.py",
       "kind": "broad_exception_review",
-      "line": 188,
+      "line": 193,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/response_generation.py",
       "kind": "broad_exception_review",
-      "line": 295,
+      "line": 302,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/response_generation.py",
       "kind": "broad_exception_review",
-      "line": 373,
+      "line": 381,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/response_generation.py",
       "kind": "broad_exception_review",
-      "line": 445,
+      "line": 453,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/phases/response_generation.py",
       "kind": "broad_exception_review",
-      "line": 451,
+      "line": 459,
       "severity": "medium"
     },
     {
@@ -40193,28 +40634,28 @@
       "detail": "",
       "file": "core/kernel/kernel_interface.py",
       "kind": "swallowed_broad_exception",
-      "line": 222,
+      "line": 224,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/kernel/kernel_interface.py",
       "kind": "swallowed_broad_exception",
-      "line": 230,
+      "line": 232,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/kernel/kernel_interface.py",
       "kind": "broad_exception_review",
-      "line": 264,
+      "line": 266,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/kernel/kernel_interface.py",
       "kind": "broad_exception_review",
-      "line": 300,
+      "line": 303,
       "severity": "medium"
     },
     {
@@ -40872,49 +41313,49 @@
       "detail": "",
       "file": "core/motivation/goal_hierarchy.py",
       "kind": "broad_exception_review",
-      "line": 213,
+      "line": 215,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/motivation/goal_hierarchy.py",
       "kind": "broad_exception_review",
-      "line": 372,
+      "line": 376,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/motivation/goal_hierarchy.py",
       "kind": "broad_exception_review",
-      "line": 384,
+      "line": 388,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/motivation/goal_hierarchy.py",
       "kind": "broad_exception_review",
-      "line": 397,
+      "line": 401,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/motivation/goal_hierarchy.py",
       "kind": "broad_exception_review",
-      "line": 410,
+      "line": 414,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/motivation/goal_hierarchy.py",
       "kind": "broad_exception_review",
-      "line": 438,
+      "line": 442,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/motivation/goal_hierarchy.py",
       "kind": "broad_exception_review",
-      "line": 458,
+      "line": 462,
       "severity": "medium"
     },
     {
@@ -41229,7 +41670,7 @@
       "detail": "",
       "file": "core/conversation/memory.py",
       "kind": "broad_exception_review",
-      "line": 112,
+      "line": 114,
       "severity": "medium"
     },
     {
@@ -41985,168 +42426,168 @@
       "detail": "subprocess.run",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "subprocess_usage_review",
-      "line": 513,
+      "line": 515,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 534,
+      "line": 548,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 721,
+      "line": 752,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "unbounded_loop_review",
-      "line": 1001,
+      "line": 1034,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 1063,
+      "line": 1096,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 1101,
+      "line": 1134,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 1162,
+      "line": 1195,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 1194,
+      "line": 1227,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "unbounded_loop_review",
-      "line": 1236,
+      "line": 1269,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 1245,
+      "line": 1278,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 1329,
+      "line": 1362,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 1540,
+      "line": 1573,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 1591,
+      "line": 1624,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 1642,
+      "line": 1675,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 1744,
+      "line": 1777,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 1747,
+      "line": 1780,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "unbounded_loop_review",
-      "line": 1767,
+      "line": 1800,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 1981,
+      "line": 2014,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 2056,
+      "line": 2089,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 2181,
+      "line": 2214,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 2480,
+      "line": 2513,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 2557,
+      "line": 2590,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 2627,
+      "line": 2664,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_client.py",
       "kind": "broad_exception_review",
-      "line": 2666,
+      "line": 2703,
       "severity": "medium"
     },
     {
@@ -42573,14 +43014,21 @@
       "detail": "",
       "file": "core/brain/llm/continuous_substrate.py",
       "kind": "broad_exception_review",
-      "line": 222,
+      "line": 244,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/continuous_substrate.py",
       "kind": "swallowed_broad_exception",
-      "line": 265,
+      "line": 283,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/llm/continuous_substrate.py",
+      "kind": "swallowed_broad_exception",
+      "line": 297,
       "severity": "high"
     },
     {
@@ -42685,133 +43133,140 @@
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
-      "line": 595,
+      "line": 596,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
-      "line": 617,
+      "line": 618,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
-      "line": 622,
+      "line": 623,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "unbounded_loop_review",
-      "line": 651,
+      "line": 652,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
-      "line": 672,
+      "line": 674,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
-      "line": 680,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/llm/mlx_worker.py",
-      "kind": "swallowed_broad_exception",
-      "line": 709,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/llm/mlx_worker.py",
-      "kind": "broad_exception_review",
-      "line": 733,
+      "line": 691,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
-      "line": 748,
+      "line": 699,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "swallowed_broad_exception",
-      "line": 776,
+      "line": 728,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
-      "line": 801,
+      "line": 752,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
-      "line": 991,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/llm/mlx_worker.py",
-      "kind": "broad_exception_review",
-      "line": 1007,
+      "line": 767,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "swallowed_broad_exception",
-      "line": 1022,
+      "line": 795,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
+      "line": 820,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/llm/mlx_worker.py",
+      "kind": "broad_exception_review",
+      "line": 1012,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/llm/mlx_worker.py",
+      "kind": "broad_exception_review",
+      "line": 1028,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/llm/mlx_worker.py",
+      "kind": "swallowed_broad_exception",
       "line": 1043,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/llm/mlx_worker.py",
-      "kind": "broad_exception_review",
-      "line": 1069,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/llm/mlx_worker.py",
-      "kind": "broad_exception_review",
-      "line": 1146,
-      "severity": "medium"
-    },
-    {
-      "detail": "",
-      "file": "core/brain/llm/mlx_worker.py",
-      "kind": "swallowed_broad_exception",
-      "line": 1174,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/mlx_worker.py",
       "kind": "broad_exception_review",
-      "line": 1178,
+      "line": 1064,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/llm/mlx_worker.py",
+      "kind": "broad_exception_review",
+      "line": 1090,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/llm/mlx_worker.py",
+      "kind": "broad_exception_review",
+      "line": 1169,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/llm/mlx_worker.py",
+      "kind": "swallowed_broad_exception",
+      "line": 1197,
+      "severity": "high"
+    },
+    {
+      "detail": "",
+      "file": "core/brain/llm/mlx_worker.py",
+      "kind": "broad_exception_review",
+      "line": 1201,
       "severity": "medium"
     },
     {
@@ -42993,21 +43448,21 @@
       "detail": "\"\"\"Simple test with a mock LLM router.\"\"\"",
       "file": "core/brain/llm/structured_llm.py",
       "kind": "placeholder_stub_mock",
-      "line": 182,
+      "line": 190,
       "severity": "high"
     },
     {
       "detail": "from unittest.mock import AsyncMock",
       "file": "core/brain/llm/structured_llm.py",
       "kind": "placeholder_stub_mock",
-      "line": 183,
+      "line": 191,
       "severity": "high"
     },
     {
       "detail": "# Mock router",
       "file": "core/brain/llm/structured_llm.py",
       "kind": "placeholder_stub_mock",
-      "line": 189,
+      "line": 197,
       "severity": "high"
     },
     {
@@ -43028,7 +43483,7 @@
       "detail": "",
       "file": "core/brain/llm/structured_llm.py",
       "kind": "swallowed_broad_exception",
-      "line": 178,
+      "line": 186,
       "severity": "high"
     },
     {
@@ -43070,126 +43525,126 @@
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 541,
+      "line": 581,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 559,
+      "line": 603,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 572,
+      "line": 616,
       "severity": "high"
     },
     {
       "detail": "subprocess.Popen",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "subprocess_usage_review",
-      "line": 625,
+      "line": 669,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 698,
+      "line": 742,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 715,
+      "line": 759,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 846,
+      "line": 890,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 910,
+      "line": 954,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 922,
+      "line": 966,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 972,
+      "line": 1016,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 983,
+      "line": 1027,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 999,
+      "line": 1043,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 1006,
+      "line": 1050,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "swallowed_broad_exception",
-      "line": 1052,
+      "line": 1096,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 1179,
+      "line": 1223,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 1228,
+      "line": 1272,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 1246,
+      "line": 1290,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/local_server_client.py",
       "kind": "broad_exception_review",
-      "line": 1254,
+      "line": 1298,
       "severity": "medium"
     },
     {
@@ -43476,21 +43931,21 @@
       "detail": "\"- Use only the specification above and the public interface stub.\\n\"",
       "file": "core/brain/llm/code_generator.py",
       "kind": "placeholder_stub_mock",
-      "line": 280,
+      "line": 285,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/brain/llm/code_generator.py",
       "kind": "broad_exception_review",
-      "line": 248,
+      "line": 253,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/brain/llm/code_generator.py",
       "kind": "broad_exception_review",
-      "line": 266,
+      "line": 271,
       "severity": "medium"
     },
     {
@@ -43993,134 +44448,127 @@
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
-      "kind": "swallowed_broad_exception",
-      "line": 84,
-      "severity": "high"
-    },
-    {
-      "detail": "",
-      "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 101,
+      "line": 79,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 154,
+      "line": 132,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 211,
+      "line": 189,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 360,
+      "line": 354,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "swallowed_broad_exception",
-      "line": 396,
+      "line": 390,
       "severity": "high"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 445,
+      "line": 439,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 469,
+      "line": 463,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 523,
+      "line": 518,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 609,
+      "line": 605,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 644,
+      "line": 641,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 676,
+      "line": 673,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 712,
+      "line": 714,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 779,
+      "line": 781,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 818,
+      "line": 821,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 836,
+      "line": 839,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 847,
+      "line": 850,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 903,
+      "line": 906,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/message_handling.py",
       "kind": "broad_exception_review",
-      "line": 939,
+      "line": 942,
       "severity": "medium"
     },
     {
@@ -45002,315 +45450,343 @@
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 79,
+      "line": 78,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 94,
+      "line": 92,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 107,
+      "line": 104,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 119,
+      "line": 115,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 131,
+      "line": 126,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 147,
+      "line": 141,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 158,
+      "line": 151,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 169,
+      "line": 161,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 180,
+      "line": 171,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 225,
+      "line": 215,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 237,
+      "line": 226,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 254,
+      "line": 242,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 265,
+      "line": 252,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 277,
+      "line": 263,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 289,
+      "line": 274,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 303,
+      "line": 287,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 316,
+      "line": 299,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 329,
+      "line": 311,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 341,
+      "line": 322,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 351,
+      "line": 331,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 364,
+      "line": 343,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 375,
+      "line": 353,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 386,
+      "line": 363,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 397,
+      "line": 373,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 408,
+      "line": 383,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 422,
+      "line": 396,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 440,
+      "line": 413,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 455,
+      "line": 427,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 468,
+      "line": 439,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 490,
+      "line": 460,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 497,
+      "line": 466,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 504,
+      "line": 472,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 516,
+      "line": 483,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 527,
+      "line": 493,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 538,
+      "line": 503,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 549,
+      "line": 513,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 560,
+      "line": 523,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 576,
+      "line": 533,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 591,
+      "line": 543,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 620,
+      "line": 554,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 630,
+      "line": 569,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 647,
+      "line": 584,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 663,
+      "line": 598,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 676,
+      "line": 626,
       "severity": "medium"
     },
     {
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 691,
+      "line": 635,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
+      "kind": "broad_exception_review",
+      "line": 651,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
+      "kind": "broad_exception_review",
+      "line": 666,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
+      "kind": "broad_exception_review",
+      "line": 678,
+      "severity": "medium"
+    },
+    {
+      "detail": "",
+      "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
+      "kind": "broad_exception_review",
+      "line": 692,
       "severity": "medium"
     },
     {
@@ -45324,7 +45800,7 @@
       "detail": "",
       "file": "core/orchestrator/mixins/boot/boot_autonomy.py",
       "kind": "broad_exception_review",
-      "line": 764,
+      "line": 763,
       "severity": "medium"
     },
     {
@@ -48079,17 +48555,17 @@
       "severity": "high"
     }
   ],
-  "generated_at_unix": 1778298273.8192482,
-  "high_or_critical_count": 984,
+  "generated_at_unix": 1778477028.667834,
+  "high_or_critical_count": 996,
   "pytest_collect_ok": null,
   "pytest_collect_output_tail": "",
   "pytest_collect_seconds": null,
-  "python_files": 2332,
+  "python_files": 2345,
   "root": "/Users/bryan/.aura/live-source",
   "severity_counts": {
     "critical": 6,
-    "high": 978,
-    "low": 978,
-    "medium": 4904
+    "high": 990,
+    "low": 989,
+    "medium": 4949
   }
 }
