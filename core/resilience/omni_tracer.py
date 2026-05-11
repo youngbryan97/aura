@@ -65,6 +65,21 @@ def write_trace(source: str, error_type: str, message: str, trace: str = ""):
         except Exception:
             pass
 
+    # [UI Integration] Forward to the Neural Stream / Terminal UI
+    try:
+        from core.health.degraded_events import record_degraded_event
+        # Only forward actual crashes to the UI stream to prevent log noise
+        if error_type != "System" and not source.startswith("log_info") and not source.startswith("log_warning"):
+            record_degraded_event(
+                subsystem=f"omni_{source}",
+                reason=error_type,
+                detail=f"{message}\n{trace}"[:800], # Keep it concise for the UI
+                severity="critical",
+                classification="system_crash",
+            )
+    except Exception:
+        pass
+
 class OmniLogHandler(logging.Handler):
     """Intercepts high-severity logs and dumps them to the Omni-Trace."""
     def emit(self, record):
