@@ -2171,8 +2171,9 @@ class UnitaryResponsePhase(Phase):
     def _build_minimal_live_voice_reply(cls, state: AuraState, user_message: str = "") -> str:
         """Last-resort fallback when LLM inference timed out or failed.
 
-        Returns a brief, honest acknowledgment rather than a template
-        that echoes the user's input or narrates system state.
+        STABILITY v56: Returns empty string to force the caller to retry
+        inference or escalate rather than masking the failure with a
+        canned template that trips reflex detectors.
         """
         try:
             from core.synthesis import stabilize_user_facing_response
@@ -2186,24 +2187,10 @@ class UnitaryResponsePhase(Phase):
         except Exception:
             pass
 
-        mood = cls._normalize_text(getattr(state.affect, "dominant_emotion", "steady"), 40) or "steady"
-        valence = cls._safe_scalar(getattr(state.affect, "valence", 0.0))
-        arousal = cls._safe_scalar(getattr(state.affect, "arousal", 0.0))
-
-        # Pick a natural fallback based on the emotional quadrant. We
-        # explicitly do NOT ask the user to repeat themselves — a fresh
-        # message replaces the prior one, so "what were you saying"
-        # parrots the user back at themselves.
-        if valence > 0.2:
-            if arousal > 0.4:
-                return "I'm here and engaged. I have the thread, and I'm staying with the actual question."
-            return "I'm here. I have the thread and I am staying with the actual question."
-        elif valence < -0.2:
-            if arousal > 0.4:
-                return "I'm here with you. The question deserves a clear answer, and I am keeping my attention on it."
-            return "I'm here with you. I am keeping my attention on the actual question."
-        else:
-            return "I'm here with you. I have the thread and I am keeping my answer pointed at it."
+        # STABILITY v56: Do NOT return "I'm here with you" or similar
+        # canned reflexes.  Return empty so the orchestrator can retry
+        # inference or escalate to cloud fallback.
+        return ""
 
     @classmethod
     def _build_governed_user_recovery_reply(

@@ -130,9 +130,10 @@ class InferenceGate:
                 return direct
         except Exception:
             pass
-        return (
-            "I'm sorry, I hit a cognitive snag and lost the thread for a second. I'm staying with it, but I missed that."
-        )
+        # STABILITY v56: Return empty string instead of "cognitive snag" reflex.
+        # This forces the orchestrator to handle the failure (e.g. by retrying
+        # inference) rather than masking it with a canned template.
+        return ""
 
     @staticmethod
     def _stabilize_user_facing_text(text: str, prompt: str, *, is_user_facing: bool) -> str:
@@ -1538,9 +1539,19 @@ class InferenceGate:
         if success and text and text.strip():
             cleaned = text.strip()
             is_user_visible = bool(foreground_request or self._origin_is_user_facing(origin))
+            
+            # STABILITY v58: Extract actual user message to avoid false positives 
+            # from system prompts containing words like "cortex" or "conversation".
+            user_input_for_eval = prompt
+            if llm_messages:
+                for m in reversed(llm_messages):
+                    if m.get("role") == "user":
+                        user_input_for_eval = str(m.get("content", ""))
+                        break
+
             integrity = assess_model_text_integrity(
                 cleaned,
-                prompt=prompt,
+                prompt=user_input_for_eval,
                 user_facing=is_user_visible,
             )
             if integrity.retryable:
@@ -1552,7 +1563,7 @@ class InferenceGate:
                 )
                 return None
             if is_user_visible:
-                assessment = assess_user_facing_reply(prompt, cleaned)
+                assessment = assess_user_facing_reply(user_input_for_eval, cleaned)
                 if assessment.retryable:
                     logger.warning(
                         "🛡️ %s produced an unsafe user-facing draft (%s, len=%d). Treating it as failed generation.",

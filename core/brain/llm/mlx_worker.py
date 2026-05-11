@@ -920,23 +920,27 @@ def _mlx_worker_loop(
                                 if cache is not None:
                                     kwargs["prompt_cache"] = cache
 
-                                # Execute 
                                 # [STABILITY v57] Reset activity immediately before loop to maximize budget for prefill
                                 try:
                                     from mlx_lm.sample_utils import make_sampler
                                     if "sampler" not in kwargs:
                                         import inspect as _insp
                                         _sparams = _insp.signature(make_sampler).parameters
-                                        sampler_kwargs = {"temp": kwargs.pop("temperature", 0.7)}
-                                        if "top_p" in _sparams: sampler_kwargs["top_p"] = kwargs.pop("top_p", 1.0)
-                                        if "min_p" in _sparams: sampler_kwargs["min_p"] = kwargs.pop("min_p", 0.0)
+                                        sampler_kwargs = {"temp": kwargs.get("temperature", 0.7)}
+                                        if "top_p" in _sparams: sampler_kwargs["top_p"] = kwargs.get("top_p", 1.0)
+                                        if "min_p" in _sparams: sampler_kwargs["min_p"] = kwargs.get("min_p", 0.0)
                                         if "repetition_penalty" in _sparams: 
-                                            sampler_kwargs["repetition_penalty"] = kwargs.pop("repetition_penalty", 1.0)
+                                            sampler_kwargs["repetition_penalty"] = kwargs.get("repetition_penalty", 1.0)
                                         if "repetition_context_size" in _sparams: 
-                                            sampler_kwargs["repetition_context_size"] = kwargs.pop("repetition_context_size", 20)
+                                            sampler_kwargs["repetition_context_size"] = kwargs.get("repetition_context_size", 20)
                                         kwargs["sampler"] = make_sampler(**sampler_kwargs)
                                 except ImportError:
                                     pass # old mlx_lm
+                                
+                                # Remove legacy kwargs before calling stream_generate since they
+                                # are handled by sampler/logits_processors now.
+                                for key in ["temperature", "top_p", "min_p", "repetition_penalty", "repetition_context_size"]:
+                                    kwargs.pop(key, None)
                                 
                                 watchdog.activity()
                                 for response in stream_generate(model, tokenizer, prompt=gen_prompt, **kwargs):

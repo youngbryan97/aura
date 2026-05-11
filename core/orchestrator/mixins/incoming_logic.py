@@ -851,9 +851,12 @@ class IncomingLogicMixin:
                             if is_complex:
                                 self._emit_thought_stream("🧠 Engaging ReAct reasoning loop...")
 
-                                # H-52: "Cognitive Bridge" - immediate user reassurance for complex logic
+                                # H-52: "Cognitive Bridge" — log to thought stream only.
+                                # STABILITY v56: Do NOT emit to output_gate — that feeds
+                                # the reply_queue and poisons it with an interim reflex
+                                # before the real response arrives.
                                 if origin in ("user", "voice", "admin") and not getattr(self, "_reflex_sent_for_current", False):
-                                    await self.output_gate.emit("I'll think about that for a moment. This requires a bit of reasoning.", origin=origin, target="primary")
+                                    self._emit_thought_stream("💭 Complex query detected — engaging reasoning loop.")
                                     self._reflex_sent_for_current = True
 
                                 try:
@@ -863,9 +866,9 @@ class IncomingLogicMixin:
                                         while stream_active:
                                             await asyncio.sleep(25)
                                             if stream_active:
+                                                # STABILITY v56: Thought stream only — never emit
+                                                # to output_gate during reasoning (poisons reply_queue).
                                                 self._emit_thought_stream("⏳ Still thinking... exploring deep neural pathways.")
-                                                if origin in ("user", "voice", "admin"):
-                                                    await self.output_gate.emit("I'm still processing your request. My logic is deep, but I'm with you.", origin=origin, target="primary")
 
                                     from core.utils.task_tracker import get_task_tracker as _get_tracker_hb
                                     heartbeat_task = _get_tracker_hb().create_task(
