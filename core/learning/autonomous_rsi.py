@@ -338,6 +338,7 @@ def generate_solver_source(handlers: Set[str], *, generation_id: str) -> Tuple[s
                 final_code = f'"""Generated successor solver for {generation_id}."""\n' + code
                 metadata["fallback_flag"] = False
                 metadata["parse_result"] = "success"
+                metadata["prompt_used"] = prompt
                 metadata["generated_source_hash"] = hashlib.sha256(final_code.encode("utf-8")).hexdigest()
                 return final_code, metadata
     except Exception as exc:
