@@ -1402,18 +1402,18 @@ class InferenceGate:
             from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
 
             primary_client = get_mlx_client(model_path=str(get_runtime_model_path(ACTIVE_MODEL)))
-            # [STABILITY v53] Add timeout — warmup can hang if Metal is exhausted
-            # after running the 72B model. 60s is generous but prevents infinite hang.
+            # [STABILITY v57] Increased timeout from 60.0s to 180.0s. 60s is insufficient
+            # for a full 32B model to swap back into Metal memory after a 72B deep handoff.
             await asyncio.wait_for(
                 primary_client.warmup(
                     foreground_request=True,
                     skip_swap_cooldown=True,
                 ),
-                timeout=60.0,
+                timeout=180.0,
             )
             logger.info("♻️ Restored %s after deep handoff.", PRIMARY_ENDPOINT)
         except asyncio.TimeoutError:
-            logger.error("⚠️ Failed to restore %s after deep handoff: warmup timed out (60s)", PRIMARY_ENDPOINT)
+            logger.error("⚠️ Failed to restore %s after deep handoff: warmup timed out (180s)", PRIMARY_ENDPOINT)
             # Schedule deferred recovery so next request doesn't hit dead cortex
             self._schedule_background_cortex_prewarm(delay=5.0)
         except Exception as exc:

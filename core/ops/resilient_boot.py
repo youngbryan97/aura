@@ -82,6 +82,14 @@ class ResilientBoot:
             immunity = get_immunity()
             immunity.hook_system()
 
+            # 1.1 Hook Omni-Tracer for Deep System Diagnostics
+            try:
+                from core.resilience.omni_tracer import hook_omni_tracer
+                hook_omni_tracer()
+                logger.info("🔬 [BOOT] Omni-Tracer hooked successfully.")
+            except Exception as e:
+                logger.error("💥 [BOOT] Omni-Tracer hook failed: %s", e)
+
             # 1.5 Start Neural Neuro-Surgeon Tools (Phase 29)
             from core.resilience.stall_watchdog import start_watchdog
             from core.resilience.diagnostic_hub import get_diagnostic_hub

@@ -845,7 +845,9 @@ def _mlx_worker_loop(
                                     kwargs["prompt_cache"] = cache
 
                                 # Execute 
-                                for response in stream_generate(model, tokenizer, prompt=gen_prompt, **kwargs):
+                            # [STABILITY v57] Reset activity immediately before loop to maximize budget for prefill
+                            watchdog.activity()
+                            for response in stream_generate(model, tokenizer, prompt=gen_prompt, **kwargs):
                                     watchdog.activity()
                                     token_count += 1
                                     progress_now = time.time()
@@ -1088,6 +1090,8 @@ def _mlx_worker_loop(
                             except Exception:
                                 stream_sentinel = None
 
+                            # [STABILITY v57] Reset activity immediately before loop
+                            watchdog.activity()
                             for response in stream_generate(model, tokenizer, prompt=prompt, **kwargs):
                                 watchdog.activity()
                                 token_count += 1

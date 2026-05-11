@@ -507,33 +507,64 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
     env.setdefault("PYTHONNOUSERSITE", "1")
     env["AURA_MLX_RUNTIME_PROBE"] = "1"
 
-    ok = False
-    detail = "probe_not_run"
-    try:
-        completed = subprocess.run(
-            _mlx_runtime_probe_command(),
-            cwd=project_root,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=12.0,
-            check=False,
-        )
-        ok = completed.returncode == 0
-        detail = _normalize_probe_detail(
-            completed.stdout or "",
-            completed.stderr or "",
-            completed.returncode,
-        )
-    except subprocess.TimeoutExpired as exc:
-        detail = _normalize_probe_detail(
-            (exc.stdout or "") if isinstance(exc.stdout, str) else "",
-            (exc.stderr or "") if isinstance(exc.stderr, str) else "",
-            124,
-        )
-    except Exception as exc:
-        record_degradation('mlx_client', exc)
-        detail = f"probe_exception:{type(exc).__name__}"
+    # [STABILITY v57] One-shot retry for probe on failure (except timeout)
+    for probe_attempt in range(2):
+        ok = False
+        detail = "probe_not_run"
+        try:
+            completed = subprocess.run(
+                _mlx_runtime_probe_command(),
+                cwd=project_root,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=25.0,  # [STABILITY v57] Raised from 12.0s for high-load scenarios
+                check=False,
+            )
+            ok = completed.returncode == 0
+            detail = _normalize_probe_detail(
+                completed.stdout or "",
+                completed.stderr or "",
+                completed.returncode,
+            )
+            
+            # If it's a known enumeration crash, we might want to retry immediately
+            if not ok and detail == "metal_device_enumeration_crash" and probe_attempt == 0:
+                logger.warning("⚠️ [MLX] Metal device enumeration crash during probe. Retrying...")
+                time.sleep(1.0)
+                continue
+            
+            # If it's okay or a different failure, break the retry loop
+            break
+            
+        except subprocess.TimeoutExpired as exc:
+            detail = _normalize_probe_detail(
+                (exc.stdout or "") if isinstance(exc.stdout, str) else "",
+                (exc.stderr or "") if isinstance(exc.stderr, str) else "",
+                124,
+            )
+            # Timeout is terminal for the attempt
+            break
+        except Exception as exc:
+            record_degradation('mlx_client', exc)
+            detail = f"probe_exception:{type(exc).__name__}"
+            break
+
+    # [STABILITY v57] Grace Fallback: if the probe just crashed with metal_device_enumeration_crash,
+    # but we have a "last known good" status within the last 30 minutes, we bypass the block.
+    # This prevents the "RuntimeError: mlx_runtime_probe_failed" cascade from stranding
+    # the 32B model due to a transient driver glitch.
+    if not ok and detail == "metal_device_enumeration_crash":
+        with _MLX_RUNTIME_PROBE_LOCK:
+            cached_ok = _MLX_RUNTIME_PROBE.get("ok")
+            cached_at = float(_MLX_RUNTIME_PROBE.get("checked_at", 0.0) or 0.0)
+            if cached_ok and (time.time() - cached_at) < 1800.0:
+                logger.warning(
+                    "♻️ [MLX] Runtime probe encountered enumeration crash, but using LKG (last known good) "
+                    "status from %.0fs ago to allow lane spawn.",
+                    time.time() - cached_at
+                )
+                return True, "lkg_fallback_after_enumeration_crash"
 
     with _MLX_RUNTIME_PROBE_LOCK:
         _MLX_RUNTIME_PROBE.update(

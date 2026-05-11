@@ -241,7 +241,7 @@ class AffectEngineV2:
                 try:
                     appraisal = await asyncio.wait_for(
                         self._appraise_with_llm(trigger, context),
-                        timeout=4.0,
+                        timeout=15.0,  # [STABILITY v57] Raised from 4.0s to handle high-load contention
                     )
                     self._llm_failure_count = 0
                     self._llm_backoff_until = 0.0
