@@ -119,6 +119,19 @@ def test_chain_persists_across_restart(tmp_path):
     assert result["length"] == 4
 
 
+def test_parallel_chain_instances_refresh_head_before_append(tmp_path):
+    root = tmp_path / "receipts"
+    chain_a = AuditChain(root)
+    chain_b = AuditChain(root)
+
+    chain_a.append(receipt_id="r-a", kind="turn", body={"kind": "turn", "i": 1}, timestamp=1.0)
+    chain_b.append(receipt_id="r-b", kind="turn", body={"kind": "turn", "i": 2}, timestamp=2.0)
+
+    entries = AuditChain(root).entries()
+    assert [entry.seq for entry in entries] == [0, 1]
+    assert entries[1].prev_hash == entries[0].entry_hash
+
+
 # ---------------------------------------------------------------------------
 # tamper detection
 # ---------------------------------------------------------------------------

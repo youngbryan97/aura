@@ -2357,7 +2357,12 @@ class UnitaryResponsePhase(Phase):
             
             if not llm:
                 logger.warning("LLM Router not found in organs or ServiceContainer.")
-                new_state.cognition.last_response = "I'm still gathering my thoughts. One moment."
+                fallback_origin = self._normalize_origin(new_state.cognition.current_origin) or "system"
+                fallback_user_facing = bool(priority or self._is_user_facing_origin(fallback_origin))
+                if fallback_user_facing:
+                    new_state.cognition.last_response = self._build_minimal_live_voice_reply(new_state, objective)
+                else:
+                    self._clear_background_generation(new_state, objective)
                 return new_state
 
             # Read the tier decision from CognitiveRoutingPhase before building the prompt.
@@ -3233,6 +3238,39 @@ class UnitaryResponsePhase(Phase):
                         final_validation = minimal_validation
 
                 new_state.response_modifiers["dialogue_validation"] = final_validation.to_dict()
+
+            if is_user_facing:
+                try:
+                    from core.conversation.response_reliability import (
+                        assess_user_facing_reply,
+                        reliability_floor_for_user,
+                    )
+
+                    quality = assess_user_facing_reply(objective, response_text)
+                    if quality.retryable:
+                        floor = reliability_floor_for_user(objective) or self._build_minimal_live_voice_reply(
+                            new_state,
+                            objective,
+                        )
+                        shaped_floor = self._shape_user_facing_response(floor, objective)
+                        floor_quality = assess_user_facing_reply(objective, shaped_floor)
+                        if not floor_quality.retryable:
+                            logger.warning(
+                                "🛡️ UnitaryResponse replaced unsafe final 32B draft (%s, len=%d).",
+                                ",".join(quality.reasons) or "unknown",
+                                len(str(response_text or "")),
+                            )
+                            response_text = shaped_floor
+                        else:
+                            raise TimeoutError(
+                                "Foreground conversation lane produced only unsafe drafts: "
+                                + ",".join(quality.reasons)
+                            )
+                except TimeoutError:
+                    raise
+                except Exception as quality_exc:
+                    record_degradation('response_generation_unitary', quality_exc)
+                    logger.debug("UnitaryResponse final reliability check skipped: %s", quality_exc)
 
             # [PEDAGOGY UPGRADE] Autonomous Manim Generation
             try:

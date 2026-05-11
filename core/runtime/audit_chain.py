@@ -32,6 +32,7 @@ import hashlib
 import json
 import os
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
@@ -122,9 +123,16 @@ class AuditChain:
     def __init__(self, root: Path):
         self.root = Path(root)
         self.path = self.root / self.CHAIN_FILENAME
+        self.lock_path = self.root / ".chain.lock"
         self._lock = threading.RLock()
         self._head_hash: str = GENESIS_PREV_HASH
         self._next_seq: int = 0
+        self._unsynced_entries: int = 0
+        self._sync_policy = os.environ.get("AURA_AUDIT_CHAIN_SYNC", "batch").strip().lower()
+        try:
+            self._sync_every = max(1, int(os.environ.get("AURA_AUDIT_CHAIN_FSYNC_EVERY", "32")))
+        except (TypeError, ValueError):
+            self._sync_every = 32
         # Best-effort load of existing chain head so a restarted process
         # extends rather than forks.  If the file is malformed, callers
         # are expected to invoke verify() and decide how to recover.
@@ -134,15 +142,67 @@ class AuditChain:
     # construction-time helpers
     # ------------------------------------------------------------------
     def _load_head(self) -> None:
-        if not self.path.exists():
-            return
-        last_record: Optional[Dict[str, Any]] = None
         with self._lock:
+            self._refresh_head_from_disk_locked()
+
+    def _refresh_head_from_disk_locked(self) -> None:
+        last_record = self._read_last_record()
+        if last_record is not None:
+            self._head_hash = last_record["entry_hash"]
+            self._next_seq = int(last_record["seq"]) + 1
+        elif not self.path.exists() or self.path.stat().st_size == 0:
+            self._head_hash = GENESIS_PREV_HASH
+            self._next_seq = 0
+
+    def _read_last_record(self) -> Optional[Dict[str, Any]]:
+        if not self.path.exists():
+            return None
+        try:
+            with open(self.path, "rb") as fh:
+                fh.seek(0, os.SEEK_END)
+                end = fh.tell()
+                if end <= 0:
+                    return None
+                chunk_size = 4096
+                buffer = b""
+                pos = end
+                while pos > 0:
+                    read_size = min(chunk_size, pos)
+                    pos -= read_size
+                    fh.seek(pos)
+                    buffer = fh.read(read_size) + buffer
+                    lines = [line for line in buffer.splitlines() if line.strip()]
+                    if len(lines) >= 2 or pos == 0:
+                        return json.loads(lines[-1].decode("utf-8"))
+        except (OSError, json.JSONDecodeError, IndexError, KeyError, ValueError):
+            # Fall back to the slower full iterator so malformed tails still
+            # surface through the existing ChainTamperError path when possible.
+            last_record: Optional[Dict[str, Any]] = None
             for record in self._iter_entries():
                 last_record = record
-            if last_record is not None:
-                self._head_hash = last_record["entry_hash"]
-                self._next_seq = last_record["seq"] + 1
+            return last_record
+        return None
+
+    @contextmanager
+    def _process_append_lock(self):
+        self.root.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(self.lock_path), os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            try:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            except (ImportError, OSError):
+                pass
+            yield
+        finally:
+            try:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except (ImportError, OSError):
+                pass
+            os.close(fd)
 
     def _iter_entries(self) -> Iterator[Dict[str, Any]]:
         """Yield raw records from the chain file. Avoids dataclass overhead."""
@@ -177,31 +237,33 @@ class AuditChain:
         if not kind:
             raise ValueError("kind is required")
 
-        content_hash = hash_receipt_body(body)
         with self._lock:
-            seq = self._next_seq
-            prev_hash = self._head_hash
-            entry_hash = ChainEntry.compute_entry_hash(
-                seq=seq,
-                receipt_id=receipt_id,
-                kind=kind,
-                content_hash=content_hash,
-                timestamp=timestamp,
-                prev_hash=prev_hash,
-            )
-            entry = ChainEntry(
-                seq=seq,
-                receipt_id=receipt_id,
-                kind=kind,
-                content_hash=content_hash,
-                timestamp=timestamp,
-                prev_hash=prev_hash,
-                entry_hash=entry_hash,
-            )
-            self._durable_append(entry)
-            self._head_hash = entry_hash
-            self._next_seq = seq + 1
-            return entry
+            with self._process_append_lock():
+                self._refresh_head_from_disk_locked()
+                content_hash = hash_receipt_body(body)
+                seq = self._next_seq
+                prev_hash = self._head_hash
+                entry_hash = ChainEntry.compute_entry_hash(
+                    seq=seq,
+                    receipt_id=receipt_id,
+                    kind=kind,
+                    content_hash=content_hash,
+                    timestamp=timestamp,
+                    prev_hash=prev_hash,
+                )
+                entry = ChainEntry(
+                    seq=seq,
+                    receipt_id=receipt_id,
+                    kind=kind,
+                    content_hash=content_hash,
+                    timestamp=timestamp,
+                    prev_hash=prev_hash,
+                    entry_hash=entry_hash,
+                )
+                self._durable_append(entry)
+                self._head_hash = entry_hash
+                self._next_seq = seq + 1
+                return entry
 
     def _durable_append(self, entry: ChainEntry) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
@@ -212,13 +274,31 @@ class AuditChain:
         fd = os.open(str(self.path), flags, 0o600)
         try:
             os.write(fd, line.encode("utf-8"))
-            try:
-                os.fsync(fd)
-            except OSError:
-                pass
+            self._unsynced_entries += 1
+            if self._should_fsync_now():
+                self._fsync_fd(fd)
+                self._unsynced_entries = 0
         finally:
             os.close(fd)
-        # Best-effort dir fsync so the entry survives a crash.
+        if self._sync_policy == "always" or self._unsynced_entries == 0:
+            self._fsync_dir()
+
+    def _should_fsync_now(self) -> bool:
+        if self._sync_policy in {"0", "false", "off", "none", "never"}:
+            return False
+        if self._sync_policy in {"1", "true", "on", "always", "sync"}:
+            return True
+        return self._unsynced_entries >= self._sync_every
+
+    @staticmethod
+    def _fsync_fd(fd: int) -> None:
+        try:
+            os.fsync(fd)
+        except OSError:
+            pass
+
+    def _fsync_dir(self) -> None:
+        # Best-effort dir fsync so newly-created chain files survive a crash.
         if hasattr(os, "O_DIRECTORY"):
             try:
                 dir_fd = os.open(str(self.root), os.O_DIRECTORY)
@@ -231,6 +311,19 @@ class AuditChain:
                     pass
             finally:
                 os.close(dir_fd)
+
+    def flush(self) -> None:
+        """Force pending batched audit-chain bytes to stable storage."""
+        with self._lock:
+            if self._unsynced_entries <= 0 or not self.path.exists():
+                return
+            fd = os.open(str(self.path), os.O_RDONLY)
+            try:
+                self._fsync_fd(fd)
+                self._unsynced_entries = 0
+            finally:
+                os.close(fd)
+            self._fsync_dir()
 
     def head_hash(self) -> str:
         with self._lock:
@@ -356,6 +449,7 @@ class AuditChain:
         manifest_dst = dest_dir / "MANIFEST.txt"
 
         with self._lock:
+            self.flush()
             head = self._head_hash
             length = self._next_seq
             if self.path.exists():

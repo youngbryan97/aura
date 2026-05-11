@@ -75,7 +75,8 @@ async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
         {"role": "user", "content": "Earlier context"},
     ]
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="I looked into it."))
+    llm_reply = "I looked into it, and the grounded result means the answer should stay tied to the retrieved evidence."
+    llm = SimpleNamespace(think=AsyncMock(return_value=llm_reply))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -106,7 +107,7 @@ async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
     assert "rich_context" in kwargs["messages"][0]["content"]
     assert kwargs["messages"][-1]["content"] == state.cognition.current_objective
     assert kwargs["state"].cognition.current_objective == state.cognition.current_objective
-    assert new_state.cognition.last_response == "I looked into it."
+    assert new_state.cognition.last_response == llm_reply
 
 
 @pytest.mark.asyncio

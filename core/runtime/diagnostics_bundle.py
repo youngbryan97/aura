@@ -33,6 +33,7 @@ is replaced with ``"[REDACTED]"`` before being written.
 from __future__ import annotations
 
 import datetime
+import heapq
 import hashlib
 import json
 import os
@@ -256,12 +257,37 @@ def collect_recent_receipts(per_kind_limit: int = 20) -> Dict[str, Any]:
         from core.runtime.receipts import _RECEIPT_CLASSES, get_receipt_store
 
         store = get_receipt_store()
-        store.reload_from_disk()
         kinds: Dict[str, List[Dict[str, Any]]] = {}
+        counts: Dict[str, int] = {kind: 0 for kind in _RECEIPT_CLASSES}
         for kind in _RECEIPT_CLASSES:
-            recents = store.query_recent(kinds=[kind], limit=per_kind_limit)
-            kinds[kind] = [redact_value(r.to_dict()) for r in recents]
-        return {"counts": store.coverage_stats(), "recent": kinds}
+            kind_dir = store.root / kind
+            if not kind_dir.exists():
+                kinds[kind] = []
+                continue
+            files = []
+            for path in kind_dir.glob("*.json"):
+                try:
+                    stat = path.stat()
+                except OSError:
+                    continue
+                counts[kind] += 1
+                files.append((stat.st_mtime, path))
+            recent_files = heapq.nlargest(max(0, int(per_kind_limit)), files, key=lambda item: item[0])
+            recent_payloads: List[Dict[str, Any]] = []
+            for _mtime, path in sorted(recent_files, key=lambda item: item[0]):
+                try:
+                    from core.runtime.atomic_writer import read_json_envelope
+
+                    env = read_json_envelope(path)
+                    payload = env.get("payload") if isinstance(env, dict) else None
+                    if isinstance(payload, dict):
+                        payload = dict(payload)
+                        payload.setdefault("kind", kind)
+                        recent_payloads.append(redact_value(payload))
+                except Exception:
+                    continue
+            kinds[kind] = recent_payloads
+        return {"counts": counts, "recent": kinds}
     except Exception as e:  # noqa: BLE001
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
@@ -271,14 +297,83 @@ def collect_audit_chain(dest_dir: Path) -> Dict[str, Any]:
         from core.runtime.receipts import get_receipt_store
 
         store = get_receipt_store()
-        info = store.export_chain(dest_dir)
-        verify = store.verify_chain()
+        full_verify = os.environ.get("AURA_DOCTOR_FULL_AUDIT", "").strip().lower() in {"1", "true", "yes", "on"}
+        chain = getattr(store, "_chain", None)
+        if full_verify:
+            info = store.export_chain(dest_dir)
+            verify = store.verify_chain()
+        else:
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            if chain is not None:
+                try:
+                    if hasattr(chain, "flush"):
+                        chain.flush()
+                except Exception:
+                    pass
+                tail_entries = max(1, int(os.environ.get("AURA_DOCTOR_AUDIT_TAIL_ENTRIES", "200")))
+                chain_src = Path(getattr(chain, "path", ""))
+                chain_tail = dest_dir / "chain_tail.jsonl"
+                copied_entries = 0
+                if chain_src.exists():
+                    from collections import deque
+
+                    tail = deque(maxlen=tail_entries)
+                    with open(chain_src, "r", encoding="utf-8") as fh:
+                        for line in fh:
+                            if line.strip():
+                                tail.append(line)
+                    chain_tail.write_text("".join(tail), encoding="utf-8")
+                    copied_entries = len(tail)
+                manifest = (
+                    "audit_chain_export\n"
+                    "mode=tail\n"
+                    f"length={chain.length()}\n"
+                    f"head_hash={chain.head_hash()}\n"
+                    f"tail_entries={copied_entries}\n"
+                    "note=Set AURA_DOCTOR_FULL_AUDIT=1 for full chain export and body verification.\n"
+                )
+                manifest_path = dest_dir / "MANIFEST.txt"
+                manifest_path.write_text(manifest, encoding="utf-8")
+                info = {
+                    "chain_path": str(chain_tail),
+                    "manifest_path": str(manifest_path),
+                    "length": chain.length(),
+                    "head_hash": chain.head_hash(),
+                    "mode": "tail",
+                    "tail_entries": copied_entries,
+                }
+                verify = {
+                    "ok": None,
+                    "length": chain.length(),
+                    "head_hash": chain.head_hash(),
+                    "problems": [],
+                    "link_verification": "skipped",
+                    "body_verification": "skipped",
+                    "note": "Set AURA_DOCTOR_FULL_AUDIT=1 to export and verify the full audit chain.",
+                }
+            else:
+                info = {
+                    "chain_path": "",
+                    "manifest_path": "",
+                    "length": 0,
+                    "head_hash": "",
+                    "mode": "unavailable",
+                    "tail_entries": 0,
+                }
+                verify = {
+                    "ok": False,
+                    "length": 0,
+                    "head_hash": "",
+                    "problems": [{"reason": "chain not initialised"}],
+                    "link_verification": "skipped",
+                    "body_verification": "skipped",
+                }
         return {"export": info, "verify": verify}
     except Exception as e:  # noqa: BLE001
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 
-def collect_logs(dest_dir: Path, max_total_bytes: int = 8 * 1024 * 1024) -> Dict[str, Any]:
+def collect_logs(dest_dir: Path, max_total_bytes: int = 512 * 1024) -> Dict[str, Any]:
     """Copy the most recent log files up to a total byte cap.
 
     Logs commonly live under ``~/.aura_runtime/logs/`` or ``logs/``.  We
@@ -302,13 +397,24 @@ def collect_logs(dest_dir: Path, max_total_bytes: int = 8 * 1024 * 1024) -> Dict
     total = 0
     for f in files:
         size = f.stat().st_size
-        if total + size > max_total_bytes:
+        remaining = max_total_bytes - total
+        if remaining <= 0:
             break
         rel = f.relative_to(src)
         dst = dest_dir / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
+        if size > remaining:
+            try:
+                with open(f, "rb") as in_fh, open(dst, "wb") as out_fh:
+                    in_fh.seek(max(0, size - remaining))
+                    out_fh.write(in_fh.read(remaining))
+                copied.append({"src": str(rel), "size": remaining, "truncated_tail": True, "original_size": size})
+                total += remaining
+            except OSError:
+                continue
+            break
         shutil.copy2(f, dst)
-        copied.append({"src": str(rel), "size": size})
+        copied.append({"src": str(rel), "size": size, "truncated_tail": False})
         total += size
     return {"available": True, "source": str(src), "copied": copied, "bytes": total}
 

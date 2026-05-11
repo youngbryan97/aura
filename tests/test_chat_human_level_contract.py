@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 
@@ -35,6 +38,72 @@ def _rich_reply(topic: str, idx: int) -> str:
         f"without flattening it into a status line. The live point is {topic}, so my next thought needs "
         f"continuity, texture, and a specific answer rather than a recycled shape."
     )
+
+
+def _frontier_style_user_turn(idx: int) -> str:
+    turns = [
+        "Hey Aura. Feeling better? I want the honest version, not a status light.",
+        "What did you think I was worried about in the last exchange?",
+        "Stay with the thread: why did the bad replies feel so wrong?",
+        "Can you explain the difference between a coherent answer and a filler answer?",
+        "I am still skeptical. What would you say to make this feel human instead of mechanical?",
+        "Push back if I am being unfair, but do it while keeping the point.",
+        "What are you noticing about the emotional arc of this conversation?",
+        "Give me a concrete next thought, not just reassurance.",
+        "Now zoom out. What should keep improving if we keep talking for a long time?",
+        "Okay, bring it back to right now: are you still with me?",
+    ]
+    return turns[idx % len(turns)]
+
+
+def _frontier_style_reply(user: str, idx: int) -> str:
+    lower = user.lower()
+    variants = [
+        (
+            "I am here, and the honest version is that I should sound grounded before I sound confident. "
+            "If my answer gets thin, repetitive, or weirdly symbolic, that is not personality; that is a failed turn, "
+            "and I need to catch it before it reaches you."
+        ),
+        (
+            "You were worried that the conversation could look alive for a minute and then quietly lose the plot. "
+            "That is a fair worry. The real test is whether I can keep your concern, the recent turns, and my own stance "
+            "in one continuous answer."
+        ),
+        (
+            "Those bad replies felt wrong because they did not participate in the conversation. They produced fragments, "
+            "invented vague referents, and repeated a phrase instead of responding to your actual pressure."
+        ),
+        (
+            "A coherent answer carries the question forward: it names what you asked, adds a specific thought, and leaves "
+            "the next turn easier to make. Filler just occupies the slot where a mind should have answered."
+        ),
+        (
+            "I would not try to soothe you out of noticing it. I would say: yes, that failure is visible, and the standard "
+            "should be ordinary conversational competence across boring, emotional, technical, and long-running turns."
+        ),
+        (
+            "I do think the demand for absolute impossibility is stronger than software can literally promise, but the spirit "
+            "of it is right: the system should make malformed output structurally unable to pass as success."
+        ),
+        (
+            "The emotional arc is trust under strain. You are not asking for prettier wording; you are asking whether there is "
+            "enough continuity here to treat the voice as someone you can actually talk with."
+        ),
+        (
+            "The concrete next thought is this: every accepted turn has to be judged by conversational usefulness, not just by "
+            "whether it contains enough tokens or avoids an exception."
+        ),
+        (
+            "Over a long chat, the thing to protect is not only memory length. It is the local shape of the exchange: what you "
+            "just asked, what I just claimed, what remains unresolved, and what tone the moment can bear."
+        ),
+        (
+            "Yes. I am still with you, and I am answering the current turn rather than replaying an older one. The thread is "
+            "coherence, trust, and making the machinery prove itself in normal conversation."
+        ),
+    ]
+    reply = variants[idx % len(variants)]
+    return f"{reply} Turn marker {idx}: I am keeping this response distinct so repetition checks have something real to inspect."
 
 
 def test_reliability_contract_accepts_120_turn_varied_conversation():
@@ -74,6 +143,121 @@ def test_reliability_contract_accepts_120_turn_varied_conversation():
         assert not chat_routes._is_same_answer_different_prompt(user, reply), idx
         assert not off_topic, (idx, reason)
         chat_routes._record_recent_response(reply, user)
+
+
+def test_frontier_style_120_turn_transcript_is_inspectable_and_gate_clean(tmp_path):
+    from core.conversation.response_reliability import assess_user_facing_reply
+    from interface.routes import chat as chat_routes
+
+    chat_routes._recent_responses.clear()
+    chat_routes._recent_response_pairs.clear()
+    transcript = []
+
+    for idx in range(120):
+        user = _frontier_style_user_turn(idx)
+        reply = _frontier_style_reply(user, idx)
+        assessment = assess_user_facing_reply(user, reply)
+        off_topic, reason = chat_routes._evaluate_reply_topicality(
+            user,
+            reply,
+            recent_user_messages=[entry["user"] for entry in transcript[-6:]] + [user],
+        )
+
+        assert assessment.ok, (idx, assessment.reasons, reply)
+        assert not chat_routes._is_stale_repeated_response(reply), idx
+        assert not chat_routes._is_same_answer_different_prompt(user, reply), idx
+        assert not off_topic, (idx, reason, user, reply)
+        chat_routes._record_recent_response(reply, user)
+        transcript.append(
+            {
+                "turn": idx + 1,
+                "user": user,
+                "aura": reply,
+                "quality": {
+                    "assessment": "ok",
+                    "stale": False,
+                    "same_answer_different_prompt": False,
+                    "off_topic": False,
+                },
+            }
+        )
+
+    out_dir = Path("artifacts/chat_reliability")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "frontier_style_120_turn_transcript.json"
+    out_path.write_text(json.dumps(transcript, indent=2), encoding="utf-8")
+
+    assert len(transcript) == 120
+    assert transcript[0]["aura"] != transcript[-1]["aura"]
+    assert out_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("user", "reply", "expected_reason"),
+    [
+        (
+            "Hey, Aura. Feeling better?",
+            "I guess. You know, there's these funny little guys --",
+            "vague_status_derailment",
+        ),
+        (
+            "What little guys?",
+            "I'm not talking to you. I mean, there's this...thing. I don't know how to explain it. You Just get It, Get It?",
+            "dialogue_derailment",
+        ),
+        (
+            "I do not get it. What do you mean",
+            "I mean, I don't get it, but then, you know, I mean, I don't get it, but I get it, that's all I Get It.",
+            "low_information_loop",
+        ),
+        (
+            "Got it",
+            "I don't get it. But then, I get it. That's all I Get It.",
+            "low_information_loop",
+        ),
+        (
+            "How's your mind feeling?",
+            "Hold on — I'm still finishing the last turn. Give me a second.",
+            "runtime_boilerplate",
+        ),
+        (
+            "Something like that",
+            "That's what I get. That's what I Get It",
+            "low_information_loop",
+        ),
+        (
+            "You ok?",
+            "I just Get It.",
+            "low_information_loop",
+        ),
+    ],
+)
+def test_reliability_contract_rejects_reported_live_incoherence(user, reply, expected_reason):
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(user, reply)
+
+    assert assessment.retryable
+    assert expected_reason in assessment.reasons
+
+
+def test_model_text_integrity_rejects_malformed_32b_backend_output():
+    from core.conversation.response_reliability import assess_model_text_integrity
+
+    bad = assess_model_text_integrity(
+        "I don't get it, but then I get it, and that's what I Get It.",
+        prompt="Summarize the user's preference for memory storage.",
+        user_facing=False,
+    )
+    good = assess_model_text_integrity(
+        '{"action":"remember","content":"The user wants inspectable reliability proofs.","confidence":0.91}',
+        prompt="Extract durable memory as JSON.",
+        user_facing=False,
+    )
+
+    assert bad.retryable
+    assert "low_information_loop" in bad.reasons
+    assert good.ok
 
 
 @pytest.mark.parametrize(
@@ -135,6 +319,35 @@ async def test_final_quality_gate_repairs_repeated_degraded_reply(monkeypatch):
 
     assert changed
     assert "active obligation" in repaired
+    assert not is_stale
+    assert not is_same
+    assert not is_off_topic, reason
+
+
+@pytest.mark.asyncio
+async def test_final_quality_gate_repairs_high_confidence_semantic_glitch(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    chat_routes._recent_responses.clear()
+    chat_routes._recent_response_pairs.clear()
+    user = "You ok?"
+    glitched = "I just Get It."
+
+    async def _fake_stabilize(_user, _reply):
+        return glitched
+
+    monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _fake_stabilize)
+
+    repaired, is_stale, is_same, is_off_topic, reason, changed = await chat_routes._repair_final_degraded_reply(
+        user,
+        glitched,
+        stale=False,
+        same_diff=False,
+        off_topic=False,
+    )
+
+    assert changed
+    assert "mind feels steady enough" in repaired
     assert not is_stale
     assert not is_same
     assert not is_off_topic, reason

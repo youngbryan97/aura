@@ -1374,7 +1374,7 @@ def _conversation_lane_user_message(
 
     # Hard infrastructure failures — keep these explicit for debugging
     if failure_reason.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:")):
-        return "My local Cortex runtime hit a hard failure — the 32B model can't start. Check the launcher logs for what went wrong."
+        return "The local 32B runtime could not start cleanly. I should not fake a normal answer; the launcher logs have the failure details."
 
     # Build a mood-aware prefix for softer messages
     _mood_prefix = ""
@@ -1393,18 +1393,18 @@ def _conversation_lane_user_message(
         pass  # no-op: intentional
 
     if status_override == "warming_timeout":
-        return f"{_mood_prefix}my thinking engine is still warming, but I kept the turn. Give me another moment."
+        return f"{_mood_prefix}I'm still bringing the answer together. I have the turn, and I don't want to hand you a broken fragment."
     if status_override == "warming_failed":
-        return f"{_mood_prefix}my thinking engine stumbled during warm-up. I'm holding the thread while it recovers."
+        return f"{_mood_prefix}warm-up failed before I could answer cleanly. I kept the thread and am restarting the lane."
     if timed_out:
-        return f"{_mood_prefix}my cortex took too long on that turn. I kept the thread and I'm recovering the lane."
+        return f"{_mood_prefix}that answer took too long to finish cleanly. I kept the thread and am restarting the lane."
     if _conversation_lane_is_standby(lane):
-        return "I'm here. My cortex will spin up the moment you say something."
+        return "I'm here. Send the first message and I'll bring the conversation lane up for it."
     if state == "recovering":
-        return f"{_mood_prefix}I'm in the middle of pulling my thoughts back together. Give me just a moment."
+        return f"{_mood_prefix}I'm pulling the answer back together. Give me a moment so I don't hand you a fragment."
     if state == "failed":
-        return f"{_mood_prefix}my thinking engine hit a wall. I'm recovering it without dropping the conversation."
-    return f"{_mood_prefix}I'm still warming up my thinking engine. Almost there."
+        return f"{_mood_prefix}the local answer path failed before producing a coherent reply. I'm restarting it instead of pretending that was a real answer."
+    return f"{_mood_prefix}I'm still warming up the answer path. Almost there."
 
 
 _last_recovery_cooldown_at: float = 0.0
@@ -4340,7 +4340,7 @@ async def api_chat(
         except asyncio.TimeoutError:
             return JSONResponse(
                 {
-                    "response": "Hold on — I'm still finishing the last turn. Give me a second.",
+                    "response": "I still have the previous turn open. I am not going to fake a new answer over it; the next clean reply should land from the active turn.",
                     "status": "foreground_busy",
                     "conversation_lane": _collect_conversation_lane_status(),
                     "response_confidence": "degraded",
@@ -4918,16 +4918,18 @@ async def api_chat(
             reply_text,
             recent_user_messages=recent_user_messages,
         )
-        if is_stale or is_same_diff or is_off_topic:
+        semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(body.message, reply_text)
+        if is_stale or is_same_diff or is_off_topic or semantic_glitch:
             response_confidence = "degraded"
             _consecutive_degraded_count += 1
             logger.warning(
-                "⚠️ Response confidence: degraded (stale=%s, same_answer_diff_prompt=%s, off_topic=%s, streak=%d, reason=%s)",
+                "⚠️ Response confidence: degraded (stale=%s, same_answer_diff_prompt=%s, off_topic=%s, semantic_glitch=%s, streak=%d, reason=%s)",
                 is_stale,
                 is_same_diff,
                 is_off_topic,
+                semantic_glitch,
                 _consecutive_degraded_count,
-                off_topic_reason or "",
+                off_topic_reason or semantic_glitch_reason or "",
             )
         else:
             _consecutive_degraded_count = 0

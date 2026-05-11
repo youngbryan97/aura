@@ -1665,19 +1665,26 @@ class TestTimingFingerprint:
             f"100 metabolic ticks in {elapsed*1e6:.0f}μs — suspiciously fast"
 
     def test_stdp_spike_recording_does_real_work(self):
-        """STDP spike recording should involve actual computation."""
+        """STDP spike recording should populate pairwise eligibility traces."""
         stdp = STDPLearningEngine(n_neurons=64)
         rng = np.random.default_rng(42)
 
-        t0 = time.perf_counter()
         for t in range(50):
             acts = rng.uniform(0, 1, 64).astype(np.float32)
             stdp.record_spikes(acts, t=float(t))
-        elapsed = time.perf_counter() - t0
 
-        assert elapsed > 1e-3, \
-            f"50 STDP recordings on 64 neurons took {elapsed*1e3:.1f}ms — " \
-            "suspiciously fast for O(n²) computation"
+        eligibility = stdp._eligibility
+        active_synapses = int(np.count_nonzero(np.abs(eligibility) > 1e-9))
+        active_rows = int(np.count_nonzero(np.any(np.abs(eligibility) > 1e-9, axis=1)))
+        active_cols = int(np.count_nonzero(np.any(np.abs(eligibility) > 1e-9, axis=0)))
+
+        assert np.isfinite(eligibility).all(), "STDP eligibility traces must remain finite"
+        assert np.linalg.norm(eligibility) > 1e-3, \
+            "STDP recordings should leave a non-trivial eligibility signal"
+        assert active_synapses > 64 * 32, \
+            f"STDP should update broad pairwise traces, only {active_synapses} synapses changed"
+        assert active_rows == 64 and active_cols == 64, \
+            f"STDP pairwise traces should cover all neurons (rows={active_rows}, cols={active_cols})"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

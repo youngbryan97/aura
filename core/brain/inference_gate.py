@@ -35,6 +35,7 @@ from core.brain.llm.model_registry import (
     PRIMARY_ENDPOINT,
 )
 from core.conversation.response_reliability import (
+    assess_model_text_integrity,
     assess_user_facing_reply,
     conversation_reliability_system_block,
 )
@@ -130,8 +131,8 @@ class InferenceGate:
         except Exception:
             pass
         return (
-            "I kept the turn. My local cortex hit turbulence, and I'm rebuilding the answer "
-            "without dropping the conversation."
+            "I kept the turn, and I should not send you a broken fragment as if it were a real answer. "
+            "I am rebuilding the reply around your actual question."
         )
 
     @staticmethod
@@ -1537,7 +1538,21 @@ class InferenceGate:
 
         if success and text and text.strip():
             cleaned = text.strip()
-            if foreground_request or self._origin_is_user_facing(origin):
+            is_user_visible = bool(foreground_request or self._origin_is_user_facing(origin))
+            integrity = assess_model_text_integrity(
+                cleaned,
+                prompt=prompt,
+                user_facing=is_user_visible,
+            )
+            if integrity.retryable:
+                logger.warning(
+                    "🛡️ %s produced malformed model text (%s, len=%d). Treating it as failed generation.",
+                    label,
+                    ",".join(integrity.reasons) or "unknown",
+                    len(cleaned),
+                )
+                return None
+            if is_user_visible:
                 assessment = assess_user_facing_reply(prompt, cleaned)
                 if assessment.retryable:
                     logger.warning(

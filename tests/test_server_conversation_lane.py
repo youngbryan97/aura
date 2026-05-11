@@ -242,7 +242,7 @@ async def test_api_chat_returns_hard_local_failure_without_kernel_fallback(monke
     )
 
     assert response.status_code == 503
-    assert b"local Cortex runtime hit a hard failure" in response.body
+    assert b"local 32B runtime could not start cleanly" in response.body
     assert b"\"status\":\"conversation_unavailable\"" in response.body
     assert b"\"state\":\"failed\"" in response.body
 
@@ -551,7 +551,7 @@ async def test_api_chat_returns_structured_timeout_when_kernel_times_out(monkeyp
     )
 
     assert response.status_code == 503
-    assert b"cortex took too long" in response.body
+    assert b"took too long to finish cleanly" in response.body
     assert b"\"status\":\"timeout\"" in response.body
 
 
@@ -828,7 +828,7 @@ def test_conversation_lane_user_message_reports_local_runtime_failure():
         }
     )
 
-    assert "local Cortex runtime hit a hard failure" in message
+    assert "local 32B runtime could not start cleanly" in message
 
 
 def test_feedback_observer_imports_cleanly_on_fresh_load():
@@ -1037,5 +1037,5 @@ async def test_api_chat_returns_busy_reply_when_foreground_turn_is_already_in_fl
             chat_routes._foreground_chat_lock.release()
 
     assert response.status_code == 200
-    assert b"still finishing the last turn" in response.body
+    assert b"previous turn open" in response.body
     assert b"\"status\":\"foreground_busy\"" in response.body

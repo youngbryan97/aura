@@ -230,6 +230,7 @@ _BROKEN_LANE_REPLY_RE = re.compile(
     r"deeper processing is taking longer|keeping the turn alive|try (?:me|it|that) again|"
     r"send (?:it|your message) again|couldn'?t respond properly|"
     r"under load right now|holding (?:it|this|the thread) while i recover|"
+    r"hold on\s*[—-]\s*i'?m still finishing|still finishing the last turn|"
     r"let me regroup|my deeper processing)",
     re.IGNORECASE,
 )
@@ -247,9 +248,14 @@ def _conversation_response_floor(user_message: str) -> str:
             "how are you doing",
             "how's it going",
             "how are things",
+            "feeling better",
+            "you ok",
+            "you okay",
+            "how's your mind feeling",
+            "how is your mind feeling",
         )
     )
-    if greeting and asks_state:
+    if asks_state:
         return (
             "I'm here, awake, and with you. A little noisy around the edges, "
             "but steady enough to answer clearly."
