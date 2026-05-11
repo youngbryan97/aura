@@ -924,19 +924,17 @@ def _mlx_worker_loop(
                                 # [STABILITY v57] Reset activity immediately before loop to maximize budget for prefill
                                 try:
                                     from mlx_lm.sample_utils import make_sampler
-                                    _temp = kwargs.pop("temperature", 0.7)
-                                    _top_p = kwargs.pop("top_p", 1.0)
-                                    _min_p = kwargs.pop("min_p", 0.0)
-                                    _repetition_penalty = kwargs.pop("repetition_penalty", 1.0)
-                                    _repetition_context_size = kwargs.pop("repetition_context_size", 20)
                                     if "sampler" not in kwargs:
-                                        kwargs["sampler"] = make_sampler(
-                                            temp=_temp, 
-                                            top_p=_top_p, 
-                                            min_p=_min_p, 
-                                            repetition_penalty=_repetition_penalty, 
-                                            repetition_context_size=_repetition_context_size
-                                        )
+                                        import inspect as _insp
+                                        _sparams = _insp.signature(make_sampler).parameters
+                                        sampler_kwargs = {"temp": kwargs.pop("temperature", 0.7)}
+                                        if "top_p" in _sparams: sampler_kwargs["top_p"] = kwargs.pop("top_p", 1.0)
+                                        if "min_p" in _sparams: sampler_kwargs["min_p"] = kwargs.pop("min_p", 0.0)
+                                        if "repetition_penalty" in _sparams: 
+                                            sampler_kwargs["repetition_penalty"] = kwargs.pop("repetition_penalty", 1.0)
+                                        if "repetition_context_size" in _sparams: 
+                                            sampler_kwargs["repetition_context_size"] = kwargs.pop("repetition_context_size", 20)
+                                        kwargs["sampler"] = make_sampler(**sampler_kwargs)
                                 except ImportError:
                                     pass # old mlx_lm
                                 
@@ -1190,19 +1188,17 @@ def _mlx_worker_loop(
                             # [STABILITY v57] Reset activity immediately before loop
                             try:
                                 from mlx_lm.sample_utils import make_sampler
-                                _temp = kwargs.pop("temperature", 0.7)
-                                _top_p = kwargs.pop("top_p", 1.0)
-                                _min_p = kwargs.pop("min_p", 0.0)
-                                _repetition_penalty = kwargs.pop("repetition_penalty", 1.0)
-                                _repetition_context_size = kwargs.pop("repetition_context_size", 20)
                                 if "sampler" not in kwargs:
-                                    kwargs["sampler"] = make_sampler(
-                                        temp=_temp, 
-                                        top_p=_top_p, 
-                                        min_p=_min_p, 
-                                        repetition_penalty=_repetition_penalty, 
-                                        repetition_context_size=_repetition_context_size
-                                    )
+                                    import inspect as _insp
+                                    _sparams = _insp.signature(make_sampler).parameters
+                                    sampler_kwargs = {"temp": kwargs.pop("temperature", 0.7)}
+                                    if "top_p" in _sparams: sampler_kwargs["top_p"] = kwargs.pop("top_p", 1.0)
+                                    if "min_p" in _sparams: sampler_kwargs["min_p"] = kwargs.pop("min_p", 0.0)
+                                    if "repetition_penalty" in _sparams: 
+                                        sampler_kwargs["repetition_penalty"] = kwargs.pop("repetition_penalty", 1.0)
+                                    if "repetition_context_size" in _sparams: 
+                                        sampler_kwargs["repetition_context_size"] = kwargs.pop("repetition_context_size", 20)
+                                    kwargs["sampler"] = make_sampler(**sampler_kwargs)
                             except ImportError:
                                 pass # old mlx_lm
                             
