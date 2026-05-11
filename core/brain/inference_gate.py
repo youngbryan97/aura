@@ -3678,6 +3678,7 @@ class InferenceGate:
             "purpose",
             "is_background",
             "foreground_request",
+            "protected_foreground_lane",
         ):
             if key in kwargs:
                 context[key] = kwargs[key]
