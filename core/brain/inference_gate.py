@@ -3350,7 +3350,8 @@ class InferenceGate:
         # 1.5. EMERGENCY REFLEX FALLBACK — tiny 1.5B model on CPU as absolute last local resort.
         # If Cortex AND Brainstem both failed for a user-facing request, the 1.5B Reflex
         # model can still produce SOMETHING so the user isn't left hanging.
-        if _is_user_facing and not is_background:
+        # [STABILITY v54] Never run the 1.5B reflex if we are in a protected 32B foreground lane.
+        if _is_user_facing and not is_background and not protected_deep_fallback:
             try:
                 from core.brain.llm.mlx_client import get_mlx_client
                 from core.brain.llm.model_registry import get_fallback_path

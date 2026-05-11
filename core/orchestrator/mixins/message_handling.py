@@ -683,6 +683,7 @@ class MessageHandlingMixin:
                         "origin": origin,
                         "is_background": False,
                         "prefer_tier": "primary",
+                        "protected_foreground_lane": True,
                     },
                 )
 
@@ -698,21 +699,24 @@ class MessageHandlingMixin:
                             await gate._respawn_cortex_if_needed()
                             # Wait briefly for cortex to come up
                             await asyncio.sleep(3.0)
-                            # Retry once
                             response = await gate.generate(
                                 message,
-                                context={"history": history, "origin": origin, "is_background": False},
+                                context={
+                                    "history": history,
+                                    "origin": origin,
+                                    "is_background": False,
+                                    "protected_foreground_lane": True,
+                                },
                             )
                     except Exception as retry_err:
                         record_degradation('message_handling', retry_err)
                         logger.debug("Emergency retry failed: %s", retry_err)
 
                     if not response:
-                        # Last resort: acknowledge the user naturally
-                        response = (
-                            "I heard you, but my thinking engine is restarting right now. "
-                            "Give me a moment and try again — I'll be back."
-                        )
+                        # Allow the empty string to propagate back to the caller
+                        # so that it can trigger cloud fallback instead of masking
+                        # the failure with a robotic reflex.
+                        response = ""
 
                 # ── Auto-Continuation Reflex ──────────────────────────────────
                 # If the response ends abruptly without punctuation, it likely
@@ -738,6 +742,7 @@ class MessageHandlingMixin:
                                 "origin": origin,
                                 "is_background": False,
                                 "prefer_tier": "primary",
+                                "protected_foreground_lane": True,
                             },
                         )
                         if next_part and next_part != "<|SILENCE|>":
@@ -780,8 +785,9 @@ class MessageHandlingMixin:
 
                 # 3. State COMMIT (Limited Lock)
                 async with self._lock:
-                    self._record_message_in_history(message, origin)
-                    self._record_message_in_history(response, "assistant")
+                    if response:
+                        self._record_message_in_history(message, origin)
+                        self._record_message_in_history(response, "assistant")
 
                 # ── Response Repetition Detection ─────────────────────────
                 # General-purpose: if she's producing near-identical
