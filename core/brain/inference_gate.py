@@ -131,8 +131,7 @@ class InferenceGate:
         except Exception:
             pass
         return (
-            "I kept the turn, and I should not send you a broken fragment as if it were a real answer. "
-            "I am rebuilding the reply around your actual question."
+            "I'm sorry, I hit a cognitive snag and lost the thread for a second. I'm staying with it, but I missed that."
         )
 
     @staticmethod
