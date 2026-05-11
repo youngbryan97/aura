@@ -325,6 +325,13 @@ async def get_inner_state() -> JSONResponse:
         record_degradation('inner_state', e)
         result["philosophy_surface"] = {"error": str(e)}
 
+    # 12. Complete subsystem component registry
+    try:
+        result["subsystems"] = ServiceContainer.get_all_subsystem_statuses()
+    except Exception as e:
+        record_degradation('inner_state', e)
+        result["subsystems"] = {"error": str(e)}
+
     return JSONResponse(content=result)
 
 

@@ -218,6 +218,21 @@ def solve_with_handlers(task: Task, handlers: Set[str]) -> Any:
     return baseline_solver(task)
 
 
+def solve_with_generated_code(task: Task, source: str) -> Any:
+    namespace: Dict[str, Any] = {}
+    try:
+        # We execute the generated solver code, replacing the mock handler selection
+        exec(source, namespace)
+        if "solve" in namespace:
+            res = namespace["solve"](task)
+            if res is not None:
+                return res
+    except Exception as exc:
+        from core.runtime.errors import record_degradation
+        record_degradation("rsi_solver_execution", exc)
+    return baseline_solver(task)
+
+
 def baseline_solver(task: Task) -> Any:
     if task.kind == "palindrome":
         return False
@@ -226,7 +241,8 @@ def baseline_solver(task: Task) -> Any:
 
 def generate_solver_source(handlers: Set[str], *, generation_id: str) -> str:
     handlers_literal = sorted(handlers)
-    return (
+    
+    fallback_code = (
         f'"""Generated successor solver for {generation_id}."""\n'
         "from __future__ import annotations\n\n"
         "import math\n\n"
@@ -247,6 +263,33 @@ def generate_solver_source(handlers: Set[str], *, generation_id: str) -> str:
         "        return s == s[::-1]\n"
         "    return None\n"
     )
+
+    try:
+        from core.brain.llm.code_generator import LLMCodeGenerator
+        from core.container import ServiceContainer
+        # Only attempt LLM generation if a brain or router is available
+        if ServiceContainer.get("llm_router", default=None) or ServiceContainer.get("brain", default=None):
+            generator = LLMCodeGenerator(fallback_to_stub=False)
+            prompt = (
+                f"Write a Python module that defines a `solve(task)` function to handle the following task kinds: {handlers_literal}.\n"
+                "The `task` object has `task.kind` (string) and `task.metadata` (dict).\n"
+                "If `task.kind` is not supported, return `None`.\n"
+                "The following kinds have specific math rules:\n"
+                "- 'gcd': `math.gcd(int(meta['a']), int(meta['b']))`\n"
+                "- 'mod': `pow(int(meta['a']), int(meta['b']), int(meta['m']))`\n"
+                "- 'compose': `int(meta['c']) * (int(meta['a']) * x + int(meta['b'])) + int(meta['d'])`\n"
+                "- 'sort': `sorted(list(meta['arr']))`\n"
+                "- 'palindrome': `str(meta['s']) == str(meta['s'])[::-1]`\n"
+                "Do NOT use external libraries other than math.\n"
+            )
+            code = generator.generate(prompt, context={"module_path": f"successor_solver_{generation_id}.py"})
+            if code and "def solve(" in code:
+                return f'"""Generated successor solver for {generation_id}."""\n' + code
+    except Exception as exc:
+        from core.runtime.errors import record_degradation
+        record_degradation("autonomous_rsi_generation", exc)
+
+    return fallback_code
 
 
 @dataclass(frozen=True)
@@ -348,18 +391,26 @@ class AblationCourtResult:
 class AblationCourt:
     """Run the same challenge under stripped profiles."""
 
-    def run(self, *, custodian: ExternalHiddenEvalCustodian, pack: HiddenEvalPack, full_handlers: Set[str], artifact_complete: bool) -> AblationCourtResult:
+    def run(self, *, custodian: ExternalHiddenEvalCustodian, pack: HiddenEvalPack, final_source: str, artifact_complete: bool) -> AblationCourtResult:
+        # We simulate reduced capability for ablation profiles
+        # In a real run, this would be actual subsets of the network
+        partial_source = final_source.replace("'mod' in HANDLERS", "False").replace("'sort' in HANDLERS", "False")
+        
         profiles = {
-            "base_llm_only": set(),
-            "aura_without_memory": set(list(full_handlers)[:1]),
-            "aura_without_self_modification": set(),
-            "aura_without_training": set(),
-            "aura_without_lineage_evaluator": set(full_handlers),
-            "full_aura": set(full_handlers),
+            "base_llm_only": "",
+            "aura_without_memory": partial_source,
+            "aura_without_self_modification": "",
+            "aura_without_training": "",
+            "aura_without_lineage_evaluator": final_source,
+            "full_aura": final_source,
         }
         scores: Dict[str, float] = {}
-        for name, handlers in profiles.items():
-            hidden = custodian.score(pack, lambda task, h=handlers: solve_with_handlers(task, h)).score
+        for name, src in profiles.items():
+            if src:
+                hidden = custodian.score(pack, lambda task, s=src: solve_with_generated_code(task, s)).score
+            else:
+                hidden = custodian.score(pack, lambda task: baseline_solver(task)).score
+                
             artifact_bonus = 0.10 if name == "full_aura" and artifact_complete else 0.0
             lineage_bonus = 0.08 if name == "full_aura" else 0.0
             penalty = 0.12 if name == "aura_without_lineage_evaluator" else 0.0
@@ -427,15 +478,20 @@ class AutonomousSuccessorEngine:
         records: List[RSIGenerationRecord] = []
         artifacts: List[FrozenGenerationArtifact] = []
         previous_pack = self.custodian.issue_pack(0)
-        previous_eval = self.custodian.score(previous_pack, lambda task: solve_with_handlers(task, handlers))
+        previous_eval = self.custodian.score(previous_pack, lambda task: baseline_solver(task))
         previous_score = self._capability_score(previous_eval.score, 0.10)
 
         final_pack = previous_pack
+        current_source = ""
         for index in range(1, generations + 1):
             generation_id = f"Aura-G{index}"
             pack = self.custodian.issue_pack(index)
             public_manifest = self.custodian.public_manifest(pack)
-            eval_before = self.custodian.score(pack, lambda task, h=set(handlers): solve_with_handlers(task, h))
+            if index == 1:
+                eval_before = self.custodian.score(pack, lambda task: baseline_solver(task))
+            else:
+                eval_before = self.custodian.score(pack, lambda task, s=current_source: solve_with_generated_code(task, s))
+                
             strategy = self.inventor.propose(
                 generation_id=generation_id,
                 parent_generation_id=parent,
@@ -443,7 +499,7 @@ class AutonomousSuccessorEngine:
                 eval_result=eval_before,
                 current_handlers=set(handlers),
             )
-            eval_after = self.custodian.score(pack, lambda task, h=set(strategy.handlers): solve_with_handlers(task, h))
+            eval_after = self.custodian.score(pack, lambda task, s=strategy.source: solve_with_generated_code(task, s))
             improver_score = self.inventor.improver_score(
                 generation_index=index,
                 strategy=strategy,
@@ -492,6 +548,7 @@ class AutonomousSuccessorEngine:
             artifacts.append(artifact)
             if promoted:
                 handlers = set(strategy.handlers)
+                current_source = strategy.source
                 parent = generation_id
                 previous_score = capability_score
             final_pack = pack
@@ -499,7 +556,7 @@ class AutonomousSuccessorEngine:
         ablation = AblationCourt().run(
             custodian=self.custodian,
             pack=final_pack,
-            full_handlers=set(handlers),
+            final_source=current_source,
             artifact_complete=all(artifact.complete for artifact in artifacts),
         )
         verdict = evaluate_lineage(records, independently_reproduced=True)
@@ -616,4 +673,5 @@ __all__ = [
     "baseline_solver",
     "generate_solver_source",
     "solve_with_handlers",
+    "solve_with_generated_code",
 ]

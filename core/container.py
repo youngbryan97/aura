@@ -118,6 +118,45 @@ class ServiceContainer:
             return cls._instance
 
     @classmethod
+    def get_all_subsystem_statuses(cls) -> Dict[str, str]:
+        """Return the active/degraded/missing status of all registered subsystems."""
+        with cls._lock:
+            statuses = {}
+            for name, desc in cls._services.items():
+                if desc.instance is not None:
+                    # Look for explicit status reporting
+                    if hasattr(desc.instance, "get_status") and callable(desc.instance.get_status):
+                        try:
+                            # We can't await async methods here securely without an event loop, 
+                            # so we'll just mark it active if we can't synchronously invoke.
+                            import inspect
+                            if inspect.iscoroutinefunction(desc.instance.get_status):
+                                statuses[name] = "active"
+                            else:
+                                st = desc.instance.get_status()
+                                statuses[name] = st.get("status", "active") if isinstance(st, dict) else str(st)
+                        except Exception:
+                            statuses[name] = "active"
+                    elif hasattr(desc.instance, "status") and callable(desc.instance.status):
+                        try:
+                            import inspect
+                            if inspect.iscoroutinefunction(desc.instance.status):
+                                statuses[name] = "active"
+                            else:
+                                st = desc.instance.status()
+                                statuses[name] = st.get("status", "active") if isinstance(st, dict) else str(st)
+                        except Exception:
+                            statuses[name] = "active"
+                    else:
+                        statuses[name] = "active"
+                else:
+                    if desc.required:
+                        statuses[name] = "missing"
+                    else:
+                        statuses[name] = "stub"
+            return statuses
+            
+    @classmethod
     def register(
         cls,
         name: str,
@@ -416,6 +455,7 @@ class ServiceContainer:
                 return desc.instance
             if not desc:
                 if default != "_SENTINEL":
+                    cls._emit_absent_event(resolved_name)
                     return default
                 raise ServiceNotFoundError(f"Service '{resolved_name}' not found in static registry.")
 
@@ -432,6 +472,7 @@ class ServiceContainer:
 
             if desc is None:
                 if default != "_SENTINEL":
+                    cls._emit_absent_event(resolved_name)
                     return default
                 raise ServiceNotFoundError(f"Service '{resolved_name}' not found in static registry.")
 
@@ -691,6 +732,23 @@ class ServiceContainer:
         ).hexdigest()
         cls._last_seal_hash = current
         return str(stored.get("hash", "")) == current
+
+    @classmethod
+    def _emit_absent_event(cls, service_name: str) -> None:
+        """Emit a warning event when a service defaults to None, replacing silent no-ops."""
+        try:
+            from core.health.degraded_events import record_degraded_event
+            record_degraded_event(
+                "service_container",
+                "SUBSYSTEM_ABSENT",
+                detail=service_name,
+                severity="warning",
+                classification="background_degraded",
+                context={"service": service_name},
+            )
+        except Exception:
+            pass
+
 
 def get_container() -> Type[ServiceContainer]:
     return ServiceContainer

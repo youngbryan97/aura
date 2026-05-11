@@ -519,6 +519,24 @@ class LearningScheduler:
             if not examples:
                 return False
 
+            # Consult the Will before proceeding with weight updates
+            try:
+                from core.will import ActionDomain, get_will
+                decision = get_will().decide(
+                    content=f"genuine_learning_training_run:{len(examples)}_examples",
+                    source="genuine_learning_pipeline",
+                    domain=ActionDomain.STATE_MUTATION,
+                    priority=0.8,
+                    context={"operation": "lora_training_batch", "reason": reason},
+                )
+                if not decision.is_approved():
+                    logger.warning("🚫 Will rejected genuine learning run: %s", decision.reason)
+                    return False
+                logger.info("✅ Will approved training run (Receipt: %s)", decision.receipt_id)
+            except Exception as e:
+                record_degradation("genuine_learning_will", e)
+                logger.warning("⚠️ Proceeding with training despite Will exception: %s", e)
+
             # Train
             success = await self.trainer.train(examples)
             if not success:
